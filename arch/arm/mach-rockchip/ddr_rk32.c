@@ -1768,10 +1768,9 @@ static void ddr_get_datatraing_addr(uint32 *pdtar)
 	        {
 	            cap1 += cap1 >> (READ_ROW_INFO(1,0)-READ_ROW_INFO(1,1));
 	        }
-	        if(READ_CH_ROW_INFO(1))
-	        {
-	            cap1 = cap1*3/4;
-	        }
+		if (READ_CH_ROW_INFO(1))
+			cap1 = (u64)cap1 * 3 / 4;
+
 		 chAddr[0] = addr;
 		 chAddr[1] = cap1 - PAGE_SIZE;
 		 if(READ_CS_INFO(1) > 1)
@@ -4477,7 +4476,7 @@ static void ddr_monitor_stop(void)
 }
 
 static void _ddr_bandwidth_get(struct ddr_bw_info *ddr_bw_ch0,
-			struct ddr_bw_info *ddr_bw_ch1)
+			       struct ddr_bw_info *ddr_bw_ch1)
 {
 	u32 ddr_bw_val[2][ddrbw_id_end], ddr_freq;
 	u64 temp64;
@@ -4487,62 +4486,76 @@ static void _ddr_bandwidth_get(struct ddr_bw_info *ddr_bw_ch0,
 	for (j = 0; j < 2; j++) {
 		for (i = 0; i < ddrbw_eff; i++)
 			ddr_bw_val[j][i] =
-				grf_readl(RK3288_GRF_SOC_STATUS11+i*4+j*16);
+				grf_readl(RK3288_GRF_SOC_STATUS11 +
+					  i * 4 + j * 16);
 	}
 	if (!ddr_bw_val[0][ddrbw_time_num])
 		goto end;
 
 	if (ddr_bw_ch0) {
+		/*
+		 * read noc register first, to avoid
+		 * noc's statistics not match with
+		 * ddr monitor's result
+		 */
+		ddr_bw_ch0->cpum = (noc_readl(0x400 + 0x178) << 16)
+			+ (noc_readl(0x400 + 0x164));
+		ddr_bw_ch0->gpu = (noc_readl(0x800 + 0x178) << 16)
+			+ (noc_readl(0x800 + 0x164));
+		ddr_bw_ch0->peri = (noc_readl(0xc00 + 0x178) << 16)
+			+ (noc_readl(0xc00 + 0x164));
+		ddr_bw_ch0->video = (noc_readl(0x1000 + 0x178) << 16)
+			+ (noc_readl(0x1000 + 0x164));
+		ddr_bw_ch0->vio0 = (noc_readl(0x1400 + 0x178) << 16)
+			+ (noc_readl(0x1400 + 0x164));
+		ddr_bw_ch0->vio1 = (noc_readl(0x1800 + 0x178) << 16)
+			+ (noc_readl(0x1800 + 0x164));
+		ddr_bw_ch0->vio2 = (noc_readl(0x1c00 + 0x178) << 16)
+			+ (noc_readl(0x1c00 + 0x164));
+
 		ddr_freq = readl_relaxed(RK_DDR_VIRT + 0xc0);
 
-		temp64 = ((u64)ddr_bw_val[0][0]+ddr_bw_val[0][1])*4*100;
+		temp64 = ((u64)ddr_bw_val[0][0] + ddr_bw_val[0][1]) *
+				4 * 100;
 		do_div(temp64, ddr_bw_val[0][ddrbw_time_num]);
 		ddr_bw_val[0][ddrbw_eff] = temp64;
 
 		ddr_bw_ch0->ddr_percent = temp64;
 		ddr_bw_ch0->ddr_time =
-			ddr_bw_val[0][ddrbw_time_num]/(ddr_freq*1000);
-		ddr_bw_ch0->ddr_wr =
-			(ddr_bw_val[0][ddrbw_wr_num]*8*4)*
-				ddr_freq/ddr_bw_val[0][ddrbw_time_num];
-		ddr_bw_ch0->ddr_rd =
-			(ddr_bw_val[0][ddrbw_rd_num]*8*4)*
-				ddr_freq/ddr_bw_val[0][ddrbw_time_num];
+			ddr_bw_val[0][ddrbw_time_num] / (ddr_freq * 1000);
+		temp64 = ((u64)(ddr_bw_val[0][ddrbw_wr_num] * 8 * 4) *
+				(u64)ddr_freq);
+		do_div(temp64, ddr_bw_val[0][ddrbw_time_num]);
+		ddr_bw_ch0->ddr_wr = (u32)temp64;
+		temp64 = ((u64)(ddr_bw_val[0][ddrbw_rd_num] * 8 * 4) *
+				(u64)ddr_freq);
+		do_div(temp64, ddr_bw_val[0][ddrbw_time_num]);
+		ddr_bw_ch0->ddr_rd = (u32)temp64;
 		ddr_bw_ch0->ddr_act =
 			ddr_bw_val[0][ddrbw_act_num];
-		ddr_bw_ch0->ddr_total =
-			ddr_freq*2*4;
+		ddr_bw_ch0->ddr_total = ddr_freq * 2 * 4;
 
-		ddr_bw_ch0->cpum = (noc_readl(0x400+0x178)<<16)
-			+ (noc_readl(0x400+0x164));
-		ddr_bw_ch0->gpu = (noc_readl(0x800+0x178)<<16)
-			+ (noc_readl(0x800+0x164));
-		ddr_bw_ch0->peri = (noc_readl(0xc00+0x178)<<16)
-			+ (noc_readl(0xc00+0x164));
-		ddr_bw_ch0->video = (noc_readl(0x1000+0x178)<<16)
-			+ (noc_readl(0x1000+0x164));
-		ddr_bw_ch0->vio0 = (noc_readl(0x1400+0x178)<<16)
-			+ (noc_readl(0x1400+0x164));
-		ddr_bw_ch0->vio1 = (noc_readl(0x1800+0x178)<<16)
-			+ (noc_readl(0x1800+0x164));
-		ddr_bw_ch0->vio2 = (noc_readl(0x1c00+0x178)<<16)
-			+ (noc_readl(0x1c00+0x164));
-
-		ddr_bw_ch0->cpum =
-			ddr_bw_ch0->cpum*ddr_freq/ddr_bw_val[0][ddrbw_time_num];
-		ddr_bw_ch0->gpu =
-			ddr_bw_ch0->gpu*ddr_freq/ddr_bw_val[0][ddrbw_time_num];
-		ddr_bw_ch0->peri =
-			ddr_bw_ch0->peri*ddr_freq/ddr_bw_val[0][ddrbw_time_num];
-		ddr_bw_ch0->video =
-			ddr_bw_ch0->video*
-				ddr_freq/ddr_bw_val[0][ddrbw_time_num];
-		ddr_bw_ch0->vio0 =
-			ddr_bw_ch0->vio0*ddr_freq/ddr_bw_val[0][ddrbw_time_num];
-		ddr_bw_ch0->vio1 =
-			ddr_bw_ch0->vio1*ddr_freq/ddr_bw_val[0][ddrbw_time_num];
-		ddr_bw_ch0->vio2 =
-			ddr_bw_ch0->vio2*ddr_freq/ddr_bw_val[0][ddrbw_time_num];
+		temp64 = ((u64)ddr_bw_ch0->cpum * (u64)ddr_freq);
+		do_div(temp64, ddr_bw_val[0][ddrbw_time_num]);
+		ddr_bw_ch0->cpum = (u32)temp64;
+		temp64 = ((u64)ddr_bw_ch0->gpu * (u64)ddr_freq);
+		do_div(temp64, ddr_bw_val[0][ddrbw_time_num]);
+		ddr_bw_ch0->gpu = (u32)temp64;
+		temp64 = ((u64)ddr_bw_ch0->peri * (u64)ddr_freq);
+		do_div(temp64, ddr_bw_val[0][ddrbw_time_num]);
+		ddr_bw_ch0->peri = (u32)temp64;
+		temp64 = ((u64)ddr_bw_ch0->video * (u64)ddr_freq);
+		do_div(temp64, ddr_bw_val[0][ddrbw_time_num]);
+		ddr_bw_ch0->video = (u32)temp64;
+		temp64 = ((u64)ddr_bw_ch0->vio0 * (u64)ddr_freq);
+		do_div(temp64, ddr_bw_val[0][ddrbw_time_num]);
+		ddr_bw_ch0->vio0 = (u32)temp64;
+		temp64 = ((u64)ddr_bw_ch0->vio1 * (u64)ddr_freq);
+		do_div(temp64, ddr_bw_val[0][ddrbw_time_num]);
+		ddr_bw_ch0->vio1 = (u32)temp64;
+		temp64 = ((u64)ddr_bw_ch0->vio1 * (u64)ddr_freq);
+		do_div(temp64, ddr_bw_val[0][ddrbw_time_num]);
+		ddr_bw_ch0->vio2 = (u32)temp64;
 	}
 end:
 	ddr_monitor_start();
