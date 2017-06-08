@@ -969,13 +969,32 @@ static u32  rkpm_slp_mode_set(u32 ctrbits)
     else if(rkpm_chk_val_ctrbits(ctrbits,RKPM_CTR_ARMOFF_LPMD))
     {   
         rkpm_ddr_printascii("-armoff-");                         
-        mode_set|=BIT(pmu_scu_en)
-                            //|BIT(pmu_a12_0_pd_en) 
-                            |BIT(pmu_clk_core_src_gate_en) // »½ÐÑºóÒì³£
-                            |BIT(pmu_sref0_enter_en)|BIT(pmu_sref1_enter_en) 
-                            |BIT(pmu_ddr0_gating_en)|BIT(pmu_ddr1_gating_en)              
-                            //|BIT(pmu_ddr1io_ret_en)|BIT(pmu_ddr0io_ret_en)   
-                            |BIT(pmu_chip_pd_en);
+	if ((pmu_readl(RK3288_PMU_SYS_REG2) >> 12) & 1)
+		mode_set |= BIT(pmu_scu_en)
+			//|BIT(pmu_a12_0_pd_en)
+			| BIT(pmu_clk_core_src_gate_en)
+			| BIT(pmu_sref0_enter_en)
+			| BIT(pmu_sref1_enter_en)
+			| BIT(pmu_ddr0_gating_en)
+			| BIT(pmu_ddr1_gating_en)
+			//|BIT(pmu_ddr1io_ret_en)|BIT(pmu_ddr0io_ret_en)
+			| BIT(pmu_chip_pd_en);
+	else
+		/*
+		 * remove BIT(pmu_sref1_enter_en)
+		 * BIT(pmu_ddr1_gating_en)
+		 * when there's only one ddr channel
+		 */
+		mode_set |= BIT(pmu_scu_en)
+			//|BIT(pmu_a12_0_pd_en)
+			| BIT(pmu_clk_core_src_gate_en)
+			| BIT(pmu_sref0_enter_en)
+			/* |BIT(pmu_sref1_enter_en) */
+			| BIT(pmu_ddr0_gating_en)
+			/* |BIT(pmu_ddr1_gating_en) */
+			/* |BIT(pmu_ddr1io_ret_en) */
+			/* |BIT(pmu_ddr0io_ret_en) */
+			| BIT(pmu_chip_pd_en);
         mode_set1=BIT(pmu_clr_core)|BIT(pmu_clr_cpup)
                                 |BIT(pmu_clr_alive)
                                 |BIT(pmu_clr_peri)
@@ -985,16 +1004,35 @@ static u32  rkpm_slp_mode_set(u32 ctrbits)
     } 
     else if(rkpm_chk_val_ctrbits(ctrbits,RKPM_CTR_ARMOFF_LOGDP_LPMD))
     {
-    
-        rkpm_ddr_printascii("-armoff-logdp-");        
-        
-        mode_set|=BIT(pmu_scu_en)|BIT(pmu_bus_pd_en)
-                            |BIT(pmu_chip_pd_en)
-                            |BIT(pmu_sref0_enter_en)|BIT(pmu_sref1_enter_en) 
-                            |BIT(pmu_ddr0_gating_en)|BIT(pmu_ddr1_gating_en)              
-                            |BIT(pmu_ddr1io_ret_en)|BIT(pmu_ddr0io_ret_en)   
-                            |BIT(pmu_osc_24m_dis)|BIT(pmu_pmu_use_lf)|BIT(pmu_alive_use_lf)|BIT(pmu_pll_pd_en)
-                            ;
+	rkpm_ddr_printascii("-armoff-logdp-");
+
+	if ((pmu_readl(RK3288_PMU_SYS_REG2) >> 12) & 1)
+		mode_set |= BIT(pmu_scu_en) | BIT(pmu_bus_pd_en)
+			| BIT(pmu_chip_pd_en)
+			| BIT(pmu_sref0_enter_en) | BIT(pmu_sref1_enter_en)
+			| BIT(pmu_ddr0_gating_en) | BIT(pmu_ddr1_gating_en)
+			| BIT(pmu_ddr0io_ret_en) | BIT(pmu_ddr1io_ret_en)
+			| BIT(pmu_osc_24m_dis) | BIT(pmu_pmu_use_lf)
+			| BIT(pmu_alive_use_lf) | BIT(pmu_pll_pd_en)
+			;
+	else
+		/*
+		 * remove BIT(pmu_sref1_enter_en)
+		 * BIT(pmu_ddr1_gating_en)
+		 * BIT(pmu_ddr1io_ret_en)
+		 * when there's only one ddr channel
+		 */
+		mode_set |= BIT(pmu_scu_en) | BIT(pmu_bus_pd_en)
+			| BIT(pmu_chip_pd_en)
+			| BIT(pmu_sref0_enter_en)
+			/* |BIT(pmu_sref1_enter_en) */
+			| BIT(pmu_ddr0_gating_en)
+			/* |BIT(pmu_ddr1_gating_en) */
+			/* |BIT(pmu_ddr1io_ret_en) */
+			| BIT(pmu_ddr0io_ret_en)
+			| BIT(pmu_osc_24m_dis) | BIT(pmu_pmu_use_lf)
+			| BIT(pmu_alive_use_lf) | BIT(pmu_pll_pd_en)
+			;
         mode_set1=BIT(pmu_clr_core)|BIT(pmu_clr_cpup)
                            |BIT(pmu_clr_alive)
                            |BIT(pmu_clr_peri)
@@ -1861,14 +1899,13 @@ static void gpio_get_dts_info(struct device_node *parent)
         if(temp_len)
         {
             printk("%s suspend:%d\n",__FUNCTION__,temp_len);
-            if(temp_len)
-            {
-                if(of_property_read_u32_array(parent,"rockchip,pmic-suspend_gpios",&suspend_gpios[0],temp_len/4))
-                {
-                        suspend_gpios[0]=0;
-                       printk("%s:get pm ctr error\n",__FUNCTION__);
-                }
-            }
+		if (of_property_read_u32_array(parent,
+					      "rockchip,pmic-suspend_gpios",
+					      &suspend_gpios[0],
+					      temp_len / 4)) {
+			suspend_gpios[0] = 0;
+			pr_err("%s:get pm ctr error\n", __func__);
+		}
         }
 
        temp_len=of_find_property_value_getsize(parent,"rockchip,pmic-resume_gpios");

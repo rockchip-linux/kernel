@@ -4248,24 +4248,22 @@ void ddr_reg_save(uint32 *pArg)
     pMSCH_REG     pMSCH_Reg;
     
     p_ddr_reg->tag = 0x56313031;
+	p_ddr_reg->pctlAddr[0] = RK3288_DDR_PCTL0_PHYS;
+	p_ddr_reg->publAddr[0] = RK3288_DDR_PUBL0_PHYS;
     if(p_ddr_ch[0]->mem_type != DRAM_MAX)
     {
-        p_ddr_reg->pctlAddr[0] = RK3288_DDR_PCTL0_PHYS;
-        p_ddr_reg->publAddr[0] = RK3288_DDR_PUBL0_PHYS;
         p_ddr_reg->nocAddr[0] = RK3288_SERVICE_BUS_PHYS;
         pDDR_Reg = p_ddr_ch[0]->pDDR_Reg;
         pPHY_Reg = p_ddr_ch[0]->pPHY_Reg;
     }
     else
     {
-        p_ddr_reg->pctlAddr[0] = 0xFFFFFFFF;
-        p_ddr_reg->publAddr[0] = 0xFFFFFFFF;
         p_ddr_reg->nocAddr[0] = 0xFFFFFFFF;
     }
+	p_ddr_reg->pctlAddr[1] = RK3288_DDR_PCTL1_PHYS;
+	p_ddr_reg->publAddr[1] = RK3288_DDR_PUBL1_PHYS;
     if(p_ddr_ch[1]->mem_type != DRAM_MAX)
     {
-        p_ddr_reg->pctlAddr[1] = RK3288_DDR_PCTL1_PHYS;
-        p_ddr_reg->publAddr[1] = RK3288_DDR_PUBL1_PHYS;
         p_ddr_reg->nocAddr[1] = RK3288_SERVICE_BUS_PHYS+0x80;
         if((pDDR_Reg == NULL) || (pPHY_Reg == NULL))
         {
@@ -4275,8 +4273,6 @@ void ddr_reg_save(uint32 *pArg)
     }
     else
     {
-        p_ddr_reg->pctlAddr[1] = 0xFFFFFFFF;
-        p_ddr_reg->publAddr[1] = 0xFFFFFFFF;
         p_ddr_reg->nocAddr[1] = 0xFFFFFFFF;
     }
     
