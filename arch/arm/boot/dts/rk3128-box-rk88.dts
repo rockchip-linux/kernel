@@ -228,7 +228,7 @@
 };
 
 &disp_timings {
-	native-mode = <&timing1>;
+	native-mode = <&timing0>;
 };
 
 &rk_screen {
