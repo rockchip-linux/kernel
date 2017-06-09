@@ -330,6 +330,8 @@
 			/*lvds-format = <LVDS_8BIT_2>;*/
 			out-face    = <OUT_P888>;
 			clock-frequency = <62000000>;
+			screen-width = <70>;
+			screen-hight = <123>;
 			hactive = <720>;
 			vactive = <1280>;
 			hsync-len = <4>;
