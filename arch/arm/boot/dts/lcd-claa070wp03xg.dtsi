@@ -72,6 +72,8 @@
 				swap-rb = <0>;
 				swap-rg = <0>;
 				swap-gb = <0>;
+				screen-width = <94>;
+				screen-hight = <150>;
 		};
 	};
 };
