@@ -44,8 +44,8 @@
 #include "rk3328.dtsi"
 
 / {
-	model = "Rockchip RK3328 EVB";
-	compatible = "rockchip,rk3328-evb", "rockchip,rk3328";
+	model = "Rockchip RK3328 Rock64";
+	compatible = "rockchip,rk3328-rock64", "rockchip,rk3328";
 
 	chosen {
 		bootargs = "rockchip_jtag earlyprintk=uart8250-32bit,0xff130000";
