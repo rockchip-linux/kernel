@@ -105,13 +105,13 @@
 		clk_core {
 			operating-points = <
 				/* KHz    uV */
-				//216000 1050000
-				//408000 1050000
-				600000 1200000
-				696000 1250000
-				816000 1300000
-				1008000 1350000
-				1200000 1425000
+				216000 950000
+				408000 950000
+				600000 1025000
+				696000 1100000
+				816000 1150000
+				1008000 1275000
+				1200000 1450000
 				>;
 			virt-temp-limit-1-cpu-busy = <
 			/* target-temp	limit-freq */
@@ -143,6 +143,14 @@
 				>;
 			temp-limit-enable = <1>;
 			target-temp = <85>;
+			channel = <0>;
+			lkg_adjust_volt_en = <1>;
+			def_table_lkg = <18>;
+			min_adjust_freq = <600000>;
+			lkg_adjust_volt_table = <
+				/*lkg(mA)  volt(uV)*/
+				60         50000
+				>;
 			status = "okay";
 		};
 	};
@@ -153,11 +161,10 @@
 		clk_ddr {
 			operating-points = <
 				/* KHz    uV */
-				200000 1250000
-				300000 1250000
-				400000 1250000
-				456000 1250000
-				533000 1250000
+				200000 950000
+				300000 950000
+				400000 1100000
+				456000 1200000
 				>;
 
 			freq-table = <
@@ -169,7 +176,7 @@
 				SYS_STATUS_PERFORMANCE  456000
 				//SYS_STATUS_DUALVIEW	400000
 				//SYS_STATUS_BOOST	324000
-				//SYS_STATUS_ISP		533000
+				//SYS_STATUS_ISP		456000
 				>;
 			auto-freq-table = <
 				240000
@@ -178,18 +185,34 @@
 				//528000
 				>;
 			auto-freq=<0>;
-			status="okay";
+			channel = <0>;
+			lkg_adjust_volt_en = <1>;
+			def_table_lkg = <18>;
+			min_adjust_freq = <396000>;
+			lkg_adjust_volt_table = <
+				/*lkg(mA)  volt(uV)*/
+				60         50000
+				>;
+			status = "okay";
 		};
 	};
 	pd_gpu {
 		clk_gpu {
 			operating-points = <
 				/* KHz    uV */
-				200000 1050000
-				300000 1100000
+				200000 975000
+				300000 1050000
 				400000 1150000
 				480000 1250000
 				>;
+				channel = <0>;
+				lkg_adjust_volt_en = <1>;
+				def_table_lkg = <18>;
+				min_adjust_freq = <400000>;
+				lkg_adjust_volt_table = <
+					/*lkg(mA)  volt(uV)*/
+					60         50000
+					>;
 				status = "okay";
 		};
 	};
