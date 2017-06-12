@@ -3887,30 +3887,112 @@ static uint32 ddr_change_freq_gpll_dpll(uint32 nMHz)
 }
 #endif
 
+/*
+ * major_cpu is the cpu responsible for ddr change frequency.
+ * it need more stack than other cpu. so need to allocate
+ * a big stack for.
+ * because major_cpu maybe one of cpu0-3,
+ * so use this array to allocate stack according to different
+ * major_cpu.
+ * the allocate result as:
+ * ------------------- MSB address
+ * | other cpu stack | (index 0)
+ * -------------------
+ * | other cpu stack | (index 1)
+ * -------------------
+ * | other cpu stack | (index 2)
+ * -------------------
+ * | major cpu stack | (index 3)
+ * |                 |
+ * :                 :
+ * :                 :
+ * |                 |
+ * ------------------- LSB address
+ *
+ * ie: major_cpu=1, cpu1, the allocate result is
+ * ------------------- MSB address
+ * | cpu 2 stack     |
+ * -------------------
+ * | cpu 3 stack     |
+ * -------------------
+ * | cpu 0 stack     |
+ * -------------------
+ * | cpu 1 stack     |
+ * |                 |
+ * :                 :
+ * :                 :
+ * |                 |
+ * ------------------- LSB address
+ */
+static const u32 cpu_stack_idx[4][4] = {
+	{3, 0, 1, 2},
+	{2, 3, 0, 1},
+	{1, 2, 3, 0},
+	{0, 1, 2, 3},
+};
+
 bool DEFINE_PIE_DATA(cpu_pause[NR_CPUS]);
+u32 DEFINE_PIE_DATA(major_cpu);
 volatile bool *DATA(p_cpu_pause);
-static inline bool is_cpu0_paused(unsigned int cpu) { smp_rmb(); return DATA(cpu_pause)[0]; }
-static inline void set_cpuX_paused(unsigned int cpu, bool pause) { DATA(cpu_pause)[cpu] = pause; smp_wmb(); }
-static inline bool is_cpuX_paused(unsigned int cpu) { smp_rmb(); return DATA(p_cpu_pause)[cpu]; }
-static inline void set_cpu0_paused(bool pause) { DATA(p_cpu_pause)[0] = pause; smp_wmb();}
+static inline bool is_major_cpu_paused(unsigned int cpu)
+{
+	/* memory barrier first */
+	smp_rmb();
+	return DATA(cpu_pause)[cpu];
+}
+
+static inline void set_cpuX_paused(unsigned int cpu, bool pause)
+{
+	DATA(cpu_pause)[cpu] = pause;
+	/* make sure other cpu get the right value */
+	smp_wmb();
+}
+
+static inline bool is_cpuX_paused(unsigned int cpu)
+{
+	/* memory barrier first */
+	smp_rmb();
+	return DATA(p_cpu_pause)[cpu];
+}
+
+static inline u32 get_major_cpu(void)
+{
+	return *kern_to_pie(rockchip_pie_chunk, &DATA(major_cpu));
+}
+
+static inline void set_major_cpu_paused(u32 cpu, bool pause)
+{
+	DATA(p_cpu_pause)[cpu] = pause;
+	/* make sure other cpu get the right value */
+	smp_wmb();
+}
 
 /* Do not use stack, safe on SMP */
 void PIE_FUNC(_pause_cpu)(void *arg)
-{       
-    unsigned int cpu = (unsigned int)arg;
-    
-    set_cpuX_paused(cpu, true);
-    while (is_cpu0_paused(cpu));
-    set_cpuX_paused(cpu, false);
+{
+	unsigned int cpu = (unsigned int)arg;
+
+	set_cpuX_paused(cpu, true);
+	while (is_major_cpu_paused(DATA(major_cpu)))
+		continue;
+	set_cpuX_paused(cpu, false);
 }
 
 static void pause_cpu(void *info)
 {
-    unsigned int cpu = raw_smp_processor_id();
+	unsigned int cpu = raw_smp_processor_id();
+	u32 stack_off = cpu_stack_idx[get_major_cpu()][cpu];
+	unsigned long flags;
 
-    call_with_stack(fn_to_pie(rockchip_pie_chunk, &FUNC(_pause_cpu)),
-            (void *)cpu,
-            rockchip_sram_stack-(cpu-1)*PAUSE_CPU_STACK_SIZE);
+	stack_off *= PAUSE_CPU_STACK_SIZE;
+	local_irq_save(flags);
+	local_fiq_disable();
+	call_with_stack(fn_to_pie(rockchip_pie_chunk,
+			&FUNC(_pause_cpu)),
+			(void *)cpu,
+			rockchip_sram_stack - stack_off);
+	local_fiq_enable();
+	local_irq_restore(flags);
 }
 
 static void wait_cpu(void *info)
@@ -3921,17 +4003,19 @@ static int call_with_single_cpu(u32 (*fn)(void *arg), void *arg)
 {
 	s64 now_ns, timeout_ns;
 	unsigned int cpu;
-	unsigned int this_cpu = smp_processor_id();
+	unsigned int this_cpu;
 	int ret = 0;
 
 	cpu_maps_update_begin();
 	local_bh_disable();
+	this_cpu = smp_processor_id();
 
 	/* It should take much less than 1s to pause the cpus. It typically
 	* takes around 20us. */
 	timeout_ns = ktime_to_ns(ktime_add_ns(ktime_get(), NSEC_PER_SEC));
 	now_ns = ktime_to_ns(ktime_get());
-	set_cpu0_paused(true);
+	*kern_to_pie(rockchip_pie_chunk, &DATA(major_cpu)) = this_cpu;
+	set_major_cpu_paused(this_cpu, true);
 	smp_call_function((smp_call_func_t)pause_cpu, NULL, 0);
 	for_each_online_cpu(cpu) {
 		if (cpu == this_cpu)
@@ -3946,7 +4030,7 @@ static int call_with_single_cpu(u32 (*fn)(void *arg), void *arg)
 	}
 	ret = fn(arg);
 out:
-	set_cpu0_paused(false);
+	set_major_cpu_paused(this_cpu, false);
 	local_bh_enable();
 	smp_call_function(wait_cpu, NULL, true);
 	cpu_maps_update_done();
