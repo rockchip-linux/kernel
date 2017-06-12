@@ -329,7 +329,10 @@ static int rk312x_lcdc_alpha_cfg(struct lcdc_device *lcdc_dev)
 		have to set 0x800a80 equeal to 0x000000 at rgb domian,after
 		android start we recover to 0x00000*/
 		mask = m_BG_COLOR;
-		val = v_BG_COLOR(0x000000);
+		if (lcdc_dev->driver.output_color)
+			val = v_BG_COLOR(0x801080);
+		else
+			val = v_BG_COLOR(0x000000);
 		lcdc_msk_reg(lcdc_dev, DSP_CTRL1, mask, val);
 	} else if ((!win0_top) && (atv_layer_cnt >= 2) &&
 				(win1_alpha_en)) {
@@ -352,7 +355,10 @@ static int rk312x_lcdc_alpha_cfg(struct lcdc_device *lcdc_dev)
 		have to set 0x800a80 equeal to 0x000000 at rgb domian,after
 		android start we recover to 0x00000*/
 		mask = m_BG_COLOR;
-		val = v_BG_COLOR(0x000000);
+		if (lcdc_dev->driver.output_color)
+			val = v_BG_COLOR(0x801080);
+		else
+			val = v_BG_COLOR(0x000000);
 		lcdc_msk_reg(lcdc_dev, DSP_CTRL1, mask, val);
 	} else {
 		mask = m_WIN0_ALPHA_EN | m_WIN1_ALPHA_EN;
@@ -1388,12 +1394,16 @@ static int rk312x_load_screen(struct rk_lcdc_driver *dev_drv, bool initscreen)
 		       m_DSP_RG_SWAP | m_DSP_DELTA_SWAP |
 		       m_DSP_DUMMY_SWAP | m_BLANK_EN | m_BLACK_EN;
 
-		val = v_BG_COLOR(0x000000) | v_DSP_BG_SWAP(screen->swap_gb) |
-		      v_DSP_RB_SWAP(screen->swap_rb) |
-		      v_DSP_RG_SWAP(screen->swap_rg) |
-		      v_DSP_DELTA_SWAP(screen->swap_delta) |
-		      v_DSP_DUMMY_SWAP(screen->swap_dumy) |
-		      v_BLANK_EN(0) | v_BLACK_EN(0);
+		if (dev_drv->output_color)
+			val = v_BG_COLOR(0x801080);
+		else
+			val = v_BG_COLOR(0x000000);
+		val |= v_DSP_BG_SWAP(screen->swap_gb) |
+			v_DSP_RB_SWAP(screen->swap_rb) |
+			v_DSP_RG_SWAP(screen->swap_rg) |
+			v_DSP_DELTA_SWAP(screen->swap_delta) |
+			v_DSP_DUMMY_SWAP(screen->swap_dumy) |
+			v_BLANK_EN(0) | v_BLACK_EN(0);
 		lcdc_msk_reg(lcdc_dev, DSP_CTRL1, mask, val);
 
 		/* config timing */
