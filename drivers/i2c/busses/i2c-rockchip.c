@@ -253,6 +253,11 @@ static inline void rockchip_i2c_enable(struct rockchip_i2c *i2c, unsigned int la
 	if (lastnak)
 		con |= I2C_CON_LASTACK;
 	con |= I2C_CON_START;
+
+	/* if we want to react to NACK, set ACTACK bit */
+	if (!(i2c->msg->flags & I2C_M_IGNORE_NAK))
+		con |= I2C_CON_ACTACK;
+
 	i2c_writel(con, i2c->regs + I2C_CON);
 }
 
