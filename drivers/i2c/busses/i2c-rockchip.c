@@ -250,8 +250,6 @@ static inline void rockchip_i2c_enable(struct rockchip_i2c *i2c, unsigned int la
 
 	con |= I2C_CON_EN;
 	con |= I2C_CON_MOD(i2c->mode);
-	if (lastnak)
-		con |= I2C_CON_LASTACK;
 	con |= I2C_CON_START;
 
 	/* if we want to react to NACK, set ACTACK bit */
@@ -381,12 +379,18 @@ static void rockchip_i2c_stop(struct rockchip_i2c *i2c, int ret)
 
 static inline void rockchip_set_rx_mode(struct rockchip_i2c *i2c, unsigned int lastnak)
 {
-	unsigned long con = i2c_readl(i2c->regs + I2C_CON);
+	unsigned int con = i2c_readl(i2c->regs + I2C_CON);
 
-	con &= (~I2C_CON_MASK);
-	con |= (I2C_CON_MOD_RX << 1);
 	if (lastnak)
 		con |= I2C_CON_LASTACK;
+	else
+		con &= ~I2C_CON_LASTACK;
+
+	if (i2c->msg_ptr != 0) {
+		con &= (~I2C_CON_MASK);
+		con |= (I2C_CON_MOD_RX << 1);
+	}
+
 	i2c_writel(con, i2c->regs + I2C_CON);
 }
 
@@ -394,19 +398,19 @@ static void rockchip_irq_read_prepare(struct rockchip_i2c *i2c)
 {
 	unsigned int cnt, len = i2c->msg->len - i2c->msg_ptr;
 
-	if (len <= 32 && i2c->msg_ptr != 0)
-		rockchip_set_rx_mode(i2c, 1);
-	else if (i2c->msg_ptr != 0)
-		rockchip_set_rx_mode(i2c, 0);
-
 	if (is_msgend(i2c)) {
 		rockchip_i2c_stop(i2c, i2c->error);
 		return;
 	}
-	if (len > 32)
+
+	if (len > 32) {
 		cnt = 32;
-	else
+		rockchip_set_rx_mode(i2c, 0);
+	} else {
 		cnt = len;
+		rockchip_set_rx_mode(i2c, 1);
+	}
+
 	i2c_writel(cnt, i2c->regs + I2C_MRXCNT);
 }
 
