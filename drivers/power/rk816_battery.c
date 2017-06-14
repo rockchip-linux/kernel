@@ -1917,10 +1917,18 @@ static void rk816_bat_select_chrg_cv(struct rk816_battery *di)
 		di->chrg_vol_sel = (index << CHRG_VOL_SEL_SHIFT);
 	}
 
-	for (index = 0; index < ARRAY_SIZE(CHRG_CUR_INPUT); index++) {
-		if (chrg_cur_input < CHRG_CUR_INPUT[index])
+	for (index = 2; index < ARRAY_SIZE(CHRG_CUR_INPUT); index++) {
+		if (chrg_cur_input < 850 && chrg_cur_input > 80) {
+			di->chrg_cur_input = 0x0;
 			break;
-		di->chrg_cur_input = (index << CHRG_CRU_INPUT_SHIFT);
+		} else if (chrg_cur_input <= 80) {
+			di->chrg_cur_input = 0x1;
+			break;
+		} else {
+			if (chrg_cur_input < CHRG_CUR_INPUT[index])
+				break;
+			di->chrg_cur_input = (index << CHRG_CRU_INPUT_SHIFT);
+		}
 	}
 
 	for (index = 0; index < ARRAY_SIZE(CHRG_CUR_SEL); index++) {

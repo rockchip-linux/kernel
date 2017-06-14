@@ -228,7 +228,7 @@ static const u16 CHRG_CUR_SEL[] = {
 };
 
 static const u16 CHRG_CUR_INPUT[] = {
-	450, 800, 850, 1000, 1250, 1500, 1750, 2000
+	450, 80, 850, 1000, 1250, 1500, 1750, 2000
 };
 
 void kernel_power_off(void);
