@@ -1245,6 +1245,8 @@ static struct gadget_wrapper *alloc_wrapper(struct platform_device *_dev)
 	d->gadget.is_otg = dwc_otg_pcd_is_otg(otg_dev->pcd);
 
 	d->gadget.max_speed = USB_SPEED_HIGH;
+	d->gadget.quirk_avoids_skb_reserve =
+		otg_dev->core_if->dma_enable ? 1 : 0;
 	d->driver = 0;
 	d->pcd->conn_en = 0;
 	/* Register the gadget device */
