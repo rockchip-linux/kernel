@@ -47,7 +47,7 @@ struct rkfb_sys_trace {
 	bool is_bmp;
 	bool is_append;
 };
-#define DUMP_BUF_PATH		"/data/dmp_buf"
+#define DUMP_BUF_PATH		"/data/dump_buf"
 
 static char *get_format_str(enum data_format format)
 {
@@ -320,6 +320,9 @@ void trace_buffer_dump(struct device *dev, struct rk_lcdc_driver *dev_drv)
 
 	if (!dev_drv->front_regs)
 		return;
+
+	pr_info("num_frames:%d, count_frame:%d, mask_win:0x%x\n",
+		trace->num_frames, trace->count_frame, trace->mask_win);
 	front_regs = dev_drv->front_regs;
 
 	for (i = 0; i < front_regs->win_num; i++) {
@@ -379,6 +382,7 @@ static ssize_t set_dump_buffer(struct device *dev,
 	 * Stop buffer trace.
 	 */
 	trace->num_frames = 0;
+	trace->count_frame = 0;
 
 	while ((p = strsep((char **)&buf, ":")) != NULL) {
 		if (!*p)
@@ -419,6 +423,8 @@ static ssize_t set_dump_buffer(struct device *dev,
 		dev_err(dev, "unknown option %s\n", p);
 	}
 
+	pr_info("num_frames:%d, mask_win:0x%x, mask_area:0x%x, is_bmp:%d, is_append:%d\n",
+		num_frames, mask_win, mask_area, is_bmp, is_append);
 	dentry = kern_path_create(AT_FDCWD, DUMP_BUF_PATH, &path,
 				  LOOKUP_DIRECTORY);
 	if (!IS_ERR(dentry)) {
@@ -511,14 +517,20 @@ static ssize_t show_dsp_buffer(struct device *dev,
 	ssize_t size;
 
 	size = snprintf(buf, PAGE_SIZE,
-			"you can display a picture store in "
-			"/data/fb0.bin use the following cmd:\n"
-			"echo n xsize ysize format > dsp_buf\n"
-			"n: picture number"
-			"xsize: picture horizontal size\n"
-			"ysize: picture vertical size\n"
-			"format:\n"
-			"    RGBA=1,RGBX=2,RGB=3,YUV420SP=17");
+			"\nyou can display a picture(xxx.bin or xxx.bmp)"
+			"use the following cmd:\n"
+			"echo n xsize ysize format file > dsp_buf\n"
+			"n	-- picture number\n"
+			"xsize	-- picture horizontal size\n"
+			"ysize	-- picture vertical size\n"
+			"format	-- picture format:\n"
+			"    RGBA=1,RGBX=2,RGB=3,NV12=32\n"
+			"file	-- picture path and name: /data/xxx.bin or /data/xxx.bmp\n"
+			"\nExample:\n"
+			"    display bmp file:"
+			"\n      echo \"1 1920 1080 1 /data/test.bmp\" > /sys/class/graphics/fb0/dsp_buf\n"
+			"    display bin file:"
+			"\n      echo \"1 1920 1080 1 /data/test.bin\" > /sys/class/graphics/fb0/dsp_buf\n");
 
 	return size;
 }
@@ -542,11 +554,13 @@ static ssize_t set_dsp_buffer(struct device *dev,
 	struct rk_fb_win_cfg_data *win_config = NULL;
 	struct rk_screen *screen = dev_drv->cur_screen;
 	int space_max = 10;
-	int format;
+	int format, bits;
 	size_t mem_size = 0;
-	char *name = "/data/fb0.bin";
+	char name[50] = {0};
+	char *file_format = NULL;
 	struct sync_fence *acq_fence;
 	struct files_struct *files = current->files;
+	bool is_bmp = false;
 
 	frame_num = simple_strtoul(start, NULL, 10);
 	do {
@@ -568,9 +582,20 @@ static ssize_t set_dsp_buffer(struct device *dev,
 	} while ((*start != ' ') && space_max);
 	start++;
 	format = simple_strtoul(start, NULL, 10);
+	do {
+		start++;
+		space_max--;
+	} while ((*start != ' ') && space_max);
+	start++;
+	strcpy(name, start);
+	name[strlen(start) - 1] = 0;
 
-	pr_info("frame_num=%d,w=%d,h=%d,file=%s,format=%d\n",
-		frame_num, width, height, name, format);
+	if (((file_format = strstr(start, "bmp")) != NULL) ||
+		((file_format = strstr(start, "BMP")) != NULL))
+		is_bmp = true;
+
+	pr_info("frame_num=%d,w=%d,h=%d,file=%s,is_bmp:%d, format=%d\n",
+		frame_num, width, height, name, is_bmp, format);
 	flags = O_RDWR | O_CREAT | O_NONBLOCK;
 	filp = filp_open(name, flags, 0x600);
 	if (!filp)
@@ -580,6 +605,8 @@ static ssize_t set_dsp_buffer(struct device *dev,
 	set_fs(KERNEL_DS);
 
 	mem_size = width * height * 4 * frame_num;
+	if (is_bmp)
+		mem_size *= 2;
 	if (dev_drv->iommu_enabled)
 		handle = ion_alloc(rk_fb->ion_client, mem_size, 0,
 				   ION_HEAP(ION_VMALLOC_HEAP_ID), 0);
@@ -596,7 +623,23 @@ static ssize_t set_dsp_buffer(struct device *dev,
 		return fd;
 	}
 	screen_base = ion_map_kernel(rk_fb->ion_client, handle);
-	read_buffer(filp, screen_base, mem_size, 0);
+
+	if (is_bmp) {
+		frame_num = 1;
+		read_buffer(filp, screen_base + mem_size / 2, mem_size, 0);
+		bmpdecoder(screen_base + mem_size / 2,
+			   screen_base, &width, &height, &bits);
+		if (bits == 32)
+			format = HAL_PIXEL_FORMAT_BGRX_8888;
+		else if (bits == 24)
+			format = HAL_PIXEL_FORMAT_BGR_888;
+		else
+			format = HAL_PIXEL_FORMAT_RGB_565;
+		pr_info("bmp file: width:%d, height:%d, bits:%d, format:%d\n",
+			width, height, bits, format);
+	} else {
+		read_buffer(filp, screen_base, mem_size, 0);
+	}
 	win_config =
 		kzalloc(sizeof(*win_config), GFP_KERNEL);
 	if (!win_config)
