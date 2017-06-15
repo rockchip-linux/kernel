@@ -52,6 +52,7 @@ static u8 efuse_buf[32] = {};
 struct rockchip_efuse {
 	int (*get_leakage)(int ch);
 	int (*get_temp)(int ch);
+	int (*get_volt_adjust)(int ch);
 	int efuse_version;
 	int process_version;
 };
@@ -407,6 +408,13 @@ int rockchip_efuse_get_temp_adjust(int ch)
 	return temp;
 }
 
+int rockchip_efuse_get_volt_adjust(int ch)
+{
+	if (efuse.get_volt_adjust)
+		return efuse.get_volt_adjust(ch);
+
+	return 0;
+}
 /**
  * mul_frac() - multiply two fixed-point numbers
  * @x:	first multiplicand
@@ -556,6 +564,15 @@ static int __init rk322xh_get_process_version(void)
 	return ret;
 }
 
+static int __init rk322xh_get_volt_adjust(int ch)
+{
+	if (((efuse_buf[28] >> 4) & 0x07) == 0x5)
+		/* 50 mV */
+		return 50000;
+
+	return 0;
+}
+
 static int __init rockchip_efuse_probe(struct platform_device *pdev)
 {
 	struct resource *regs;
@@ -565,15 +582,25 @@ static int __init rockchip_efuse_probe(struct platform_device *pdev)
 		rockchip_copy_efuse();
 
 		efuse.get_leakage = rk3288_get_leakage;
+		efuse.get_volt_adjust = rk322xh_get_volt_adjust;
 		efuse.process_version = rk322xh_get_process_version();
 		rockchip_set_cpu_version((efuse_buf[26] >> 3) & 7);
 		rk3288_set_system_serial();
 		/*
-		 * efuse_buf[28] bit6 represent sign, raise or down avs,
-		 * efuse_buf[28] bit4-5 represent delta.
+		 * adjust avs_delta by eFuse
 		 */
-		rk322xh_adjust_avs((efuse_buf[28] >> 6) & 0x01,
-				   ((efuse_buf[28] >> 4) & 0x03) * 4);
+		if (((efuse_buf[28] >> 4) & 0x07) == 0x1) {
+			int avs_delta, leakage;
+
+			leakage = rockchip_get_leakage(0);
+			if (leakage && (leakage <= 8))
+				avs_delta = 2;
+			else
+				avs_delta = 4;
+			rk322xh_adjust_avs(avs_delta);
+		} else {
+			rk322xh_adjust_avs(0);
+		}
 
 		return 0;
 	}

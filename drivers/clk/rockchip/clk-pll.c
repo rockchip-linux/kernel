@@ -2742,12 +2742,9 @@ static void clk_322xh_apll_table_correct(void)
 	}
 }
 
-void rk322xh_adjust_avs(int sign_bit, int delta)
+void rk322xh_adjust_avs(int delta)
 {
-	if (sign_bit == 0)
-		rockchip_avs_delta += delta;
-	else
-		rockchip_avs_delta -= delta;
+	rockchip_avs_delta += delta;
 
 	clk_322xh_apll_table_correct();
 }

@@ -1730,6 +1730,22 @@ static void adjust_table_by_leakage(struct dvfs_node *dvfs_node)
 	}
 }
 
+static void adjust_table_by_efuse(struct dvfs_node *dvfs_node, int adjust_volt)
+{
+	int i;
+	struct cpufreq_frequency_table *dvfs_table;
+
+	if (!adjust_volt)
+		return;
+
+	if (!dvfs_node->dvfs_table)
+		return;
+
+	dvfs_table = dvfs_node->dvfs_table;
+	for (i = 0; (dvfs_table[i].frequency != CPUFREQ_TABLE_END); i++)
+		dvfs_table[i].index += adjust_volt;
+}
+
 static int dvfs_update_vd_volt(struct dvfs_node *clk_dvfs_node, bool force)
 {
 	struct vd_node *vd;
@@ -1762,6 +1778,8 @@ static int dvfs_update_vd_volt(struct dvfs_node *clk_dvfs_node, bool force)
 
 static int initialize_dvfs_node(struct dvfs_node *clk_dvfs_node)
 {
+	int volt;
+
 	if (IS_ERR_OR_NULL(clk_dvfs_node->vd->regulator)) {
 		if (clk_dvfs_node->vd->regulator_name)
 			clk_dvfs_node->vd->regulator =
@@ -1795,10 +1813,15 @@ static int initialize_dvfs_node(struct dvfs_node *clk_dvfs_node)
 	clk_dvfs_node->freq_limit_en = 1;
 	clk_dvfs_node->max_limit_freq = clk_dvfs_node->max_rate;
 
-	if (clk_dvfs_node->lkg_adjust_volt_en)
-		adjust_table_by_leakage(clk_dvfs_node);
-	if (clk_dvfs_node->support_pvtm)
-		pvtm_set_dvfs_table(clk_dvfs_node);
+	volt = rockchip_efuse_get_volt_adjust(clk_dvfs_node->channel);
+	if (volt) {
+		adjust_table_by_efuse(clk_dvfs_node, volt);
+	} else {
+		if (clk_dvfs_node->lkg_adjust_volt_en)
+			adjust_table_by_leakage(clk_dvfs_node);
+		if (clk_dvfs_node->support_pvtm)
+			pvtm_set_dvfs_table(clk_dvfs_node);
+	}
 
 	dvfs_table_round_volt(clk_dvfs_node);
 	if (!clk_dvfs_node->skip_adjusting_volt)
