@@ -780,9 +780,22 @@ static int rockchip_i2c_xfer(struct i2c_adapter *adap,
 		}
 		if (retry == 0) {
 			dev_err(i2c->dev, "i2c is not in idle(state = %d)\n", state);
-			if (i2c->bus_recovery)
-				i2c_recover_bus(adap);
-			ret = -EIO;
+			if (i2c->bus_recovery && !i2c_recover_bus(adap)) {
+				u32 val;
+
+				mdelay(1);
+				/* Force a STOP condition without interrupt */
+				val = i2c_readl(i2c->regs  + I2C_CON);
+				val |= I2C_CON_EN | I2C_CON_STOP;
+				i2c_writel(val, i2c->regs  + I2C_CON);
+				mdelay(1);
+
+				/* -EAGAIN for retransfer that overwrite this */
+				ret = -EAGAIN;
+			} else {
+				ret = -EIO;
+			}
+
 			goto out;
 		}
 	}
