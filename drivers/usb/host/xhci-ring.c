@@ -2355,7 +2355,7 @@ static int handle_tx_event(struct xhci_hcd *xhci,
 	unsigned int slot_id;
 	int ep_index;
 	struct xhci_td *td = NULL;
-	dma_addr_t event_dma;
+	dma_addr_t ep_trb_dma;
 	struct xhci_segment *event_seg;
 	union xhci_trb *event_trb;
 	struct urb *urb = NULL;
@@ -2369,38 +2369,26 @@ static int handle_tx_event(struct xhci_hcd *xhci,
 	bool handling_skipped_tds = false;
 
 	slot_id = TRB_TO_SLOT_ID(le32_to_cpu(event->flags));
+	ep_index = TRB_TO_EP_ID(le32_to_cpu(event->flags)) - 1;
+	trb_comp_code = GET_COMP_CODE(le32_to_cpu(event->transfer_len));
+	ep_trb_dma = le64_to_cpu(event->buffer);
+
 	xdev = xhci->devs[slot_id];
 	if (!xdev) {
 		xhci_err(xhci, "ERROR Transfer event pointed to bad slot %u\n",
 			 slot_id);
-		xhci_err(xhci, "@%016llx %08x %08x %08x %08x\n",
-			 (unsigned long long) xhci_trb_virt_to_dma(
-				 xhci->event_ring->deq_seg,
-				 xhci->event_ring->dequeue),
-			 lower_32_bits(le64_to_cpu(event->buffer)),
-			 upper_32_bits(le64_to_cpu(event->buffer)),
-			 le32_to_cpu(event->transfer_len),
-			 le32_to_cpu(event->flags));
-		return -ENODEV;
+		goto err_out;
 	}
 
-	/* Endpoint ID is 1 based, our index is zero based */
-	ep_index = TRB_TO_EP_ID(le32_to_cpu(event->flags)) - 1;
 	ep = &xdev->eps[ep_index];
-	ep_ring = xhci_dma_to_transfer_ring(ep, le64_to_cpu(event->buffer));
+	ep_ring = xhci_dma_to_transfer_ring(ep, ep_trb_dma);
 	ep_ctx = xhci_get_ep_ctx(xhci, xdev->out_ctx, ep_index);
-	if (!ep_ring ||  GET_EP_CTX_STATE(ep_ctx) == EP_STATE_DISABLED) {
-		xhci_err(xhci, "ERROR Transfer event for disabled endpoint "
-				"or incorrect stream ring\n");
-		xhci_err(xhci, "@%016llx %08x %08x %08x %08x\n",
-			 (unsigned long long) xhci_trb_virt_to_dma(
-				 xhci->event_ring->deq_seg,
-				 xhci->event_ring->dequeue),
-			 lower_32_bits(le64_to_cpu(event->buffer)),
-			 upper_32_bits(le64_to_cpu(event->buffer)),
-			 le32_to_cpu(event->transfer_len),
-			 le32_to_cpu(event->flags));
-		return -ENODEV;
+
+	if (!ep_ring || GET_EP_CTX_STATE(ep_ctx) == EP_STATE_DISABLED) {
+		xhci_err(xhci,
+			 "ERROR Transfer event for disabled endpoint slot %u ep %u or incorrect stream ring\n",
+			  slot_id, ep_index);
+		goto err_out;
 	}
 
 	/* Count current td numbers if ep->skip is set */
@@ -2409,8 +2397,6 @@ static int handle_tx_event(struct xhci_hcd *xhci,
 			td_num++;
 	}
 
-	event_dma = le64_to_cpu(event->buffer);
-	trb_comp_code = GET_COMP_CODE(le32_to_cpu(event->transfer_len));
 	/* Look for common error cases */
 	switch (trb_comp_code) {
 	/* Skip codes that require special handling depending on
@@ -2427,6 +2413,7 @@ static int handle_tx_event(struct xhci_hcd *xhci,
 					      slot_id, ep_index);
 	case COMP_SHORT_PACKET:
 		break;
+	/* Completion codes for endpoint stopped state */
 	case COMP_STOPPED:
 		xhci_dbg(xhci, "Stopped on Transfer TRB for slot %u ep %u\n",
 			 slot_id, ep_index);
@@ -2441,17 +2428,12 @@ static int handle_tx_event(struct xhci_hcd *xhci,
 			 "Stopped with short packet transfer detected for slot %u ep %u\n",
 			 slot_id, ep_index);
 		break;
+	/* Completion codes for endpoint halted state */
 	case COMP_STALL_ERROR:
 		xhci_dbg(xhci, "Stalled endpoint for slot %u ep %u\n", slot_id,
 			 ep_index);
 		ep->ep_state |= EP_HALTED;
 		status = -EPIPE;
-		break;
-	case COMP_TRB_ERROR:
-		xhci_warn(xhci,
-			  "WARN: TRB error for slot %u ep %u on endpoint\n",
-			  slot_id, ep_index);
-		status = -EILSEQ;
 		break;
 	case COMP_SPLIT_TRANSACTION_ERROR:
 	case COMP_USB_TRANSACTION_ERROR:
@@ -2464,6 +2446,14 @@ static int handle_tx_event(struct xhci_hcd *xhci,
 			 slot_id, ep_index);
 		status = -EOVERFLOW;
 		break;
+	/* Completion codes for endpoint error state */
+	case COMP_TRB_ERROR:
+		xhci_warn(xhci,
+			  "WARN: TRB error for slot %u ep %u on endpoint\n",
+			  slot_id, ep_index);
+		status = -EILSEQ;
+		break;
+	/* completion codes not indicating endpoint state change */
 	case COMP_DATA_BUFFER_ERROR:
 		xhci_warn(xhci,
 			  "WARN: HC couldn't access mem fast enough for slot %u ep %u\n",
@@ -2501,12 +2491,6 @@ static int handle_tx_event(struct xhci_hcd *xhci,
 				 TRB_TO_SLOT_ID(le32_to_cpu(event->flags)),
 				 ep_index);
 		goto cleanup;
-	case COMP_INCOMPATIBLE_DEVICE_ERROR:
-		xhci_warn(xhci,
-			  "WARN: detect an incompatible device for slot %u ep %u",
-			  slot_id, ep_index);
-		status = -EPROTO;
-		break;
 	case COMP_MISSED_SERVICE_ERROR:
 		/*
 		 * When encounter missed service error, one or more isoc tds
@@ -2525,6 +2509,14 @@ static int handle_tx_event(struct xhci_hcd *xhci,
 			 "No Ping response error for slot %u ep %u, Skip one Isoc TD\n",
 			 slot_id, ep_index);
 		goto cleanup;
+
+	case COMP_INCOMPATIBLE_DEVICE_ERROR:
+		/* needs disable slot command to recover */
+		xhci_warn(xhci,
+			  "WARN: detect an incompatible device for slot %u ep %u",
+			  slot_id, ep_index);
+		status = -EPROTO;
+		break;
 	default:
 		if (xhci_is_vendor_info_code(xhci, trb_comp_code)) {
 			status = 0;
@@ -2582,7 +2574,7 @@ static int handle_tx_event(struct xhci_hcd *xhci,
 
 		/* Is this a TRB in the currently executing TD? */
 		event_seg = trb_in_td(xhci, ep_ring->deq_seg, ep_ring->dequeue,
-				td->last_trb, event_dma, false);
+				td->last_trb, ep_trb_dma, false);
 
 		/*
 		 * Skip the Force Stopped Event. The event_trb(event_dma) of FSE
@@ -2619,7 +2611,7 @@ static int handle_tx_event(struct xhci_hcd *xhci,
 					trb_comp_code);
 				trb_in_td(xhci, ep_ring->deq_seg,
 					  ep_ring->dequeue, td->last_trb,
-					  event_dma, true);
+					  ep_trb_dma, true);
 				return -ESHUTDOWN;
 			}
 
@@ -2638,7 +2630,7 @@ static int handle_tx_event(struct xhci_hcd *xhci,
 			ep->skip = false;
 		}
 
-		event_trb = &event_seg->trbs[(event_dma - event_seg->dma) /
+		event_trb = &event_seg->trbs[(ep_trb_dma - event_seg->dma) /
 						sizeof(*event_trb)];
 
 		trace_xhci_handle_transfer(ep_ring,
@@ -2719,6 +2711,17 @@ cleanup:
 	} while (handling_skipped_tds);
 
 	return 0;
+
+err_out:
+	xhci_err(xhci, "@%016llx %08x %08x %08x %08x\n",
+		 (unsigned long long) xhci_trb_virt_to_dma(
+			 xhci->event_ring->deq_seg,
+			 xhci->event_ring->dequeue),
+		 lower_32_bits(le64_to_cpu(event->buffer)),
+		 upper_32_bits(le64_to_cpu(event->buffer)),
+		 le32_to_cpu(event->transfer_len),
+		 le32_to_cpu(event->flags));
+	return -ENODEV;
 }
 
 /*
