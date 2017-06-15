@@ -532,7 +532,7 @@ static struct rk8xx_reg_data rk8xx_shutdown_reg[] = {
 	{RK816_RTC_INT_REG, RTC_TIMER_ALARM_INT_DIS, RTC_TIMER_ALARM_INT_MSK},
 };
 
-static struct rk8xx_reg_data rk8xx_suspend_reg[] = {
+static struct rk8xx_reg_data rk816_suspend_reg[] = {
 	/* set bat 3.4v low and act irq */
 	{RK816_VB_MON_REG, RK816_VBAT_LOW_3V4 | EN_VBAT_LOW_IRQ,
 	 VBAT_LOW_VOL_MASK | VBAT_LOW_ACT_MASK},
@@ -540,7 +540,7 @@ static struct rk8xx_reg_data rk8xx_suspend_reg[] = {
 	{RK816_INT_STS_MSK_REG2, VB_LOW_IRQ_EN, VB_LOW_IRQ_MSK},
 };
 
-static struct rk8xx_reg_data rk8xx_resume_reg[] = {
+static struct rk8xx_reg_data rk816_resume_reg[] = {
 	/* set bat 3.0v low and act shutdown*/
 	{RK816_VB_MON_REG, RK816_VBAT_LOW_3V0 | EN_VABT_LOW_SHUT_DOWN,
 	 VBAT_LOW_VOL_MASK | VBAT_LOW_ACT_MASK},
@@ -591,6 +591,14 @@ static struct rk8xx_reg_data rk805_init_reg[] = {
 	{RK805_BUCK2_CONFIG_REG, BUCK1_2_IMAX_3A, BUCK1_2_IMAX_MSK},
 	{RK805_BUCK3_CONFIG_REG, BUCK3_IMAX_3A, BUCK3_4_IMAX_MSK},
 	{RK805_BUCK4_CONFIG_REG, BUCK4_IMAX_3A, BUCK3_4_IMAX_MSK},
+};
+
+static struct rk8xx_reg_data rk805_suspend_reg[] = {
+	{RK805_BUCK3_CONFIG_REG, AUTO_PWM_MODE, PWM_MODE_MSK},
+};
+
+static struct rk8xx_reg_data rk805_resume_reg[] = {
+	{RK805_BUCK3_CONFIG_REG, FORCE_PWM_MODE, PWM_MODE_MSK},
 };
 
 static int rk8xx_pre_init_regs(struct rk816 *rk8xx)
@@ -679,10 +687,10 @@ static struct rk8xx_mfd_data rk816_mfd = {
 	.cell_num = ARRAY_SIZE(rk816_cells),
 	.init_reg = rk816_init_reg,
 	.init_reg_num = ARRAY_SIZE(rk816_init_reg),
-	.suspend_reg = rk8xx_suspend_reg,
-	.suspend_reg_num = ARRAY_SIZE(rk8xx_suspend_reg),
-	.resume_reg = rk8xx_resume_reg,
-	.resume_reg_num = ARRAY_SIZE(rk8xx_resume_reg),
+	.suspend_reg = rk816_suspend_reg,
+	.suspend_reg_num = ARRAY_SIZE(rk816_suspend_reg),
+	.resume_reg = rk816_resume_reg,
+	.resume_reg_num = ARRAY_SIZE(rk816_resume_reg),
 	.irq_chip = &rk816_irq_chip,
 	.irq_battery_chip = &rk816_battery_irq_chip,
 	.regmap_config = &rk816_regmap_config,
@@ -696,6 +704,10 @@ static struct rk8xx_mfd_data rk805_mfd = {
 	.cell_num = ARRAY_SIZE(rk805_cells),
 	.init_reg = rk805_init_reg,
 	.init_reg_num = ARRAY_SIZE(rk805_init_reg),
+	.suspend_reg = rk805_suspend_reg,
+	.suspend_reg_num = ARRAY_SIZE(rk805_suspend_reg),
+	.resume_reg = rk805_resume_reg,
+	.resume_reg_num = ARRAY_SIZE(rk805_resume_reg),
 	.irq_chip = &rk805_irq_chip,
 	.regmap_config = &rk805_regmap_config,
 	.parse_dt_pm_lable = "rk805,system-power-controller",

@@ -363,6 +363,9 @@
 #define BOOST_DISABLE				((0x1 << 5) | (0x0 << 1))
 #define BUCK4_VRP_3PERCENT			0xc0
 #define BUCK4_IMAX_IMIN_MAX			0x2f
+#define PWM_MODE_MSK				BIT(7)
+#define FORCE_PWM_MODE				BIT(7)
+#define AUTO_PWM_MODE				0
 
 enum rk805_reg_id {
 	RK805_ID_DCDC1,
