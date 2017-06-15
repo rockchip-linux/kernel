@@ -724,7 +724,6 @@ static int rockchip_i2c_doxfer(struct rockchip_i2c *i2c,
 
 	i2c_writel(I2C_IPD_ALL_CLEAN, i2c->regs + I2C_IPD);
 	rockchip_i2c_disable_irq(i2c);
-	rockchip_i2c_disable(i2c);
 	spin_unlock_irqrestore(&i2c->lock, flags);
 
 	if (error == -EAGAIN)
