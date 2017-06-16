@@ -2681,6 +2681,7 @@ static int rk3288_lcdc_early_resume(struct rk_lcdc_driver *dev_drv)
 					v_DSP_BLANK_EN(0));	
 		lcdc_cfg_done(lcdc_dev);
                 if (dev_drv->iommu_enabled) {
+			udelay(100);
 			if (dev_drv->mmu_dev)
 				rockchip_iovmm_activate(dev_drv->dev);
 		}
