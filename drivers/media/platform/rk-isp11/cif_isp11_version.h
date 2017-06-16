@@ -121,9 +121,12 @@
 *cif_isp11_config_isp when mp is ready;
 *2. Cifisp stream off, if cif output is raw.  Because check isp_config.out.pix
 *may be error in cifisp_streamon, if isp dev streamon before path dev;
+*
+*v0.2.9:
+*1. fix dpf enable may be set when dpf strength config;
 */
 
-#define CONFIG_CIFISP11_DRIVER_VERSION KERNEL_VERSION(0, 2, 8)
+#define CONFIG_CIFISP11_DRIVER_VERSION KERNEL_VERSION(0, 2, 9)
 
 
 #endif

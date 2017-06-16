@@ -2682,7 +2682,8 @@ static void cifisp_dpf_config(const struct cif_isp11_isp_dev *isp_dev)
 	unsigned int i;
 	unsigned int spatial_coeff;
 
-	isp_dpf_mode = 0x00;
+	isp_dpf_mode =
+		cifisp_ioread32(CIF_ISP_DPF_MODE) & CIFISP_DPF_MODE_EN;
 
 	switch (pconfig->gain.mode) {
 	case CIFISP_DPF_GAIN_USAGE_DISABLED:
@@ -4079,12 +4080,8 @@ static inline bool cifisp_isp_isr_other_config(
 				*time_left -= CIFISP_MODULE_DPF_TIME;
 				break;
 			case CIFISP_DPF_STRENGTH_ID:
-				if (CIFISP_MODULE_IS_EN(*ens, CIFISP_MODULE_DPF)) {
 					/*update dpf strength config */
 					cifisp_dpf_strength_config(isp_dev);
-					cifisp_dpf_en(isp_dev);
-				} else
-					cifisp_dpf_end(isp_dev);
 				*time_left -= CIFISP_MODULE_DPF_STRENGTH_TIME;
 				break;
 			case CIFISP_WDR_ID:
