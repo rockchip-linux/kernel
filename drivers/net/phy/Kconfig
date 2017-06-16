@@ -256,6 +256,11 @@ config MDIO_BCM_IPROC
 	  This module provides a driver for the MDIO busses found in the
 	  Broadcom iProc SoC's.
 
+config ROCKCHIP_PHY
+	tristate "Drivers for ROCKCHIP PHY"
+	---help---
+	  Currently supports the internal ephy
+
 endif # PHYLIB
 
 config MICREL_KS8995MA
