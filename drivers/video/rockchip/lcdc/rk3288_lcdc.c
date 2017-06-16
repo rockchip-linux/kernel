@@ -2621,6 +2621,8 @@ static int rk3288_lcdc_early_suspend(struct rk_lcdc_driver *dev_drv)
 		return 0;
 	
 	dev_drv->suspend_flag = 1;
+	smp_wmb();
+
 	flush_kthread_worker(&dev_drv->update_regs_worker);
 	
 	for (reg = MMU_DTE_ADDR; reg <= MMU_AUTO_GATING; reg +=4)
@@ -2663,7 +2665,6 @@ static int rk3288_lcdc_early_resume(struct rk_lcdc_driver *dev_drv)
 	if (!dev_drv->suspend_flag)
 		return 0;
 	rk_disp_pwr_enable(dev_drv);
-	dev_drv->suspend_flag = 0;
 
 	if (lcdc_dev->atv_layer_cnt) {
 		rk3288_lcdc_clk_enable(lcdc_dev);
@@ -2679,12 +2680,11 @@ static int rk3288_lcdc_early_resume(struct rk_lcdc_driver *dev_drv)
 		lcdc_msk_reg(lcdc_dev, DSP_CTRL0, m_DSP_BLANK_EN,
 					v_DSP_BLANK_EN(0));	
 		lcdc_cfg_done(lcdc_dev);
-
                 if (dev_drv->iommu_enabled) {
 			if (dev_drv->mmu_dev)
 				rockchip_iovmm_activate(dev_drv->dev);
 		}
-
+		dev_drv->suspend_flag = 0;
 		spin_unlock(&lcdc_dev->reg_lock);
 	}
 
