@@ -4458,6 +4458,29 @@ int drm_add_edid_modes(struct drm_connector *connector, struct edid *edid)
 }
 EXPORT_SYMBOL(drm_add_edid_modes);
 
+static int drm_add_hdmimodes_noedid(struct drm_connector *connector)
+{
+	int i, num_modes = 0;
+	struct drm_display_mode *mode;
+	struct drm_device *dev = connector->dev;
+
+	for (i = 0; i < ARRAY_SIZE(edid_cea_modes); i++) {
+		const struct drm_display_mode *ptr = &edid_cea_modes[i];
+		if (ptr->hdisplay > 1920 ||
+		    ptr->vdisplay < 480 ||
+		    ptr->flags & DRM_MODE_FLAG_INTERLACE ||
+		    drm_mode_vrefresh(ptr) > 60 ||
+		    drm_mode_vrefresh(ptr) < 50)
+			continue;
+		mode = drm_mode_duplicate(dev, ptr);
+		if (mode) {
+			drm_mode_probed_add(connector, mode);
+			num_modes++;
+		}
+	}
+	return num_modes;
+}
+
 /**
  * drm_add_modes_noedid - add modes for the connectors without EDID
  * @connector: connector we're probing
@@ -4476,6 +4499,7 @@ int drm_add_modes_noedid(struct drm_connector *connector,
 	struct drm_display_mode *mode;
 	struct drm_device *dev = connector->dev;
 
+	return drm_add_hdmimodes_noedid(connector);
 	count = ARRAY_SIZE(drm_dmt_modes);
 	if (hdisplay < 0)
 		hdisplay = 0;
