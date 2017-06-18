@@ -187,6 +187,16 @@
 			opp-microvolt = <1350000>;
 			clock-latency-ns = <40000>;
 		};
+		opp-1704000000 {
+			opp-hz = /bits/ 64 <1704000000>;
+			opp-microvolt = <1350000>;
+			clock-latency-ns = <40000>;
+		};
+		opp-1800000000 {
+			opp-hz = /bits/ 64 <1800000000>;
+			opp-microvolt = <1400000>;
+			clock-latency-ns = <40000>;
+		};
 	};
 
 	amba {
