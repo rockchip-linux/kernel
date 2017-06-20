@@ -253,8 +253,9 @@ void rtw_IOL_cmd_buf_dump(ADAPTER *Adapter, int buf_len, u8 *pbuf)
 	for (i = 0; i < buf_len; i++) {
 		printk("%02x-", *(pbuf + i));
 
-		if (j % 32 == 0)
+		if (j % 32 == 0) {
 			printk("\n");
+		}
 		j++;
 	}
 	printk("\n");

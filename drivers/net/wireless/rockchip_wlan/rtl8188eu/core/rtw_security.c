@@ -1483,8 +1483,9 @@ static sint aes_cipher(u8 *key, uint	hdrlen,
 		mic[j] = aes_out[j];
 
 	/* Insert MIC into payload */
-	for (j = 0; j < 8; j++)
+	for (j = 0; j < 8; j++) {
 		pframe[payload_index + j] = mic[j];	/* message[payload_index+j] = mic[j]; */
+	}
 
 	payload_index = hdrlen + 8;
 	for (i = 0; i < num_blocks; i++) {
@@ -1841,21 +1842,25 @@ static sint aes_decipher(u8 *key, uint	hdrlen,
 
 	/* Add on the final payload block if it needs padding */
 	if (payload_remainder > 0) {
-		for (j = 0; j < 16; j++)
+		for (j = 0; j < 16; j++) {
 			padded_buffer[j] = 0x00;
-		for (j = 0; j < payload_remainder; j++)
+		}
+		for (j = 0; j < payload_remainder; j++) {
 			padded_buffer[j] = message[payload_index++];
+		}
 		bitwise_xor(aes_out, padded_buffer, chain_buffer);
 		aes128k128d(key, chain_buffer, aes_out);
 
 	}
 
-	for (j = 0 ; j < 8; j++)
+	for (j = 0 ; j < 8; j++) {
 		mic[j] = aes_out[j];
+	}
 
 	/* Insert MIC into payload */
-	for (j = 0; j < 8; j++)
+	for (j = 0; j < 8; j++) {
 		message[payload_index + j] = mic[j];
+	}
 
 	payload_index = hdrlen + 8;
 	for (i = 0; i < num_blocks; i++) {
