@@ -202,6 +202,8 @@
 
 &hdmi {
 	#sound-dai-cells = <0>;
+	ddc-i2c-scl-high-time-ns = <9625>;
+	ddc-i2c-scl-low-time-ns = <10000>;
 	status = "okay";
 };
 
@@ -342,6 +344,10 @@
 	};
 };
 
+&h265e {
+	status = "okay";
+};
+
 &i2s0 {
 	#sound-dai-cells = <0>;
 	rockchip,bclk-fs = <128>;
@@ -471,11 +477,19 @@
 	status = "okay";
 };
 
+&vepu {
+	status = "okay";
+};
+
 &vop {
 	status = "okay";
 };
 
 &vop_mmu {
+	status = "okay";
+};
+
+&vpu_service {
 	status = "okay";
 };
 
