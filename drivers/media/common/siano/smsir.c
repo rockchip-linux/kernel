@@ -63,7 +63,7 @@ int sms_ir_init(struct smscore_device_t *coredev)
 		return -ENOMEM;
 
 	coredev->ir.controller = 0;	/* Todo: vega/nova SPI number */
-	coredev->ir.timeout = IR_DEFAULT_TIMEOUT;
+	coredev->ir.timeout = SMSIR_IR_DEFAULT_TIMEOUT;
 	pr_debug("IR port %d, timeout %d ms\n",
 			coredev->ir.controller, coredev->ir.timeout);
 
