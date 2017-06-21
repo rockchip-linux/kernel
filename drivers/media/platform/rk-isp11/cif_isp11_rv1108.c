@@ -258,7 +258,7 @@ static int soc_clk_disable(void)
 
 static int soc_isp_clk_cfg(int *data_rate)
 {
-	int isp_clk[] = {198, 240, 297, 396, 480, 594};
+	int isp_clk[] = {396, 480, 594};
 	int tmp, i;
 	struct cif_isp11_clk_rst_rv1108 *clk_rst = &rv1108->clk_rst;
 
