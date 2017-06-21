@@ -128,7 +128,7 @@ static int emmc_vendor_storage_init(void)
 				EMMC_VENDOR_PART_SIZE, 0))
 			goto error_exit;
 	} else {
-		memset((void *)g_vendor, 0, sizeof(g_vendor));
+		memset((void *)g_vendor, 0, sizeof(*g_vendor));
 		g_vendor->version = 1;
 		g_vendor->tag = EMMC_VENDOR_TAG;
 		g_vendor->version2 = g_vendor->version;
