@@ -535,6 +535,12 @@ uvc_function_disable(struct usb_function *f)
 	}
 
 	memset(&v4l2_event, 0, sizeof(v4l2_event));
+
+	if (uvc->state == UVC_STATE_STREAMING) {
+		v4l2_event.type = UVC_EVENT_STREAMOFF;
+		v4l2_event_queue(uvc->vdev, &v4l2_event);
+	}
+
 	v4l2_event.type = UVC_EVENT_DISCONNECT;
 	v4l2_event_queue(uvc->vdev, &v4l2_event);
 
