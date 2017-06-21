@@ -176,6 +176,7 @@ dtb-$(CONFIG_ARCH_ROCKCHIP) += \
 	rk3128-box.dtb \
 	rk3128-box-ns.dtb \
 	rk3128-box-rk88.dtb \
+	rk3128-fireprime.dtb \
 	rk3128-sdk.dtb \
 	rk3228a-box-2layer.dtb \
 	rk3228b-box_805.dtb \
