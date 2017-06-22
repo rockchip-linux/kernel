@@ -26,6 +26,7 @@
 #include <linux/rockchip/iomap.h>
 #include <linux/rockchip/grf.h>
 #include "rk31xx_lvds.h"
+#include <linux/rockchip/cpu.h>
 
 
 #define grf_readl(offset)	readl_relaxed(RK_GRF_VIRT + offset)
@@ -104,9 +105,16 @@ static int rk31xx_lvds_pwr_on(void)
         struct rk_lvds_device *lvds = rk31xx_lvds;
 
         if (lvds->screen.type == SCREEN_LVDS) {
-                /* set VOCM 900 mv and V-DIFF 350 mv */
-	        lvds_msk_reg(lvds, MIPIPHY_REGE4, m_VOCM | m_DIFF_V,
-			     v_VOCM(0) | v_DIFF_V(2));
+		/*
+		 * rk312x(LVDS):    set VOCM 1200mv and V-DIFF 350 mv
+		 * rk336x(subLVDS): set VCOM 900mv and V-DIFF 150 mv
+		 */
+		if (soc_is_rk3126c())
+			lvds_msk_reg(lvds, MIPIPHY_REGE4, m_VOCM | m_DIFF_V,
+				v_VOCM(0) | v_DIFF_V(0));
+		else
+			lvds_msk_reg(lvds, MIPIPHY_REGE4, m_VOCM | m_DIFF_V,
+				v_VOCM(0) | v_DIFF_V(2));
 
                 /* power up lvds pll and ldo */
 	        lvds_msk_reg(lvds, MIPIPHY_REG1,
