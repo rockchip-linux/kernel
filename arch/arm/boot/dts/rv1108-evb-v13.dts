@@ -375,7 +375,7 @@
 };
 
 &cif_isp0 {
-	rockchip,camera-modules-attached = <&camera0 &camera1 &camera2 &camera3>;
+	rockchip,camera-modules-attached = <&camera0 &camera1 &camera2 &camera3 &camera4>;
 	status = "okay";
 };
 

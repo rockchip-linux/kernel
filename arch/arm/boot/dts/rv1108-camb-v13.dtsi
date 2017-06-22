@@ -118,3 +118,33 @@ camera3: camera-module@60 {
 	rockchip,camera-module-flash-support = <0>;
 	rockchip,camera-module-mipi-dphy-index = <0>;
 };
+
+camera4: camera-module@1a-1 {
+	status = "okay";
+	compatible = "sony,imx291-v4l2-i2c-subdev";
+	reg = <0x1a>;
+	device_type = "v4l2-i2c-subdev";
+	clocks = <&clk_cif_out>;
+	clock-names = "clk_cif_out";
+	pinctrl-names = "rockchip,camera_default", "rockchip,camera_sleep";
+	pinctrl-0 = <&cif_dvp_clk_out>;
+	pinctrl-1 = <&cif_dvp_clk_out_sleep>;
+	rockchip,pd-gpio = <&gpio3 GPIO_B0 GPIO_ACTIVE_HIGH>;
+	rockchip,pwr-gpio = <&gpio3 GPIO_B5 GPIO_ACTIVE_HIGH>;
+	rockchip,rst-gpio = <&gpio3 GPIO_D1 GPIO_ACTIVE_LOW>;
+	rockchip,camera-module-mclk-name = "clk_cif_out";
+	rockchip,camera-module-facing = "back";
+	rockchip,camera-module-name = "LA6112PA";
+	rockchip,camera-module-len-name = "YM6011P";
+	rockchip,camera-module-fov-h = "122";
+	rockchip,camera-module-fov-v = "63";
+	rockchip,camera-module-orientation = <0>;
+	rockchip,camera-module-iq-flip = <0>;
+	rockchip,camera-module-iq-mirror = <0>;
+	rockchip,camera-module-flip = <0>;
+	rockchip,camera-module-mirror = <0>;
+	/* resolution.w, resolution.h, defrect.left, defrect.top, defrect.w, defrect.h */
+	rockchip,camera-module-defrect0 = <1920 1080 0 0 1920 1080>;
+	rockchip,camera-module-flash-support = <0>;
+	rockchip,camera-module-mipi-dphy-index = <0>;
+};
