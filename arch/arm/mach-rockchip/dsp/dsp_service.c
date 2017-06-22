@@ -290,8 +290,11 @@ static int dsp_work_consume(void *data)
 	dsp_debug_enter();
 
 	while (!kthread_should_stop()) {
+		struct list_head *pending = &service->pending;
+
 		wait_event_interruptible_timeout(service->wait,
-						 !list_empty(&service->pending),
+						 !list_empty(pending) ||
+						 kthread_should_stop(),
 						 HZ);
 
 		mutex_lock(&service->work_lock);
