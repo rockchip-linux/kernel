@@ -65,6 +65,7 @@
 #define RK805_LDO2_SLP_VSEL_REG			0x3E
 #define RK805_LDO3_ON_VSEL_REG			0x3F
 #define RK805_LDO3_SLP_VSEL_REG			0x40
+#define RK805_DCDC_VRP_REG			0x92
 
 /* IRQ Definitions */
 #define RK805_IRQ_PWRON_RISE			0
@@ -359,6 +360,8 @@
 #define BUCK1_2_IMAX_3A				(0x1 << 6)
 #define BUCK3_IMAX_3A				(0x3 << 3)
 #define BUCK4_IMAX_3A				(0x2 << 3)
+#define BUCK4_IMIN_MAX				(0x7 << 0)
+#define BUCK4_IMIN_MSK				(0x7 << 0)
 #define BOOST_EN_MASK				((0x1 << 5) | (0x1 << 1))
 #define BOOST_DISABLE				((0x1 << 5) | (0x0 << 1))
 #define BUCK4_VRP_3PERCENT			0xc0
