@@ -80,6 +80,7 @@ struct pltfrm_cam_dvp_config {
 	enum pltfrm_cam_signal_polarity hsync;
 	enum pltfrm_cam_sample_type pclk;
 	enum pltfrm_cam_io_voltage io_vol;
+	u32 pclk_hz;
 };
 
 struct pltfrm_cam_itf {
@@ -106,7 +107,7 @@ struct pltfrm_cam_itf {
 			},\
 		.mclk_hz = mk\
 	}
-#define PLTFRM_CAM_ITF_DVP_CFG(ty, vs, hs, ck, mk)\
+#define PLTFRM_CAM_ITF_DVP_CFG(ty, vs, hs, ck, ck_hz, mk)\
 	.itf_cfg = {\
 		.type =  ty,\
 		.cfg = {\
@@ -114,6 +115,7 @@ struct pltfrm_cam_itf {
 				.vsync = vs,\
 				.hsync = hs,\
 				.pclk = ck,\
+				.pclk_hz = ck_hz,\
 			} \
 		},\
 		.mclk_hz = mk\

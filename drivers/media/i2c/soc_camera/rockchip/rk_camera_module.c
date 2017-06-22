@@ -1328,7 +1328,8 @@ int pltfrm_camera_module_set_pm_state(
 			if (itf_cfg.type == PLTFRM_CAM_ITF_MIPI)
 				data_rate = itf_cfg.cfg.mipi.nb_lanes * itf_cfg.cfg.mipi.bit_rate;
 			else
-				data_rate = 200;
+				data_rate = itf_cfg.cfg.dvp.pclk_hz *
+					PLTFRM_CAM_ITF_DVP_BW(itf_cfg.type) / 1000000;
 			cfg_para.cmd = PLTFRM_ISPCLK_CFG;
 			cfg_para.cfg_para = (void *)&data_rate;
 			(soc_cfg->soc_cfg)(&cfg_para);
