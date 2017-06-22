@@ -2633,6 +2633,39 @@ static int rk312x_lcdc_dsp_black(struct rk_lcdc_driver *dev_drv, int enable)
 	return 0;
 }
 
+#define WIN_EN(id)		\
+static int win##id##_enable(struct lcdc_device *lcdc_dev, int en)	\
+{ \
+	u32 msk, val;							\
+	spin_lock(&lcdc_dev->reg_lock);					\
+	msk = m_WIN##id##_EN;						\
+	val = v_WIN##id##_EN(en);					\
+	lcdc_msk_reg(lcdc_dev, SYS_CTRL, msk, val);			\
+	lcdc_cfg_done(lcdc_dev);					\
+	spin_unlock(&lcdc_dev->reg_lock);				\
+	return 0;							\
+}
+
+WIN_EN(0);
+WIN_EN(1);
+
+/*
+ * enable/disable win directly
+ */
+static int rk312x_win_direct_en(struct rk_lcdc_driver *drv,
+				int win_id, int en)
+{
+	struct lcdc_device *lcdc_dev =
+		container_of(drv, struct lcdc_device, driver);
+
+	if (win_id == 0)
+		win0_enable(lcdc_dev, en);
+	else if (win_id == 1)
+		win1_enable(lcdc_dev, en);
+	else
+		dev_err(lcdc_dev->dev, "invalid win number:%d\n", win_id);
+	return 0;
+}
 
 static struct rk_lcdc_drv_ops lcdc_drv_ops = {
 	.open = rk312x_lcdc_open,
@@ -2668,6 +2701,7 @@ static struct rk_lcdc_drv_ops lcdc_drv_ops = {
 	.set_irq_to_cpu = rk312x_lcdc_set_irq_to_cpu,
 	.dsp_black = rk312x_lcdc_dsp_black,
 	.mmu_en = rk312x_lcdc_mmu_en,
+	.win_direct_en = rk312x_win_direct_en,
 };
 #if 0
 static const struct rk_lcdc_drvdata rk3036_lcdc_drvdata = {
