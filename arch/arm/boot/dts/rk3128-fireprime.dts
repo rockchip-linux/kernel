@@ -319,6 +319,14 @@
 	gpios =<&gpio3 GPIO_C6 GPIO_ACTIVE_HIGH>, <&gpio3 GPIO_C1 GPIO_ACTIVE_LOW>;
 };
 
+&rk818_ldo2_reg {
+	regulator-always-on;
+};
+
+&rk818_ldo3_reg {
+	regulator-boot-on;
+};
+
 &clk_core_dvfs_table {
 	operating-points = <
 		/* KHz    uV */
