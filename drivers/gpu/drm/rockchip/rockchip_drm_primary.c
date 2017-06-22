@@ -308,29 +308,25 @@ static void primary_win_commit(struct device *dev, int zpos)
 	rk_win->ysize = win_data->ovl_height;
 	rk_win->yvir = win_data->fb_height;
 	rk_win->yrgb_addr = win_data->dma_addr[0];
+	rk_win->xvir = win_data->fb_width >> 2;
 	rk_win->enabled = true;
 	switch (win_data->pixel_format) {
 	case DRM_FORMAT_NV12:
 		rk_win->format = YUV420;
 		rk_win->uv_addr = win_data->dma_addr[1];
-		rk_win->xvir = win_data->fb_width / 4;
 		rk_win->uv_vir = rk_win->xvir;
 		break;
 	case DRM_FORMAT_RGB888:
 		rk_win->format = RGB888;
-		rk_win->xvir = win_data->fb_width * 3 / 4;
 		break;
 	case DRM_FORMAT_ARGB8888:
 		rk_win->format = ARGB888;
-		rk_win->xvir = win_data->fb_width;
 		break;
 	case DRM_FORMAT_XRGB8888:
 		rk_win->format = XRGB888;
-		rk_win->xvir = win_data->fb_width;
 		break;
 	case DRM_FORMAT_RGB565:
 		rk_win->format = RGB565;
-		rk_win->xvir = win_data->fb_width / 2;
 		break;
 	default:
 		pr_info("not support format 0x%x\n", win_data->pixel_format);

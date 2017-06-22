@@ -120,7 +120,7 @@ int rockchip_plane_mode_set(struct drm_plane *plane, struct drm_crtc *crtc,
 	/* set drm framebuffer data. */
 	overlay->fb_x = src_x;
 	overlay->fb_y = src_y;
-	overlay->fb_width = fb->width;
+	overlay->fb_width = fb->pitches[0];	/* fb->width */
 	overlay->fb_height = fb->height;
 	overlay->src_width = src_w;
 	overlay->src_height = src_h;
