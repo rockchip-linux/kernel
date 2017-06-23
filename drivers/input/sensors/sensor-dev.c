@@ -939,6 +939,97 @@ static long gyro_dev_ioctl(struct file *file,
 	void __user *argp = (void __user *)arg;
 	int result = 0;
 	char rate;
+	char offset_value[9] = {0};
+	raw_data_set_t *data_tmp;
+
+	switch (cmd) {
+	case GYROSENSOR_IOCTL_START:
+		mutex_lock(&sensor->operation_mutex);
+		if (sensor->status_cur == SENSOR_OFF) {
+			result = sensor->ops->active(client, 1, 0);
+			sensor->pdata->poll_delay_ms = 100;
+			sensor->status_cur = SENSOR_ON;
+		}
+		mutex_unlock(&sensor->operation_mutex);
+		return result;
+	case GYROSENSOR_IOCTL_CLOSE:
+		mutex_lock(&sensor->operation_mutex);
+		if (sensor->status_cur == SENSOR_ON) {
+			result = sensor->ops->active(client, 0, 0);
+			sensor->status_cur = SENSOR_OFF;
+		}
+		mutex_unlock(&sensor->operation_mutex);
+		return result;
+	case GYROSENSOR_IOCTL_RESET:
+		break;
+	case GYROSENSOR_IOCTL_GETDATA:
+		mutex_lock(&sensor->operation_mutex);
+		if (sensor->status_cur == SENSOR_ON) {
+			result = sensor->ops->getdata(client,
+						      (void *)&data_tmp);
+			if (result < 0) {
+				mutex_unlock(&sensor->operation_mutex);
+				break;
+			}
+			if (copy_to_user(argp,
+					 data_tmp,
+					 sizeof(raw_data_set_t))) {
+				mutex_unlock(&sensor->operation_mutex);
+				result = -EFAULT;
+				break;
+			}
+		}
+
+		mutex_unlock(&sensor->operation_mutex);
+		return 0;
+	case GYROSENSOR_IOCTL_GETDATA_FIFO:
+		mutex_lock(&sensor->operation_mutex);
+		if (sensor->status_cur == SENSOR_ON) {
+			result = sensor->ops->get_fifo_data(client,
+							    (void *)&data_tmp);
+			if (result < 0) {
+				mutex_unlock(&sensor->operation_mutex);
+				return -EFAULT;
+			}
+			if (copy_to_user(argp,
+					 data_tmp,
+					 sizeof(raw_data_set_t))) {
+				mutex_unlock(&sensor->operation_mutex);
+				return -EFAULT;
+			}
+		}
+
+		mutex_unlock(&sensor->operation_mutex);
+
+		return 0;
+	case GYROSENSOR_IOCTL_CALIBRATION:
+		mutex_lock(&sensor->operation_mutex);
+		if (copy_from_user(offset_value, argp, sizeof(offset_value))) {
+			mutex_unlock(&sensor->operation_mutex);
+			result = -EFAULT;
+			break;
+		}
+		result = sensor->ops->calibration(client, offset_value);
+		if (result < 0) {
+			mutex_unlock(&sensor->operation_mutex);
+			return -EFAULT;
+		}
+		if (offset_value[0] == 1) {
+			if (copy_to_user(argp,
+					 offset_value,
+					 sizeof(offset_value))) {
+				mutex_unlock(&sensor->operation_mutex);
+				result = -EFAULT;
+				break;
+			}
+		}
+
+		mutex_unlock(&sensor->operation_mutex);
+		return 0;
+	default:
+		break;
+	}
+
 	switch (cmd) {
 	case L3G4200D_IOCTL_GET_ENABLE:
 		result = !sensor->status_cur;
@@ -2142,6 +2233,7 @@ static const struct i2c_device_id sensor_id[] = {
 	{"ewtsa_gyro", GYRO_ID_EWTSA},
 	{"k3g", GYRO_ID_K3G},
 	{"mpu6880_gyro",GYRO_ID_MPU6880},
+	{"mpu6500_gyro", GYRO_ID_MPU6500},
 	/*light sensor*/
 	{"lightsensor", LIGHT_ID_ALL},
 	{"light_cm3217", LIGHT_ID_CM3217},
@@ -2182,6 +2274,7 @@ static struct of_device_id sensor_dt_ids[] = {
 	{ .compatible = "gs_mc3230" },
 	{ .compatible = "bma2xx_acc" },
 	{ .compatible = "da380_acc"},
+	{ .compatible = "mpu6500_acc"},
 	/*compass*/
 	{ .compatible = "ak8975" },
 	{ .compatible = "ak8963" },
@@ -2189,6 +2282,7 @@ static struct of_device_id sensor_dt_ids[] = {
 	{ .compatible = "mmc314x" },
 
 	/* gyroscop*/
+	{ .compatible = "mpu6500_gyro" },
 	{ .compatible = "l3g4200d_gyro" },
 	{ .compatible = "l3g20d_gyro" },
 	{ .compatible = "ewtsa_gyro" },

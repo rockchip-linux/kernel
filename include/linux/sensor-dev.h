@@ -28,6 +28,9 @@
 #define GPIO_HIGH 1
 #define GPIO_LOW 0
 
+#define MAX_NUM                 10
+#define GYRO_FIFO_SIZE		1024 /* 1024 */
+
 enum sensor_id {
 	ID_INVALID = 0,
 
@@ -77,10 +80,11 @@ enum sensor_id {
 
 	GYRO_ID_ALL,
 	GYRO_ID_L3G4200D,
-    GYRO_ID_L3G20D,
+	GYRO_ID_L3G20D,
 	GYRO_ID_EWTSA,
 	GYRO_ID_K3G,
 	GYRO_ID_MPU6880,
+	GYRO_ID_MPU6500,
 	LIGHT_ID_ALL,
 	LIGHT_ID_CM3217,
 	LIGHT_ID_CM3218,
@@ -112,12 +116,33 @@ enum sensor_id {
 	SENSOR_NUM_ID,
 };
 
-
 struct sensor_axis {
 	int x;
 	int y;
 	int z;
 };
+
+typedef struct raw_data {
+	struct sensor_axis gyro_axis;
+	struct sensor_axis accel_axis;
+	long long timestamp_usec;
+	short temperature;
+	long quaternion[4];
+	int quat_flag;
+	int use_irq;
+} raw_data_t;
+
+typedef struct raw_data_set {
+	raw_data_t sensordata[200];
+	int avail_num;
+} raw_data_set_t;
+
+typedef struct sensor_axisdata_fifo {
+	unsigned char *sensordata;
+	int data_len;
+	long long timestamp;
+	long long timestamp_interval;
+} sensor_axisdata_fifo_t;
 
 struct sensor_flag {
 	atomic_t a_flag;
@@ -128,7 +153,6 @@ struct sensor_flag {
 	long long delay;
 	wait_queue_head_t open_wq;
 };
-
 
 struct sensor_operate {
 	char *name;
@@ -150,13 +174,14 @@ struct sensor_operate {
 	int (*active)(struct i2c_client *client, int enable, int rate);
 	int (*init)(struct i2c_client *client);
 	int (*report)(struct i2c_client *client);
+	int (*getdata)(struct i2c_client *client, void *data);
+	int (*get_fifo_data)(struct i2c_client *client, void *data);
 	int (*suspend)(struct i2c_client *client);
 	int (*resume)(struct i2c_client *client);
 	int (*interrupt_use)(struct i2c_client *client, int num, int enable);
+	int (*calibration)(struct i2c_client *client, char *data);
 	struct miscdevice *misc_dev;
-
 };
-
 
 /* Platform data for the sensor */
 struct sensor_private_data {
@@ -281,8 +306,16 @@ _IOR(GSENSOR_IOCTL_MAGIC, 0x08, char[GBUFF_SIZE + 1])
 #define ECS_IOCTL_APP_GET_MVFLAG	_IOR(COMPASS_IOCTL_MAGIC, 0x1A, short)
 #define ECS_IOCTL_APP_GET_DELAY		_IOR(COMPASS_IOCTL_MAGIC, 0x1B, short)
 
-
-
+#define GYROSENSOR_IOCTL_MAGIC			'f'
+#define GYROSENSOR_IOCTL_CLOSE		_IO(GYROSENSOR_IOCTL_MAGIC, 0x00)
+#define GYROSENSOR_IOCTL_START		_IO(GYROSENSOR_IOCTL_MAGIC, 0x01)
+#define GYROSENSOR_IOCTL_RESET		_IO(GYROSENSOR_IOCTL_MAGIC, 0x02)
+#define GYROSENSOR_IOCTL_GETDATA \
+_IOWR(GYROSENSOR_IOCTL_MAGIC, 0x03, raw_data_set_t)
+#define GYROSENSOR_IOCTL_CALIBRATION \
+_IOWR(GYROSENSOR_IOCTL_MAGIC, 0x04, char *)
+#define GYROSENSOR_IOCTL_GETDATA_FIFO \
+_IOWR(GYROSENSOR_IOCTL_MAGIC, 0x05, raw_data_set_t)
 
 #define LIGHTSENSOR_IOCTL_MAGIC 'l'
 #define LIGHTSENSOR_IOCTL_GET_ENABLED		_IOR(LIGHTSENSOR_IOCTL_MAGIC, 1, int *)

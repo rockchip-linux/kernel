@@ -229,6 +229,10 @@ static int sensor_report_value(struct i2c_client *client)
 	return ret;
 }
 
+static int sensor_use_interrupt(struct i2c_client *client, int num, int enable)
+{
+	return 0;
+}
 
 struct sensor_operate gsensor_mpu6500_ops = {
 	.name				= "mpu6500_acc",
@@ -246,6 +250,7 @@ struct sensor_operate gsensor_mpu6500_ops = {
 	.active				= sensor_active,	
 	.init				= sensor_init,
 	.report 			= sensor_report_value,
+	.interrupt_use			= sensor_use_interrupt,
 };
 
 /****************operate according to sensor chip:end************/
