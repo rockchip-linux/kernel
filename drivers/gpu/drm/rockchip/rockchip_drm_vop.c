@@ -390,6 +390,8 @@ static bool is_yuv_output(uint32_t bus_format)
 	switch (bus_format) {
 	case MEDIA_BUS_FMT_YUV8_1X24:
 	case MEDIA_BUS_FMT_YUV10_1X30:
+	case MEDIA_BUS_FMT_UYYVYY8_0_5X24:
+	case MEDIA_BUS_FMT_UYYVYY10_0_5X30:
 		return true;
 	default:
 		return false;
@@ -1693,6 +1695,20 @@ static void vop_crtc_enable(struct drm_crtc *crtc)
 		VOP_CTRL_SET(vop, dp_pin_pol, val);
 		VOP_CTRL_SET(vop, dp_en, 1);
 		break;
+	case DRM_MODE_CONNECTOR_TV:
+		if (vdisplay == CVBS_PAL_VDISPLAY)
+			VOP_CTRL_SET(vop, tve_sw_mode, 1);
+		else
+			VOP_CTRL_SET(vop, tve_sw_mode, 0);
+
+		VOP_CTRL_SET(vop, tve_dclk_pol, 1);
+		VOP_CTRL_SET(vop, tve_dclk_en, 1);
+		/* use the same pol reg with hdmi */
+		VOP_CTRL_SET(vop, hdmi_pin_pol, val);
+		VOP_CTRL_SET(vop, sw_genlock, 1);
+		VOP_CTRL_SET(vop, sw_uv_offset_en, 1);
+		VOP_CTRL_SET(vop, dither_up, 1);
+		break;
 	default:
 		DRM_ERROR("unsupport connector_type[%d]\n", s->output_type);
 	}
@@ -1711,9 +1727,11 @@ static void vop_crtc_enable(struct drm_crtc *crtc)
 		val = DITHER_DOWN_EN(1) | DITHER_DOWN_MODE(RGB888_TO_RGB666);
 		break;
 	case MEDIA_BUS_FMT_YUV8_1X24:
+	case MEDIA_BUS_FMT_UYYVYY8_0_5X24:
 		val = DITHER_DOWN_EN(0) | PRE_DITHER_DOWN_EN(1);
 		break;
 	case MEDIA_BUS_FMT_YUV10_1X30:
+	case MEDIA_BUS_FMT_UYYVYY10_0_5X30:
 		val = DITHER_DOWN_EN(0) | PRE_DITHER_DOWN_EN(0);
 		break;
 	case MEDIA_BUS_FMT_RGB888_1X24:
@@ -2127,6 +2145,8 @@ static void vop_crtc_destroy(struct drm_crtc *crtc)
 static void vop_crtc_reset(struct drm_crtc *crtc)
 {
 	struct rockchip_crtc_state *s = to_rockchip_crtc_state(crtc->state);
+	struct rockchip_drm_private *private = crtc->dev->dev_private;
+	struct vop *vop = to_vop(crtc);
 
 	if (crtc->state) {
 		__drm_atomic_helper_crtc_destroy_state(crtc, crtc->state);
@@ -2138,6 +2158,20 @@ static void vop_crtc_reset(struct drm_crtc *crtc)
 		return;
 	crtc->state = &s->base;
 	crtc->state->crtc = crtc;
+
+	if (vop->dclk_source) {
+		struct clk *parent;
+
+		parent = clk_get_parent(vop->dclk_source);
+		if (parent) {
+			if (clk_is_match(private->default_pll.pll, parent))
+				s->pll = &private->default_pll;
+			else if (clk_is_match(private->hdmi_pll.pll, parent))
+				s->pll = &private->hdmi_pll;
+			if (s->pll)
+				s->pll->use_count++;
+		}
+	}
 	s->left_margin = 100;
 	s->right_margin = 100;
 	s->top_margin = 100;

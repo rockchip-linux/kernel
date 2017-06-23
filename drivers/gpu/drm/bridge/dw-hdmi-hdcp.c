@@ -122,7 +122,7 @@ struct sha_t {
 	unsigned int mdigest[5];
 };
 
-static struct miscdevice mdev;
+static struct dw_hdcp *g_hdcp;
 
 static inline unsigned int shacircularshift(unsigned int bits,
 					    unsigned int word)
@@ -552,9 +552,6 @@ static void dw_hdmi_hdcp_isr(struct dw_hdcp *hdcp, int hdcp_int)
 	}
 	if (hdcp_int & 0x40) {
 		hdcp->status = DW_HDCP_AUTH_FAIL;
-		if (hdcp->enable != 2)
-			return;
-
 		if (hdcp->remaining_times > 1)
 			hdcp->remaining_times--;
 		else if (hdcp->remaining_times == 1)
@@ -572,8 +569,8 @@ static void dw_hdmi_hdcp_isr(struct dw_hdcp *hdcp, int hdcp_int)
 static ssize_t hdcp_enable_read(struct device *device,
 				struct device_attribute *attr, char *buf)
 {
-	int enable = 0;
-	struct dw_hdcp *hdcp = dev_get_drvdata(device);
+	bool enable = 0;
+	struct dw_hdcp *hdcp = g_hdcp;
 
 	if (hdcp)
 		enable = hdcp->enable;
@@ -585,16 +582,16 @@ static ssize_t hdcp_enable_write(struct device *device,
 				 struct device_attribute *attr,
 				 const char *buf, size_t count)
 {
-	int enable;
-	struct dw_hdcp *hdcp = dev_get_drvdata(device);
+	bool enable;
+	struct dw_hdcp *hdcp = g_hdcp;
 
 	if (!hdcp)
 		return -EINVAL;
 
-	if (kstrtoint(buf, 0, &enable))
+	if (kstrtobool(buf, &enable))
 		return -EINVAL;
 
-	if ((enable >= 0) && (hdcp->enable != enable)) {
+	if (hdcp->enable != enable) {
 		if (enable) {
 			hdcp->enable = enable;
 			if (hdcp->read(hdcp->hdmi, HDMI_PHY_STAT0) &
@@ -615,7 +612,7 @@ static ssize_t hdcp_trytimes_read(struct device *device,
 				  struct device_attribute *attr, char *buf)
 {
 	int trytimes = 0;
-	struct dw_hdcp *hdcp = dev_get_drvdata(device);
+	struct dw_hdcp *hdcp = g_hdcp;
 
 	if (hdcp)
 		trytimes = hdcp->retry_times;
@@ -628,7 +625,7 @@ static ssize_t hdcp_trytimes_write(struct device *device,
 				   const char *buf, size_t count)
 {
 	int trytimes;
-	struct dw_hdcp *hdcp = dev_get_drvdata(device);
+	struct dw_hdcp *hdcp = g_hdcp;
 
 	if (!hdcp)
 		return -EINVAL;
@@ -650,7 +647,7 @@ static ssize_t hdcp_status_read(struct device *device,
 				struct device_attribute *attr, char *buf)
 {
 	int status = DW_HDCP_DISABLED;
-	struct dw_hdcp *hdcp = dev_get_drvdata(device);
+	struct dw_hdcp *hdcp = g_hdcp;
 
 	if (hdcp)
 		status = hdcp->status;
@@ -674,55 +671,52 @@ static int dw_hdmi_hdcp_probe(struct platform_device *pdev)
 	int ret = 0;
 	struct dw_hdcp *hdcp = pdev->dev.platform_data;
 
-	mdev.minor = MISC_DYNAMIC_MINOR;
-	mdev.name = "hdmi_hdcp1x";
-	mdev.mode = 0666;
+	g_hdcp = hdcp;
+	hdcp->mdev.minor = MISC_DYNAMIC_MINOR;
+	hdcp->mdev.name = "hdmi_hdcp1x";
+	hdcp->mdev.mode = 0666;
 
-	if (misc_register(&mdev)) {
+	if (misc_register(&hdcp->mdev)) {
 		dev_err(&pdev->dev, "HDCP: Could not add character driver\n");
 		return -EINVAL;
 	}
 
-	ret = device_create_file(mdev.this_device, &dev_attr_enable);
+	ret = device_create_file(hdcp->mdev.this_device, &dev_attr_enable);
 	if (ret) {
 		dev_err(&pdev->dev, "HDCP: Could not add sys file enable\n");
 		ret = -EINVAL;
 		goto error0;
 	}
 
-	ret = device_create_file(mdev.this_device, &dev_attr_trytimes);
+	ret = device_create_file(hdcp->mdev.this_device, &dev_attr_trytimes);
 	if (ret) {
 		dev_err(&pdev->dev, "HDCP: Could not add sys file trytimes\n");
 		ret = -EINVAL;
 		goto error1;
 	}
 
-	ret = device_create_file(mdev.this_device, &dev_attr_status);
+	ret = device_create_file(hdcp->mdev.this_device, &dev_attr_status);
 	if (ret) {
 		dev_err(&pdev->dev, "HDCP: Could not add sys file status\n");
 		ret = -EINVAL;
 		goto error2;
 	}
-	dev_set_drvdata(mdev.this_device, hdcp);
 
-	if (!(hdcp->read(hdcp->hdmi, HDMI_MC_CLKDIS) &
-	    HDMI_MC_CLKDIS_HDCPCLK_MASK))
-		hdcp->enable = 1;
-
+	/* retry time if hdcp auth fail. unlimited time if set 0 */
+	hdcp->retry_times = 0;
 	hdcp->dev = &pdev->dev;
 	hdcp->hdcp_start = dw_hdmi_hdcp_start;
 	hdcp->hdcp_stop = dw_hdmi_hdcp_stop;
 	hdcp->hdcp_isr = dw_hdmi_hdcp_isr;
-	hdcp->retry_times = 3;
 	dev_dbg(hdcp->dev, "%s success\n", __func__);
 	return 0;
 
 error2:
-	device_remove_file(mdev.this_device, &dev_attr_trytimes);
+	device_remove_file(hdcp->mdev.this_device, &dev_attr_trytimes);
 error1:
-	device_remove_file(mdev.this_device, &dev_attr_enable);
+	device_remove_file(hdcp->mdev.this_device, &dev_attr_enable);
 error0:
-	misc_deregister(&mdev);
+	misc_deregister(&hdcp->mdev);
 	return ret;
 }
 
@@ -730,10 +724,10 @@ static int dw_hdmi_hdcp_remove(struct platform_device *pdev)
 {
 	struct dw_hdcp *hdcp = pdev->dev.platform_data;
 
-	device_remove_file(mdev.this_device, &dev_attr_trytimes);
-	device_remove_file(mdev.this_device, &dev_attr_enable);
-	device_remove_file(mdev.this_device, &dev_attr_status);
-	misc_deregister(&mdev);
+	device_remove_file(hdcp->mdev.this_device, &dev_attr_trytimes);
+	device_remove_file(hdcp->mdev.this_device, &dev_attr_enable);
+	device_remove_file(hdcp->mdev.this_device, &dev_attr_status);
+	misc_deregister(&hdcp->mdev);
 
 	kfree(hdcp->keys);
 	kfree(hdcp->seeds);

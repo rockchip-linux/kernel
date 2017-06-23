@@ -539,6 +539,17 @@
 		status = "disabled";
 	};
 
+	hdmi_phy: hdmi-phy@12030000 {
+		compatible = "rockchip,rk3228-hdmi-phy";
+		reg = <0x12030000 0x10000>;
+		#phy-cells = <0>;
+		clocks = <&cru PCLK_HDMI_PHY>, <&xin24m>;
+		clock-names = "sysclk", "refclk";
+		#clock-cells = <0>;
+		clock-output-names = "hdmiphy_phy";
+		status = "disabled";
+	};
+
 	gpu: gpu@0x20001000 {
 		compatible = "arm,mali400";
 		reg = <0x20001000 0x200>,
@@ -607,6 +618,11 @@
 		vop_out: port {
 			#address-cells = <1>;
 			#size-cells = <0>;
+
+			vop_out_hdmi: endpoint@0 {
+				reg = <0>;
+				remote-endpoint = <&hdmi_in_vop>;
+			};
 		};
 	};
 
@@ -624,6 +640,30 @@
 	display-subsystem {
 		compatible = "rockchip,display-subsystem";
 		ports = <&vop_out>;
+	};
+
+	hdmi: hdmi@200a0000 {
+		compatible = "rockchip,rk3228-dw-hdmi";
+		reg = <0x200a0000 0x20000>;
+		reg-io-width = <4>;
+		interrupts = <GIC_SPI 35 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 71 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&cru SCLK_HDMI_HDCP>, <&cru PCLK_HDMI_CTRL>;
+		clock-names = "isfr", "iahb";
+		pinctrl-names = "default";
+		pinctrl-0 = <&hdmii2c_xfer &hdmi_hpd>;
+		resets = <&cru SRST_HDMI_P>;
+		reset-names = "hdmi";
+		phys = <&hdmi_phy>;
+		phy-names = "hdmi_phy";
+		rockchip,grf = <&grf>;
+		status = "disabled";
+
+		port {
+			hdmi_in_vop: endpoint {
+				remote-endpoint = <&vop_out_hdmi>;
+			};
+		};
 	};
 
 	sdmmc: dwmmc@30000000 {
@@ -667,6 +707,16 @@
 		fifo-depth = <0x100>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&emmc_clk &emmc_cmd &emmc_bus8>;
+		status = "disabled";
+	};
+
+	nandc: nandc@30030000 {
+		compatible = "rockchip,rk-nandc";
+		reg = <0x30030000 0x4000>;
+		interrupts = <GIC_SPI 15 IRQ_TYPE_LEVEL_HIGH>;
+		nandc_id = <0>;
+		clocks = <&cru SCLK_NANDC>, <&cru HCLK_NANDC>;
+		clock-names = "clk_nandc", "hclk_nandc";
 		status = "disabled";
 	};
 
@@ -953,6 +1003,17 @@
 			};
 		};
 
+		hdmi {
+			hdmi_hpd: hdmi-hpd {
+				rockchip,pins = <0 15 RK_FUNC_1 &pcfg_pull_down>;
+			};
+
+			hdmii2c_xfer: hdmii2c-xfer {
+				rockchip,pins = <0 6 RK_FUNC_2 &pcfg_pull_none>,
+						<0 7 RK_FUNC_2 &pcfg_pull_none>;
+			};
+		};
+
 		i2c0 {
 			i2c0_xfer: i2c0-xfer {
 				rockchip,pins = <0 0 RK_FUNC_1 &pcfg_pull_none>,
@@ -1062,6 +1123,25 @@
 
 			uart1_rts: uart1-rts {
 				rockchip,pins = <1 11 RK_FUNC_1 &pcfg_pull_none>;
+			};
+		};
+
+		uart1-1 {
+			uart11_xfer: uart11-xfer {
+				rockchip,pins = <3 14 RK_FUNC_1 &pcfg_pull_up>,
+						<3 13 RK_FUNC_1 &pcfg_pull_none>;
+			};
+
+			uart11_cts: uart11-cts {
+				rockchip,pins = <3 7 RK_FUNC_1 &pcfg_pull_none>;
+			};
+
+			uart11_rts: uart11-rts {
+				rockchip,pins = <3 6 RK_FUNC_1 &pcfg_pull_none>;
+			};
+
+			uart11_rts_gpio: uart11-rts-gpio {
+				rockchip,pins = <3 6 RK_FUNC_GPIO &pcfg_pull_none>;
 			};
 		};
 

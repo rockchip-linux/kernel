@@ -26,7 +26,7 @@ struct hdcp_keys {
 };
 
 struct dw_hdcp {
-	int enable;
+	bool enable;
 	int retry_times;
 	int remaining_times;
 	char *seeds;
@@ -36,6 +36,7 @@ struct dw_hdcp {
 	int status;
 	u32 reg_io_width;
 
+	struct miscdevice mdev;
 	struct hdcp_keys *keys;
 	struct device *dev;
 	struct dw_hdmi *hdmi;

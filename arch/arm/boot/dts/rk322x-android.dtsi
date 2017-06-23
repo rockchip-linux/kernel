@@ -112,6 +112,14 @@
 	status = "okay";
 };
 
+&hdmi {
+	status = "okay";
+};
+
+&hdmi_phy {
+	status = "okay";
+};
+
 &sdmmc {
 	status = "okay";
 	bus-width = <4>;
@@ -175,6 +183,12 @@
 	};
 };
 
+&uart1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&uart11_xfer &uart11_cts>;
+	status = "okay";
+};
+
 &uart2 {
 	status = "okay";
 };
@@ -204,6 +218,16 @@
 };
 
 &usb_otg {
+	status = "okay";
+};
+
+&vop {
+	assigned-clocks = <&cru DCLK_VOP>;
+	assigned-clock-parents = <&cru HDMIPHY>;
+	status = "okay";
+};
+
+&vop_mmu {
 	status = "okay";
 };
 
