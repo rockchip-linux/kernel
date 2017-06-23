@@ -1545,7 +1545,7 @@ static int rk312x_lcdc_open(struct rk_lcdc_driver *dev_drv, int win_id,
 		}
 
 		/* set screen lut */
-		if (dev_drv->cur_screen->dsp_lut)
+		if (dev_drv->cur_screen->dsp_lut && !support_uboot_display())
 			rk312x_lcdc_set_lut(dev_drv,
 					    dev_drv->cur_screen->dsp_lut);
 	}
