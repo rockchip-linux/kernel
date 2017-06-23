@@ -73,8 +73,7 @@
 			regulator-boot-on;
 			regulator-always-on;
 			regulator-state-mem {
-				regulator-state-enabled;
-				regulator-state-uv = <1000000>;
+				regulator-state-disabled;
 			};
 		};
 
@@ -86,8 +85,7 @@
 			regulator-boot-on;
 			regulator-always-on;
 			regulator-state-mem {
-				regulator-state-enabled;
-				regulator-state-uv = <1800000>;
+				regulator-state-disabled;
 			};
 		};
 
