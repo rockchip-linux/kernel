@@ -263,7 +263,7 @@
 	es8396: es8396@10 {
 		compatible = "es8396";
 		reg = <0x11>;
-		spk-con-gpio = <&gpio0 GPIO_D6 GPIO_ACTIVE_HIGH>;
+		spk-con-gpio = <&gpio3 GPIO_C4 GPIO_ACTIVE_HIGH>;
 		clocks = <&clk_i2s_2ch_out>;
 		clock-names = "mclk";
 		status = "okay";
