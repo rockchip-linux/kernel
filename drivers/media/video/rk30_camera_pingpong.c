@@ -297,8 +297,11 @@ static u32 CHIP_NAME;
 		1. Support rk3368.
 *v0.2.0:
 		1. Support rk322xh.
+*v0.3.0:
+		1. cif_clk_out 24M can disable directly by disable clk_cif_pll,
+		no need switching to 36M before.
 */
-#define RK_CAM_VERSION_CODE KERNEL_VERSION(0, 2, 0)
+#define RK_CAM_VERSION_CODE KERNEL_VERSION(0, 3, 0)
 static int version = RK_CAM_VERSION_CODE;
 module_param(version, int, S_IRUGO);
 
@@ -400,6 +403,7 @@ struct rk_cif_clk
 	struct clk *cif_clk_in;
 	struct clk *cif_clk_out;
 	struct clk *pclk_cif;
+	struct clk *clk_cif_pll;
 	/************must modify end************/
 
    // spinlock_t lock;
@@ -1389,7 +1393,11 @@ static int rk_camera_mclk_ctrl(int cif_idx, int on, int clk_rate)
 			write_cru_reg(CRU_CLKSEL29_CON, 0x007c0000);
 			write_cru_reg(CRU_CLK_OUT, 0x00800080);
 		}
-		clk_disable_unprepare(clk->cif_clk_out);
+		if (clk->clk_cif_pll)
+			clk_disable(clk->clk_cif_pll);
+		else
+			RKCAMERA_TR(KERN_ERR"clk->clk_cif_pll is NULL, cif_clk_out maybe not disabled\n");
+
 		if (CHIP_NAME != 3228)
 			clk_disable_unprepare(clk->pd_cif);
 		if (CHIP_NAME == 3368)
@@ -3295,6 +3303,7 @@ static int rk_camera_probe(struct platform_device *pdev)
 			cif_clk[0].cif_clk_in =
 				devm_clk_get(dev_cif, "cif0_in");
 		cif_clk[0].cif_clk_out = devm_clk_get(dev_cif, "cif0_out");
+		cif_clk[0].clk_cif_pll = clk_get(NULL, "clk_cif_pll");
 		/* spin_lock_init(&cif_clk[0].lock); */
 		cif_clk[0].on = false;
 		rk_camera_cif_iomux(dev_cif);/*yzm*/
@@ -3307,6 +3316,7 @@ static int rk_camera_probe(struct platform_device *pdev)
 		if (CHIP_NAME != 3228)
 			cif_clk[1].cif_clk_in = devm_clk_get(dev_cif, "cif0_in");
         cif_clk[1].cif_clk_out = devm_clk_get(dev_cif, "cif0_out");
+		cif_clk[1].clk_cif_pll = clk_get(NULL, "clk_cif_pll");
 		if (CHIP_NAME != 3228)
 			cif_clk[1].pclk_cif = devm_clk_get(dev_cif, "pclk_cif");
 	/*spin_lock_init(&cif_clk[1].lock);*/
