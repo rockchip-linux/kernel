@@ -1045,7 +1045,9 @@ static int rfkill_wlan_probe(struct platform_device *pdev)
 
     rockchip_wifi_voltage_select();
 
+#ifdef CONFIG_WIFI_BUILD_MODULE
 	rockchip_wifi_set_carddetect(1);
+#endif
 
 #if BCM_STATIC_MEMORY_SUPPORT
     rockchip_init_wifi_mem();
