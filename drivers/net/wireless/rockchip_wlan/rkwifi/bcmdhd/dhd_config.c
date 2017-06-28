@@ -2561,7 +2561,7 @@ dhd_conf_preinit(dhd_pub_t *dhd)
 	conf->dhd_poll = -1;
 	conf->txctl_tmo_fix = FALSE;
 	conf->tx_in_rx = TRUE;
-	conf->txglom_mode = SDPCM_TXGLOM_MDESC;
+	conf->txglom_mode = SDPCM_TXGLOM_CPY;
 	conf->deferred_tx_len = 0;
 	conf->dhd_txminmax = 1;
 	conf->txinrx_thres = -1;
