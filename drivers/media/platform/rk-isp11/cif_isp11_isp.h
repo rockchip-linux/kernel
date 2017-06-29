@@ -43,12 +43,14 @@ struct cif_isp11_isp_other_cfgs {
 	struct cif_isp11_isp_cfgs_log log[CIFISP_MODULE_MAX];
 	struct cifisp_isp_other_cfg cfgs[3];
 	unsigned int module_updates;
+	unsigned int module_actives;
 };
 
 struct cif_isp11_isp_meas_cfgs {
 	struct cif_isp11_isp_cfgs_log log[CIFISP_MODULE_MAX];
 	struct cifisp_isp_meas_cfg cfgs[3];
 	unsigned int module_updates;
+	unsigned int module_actives;
 };
 
 struct cif_isp11_isp_meas_stats {

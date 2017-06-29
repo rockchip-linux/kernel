@@ -1644,7 +1644,8 @@ static int cif_isp11_config_isp(
 	output = &dev->config.isp_config.output;
 	cam_itf = &dev->config.cam_itf;
 
-	if (CIF_ISP11_PIX_FMT_IS_RAW_BAYER(in_pix_fmt)) {
+	if (CIF_ISP11_PIX_FMT_IS_RAW_BAYER(in_pix_fmt) ||
+		(in_pix_fmt == CIF_Y10)) {
 		if (!dev->config.mi_config.raw_enable) {
 			output->pix_fmt = CIF_YUV422I;
 
@@ -1665,6 +1666,9 @@ static int cif_isp11_config_isp(
 			if (dev->sp_stream.state == CIF_ISP11_STATE_READY) {
 				output->quantization =
 					dev->config.mi_config.sp.output.quantization;
+
+				if (in_pix_fmt == CIF_Y10)
+					output->pix_fmt = CIF_YUV400;
 			}
 
 			if (dev->mp_stream.state == CIF_ISP11_STATE_READY) {
@@ -1676,8 +1680,13 @@ static int cif_isp11_config_isp(
 					dev->config.mi_config.y12.output.quantization;
 			}
 
-			cif_iowrite32(0xc,
-				dev->config.base_addr + CIF_ISP_DEMOSAIC);
+			if (in_pix_fmt == CIF_Y10) {
+				cif_iowrite32(0x40c,
+					dev->config.base_addr + CIF_ISP_DEMOSAIC);
+			} else {
+				cif_iowrite32(0xc,
+					dev->config.base_addr + CIF_ISP_DEMOSAIC);
+			}
 
 			if (PLTFRM_CAM_ITF_IS_BT656(dev->config.cam_itf.type)) {
 				cif_iowrite32(CIF_ISP_CTRL_ISP_MODE_BAYER_ITU656,
@@ -1718,31 +1727,34 @@ static int cif_isp11_config_isp(
 		}
 
 		bpp = CIF_ISP11_PIX_FMT_GET_BPP(in_pix_fmt);
-		if (bpp == 8)
+		if (bpp == 8) {
 			isp_input_sel = CIF_ISP_ACQ_PROP_IN_SEL_8B_MSB;
-		else if (bpp == 10)
+		} else if (bpp == 10) {
 			isp_input_sel = CIF_ISP_ACQ_PROP_IN_SEL_10B_MSB;
-		else if (bpp == 12)
+		} else if (bpp == 12) {
 			isp_input_sel = CIF_ISP_ACQ_PROP_IN_SEL_12B;
-		else {
+		} else {
 			cif_isp11_pltfrm_pr_err(dev->dev,
 				"%d bits per pixel not supported\n", bpp);
 			ret = -EINVAL;
 			goto err;
 		}
-		if (CIF_ISP11_PIX_FMT_BAYER_PAT_IS_BGGR(in_pix_fmt))
-			isp_bayer_pat = CIF_ISP_ACQ_PROP_BAYER_PAT_BGGR;
-		else if (CIF_ISP11_PIX_FMT_BAYER_PAT_IS_GBRG(in_pix_fmt))
-			isp_bayer_pat = CIF_ISP_ACQ_PROP_BAYER_PAT_GBRG;
-		else if (CIF_ISP11_PIX_FMT_BAYER_PAT_IS_GRBG(in_pix_fmt))
-			isp_bayer_pat = CIF_ISP_ACQ_PROP_BAYER_PAT_GRBG;
-		else if (CIF_ISP11_PIX_FMT_BAYER_PAT_IS_RGGB(in_pix_fmt))
-			isp_bayer_pat = CIF_ISP_ACQ_PROP_BAYER_PAT_RGGB;
-		else {
-			cif_isp11_pltfrm_pr_err(dev->dev,
-				"BAYER pattern not supported\n");
-			ret = -EINVAL;
-			goto err;
+
+		if (CIF_ISP11_PIX_FMT_IS_RAW_BAYER(in_pix_fmt)) {
+			if (CIF_ISP11_PIX_FMT_BAYER_PAT_IS_BGGR(in_pix_fmt)) {
+				isp_bayer_pat = CIF_ISP_ACQ_PROP_BAYER_PAT_BGGR;
+			} else if (CIF_ISP11_PIX_FMT_BAYER_PAT_IS_GBRG(in_pix_fmt)) {
+				isp_bayer_pat = CIF_ISP_ACQ_PROP_BAYER_PAT_GBRG;
+			} else if (CIF_ISP11_PIX_FMT_BAYER_PAT_IS_GRBG(in_pix_fmt)) {
+				isp_bayer_pat = CIF_ISP_ACQ_PROP_BAYER_PAT_GRBG;
+			} else if (CIF_ISP11_PIX_FMT_BAYER_PAT_IS_RGGB(in_pix_fmt)) {
+				isp_bayer_pat = CIF_ISP_ACQ_PROP_BAYER_PAT_RGGB;
+			} else {
+				cif_isp11_pltfrm_pr_err(dev->dev,
+					"BAYER pattern not supported\n");
+				ret = -EINVAL;
+				goto err;
+			}
 		}
 	} else if (CIF_ISP11_PIX_FMT_IS_YUV(in_pix_fmt)) {
 		output->pix_fmt = in_pix_fmt;
@@ -2017,6 +2029,8 @@ static int cif_isp11_config_mipi(
 			(CIF_ISP11_PIX_FMT_YUV_GET_Y_SUBS(in_pix_fmt) == 4) &&
 			(CIF_ISP11_PIX_FMT_GET_BPP(in_pix_fmt) == 20))
 			data_type = CSI2_DT_YUV422_10b;
+		else if (in_pix_fmt == CIF_Y10)
+			data_type = CSI2_DT_RAW10;
 		else {
 			cif_isp11_pltfrm_pr_err(dev->dev,
 				"unsupported format %s\n",
@@ -2391,6 +2405,10 @@ static int cif_isp11_config_mi_sp(
 			CIF_ISP11_PIX_FMT_YUV_GET_NUM_CPLANES(out_pix_fmt);
 		if (num_cplanes == 0) {
 			writeformat = CIF_ISP11_BUFF_FMT_INTERLEAVED;
+
+			if (out_pix_fmt == CIF_YUV400)
+				writeformat = CIF_ISP11_BUFF_FMT_PLANAR;
+
 		} else {
 			dev->config.mi_config.sp.y_size =
 				(dev->config.mi_config.sp.y_size * 4)
@@ -4030,6 +4048,18 @@ static int cif_isp11_s_fmt_mp(
 		strm_fmt->frm_fmt.quantization);
 
 	/* TBD: check whether format is a valid format for MP */
+	if (strm_fmt->frm_fmt.pix_fmt == CIF_YUV400) {
+		cif_isp11_pltfrm_pr_err(dev->dev,
+			"format %s %dx%d@%d/%dfps, stride = %d not supported on MP\n",
+			cif_isp11_pix_fmt_string(strm_fmt->frm_fmt.pix_fmt),
+			strm_fmt->frm_fmt.width,
+			strm_fmt->frm_fmt.height,
+			strm_fmt->frm_intrvl.numerator,
+			strm_fmt->frm_intrvl.denominator,
+			stride);
+		ret = -EINVAL;
+		goto err;
+	}
 
 	if (CIF_ISP11_PIX_FMT_IS_JPEG(strm_fmt->frm_fmt.pix_fmt))
 		dev->config.jpeg_config.enable = true;

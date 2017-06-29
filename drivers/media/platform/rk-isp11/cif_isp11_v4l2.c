@@ -322,9 +322,9 @@ static enum cif_isp11_pix_fmt cif_isp11_v4l2_pix_fmt2cif_isp11_pix_fmt(
 	switch (v4l2_pix_fmt) {
 	case V4L2_PIX_FMT_GREY:
 		#if (CIF_ISP11_PIX_FMT_Y_AS_BAYER)
-		return CIF_YUV400;
-		#else
 		return CIF_BAYER_SBGGR8;
+		#else
+		return CIF_YUV400;
 		#endif
 	case V4L2_PIX_FMT_Y10:
 		#if (CIF_ISP11_PIX_FMT_Y_AS_BAYER)
