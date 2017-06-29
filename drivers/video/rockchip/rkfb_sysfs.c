@@ -1469,14 +1469,24 @@ static ssize_t set_hdr2sdr_yn(struct device *dev,
 		}
 		if (dev_drv->ops->set_hdr2sdr_yn)
 			dev_drv->ops->set_hdr2sdr_yn(dev_drv, 1, hdr2sdr_eetf);
-	} else if (!strncmp(buf, "dst_maxlumi", 12)) {
+	} else if (!strncmp(buf, "dst_maxlumi", 10)) {
 		do {
 			start++;
 			space_max--;
 		} while ((*start != ' ') && space_max);
 		start++;
-		temp = simple_strtoul(start, NULL, 10);
-		hdr2sdr_eetf[0] = temp;
+		for (i = 0; i < 2; i++) {
+			space_max = 10;	/* max space number 10 */
+			temp = simple_strtoul(start, NULL, 10);
+			hdr2sdr_eetf[i] = temp;
+			do {
+				start++;
+				space_max--;
+			} while ((*start != ' ') && space_max);
+			if (!space_max)
+				break;
+			start++;
+		}
 		if (dev_drv->ops->set_hdr2sdr_yn)
 			dev_drv->ops->set_hdr2sdr_yn(dev_drv, 2, hdr2sdr_eetf);
 	} else if (!strncmp(buf, "normfacgamma", 12)) {

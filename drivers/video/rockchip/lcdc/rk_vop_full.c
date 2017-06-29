@@ -4056,7 +4056,7 @@ static int vop_set_hdr2sdr_yn(struct rk_lcdc_driver *dev_drv, int cmd,
 		for (i = 0; i < 33; i++)
 			hdr2sdr_bt1886oetf_yn[i] = hdr2sdr_yn[i];
 	} else if (cmd == 2) {
-		val = V_SRC_MAX(hdr2sdr_yn[0] * 4);
+		val = V_SRC_MIN(hdr2sdr_yn[0]) | V_SRC_MAX(hdr2sdr_yn[1] * 4);
 		vop_msk_reg(vop_dev, HDR2SDR_DST_RANGE, val);
 	} else {
 		val = V_NORMFACCGAMMA(hdr2sdr_yn[0]);
@@ -4091,6 +4091,10 @@ static ssize_t vop_show_hdr2sdr_yn(struct rk_lcdc_driver *dev_drv, char *buf)
 	}
 
 	strcat(buf, "DST_RANGE: ");
+	memset(hdr_buf, 0, sizeof(hdr_buf));
+	val = vop_readl(vop_dev, HDR2SDR_DST_RANGE) & MASK(SRC_MIN);
+	size += snprintf(hdr_buf, 10, "%d ", val);
+	strcat(buf, hdr_buf);
 	memset(hdr_buf, 0, sizeof(hdr_buf));
 	val = (vop_readl(vop_dev, HDR2SDR_DST_RANGE) & MASK(SRC_MAX)) >> 16;
 	val /= 4;
