@@ -31,16 +31,16 @@
 
 #define OV7251_DRIVER_NAME "ov7251"
 
-#define OV7251_FETCH_LSB_GAIN(VAL) ((VAL) & 0x00FF)       /* gain[7:0] */
-#define OV7251_FETCH_MSB_GAIN(VAL) (((VAL) >> 8) & 0x1)	/* gain[10:8] */
-#define OV7251_AEC_PK_LONG_GAIN_HIGH_REG 0x350a	/* Bit 8 */
+#define OV7251_FETCH_LSB_GAIN(VAL) ((VAL) & 0x00FF)     /* gain[7:0] */
+#define OV7251_FETCH_MSB_GAIN(VAL) (((VAL) >> 8) & 0x3) /* gain[9:8] */
+#define OV7251_AEC_PK_LONG_GAIN_HIGH_REG 0x350a	/* Bit 8 - 9 */
 #define OV7251_AEC_PK_LONG_GAIN_LOW_REG	 0x350b	/* Bits 0 -7 */
 
 #define OV7251_AEC_PK_LONG_EXPO_3RD_REG 0x3500	/* Exposure Bits 16-19 */
 #define OV7251_AEC_PK_LONG_EXPO_2ND_REG 0x3501	/* Exposure Bits 8-15 */
 #define OV7251_AEC_PK_LONG_EXPO_1ST_REG 0x3502	/* Exposure Bits 0-7 */
 
-#define OV7251_AEC_GROUP_UPDATE_ADDRESS 0x3212
+#define OV7251_AEC_GROUP_UPDATE_ADDRESS 0x3208
 #define OV7251_AEC_GROUP_UPDATE_START_DATA 0x00
 #define OV7251_AEC_GROUP_UPDATE_END_DATA 0x10
 #define OV7251_AEC_GROUP_UPDATE_END_LAUNCH 0xA0
@@ -71,7 +71,7 @@
 #define OV7251_FINE_INTG_TIME_MIN 0
 #define OV7251_FINE_INTG_TIME_MAX_MARGIN 0
 #define OV7251_COARSE_INTG_TIME_MIN 1
-#define OV7251_COARSE_INTG_TIME_MAX_MARGIN 4
+#define OV7251_COARSE_INTG_TIME_MAX_MARGIN 20
 #define OV7251_TIMING_X_INC		0x3814
 #define OV7251_TIMING_Y_INC		0x3815
 #define OV7251_HORIZONTAL_START_HIGH_REG 0x3800
@@ -113,7 +113,7 @@ static struct ov_camera_module_reg OV7251_init_tab_640_480_100fps[] = {
 	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3018, 0x00},
 	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x301a, 0x00},
 	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x301b, 0x00},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x301c, 0x00},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x301c, 0x20},
 	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3023, 0x05},
 	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3037, 0xf0},/* sclk control */
 	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3098, 0x04},/* PLL */
@@ -361,8 +361,8 @@ static int OV7251_auto_adjust_fps(struct ov_camera_module *cam_mod,
 	else
 		vts = cam_mod->vts_min;
 
-	if (vts > 0xfff)
-		vts = 0xfff;
+	if (vts > 0xffff)
+		vts = 0xffff;
 	else
 		vts = vts;  /*VTS value is 0x380e[3:0]/380f[7:0]*/
 
@@ -371,7 +371,7 @@ static int OV7251_auto_adjust_fps(struct ov_camera_module *cam_mod,
 		vts & 0xFF);
 	ret |= ov_camera_module_write_reg(cam_mod,
 		OV7251_TIMING_VTS_HIGH_REG,
-		(vts >> 8) & 0x0F);
+		(vts >> 8) & 0xFF);
 
 	if (IS_ERR_VALUE(ret)) {
 		ov_camera_module_pr_err(cam_mod,
@@ -561,13 +561,13 @@ static int OV7251_filltimings(struct ov_camera_module_custom_config *custom)
 					(timings->crop_vertical_end & 0xff00));
 				break;
 			case OV7251_H_WIN_OFF_HIGH_REG:
-				win_h_off = (reg_table[j].val & 0xf) << 8;
+				win_h_off = (reg_table[j].val & 0xff) << 8;
 				break;
 			case OV7251_H_WIN_OFF_LOW_REG:
 				win_h_off |= (reg_table[j].val & 0xff);
 				break;
 			case OV7251_V_WIN_OFF_HIGH_REG:
-				win_v_off = (reg_table[j].val & 0xf) << 8;
+				win_v_off = (reg_table[j].val & 0xff) << 8;
 				break;
 			case OV7251_V_WIN_OFF_LOW_REG:
 				win_v_off |= (reg_table[j].val & 0xff);

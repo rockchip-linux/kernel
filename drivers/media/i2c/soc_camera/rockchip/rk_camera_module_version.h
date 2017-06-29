@@ -25,8 +25,12 @@
  * 2. Update sensor configuration after power up sensor in ov_camera_module_s_power.
  * Because mipi datalane may be no still on LP11 state when sensor configuration;
  *
+ * v0.1.1:
+ * 1. Fix some errors in ov7251bw_v4l2-i2c-subdev.c according to
+ * ov7251 sensor datasheet;
+ *
  */
 
-#define CONFIG_RK_CAMERA_MODULE_VERSION KERNEL_VERSION(0, 1, 0)
+#define CONFIG_RK_CAMERA_MODULE_VERSION KERNEL_VERSION(0, 1, 1)
 
 #endif
