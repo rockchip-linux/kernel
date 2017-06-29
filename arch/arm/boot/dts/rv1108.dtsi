@@ -1897,6 +1897,12 @@
 			};
 		};
 
+		gpio_detection_pins {
+			car_reverse: car-reverse {
+				rockchip,pins = <0 GPIO_C0 RK_FUNC_GPIO &pcfg_pull_down>;
+			};
+		};
+
 		cif_dvp_pins {
 			cif_dvp_d10d11: cif-dvp-d10d11 {
 				rockchip,pins = <3 GPIO_D5 RK_FUNC_1 &pcfg_pull_none>, /* cif_d10 */

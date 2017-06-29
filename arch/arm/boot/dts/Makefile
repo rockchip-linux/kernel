@@ -202,6 +202,7 @@ dtb-$(CONFIG_ARCH_ROCKCHIP) += \
 	rv1108-ipc-v10.dtb \
 	rv1108-ipc-emmc-v10.dtb \
 	rv1108-ketong.dtb \
+	rv1108-minievb-v10.dtb \
 	rv1108-sportdv-v10.dtb
 dtb-$(CONFIG_ARCH_U8500) += snowball.dtb \
 	hrefprev60.dtb \
