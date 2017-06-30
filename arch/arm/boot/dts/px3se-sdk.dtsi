@@ -260,6 +260,13 @@
 		status = "okay";
 	};
 
+	fm1288@60 {
+		compatible = "fm1288";
+		reg = <0x60>;
+		pwd-con-gpio = <&gpio2 GPIO_B7 GPIO_ACTIVE_HIGH>;
+		status = "okay";
+	};
+
 	es8396: es8396@10 {
 		compatible = "es8396";
 		reg = <0x11>;
