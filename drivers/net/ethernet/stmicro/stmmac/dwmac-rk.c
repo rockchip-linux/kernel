@@ -1066,7 +1066,7 @@ void rk_get_eth_addr(void *priv, unsigned char *addr)
 		goto out;
 
 	ret = rk_vendor_read(LAN_MAC_ID, addr, 6);
-	if (ret != 6 || is_zero_ether_addr(addr)) {
+	if (ret != 6 || !is_valid_ether_addr(addr)) {
 		dev_err(dev, "%s: rk_vendor_read eth mac address failed (%d)",
 					__func__, ret);
 		random_ether_addr(addr);
