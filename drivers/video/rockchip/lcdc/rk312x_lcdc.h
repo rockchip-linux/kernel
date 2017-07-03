@@ -429,11 +429,11 @@ enum _VOP_SOC_TYPE {
 	#define v_BCSH_COLOR_BAR_V(x)   BITS_MASK(x, 0xff, 16)
 
 #define BCSH_BCS 		(0xd8)	
-	#define m_BCSH_BRIGHTNESS	BITS(0x1f, 0)	
+	#define m_BCSH_BRIGHTNESS	BITS(0x3f, 0)
 	#define m_BCSH_CONTRAST		BITS(0xff, 8)
 	#define m_BCSH_SAT_CON		BITS(0x1ff, 16)
 
-	#define v_BCSH_BRIGHTNESS(x)	BITS_MASK(x, 0x1f, 0)	
+	#define v_BCSH_BRIGHTNESS(x)	BITS_MASK(x, 0x3f, 0)
 	#define v_BCSH_CONTRAST(x)	BITS_MASK(x, 0xff, 8)	
 	#define v_BCSH_SAT_CON(x)       BITS_MASK(x, 0x1ff, 16)			
 

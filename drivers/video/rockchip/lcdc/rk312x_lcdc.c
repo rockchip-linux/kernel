@@ -2098,21 +2098,34 @@ static int rk312x_lcdc_set_bcsh_bcs(struct rk_lcdc_driver *dev_drv,
 	if (lcdc_dev->clk_on) {
 		switch (mode) {
 		case BRIGHTNESS:
-			/* from 0 to 255,typical is 128 */
-			if (value < 0x80)
-				value += 0x80;
-			else if (value >= 0x80)
-				value = value - 0x80;
+			/*
+			 * user: from 0 to 255,typical is 128,
+			 * vop,6bit: from 0 to 64, typical is 32
+			 */
+			value /= 4;
+			if (value < 0x20)
+				value += 0x20;
+			else if (value >= 0x20)
+				value = value - 0x20;
 			mask = m_BCSH_BRIGHTNESS;
 			val = v_BCSH_BRIGHTNESS(value);
 			break;
 		case CONTRAST:
-			/* from 0 to 510,typical is 256 */
+			/*
+			 * user: from 0 to 510,typical is 256
+			 * vop,9bit, from 0 to 511,typical is 256
+			 */
+			value /= 2;
+			value = 256 - value;
 			mask = m_BCSH_CONTRAST;
 			val = v_BCSH_CONTRAST(value);
 			break;
 		case SAT_CON:
-			/* from 0 to 1015,typical is 256 */
+			/*
+			 * from 0 to 1024,typical is 512
+			 * vop,9bit, from 0 to 512, typical is 256
+			 */
+			value /= 2;
 			mask = m_BCSH_SAT_CON;
 			val = v_BCSH_SAT_CON(value);
 			break;
@@ -2139,18 +2152,20 @@ static int rk312x_lcdc_get_bcsh_bcs(struct rk_lcdc_driver *dev_drv,
 		switch (mode) {
 		case BRIGHTNESS:
 			val &= m_BCSH_BRIGHTNESS;
-			if (val > 0x80)
-				val -= 0x80;
+			if (val >= 0x20)
+				val -= 0x20;
 			else
-				val += 0x80;
+				val += 0x20;
+			val <<= 2;
 			break;
 		case CONTRAST:
 			val &= m_BCSH_CONTRAST;
-			val >>= 8;
+			val >>= 7;
 			break;
 		case SAT_CON:
 			val &= m_BCSH_SAT_CON;
-			val >>= 20;
+			val >>= 16;
+			val <<= 1;
 			break;
 		default:
 			break;
