@@ -186,7 +186,11 @@ static void debug_putc(struct platform_device *pdev, unsigned int c)
 	t = container_of(dev_get_platdata(&pdev->dev), typeof(*t), pdata);
 
 	while (!(rk_fiq_read(t, UART_USR) & UART_USR_TX_FIFO_NOT_FULL) && count--)
-		cpu_relax();
+		udelay(10);
+	/* If uart is always busy, maybe it is abnormal, reinit it */
+	if ((count == 0) && (rk_fiq_read(t, UART_USR) & UART_USR_BUSY))
+		debug_port_init(pdev);
+
 	rk_fiq_write(t, c, UART_TX);
 }
 
@@ -197,7 +201,10 @@ static void debug_flush(struct platform_device *pdev)
 	t = container_of(dev_get_platdata(&pdev->dev), typeof(*t), pdata);
 
 	while (!(rk_fiq_read_lsr(t) & UART_LSR_TEMT) && count--)
-		cpu_relax();
+		udelay(10);
+	/* If uart is always busy, maybe it is abnormal, reinit it */
+	if ((count == 0) && (rk_fiq_read(t, UART_USR) & UART_USR_BUSY))
+		debug_port_init(pdev);
 }
 
 #ifdef CONFIG_RK_CONSOLE_THREAD
