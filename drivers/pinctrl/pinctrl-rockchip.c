@@ -871,6 +871,11 @@ static void rockchip_set_mux(struct rockchip_pin_bank *bank, int pin, int mux)
 		return;
 	}
 
+	/*RK312x GRF_SOC_CON1 sdi select GPIO0B6 */
+	if ((info->ctrl->type == RK312X) && (bank->bank_num == 0) &&
+	    (pin == 14) && ((mux & 0xf) == 1))
+		writel(0x00200020, info->reg_base + 0x144);
+
 	if((info->ctrl->type == RK312X) && (bank->bank_num == 2) && (pin >= 20) && (pin <= 24))
 	{
 		/*RK321X GPIO2C_IOMUX2 and GPIO2D_IOMUX are special */
