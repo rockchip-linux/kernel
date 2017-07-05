@@ -1,6 +1,7 @@
 
 #include <linux/rk_fb.h>
 #include <linux/device.h>
+#include <linux/rockchip/cpu.h>
 #include "lcd.h"
 #include "../hdmi/rockchip-hdmi.h"
 
@@ -55,6 +56,14 @@ size_t get_fb_size(u8 reserved_fb)
 
 	xres = rk_screen->mode.xres;
 	yres = rk_screen->mode.yres;
+
+	/* if there is only one vop, and hdmi buffer must be large enough */
+#ifdef CONFIG_RK_HDMI
+	if (cpu_is_rv110x()) {
+		xres = xres > 1280 ? xres : 1280;
+		yres = yres > 720 ? yres : 720;
+	}
+#endif
 
 	/* align as 64 bytes(16*4) in an odd number of times */
 	xres = ALIGN_64BYTE_ODD_TIMES(xres, ALIGN_PIXEL_64BYTE_RGB8888);
