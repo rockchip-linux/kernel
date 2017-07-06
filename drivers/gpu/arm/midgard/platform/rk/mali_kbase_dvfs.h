@@ -47,9 +47,9 @@ struct rk_dvfs_t {
 	int utilisation;
 
 	/*
-	 * The result temperature of last measure_session.
+	 * The result temperature of last measure_session, might be negative.
 	 */
-	u32 temp;
+	int temp;
 	/*
 	 * Times of temp measures which has been taken in current session.
 	 */
@@ -57,7 +57,7 @@ struct rk_dvfs_t {
 	/*
 	 * sum of temps measued within a session.
 	 */
-	u32 sum_of_temps;
+	int sum_of_temps;
 
 	/*
 	 * counter_of_requests_to_jump_up.
