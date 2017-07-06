@@ -321,6 +321,31 @@
 	};
 };
 
+&i2c3 {
+	status = "okay";
+	clock-frequency = <400000>;
+
+	mpu6500: mpu6500@68 {
+		compatible = "mpu6500_gyro";
+		reg = <0x68>;
+		type = <4>;
+		poll_delay_ms = <5>;
+		orientation-x= <1>;
+		orientation-y= <1>;
+		orientation-z= <0>;
+		support-hw-poweroff = <1>;
+		mpu-int_config = <0x10>;
+		mpu-level_shifter = <0>;
+		mpu-orientation = <1 0 0 0 1 0 0 0 1>;
+		mpu-delay-ms = <10>;
+		mpu-debug = <1>;
+		mpu-fifo-enable = <1>;
+		mpu-static-judge = <0>;
+		mpu-sample-rate = <1000>;
+		status = "okay";
+	};
+};
+
 &cif_isp0 {
 	rockchip,camera-modules-attached = <&camera0>;
 	status = "okay";
