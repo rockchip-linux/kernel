@@ -1221,8 +1221,7 @@ static void get_reg_freq(struct vpu_subdev_data *data, struct vpu_reg *reg)
 			}
 		}
 		if (data->hw_id == HEVC_ID) {
-			if (reg_probe_hevc_y_stride(reg) > 60000)
-				reg->freq = VPU_FREQ_400M;
+			reg->freq = VPU_FREQ_600M;
 		}
 		if (reg->type == VPU_PP)
 			reg->freq = VPU_FREQ_400M;

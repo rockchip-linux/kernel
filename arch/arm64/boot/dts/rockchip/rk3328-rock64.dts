@@ -44,8 +44,8 @@
 #include "rk3328.dtsi"
 
 / {
-	model = "Rockchip RK3328 Rock64";
-	compatible = "rockchip,rk3328-rock64", "rockchip,rk3328";
+	model = "PINE64 ROCK64";
+	compatible = "pine64,rock64", "rockchip,rk3328";
 
 	chosen {
 		bootargs = "rockchip_jtag earlyprintk=uart8250-32bit,0xff130000";
@@ -70,6 +70,20 @@
 		#clock-cells = <0>;
 	};
 
+	sdio_pwrseq: sdio-pwrseq {
+		compatible = "mmc-pwrseq-simple";
+		pinctrl-names = "default";
+		pinctrl-0 = <&wifi_enable_h>;
+
+		/*
+		 * On the module itself this is one of these (depending
+		 * on the actual card populated):
+		 * - SDIO_RESET_L_WL_REG_ON
+		 * - PDN (power down when low)
+		 */
+		reset-gpios = <&gpio1 18 GPIO_ACTIVE_LOW>;
+	};
+
 	sound {
 		compatible = "simple-audio-card";
 		simple-audio-card,format = "i2s";
@@ -87,7 +101,7 @@
 		compatible = "simple-audio-card";
 		simple-audio-card,format = "i2s";
 		simple-audio-card,mclk-fs = <128>;
-		simple-audio-card,name = "rockchip,hdmi";
+		simple-audio-card,name = "ROCK64";
 		simple-audio-card,cpu {
 			sound-dai = <&i2s0>;
 		};
@@ -98,7 +112,7 @@
 
 	spdif-sound {
 		compatible = "simple-audio-card";
-		simple-audio-card,name = "rockchip,spdif";
+		simple-audio-card,name = "SPDIF";
 		simple-audio-card,cpu {
 			sound-dai = <&spdif>;
 		};
@@ -169,6 +183,16 @@
 	pinctrl-0 = <&rgmiim1_pins>;
 	tx_delay = <0x26>;
 	rx_delay = <0x11>;
+	status = "okay";
+};
+
+&gmac2phy {
+	phy-supply = <&vcc_phy>;
+	clock_in_out = "output";
+	assigned-clocks = <&cru SCLK_MAC2PHY_SRC>;
+	assigned-clock-rate = <50000000>;
+	assigned-clocks = <&cru SCLK_MAC2PHY>;
+	assigned-clock-parents = <&cru SCLK_MAC2PHY_SRC>;
 	status = "okay";
 };
 
@@ -373,10 +397,33 @@
 			<2 RK_PA6 RK_FUNC_GPIO &pcfg_pull_up>;	/* gpio2_a6 */
 		};
 	};
+
+	sdio-pwrseq {
+		wifi_enable_h: wifi-enable-h {
+		rockchip,pins =
+			<1 18 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
 };
 
 &rkvdec {
 	status = "okay";
+};
+
+&sdio {
+	bus-width = <4>;
+	cap-sd-highspeed;
+	cap-sdio-irq;
+	disable-wp;
+	keep-power-in-suspend;
+	max-frequency = <150000000>;
+	mmc-pwrseq = <&sdio_pwrseq>;
+	non-removable;
+	num-slots = <1>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&sdmmc1_bus4 &sdmmc1_cmd &sdmmc1_clk>;
+	supports-sdio;
+	status = "disabled";
 };
 
 &sdmmc {

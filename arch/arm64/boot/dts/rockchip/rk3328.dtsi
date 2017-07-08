@@ -67,6 +67,8 @@
 		mmc0 = &emmc;
 		mmc1 = &sdmmc;
 		mmc2 = &sdmmc_ext;
+		ethernet0 = &gmac2io;
+		ethernet1 = &gmac2phy;
 	};
 
 	cpus {
@@ -623,6 +625,10 @@
 			opp-hz = /bits/ 64 <500000000>;
 			opp-microvolt = <1100000>;
 		};
+		opp-600000000 {
+			opp-hz = /bits/ 64 <600000000>;
+			opp-microvolt = <1150000>;
+		};
 	};
 
 	vpu_service: vpu-service@ff350000 {
@@ -883,7 +889,7 @@
 			<300000000>, <100000000>,
 			<300000000>, <200000000>,
 			<400000000>, <500000000>,
-			<200000000>, <300000000>,
+			<200000000>, <600000000>,
 			<300000000>, <250000000>,
 			<200000000>, <100000000>,
 			<24000000>, <100000000>,
@@ -1019,6 +1025,29 @@
 			      "pclk_mac";
 		resets = <&cru SRST_GMAC2IO_A>;
 		reset-names = "stmmaceth";
+		status = "disabled";
+	};
+
+	gmac2phy: eth@ff550000 {
+		compatible = "rockchip,rk3328-gmac";
+		reg = <0x0 0xff550000 0x0 0x10000>;
+		rockchip,grf = <&grf>;
+		interrupts = <GIC_SPI 21 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "macirq";
+		clocks = <&cru SCLK_MAC2PHY_SRC>, <&cru SCLK_MAC2PHY_RXTX>,
+			 <&cru SCLK_MAC2PHY_RXTX>, <&cru SCLK_MAC2PHY_REF>,
+			 <&cru ACLK_MAC2PHY>, <&cru PCLK_MAC2PHY>,
+			 <&cru SCLK_MAC2PHY_OUT>;
+		clock-names = "stmmaceth", "mac_clk_rx",
+			      "mac_clk_tx", "clk_mac_ref",
+			      "aclk_mac", "pclk_mac",
+			      "clk_macphy";
+		resets = <&cru SRST_GMAC2PHY_A>, <&cru SRST_MACPHY>;
+		reset-names = "stmmaceth", "mac-phy";
+		phy-mode = "rmii";
+		phy-type = "internal";
+		pinctrl-names = "default";
+		pinctrl-0 = <&fephyled_rxm1 &fephyled_linkm1>;
 		status = "disabled";
 	};
 

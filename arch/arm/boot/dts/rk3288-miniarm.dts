@@ -49,11 +49,48 @@
 		reg = <0x0 0x0 0x0 0x80000000>;
 	};
 
+	wireless-bluetooth {
+		compatible = "bluetooth-platdata";
+		uart_rts_gpios = <&gpio4 19 GPIO_ACTIVE_LOW>;
+		pinctrl-names = "default","rts_gpio";
+		pinctrl-0 = <&uart0_rts>;
+		pinctrl-1 = <&uart0_gpios>;
+		BT,reset_gpio    = <&gpio4 29 GPIO_ACTIVE_HIGH>;
+		BT,wake_gpio     = <&gpio4 26 GPIO_ACTIVE_HIGH>;
+		BT,wake_host_irq = <&gpio4 31 GPIO_ACTIVE_HIGH>;
+		status = "okay";
+	};
+
+	wireless-wlan {
+		compatible = "wlan-platdata";
+		rockchip,grf = <&grf>;
+		wifi_chip_type = "rtl8723bs";
+		sdio_vref = <1800>;
+		WIFI,host_wake_irq = <&gpio4 30 GPIO_ACTIVE_HIGH>;
+		status = "okay";
+	};
+
 	ext_gmac: external-gmac-clock {
 		compatible = "fixed-clock";
 		clock-frequency = <125000000>;
 		clock-output-names = "ext_gmac";
 		#clock-cells = <0>;
+	};
+
+	sdio_pwrseq: sdio-pwrseq {
+		compatible = "mmc-pwrseq-simple";
+		clocks = <&rk808 1>;
+		clock-names = "ext_clock";
+		pinctrl-names = "default";
+		pinctrl-0 = <&chip_enable_h>, <&wifi_enable_h>;
+
+		/*
+		 * On the module itself this is one of these (depending
+		 * on the actual card populated):
+		 * - SDIO_RESET_L_WL_REG_ON
+		 * - PDN (power down when low)
+		 */
+		reset-gpios = <&gpio4 28 GPIO_ACTIVE_LOW>, <&gpio4 27 GPIO_ACTIVE_LOW>;
 	};
 
 	gpio-keys {
@@ -79,12 +116,17 @@
 		compatible = "gpio-leds";
 
 		pwr-led {
-			gpios = <&gpio2 2 GPIO_ACTIVE_HIGH>;
+			gpios = <&gpio0 3 GPIO_ACTIVE_HIGH>;
 			linux,default-trigger = "default-on";
 		};
 
+		heartbeat-led {
+			gpios=<&gpio1 25 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger="heartbeat";
+		};
+
 		act-led {
-			gpios=<&gpio2 3 GPIO_ACTIVE_LOW>;
+			gpios=<&gpio1 24 GPIO_ACTIVE_HIGH>;
 			linux,default-trigger="mmc0";
 		};
 	};
@@ -92,7 +134,7 @@
 	sound {
 		compatible = "simple-audio-card";
 		simple-audio-card,format = "i2s";
-		simple-audio-card,name = "rockchip,miniarm-codec";
+		simple-audio-card,name = "TinkerBoard";
 		simple-audio-card,mclk-fs = <512>;
 		simple-audio-card,cpu {
 			sound-dai = <&i2s>;
@@ -139,14 +181,14 @@
 	clock_in_out = "input";
 	snps,reset-gpio = <&gpio4 7 0>;
 	snps,reset-active-low;
-	snps,reset-delays-us = <0 10000 1000000>;
+	snps,reset-delays-us = <0 10000 50000>;
 	assigned-clocks = <&cru SCLK_MAC>;
 	assigned-clock-parents = <&ext_gmac>;
 	pinctrl-names = "default";
 	pinctrl-0 = <&rgmii_pins>;
 	tx_delay = <0x30>;
 	rx_delay = <0x10>;
-	status = "ok";
+	status = "okay";
 };
 
 &gpu {
@@ -208,7 +250,7 @@
 				regulator-always-on;
 				regulator-boot-on;
 				regulator-min-microvolt = <750000>;
-				regulator-max-microvolt = <1350000>;
+				regulator-max-microvolt = <1450000>;
 				regulator-name = "vdd_arm";
 				regulator-ramp-delay = <6000>;
 				regulator-state-mem {
@@ -368,10 +410,16 @@
 
 &i2c2 {
 	status = "okay";
+
+	m24c08@50 {
+		compatible = "at,24c08";
+		reg = <0x50>;
+	};
 };
 
 &i2s {
 	#sound-dai-cells = <0>;
+	rockchip,bclk-fs = <128>;
 	status = "okay";
 };
 
@@ -379,6 +427,7 @@
 	status = "okay";
 
 	sdcard-supply = <&vccio_sd>;
+	wifi-supply = <&vcc_18>;
 };
 
 &pwm0 {
@@ -387,6 +436,24 @@
 
 &rga {
 	status = "okay";
+};
+
+&sdio0 {
+	status = "okay";
+	clock-frequency = <50000000>;
+	clock-freq-min-max = <200000 50000000>;
+	bus-width = <4>;
+	cap-sd-highspeed;
+	cap-sdio-irq;
+	disable-wp;
+	keep-power-in-suspend;
+	mmc-pwrseq = <&sdio_pwrseq>;
+	non-removable;
+	num-slots = <1>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&sdio0_bus4 &sdio0_cmd &sdio0_clk &sdio0_int>;
+	sd-uhs-sdr104;
+	supports-sdio;
 };
 
 &saradc {
@@ -416,6 +483,8 @@
 };
 
 &uart0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&uart0_xfer>, <&uart0_cts>;
 	status = "okay";
 };
 
@@ -522,6 +591,15 @@
 		};
 	};
 
+	sdio-pwrseq {
+		wifi_enable_h: wifi-enable-h {
+			rockchip,pins = <4 28 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+		chip_enable_h: chip-enable-h {
+			rockchip,pins = <4 27 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
 	sdmmc {
 		/*
 		 * Default drive strength isn't enough to achieve even
@@ -554,6 +632,12 @@
 
 		pwr_3g: pwr-3g {
 			rockchip,pins = <7 8 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	wireless-bluetooth {
+		uart0_gpios: uart0-gpios {
+			rockchip,pins = <4 19 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
 };

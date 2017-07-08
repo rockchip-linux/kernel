@@ -206,7 +206,8 @@ struct dw_hdmi {
 
 	int vic;
 
-	u8 edid[HDMI_EDID_LEN];
+//	u8 edid[HDMI_EDID_LEN];
+	struct edid *edid;
 	bool cable_plugin;
 
 	struct {
@@ -411,7 +412,7 @@ static void dw_hdmi_i2c_init(struct dw_hdmi *hdmi)
 		    HDMI_IH_MUTE_I2CM_STAT0);
 
 	/* set SDA high level holding time */
-	hdmi_writeb(hdmi, 0x48, HDMI_I2CM_SDA_HOLD);
+//	hdmi_writeb(hdmi, 0x48, HDMI_I2CM_SDA_HOLD);
 
 	dw_hdmi_i2c_set_divs(hdmi);
 }
@@ -422,6 +423,7 @@ static int dw_hdmi_i2c_read(struct dw_hdmi *hdmi,
 	struct dw_hdmi_i2c *i2c = hdmi->i2c;
 	int stat;
 
+	pr_info("%s length %d\n", __func__, length);
 	if (!i2c->is_regaddr) {
 		dev_dbg(hdmi->dev, "set read register address to 0\n");
 		i2c->slave_reg = 0x00;
@@ -430,7 +432,6 @@ static int dw_hdmi_i2c_read(struct dw_hdmi *hdmi,
 
 	while (length--) {
 		reinit_completion(&i2c->cmp);
-
 		hdmi_writeb(hdmi, i2c->slave_reg++, HDMI_I2CM_ADDRESS);
 		if (i2c->is_segment)
 			hdmi_writeb(hdmi, HDMI_I2CM_OPERATION_READ_EXT,
@@ -440,13 +441,15 @@ static int dw_hdmi_i2c_read(struct dw_hdmi *hdmi,
 				    HDMI_I2CM_OPERATION);
 
 		stat = wait_for_completion_timeout(&i2c->cmp, HZ / 10);
-		if (!stat)
+		if (!stat) {
+			pr_info("%s slave_reg %d time out\n", __func__, i2c->slave_reg);
 			return -EAGAIN;
-
+		}
 		/* Check for error condition on the bus */
-		if (i2c->stat & HDMI_IH_I2CM_STAT0_ERROR)
+		if (i2c->stat & HDMI_IH_I2CM_STAT0_ERROR) {
+			pr_info("%s slave_reg %d -EIO\n", __func__, i2c->slave_reg);
 			return -EIO;
-
+		}
 		*buf++ = hdmi_readb(hdmi, HDMI_I2CM_DATAI);
 	}
 	i2c->is_segment = false;
@@ -1800,9 +1803,9 @@ static void hdmi_av_composer(struct dw_hdmi *hdmi,
 		HDMI_FC_INVIDCONF_IN_I_P_INTERLACED :
 		HDMI_FC_INVIDCONF_IN_I_P_PROGRESSIVE;
 
-	inv_val |= hdmi->sink_is_hdmi ?
-		HDMI_FC_INVIDCONF_DVI_MODEZ_HDMI_MODE :
-		HDMI_FC_INVIDCONF_DVI_MODEZ_DVI_MODE;
+//	inv_val |= hdmi->sink_is_hdmi ?
+//		HDMI_FC_INVIDCONF_DVI_MODEZ_HDMI_MODE :
+//		HDMI_FC_INVIDCONF_DVI_MODEZ_DVI_MODE;
 
 	hdmi_writeb(hdmi, inv_val, HDMI_FC_INVIDCONF);
 
@@ -2075,7 +2078,9 @@ static int dw_hdmi_setup(struct dw_hdmi *hdmi, struct drm_display_mode *mode)
 	/* not for DVI mode */
 	if (hdmi->sink_is_hdmi) {
 		dev_dbg(hdmi->dev, "%s HDMI mode\n", __func__);
-
+		hdmi_modb(hdmi, HDMI_FC_INVIDCONF_DVI_MODEZ_HDMI_MODE,
+			  HDMI_FC_INVIDCONF_DVI_MODEZ_HDMI_MODE,
+			  HDMI_FC_INVIDCONF);
 		/* HDMI Initialization Step F - Configure AVI InfoFrame */
 		hdmi_config_AVI(hdmi, mode);
 		hdmi_config_vendor_specific_infoframe(hdmi, mode);
@@ -2231,6 +2236,9 @@ static void dw_hdmi_bridge_disable(struct drm_bridge *bridge)
 
 	mutex_lock(&hdmi->mutex);
 	hdmi->disabled = true;
+	pr_info("%s\n", __func__);
+	kfree(hdmi->edid);
+	hdmi->edid = NULL;
 	dw_hdmi_update_power(hdmi);
 	dw_hdmi_update_phy_mask(hdmi);
 	mutex_unlock(&hdmi->mutex);
@@ -2276,8 +2284,10 @@ static int dw_hdmi_connector_get_modes(struct drm_connector *connector)
 
 	if (!hdmi->ddc)
 		return 0;
-
-	edid = drm_get_edid(connector, hdmi->ddc);
+	if (hdmi->edid)
+		edid = hdmi->edid;
+	else
+		edid = drm_get_edid(connector, hdmi->ddc);
 	if (edid) {
 		dev_dbg(hdmi->dev, "got edid: width[%d] x height[%d]\n",
 			edid->width_cm, edid->height_cm);
@@ -2288,9 +2298,10 @@ static int dw_hdmi_connector_get_modes(struct drm_connector *connector)
 		ret = drm_add_edid_modes(connector, edid);
 		/* Store the ELD */
 		drm_edid_to_eld(connector, edid);
-		kfree(edid);
+		hdmi->edid = edid;
+		//kfree(edid);
 	} else {
-		dev_dbg(hdmi->dev, "failed to get edid\n");
+		dev_err(hdmi->dev, "failed to get edid\n");
 	}
 
 	return ret;
@@ -2682,7 +2693,7 @@ dw_hdmi_ctrl_write(struct file *file, const char __user *buf,
 		return -EFAULT;
 	if (sscanf(kbuf, "%x%x", &reg, &val) == -1)
 		return -EFAULT;
-	if ((reg < 0) || (reg > HDMI_I2CM_FS_SCL_LCNT_0_ADDR)) {
+	if ((reg < 0) || (reg > 0x7e13)) {
 		dev_err(hdmi->dev, "it is no a hdmi register\n");
 		return count;
 	}
@@ -3018,6 +3029,7 @@ int dw_hdmi_bind(struct device *dev, struct device *master,
 		audio.write	= hdmi_writeb;
 		audio.read	= hdmi_readb;
 		audio.mod	= hdmi_modb;
+		audio.eld	= hdmi->connector.eld;
 
 		pdevinfo.name = "dw-hdmi-i2s-audio";
 		pdevinfo.data = &audio;

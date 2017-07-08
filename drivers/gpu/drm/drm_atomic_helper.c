@@ -1520,8 +1520,7 @@ retry:
 	plane_state->src_h = src_h;
 	plane_state->src_w = src_w;
 
-	if (plane == crtc->cursor)
-		state->legacy_cursor_update = true;
+	state->legacy_cursor_update = true;
 
 	ret = drm_atomic_commit(state);
 	if (ret != 0)
@@ -1589,8 +1588,7 @@ retry:
 		goto fail;
 	}
 
-	if (plane_state->crtc && (plane == plane->crtc->cursor))
-		plane_state->state->legacy_cursor_update = true;
+	plane_state->state->legacy_cursor_update = true;
 
 	ret = __drm_atomic_helper_disable_plane(plane, plane_state);
 	if (ret != 0)
@@ -1830,11 +1828,11 @@ int __drm_atomic_helper_set_config(struct drm_mode_set *set,
 	primary_state->src_x = set->x << 16;
 	primary_state->src_y = set->y << 16;
 	if (primary_state->rotation & (BIT(DRM_ROTATE_90) | BIT(DRM_ROTATE_270))) {
-		primary_state->src_h = hdisplay << 16;
-		primary_state->src_w = vdisplay << 16;
+		primary_state->src_h = set->fb->width << 16;
+		primary_state->src_w = set->fb->height << 16;
 	} else {
-		primary_state->src_h = vdisplay << 16;
-		primary_state->src_w = hdisplay << 16;
+		primary_state->src_h = set->fb->height << 16;
+		primary_state->src_w = set->fb->width << 16;
 	}
 
 commit:

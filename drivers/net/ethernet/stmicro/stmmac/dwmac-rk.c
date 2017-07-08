@@ -41,6 +41,8 @@ struct rk_gmac_ops {
 	void (*set_to_rmii)(struct rk_priv_data *bsp_priv);
 	void (*set_rgmii_speed)(struct rk_priv_data *bsp_priv, int speed);
 	void (*set_rmii_speed)(struct rk_priv_data *bsp_priv, int speed);
+	void (*internal_phy_soc_init)(struct rk_priv_data *bsp_priv);
+	void (*internal_phy_soc_exit)(struct rk_priv_data *bsp_priv);
 };
 
 struct rk_priv_data {
@@ -51,6 +53,7 @@ struct rk_priv_data {
 
 	bool clk_enabled;
 	bool clock_input;
+	bool internal_phy;
 
 	struct clk *clk_mac;
 	struct clk *gmac_clkin;
@@ -60,6 +63,9 @@ struct rk_priv_data {
 	struct clk *clk_mac_refout;
 	struct clk *aclk_mac;
 	struct clk *pclk_mac;
+	struct clk *clk_macphy;
+
+	struct reset_control *macphy_reset;
 
 	int tx_delay;
 	int rx_delay;
@@ -305,6 +311,12 @@ static const struct rk_gmac_ops rk3288_ops = {
 
 #define RK3328_GRF_MAC_CON0	0x0900
 #define RK3328_GRF_MAC_CON1	0x0904
+#define RK3328_GRF_MAC_CON2	0x0908
+
+#define RK3328_GRF_MACPHY_CON0	0xb00
+#define RK3328_GRF_MACPHY_CON1	0xb04
+#define RK3328_GRF_MACPHY_CON2	0xb08
+#define RK3328_GRF_MACPHY_CON3	0xb0c
 
 /* RK3328_GRF_MAC_CON0 */
 #define RK3328_GMAC_CLK_RX_DL_CFG(val)	HIWORD_UPDATE(val, 0x7F, 7)
@@ -355,18 +367,19 @@ static void rk3328_set_to_rgmii(struct rk_priv_data *bsp_priv,
 static void rk3328_set_to_rmii(struct rk_priv_data *bsp_priv)
 {
 	struct device *dev = &bsp_priv->pdev->dev;
+	unsigned int reg;
 
 	if (IS_ERR(bsp_priv->grf)) {
 		dev_err(dev, "Missing rockchip,grf property\n");
 		return;
 	}
 
-	regmap_write(bsp_priv->grf, RK3328_GRF_MAC_CON1,
+	reg = bsp_priv->internal_phy ? RK3328_GRF_MAC_CON2 :
+		  RK3328_GRF_MAC_CON1;
+
+	regmap_write(bsp_priv->grf, reg,
 		     RK3328_GMAC_PHY_INTF_SEL_RMII |
 		     RK3328_GMAC_RMII_MODE);
-
-	/* set MAC to RMII mode */
-	regmap_write(bsp_priv->grf, RK3328_GRF_MAC_CON1, GRF_BIT(11));
 }
 
 static void rk3328_set_rgmii_speed(struct rk_priv_data *bsp_priv, int speed)
@@ -394,22 +407,69 @@ static void rk3328_set_rgmii_speed(struct rk_priv_data *bsp_priv, int speed)
 static void rk3328_set_rmii_speed(struct rk_priv_data *bsp_priv, int speed)
 {
 	struct device *dev = &bsp_priv->pdev->dev;
+	unsigned int reg;
 
 	if (IS_ERR(bsp_priv->grf)) {
 		dev_err(dev, "Missing rockchip,grf property\n");
 		return;
 	}
 
+	reg = bsp_priv->internal_phy ? RK3328_GRF_MAC_CON2 :
+		  RK3328_GRF_MAC_CON1;
+
 	if (speed == 10)
-		regmap_write(bsp_priv->grf, RK3328_GRF_MAC_CON1,
+		regmap_write(bsp_priv->grf, reg,
 			     RK3328_GMAC_RMII_CLK_2_5M |
 			     RK3328_GMAC_SPEED_10M);
 	else if (speed == 100)
-		regmap_write(bsp_priv->grf, RK3328_GRF_MAC_CON1,
+		regmap_write(bsp_priv->grf, reg,
 			     RK3328_GMAC_RMII_CLK_25M |
 			     RK3328_GMAC_SPEED_100M);
 	else
 		dev_err(dev, "unknown speed value for RMII! speed=%d", speed);
+}
+
+static void rk3328_internal_soc_phy_init(struct rk_priv_data *priv)
+{
+	/* macphy_cfg_clk_freq set to 50MHz */
+	regmap_write(priv->grf, RK3328_GRF_MACPHY_CON0, GRF_BIT(14));
+
+	/* choose rmii mode --> rx_dv */
+	regmap_write(priv->grf, RK3328_GRF_MACPHY_CON1,
+		     GRF_BIT(9));
+
+	/* macphy_cfg_mii_mode, set to 01 */
+	regmap_write(priv->grf, RK3328_GRF_MACPHY_CON0,
+		     GRF_BIT(6) | GRF_CLR_BIT(7));
+
+	/* set phy_id */
+	regmap_write(priv->grf, RK3328_GRF_MACPHY_CON2,
+		     HIWORD_UPDATE(0x1234, 0xffff, 0));
+	regmap_write(priv->grf, RK3328_GRF_MACPHY_CON3,
+		     HIWORD_UPDATE(0x35, 0x3f, 0));
+
+	/* disable macphy, the default value is enabled */
+	regmap_write(priv->grf, RK3328_GRF_MACPHY_CON0, GRF_CLR_BIT(0));
+
+	if (priv->macphy_reset)
+		reset_control_assert(priv->macphy_reset);
+	usleep_range(10, 20);
+	if (priv->macphy_reset)
+		reset_control_deassert(priv->macphy_reset);
+	usleep_range(10, 20);
+
+	regmap_write(priv->grf, RK3328_GRF_MACPHY_CON0, GRF_BIT(0));
+
+	msleep(30);
+}
+
+static void rk3328_internal_soc_phy_exit(struct rk_priv_data *priv)
+{
+	/* disable macphy, the default value is enabled */
+	regmap_write(priv->grf, RK3328_GRF_MACPHY_CON0, GRF_CLR_BIT(0));
+
+	if (priv->macphy_reset)
+		reset_control_assert(priv->macphy_reset);
 }
 
 static const struct rk_gmac_ops rk3328_ops = {
@@ -417,6 +477,8 @@ static const struct rk_gmac_ops rk3328_ops = {
 	.set_to_rmii = rk3328_set_to_rmii,
 	.set_rgmii_speed = rk3328_set_rgmii_speed,
 	.set_rmii_speed = rk3328_set_rmii_speed,
+	.internal_phy_soc_init =  rk3328_internal_soc_phy_init,
+	.internal_phy_soc_exit = rk3328_internal_soc_phy_exit,
 };
 
 #define RK3366_GRF_SOC_CON6	0x0418
@@ -805,6 +867,14 @@ static int gmac_clk_init(struct rk_priv_data *bsp_priv)
 			clk_set_rate(bsp_priv->clk_mac, 50000000);
 	}
 
+	if (bsp_priv->internal_phy) {
+		bsp_priv->clk_macphy = devm_clk_get(dev, "clk_macphy");
+		if (IS_ERR(bsp_priv->clk_macphy))
+			dev_err(dev, "cannot get %s clock\n", "clk_macphy");
+		else
+			clk_set_rate(bsp_priv->clk_macphy, 50000000);
+	}
+
 	return 0;
 }
 
@@ -827,6 +897,9 @@ static int gmac_clk_enable(struct rk_priv_data *bsp_priv, bool enable)
 					clk_prepare_enable(
 						bsp_priv->clk_mac_refout);
 			}
+
+			if (!IS_ERR(bsp_priv->clk_macphy))
+				clk_prepare_enable(bsp_priv->clk_macphy);
 
 			if (!IS_ERR(bsp_priv->aclk_mac))
 				clk_prepare_enable(bsp_priv->aclk_mac);
@@ -859,6 +932,9 @@ static int gmac_clk_enable(struct rk_priv_data *bsp_priv, bool enable)
 					clk_disable_unprepare(
 						bsp_priv->clk_mac_refout);
 			}
+
+			if (!IS_ERR(bsp_priv->clk_macphy))
+				clk_disable_unprepare(bsp_priv->clk_macphy);
 
 			if (!IS_ERR(bsp_priv->aclk_mac))
 				clk_disable_unprepare(bsp_priv->aclk_mac);
@@ -942,6 +1018,20 @@ static struct rk_priv_data *rk_gmac_setup(struct platform_device *pdev,
 			bsp_priv->clock_input = false;
 	}
 
+	ret = of_property_read_string(dev->of_node, "phy-type", &strings);
+	if (!ret && !strcmp(strings, "internal")) {
+		bsp_priv->internal_phy = true;
+		bsp_priv->macphy_reset = devm_reset_control_get(dev,
+				  "mac-phy");
+		if (IS_ERR(bsp_priv->macphy_reset)) {
+			dev_info(dev, "no macphy_reset control found\n");
+			bsp_priv->macphy_reset = NULL;
+		}
+	} else {
+		bsp_priv->internal_phy = false;
+	}
+	dev_info(dev, "internal PHY? (%s).\n",  strings);
+
 	ret = of_property_read_u32(dev->of_node, "tx_delay", &value);
 	if (ret) {
 		bsp_priv->tx_delay = 0x30;
@@ -1017,12 +1107,18 @@ static int rk_gmac_init(struct platform_device *pdev, void *priv)
 	pm_runtime_enable(&pdev->dev);
 	pm_runtime_get_sync(&pdev->dev);
 
+	if (bsp_priv->ops->internal_phy_soc_init && bsp_priv->internal_phy)
+		bsp_priv->ops->internal_phy_soc_init(bsp_priv);
+
 	return 0;
 }
 
 static void rk_gmac_exit(struct platform_device *pdev, void *priv)
 {
 	struct rk_priv_data *gmac = priv;
+
+	if (gmac->ops->internal_phy_soc_exit && gmac->internal_phy)
+		gmac->ops->internal_phy_soc_exit(gmac);
 
 	pm_runtime_put_sync(&pdev->dev);
 	pm_runtime_disable(&pdev->dev);

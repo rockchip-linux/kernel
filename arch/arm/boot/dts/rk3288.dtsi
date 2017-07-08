@@ -101,6 +101,8 @@
 			#cooling-cells = <2>; /* min followed by max */
 			dynamic-power-coefficient = <322>;
 			clocks = <&cru ARMCLK>;
+			nvmem-cells = <&package_info>;
+			nvmem-cell-names = "package_info";
 		};
 		cpu1: cpu@501 {
 			device_type = "cpu";
@@ -183,6 +185,16 @@
 		opp-1608000000 {
 			opp-hz = /bits/ 64 <1608000000>;
 			opp-microvolt = <1350000>;
+			clock-latency-ns = <40000>;
+		};
+		opp-1704000000 {
+			opp-hz = /bits/ 64 <1704000000>;
+			opp-microvolt = <1350000>;
+			clock-latency-ns = <40000>;
+		};
+		opp-1800000000 {
+			opp-hz = /bits/ 64 <1800000000>;
+			opp-microvolt = <1400000>;
 			clock-latency-ns = <40000>;
 		};
 	};
@@ -1531,6 +1543,9 @@
 
 		cpu_leakage: cpu_leakage@17 {
 			reg = <0x17 0x1>;
+		};
+		package_info: package-info@5 {
+			reg = <0x05 0x1>;
 		};
 	};
 
