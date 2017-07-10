@@ -71,6 +71,12 @@
 		default-brightness-level = <128>;
 	};
 
+	chip_state {
+		compatible = "chip_state";
+		clocks = <&clk_gates5 2>;
+		clock-names = "chip_state";
+	};
+
 	usb_control {
 		compatible = "rockchip,rk3126-usb-control";
 
