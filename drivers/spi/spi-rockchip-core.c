@@ -86,7 +86,7 @@ static ssize_t spi_write_proc_data(struct file *file, const char __user *buffer,
 	ret = copy_from_user(buf, buffer, count);
 	if (ret)
 	{
-		return ret; 
+		return 0;
 	}
 
 	if((strstr(buf, "debug") != NULL) || (strstr(buf, "DEBUG") != NULL))
@@ -778,8 +778,8 @@ static void pump_transfers(unsigned long data)
 			
 		}
 
-		if((!dws->dma_mapped) || (dws->dma_mapped && dws->tx))
-		spi_enable_chip(dws, 1);
+		if ((!dws->dma_mapped) || dws->tx)
+			spi_enable_chip(dws, 1);
 
 		DBG_SPI("%s:ctrl0=0x%x\n",__func__,dw_readw(dws, SPIM_CTRLR0));
 
@@ -926,13 +926,13 @@ static int dw_spi_setup(struct spi_device *spi)
 	} else {
 		/* Never take >16b case for MRST SPIC */
 		dev_err(&spi->dev, "invalid wordsize\n");
-		return -EINVAL;
+		goto error;
 	}
 	chip->bits_per_word = spi->bits_per_word;
 
 	if (!spi->max_speed_hz) {
 		dev_err(&spi->dev, "No max speed HZ parameter\n");
-		return -EINVAL;
+		goto error;
 	}
 	chip->speed_hz = spi->max_speed_hz;
 
@@ -949,6 +949,9 @@ static int dw_spi_setup(struct spi_device *spi)
 	
 	//printk("%s:line=%d\n",__func__,__LINE__);
 	return 0;
+error:
+	kfree(chip);
+	return -EINVAL;
 }
 
 static void dw_spi_cleanup(struct spi_device *spi)
