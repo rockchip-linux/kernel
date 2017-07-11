@@ -272,6 +272,7 @@ static void rk_lcdc_read_reg_defalut_cfg(struct lcdc_device *lcdc_dev)
 	u32 val = 0;
 	struct rk_lcdc_win *win0 = lcdc_dev->driver.win[0];
 	struct rk_lcdc_win *win1 = lcdc_dev->driver.win[1];
+	struct rk_screen *screen = lcdc_dev->driver.cur_screen;
 
 	spin_lock(&lcdc_dev->reg_lock);
 	for (reg = 0; reg < 0xe0; reg += 4) {
@@ -282,10 +283,34 @@ static void rk_lcdc_read_reg_defalut_cfg(struct lcdc_device *lcdc_dev)
 		}
 
 		if (lcdc_dev->soc_type == VOP_RK312X) {
-			if (reg == WIN1_DSP_INFO_RK312X) {
+			switch (reg) {
+			case DSP_CTRL0:
+				if (support_uboot_display())
+					screen->mode.vmode =
+						(val & m_INTERLACE_DSP_EN) ? 1 : 0;
+				break;
+			case WIN1_DSP_INFO_RK312X:
 				win1->area[0].xact = (val & m_DSP_WIDTH) + 1;
 				win1->area[0].yact =
 					((val & m_DSP_HEIGHT) >> 16) + 1;
+				break;
+			case DSP_VACT_ST_END:
+				if (support_uboot_display()) {
+					screen->mode.yres =
+						(val & 0xfff) -
+						((val >> 16) & 0xfff);
+					if (screen->mode.vmode)
+						screen->mode.yres *= 2;
+				}
+				break;
+			case DSP_HACT_ST_END:
+				if (support_uboot_display())
+					screen->mode.xres =
+						(val & 0xfff) -
+						((val >> 16) & 0xfff);
+				break;
+			default:
+				break;
 			}
 		} else {
 			if (reg == WIN1_ACT_INFO) {
