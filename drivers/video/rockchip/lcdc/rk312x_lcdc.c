@@ -325,15 +325,6 @@ static int rk312x_lcdc_alpha_cfg(struct lcdc_device *lcdc_dev)
 		val = v_WIN0_ALPHA_MODE(1) |
 				v_ALPHA_MODE_SEL0(1) | v_ALPHA_MODE_SEL1(0);
 		lcdc_msk_reg(lcdc_dev, DSP_CTRL0, mask, val);
-		/*this vop bg layer not support yuv domain overlay,so bg val
-		have to set 0x800a80 equeal to 0x000000 at rgb domian,after
-		android start we recover to 0x00000*/
-		mask = m_BG_COLOR;
-		if (lcdc_dev->driver.output_color)
-			val = v_BG_COLOR(0x801080);
-		else
-			val = v_BG_COLOR(0x000000);
-		lcdc_msk_reg(lcdc_dev, DSP_CTRL1, mask, val);
 	} else if ((!win0_top) && (atv_layer_cnt >= 2) &&
 				(win1_alpha_en)) {
 		mask =  m_WIN0_ALPHA_EN | m_WIN1_ALPHA_EN;
@@ -351,20 +342,24 @@ static int rk312x_lcdc_alpha_cfg(struct lcdc_device *lcdc_dev)
 			      v_ALPHA_MODE_SEL0(1) |
 			      v_ALPHA_MODE_SEL1(0);
 		lcdc_msk_reg(lcdc_dev, DSP_CTRL0, mask, val);
-		/*this vop bg layer not support yuv domain overlay,so bg val
-		have to set 0x800a80 equeal to 0x000000 at rgb domian,after
-		android start we recover to 0x00000*/
-		mask = m_BG_COLOR;
-		if (lcdc_dev->driver.output_color)
-			val = v_BG_COLOR(0x801080);
-		else
-			val = v_BG_COLOR(0x000000);
-		lcdc_msk_reg(lcdc_dev, DSP_CTRL1, mask, val);
 	} else {
 		mask = m_WIN0_ALPHA_EN | m_WIN1_ALPHA_EN;
 		val = v_WIN0_ALPHA_EN(0) | v_WIN1_ALPHA_EN(0);
 		lcdc_msk_reg(lcdc_dev, ALPHA_CTRL, mask, val);
 	}
+
+	/*
+	 * this version vop's background layer can't do csc in the bcsh module,
+	 * so SW need to update background color according to output color.
+	 * in addition, when enable win0 and win1 at the same time,
+	 * the background must set zero, otherwise will display pink color.
+	 */
+	mask = m_BG_COLOR;
+	if ((atv_layer_cnt >= 2) || !lcdc_dev->driver.output_color)
+		val = v_BG_COLOR(0x000000);
+	else
+		val = v_BG_COLOR(0x801080);
+	lcdc_msk_reg(lcdc_dev, DSP_CTRL1, mask, val);
 
 	if (lcdc_dev->driver.win[2]->state == 1) {
 		mask =  m_HWC_ALPAH_EN;
