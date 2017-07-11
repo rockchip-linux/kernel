@@ -614,19 +614,19 @@ static void cpufreq_interactive_boost(struct cpufreq_interactive_tunables *tunab
 {
 	int i;
 	int anyboost = 0;
-	unsigned long flags[2];
+	unsigned long flags;
 	struct cpufreq_interactive_cpuinfo *pcpu;
 
 	tunables->boosted = true;
 
-	spin_lock_irqsave(&speedchange_cpumask_lock, flags[0]);
+	spin_lock_irqsave(&speedchange_cpumask_lock, flags);
 
 	for_each_online_cpu(i) {
 		pcpu = &per_cpu(cpuinfo, i);
 		if (tunables != pcpu->policy->governor_data)
 			continue;
 
-		spin_lock_irqsave(&pcpu->target_freq_lock, flags[1]);
+		spin_lock(&pcpu->target_freq_lock);
 		if (pcpu->target_freq < tunables->hispeed_freq) {
 			pcpu->target_freq = tunables->hispeed_freq;
 			cpumask_set_cpu(i, &speedchange_cpumask);
@@ -642,10 +642,10 @@ static void cpufreq_interactive_boost(struct cpufreq_interactive_tunables *tunab
 
 		pcpu->floor_freq = tunables->hispeed_freq;
 		pcpu->floor_validate_time = ktime_to_us(ktime_get());
-		spin_unlock_irqrestore(&pcpu->target_freq_lock, flags[1]);
+		spin_unlock(&pcpu->target_freq_lock);
 	}
 
-	spin_unlock_irqrestore(&speedchange_cpumask_lock, flags[0]);
+	spin_unlock_irqrestore(&speedchange_cpumask_lock, flags);
 
 	if (anyboost)
 		wake_up_process(speedchange_task);
@@ -1159,33 +1159,42 @@ static void cpufreq_interactive_input_event(struct input_handle *handle, unsigne
 	u64 now, endtime;
 	int i;
 	int anyboost = 0;
-	unsigned long flags[2];
+	unsigned long flags;
 	unsigned long delay;
 	struct cpufreq_interactive_cpuinfo *pcpu;
 	struct cpufreq_interactive_tunables *tunables;
+	int touchboostpulse_duration_val;
+	unsigned long touchboost_freq;
 
 	if ((type != EV_ABS) && (type != EV_KEY))
 		return;
 
 	trace_cpufreq_interactive_boost("touch");
-	spin_lock_irqsave(&speedchange_cpumask_lock, flags[0]);
+	spin_lock_irqsave(&speedchange_cpumask_lock, flags);
 
 	now = ktime_to_us(ktime_get());
 	for_each_online_cpu(i) {
 		pcpu = &per_cpu(cpuinfo, i);
+
+		if (!down_read_trylock(&pcpu->enable_sem))
+			continue;
+
+		if (!pcpu->governor_enabled)
+			goto input_next;
+
 		if (have_governor_per_policy())
 			tunables = pcpu->policy->governor_data;
 		else
 			tunables = common_tunables;
 		if (!tunables)
-			continue;
+			goto input_next;
 
 		endtime = now + tunables->touchboostpulse_duration_val;
 		if (endtime < (tunables->touchboostpulse_endtime + 10 * USEC_PER_MSEC))
-			continue;
+			goto input_next;
 		tunables->touchboostpulse_endtime = endtime;
 
-		spin_lock_irqsave(&pcpu->target_freq_lock, flags[1]);
+		spin_lock(&pcpu->target_freq_lock);
 		if (pcpu->target_freq < tunables->touchboost_freq) {
 			pcpu->target_freq = tunables->touchboost_freq;
 			cpumask_set_cpu(i, &speedchange_cpumask);
@@ -1197,20 +1206,26 @@ static void cpufreq_interactive_input_event(struct input_handle *handle, unsigne
 		pcpu->floor_freq = tunables->touchboost_freq;
 		pcpu->floor_validate_time = ktime_to_us(ktime_get());
 
-		spin_unlock_irqrestore(&pcpu->target_freq_lock, flags[1]);
+		spin_unlock(&pcpu->target_freq_lock);
+
+		touchboostpulse_duration_val =
+			tunables->touchboostpulse_duration_val;
+		touchboost_freq = tunables->touchboost_freq;
+		if (pcpu->policy->cur < tunables->touchboost_freq)
+			anyboost = 1;
+
+input_next:
+		up_read(&pcpu->enable_sem);
 	}
 
-	spin_unlock_irqrestore(&speedchange_cpumask_lock, flags[0]);
+	spin_unlock_irqrestore(&speedchange_cpumask_lock, flags);
 
-	if (!tunables)
-		return;
-
-	delay = usecs_to_jiffies(tunables->touchboostpulse_duration_val);
+	delay = usecs_to_jiffies(touchboostpulse_duration_val);
 	dvfs_clk_boost(clk_cpu_dvfs_node,
-		       1000 * tunables->touchboost_freq,
+		       1000 * touchboost_freq,
 		       delay);
 
-	if (anyboost || pcpu->policy->cur < tunables->touchboost_freq)
+	if (anyboost)
 		wake_up_process(speedchange_task);
 }
 
