@@ -290,13 +290,14 @@ static ssize_t spi_test_write(struct file *file,
 		sscanf(argv[2], "%d", &size);
 
 		txbuf = kzalloc(size, GFP_KERNEL);
-		if (!buf) {
+		if (!txbuf) {
 			printk("spi tx alloc buf size %d fail\n", size);
 			return n;
 		}
 
 		rxbuf = kzalloc(size, GFP_KERNEL);
-		if (!buf) {
+		if (!rxbuf) {
+			kfree(txbuf);
 			printk("spi rx alloc buf size %d fail\n", size);
 			return n;
 		}
@@ -401,11 +402,12 @@ static int rockchip_spi_test_probe(struct spi_device *spi)
 	if (!spi)
 		return -ENOMEM;
 
-	if (!spi_chip_data && spi->dev.of_node) {
-		spi_chip_data = rockchip_spi_parse_dt(&spi->dev);
-		if (IS_ERR(spi_chip_data))
-			return -ENOMEM;
-	}
+	if (!spi->dev.of_node)
+		return -ENOMEM;
+
+	spi_chip_data = rockchip_spi_parse_dt(&spi->dev);
+	if (IS_ERR(spi_chip_data))
+		return -ENOMEM;
 
 	spi_test_data = (struct spi_test_data *)kzalloc(sizeof(struct spi_test_data), GFP_KERNEL);
 	if (!spi_test_data) {
