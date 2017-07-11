@@ -1518,15 +1518,18 @@ static int rk_fb_pan_display(struct fb_var_screeninfo *var,
 	win->area[0].state = 1;
 	win->area_num = 1;
 
-	dev_drv->ops->pan_display(dev_drv, win_id);
-
 #ifdef	CONFIG_FB_MIRRORING
 	if (video_data_to_mirroring)
 		video_data_to_mirroring(info, NULL);
 #endif
 	/* if not want the config effect,set reserved[3] bit[0] 1 */
-	if (likely((var->reserved[3] & 0x1) == 0))
+	if (likely((var->reserved[3] & 0x1) == 0)) {
+		dev_drv->ops->pan_display(dev_drv, win_id);
 		dev_drv->ops->cfg_done(dev_drv);
+	} else {
+		pr_info("%s[%d],var->reserved[3]:0x%x\n",
+			__func__, __LINE__, var->reserved[3]);
+	}
 	if (dev_drv->hdmi_switch)
 		mdelay(100);
 	return 0;
@@ -3397,8 +3400,11 @@ static int rk_fb_set_par(struct fb_info *info)
 			 (win->area[0].format == FBDC_ABGR_888) ||
 			 (win->area[0].format == ABGR888)) ? 1 : 0;
 	win->g_alpha_val = 0;
-
-	dev_drv->ops->set_par(dev_drv, win_id);
+	if (likely((var->reserved[3] & 0x1) == 0))
+		dev_drv->ops->set_par(dev_drv, win_id);
+	else
+		pr_info("%s[%d],var->reserved[3]:0x%x\n",
+			__func__, __LINE__, var->reserved[3]);
 
 	return 0;
 }
