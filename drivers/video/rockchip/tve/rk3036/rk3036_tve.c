@@ -597,6 +597,7 @@ static int rk3036_tve_probe(struct platform_device *pdev)
 	const struct of_device_id *match;
 	int i;
 	int ret;
+	bool block_enable = false;
 
 	match = of_match_node(rk3036_tve_dt_ids, np);
 	if (!match)
@@ -621,6 +622,7 @@ static int rk3036_tve_probe(struct platform_device *pdev)
 	} else if (!strcmp(match->compatible, "rockchip,rv1108-tve")) {
 		rk3036_tve->soctype = SOC_RK322X;
 		rk3036_tve->inputformat = INPUT_FORMAT_YUV;
+		block_enable = true;
 	} else if (!strcmp(match->compatible, "rockchip,rk322xh-tve")) {
 		rk3036_tve->soctype = SOC_RK322XH;
 		rk3036_tve->inputformat = INPUT_FORMAT_YUV;
@@ -680,7 +682,9 @@ static int rk3036_tve_probe(struct platform_device *pdev)
 		rk3036_tve->mode = (struct fb_videomode *)&rk3036_cvbs_mode[1];
 	rk3036_tve->ddev =
 		rk_display_device_register(&display_cvbs, &pdev->dev, NULL);
-	rk_display_device_enable(rk3036_tve->ddev);
+
+	if (!block_enable)
+		rk_display_device_enable(rk3036_tve->ddev);
 
 	fb_register_client(&tve_fb_notifier);
 	cvbsformat = -1;
