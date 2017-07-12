@@ -702,3 +702,13 @@ void rkflash_dev_shutdown(void)
 	g_boot_ops[g_flash_type]->deinit();
 	pr_info("rkflash_shutdown:OK\n");
 }
+
+__weak int GetParamterInfo(char *pbuf, int len)
+{
+	return -1;
+}
+
+__weak char GetSNSectorInfo(char *pbuf)
+{
+	return 0;
+}
