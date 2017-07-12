@@ -162,6 +162,7 @@ dtb-$(CONFIG_ARCH_ROCKCHIP) += \
 	px3se-sfc-sdk.dtb \
 	px3se-slc-sdk.dtb \
 	rk3036-echo.dtb \
+	rk3036-echo-sfc.dtb \
 	rk3036-fpga.dtb \
 	rk3036-new.dtb \
 	rk3036-rk88.dtb \
