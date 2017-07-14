@@ -58,6 +58,9 @@ void aptina_camera_module_reset(
 	cam_mod->ctrl_updt = 0;
 	cam_mod->state = APTINA_CAMERA_MODULE_POWER_OFF;
 	cam_mod->state_before_suspend = APTINA_CAMERA_MODULE_POWER_OFF;
+	cam_mod->exp_config.exp_time = 0;
+	cam_mod->exp_config.gain = 0;
+	cam_mod->vts_cur = 0;
 }
 
 /* ======================================================================== */
@@ -245,7 +248,6 @@ int aptina_write_reglist(
 			kfree(data);
 			return -1;
 		}
-
 	}
 
 	if (j != 0) {		/*Remaining I2C message*/
@@ -275,7 +277,6 @@ static void aptina_camera_module_set_active_config(
 	struct aptina_camera_module *cam_mod,
 	struct aptina_camera_module_config *new_config)
 {
-
 	pltfrm_camera_module_pr_debug(&cam_mod->sd, "\n");
 
 	if (IS_ERR_OR_NULL(new_config)) {
@@ -327,7 +328,9 @@ static struct aptina_camera_module_config *aptina_camera_module_find_config(
 	u32 i;
 	unsigned long gcdiv;
 	struct v4l2_subdev_frame_interval norm_interval;
+
 	pltfrm_camera_module_pr_debug(&cam_mod->sd, "\n");
+
 	if (!IS_ERR_OR_NULL(fmt))
 		pltfrm_camera_module_pr_debug(&cam_mod->sd,
 			"%dx%d, fmt code 0x%04x\n",
@@ -384,6 +387,8 @@ static int aptina_camera_module_write_config(
 	struct aptina_camera_module *cam_mod)
 {
 	int ret = 0;
+	struct aptina_camera_module_reg *reg_table;
+	u32 reg_table_num_entries = 0;
 
 	pltfrm_camera_module_pr_debug(&cam_mod->sd, "\n");
 
@@ -394,11 +399,44 @@ static int aptina_camera_module_write_config(
 		goto err;
 	}
 
+	if (!cam_mod->inited) {
+		cam_mod->active_config->soft_reset = true;
+		reg_table = cam_mod->active_config->reg_table;
+		reg_table_num_entries =
+			cam_mod->active_config->reg_table_num_entries;
+		pltfrm_camera_module_pr_debug(&cam_mod->sd,
+			"write config %s\n",
+			cam_mod->active_config->name);
+	} else {
+		if (cam_mod->active_config->reg_diff_table &&
+			cam_mod->active_config->reg_diff_table_num_entries) {
+			cam_mod->active_config->soft_reset = false;
+			reg_table = cam_mod->active_config->reg_diff_table;
+			reg_table_num_entries =
+				cam_mod->active_config->reg_diff_table_num_entries;
+			pltfrm_camera_module_pr_debug(&cam_mod->sd,
+				"write config %s%s\n",
+				cam_mod->active_config->name, "_diff");
+		} else {
+			cam_mod->active_config->soft_reset = true;
+			reg_table = cam_mod->active_config->reg_table;
+			reg_table_num_entries =
+				cam_mod->active_config->reg_table_num_entries;
+			pltfrm_camera_module_pr_debug(&cam_mod->sd,
+				"write config %s\n",
+				cam_mod->active_config->name);
+		}
+	}
+
+	if (!IS_ERR_OR_NULL(cam_mod->custom.set_flip))
+		cam_mod->custom.set_flip(cam_mod,
+		reg_table, reg_table_num_entries);
+
 	ret = aptina_write_reglist(&cam_mod->sd,
-		cam_mod->active_config->reg_table,
-		cam_mod->active_config->reg_table_num_entries);
+		reg_table, reg_table_num_entries);
 	if (IS_ERR_VALUE(ret))
 		goto err;
+
 	ret = pltfrm_camera_module_patch_config(&cam_mod->sd,
 		&cam_mod->frm_fmt,
 		&cam_mod->frm_intrvl);
@@ -668,10 +706,11 @@ int aptina_camera_module_s_stream(struct v4l2_subdev *sd, int enable)
 			goto err;
 		}
 
-		if (cam_mod->update_config)
+		if (cam_mod->update_config) {
 			ret = aptina_camera_module_write_config(cam_mod);
 			if (IS_ERR_VALUE(ret))
 				goto err;
+		}
 
 		ret = cam_mod->custom.start_streaming(cam_mod);
 		if (IS_ERR_VALUE(ret))
@@ -717,10 +756,12 @@ int aptina_camera_module_s_stream(struct v4l2_subdev *sd, int enable)
 		if (IS_ERR_VALUE(ret))
 			goto err;
 
+		ret = aptina_camera_module_ioctl(sd,
+			RK_VIDIOC_SENSOR_MODE_DATA,
+			&timings);
+
 		cam_mod->state = APTINA_CAMERA_MODULE_SW_STANDBY;
 
-		ret = aptina_camera_module_ioctl(sd, RK_VIDIOC_SENSOR_MODE_DATA,
-					     &timings);
 		if (IS_ERR_VALUE(ret))
 			goto err;
 		pclk = timings.vt_pix_clk_freq_hz / 1000;
@@ -762,83 +803,29 @@ int aptina_camera_module_s_power(struct v4l2_subdev *sd, int on)
 			}
 		}
 		if (APTINA_CAMERA_MODULE_HW_STANDBY == cam_mod->state) {
-			ret = pltfrm_camera_module_set_pin_state(&cam_mod->sd,
-			    PLTFRM_CAMERA_MODULE_PIN_PWR,
-			    PLTFRM_CAMERA_MODULE_PIN_STATE_ACTIVE);
-			msleep(1);
-
-			ret = pltfrm_camera_module_set_pin_state(
-			    &cam_mod->sd,
-			    PLTFRM_CAMERA_MODULE_PIN_PD,
-			    PLTFRM_CAMERA_MODULE_PIN_STATE_ACTIVE);
-			msleep(1);
-
-			ret = pltfrm_camera_module_set_pin_state(
-			    &cam_mod->sd,
-			    PLTFRM_CAMERA_MODULE_PIN_RESET,
-			    PLTFRM_CAMERA_MODULE_PIN_STATE_ACTIVE);
-			msleep(1);
-
-			ret = pltfrm_camera_module_set_pin_state(
-			    &cam_mod->sd,
-			    PLTFRM_CAMERA_MODULE_PIN_RESET,
-			    PLTFRM_CAMERA_MODULE_PIN_STATE_INACTIVE);
-			msleep(1);
-
-			ret = pltfrm_camera_module_set_pin_state(
-			    &cam_mod->sd,
-			    PLTFRM_CAMERA_MODULE_PIN_RESET,
-			    PLTFRM_CAMERA_MODULE_PIN_STATE_ACTIVE);
-			msleep(2);
-
 			ret = pltfrm_camera_module_set_pin_state(
 			    &cam_mod->sd,
 			    PLTFRM_CAMERA_MODULE_PIN_PD,
 			    PLTFRM_CAMERA_MODULE_PIN_STATE_INACTIVE);
-			msleep(20);
-			ret = pltfrm_camera_module_set_pin_state(
-			    &cam_mod->sd,
-			    PLTFRM_CAMERA_MODULE_PIN_PD,
-			    PLTFRM_CAMERA_MODULE_PIN_STATE_ACTIVE);
-			msleep(20);
 
 			if (!IS_ERR_VALUE(ret)) {
 				mdelay(cam_mod->custom.power_up_delays_ms[1]);
 				cam_mod->state = APTINA_CAMERA_MODULE_SW_STANDBY;
 
-				/*move check id to sensor driver*/
-				#if 0
-				if (!IS_ERR_OR_NULL(cam_mod->custom.
-					check_camera_id)) {
-					ret = cam_mod->custom.
-						check_camera_id(cam_mod);
-					if (IS_ERR_VALUE(ret)) {
-						pltfrm_camera_module_pr_err(
-							&cam_mod->sd,
-							"camera check ID failed, powering off sensor\n");
-						(void)aptina_camera_module_s_power(
-							sd, 0);
-						goto err;
-					}
-				}
-				#endif
-
-				#if 1
-				if (!IS_ERR_OR_NULL(
-				    cam_mod->custom.init_common)
-				    &&
-				    cam_mod->custom.init_common(
-				    cam_mod))
-				usleep_range(1000, 1500);
-				#endif
+				if (!IS_ERR_OR_NULL(cam_mod->custom.init_common) &&
+					cam_mod->custom.init_common(cam_mod))
+					usleep_range(1000, 1500);
 
 				af_ctrl = pltfrm_camera_module_get_af_ctrl(sd);
 				if (!IS_ERR_OR_NULL(af_ctrl)) {
 					v4l2_subdev_call(af_ctrl,
 							 core, init, 0);
 				}
-
 			}
+		}
+		if (cam_mod->update_config) {
+			aptina_camera_module_write_config(cam_mod);
+			cam_mod->update_config = false;
 		}
 	} else {
 		if (APTINA_CAMERA_MODULE_STREAMING == cam_mod->state) {
@@ -850,17 +837,7 @@ int aptina_camera_module_s_power(struct v4l2_subdev *sd, int on)
 			ret = pltfrm_camera_module_set_pin_state(
 			    &cam_mod->sd,
 			    PLTFRM_CAMERA_MODULE_PIN_PD,
-			    PLTFRM_CAMERA_MODULE_PIN_STATE_INACTIVE);
-
-			ret = pltfrm_camera_module_set_pin_state(
-			    &cam_mod->sd,
-			    PLTFRM_CAMERA_MODULE_PIN_RESET,
-			    PLTFRM_CAMERA_MODULE_PIN_STATE_INACTIVE);
-
-			ret = pltfrm_camera_module_set_pin_state(
-			    &cam_mod->sd,
-			    PLTFRM_CAMERA_MODULE_PIN_PWR,
-			    PLTFRM_CAMERA_MODULE_PIN_STATE_INACTIVE);
+			    PLTFRM_CAMERA_MODULE_PIN_STATE_ACTIVE);
 
 			if (!IS_ERR_VALUE(ret))
 				cam_mod->state = APTINA_CAMERA_MODULE_HW_STANDBY;
@@ -924,17 +901,6 @@ int aptina_camera_module_g_ctrl(struct v4l2_subdev *sd,
 		return 0;
 	}
 
-	#if 0
-	if (ctrl->id == RK_V4L2_CID_IGNORE_MEASUREMENT_CHECK) {
-		ctrl->value = cam_mod->active_config->ignore_measurement_check;
-		pltfrm_camera_module_pr_debug(
-			&cam_mod->sd,
-			"CIF_ISP20_CID_IGNORE_MEASUREMENT_CHECK %d\n",
-			ctrl->value);
-		return 0;
-	}
-	#endif
-
 	if ((cam_mod->state != APTINA_CAMERA_MODULE_SW_STANDBY) &&
 		(cam_mod->state != APTINA_CAMERA_MODULE_STREAMING)) {
 		pltfrm_camera_module_pr_err(&cam_mod->sd,
@@ -944,6 +910,7 @@ int aptina_camera_module_g_ctrl(struct v4l2_subdev *sd,
 
 	if (ctrl->id == V4L2_CID_FOCUS_ABSOLUTE) {
 		struct v4l2_subdev *af_ctrl;
+
 		af_ctrl = pltfrm_camera_module_get_af_ctrl(sd);
 		if (!IS_ERR_OR_NULL(af_ctrl)) {
 			ret = v4l2_subdev_call(af_ctrl, core, g_ctrl, ctrl);
@@ -984,6 +951,12 @@ int aptina_camera_module_g_ctrl(struct v4l2_subdev *sd,
 		ctrl->value = cam_mod->wb_config.temperature;
 		pltfrm_camera_module_pr_debug(&cam_mod->sd,
 			"V4L2_CID_WHITE_BALANCE_TEMPERATURE %d\n",
+			ctrl->value);
+		break;
+	case V4L2_CID_AUTO_N_PRESET_WHITE_BALANCE:
+		ctrl->value = cam_mod->wb_config.preset_id;
+		pltfrm_camera_module_pr_debug(&cam_mod->sd,
+			"V4L2_CID_AUTO_N_PRESET_WHITE_BALANCE %d\n",
 			ctrl->value);
 		break;
 	case V4L2_CID_AUTOGAIN:
@@ -1091,6 +1064,13 @@ int aptina_camera_module_s_ext_ctrls(
 			"V4L2_CID_WHITE_BALANCE_TEMPERATURE %d\n",
 			ctrl->value);
 			break;
+		case V4L2_CID_AUTO_N_PRESET_WHITE_BALANCE:
+			ctrl_updt = APTINA_CAMERA_MODULE_CTRL_UPDT_PRESET_WB;
+			cam_mod->wb_config.preset_id = ctrl->value;
+			pltfrm_camera_module_pr_debug(&cam_mod->sd,
+			"V4L2_CID_AUTO_N_PRESET_WHITE_BALANCE %d\n",
+			ctrl->value);
+			break;
 		case V4L2_CID_AUTOGAIN:
 			ctrl_updt = APTINA_CAMERA_MODULE_CTRL_UPDT_AUTO_GAIN;
 			cam_mod->exp_config.auto_gain = ctrl->value;
@@ -1121,9 +1101,11 @@ int aptina_camera_module_s_ext_ctrls(
 		case V4L2_CID_FOCUS_ABSOLUTE:
 			{
 				struct v4l2_subdev *af_ctrl;
+
 				af_ctrl = pltfrm_camera_module_get_af_ctrl(sd);
 				if (!IS_ERR_OR_NULL(af_ctrl)) {
 					struct v4l2_control single_ctrl;
+
 					single_ctrl.id =
 						V4L2_CID_FOCUS_ABSOLUTE;
 					single_ctrl.value = ctrl->value;
@@ -1210,9 +1192,9 @@ int aptina_camera_module_s_ext_ctrls(
 			ret = cam_mod->custom.s_ext_ctrls(cam_mod, &aptina_ctrls);
 
 			kfree(aptina_ctrls.ctrls);
-		} else
+		} else {
 			ret = -ENOMEM;
-
+		}
 		if (IS_ERR_VALUE(ret))
 			pltfrm_camera_module_pr_debug(&cam_mod->sd,
 				"failed with error %d\n", ret);
@@ -1257,7 +1239,7 @@ long aptina_camera_module_ioctl(struct v4l2_subdev *sd,
 	if (cmd == RK_VIDIOC_SENSOR_MODE_DATA) {
 		struct aptina_camera_module_timings aptina_timings;
 		struct isp_supplemental_sensor_mode_data *timings =
-		(struct isp_supplemental_sensor_mode_data *) arg;
+		(struct isp_supplemental_sensor_mode_data *)arg;
 
 		if (cam_mod->custom.g_timings)
 			ret = cam_mod->custom.g_timings(cam_mod, &aptina_timings);
@@ -1291,10 +1273,18 @@ long aptina_camera_module_ioctl(struct v4l2_subdev *sd,
 		timings->fine_integration_time_min =
 			aptina_timings.fine_integration_time_min;
 
-		#if 0
-		timings->exp_time = cam_mod->exp_config.exp_time;
-		timings->gain = cam_mod->exp_config.gain;
-		#endif
+		timings->exposure_valid_frame[0] =
+			cam_mod->custom.exposure_valid_frame[0];
+		timings->exposure_valid_frame[1] =
+			cam_mod->custom.exposure_valid_frame[1];
+		if (cam_mod->exp_config.exp_time)
+			timings->exp_time = cam_mod->exp_config.exp_time;
+		else
+			timings->exp_time = aptina_timings.exp_time;
+		if (cam_mod->exp_config.gain)
+			timings->gain = cam_mod->exp_config.gain;
+		else
+			timings->gain = aptina_timings.gain;
 
 		return ret;
 	} else if (cmd == PLTFRM_CIFCAM_G_ITF_CFG) {
@@ -1303,8 +1293,7 @@ long aptina_camera_module_ioctl(struct v4l2_subdev *sd,
 
 		if (cam_mod->custom.num_configs <= 0) {
 			pltfrm_camera_module_pr_err(&cam_mod->sd,
-				"cam_mod->custom.num_configs is NULL,"
-				"Get interface config failed!\n");
+				"cam_mod->custom.num_configs is NULL\n");
 			return -EINVAL;
 		}
 
@@ -1330,71 +1319,13 @@ long aptina_camera_module_ioctl(struct v4l2_subdev *sd,
 		return ret;
 	}
 }
+
 /* ======================================================================== */
-
-/* Reconfigure bayer order according to xml's definition */
-static int aptina_camera_module_s_flip(struct aptina_camera_module *cam_mod)
-{
-	int i, mode = 0;
-	static int flip_mode = 0x0;
-
-	if (!cam_mod->custom.configs->bayer_order_alter_enble) {
-		aptina_camera_module_pr_info(cam_mod,
-					 "not need to change bayer order!");
-		return 0;
-	}
-
-	mode = pltfrm_camera_module_get_flip_mirror(&cam_mod->sd);
-
-	aptina_camera_module_pr_debug(cam_mod,
-			"%s(%d): flip_mode is %d, mode is %d.\n",
-			__func__,
-			__LINE__,
-			flip_mode,
-			mode);
-
-	if (mode != flip_mode) {
-		/* Reconfigure the compatible bayer order */
-		switch (mode) {
-		case 0:
-			/* Change all the bayter order of registered configs */
-			for (i = 0; i < cam_mod->custom.num_configs; i++)
-				cam_mod->custom.configs[i].frm_fmt.code =
-					V4L2_MBUS_FMT_SGRBG10_1X10;
-			break;
-
-		case 1:
-			for (i = 0; i < cam_mod->custom.num_configs; i++)
-				cam_mod->custom.configs[i].frm_fmt.code =
-					V4L2_MBUS_FMT_SRGGB10_1X10;
-			break;
-
-		case 2:
-			for (i = 0; i < cam_mod->custom.num_configs; i++)
-				cam_mod->custom.configs[i].frm_fmt.code =
-					V4L2_MBUS_FMT_SBGGR10_1X10;
-			break;
-
-		case 3:
-			for (i = 0; i < cam_mod->custom.num_configs; i++)
-				cam_mod->custom.configs[i].frm_fmt.code =
-					V4L2_MBUS_FMT_SGBRG10_1X10;
-			break;
-
-		default:
-			break;
-		};
-	}
-
-	flip_mode = mode;
-
-	return 0;
-}
 
 int aptina_camera_module_get_flip_mirror(
 	struct aptina_camera_module *cam_mod)
 {
-    return pltfrm_camera_module_get_flip_mirror(&cam_mod->sd);
+	return pltfrm_camera_module_get_flip_mirror(&cam_mod->sd);
 }
 
 int aptina_camera_module_enum_frameintervals(
@@ -1408,7 +1339,6 @@ int aptina_camera_module_enum_frameintervals(
 	if (fival->index >= cam_mod->custom.num_configs)
 		return -EINVAL;
 
-    aptina_camera_module_s_flip(cam_mod);
 	fival->pixel_format =
 		cam_mod->custom.configs[fival->index].frm_fmt.code;
 	fival->width = cam_mod->custom.configs[fival->index].frm_fmt.width;
@@ -1511,26 +1441,15 @@ int aptina_camera_module_init(struct aptina_camera_module *cam_mod,
 		goto err;
 
 	ret = pltfrm_camera_module_set_pin_state(&cam_mod->sd,
-					PLTFRM_CAMERA_MODULE_PIN_PD,
-					PLTFRM_CAMERA_MODULE_PIN_STATE_INACTIVE);
+		PLTFRM_CAMERA_MODULE_PIN_PD,
+		PLTFRM_CAMERA_MODULE_PIN_STATE_ACTIVE);
 	ret = pltfrm_camera_module_set_pin_state(&cam_mod->sd,
-					PLTFRM_CAMERA_MODULE_PIN_RESET,
-					PLTFRM_CAMERA_MODULE_PIN_STATE_ACTIVE);
+		PLTFRM_CAMERA_MODULE_PIN_RESET,
+		PLTFRM_CAMERA_MODULE_PIN_STATE_ACTIVE);
 	if (IS_ERR_VALUE(ret)) {
 		aptina_camera_module_release(cam_mod);
 		goto err;
 	}
-
-	/*if (custom->check_camera_id) {
-		aptina_camera_module_s_power(&cam_mod->sd, 1);
-		ret = (custom->check_camera_id)(cam_mod);
-		aptina_camera_module_s_power(&cam_mod->sd, 0);
-	}
-
-	if (IS_ERR_VALUE(ret)) {
-		aptina_camera_module_release(cam_mod);
-		goto err;
-	}*/
 
 	return 0;
 err:

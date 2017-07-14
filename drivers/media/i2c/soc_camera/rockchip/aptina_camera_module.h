@@ -65,6 +65,8 @@ struct aptina_camera_module_timings {
 	u32 crop_vertical_end;
 	u8 binning_factor_x;
 	u8 binning_factor_y;
+	u32 exp_time;
+	u32 gain;
 };
 
 struct aptina_camera_module_config {
@@ -76,7 +78,8 @@ struct aptina_camera_module_config {
 	bool auto_wb_enabled;
 	struct aptina_camera_module_reg *reg_table;
 	u32 reg_table_num_entries;
-	u32 bayer_order_alter_enble;
+	struct aptina_camera_module_reg *reg_diff_table;
+	u32 reg_diff_table_num_entries;
 	u32 v_blanking_time_us;
 	u32 line_length_pck;
 	u32 frame_length_lines;
@@ -154,13 +157,12 @@ struct aptina_camera_module_custom_config {
 	int (*set_flip)(struct aptina_camera_module *cam_mod,
 		struct pltfrm_camera_module_reg reglist[],
 		int len);
-	struct aptina_camera_module_config *configs;
 	int (*init_common)(struct aptina_camera_module *cam_mod);
-	int (*g_exposure_valid_frame)(struct aptina_camera_module *cam_mod);
+	struct aptina_camera_module_config *configs;
 	u32 num_configs;
 	u32 power_up_delays_ms[3];
+	unsigned char exposure_valid_frame[2];
 	void *priv;
-	struct aptina_camera_module_timings timings;
 };
 
 struct aptina_camera_module {
@@ -197,23 +199,6 @@ struct aptina_camera_module {
 		pltfrm_camera_module_pr_warn(&cam_mod->sd, fmt, ## arg)
 #define aptina_camera_module_pr_err(cam_mod, fmt, arg...) \
 		pltfrm_camera_module_pr_err(&cam_mod->sd, fmt, ## arg)
-
-#if 0
-int aptina_read_i2c_reg(
-		struct v4l2_subdev *sd,
-	u16 data_length,
-	u16 reg,
-	u32 *val);
-
-int aptina_write_i2c_reg(
-	struct v4l2_subdev *sd,
-	u16 reg, u16 val);
-
-int aptina_write_reglist(
-	struct v4l2_subdev *sd,
-	const struct pltfrm_camera_module_reg reglist[],
-	int len);
-#endif
 
 int aptina_camera_module_write_reglist(
 	struct aptina_camera_module *cam_mod,
