@@ -19,6 +19,11 @@
  *
  *v0.1.1:
  *1. Support v4l2 subdev api for s_frame_interval;
+ *
+ *v0.1.2:
+ *1. remove stream state judge before hold reg setting,
+ *during stream on->aec->stream off->aec->stream on, stream state may be changed,
+ *reg is hold but not release.
  */
 
 #include <linux/i2c.h>
@@ -729,20 +734,22 @@ static int ov4689_write_aec(struct ov_camera_module *cam_mod)
 		u32 exp_time = cam_mod->exp_config.exp_time;
 		a_gain = a_gain * cam_mod->exp_config.gain_percent / 100;
 
-		if (cam_mod->state == OV_CAMERA_MODULE_STREAMING)
-			ret = ov_camera_module_write_reg(cam_mod,
+		/* hold reg en */
+		ret |= ov_camera_module_write_reg(cam_mod,
 			ov4689_AEC_GROUP_UPDATE_ADDRESS,
 			ov4689_AEC_GROUP_UPDATE_START_DATA);
+
 		if (!IS_ERR_VALUE(ret) && cam_mod->auto_adjust_fps)
-			ret = ov4689_auto_adjust_fps(cam_mod,
-						cam_mod->exp_config.exp_time);
+			ret |= ov4689_auto_adjust_fps(cam_mod,
+				cam_mod->exp_config.exp_time);
+
 		ret |= ov_camera_module_write_reg(cam_mod,
 			ov4689_AEC_PK_LONG_GAIN_HIGH_REG,
 			ov4689_FETCH_MSB_GAIN(a_gain));
 		ret |= ov_camera_module_write_reg(cam_mod,
 			ov4689_AEC_PK_LONG_GAIN_LOW_REG,
 			ov4689_FETCH_LSB_GAIN(a_gain));
-		ret = ov_camera_module_write_reg(cam_mod,
+		ret |= ov_camera_module_write_reg(cam_mod,
 			ov4689_AEC_PK_LONG_EXPO_3RD_REG,
 			ov4689_FETCH_3RD_BYTE_EXP(exp_time));
 		ret |= ov_camera_module_write_reg(cam_mod,
@@ -751,14 +758,14 @@ static int ov4689_write_aec(struct ov_camera_module *cam_mod)
 		ret |= ov_camera_module_write_reg(cam_mod,
 			ov4689_AEC_PK_LONG_EXPO_1ST_REG,
 			ov4689_FETCH_1ST_BYTE_EXP(exp_time));
-		if (cam_mod->state == OV_CAMERA_MODULE_STREAMING) {
-			ret = ov_camera_module_write_reg(cam_mod,
-				ov4689_AEC_GROUP_UPDATE_ADDRESS,
-				ov4689_AEC_GROUP_UPDATE_END_DATA);
-			ret = ov_camera_module_write_reg(cam_mod,
-				ov4689_AEC_GROUP_UPDATE_ADDRESS,
-				ov4689_AEC_GROUP_UPDATE_END_LAUNCH);
-		}
+
+		/* hold reg end */
+		ret |= ov_camera_module_write_reg(cam_mod,
+			ov4689_AEC_GROUP_UPDATE_ADDRESS,
+			ov4689_AEC_GROUP_UPDATE_END_DATA);
+		ret |= ov_camera_module_write_reg(cam_mod,
+			ov4689_AEC_GROUP_UPDATE_ADDRESS,
+			ov4689_AEC_GROUP_UPDATE_END_LAUNCH);
 	}
 
 	if (IS_ERR_VALUE(ret))
@@ -1034,7 +1041,7 @@ static int ov4689_start_streaming(struct ov_camera_module *cam_mod)
 {
 	int ret = 0;
 
-	ov_camera_module_pr_debug(cam_mod, "active config=%s\n", cam_mod->active_config->name);
+	ov_camera_module_pr_info(cam_mod, "active config=%s\n", cam_mod->active_config->name);
 
 	ret = ov4689_g_VTS(cam_mod, &cam_mod->vts_min);
 	if (IS_ERR_VALUE(ret))
@@ -1058,7 +1065,7 @@ static int ov4689_stop_streaming(struct ov_camera_module *cam_mod)
 {
 	int ret = 0;
 
-	ov_camera_module_pr_debug(cam_mod, "\n");
+	ov_camera_module_pr_info(cam_mod, "\n");
 
 	ret = ov_camera_module_write_reg(cam_mod, 0x0100, 0);
 	if (IS_ERR_VALUE(ret))
