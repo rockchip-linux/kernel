@@ -3418,6 +3418,11 @@ static void rk818_bat_bc_delay_work(struct work_struct *work)
 	const char *event_name[] = {"DISCNT", "USB", "AC", "AC",
 				    "UNKNOWN", "OTG ON", "OTG OFF"};
 
+	if (di->bc_event >= ARRAY_SIZE(event_name)) {
+		BAT_INFO("receive BAD bc notifier event, ignore\n");
+		return;
+	}
+
 	BAT_INFO("receive bc notifier event: %s..\n", event_name[di->bc_event]);
 	switch (di->bc_event) {
 	case USB_BC_TYPE_DISCNT:
