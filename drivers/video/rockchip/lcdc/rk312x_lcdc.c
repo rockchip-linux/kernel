@@ -74,12 +74,19 @@ static irqreturn_t rk312x_lcdc_isr(int irq, void *dev_id)
 	struct lcdc_device *lcdc_dev = (struct lcdc_device *)dev_id;
 	ktime_t timestamp = ktime_get();
 	u32 int_reg = lcdc_readl(lcdc_dev, INT_STATUS);
-	u32 irq_active = 0;
+	u32 irq_active, irq_active_empty;
+	u32 val = 0;
+
+	irq_active_empty = int_reg & EMPTY_INT_STA_MSK;
+	if (irq_active_empty) {
+		dev_warn_ratelimited(lcdc_dev->dev, "intr win empty, int_reg=0x%x!", int_reg);
+		val = (irq_active_empty >> EMPTY_INT_CLR_SHIFT);
+	}
 
 	irq_active = int_reg & INT_STA_MSK;
 	if (irq_active)
 		lcdc_writel(lcdc_dev, INT_STATUS,
-			    int_reg | (irq_active << INT_CLR_SHIFT));
+			    int_reg | (irq_active << INT_CLR_SHIFT) | val);
 
 	if (int_reg & m_FS_INT_STA) {
 		timestamp = ktime_get();
@@ -210,10 +217,10 @@ static int rk312x_lcdc_disable_irq(struct lcdc_device *lcdc_dev)
 			m_LF_INT_CLEAR | m_LF_INT_EN |
 			m_HS_INT_CLEAR | m_HS_INT_EN |
 			m_BUS_ERR_INT_CLEAR | m_BUS_ERR_INT_EN;
-		val = v_FS_INT_CLEAR(0) | v_FS_INT_EN(0) |
-			v_LF_INT_CLEAR(0) | v_LF_INT_EN(0) |
-			v_HS_INT_CLEAR(0) | v_HS_INT_EN(0) |
-			v_BUS_ERR_INT_CLEAR(0) | v_BUS_ERR_INT_EN(0);
+		val = v_FS_INT_CLEAR(1) | v_FS_INT_EN(0) |
+			v_LF_INT_CLEAR(1) | v_LF_INT_EN(0) |
+			v_HS_INT_CLEAR(1) | v_HS_INT_EN(0) |
+			v_BUS_ERR_INT_CLEAR(1) | v_BUS_ERR_INT_EN(0);
 #ifdef LCDC_IRQ_EMPTY_DEBUG
 		mask |= m_WIN0_EMPTY_INT_EN | m_WIN1_EMPTY_INT_EN;
 		val |= v_WIN0_EMPTY_INT_EN(0) | v_WIN1_EMPTY_INT_EN(0);
@@ -1920,6 +1927,7 @@ static int rk312x_lcdc_early_suspend(struct rk_lcdc_driver *dev_drv)
 	}
 
 	dev_drv->suspend_flag = 1;
+	smp_wmb();
 	flush_kthread_worker(&dev_drv->update_regs_worker);
 
 	if (dev_drv->trsm_ops && dev_drv->trsm_ops->disable)
@@ -1937,6 +1945,7 @@ static int rk312x_lcdc_early_suspend(struct rk_lcdc_driver *dev_drv)
 		lcdc_cfg_done(lcdc_dev);
 
 		if (dev_drv->iommu_enabled) {
+			mdelay(50);
 			if (dev_drv->mmu_dev)
 				rockchip_iovmm_deactivate(dev_drv->dev);
 		}

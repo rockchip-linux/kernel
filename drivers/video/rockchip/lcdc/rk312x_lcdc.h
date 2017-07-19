@@ -653,6 +653,9 @@ enum _vop_overlay_mode {
 			 m_LF_INT_STA | m_BUS_ERR_INT_STA)
 #define INT_CLR_SHIFT	8
 
+#define EMPTY_INT_STA_MSK	(m_WIN0_EMPTY_INT_STA | m_WIN1_EMPTY_INT_STA)
+#define EMPTY_INT_CLR_SHIFT	2
+
 struct rk_lcdc_drvdata {
      u8 soc_type;
      u32 reserve;
