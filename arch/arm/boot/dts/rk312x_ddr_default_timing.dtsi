@@ -21,8 +21,8 @@
 		pd_idle = <0x40>;
 		sr_idle = <0x1>;
 
-		auto_pd_dis_freq = <533>;
-		auto_sr_dis_freq = <533>;
+		auto_pd_dis_freq = <300>;
+		auto_sr_dis_freq = <300>;
 		ddr3_dll_dis_freq = <300>;
 		lpddr2_dll_dis_freq = <300>;
 		phy_dll_dis_freq = <266>;
