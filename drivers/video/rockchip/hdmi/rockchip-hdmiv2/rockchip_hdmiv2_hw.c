@@ -2171,6 +2171,8 @@ static int hdmi_dev_config_video(struct hdmi *hdmi, struct hdmi_video *vpara)
 static void hdmi_dev_config_aai(struct hdmi_dev *hdmi_dev,
 				struct hdmi_audio *audio)
 {
+	int ca;
+
 	/* Refer to CEA861-E Audio infoFrame
 	 * Set both Audio Channel Count and Audio Coding
 	 * Type Refer to Stream Head for HDMI
@@ -2187,7 +2189,21 @@ static void hdmi_dev_config_aai(struct hdmi_dev *hdmi_dev,
 		     v_FC_SAMPLE_SIZE(0) | v_FC_SAMPLE_FREQ(0));
 
 	/* Set Channel Allocation */
-	hdmi_writel(hdmi_dev, FC_AUDICONF2, 0x00);
+	switch (audio->channel) {
+	case 4:
+		ca = 0x3;
+		break;
+	case 6:
+		ca = 0xb;
+		break;
+	case 8:
+		ca = 0x13;
+		break;
+	default:
+		ca = 0x0;
+	}
+
+	hdmi_writel(hdmi_dev, FC_AUDICONF2, ca);
 
 	/* Set LFEPBLDOWN-MIX INH and LSV */
 	hdmi_writel(hdmi_dev, FC_AUDICONF3, 0x00);
