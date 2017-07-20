@@ -471,6 +471,8 @@ static int rk3036_tve_init_gpio(struct device_node *np,
 	rk3036_tve->det_io = of_get_named_gpio_flags(np, "det_io", 0, &flags);
 	if (!gpio_is_valid(rk3036_tve->det_io)) {
 		dev_warn(rk3036_tve->dev, "Can not read det_io\n");
+		ret = -EIO;
+		goto err;
 	} else {
 		ret = devm_gpio_request(rk3036_tve->dev,
 					rk3036_tve->det_io,
@@ -701,13 +703,13 @@ static int rk3036_tve_probe(struct platform_device *pdev)
 			  cvbsout_det_delay_work);
 
 	ret = rk3036_tve_init_gpio(np, rk3036_tve);
-	if (ret) {
+	if (ret)
 		destroy_workqueue(rk3036_tve->det_wq);
-		return ret;
-	}
+	else
+		queue_delayed_work(rk3036_tve->det_wq,
+				   &rk3036_tve->det_delay_work,
+				   msecs_to_jiffies(1000));
 
-	queue_delayed_work(rk3036_tve->det_wq, &rk3036_tve->det_delay_work,
-			   msecs_to_jiffies(1000));
 
 	dev_info(&pdev->dev, "%s tv encoder probe ok\n", match->compatible);
 	return 0;
