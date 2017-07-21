@@ -145,8 +145,13 @@
 };
 
 &emmc {
+	max-frequency = <200000000>;
+	clocks = <&cru HCLK_EMMC>, <&cru SCLK_EMMC>,
+		 <&cru SCLK_EMMC_DRV>, <&cru SCLK_EMMC_SAMPLE>;
+	clock-names = "biu", "ciu", "ciu-drv", "ciu-sample";
 	bus-width = <8>;
 	cap-mmc-highspeed;
+	mmc-hs200-1_8v;
 	supports-emmc;
 	disable-wp;
 	non-removable;
