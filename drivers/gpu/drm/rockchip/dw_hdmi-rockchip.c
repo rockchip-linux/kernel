@@ -263,8 +263,7 @@ static struct dw_hdmi_phy_config rockchip_phy_config[] = {
 	/*pixelclk   symbol   term   vlev*/
 	{ 74250000,  0x8009, 0x0004, 0x0272},
 	{ 165000000, 0x802b, 0x0004, 0x0209},
-	{ 297000000, 0x8039, 0x0005, 0x028d},
-	{ 594000000, 0x8039, 0x0000, 0x019d},
+	{ 297000000, 0x802d, 0x0001, 0x0149},
 	{ ~0UL,	     0x0000, 0x0000, 0x0000}
 };
 
