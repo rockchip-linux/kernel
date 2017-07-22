@@ -1,0 +1,18 @@
+config DRM_PANEL_TOSHIBA_TC358762
+	tristate "support for toshiba tc358762"
+	depends on OF && I2C
+	depends on BACKLIGHT_CLASS_DEVICE
+	select VIDEOMODE_HELPERS
+	help
+	  Say Y here if you want to enable support for toshiba tc358762 bridge.
+	  To compile this driver as a module, choose M here.
+
+config ASUS_RPI_MCU
+	tristate "RPI MCU for ASUS"
+	depends on DRM_ROCKCHIP && DRM_PANEL_TOSHIBA_TC358762
+	depends on I2C
+	select RPI_MCU
+	help
+	 This selects support for TOSHIBA TC358762 bridge specific
+	 extensions for ASUS rpi. If you want to enable MIPI DSI
+	 on RK3288 based SoC, you should selet this option.
