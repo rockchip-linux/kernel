@@ -199,7 +199,7 @@
 };
 
 &dsi0 {
-	status = "disabled";
+	status = "okay";
 	mipi_panel: mipi-panel {
 		compatible ="asus,tc358762";
 		reg = <0>;
