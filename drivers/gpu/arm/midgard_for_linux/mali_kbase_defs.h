@@ -912,6 +912,17 @@ struct kbase_device {
 	} irqs[3];
 
 	struct clk *clock;
+
+	/*
+	 * current freq of clk_gpu, in Hz.
+	 */
+	unsigned long freq;
+	/*
+	 * mutex for setting freq of clk_gpu.
+	 */
+	struct mutex mutex_for_clk;
+	bool is_power_off;
+
 #ifdef CONFIG_REGULATOR
 	struct regulator *regulator;
 #endif
@@ -1169,6 +1180,10 @@ struct kbase_device {
 #endif
 	/* Boolean indicating if an IRQ flush during reset is in progress. */
 	bool irq_reset_flush;
+
+	struct notifier_block gpu_trans_nb;
+	unsigned int gpu_limit_freq;
+	unsigned int cpu_limit_freq;
 
 	/* list of inited sub systems. Used during terminate/error recovery */
 	u32 inited_subsys;
