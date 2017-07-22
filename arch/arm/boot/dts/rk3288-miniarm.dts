@@ -173,6 +173,11 @@
 	};
 };
 
+&cif_isp0 {
+	rockchip,camera-modules-attached = <&camera0>;
+	status = "okay";
+};
+
 &cpu0 {
 	cpu0-supply = <&vdd_cpu>;
 };
@@ -422,6 +427,43 @@
 &i2c2 {
 	status = "okay";
 
+	camera0: camera-module@10 {
+		status = "okay";
+		compatible = "sony,imx219-v4l2-i2c-subdev";
+		reg = <0x10>;
+		device_type = "v4l2-i2c-subdev";
+
+		clocks = <&cru SCLK_VIP_OUT>;
+		clock-names = "clk_cif_out";
+
+		pinctrl-names = "rockchip,camera_default",
+			"rockchip,camera_sleep";
+		pinctrl-0 = <&cam0_default_pins>;
+		pinctrl-1 = <&cam0_sleep_pins>;
+
+		rockchip,pd-gpio = <&gpio2 0 GPIO_ACTIVE_LOW>;
+
+		rockchip,camera-module-mclk-name = "clk_cif_out";
+		rockchip,camera-module-regulator-names = "vcc33_mipi";
+		rockchip,camera-module-regulator-voltages = <3300000>;
+		rockchip,camera-module-dovdd = "1.8v";
+		rockchip,camera-module-facing = "back";
+		rockchip,camera-module-name = "cmk-cb0695-fv1";
+		rockchip,camera-module-len-name = "lg9569a2";
+		rockchip,camera-module-fov-h = "66.0";
+		rockchip,camera-module-fov-v = "50.1";
+		rockchip,camera-module-orientation = <0>;
+		rockchip,camera-module-iq-flip = <0>;
+		rockchip,camera-module-iq-mirror = <0>;
+		rockchip,camera-module-flip = <0>;
+		rockchip,camera-module-mirror = <0>;
+
+		/* resolution.w, resolution.h, defrect.left, defrect.top, defrect.w, defrect.h */
+		rockchip,camera-module-defrect0 = <3264 2448 0 0 3264 2448>;
+		rockchip,camera-module-flash-support = <0>;
+		rockchip,camera-module-mipi-dphy-index = <0>;
+	};
+
 	m24c08@50 {
 		compatible = "at,24c08";
 		reg = <0x50>;
@@ -476,6 +518,10 @@
 
 	sdcard-supply = <&vccio_sd>;
 	wifi-supply = <&vcc_18>;
+};
+
+&isp_mmu {
+	status = "okay";
 };
 
 &sdio0 {
@@ -686,6 +732,20 @@
 	wireless-bluetooth {
 		uart0_gpios: uart0-gpios {
 			rockchip,pins = <4 19 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	cam_pins {
+		cam0_default_pins: cam0-default-pins {
+			rockchip,pins = <0 17 RK_FUNC_GPIO &pcfg_pull_none>,
+			<2 0 RK_FUNC_GPIO &pcfg_pull_none>,
+			<2 11 RK_FUNC_1 &pcfg_pull_none>;
+		};
+
+		cam0_sleep_pins: cam0-sleep-pins {
+			rockchip,pins = <0 17 RK_FUNC_GPIO &pcfg_pull_none>,
+			<2 0 RK_FUNC_GPIO &pcfg_pull_none>,
+			<2 11 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
 };
