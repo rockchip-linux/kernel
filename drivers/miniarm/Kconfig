@@ -1,3 +1,4 @@
 source "drivers/miniarm/dsi/Kconfig"
+source "drivers/miniarm/rtl8723bs/Kconfig"
 
 
