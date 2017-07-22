@@ -34,3 +34,10 @@ config TINKER_MCU
 	depends on I2C
 	help
 		Control the power of touch screen for tinker board.
+
+config TOUCHSCREEN_TINKER_FT5406
+	tristate "tinker ft5406"
+	default y
+	depends on I2C
+	help
+		Control ft5406 touch ic.

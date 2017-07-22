@@ -40,6 +40,12 @@ static struct i2c_board_info __initdata i2c_devices_tinker_mcu[] = {
       },
 };
 
+static struct i2c_board_info __initdata i2c_devices_tinker_ft5406[] = {
+      {
+               I2C_BOARD_INFO("tinker_ft5406", 0x38),
+      },
+};
+
 static void __init rockchip_timer_init(void)
 {
 	if (of_machine_is_compatible("rockchip,rk3288")) {
@@ -71,6 +77,7 @@ static void __init rockchip_dt_init(void)
 	platform_device_register_simple("cpufreq-dt", 0, NULL, 0);
 
 	i2c_register_board_info(3, i2c_devices_tinker_mcu, ARRAY_SIZE(i2c_devices_tinker_mcu));
+	i2c_register_board_info(3, i2c_devices_tinker_ft5406, ARRAY_SIZE(i2c_devices_tinker_ft5406));
 }
 
 static const char * const rockchip_board_dt_compat[] = {
