@@ -37,6 +37,8 @@
 #include <video/of_display_timing.h>
 #include <video/videomode.h>
 
+int trigger_bridge = 1;
+
 struct panel_desc {
 	const struct drm_display_mode *modes;
 	unsigned int num_modes;
@@ -182,12 +184,17 @@ static int tc358762_of_get_native_mode(struct tc358762 *panel)
 	return 1;
 }
 
+extern int tinker_mcu_set_bright(int bright);
 static int tc358762_disable(struct drm_panel *panel)
 {
 	struct tc358762 *p = to_tc358762(panel);
 
 	if (!p->enabled)
 		return 0;
+
+	printk("panel disable\n");
+
+	tinker_mcu_set_bright(0x00);
 
 	if (p->backlight) {
 		p->backlight->props.power = FB_BLANK_POWERDOWN;
@@ -288,7 +295,7 @@ static int tc358762_prepare(struct drm_panel *panel)
 	return 0;
 }
 
-extern void mcu_power_up(void);
+extern void tinker_mcu_screen_power_up(void);
 static int tc358762_enable(struct drm_panel *panel)
 {
 	struct tc358762 *p = to_tc358762(panel);
@@ -296,7 +303,14 @@ static int tc358762_enable(struct drm_panel *panel)
 	if (p->enabled)
 		return 0;
 
-	mcu_power_up();
+	printk("panel enable\n");
+
+	if(trigger_bridge) {
+		pr_info("tinker_mcu_screen_power_up");
+		tinker_mcu_screen_power_up();
+		trigger_bridge = 0;
+	}
+
 	tc358762_dsi_init(p);
 
 	if (p->desc && p->desc->delay.enable)
@@ -306,6 +320,8 @@ static int tc358762_enable(struct drm_panel *panel)
 		p->backlight->props.power = FB_BLANK_UNBLANK;
 		backlight_update_status(p->backlight);
 	}
+
+	tinker_mcu_set_bright(0xFF);
 
 	p->enabled = true;
 
@@ -523,6 +539,8 @@ static int tc358762_dsi_probe(struct mipi_dsi_device *dsi)
 		return -ENODEV;
 
 	desc = id->data;
+
+	printk("find panel: %s\n", id->compatible);
 
 	if (desc) {
 		dsi->mode_flags = desc->flags;
