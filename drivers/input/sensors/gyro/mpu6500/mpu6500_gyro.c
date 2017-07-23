@@ -59,6 +59,8 @@ struct mpu6500_data {
 
 	int mpu_fifo_enable;
 	int mpu_sample_rate;
+	int mpu_irq;
+	int mpu_irq_handle;
 	int mpu_static_judge;
 	int gyro_calibration;
 	int gyro_new_calibration;
@@ -77,6 +79,14 @@ struct mpu6500_data {
 	int fifo_max;
 	int cur_group_count;
 	int total_group_count;
+
+	/* use irq */
+	unsigned int mpu_irq_gpio;
+	int use_buf1;
+	int tbuf1_count;
+	long long timestamp_buf1[BUF_DATA_SIZE];
+	int tbuf2_count;
+	long long timestamp_buf2[BUF_DATA_SIZE];
 };
 
 enum mpu_fsr {
@@ -118,6 +128,9 @@ static int mpu6500_gyro_setoffset(int config);
 static struct mpu6500_data *mpu6500_dev_data;
 static struct raw_data_set *fifodata;
 static unsigned char *fifo_block;
+#ifdef MPU6500_TEST
+static long long pre_time;
+#endif
 
 static int mpu_i2c_read(
 	char slave_addr,
@@ -186,6 +199,10 @@ static int mpu6500_fifo_reset(void)
 	struct i2c_client *client = gdata->client;
 	unsigned char fifo_en = 0;
 	unsigned char user_ctrl = 0;
+
+	gdata->use_buf1 = 1;
+	gdata->tbuf1_count = 0;
+	gdata->tbuf2_count = 0;
 
 	fifo_en = sensor_read_reg(client, MPU6500_FIFO_EN);
 	user_ctrl = sensor_read_reg(client, MPU6500_USER_CTRL);
@@ -448,11 +465,9 @@ static int mpu6500_set_fifodata_block(
 	/* read fifo temperature data */
 	if (feature & 0x04)
 		read_size += 2;
-
 	/* read fifo gyro data */
 	if (feature & 0x02)
 		read_size += 6;
-
 	/* read fifo accel data */
 	if (feature & 0x01)
 		read_size += 6;
@@ -497,6 +512,16 @@ static int mpu6500_parse_dts(struct mpu6500_data *gdata,
 			     struct device_node *np)
 {
 	int rv = -1;
+	enum of_gpio_flags flags;
+
+	rv = of_property_read_u32(np,
+				  "mpu-irq",
+				  &gdata->mpu_irq);
+	if (rv) {
+		dev_err(&gdata->client->dev,
+			"MPU6500 get mpu_irq failure\n");
+		gdata->mpu_irq = 0;
+	}
 
 	rv = of_property_read_u32(np,
 				  "mpu-sample-rate",
@@ -523,6 +548,25 @@ static int mpu6500_parse_dts(struct mpu6500_data *gdata,
 		dev_err(&gdata->client->dev,
 			"MPU6500 get mpu-static-judge failure\n");
 		gdata->mpu_static_judge = 0;
+	}
+
+	if (gdata->mpu_irq == 1) {
+		gdata->mpu_irq_gpio = of_get_named_gpio_flags(np,
+							      "mpu-irq-gpio",
+							      0,
+							      &flags);
+		if (gpio_is_valid(gdata->mpu_irq_gpio)) {
+			rv = gpio_request(gdata->mpu_irq_gpio, "mpu_irq_state");
+			if (rv) {
+				dev_err(&gdata->client->dev,
+					"mpu6500 dmp gpio request failure!\n");
+				return -1;
+			}
+			gpio_direction_input(gdata->mpu_irq_gpio);
+		} else {
+			dev_err(&gdata->client->dev,
+				"mpu6500 irq gpio invalid!\n");
+		}
 	}
 
 	return rv;
@@ -592,19 +636,15 @@ static int mpu6500_calibration(int type)
 	int i = 0;
 	int gyro_x = 0, gyro_y = 0, gyro_z = 0;
 	int calibration_count = 0;
-	u8 int_status;
 	u8 offset_h = 0;
 	u8 offset_l = 0;
 
 	/* 1.mpu6500 gyro 0:mpu6500 accel */
 	if (type) {
 		dev_dbg(&client->dev, "In horizontal and keep still\n");
-		/* stop interrupt */
-		int_status = sensor_read_reg(client, MPU6500_INT_ENABLE);
-		sensor_write_reg(client, MPU6500_INT_ENABLE, 0x00);
 
 		while (calibration_count < GYRO_CALIBRATION_COUNT) {
-			dev_dbg(&client->dev, "--------------------");
+			dev_dbg(&client->dev, "--------------------\n");
 			/* get accel data for judge static */
 			if (gdata->mpu_static_judge == 1)
 				sensor_report_accel_value(client,
@@ -626,9 +666,9 @@ static int mpu6500_calibration(int type)
 			if (gdata->mpu_static_judge == 1) {
 				sensor_report_accel_value(client,
 							  &accel_ax2);
-				if ((abs(accel_ax1.x - accel_ax2.x) > 100) ||
-				    (abs(accel_ax1.y - accel_ax2.y) > 100) ||
-				    (abs(accel_ax1.z - accel_ax2.z) > 100)) {
+				if ((abs(accel_ax1.x - accel_ax2.x) > 200) ||
+				    (abs(accel_ax1.y - accel_ax2.y) > 200) ||
+				    (abs(accel_ax1.z - accel_ax2.z) > 200)) {
 					dev_dbg(&client->dev,
 						"stop mpu6500 gyro calibration\n");
 					if (calibration_count >= 1) {
@@ -717,10 +757,6 @@ static int mpu6500_calibration(int type)
 			calibration_count++;
 		}
 JUMP:
-		dev_dbg(&client->dev, "gyro calibration complete\n");
-		/* enable interrupt */
-		sensor_write_reg(client, MPU6500_INT_ENABLE, int_status);
-
 		dev_dbg(&client->dev, "gyro calibration complete and exit\n");
 		if (calibration_count == 0)
 			gdata->gyro_new_calibration = 0;
@@ -889,7 +925,9 @@ static int sensor_calibration(struct i2c_client *client, char *data)
 	return 0;
 }
 
-static int sensor_direct_getdata_from_fifo(struct i2c_client *client, void *data)
+static int sensor_direct_getdata_from_fifo(
+	struct i2c_client *client,
+	void *data)
 {
 	struct mpu6500_data *gdata = mpu6500_dev_data;
 	raw_data_set_t **rdata = (raw_data_set_t **)data;
@@ -973,12 +1011,207 @@ static int sensor_active(struct i2c_client *client, int enable, int rate)
 		if (gdata->mpu_fifo_enable == 1) {
 			msleep(200);
 			mpu6500_fifo_reset();
+			if (gdata->mpu_irq == 1) {
+				sensor_write_reg(client,
+						 MPU6500_INT_PIN_CFG,
+						 0x80);
+				sensor_write_reg(client,
+						 MPU6500_INT_ENABLE,
+						 BIT_RAW_RDY);
+				pr_info("%s: use BIT_RAW_RDY\n", __func__);
+			}
 		}
 
 		mpu6500_gyro_setoffset(1);
 	}
 
 	return result;
+}
+
+static irqreturn_t irq_handle_fifo_func(int irq, void *data)
+{
+	struct mpu6500_data *gdata = (struct mpu6500_data *)data;
+	struct timex txc;
+#ifdef MPU6500_TEST
+	long long time_interval = 0;
+	long long cur_time = 0;
+#endif
+	do_gettimeofday(&txc.time);
+#ifdef MPU6500_TEST
+	cur_time = (long long)txc.time.tv_sec * 1000 * 1000 +
+		   (long long)txc.time.tv_usec;
+	time_interval = cur_time - pre_time;
+	pr_info("irq: time_interval=%lld\n", time_interval);
+	pre_time = cur_time;
+#endif
+
+	if (gdata->use_buf1) {
+		gdata->tbuf1_count++;
+		gdata->timestamp_buf1[gdata->tbuf1_count - 1] =
+			(long long)txc.time.tv_sec * 1000 * 1000 +
+			(long long)txc.time.tv_usec;
+	} else {
+		gdata->tbuf2_count++;
+		gdata->timestamp_buf2[gdata->tbuf2_count - 1] =
+			(long long)txc.time.tv_sec * 1000 * 1000 +
+			(long long)txc.time.tv_usec;
+	}
+
+	return IRQ_WAKE_THREAD;
+}
+
+static irqreturn_t mpu6500_irq_work_func(int irq, void *data)
+{
+	struct mpu6500_data *gdata = (struct mpu6500_data *)data;
+
+	if ((gdata->tbuf1_count >= BUF_DATA_SIZE) ||
+	    (gdata->tbuf2_count >= BUF_DATA_SIZE)) {
+		pr_info("mpu6500 timestamp buffer overflow\n");
+		mpu6500_fifo_reset();
+	}
+
+	return IRQ_HANDLED;
+}
+
+static int mpu6500_irq_mode_parsing_fifoblock(
+	u8 feature,
+	unsigned char *buf,
+	short byte_len)
+{
+	struct mpu6500_data *gdata = mpu6500_dev_data;
+	short accel[3] = {0};
+	short gyro[3] = {0};
+	short temperature = 0;
+	unsigned char *buf_tmp = buf;
+	int read_size = 0;
+	int i = 0, k = 0, total_group_count = 0;
+
+	/* read fifo temperature data */
+	if (feature & 0x04)
+		read_size += 2;
+	/* read fifo gyro data */
+	if (feature & 0x02)
+		read_size += 6;
+	/* read fifo accel data */
+	if (feature & 0x01)
+		read_size += 6;
+
+	total_group_count = byte_len / read_size;
+
+	for (k = 0; k < total_group_count; k++) {
+		i = fifodata->avail_num;
+		if (i >= 200) {
+			i = 200 - 1;
+			fifodata->avail_num = i;
+		}
+		mpu6500_parsing_block(feature,
+				      buf_tmp,
+				      accel,
+				      gyro,
+				      &temperature);
+
+		fifodata->sensordata[i].accel_axis.x = accel[0];
+		fifodata->sensordata[i].accel_axis.y = accel[1];
+		fifodata->sensordata[i].accel_axis.z = accel[2];
+		fifodata->sensordata[i].gyro_axis.x = gyro[0];
+		fifodata->sensordata[i].gyro_axis.y = gyro[1];
+		fifodata->sensordata[i].gyro_axis.z = gyro[2];
+		fifodata->sensordata[i].temperature = temperature;
+		fifodata->sensordata[i].quat_flag = 0;
+		fifodata->sensordata[i].use_irq = 1;
+		if (gdata->use_buf1 == 0) {
+			fifodata->sensordata[i].timestamp_usec =
+				gdata->timestamp_buf1[i] - 5900; /* 5.9ms */
+		} else {
+			fifodata->sensordata[i].timestamp_usec =
+				gdata->timestamp_buf2[i] - 5900;
+		}
+		buf_tmp += read_size;
+		fifodata->avail_num++;
+	}
+
+	return 0;
+}
+
+static int sensor_use_irq_getdata(struct i2c_client *client, void *data)
+{
+	struct mpu6500_data *gdata = mpu6500_dev_data;
+	raw_data_set_t **rdata = (raw_data_set_t **)data;
+	int getdata_max_byte = 0;
+	int feature_byte = 0;
+	int read_byte = 0;
+	int data_group_count = 0;
+
+	fifodata->avail_num = 0;
+	if (gdata->fifo_feature & FIFO_ACCEL)
+		feature_byte += 6;
+	if (gdata->fifo_feature & FIFO_GYRO)
+		feature_byte += 6;
+	if (gdata->fifo_feature & FIFO_TEMP)
+		feature_byte += 2;
+
+	read_byte = feature_byte;
+	getdata_max_byte = read_byte * 50;
+
+	if (gdata->use_buf1) {
+		gdata->use_buf1 = 0;
+		data_group_count = gdata->tbuf1_count;
+		read_byte = data_group_count * read_byte;
+		while (read_byte >= getdata_max_byte) {
+			mpu6500_read_fifo_block(fifo_block, getdata_max_byte);
+			read_byte -= getdata_max_byte;
+			mpu6500_irq_mode_parsing_fifoblock(gdata->fifo_feature,
+							   fifo_block,
+							   getdata_max_byte);
+		}
+
+		if (gdata->tbuf1_count > data_group_count) {
+			read_byte += (gdata->tbuf1_count - data_group_count)
+				* feature_byte;
+			pr_info("polishing buf1 data: %d read_byte=%d\n",
+				gdata->tbuf1_count - data_group_count,
+				read_byte);
+		}
+
+		if (read_byte > 0) {
+			mpu6500_read_fifo_block(fifo_block, read_byte);
+			mpu6500_irq_mode_parsing_fifoblock(gdata->fifo_feature,
+							   fifo_block,
+							   read_byte);
+		}
+		gdata->tbuf1_count = 0;
+	} else {
+		gdata->use_buf1 = 1;
+		data_group_count = gdata->tbuf2_count;
+		read_byte = data_group_count * read_byte;
+		while (read_byte >=  getdata_max_byte) {
+			mpu6500_read_fifo_block(fifo_block, getdata_max_byte);
+			read_byte -= getdata_max_byte;
+			mpu6500_irq_mode_parsing_fifoblock(gdata->fifo_feature,
+							   fifo_block,
+							   getdata_max_byte);
+		}
+
+		if (gdata->tbuf2_count > data_group_count) {
+			read_byte += (gdata->tbuf2_count - data_group_count)
+				* feature_byte;
+			pr_info("polishing buf2 data: %d read_byte=%d\n",
+				gdata->tbuf2_count - data_group_count,
+				read_byte);
+		}
+
+		if (read_byte > 0) {
+			mpu6500_read_fifo_block(fifo_block, read_byte);
+			mpu6500_irq_mode_parsing_fifoblock(gdata->fifo_feature,
+							   fifo_block,
+							   read_byte);
+		}
+		gdata->tbuf2_count = 0;
+	}
+
+	*rdata = fifodata;
+
+	return 0;
 }
 
 static int sensor_init(struct i2c_client *client)
@@ -1016,6 +1249,7 @@ static int sensor_init(struct i2c_client *client)
 	if (ret)
 		dev_err(&client->dev, "mpu6500_parse_dts failure\n");
 
+	gdata->use_buf1 = 1;
 	mpu6500_dev_data = gdata;
 
 	atomic_set(&gdata->gyro_enable, 0);
@@ -1048,6 +1282,20 @@ static int sensor_init(struct i2c_client *client)
 			ret = -ENOMEM;
 			goto error1;
 		}
+		if (gdata->mpu_irq == 1) {
+			gdata->mpu_irq_handle =
+				gpio_to_irq(gdata->mpu_irq_gpio);
+			ret = request_threaded_irq(gdata->mpu_irq_handle,
+						   irq_handle_fifo_func,
+						   mpu6500_irq_work_func,
+						   IRQ_TYPE_EDGE_FALLING,
+						   "mpu6500-irq",
+						   gdata);
+			if (ret) {
+				pr_info("mpu6500 irq failure!\n");
+				goto error1;
+			}
+		}
 
 		gdata->fifo_feature = FIFO_GYRO | FIFO_TEMP;
 		mpu6500_set_fifo_feature(gdata->fifo_feature);
@@ -1078,6 +1326,7 @@ struct sensor_operate gyro_mpu6500_ops = {
 	.active				= sensor_active,
 	.init				= sensor_init,
 	.report				= sensor_report_value,
+	.getdata                        = sensor_use_irq_getdata,
 	.get_fifo_data			= sensor_direct_getdata_from_fifo,
 	.calibration			= sensor_calibration,
 };
