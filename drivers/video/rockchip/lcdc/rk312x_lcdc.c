@@ -2916,6 +2916,8 @@ static void rk312x_lcdc_shutdown(struct platform_device *pdev)
 	struct lcdc_device *lcdc_dev = platform_get_drvdata(pdev);
 	struct rk_lcdc_driver *dev_drv=&lcdc_dev->driver;
 
+	dev_drv->suspend_flag = 1;
+	smp_wmb();
 	flush_kthread_worker(&dev_drv->update_regs_worker);
 	kthread_stop(dev_drv->update_regs_thread);
 
