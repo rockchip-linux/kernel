@@ -102,6 +102,7 @@ struct arm_smccc_res
 sip_smc_request_share_mem(enum share_page_type_t page_type, u32 page_nums);
 int rockchip_psci_remotectl_config(u32 func, u32 data);
 struct arm_smccc_res sip_smc_dram(u32 arg0, u32 arg1, u32 arg2);
+void arm_psci_sys_reset(void);
 
 #ifdef CONFIG_ARM64
 int rockchip_psci_smc_write64(u64 function_id, u64 arg0, u64 arg1, u64 arg2);
