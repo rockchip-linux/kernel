@@ -171,6 +171,28 @@
 		startup-delay-us = <100000>;
 		vin-supply = <&vcc_io>;
 	};
+
+	vcc_cam: vcc-cam {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc_cam";
+		pinctrl-names = "default";
+		pinctrl-0 = <&cam_pwr>;
+		enable-active-high;
+		gpio = <&gpio2 0 GPIO_ACTIVE_HIGH>;
+		regulator-always-on;
+		regulator-boot-on;
+	};
+
+	vcc_led: vcc-led {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc_cam";
+		pinctrl-names = "default";
+		pinctrl-0 = <&cam_mclk>;
+		enable-active-high;
+		gpio = <&gpio2 11 GPIO_ACTIVE_HIGH>;
+		regulator-always-on;
+		regulator-boot-on;
+	};
 };
 
 &cif_isp0 {
@@ -427,21 +449,14 @@
 &i2c2 {
 	status = "okay";
 
-	camera0: camera-module@10 {
+	camera0: camera-module@36 {
 		status = "okay";
-		compatible = "sony,imx219-v4l2-i2c-subdev";
-		reg = <0x10>;
+		compatible = "ovti,ov7750-v4l2-i2c-subdev";
+		reg = <0x36>;
 		device_type = "v4l2-i2c-subdev";
 
 		clocks = <&cru SCLK_VIP_OUT>;
 		clock-names = "clk_cif_out";
-
-		pinctrl-names = "rockchip,camera_default",
-			"rockchip,camera_sleep";
-		pinctrl-0 = <&cam0_default_pins>;
-		pinctrl-1 = <&cam0_sleep_pins>;
-
-		rockchip,pd-gpio = <&gpio2 0 GPIO_ACTIVE_LOW>;
 
 		rockchip,camera-module-mclk-name = "clk_cif_out";
 		rockchip,camera-module-regulator-names = "vcc33_mipi";
@@ -739,17 +754,14 @@
 		};
 	};
 
+
 	cam_pins {
-		cam0_default_pins: cam0-default-pins {
-			rockchip,pins = <0 17 RK_FUNC_GPIO &pcfg_pull_none>,
-			<2 0 RK_FUNC_GPIO &pcfg_pull_none>,
-			<2 11 RK_FUNC_1 &pcfg_pull_none>;
+		cam_mclk: cam-mclk {
+			rockchip,pins = <2 11 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 
-		cam0_sleep_pins: cam0-sleep-pins {
-			rockchip,pins = <0 17 RK_FUNC_GPIO &pcfg_pull_none>,
-			<2 0 RK_FUNC_GPIO &pcfg_pull_none>,
-			<2 11 RK_FUNC_GPIO &pcfg_pull_none>;
+		cam_pwr: cam-pwr {
+			rockchip,pins = <2 0 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
 };

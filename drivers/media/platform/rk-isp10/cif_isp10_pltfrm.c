@@ -1241,7 +1241,7 @@ int cif_isp10_pltfrm_dev_init(
 		pdata->irq_handlers[i].mis = -EINVAL;
 
 #ifdef CIF_ISP10_MODE_DMA_SG
-		np = of_find_node_by_name(NULL, "isp0_mmu");
+		np = of_find_node_by_name(NULL, "isp_mmu");
 		if (!np) {
 			int index = 0;
 			/* iommu domain */

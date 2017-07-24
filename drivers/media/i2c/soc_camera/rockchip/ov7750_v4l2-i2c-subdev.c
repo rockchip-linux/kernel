@@ -83,9 +83,9 @@
 
 #define ov7750_EXP_VALID_FRAMES		4
 /* High byte of product ID */
-#define ov7750_PIDH_MAGIC 0x77
+#define ov7750_PIDH_MAGIC 0x56
 /* Low byte of product ID  */
-#define ov7750_PIDL_MAGIC 0x50
+#define ov7750_PIDL_MAGIC 0x47
 
 #define BG_RATIO_TYPICAL  0x129
 #define RG_RATIO_TYPICAL  0x11f
@@ -102,221 +102,108 @@ static struct ov_camera_module_custom_config ov7750_custom_config;
 
 // The settings may be altered by the code in IsiSetupSensor.
 static struct ov_camera_module_reg ov7750_init_tab_640_480_60fps[] = {
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x0103, 0x01},// enable soft reset
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x0100, 0x00},// stream off
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3005, 0x00},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3012, 0xc0},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3013, 0xd2},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3014, 0x04},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3016, 0x10},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3017, 0x00},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3018, 0x00},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x301a, 0x00},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x301b, 0x00},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x301c, 0x00},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3023, 0x05},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3037, 0xf0},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3098, 0x04},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3099, 0x14},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x309a, 0x04},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x309b, 0x02},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x30b0, 0x0a},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x30b1, 0x01},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x30b3, 0x32},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x30b4, 0x03},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x30b5, 0x05},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3106, 0xda},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3500, 0x00},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3501, 0x1f},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3502, 0x80},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3503, 0x07},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3509, 0x10},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x350b, 0x10},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3600, 0x1c},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3602, 0x62},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3620, 0xb7},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3622, 0x04},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3626, 0x21},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3627, 0x30},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3630, 0x44},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3631, 0x35},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3634, 0x60},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3636, 0x00},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3662, 0x01},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3663, 0x70},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3664, 0xf0},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3666, 0x0a},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3669, 0x1a},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x366a, 0x00},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x366b, 0x50},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3673, 0x01},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3674, 0xff},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3675, 0x03},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3705, 0xc1},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3709, 0x40},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x373c, 0x08},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3742, 0x00},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3757, 0xb3},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3788, 0x00},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x37a8, 0x01},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x37a9, 0xc0},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3800, 0x00},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3801, 0x04},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3802, 0x00},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3803, 0x04},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3804, 0x02},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3805, 0x8b},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3806, 0x01},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3807, 0xeb},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3000, 0x0f},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3001, 0xff},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3002, 0xe4},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x0100, 0x00},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x0103, 0x01},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3034, 0x08},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3035, 0x21},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3036, 0x46},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x303c, 0x11},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3106, 0xf5},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3821, 0x07},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3820, 0x41},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3827, 0xec},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x370c, 0x0f},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3612, 0x59},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3618, 0x00},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x5000, 0x06},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x5001, 0x01},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x5002, 0x41},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x5003, 0x08},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x5a00, 0x08},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3000, 0x00},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3001, 0x00},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3002, 0x00},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3016, 0x08},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3017, 0xe0},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3018, 0x44},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x301c, 0xf8},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x301d, 0xf0},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3a18, 0x00},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3a19, 0xf8},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3c01, 0x80},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3b07, 0x0c},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x380c, 0x07},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x380d, 0x68},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x380e, 0x03},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x380f, 0xd8},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3814, 0x31},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3815, 0x31},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3708, 0x64},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3709, 0x52},
 	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3808, 0x02},
 	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3809, 0x80},
 	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x380a, 0x01},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x380b, 0xe0},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x380c, 0x03},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x380d, 0xa0},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x380e, 0x02},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x380f, 0x1a},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3810, 0x00},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3811, 0x04},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3812, 0x00},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3813, 0x05},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3814, 0x11},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3815, 0x11},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3820, 0x40},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3821, 0x00},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x382f, 0x0e},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3832, 0x00},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3833, 0x05},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3834, 0x00},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3835, 0x0c},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3837, 0x00},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x38b1, 0x00},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3b80, 0x00},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3b81, 0xa5},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3b82, 0x10},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3b83, 0x00},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3b84, 0x08},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3b85, 0x00},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3b86, 0x01},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3b87, 0x00},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3b88, 0x00},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3b89, 0x00},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3b8a, 0x00},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3b8b, 0x05},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3b8c, 0x00},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3b8d, 0x00},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3b8e, 0x00},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3b8f, 0x1a},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3b94, 0x05},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3b95, 0xf2},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3b96, 0x40},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3c00, 0x89},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3c01, 0x63},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3c02, 0x01},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3c03, 0x00},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3c04, 0x00},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3c05, 0x03},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3c06, 0x00},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3c07, 0x06},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3c0c, 0x01},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3c0d, 0xd0},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3c0e, 0x02},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3c0f, 0x04},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x4001, 0x42},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x4004, 0x04},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x4005, 0x00},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x404e, 0x01},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x4241, 0x00},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x4242, 0x00},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x4300, 0xff},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x4301, 0x00},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x4501, 0x48},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x4600, 0x00},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x4601, 0x4e},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x4801, 0x0f},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x4806, 0x0f},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x4819, 0xaa},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x4823, 0x3e},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x4837, 0x19},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x4a0d, 0x00},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x4a47, 0x7f},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x4a49, 0xf0},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x4a4b, 0x30},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x5000, 0x85},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x5001, 0x80},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3500, 0x00},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3501, 0x1f},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3502, 0x80},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3503, 0x07},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3509, 0x10},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x350b, 0x10},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3600, 0x1c},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3602, 0x62},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3620, 0xb7},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3622, 0x04},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3626, 0x21},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3627, 0x30},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3630, 0x44},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3631, 0x35},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3634, 0x60},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3636, 0x00},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3662, 0x01},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3663, 0x70},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3664, 0xf0},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3666, 0x0a},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3669, 0x1a},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x366a, 0x00},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x366b, 0x50},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3673, 0x01},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3674, 0xff},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3675, 0x03},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3705, 0xc1},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3709, 0x40},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x373c, 0x08},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3742, 0x00},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3757, 0xb3},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3788, 0x00},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x37a8, 0x01},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x37a9, 0xc0},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3800, 0x00},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3801, 0x04},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x380b, 0xE0},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3801, 0x00},
 	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3802, 0x00},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3803, 0x04},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3804, 0x02},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3805, 0x8b},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3806, 0x01},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3807, 0xeb},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3808, 0x02},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3809, 0x80},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x380a, 0x01},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x380b, 0xe0},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x380c, 0x03},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x380d, 0xa0},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x380e, 0x02},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x380f, 0x1a},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3810, 0x00},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3811, 0x04},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3812, 0x00},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3813, 0x05},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3814, 0x11},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3815, 0x11},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3820, 0x40},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3821, 0x00},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x382f, 0x0e},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3832, 0x00},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3833, 0x05},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3834, 0x00},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3835, 0x0c},
-	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3837, 0x00},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3803, 0x00},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3804, 0x0a},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3805, 0x3f},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3806, 0x07},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3807, 0xa1},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3811, 0x08},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3813, 0x02},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3630, 0x2e},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3632, 0xe2},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3633, 0x23},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3634, 0x44},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3636, 0x06},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3620, 0x64},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3621, 0xe0},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3600, 0x37},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3704, 0xa0},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3703, 0x5a},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3715, 0x78},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3717, 0x01},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3731, 0x02},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x370b, 0x60},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3705, 0x1a},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3f05, 0x02},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3f06, 0x10},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3f01, 0x0a},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3a08, 0x01},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3a09, 0x27},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3a0a, 0x00},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3a0b, 0xf6},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3a0d, 0x04},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3a0e, 0x03},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3a0f, 0x58},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3a10, 0x50},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3a1b, 0x58},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3a1e, 0x50},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3a11, 0x60},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3a1f, 0x28},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x4001, 0x02},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x4004, 0x02},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x4000, 0x09},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x4837, 0x24},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x4050, 0x6e},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x4051, 0x8f},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x4202, 0x00},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x300D, 0x00},
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x4800, 0x25},
 };
 
 static struct ov_camera_module_config ov7750_configs[] = {
-	{
+	{OV_CAMERA_MODULE_REG_TYPE_DATA, 
 		.name = "640x480_60fps",
 		.frm_fmt = {
 			.width = 640,
 			.height = 480,
-			.code = MEDIA_BUS_FMT_SBGGR10_1X10
+			.code = MEDIA_BUS_FMT_SBGGR8_1X8
 		},
 		.frm_intrvl = {
 			.interval = {
@@ -334,7 +221,7 @@ static struct ov_camera_module_config ov7750_configs[] = {
 		.reg_diff_table = NULL,
 		.reg_diff_table_num_entries = 0,
 		.v_blanking_time_us = 7251,
-		PLTFRM_CAM_ITF_MIPI_CFG(0, 1, 800, 24000000)
+		PLTFRM_CAM_ITF_MIPI_CFG(0, 2, 800, 24000000)
 	}
 };
 
@@ -363,98 +250,6 @@ static int ov7750_g_VTS(struct ov_camera_module *cam_mod, u32 *vts)
 	return 0;
 err:
 	ov_camera_module_pr_err(cam_mod,
-			"failed with error (%d)\n", ret);
-	return ret;
-}
-
-static int ov7750_auto_adjust_fps(struct ov_camera_module *cam_mod,
-	u32 exp_time)
-{
-	int ret;
-	u32 vts;
-
-	if ((cam_mod->exp_config.exp_time + ov7750_COARSE_INTG_TIME_MAX_MARGIN)
-		> cam_mod->vts_min)
-		vts = cam_mod->exp_config.exp_time +
-			ov7750_COARSE_INTG_TIME_MAX_MARGIN;
-	else
-		vts = cam_mod->vts_min;
-	ret = ov_camera_module_write_reg(cam_mod,
-		ov7750_TIMING_VTS_LOW_REG,
-		vts & 0xFF);
-	ret |= ov_camera_module_write_reg(cam_mod,
-		ov7750_TIMING_VTS_HIGH_REG,
-		(vts >> 8) & 0xFF);
-
-	if (IS_ERR_VALUE(ret)) {
-		ov_camera_module_pr_err(cam_mod,
-			"failed with error (%d)\n", ret);
-	} else {
-		ov_camera_module_pr_debug(cam_mod,
-			"updated vts = %d,vts_min=%d\n", vts, cam_mod->vts_min);
-		cam_mod->vts_cur = vts;
-	}
-
-	return ret;
-}
-
-static int ov7750_write_aec(struct ov_camera_module *cam_mod)
-{
-	int ret = 0;
-
-	ov_camera_module_pr_debug(cam_mod,
-				  "exp_time = %d, gain = %d, flash_mode = %d\n",
-				  cam_mod->exp_config.exp_time,
-				  cam_mod->exp_config.gain,
-				  cam_mod->exp_config.flash_mode);
-
-	/*
-	 * if the sensor is already streaming, write to shadow registers,
-	 * if the sensor is in SW standby, write to active registers,
-	 * if the sensor is off/registers are not writeable, do nothing
-	 */
-	if ((cam_mod->state == OV_CAMERA_MODULE_SW_STANDBY) ||
-		(cam_mod->state == OV_CAMERA_MODULE_STREAMING)) {
-		u32 a_gain = cam_mod->exp_config.gain;
-		u32 exp_time;
-
-		a_gain = a_gain > 0x7ff ? 0x7ff : a_gain;
-		a_gain = a_gain * cam_mod->exp_config.gain_percent / 100;
-		exp_time = cam_mod->exp_config.exp_time << 4;
-		if (cam_mod->state == OV_CAMERA_MODULE_STREAMING)
-			ret = ov_camera_module_write_reg(cam_mod,
-				ov7750_AEC_GROUP_UPDATE_ADDRESS,
-				ov7750_AEC_GROUP_UPDATE_START_DATA);
-		if (!IS_ERR_VALUE(ret) && cam_mod->auto_adjust_fps)
-			ret = ov7750_auto_adjust_fps(cam_mod,
-						cam_mod->exp_config.exp_time);
-		ret |= ov_camera_module_write_reg(cam_mod,
-			ov7750_AEC_PK_LONG_GAIN_HIGH_REG,
-			ov7750_FETCH_MSB_GAIN(a_gain));
-		ret |= ov_camera_module_write_reg(cam_mod,
-			ov7750_AEC_PK_LONG_GAIN_LOW_REG,
-			ov7750_FETCH_LSB_GAIN(a_gain));
-		ret = ov_camera_module_write_reg(cam_mod,
-			ov7750_AEC_PK_LONG_EXPO_3RD_REG,
-			ov7750_FETCH_3RD_BYTE_EXP(exp_time));
-		ret |= ov_camera_module_write_reg(cam_mod,
-			ov7750_AEC_PK_LONG_EXPO_2ND_REG,
-			ov7750_FETCH_2ND_BYTE_EXP(exp_time));
-		ret |= ov_camera_module_write_reg(cam_mod,
-			ov7750_AEC_PK_LONG_EXPO_1ST_REG,
-			ov7750_FETCH_1ST_BYTE_EXP(exp_time));
-		if (cam_mod->state == OV_CAMERA_MODULE_STREAMING) {
-			ret = ov_camera_module_write_reg(cam_mod,
-				ov7750_AEC_GROUP_UPDATE_ADDRESS,
-				ov7750_AEC_GROUP_UPDATE_END_DATA);
-			ret = ov_camera_module_write_reg(cam_mod,
-				ov7750_AEC_GROUP_UPDATE_ADDRESS,
-				ov7750_AEC_GROUP_UPDATE_END_LAUNCH);
-		}
-	}
-
-	if (IS_ERR_VALUE(ret))
-		ov_camera_module_pr_err(cam_mod,
 			"failed with error (%d)\n", ret);
 	return ret;
 }
@@ -685,7 +480,6 @@ static int ov7750_s_ctrl(struct ov_camera_module *cam_mod, u32 ctrl_id)
 	switch (ctrl_id) {
 	case V4L2_CID_GAIN:
 	case V4L2_CID_EXPOSURE:
-		ret = ov7750_write_aec(cam_mod);
 		break;
 	case V4L2_CID_FLASH_LED_MODE:
 		/* nothing to be done here */
@@ -706,86 +500,10 @@ static int ov7750_s_ext_ctrls(struct ov_camera_module *cam_mod,
 {
 	int ret = 0;
 
-	/* Handles only exposure and gain together special case. */
-	if (ctrls->count == 1)
-		ret = ov7750_s_ctrl(cam_mod, ctrls->ctrls[0].id);
-	else if ((ctrls->count == 3) &&
-		 ((ctrls->ctrls[0].id == V4L2_CID_GAIN &&
-		   ctrls->ctrls[1].id == V4L2_CID_EXPOSURE) ||
-		  (ctrls->ctrls[1].id == V4L2_CID_GAIN &&
-		   ctrls->ctrls[0].id == V4L2_CID_EXPOSURE)))
-		ret = ov7750_write_aec(cam_mod);
-	else
-		ret = -EINVAL;
-
 	if (IS_ERR_VALUE(ret))
 		ov_camera_module_pr_debug(cam_mod,
 			"failed with error (%d)\n", ret);
 	return ret;
-}
-
-static int ov7750_set_flip(
-	struct ov_camera_module *cam_mod,
-	struct pltfrm_camera_module_reg reglist[],
-	int len)
-{
-	int i, mode = 0;
-	u16 match_reg[2];
-
-	mode = ov_camera_module_get_flip_mirror(cam_mod);
-	if (mode == -1) {
-		ov_camera_module_pr_info(cam_mod,
-			"dts don't set flip, return!\n");
-		return 0;
-	}
-
-	if (!IS_ERR_OR_NULL(cam_mod->active_config)) {
-		switch (cam_mod->active_config->frm_fmt.width) {
-		case ov7750_FULL_SIZE_RESOLUTION_WIDTH:
-			if (mode == OV_FLIP_BIT_MASK) {
-				match_reg[0] = 0x06;
-				match_reg[1] = 0x00;
-			} else if (mode == OV_MIRROR_BIT_MASK) {
-				match_reg[0] = 0x00;
-				match_reg[1] = 0x06;
-			} else if (mode == (OV_MIRROR_BIT_MASK |
-				OV_FLIP_BIT_MASK)) {
-				match_reg[0] = 0x06;
-				match_reg[1] = 0x06;
-			} else {
-				match_reg[0] = 0x00;
-				match_reg[1] = 0x00;
-			}
-			break;
-		case ov7750_BINING_SIZE_RESOLUTION_WIDTH:
-			if (mode == OV_FLIP_BIT_MASK) {
-				match_reg[0] = 0x16;
-				match_reg[1] = 0x01;
-			} else if (mode == OV_MIRROR_BIT_MASK) {
-				match_reg[0] = 0x16;
-				match_reg[1] = 0x07;
-			} else if (mode == (OV_MIRROR_BIT_MASK |
-				OV_FLIP_BIT_MASK)) {
-				match_reg[0] = 0x16;
-				match_reg[1] = 0x07;
-			} else {
-				match_reg[0] = 0x10;
-				match_reg[1] = 0x01;
-			}
-			break;
-		default:
-				return 0;
-		}
-
-		for (i = len; i > 0; i--) {
-			if (reglist[i].reg == ov7750_FLIP_REG)
-				reglist[i].val = match_reg[0];
-			else if (reglist[i].reg == ov7750_MIRROR_REG)
-				reglist[i].val = match_reg[1];
-		}
-	}
-
-	return 0;
 }
 
 static int ov7750_start_streaming(struct ov_camera_module *cam_mod)
@@ -798,6 +516,11 @@ static int ov7750_start_streaming(struct ov_camera_module *cam_mod)
 	ret = ov7750_g_VTS(cam_mod, &cam_mod->vts_min);
 	if (IS_ERR_VALUE(ret))
 		goto err;
+
+	ret = ov_camera_module_write_reg(cam_mod, 0x4800, 0x04);
+	if (IS_ERR_VALUE(ret))
+		goto err;
+
 
 	if (IS_ERR_VALUE(ov_camera_module_write_reg(cam_mod, 0x0100, 1)))
 		goto err;
@@ -816,6 +539,11 @@ static int ov7750_stop_streaming(struct ov_camera_module *cam_mod)
 	int ret = 0;
 
 	ov_camera_module_pr_debug(cam_mod, "\n");
+
+	ret = ov_camera_module_write_reg(cam_mod, 0x4800, 0x25);
+	if (IS_ERR_VALUE(ret))
+		goto err;
+	
 
 	ret = ov_camera_module_write_reg(cam_mod, 0x0100, 0);
 	if (IS_ERR_VALUE(ret))
@@ -899,7 +627,6 @@ static struct ov_camera_module_custom_config ov7750_custom_config = {
 	.g_ctrl = ov7750_g_ctrl,
 	.g_timings = ov7750_g_timings,
 	.check_camera_id = ov7750_check_camera_id,
-	.set_flip = ov7750_set_flip,
 	.configs = ov7750_configs,
 	.num_configs = ARRAY_SIZE(ov7750_configs),
 	.power_up_delays_ms = {5, 20, 0}
@@ -936,8 +663,8 @@ static int ov7750_remove(struct i2c_client *client)
 }
 
 static const struct i2c_device_id ov7750_id[] = {
-	{ ov7750_DRIVER_NAME, 0 },
-	{ }
+	{ov7750_DRIVER_NAME, 0 },
+	{}
 };
 
 static const struct of_device_id ov7750_of_match[] = {
