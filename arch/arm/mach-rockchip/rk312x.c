@@ -29,6 +29,7 @@
 #include <linux/rockchip/grf.h>
 #include <linux/rockchip/iomap.h>
 #include <linux/rockchip/pmu.h>
+#include <linux/rockchip/psci.h>
 /*#include <asm/cpuidle.h>*/
 #include <asm/cputype.h>
 #include <asm/mach/arch.h>
@@ -428,11 +429,20 @@ static void rk312x_restart(char mode, const char *cmd)
 
 	dsb();
 
+#ifdef CONFIG_ARM_PSCI
+	/* PSCI available */
+	if (psci_ops.cpu_on)
+		arm_psci_sys_reset();
+#endif
 	/* pll enter slow mode */
 	writel_relaxed(0x11010000, RK_CRU_VIRT + RK312X_CRU_MODE_CON);
 	dsb();
 	writel_relaxed(0xeca8, RK_CRU_VIRT + RK312X_CRU_GLB_SRST_SND_VALUE);
 	dsb();
+
+	pr_err("system reset done, shouldn't reach here, stop!\n");
+	while (1)
+		;
 }
 
 DT_MACHINE_START(RK3126_DT, "Rockchip RK3126C")
