@@ -222,6 +222,24 @@
 	};
 };
 
+&rockchip_clocks_init {
+	rockchip,clocks-init-rate =
+		<&clk_gpll 1188000000>, <&clk_core 800000000>,
+		<&clk_dsp 396000000>, <&aclk_bus_pre 150000000>,
+		<&hclk_bus_pre 150000000>, <&pclk_bus_pre 75000000>,
+		<&aclk_peri 150000000>, <&hclk_peri 150000000>,
+		<&pclk_peri 75000000>, <&aclk_vio0_pre 300000000>,
+		<&aclk_vio1_pre 300000000>, <&hclk_vio_pre 75000000>,
+		<&pclk_vio_pre 75000000>, <&aclk_rkvdec_pre 300000000>,
+		<&aclk_vpu_pre 300000000>, <&clk_hevc_cabac 300000000>,
+		<&clk_hevc_core 300000000>, <&aclk_rkvenc_pre 300000000>,
+		<&clk_venc_core 480000000>, <&clk_crypto 150000000>,
+		<&clk_nandc 150000000>, <&clk_i2s0_pll 594000000>,
+		<&clk_i2s1_pll 594000000>, <&clk_i2s2_pll 594000000>,
+		<&clk_uart0_pll 297000000>, <&clk_uart1_pll 297000000>,
+		<&clk_uart2_pll 297000000>, <&clk_rga 300000000>;
+};
+
 &clk_core_dvfs_table {
 
 	operating-points = <
