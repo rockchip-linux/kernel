@@ -4,6 +4,10 @@
 
 menu "Misc devices"
 
+config SPI_MPU6500
+	bool "rockchip support mpu6500 spi mode"
+	depends on SPI_ROCKCHIP
+
 config SENSORS_LIS3LV02D
 	tristate
 	depends on INPUT
