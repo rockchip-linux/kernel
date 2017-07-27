@@ -327,7 +327,7 @@
 
 	dvfs {
 		vd_logic: vd-logic {
-			regulator_name = "vdd_core";
+			regulator_name = "vdd_arm";
 			pd_core {
 				clk_core_dvfs_table: clk_core {
 					operating-points = <
