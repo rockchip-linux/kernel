@@ -82,6 +82,45 @@ static struct vendor_info *g_vendor;
 extern int rk_emmc_transfer(u8 *buffer, unsigned addr, unsigned blksz,
 			    int write);
 
+static void mtd_vendor_erase_callback(struct erase_info *done)
+{
+	wait_queue_head_t *wait_q = (wait_queue_head_t *)done->priv;
+	wake_up(wait_q);
+}
+
+static int mtd_vendor_erase(struct mtd_info *mtd, u32 addr, u32 n_sec)
+{
+	int ret;
+	struct erase_info erase;
+	wait_queue_head_t waitq;
+
+	DECLARE_WAITQUEUE(wait, current);
+	init_waitqueue_head(&waitq);
+
+	erase.addr = addr;
+	erase.len = n_sec;
+	erase.mtd = mtd;
+	erase.callback = mtd_vendor_erase_callback;
+	erase.priv = (u_long)&waitq;
+
+	set_current_state(TASK_INTERRUPTIBLE);
+	add_wait_queue(&waitq, &wait);
+
+	ret = mtd_erase(mtd, &erase);
+	if (ret) {
+		set_current_state(TASK_RUNNING);
+		remove_wait_queue(&waitq, &wait);
+		printk (KERN_WARNING "mtd_vendor_ops: erase of region [0x%llx, 0x%llx] "
+					"on \"%s\" failed\n",
+			erase.addr, erase.len, mtd->name);
+		return ret;
+	}
+
+	schedule();  /* Wait for erase to finish. */
+	remove_wait_queue(&waitq, &wait);
+	return 0;
+}
+
 static int mtd_vendor_ops(u8 *buffer, u32 addr, u32 n_sec, int write)
 {
 	struct mtd_info *mtd;
@@ -93,12 +132,13 @@ static int mtd_vendor_ops(u8 *buffer, u32 addr, u32 n_sec, int write)
 		return -1;
 
 	if (write) {
-		if (mtd_write(mtd, addr * 512, n_sec * 512, &retlen, buffer) == 0) {
-			ret = (retlen == n_sec) * 512;
+		if (mtd_vendor_erase(mtd, addr * 512, n_sec * 512) == 0 &&
+			mtd_write(mtd, addr * 512, n_sec * 512, &retlen, buffer) == 0) {
+			ret = (retlen != n_sec * 512);
 		}
 	} else {
 		if (mtd_read(mtd, addr * 512, n_sec * 512, &retlen, buffer) == 0) {
-			ret = (retlen == n_sec) * 512;
+			ret = (retlen != n_sec * 512);
 		}
 	}
 
