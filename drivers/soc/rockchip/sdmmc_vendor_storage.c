@@ -128,7 +128,7 @@ static int mtd_vendor_ops(u8 *buffer, u32 addr, u32 n_sec, int write)
 	u32 ret = -1;
 
 	mtd = get_mtd_device_nm("vendor");
-	if (mtd == NULL)
+	if (IS_ERR(mtd))
 		return -1;
 
 	if (write) {
