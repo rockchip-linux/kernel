@@ -1285,6 +1285,21 @@ static ssize_t adv7181_debugfs_reg_write(struct file *file,
 	return count;
 }
 
+static ssize_t adv7181_debugfs_reg_read(struct file *file,
+					char __user *buf,
+					size_t count, loff_t *ppos)
+{
+	SENSOR_DG("%s(%d): input_mode: %s\n",
+		  __func__, __LINE__,
+		  input_mode);
+
+	if (copy_to_user(buf, input_mode, strlen(input_mode) + 1))
+		return -EFAULT;
+	count = strlen(input_mode) + 1;
+
+	return count;
+}
+
 static int adv7181_debugfs_reg_show(struct seq_file *s, void *v)
 {
 	int i, ret;
@@ -1313,10 +1328,19 @@ static int adv7181_debugfs_open(struct inode *inode, struct file *file)
 	return single_open(file, adv7181_debugfs_reg_show, spsensor);
 }
 
-static const struct file_operations adv7181_debugfs_fops = {
+static const struct file_operations debugfs_register_fops = {
 	.owner			= THIS_MODULE,
 	.open			= adv7181_debugfs_open,
 	.read			= seq_read,
+	.write			= adv7181_debugfs_reg_write,
+	.llseek			= seq_lseek,
+	.release		= single_release
+};
+
+static const struct file_operations debugfs_status_fops = {
+	.owner			= THIS_MODULE,
+	.open			= adv7181_debugfs_open,
+	.read			= adv7181_debugfs_reg_read,
 	.write			= adv7181_debugfs_reg_write,
 	.llseek			= seq_lseek,
 	.release		= single_release
@@ -1333,12 +1357,13 @@ static void adv7181_check_state_work(struct work_struct *work)
 	struct i2c_client *client = sensor->client;
 	static v4l2_std_id std_old = V4L2_STD_NTSC;
 	v4l2_std_id std;
+	u32 status;
 
 	if (sensor->info_priv.dev_sig_cnf.type == RK_CAMERA_DEVICE_BT601_8)
 		return;
 
-	adv7181_status(client, NULL, &std);
-	if (std_old != std) {
+	adv7181_status(client, &status, &std);
+	if ((status != V4L2_IN_ST_NO_SIGNAL) && (std_old != std)) {
 		adv7181_reinit_parameter(std, sensor);
 		adv7181_send_uevent(sensor);
 		std_old = std;
@@ -1429,13 +1454,17 @@ static void sensor_init_parameters_user(struct specific_sensor *spsensor,
 
 	/* init debugfs */
 	debugfs_dir = debugfs_create_dir("adv7181", NULL);
-	if (IS_ERR(debugfs_dir))
+	if (IS_ERR(debugfs_dir)) {
 		SENSOR_TR("%s(%d): create debugfs dir failed\n",
 			  __func__, __LINE__);
-	else
+	} else {
 		debugfs_create_file("register", S_IRUSR, debugfs_dir, spsensor,
-				    &adv7181_debugfs_fops);
+				    &debugfs_register_fops);
 
+		debugfs_create_file("video_state", 0400,
+				    debugfs_dir, spsensor,
+				    &debugfs_status_fops);
+	}
 	/* init work_queue for state_check */
 	INIT_DELAYED_WORK(&spsensor->common_sensor.state_check_work.work,
 			  adv7181_check_state_work);
