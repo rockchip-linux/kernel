@@ -548,6 +548,7 @@
 };
 
 &usb_otg {
+	rockchip,delay-en-diepint-nak-quirk;
 	rockchip,high-bandwidth;
 	status = "okay";
 };
