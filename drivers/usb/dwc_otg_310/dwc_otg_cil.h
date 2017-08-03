@@ -852,6 +852,9 @@ struct dwc_otg_core_if {
 	u8 usb_early_detect;
 	u8 usb_pd_off;
 
+	/* Indicates need to delay enable device in ep nak interrupt */
+	bool delay_en_diepint_nak_quirk;
+
 	/* True if support high bandwidth endpoints */
 	bool high_bandwidth_en;
 
@@ -881,6 +884,9 @@ struct dwc_otg_core_if {
 	uint16_t rx_fifo_size;
 	/** Size of Non-periodic Tx FIFO (Bytes) */
 	uint16_t nperio_tx_fifo_size;
+
+	/* 1 if need to enable device in ep nak interrupt */
+	u8 diepint_nak_enable;
 
 	/** 1 if DMA is enabled, 0 otherwise. */
 	uint8_t dma_enable;

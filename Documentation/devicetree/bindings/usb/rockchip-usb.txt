@@ -25,6 +25,9 @@ Optional properties:
  - rockchip,high-bandwidth: If present, support high bandwidth
    endpoints.
  - rockchip,usb-pd-off: when set, support turning off usb pd at PM suspend.
+ - rockchip,delay-en-diepint-nak-quirk: when set, don't enable device
+   in endpoints nak interrupt when activate ISOC endpoints, delay
+   until next ep queue to enable nak interrupt.
 
 Example:
  - RK3288

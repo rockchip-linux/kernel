@@ -3790,10 +3790,15 @@ void dwc_otg_ep_activate(dwc_otg_core_if_t *core_if, dwc_ep_t *ep)
 	} else {
 		if (ep->type == DWC_OTG_EP_TYPE_ISOC) {
 			if (ep->is_in) {
-				diepmsk_data_t diepmsk = {.d32 = 0 };
-				diepmsk.b.nak = 1;
-				DWC_MODIFY_REG32(&dev_if->dev_global_regs->
-						 diepmsk, 0, diepmsk.d32);
+				if (core_if->delay_en_diepint_nak_quirk) {
+					core_if->diepint_nak_enable = 1;
+				} else {
+					diepmsk_data_t diepmsk = {.d32 = 0 };
+
+					diepmsk.b.nak = 1;
+					DWC_MODIFY_REG32(&dev_if->dev_global_regs->diepmsk,
+							 0, diepmsk.d32);
+				}
 			} else {
 				doepmsk_data_t doepmsk = {.d32 = 0 };
 				doepmsk.b.outtknepdis = 1;
@@ -4580,6 +4585,15 @@ void dwc_otg_ep0_start_transfer(dwc_otg_core_if_t *core_if, dwc_ep_t *ep)
 		    core_if->dev_if->in_ep_regs[0];
 
 		gnptxsts_data_t gtxstatus;
+
+		if (core_if->diepint_nak_enable) {
+			diepmsk_data_t diepmsk = {.d32 = 0 };
+
+			diepmsk.b.nak = 1;
+			DWC_MODIFY_REG32(&core_if->dev_if->dev_global_regs->diepmsk,
+					 0, diepmsk.d32);
+			core_if->diepint_nak_enable = 0;
+		}
 
 		if (core_if->snpsid >= OTG_CORE_REV_3_00a) {
 			depctl.d32 = DWC_READ_REG32(&in_regs->diepctl);
