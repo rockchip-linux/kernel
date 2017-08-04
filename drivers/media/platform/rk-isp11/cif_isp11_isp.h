@@ -126,6 +126,7 @@ void cifisp_configure_isp(
 	enum cif_isp11_pix_fmt_quantization quantization);
 void cifisp_disable_isp(struct cif_isp11_isp_dev *isp_dev);
 int cifisp_isp_isr(struct cif_isp11_isp_dev *isp_dev, u32 isp_mis);
+void cifisp_clr_readout_wq(struct cif_isp11_isp_dev *isp_dev);
 void cifisp_v_start(struct cif_isp11_isp_dev *isp_dev,
 	const struct timeval *timestamp);
 void cifisp_frame_in(

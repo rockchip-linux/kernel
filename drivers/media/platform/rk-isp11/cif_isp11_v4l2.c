@@ -1117,19 +1117,25 @@ static unsigned int cif_isp11_v4l2_poll(
 
 static void cif_isp11_v4l2_vm_open(struct vm_area_struct *vma)
 {
+	unsigned long flags = 0;
 	struct cif_isp11_metadata_s *metadata =
 		(struct cif_isp11_metadata_s *)vma->vm_private_data;
 
+	spin_lock_irqsave(&metadata->spinlock, flags);
 	metadata->vmas++;
+	spin_unlock_irqrestore(&metadata->spinlock, flags);
 	return;
 }
 
 static void cif_isp11_v4l2_vm_close(struct vm_area_struct *vma)
 {
+	unsigned long flags = 0;
 	struct cif_isp11_metadata_s *metadata =
 		(struct cif_isp11_metadata_s *)vma->vm_private_data;
 
+	spin_lock_irqsave(&metadata->spinlock, flags);
 	metadata->vmas--;
+	spin_unlock_irqrestore(&metadata->spinlock, flags);
 	return;
 }
 

@@ -127,9 +127,13 @@
 *
 *v0.2.a:
 *1. Support Y8 for AEC;
+*
+*v0.2.b:
+*1. Add error judgement and spinlock to fix kernel crash in long time test;
+*Change the call of drain_workqueue;
 */
 
-#define CONFIG_CIFISP11_DRIVER_VERSION KERNEL_VERSION(0, 2, 0xa)
+#define CONFIG_CIFISP11_DRIVER_VERSION KERNEL_VERSION(0, 2, 0xb)
 
 
 #endif

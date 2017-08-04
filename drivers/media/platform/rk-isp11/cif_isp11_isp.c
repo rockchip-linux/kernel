@@ -3041,10 +3041,7 @@ static int __cifisp_streamoff(struct cif_isp11_isp_dev *isp_dev)
 {
 	int ret;
 
-	drain_workqueue(isp_dev->readout_wq);
-
 	ret = videobuf_streamoff(&isp_dev->vbq_stat);
-
 	if (ret == 0)
 		isp_dev->streamon = false;
 
@@ -4390,6 +4387,11 @@ int cifisp_isp_isr(struct cif_isp11_isp_dev *isp_dev, u32 isp_mis)
 #endif
 
 	return 0;
+}
+
+void cifisp_clr_readout_wq(struct cif_isp11_isp_dev *isp_dev)
+{
+	drain_workqueue(isp_dev->readout_wq);
 }
 
 static void cifisp_param_dump(const void *config, unsigned int module)
