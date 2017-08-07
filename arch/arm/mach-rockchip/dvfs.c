@@ -1444,6 +1444,7 @@ void register_dvfs_notifier_callback(struct dvfs_node *dvfs_node,
 	blocking_notifier_chain_register(&dvfs_notifier_list,
 					 &dvfs_node->dvfs_nb);
 }
+EXPORT_SYMBOL(register_dvfs_notifier_callback);
 
 static void dvfs_temp_limit_work_func(struct work_struct *work)
 {
