@@ -62,6 +62,7 @@
 
 /* THERMAL_REG */
 #define FB_TEMP_MSK		0x0c
+#define HOTDIE_STS		BIT(1)
 
 /*CHGR_CUR_INPUT*/
 #define INPUT_CUR450MA		(0x00)

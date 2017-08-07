@@ -2484,7 +2484,7 @@ static void rk816_bat_debug_info(struct rk816_battery *di)
 	    "K=%d, Mode=%s, Oldcap=%d, Is=%d, Ip=%d, Vs=%d, Vusb=%d\n"
 	    "AC=%d, USB=%d, DC=%d, OTG=%d, PROP=%d, rd=%d, wr=%d, "
 	    "Tfb=%d, Tbat=%d\n"
-	    "off:i=0x%x, c=0x%x, p=%d, Rbat=%d, age_ocv_cap=%d, fb=%d\n"
+	    "off:i=0x%x, c=0x%x, p=%d, Rbat=%d, age_ocv_cap=%d, fb=%d, hot=%d\n"
 	    "adp:in=%lu, out=%lu, finish=%lu, LFcc=%d, "
 	    "boot_min=%lu, sleep_min=%lu, adc=%d\n"
 	    "bat:%s, meet: soc=%d, calc: dsoc=%d, rsoc=%d, Vocv=%d\n"
@@ -2504,6 +2504,7 @@ static void rk816_bat_debug_info(struct rk816_battery *di)
 	    FEED_BACK_TEMP[(thermal & 0x0c) >> 2], di->temperature,
 	    rk816_bat_get_ioffset(di), rk816_bat_get_coffset(di),
 	    di->poffset, di->bat_res, di->age_adjust_cap, di->fb_blank,
+	    !!(thermal & HOTDIE_STS),
 	    base2min(di->plug_in_base), base2min(di->plug_out_base),
 	    base2min(di->chrg_finish_base), di->lock_fcc,
 	    base2min(di->boot_base), di->sleep_sum_sec / 60,
@@ -3041,7 +3042,7 @@ static int rk816_bat_sleep_dischrg(struct rk816_battery *di)
 
 static void rk816_bat_power_supply_changed(struct rk816_battery *di)
 {
-	u8 status;
+	u8 status, thermal;
 	static int old_soc = -1;
 
 	/* check dsoc */
@@ -3063,15 +3064,17 @@ static void rk816_bat_power_supply_changed(struct rk816_battery *di)
 		return;
 
 	/* report changed dsoc */
+	thermal = rk816_bat_read(di, RK816_THERMAL_REG);
 	status = rk816_bat_read(di, RK816_SUP_STS_REG);
 	status = (status & CHRG_STATUS_MSK) >> 4;
 	old_soc = di->dsoc;
 	di->last_dsoc = di->dsoc;
 	power_supply_changed(&di->bat);
 	BAT_INFO("changed: dsoc=%d, rsoc=%d, v=%d, ov=%d c=%d, "
-		 "cap=%d, f=%d, st=%s\n",
+		 "cap=%d, f=%d, st=%s, hotdie=%d\n",
 		 di->dsoc, di->rsoc, di->voltage_avg, di->voltage_ocv,
-		 di->current_avg, di->remain_cap, di->fcc, bat_status[status]);
+		 di->current_avg, di->remain_cap, di->fcc, bat_status[status],
+		 !!(thermal & HOTDIE_STS));
 
 	BAT_INFO("dl=%d, rl=%d, v=%d, halt=%d, halt_n=%d, max=%d, "
 		 "init=%d, sw=%d, calib=%d, below0=%d, force=%d\n",
