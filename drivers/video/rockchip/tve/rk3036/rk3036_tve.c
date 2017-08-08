@@ -672,6 +672,8 @@ static int rk3036_tve_probe(struct platform_device *pdev)
 		clk_prepare_enable(rk3036_tve->dac_clk);
 		if (cvbsformat < 0)
 			rk322x_dac_init();
+		else
+			rk3036_tve->enable = 1;
 	}
 	mutex_init(&rk3036_tve->tve_lock);
 	INIT_LIST_HEAD(&(rk3036_tve->modelist));
