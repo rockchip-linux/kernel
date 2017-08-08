@@ -324,7 +324,7 @@ static int snor_prog_page(u32 addr, void *p_data, u32 size)
 
 	sfctrl.d32 = 0;
 	sfctrl.b.datalines = p_dev->prog_lines;
-	sfctrl.b.enbledma = 1;
+	sfctrl.b.enbledma = 0;
 	if (p_dev->prog_cmd == CMD_PAGE_PROG_A4)
 		sfctrl.b.addrlines = SFC_4BITS_LINE;
 
@@ -466,7 +466,7 @@ static int snor_read_data(u32 addr, void *p_data, u32 size)
 	sfctrl.d32 = 0;
 	sfctrl.b.datalines = p_dev->read_lines;
 	if (!(size & 0x3) && size >= 4)
-		sfctrl.b.enbledma = 1;
+		sfctrl.b.enbledma = 0;
 
 	if (p_dev->read_cmd == CMD_FAST_READ_X1 ||
 	    p_dev->read_cmd == CMD_FAST_READ_X4 ||

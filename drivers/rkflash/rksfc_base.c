@@ -25,7 +25,7 @@
 #include "rkflash_blk.h"
 
 #define RKSFC_VERSION_AND_DATE  "rksfc_base v1.1 2016-01-08"
-#define	RKSFC_CLK_SET_RATE	(80 * 1000 * 1000)
+#define	RKSFC_CLK_SET_RATE	(100 * 1000 * 1000)
 
 struct rksfc_info {
 	void __iomem	*reg_base;
