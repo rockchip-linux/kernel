@@ -195,6 +195,7 @@ struct imx_camera_module {
 	u32 rotation;
 	void *pltfm_data;
 	bool inited;
+	struct mutex lock;
 };
 
 #define imx_camera_module_pr_info(cam_mod, fmt, arg...) \

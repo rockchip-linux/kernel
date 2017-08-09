@@ -1621,6 +1621,7 @@ static int imx258_write_aec(struct imx_camera_module *cam_mod)
 		if (!IS_ERR_VALUE(ret) && cam_mod->auto_adjust_fps)
 			ret = imx258_auto_adjust_fps(cam_mod, cam_mod->exp_config.exp_time);
 
+		mutex_lock(&cam_mod->lock);
 		// Hold
 		ret = imx_camera_module_write_reg(cam_mod, 0x0104, 1);
 
@@ -1661,6 +1662,7 @@ static int imx258_write_aec(struct imx_camera_module *cam_mod)
 		ret |= imx_camera_module_write_reg(cam_mod, IMX258_AEC_PK_EXPO_LOW_REG, IMX258_FETCH_LOW_BYTE_EXP(exp_time));
 
 		ret |= imx_camera_module_write_reg(cam_mod, 0x0104, 0);
+		mutex_unlock(&cam_mod->lock);
 	}
 
 	if (IS_ERR_VALUE(ret))
@@ -1905,7 +1907,10 @@ static int imx258_start_streaming(struct imx_camera_module *cam_mod)
 	if (IS_ERR_VALUE(ret))
 		goto err;
 
-	if (IS_ERR_VALUE(imx_camera_module_write_reg(cam_mod, 0x0100, 1)))
+	mutex_lock(&cam_mod->lock);
+	ret = imx_camera_module_write_reg(cam_mod, 0x0100, 1);
+	mutex_unlock(&cam_mod->lock);
+	if (IS_ERR_VALUE(ret))
 		goto err;
 
 	msleep(25);
@@ -1925,7 +1930,9 @@ static int imx258_stop_streaming(struct imx_camera_module *cam_mod)
 
 	imx_camera_module_pr_info(cam_mod, "\n");
 
+	mutex_lock(&cam_mod->lock);
 	ret = imx_camera_module_write_reg(cam_mod, 0x0100, 0);
+	mutex_unlock(&cam_mod->lock);
 	if (IS_ERR_VALUE(ret))
 		goto err;
 
@@ -2025,6 +2032,7 @@ static int imx258_probe(
 	imx258.sd.flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
 	imx258.custom = imx258_custom_config;
 
+	mutex_init(&imx258.lock);
 	dev_info(&client->dev, "probing successful\n");
 	return 0;
 }
@@ -2038,6 +2046,7 @@ static int imx258_remove(struct i2c_client *client)
 	if (!client->adapter)
 		return -ENODEV;	/* our client isn't attached */
 
+	mutex_destroy(&cam_mod->lock);
 	imx_camera_module_release(cam_mod);
 
 	dev_info(&client->dev, "removed\n");

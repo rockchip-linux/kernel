@@ -402,17 +402,17 @@ static int OV7251_write_aec(struct ov_camera_module *cam_mod)
 	 */
 	if ((cam_mod->state == OV_CAMERA_MODULE_SW_STANDBY) ||
 		(cam_mod->state == OV_CAMERA_MODULE_STREAMING)) {
-
 		u32 a_gain = cam_mod->exp_config.gain;
 		u32 exp_time = cam_mod->exp_config.exp_time;
 		a_gain = a_gain * cam_mod->exp_config.gain_percent / 100;
 
-		if (cam_mod->state == OV_CAMERA_MODULE_STREAMING)
-			ret = ov_camera_module_write_reg(cam_mod,
-				OV7251_AEC_GROUP_UPDATE_ADDRESS,
-				OV7251_AEC_GROUP_UPDATE_START_DATA);
+		mutex_lock(&cam_mod->lock);
+		ret = ov_camera_module_write_reg(cam_mod,
+			OV7251_AEC_GROUP_UPDATE_ADDRESS,
+			OV7251_AEC_GROUP_UPDATE_START_DATA);
+
 		if (!IS_ERR_VALUE(ret) && cam_mod->auto_adjust_fps)
-			ret = OV7251_auto_adjust_fps(cam_mod,
+			ret |= OV7251_auto_adjust_fps(cam_mod,
 					cam_mod->exp_config.exp_time);
 		ret |= ov_camera_module_write_reg(cam_mod,
 			OV7251_AEC_PK_LONG_GAIN_HIGH_REG,
@@ -420,7 +420,7 @@ static int OV7251_write_aec(struct ov_camera_module *cam_mod)
 		ret |= ov_camera_module_write_reg(cam_mod,
 			OV7251_AEC_PK_LONG_GAIN_LOW_REG,
 			OV7251_FETCH_LSB_GAIN(a_gain));
-		ret = ov_camera_module_write_reg(cam_mod,
+		ret |= ov_camera_module_write_reg(cam_mod,
 			OV7251_AEC_PK_LONG_EXPO_3RD_REG,
 			OV7251_FETCH_3RD_BYTE_EXP(exp_time));
 		ret |= ov_camera_module_write_reg(cam_mod,
@@ -429,14 +429,14 @@ static int OV7251_write_aec(struct ov_camera_module *cam_mod)
 		ret |= ov_camera_module_write_reg(cam_mod,
 			OV7251_AEC_PK_LONG_EXPO_1ST_REG,
 			OV7251_FETCH_1ST_BYTE_EXP(exp_time));
-		if (cam_mod->state == OV_CAMERA_MODULE_STREAMING) {
-			ret = ov_camera_module_write_reg(cam_mod,
-				OV7251_AEC_GROUP_UPDATE_ADDRESS,
-				OV7251_AEC_GROUP_UPDATE_END_DATA);
-			ret = ov_camera_module_write_reg(cam_mod,
-				OV7251_AEC_GROUP_UPDATE_ADDRESS,
-				OV7251_AEC_GROUP_UPDATE_END_LAUNCH);
-		}
+
+		ret |= ov_camera_module_write_reg(cam_mod,
+			OV7251_AEC_GROUP_UPDATE_ADDRESS,
+			OV7251_AEC_GROUP_UPDATE_END_DATA);
+		ret |= ov_camera_module_write_reg(cam_mod,
+			OV7251_AEC_GROUP_UPDATE_ADDRESS,
+			OV7251_AEC_GROUP_UPDATE_END_LAUNCH);
+		mutex_unlock(&cam_mod->lock);
 	}
 
 	if (IS_ERR_VALUE(ret))
@@ -716,10 +716,12 @@ static int OV7251_start_streaming(struct ov_camera_module *cam_mod)
 	ret = OV7251_g_VTS(cam_mod, &cam_mod->vts_min);
 	if (IS_ERR_VALUE(ret))
 		goto err;
+
+	mutex_lock(&cam_mod->lock);
 	ret = ov_camera_module_write_reg(cam_mod, 0x0100, 0x01);
 	ret |= ov_camera_module_write_reg(cam_mod, 0x4241, 0x00);
 	ret |= ov_camera_module_write_reg(cam_mod, 0x4242, 0x00);
-
+	mutex_unlock(&cam_mod->lock);
 	if (IS_ERR_VALUE(ret))
 		goto err;
 
@@ -737,10 +739,11 @@ static int OV7251_stop_streaming(struct ov_camera_module *cam_mod)
 	int ret = 0;
 
 	ov_camera_module_pr_debug(cam_mod, "\n");
+	mutex_lock(&cam_mod->lock);
 	ret = ov_camera_module_write_reg(cam_mod, 0x0100, 0x00);
 	ret |= ov_camera_module_write_reg(cam_mod, 0x4241, 0x00);
 	ret |= ov_camera_module_write_reg(cam_mod, 0x4242, 0x0f);
-
+	mutex_unlock(&cam_mod->lock);
 	if (IS_ERR_VALUE(ret))
 		goto err;
 
@@ -872,6 +875,7 @@ static int OV7251_probe(
 
 	OV7251.custom = OV7251_custom_config;
 
+	mutex_init(&OV7251.lock);
 	dev_info(&client->dev, "probing successful\n");
 	return 0;
 }
@@ -888,6 +892,7 @@ static int OV7251_remove(
 	if (!client->adapter)
 		return -ENODEV;	/* our client isn't attached */
 
+	mutex_destroy(&cam_mod->lock);
 	ov_camera_module_release(cam_mod);
 
 	dev_info(&client->dev, "removed\n");

@@ -734,8 +734,9 @@ static int ov4689_write_aec(struct ov_camera_module *cam_mod)
 		u32 exp_time = cam_mod->exp_config.exp_time;
 		a_gain = a_gain * cam_mod->exp_config.gain_percent / 100;
 
+		mutex_lock(&cam_mod->lock);
 		/* hold reg en */
-		ret |= ov_camera_module_write_reg(cam_mod,
+		ret = ov_camera_module_write_reg(cam_mod,
 			ov4689_AEC_GROUP_UPDATE_ADDRESS,
 			ov4689_AEC_GROUP_UPDATE_START_DATA);
 
@@ -766,6 +767,7 @@ static int ov4689_write_aec(struct ov_camera_module *cam_mod)
 		ret |= ov_camera_module_write_reg(cam_mod,
 			ov4689_AEC_GROUP_UPDATE_ADDRESS,
 			ov4689_AEC_GROUP_UPDATE_END_LAUNCH);
+		mutex_unlock(&cam_mod->lock);
 	}
 
 	if (IS_ERR_VALUE(ret))
@@ -1047,7 +1049,10 @@ static int ov4689_start_streaming(struct ov_camera_module *cam_mod)
 	if (IS_ERR_VALUE(ret))
 		goto err;
 
-	if (IS_ERR_VALUE(ov_camera_module_write_reg(cam_mod, 0x0100, 1)))
+	mutex_lock(&cam_mod->lock);
+	ret = ov_camera_module_write_reg(cam_mod, 0x0100, 1);
+	mutex_unlock(&cam_mod->lock);
+	if (IS_ERR_VALUE(ret))
 		goto err;
 
 	msleep(25);
@@ -1067,7 +1072,9 @@ static int ov4689_stop_streaming(struct ov_camera_module *cam_mod)
 
 	ov_camera_module_pr_info(cam_mod, "\n");
 
+	mutex_lock(&cam_mod->lock);
 	ret = ov_camera_module_write_reg(cam_mod, 0x0100, 0);
+	mutex_unlock(&cam_mod->lock);
 	if (IS_ERR_VALUE(ret))
 		goto err;
 
@@ -1171,6 +1178,7 @@ static int ov4689_probe(
 	ov4689.sd.flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
 	ov4689.custom = ov4689_custom_config;
 
+	mutex_init(&ov4689.lock);
 	dev_info(&client->dev, "probing successful\n");
 	return 0;
 }
@@ -1184,6 +1192,7 @@ static int ov4689_remove(struct i2c_client *client)
 	if (!client->adapter)
 		return -ENODEV;	/* our client isn't attached */
 
+	mutex_destroy(&cam_mod->lock);
 	ov_camera_module_release(cam_mod);
 
 	dev_info(&client->dev, "removed\n");
