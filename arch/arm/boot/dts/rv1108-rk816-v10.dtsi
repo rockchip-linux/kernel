@@ -155,8 +155,8 @@
 		design_capacity = <835>;
 		design_qmax = <990>;
 		bat_res = <200>;
-		max_input_current = <1200>;
-		max_chrg_current = <1500>;
+		max_input_current = <1750>;
+		max_chrg_current = <1000>;
 		max_chrg_voltage = <4234>;
 		max_bat_voltagemV = <4200>;
 		sleep_enter_current = <150>;
@@ -164,7 +164,7 @@
 		sleep_filter_current = <100>;
 		power_off_thresd = <3500>;
 		zero_algorithm_vol = <3850>;
-		fb_temperature = <115>;
+		fb_temperature = <0>;
 		sample_res = <50>;
 		energy_mode = <0>;
 		max_soc_offset = <60>;
