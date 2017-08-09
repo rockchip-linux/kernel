@@ -120,7 +120,8 @@ static int vop_irq_enable(struct vop_device *vop_dev)
 		val = INTR_FS0 | INTR_FS1 | INTR_LINE_FLAG0 | INTR_LINE_FLAG1 |
 			INTR_BUS_ERROR | INTR_WIN0_EMPTY | INTR_WIN1_EMPTY |
 			INTR_DSP_HOLD_VALID;
-		vop_mask_writel(vop_dev, INTR_EN, INTR_MASK, val);
+		val |= INTR_MASK << 16;
+		vop_writel(vop_dev, INTR_EN, val);
 	}
 	spin_unlock(&vop_dev->reg_lock);
 
