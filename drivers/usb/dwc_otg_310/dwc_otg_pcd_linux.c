@@ -1642,11 +1642,6 @@ static void dwc_otg_pcd_check_vbus_work(struct work_struct *work)
 			printk("**************soft reconnect**************\n");
 			goto connect;
 		} else if (_pcd->conn_status == MAX_RECONNECT) {
-			/*
-			 * Release pcd->wake_lock if fail to connect,
-			 * and allow system to enter deep sleep.
-			 */
-			dwc_otg_msc_unlock(_pcd);
 			_pcd->conn_status++;
 
 			if (pldata->bc_detect_cb && iddig) {
@@ -1662,6 +1657,12 @@ static void dwc_otg_pcd_check_vbus_work(struct work_struct *work)
 				udelay(3);
 				pldata->clock_enable(pldata, 0);
 			}
+
+			/*
+			 * Release pcd->wake_lock if fail to connect,
+			 * and allow system to enter deep sleep.
+			 */
+			dwc_otg_msc_unlock(_pcd);
 		}
 	} else {
 		if (pldata->bc_detect_cb && iddig)
@@ -1675,15 +1676,15 @@ static void dwc_otg_pcd_check_vbus_work(struct work_struct *work)
 		}
 
 		if (pldata->phy_status == USB_PHY_ENABLED) {
-			/* Release wake lock */
-			dwc_otg_msc_unlock(_pcd);
-
 			if (iddig || (usb_mode == USB_MODE_FORCE_DEVICE)) {
 				/* No vbus detect here , suspend usb phy */
 				pldata->phy_suspend(pldata, USB_PHY_SUSPEND);
 				udelay(3);
 				pldata->clock_enable(pldata, 0);
 			}
+
+			/* Release wake lock */
+			dwc_otg_msc_unlock(_pcd);
 		}
 
 		/* Bypass usb phy to uart mode  */
