@@ -130,8 +130,10 @@
 *v0.0x23.0:
 	1) modify phy frequency table of 3368.
 	2) add phy timing seting for 3368.
+*v0.0x24.0:
+        1) switch D-PHY0 to RX status before it's initialization to avoid conflicting with sensor output.
 */
-#define CAMSYS_DRIVER_VERSION                   KERNEL_VERSION(0, 0x23, 0)
+#define CAMSYS_DRIVER_VERSION                   KERNEL_VERSION(0, 0x24, 0)
 
 
 #define CAMSYS_PLATFORM_DRV_NAME                "RockChip-CamSys"

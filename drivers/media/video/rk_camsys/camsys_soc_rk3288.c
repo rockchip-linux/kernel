@@ -235,6 +235,7 @@ int camsys_rk3288_cfg (camsys_soc_cfg_t cfg_cmd, void* cfg_para)
         {
             para_int = (unsigned int*)cfg_para;
             __raw_writel((((*para_int)&0x03)<<3)|(0x03<<3), RK_GRF_VIRT+0x01d4);
+            __raw_writel(0xa000a000, RK_GRF_VIRT + 0x027c);//D-PHY0 switch to RX
             break;
         }
 
