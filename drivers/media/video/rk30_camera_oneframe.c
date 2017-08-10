@@ -250,8 +250,10 @@ static u32 CHIP_NAME;
 *v0.4.0:
 		1. cif_clk_out 24M can disable directly by disable clk_cif_pll,
 		no need switching to 36M before.
+*v0.5.0:
+		1. prepare clk_cif_pll before disable to avoid warning.
 */
-#define RK_CAM_VERSION_CODE KERNEL_VERSION(0, 4, 0)
+#define RK_CAM_VERSION_CODE KERNEL_VERSION(0, 5, 0)
 static int version = RK_CAM_VERSION_CODE;
 module_param(version, int, S_IRUGO);
 
@@ -1360,6 +1362,8 @@ static int rk_camera_mclk_ctrl(int cif_idx, int on, int clk_rate)
     	clk_prepare_enable(clk->hclk_cif);
 		if (CHIP_NAME != 3228)
 			clk_prepare_enable(clk->cif_clk_in);
+		if (clk->clk_cif_pll)
+			clk_prepare_enable(clk->clk_cif_pll);
     	clk_prepare_enable(clk->cif_clk_out);
         clk_set_rate(clk->cif_clk_out,clk_rate);
         clk->on = true;
@@ -3413,7 +3417,7 @@ exit_free_irq:
 exit_reqirq:
     iounmap(pcdev->base);
 exit_ioremap_vip:
-    release_mem_region(res->start, res->end - res->start + 1);
+    release_mem_region(res->start, resource_size(res));
 exit_reqmem_vip:
     kfree(pcdev);
 exit_alloc:
@@ -3453,7 +3457,7 @@ static int rk_camera_remove(struct platform_device *pdev)
 
     res = pcdev->res;
     iounmap((void __iomem*)pcdev->base);
-    release_mem_region(res->start, res->end - res->start + 1);
+    release_mem_region(res->start, resource_size(res));
     if (pcdev->pdata && pcdev->pdata->io_deinit) {         /* ddl@rock-chips.com : Free IO in deinit function */
         pcdev->pdata->io_deinit(0);
         pcdev->pdata->io_deinit(1);
