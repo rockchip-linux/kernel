@@ -154,8 +154,10 @@ int dsp_mbox_create(struct platform_device *pdev, void __iomem *mbox_base,
 
 	(*mbox_out) = mbox;
 out:
-	if (ret)
+	if (ret) {
+		kfree(mbox);
 		(*mbox_out) = NULL;
+	}
 	return ret;
 }
 
