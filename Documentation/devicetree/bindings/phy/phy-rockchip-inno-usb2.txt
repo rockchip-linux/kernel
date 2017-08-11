@@ -22,6 +22,10 @@ Optional properties:
 		 usb-phy output 480m and xin24m.
 		 Refer to clk/clock-bindings.txt for generic clock
 		 consumer properties.
+ - rockchip,usbgrf : phandle to the syscon managing the "usb general
+		 register files". When set driver will request its
+		 phandle as one companion-grf for some special SoCs
+		 (e.g RV1108).
  - rockchip,u2phy-tuning: when set, tuning u2phy to improve usb2 SI.
  - vbus-supply: regulator phandle for vbus power source.
 
