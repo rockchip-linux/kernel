@@ -838,20 +838,13 @@ static int rk312x_lcdc_pre_init(struct rk_lcdc_driver *dev_drv)
 	lcdc_writel(lcdc_dev, FRC_LOWER11_1, 0xed7bb7de);
 
 	lcdc_msk_reg(lcdc_dev, SYS_CTRL, m_AUTO_GATING_EN, v_AUTO_GATING_EN(0));
+
+	lcdc_msk_reg(lcdc_dev, BCSH_CTRL, m_BCSH_OUT_MODE, v_BCSH_OUT_MODE(3));
+	lcdc_writel(lcdc_dev, BCSH_BCS,
+		    v_BCSH_BRIGHTNESS(0x00) | v_BCSH_CONTRAST(0x80) |
+		    v_BCSH_SAT_CON(0x80));
+	lcdc_writel(lcdc_dev, BCSH_H, v_BCSH_COS_HUE(0x80));
 	lcdc_cfg_done(lcdc_dev);
-	/*if (dev_drv->iommu_enabled)
-		{// disable all wins to workaround iommu pagefault
-		lcdc_msk_reg(lcdc_dev, SYS_CTRL, m_WIN0_EN | m_WIN1_EN,
-			     v_WIN0_EN(0) | v_WIN1_EN(0));
-		lcdc_cfg_done(lcdc_dev);
-		while(lcdc_readl(lcdc_dev, SYS_CTRL) & (m_WIN0_EN | m_WIN1_EN));
-	}*/
-	if ((dev_drv->ops->open_bcsh) && (dev_drv->output_color == COLOR_YCBCR)) {
-		if (support_uboot_display())
-			dev_drv->bcsh_init_status = 1;
-		else
-			dev_drv->ops->open_bcsh(dev_drv, 1);
-	}
 	lcdc_dev->pre_init = true;
 
 	return 0;
@@ -2086,7 +2079,7 @@ static int rk312x_lcdc_get_bcsh_hue(struct rk_lcdc_driver *dev_drv,
 			break;
 		case H_COS:
 			val &= m_BCSH_COS_HUE;
-			val >>= 16;
+			val >>= 8;
 			break;
 		default:
 			break;
@@ -2216,14 +2209,9 @@ static int rk312x_lcdc_open_bcsh(struct rk_lcdc_driver *dev_drv, bool open)
 	spin_lock(&lcdc_dev->reg_lock);
 	if (lcdc_dev->clk_on) {
 		if (open) {
-			lcdc_msk_reg(lcdc_dev,
-				     BCSH_CTRL, m_BCSH_EN | m_BCSH_OUT_MODE,
-				     v_BCSH_EN(1) | v_BCSH_OUT_MODE(3));
-			lcdc_writel(lcdc_dev, BCSH_BCS,
-				    v_BCSH_BRIGHTNESS(0x00) |
-				    v_BCSH_CONTRAST(0x80) |
-				    v_BCSH_SAT_CON(0x80));
-			lcdc_writel(lcdc_dev, BCSH_H, v_BCSH_COS_HUE(0x80));
+			mask = m_BCSH_EN;
+			val = v_BCSH_EN(1);
+			lcdc_msk_reg(lcdc_dev, BCSH_CTRL, mask, val);
 			dev_drv->bcsh.enable = 1;
 		} else {
 			mask = m_BCSH_EN;
