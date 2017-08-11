@@ -1059,8 +1059,7 @@ static int urb_enqueue(struct usb_hcd *hcd,
 	dwc_otg_hcd_urb_set_pipeinfo(dwc_otg_urb, usb_pipedevice(urb->pipe),
 				     usb_pipeendpoint(urb->pipe), ep_type,
 				     usb_pipein(urb->pipe),
-				     usb_maxpacket(urb->dev, urb->pipe,
-						   !(usb_pipein(urb->pipe))));
+				     __le16_to_cpu(ep->desc.wMaxPacketSize));
 
 #ifdef DEBUG
 	if ((uint32_t) urb->transfer_buffer & 3) {
