@@ -74,6 +74,9 @@ struct dsp_mbox {
 int dsp_mbox_register_client(struct dsp_mbox *mbox,
 			     struct dsp_mbox_client *client);
 
+int dsp_mbox_enable(struct dsp_mbox *mbox);
+int dsp_mbox_disable(struct dsp_mbox *mbox);
+
 int dsp_mbox_create(struct platform_device *pdev, void __iomem *mbox_base,
 		    struct dsp_mbox **mbox_out);
 

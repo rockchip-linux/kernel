@@ -105,6 +105,22 @@ int dsp_mbox_register_client(struct dsp_mbox *mbox,
 	return 0;
 }
 
+int dsp_mbox_enable(struct dsp_mbox *mbox)
+{
+	/* Enable all B2A interrupts */
+	writel_relaxed(0xf, mbox->base + MAILBOX_B2A_INTEN);
+
+	return 0;
+}
+
+int dsp_mbox_disable(struct dsp_mbox *mbox)
+{
+	/* Disable all B2A interrupts */
+	writel_relaxed(0x0, mbox->base + MAILBOX_B2A_INTEN);
+
+	return 0;
+}
+
 int dsp_mbox_create(struct platform_device *pdev, void __iomem *mbox_base,
 		    struct dsp_mbox **mbox_out)
 {
@@ -135,9 +151,6 @@ int dsp_mbox_create(struct platform_device *pdev, void __iomem *mbox_base,
 		dsp_err("request mbox irq failed\n");
 		goto out;
 	}
-
-	/* Enable all B2A interrupts */
-	writel_relaxed(0xf, mbox->base + MAILBOX_B2A_INTEN);
 
 	(*mbox_out) = mbox;
 out:
