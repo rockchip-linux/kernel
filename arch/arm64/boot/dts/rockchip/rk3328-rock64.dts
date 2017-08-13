@@ -152,6 +152,15 @@
 		regulator-max-microvolt = <3300000>;
 		vin-supply = <&vcc_io>;
 	};
+
+	vcc_sys: vcc-sys {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc_sys";
+		regulator-always-on;
+		regulator-boot-on;
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+	};
 };
 
 &codec {
@@ -183,7 +192,7 @@
 	status = "okay";
 	supports-emmc;
 	vmmc-supply = <&vcc_io>;
-	vqmmc-supply = <&vcc_18emmc>;
+	vqmmc-supply = <&vcc18_emmc>;
 };
 
 &gmac2io {
@@ -227,14 +236,21 @@
 		reg = <0x18>;
 		interrupt-parent = <&gpio2>;
 		interrupts = <6 IRQ_TYPE_LEVEL_LOW>;
+		#clock-cells = <1>;
+		clock-output-names = "xin32k", "rk805-clkout2";
 		pinctrl-names = "default";
 		pinctrl-0 = <&pmic_int_l>;
 		rockchip,system-power-controller;
 		wakeup-source;
 		gpio-controller;
 		#gpio-cells = <2>;
-		#clock-cells = <1>;
-		clock-output-names = "xin32k", "rk805-clkout2";
+
+		vcc1-supply = <&vcc_sys>;
+		vcc2-supply = <&vcc_sys>;
+		vcc3-supply = <&vcc_sys>;
+		vcc4-supply = <&vcc_sys>;
+		vcc5-supply = <&vcc_io>;
+		vcc6-supply = <&vcc_sys>;
 
 		rtc {
 			status = "disabled";
@@ -313,9 +329,9 @@
 				};
 			};
 
-			vdd_18: RK805_LDO1@4 {
+			vcc_18: RK805_LDO1@4 {
 				regulator-compatible = "RK805_LDO1";
-				regulator-name = "vdd_18";
+				regulator-name = "vcc_18";
 				regulator-min-microvolt = <1800000>;
 				regulator-max-microvolt = <1800000>;
 				regulator-boot-on;
@@ -326,9 +342,9 @@
 				};
 			};
 
-			vcc_18emmc: RK805_LDO2@5 {
+			vcc18_emmc: RK805_LDO2@5 {
 				regulator-compatible = "RK805_LDO2";
-				regulator-name = "vcc_18emmc";
+				regulator-name = "vcc18_emmc";
 				regulator-min-microvolt = <1800000>;
 				regulator-max-microvolt = <1800000>;
 				regulator-boot-on;
@@ -440,9 +456,9 @@
 	status = "okay";
 
 	vccio1-supply = <&vcc_io>;
-	vccio2-supply = <&vcc_18emmc>;
+	vccio2-supply = <&vcc18_emmc>;
 	vccio3-supply = <&vcc_io>;
-	vccio4-supply = <&vdd_18>;
+	vccio4-supply = <&vcc_18>;
 	vccio5-supply = <&vcc_io>;
 	vccio6-supply = <&vcc_io>;
 	pmuio-supply = <&vcc_io>;
