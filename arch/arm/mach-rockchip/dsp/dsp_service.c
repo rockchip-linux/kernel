@@ -569,7 +569,6 @@ static int dsp_open(struct inode *inode, struct file *filp)
 
 	dsp_debug_enter();
 
-	mutex_lock(&service->lock);
 	ret = dsp_session_create(service, &session);
 	if (ret) {
 		dsp_err("cannot create a session\n");
@@ -589,10 +588,11 @@ static int dsp_open(struct inode *inode, struct file *filp)
 		}
 	}
 
+	mutex_lock(&service->lock);
 	list_add_tail(&session->list_node, &service->sessions);
+	mutex_unlock(&service->lock);
 	filp->private_data = session;
 out:
-	mutex_unlock(&service->lock);
 	dsp_debug_leave();
 	return ret;
 }
@@ -608,16 +608,15 @@ static int dsp_release(struct inode *inode, struct file *filp)
 	dsp_service_clean_pending_works(service, session);
 
 	mutex_lock(&service->lock);
-
 	list_del(&session->list_node);
+	mutex_unlock(&service->lock);
+
 	dsp_session_destroy(session);
 	atomic_sub(1, &service->ref);
 
 	/* Power off DSP if service has not sessions anymore */
 	if (!atomic_read(&service->ref))
 		service->dev->off(service->dev);
-
-	mutex_unlock(&service->lock);
 
 	dsp_debug_leave();
 	return ret;
