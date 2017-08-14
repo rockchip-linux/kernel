@@ -186,6 +186,7 @@ struct battery_platform_data {
 	int dc_det_pin;
 	u8  dc_det_level;
 	int otg5v_suspend_enable;
+	u32 sample_res;
 };
 
 enum work_mode {
@@ -223,6 +224,37 @@ static const u16 FEED_BACK_TEMP[] = {
 static const u16 CHRG_VOL_SEL[] = {
 	4050, 4100, 4150, 4200, 4250, 4300, 4350
 };
+
+/*
+ * If sample resistor changes, we need caculate a new CHRG_CUR_SEL[] table.
+ *
+ * Caculation method:
+ * 1. find 20mR(default) current charge table, that is:
+ *	20mR: [1000, 1200, 1400, 1600, 1800, 2000, 2250, 2400]
+ *
+ * 2. caculate Rfac(not care much, just using it) by sample resistor(ie. Rsam);
+ *	Rsam = 20mR: Rfac = 10;
+ *	Rsam > 20mR: Rfac = Rsam * 10 / 20;
+ *	Rsam < 20mR: Rfac = 20 * 10 / Rsam;
+ *
+ * 3. from step2, we get Rfac, then we can get new charge current table by 20mR
+ *    charge table:
+ * 	Iorg: member from 20mR charge table; Inew: new member for charge table.
+ *
+ *	Rsam > 20mR: Inew = Iorg * 10 / Rfac;
+ *	Rsam < 20mR: Inew = Iorg * Rfac / 10;
+ *
+ * Notice: Inew should round up if it is not a integer!!!
+ *
+ * Example:
+ *	10mR: [2000, 2400, 2800, 3200, 3600, 4000, 4500, 4800]
+ *	20mR: [1000, 1200, 1400, 1600, 1800, 2000, 2250, 2400]
+ *	40mR: [500,  600,  700,  800,  900,  1000, 1125, 1200]
+ *	50mR: [400,  480,  560,  640,  720,  800,  900,  960]
+ *	60mR: [334,  400,  467,  534,  600,  667,  750,  800]
+ *
+ * You should add property 'sample_res = <Rsam>' at battery node.
+ */
 
 static const u16 CHRG_CUR_SEL[] = {
 	1000, 1200, 1400, 1600, 1800, 2000, 2250, 2400
