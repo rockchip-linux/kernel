@@ -34,6 +34,10 @@ struct mali_dvfs_level_t {
  * Type of context of mali_dvfs on rk_platform.
  */
 struct rk_dvfs_t {
+	/*
+	 * Is DVFS enabled for functionality.
+	 * It's different from !(rk_context::is_dvfs_disabled_via_sysfs).
+	 */
 	bool is_enabled;
 
 	/*

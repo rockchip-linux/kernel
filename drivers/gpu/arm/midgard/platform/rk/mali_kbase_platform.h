@@ -49,6 +49,12 @@ struct rk_context {
 
 	/* duration to average of gpu_utilisation, in second.*/
 	unsigned int ave_time;
+
+	/*
+	 * Is DVFS disabled via node 'dvfs' in sysfs.
+	 * It's different from !(rk_dvfs_t::is_enabled).
+	 */
+	bool is_dvfs_disabled_via_sysfs;
 };
 
 /*-------------------------------------------------------*/
@@ -66,6 +72,26 @@ static inline struct rk_dvfs_t *get_rk_dvfs(const struct kbase_device *kbdev)
 	return &(platform->rk_dvfs);
 }
 
+static inline bool is_dvfs_disabled_via_sysfs(const struct kbase_device *kbdev)
+{
+	struct rk_context *platform = get_rk_context(kbdev);
+
+	return platform->is_dvfs_disabled_via_sysfs;
+}
+
+static inline void set_dvfs_disabled_via_sysfs(struct kbase_device *kbdev)
+{
+	struct rk_context *platform = get_rk_context(kbdev);
+
+	platform->is_dvfs_disabled_via_sysfs = true;
+}
+
+static inline void reset_dvfs_disabled_via_sysfs(struct kbase_device *kbdev)
+{
+	struct rk_context *platform = get_rk_context(kbdev);
+
+	platform->is_dvfs_disabled_via_sysfs = false;
+}
 /*
  * kbase_platform_set_freq_of_clk_gpu - set freq_of_clk_gpu,
  *					called by rk_dvfs.

@@ -9,6 +9,7 @@
  */
 
 /* #define ENABLE_DEBUG_LOG */
+/* #define ENABLE_VERBOSE_LOG */
 #include "custom_log.h"
 
 #include <linux/ioport.h>
@@ -65,12 +66,6 @@ static int rk_pm_callback_runtime_on(struct kbase_device *kbdev)
 		goto EXIT;
 	}
 
-	ret = kbase_platform_dvfs_set_clk_highest(kbdev);
-	if (ret) {
-		E("fail to set dvfs_level highest. ret:%d.", ret);
-		goto EXIT;
-	}
-
 EXIT:
 	return ret;
 }
@@ -117,6 +112,21 @@ static int rk_pm_callback_power_on(struct kbase_device *kbdev)
 		}
 	}
 
+	/*
+	 * rk_pm_callback_runtime_on() has been called,
+	 * namely GPU is powered on.
+	 */
+
+	if (!is_dvfs_disabled_via_sysfs(kbdev)) {
+		int err = 0;
+
+		D("to enable DVFS and set clk_gpu highest.");
+		kbase_platform_dvfs_enable(kbdev);
+		err = kbase_platform_dvfs_set_clk_highest(kbdev);
+		if (err)
+			E("fail to set dvfs_level highest. err : %d.", err);
+	}
+
 	platform->is_powered = true;
 	KBASE_TIMELINE_GPU_POWER(kbdev, 1);
 
@@ -136,6 +146,16 @@ static void rk_pm_callback_power_off(struct kbase_device *kbdev)
 
 	platform->is_powered = false;
 	KBASE_TIMELINE_GPU_POWER(kbdev, 0);
+
+	if (!is_dvfs_disabled_via_sysfs(kbdev)) {
+		int err = 0;
+
+		D("to set clk_gpu lowest and disable DVFS.");
+		err = kbase_platform_dvfs_set_clk_lowest(kbdev);
+		if (err)
+			E("fail to set dvfs_level lowest. err : %d.", err);
+		kbase_platform_dvfs_disable(kbdev);
+	}
 
 	if (pm_runtime_enabled(kbdev->dev)) {
 		pm_runtime_mark_last_busy(kbdev->dev);

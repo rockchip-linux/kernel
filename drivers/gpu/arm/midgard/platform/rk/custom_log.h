@@ -50,7 +50,7 @@ extern "C" {
 #ifdef ENABLE_VERBOSE_LOG
 /** Verbose log. */
 #define V(fmt, args...) \
-	pr_debug("V : [File] : %s; [Line] : %d; [Func] : %s(); " fmt \
+	pr_info("V : [File] : %s; [Line] : %d; [Func] : %s(); " fmt \
 			"\n",	\
 		__FILE__,	\
 		__LINE__,	\

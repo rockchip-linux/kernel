@@ -251,6 +251,8 @@ static void mali_dvfs_event_proc(struct work_struct *w)
 	struct rk_dvfs_t *dvfs = work_to_dvfs(w);
 	int temp = rockchip_tsadc_get_temp(1, 0);
 
+	V("enter, temp : %d.", temp);
+
 	if (INVALID_TEMP == temp) {
 		D("got invalid temp, reset to 0.");
 		temp = 0;
@@ -350,11 +352,17 @@ int kbase_platform_dvfs_event(struct kbase_device *kbdev,
 {
 	struct rk_dvfs_t *dvfs = get_rk_dvfs(kbdev);
 
+	/*
+	 * This function might be called with a atomic held,
+	 * so we could not lock a mutex here.
+	 */
+
 	dvfs->utilisation = utilisation;
 
 	if (dvfs->is_enabled) {
-		/* run 'mali_dvfs_work' in 'mali_dvfs_wq', on cpu0. */
-		queue_work_on(0, dvfs->mali_dvfs_wq, &(dvfs->mali_dvfs_work));
+		V("to schedule mali_dvfs_work. utilisation : %u.", utilisation);
+		/* run 'mali_dvfs_work'. */
+		schedule_work(&dvfs->mali_dvfs_work);
 	}
 
 	return 1;

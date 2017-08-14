@@ -361,7 +361,7 @@ static ssize_t show_dvfs(struct device *dev,
 	ssize_t ret = 0;
 	unsigned int clkrate;
 
-	D("enter.");
+	V("enter.");
 
 	/* get clk_freq of 'gpu_dvfs_node', in Hz. */
 	clkrate = dvfs_clk_get_rate(platform->clk_gpu);
@@ -395,18 +395,33 @@ static ssize_t set_dvfs(struct device *dev,
 	struct kbase_device *kbdev = dev_get_drvdata(dev);
 
 	if (sysfs_streq("off", buf)) {
-		D("to disable mali_dvfs, and set dvfs_level highest.");
-		kbase_platform_dvfs_disable(kbdev);
-		ret = kbase_platform_dvfs_set_clk_highest(kbdev);
-		if (ret)
-			W("fail to set clk highest");
+		if (is_dvfs_disabled_via_sysfs(kbdev)) {
+			W("DVFS has been already disabled via sysfs!");
+			goto EXIT;
+		} else {
+			D("to disable mali_dvfs, and set dvfs_level highest.");
+			kbase_platform_dvfs_disable(kbdev);
+			ret = kbase_platform_dvfs_set_clk_highest(kbdev);
+			if (ret)
+				W("fail to set clk highest");
+
+			set_dvfs_disabled_via_sysfs(kbdev);
+		}
 	} else if (sysfs_streq("on", buf)) {
-		D("to enable mali_dvfs.");
-		kbase_platform_dvfs_enable(kbdev);
+		if (!is_dvfs_disabled_via_sysfs(kbdev)) {
+			W("DVFS hasn't been disabled via sysfs!");
+			goto EXIT;
+		} else {
+			reset_dvfs_disabled_via_sysfs(kbdev);
+
+			D("to enable mali_dvfs.");
+			kbase_platform_dvfs_enable(kbdev);
+		}
 	} else {
 		E("invalid input '%s', only 'on' or 'off' is acceptable.", buf);
 	}
 
+EXIT:
 	return count;
 }
 
@@ -593,6 +608,7 @@ int kbase_platform_init(struct kbase_device *kbdev)
 	/*-----------------------------------*/
 
 	platform->ave_time = DEFAULT_DURATION_TO_AVERAGE_UTILISATION;
+	reset_dvfs_disabled_via_sysfs(kbdev);
 
 	return 0;
 
