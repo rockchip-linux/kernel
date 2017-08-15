@@ -883,6 +883,15 @@ static int wlan_platdata_parse_dt(struct device *dev,
             LOG("%s: wifi power controled by pmu(level = %s).\n", __func__, (value == 1)?"HIGH":"LOW");
             data->mregulator.enable = value;
         }
+		data->power_n.io = -1;
+		data->reset_n.io = -1;
+		gpio = of_get_named_gpio_flags(node, "WIFI,host_wake_irq", 0, &flags);
+		if (gpio_is_valid(gpio)) {
+			data->wifi_int_b.io = gpio;
+			data->wifi_int_b.enable = flags;
+		} else {
+			data->wifi_int_b.io = -1;
+		}
 	} else {
 		data->mregulator.power_ctrl_by_pmu = false;
 		LOG("%s: wifi power controled by gpio.\n", __func__);
