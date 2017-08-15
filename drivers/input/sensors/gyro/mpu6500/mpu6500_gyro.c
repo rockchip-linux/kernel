@@ -218,6 +218,8 @@ static int mpu6500_fifo_reset(void)
 	mdelay(50);
 	sensor_write_reg(client, MPU6500_FIFO_EN, fifo_en);
 	sensor_write_reg(client, MPU6500_USER_CTRL, user_ctrl);
+	gdata->tbuf1_count = 0;
+	gdata->tbuf2_count = 0;
 	return 0;
 }
 
@@ -802,6 +804,23 @@ static ssize_t gyro_calibration_store(
 	return count;
 }
 
+static ssize_t gyro_tempearture_show(
+	struct device *dev,
+	struct device_attribute *attr,
+	char *buf)
+{
+	struct mpu6500_data *gdata = mpu6500_dev_data;
+	char rdata[2] = {0};
+	short temperature = 0;
+
+	rdata[0] = MPU6500_TEMP_OUT_H;
+	sensor_rx_data(gdata->client, rdata, 2);
+	temperature = rdata[0];
+	temperature = (temperature << 8) | rdata[1];
+
+	return sprintf(buf, "%d\n", temperature);
+}
+
 static DEVICE_ATTR(gyro_enable, 0664,
 		   gyro_enable_show, gyro_enable_store);
 
@@ -810,9 +829,15 @@ static DEVICE_ATTR(gyro_calibration,
 		   gyro_calibration_show,
 		   gyro_calibration_store);
 
+static DEVICE_ATTR(gyro_temperature,
+		   0444,
+		   gyro_tempearture_show,
+		   NULL);
+
 static struct attribute *mpu6500_attributes[] = {
 	&dev_attr_gyro_enable.attr,
 	&dev_attr_gyro_calibration.attr,
+	&dev_attr_gyro_temperature.attr,
 	NULL
 };
 
@@ -848,8 +873,8 @@ static int mpu6500_sensor_configure(struct i2c_client *client)
 	sensor_write_reg(client, MPU6500_SMPLRT_DIV, rdata);
 
 	/* Configure MPU6500 gyro low pass filter */
-	wdata = INV_FILTER_41HZ;
-	gdata->data_delay_ns = 59 * 1000 * 100;
+	wdata = INV_FILTER_184HZ;
+	gdata->data_delay_ns = 29 * 1000 * 100;
 	ret = sensor_write_reg(client, MPU6500_CONFIG, wdata);
 	if (ret < 0)
 		return ret;
@@ -892,6 +917,9 @@ static int mpu6500_sensor_configure(struct i2c_client *client)
 static int sensor_calibration(struct i2c_client *client, char *data)
 {
 	struct mpu6500_data *gdata = mpu6500_dev_data;
+	int gyro_enable;
+
+	gyro_enable = atomic_read(&gdata->gyro_enable);
 
 	if (data[0] == 1) {
 		if (gdata->gyro_new_calibration == 1) {
@@ -920,6 +948,26 @@ static int sensor_calibration(struct i2c_client *client, char *data)
 		gdata->gyro_yh = data[4];
 		gdata->gyro_zl = data[5];
 		gdata->gyro_zh = data[6];
+		if (gyro_enable == 1) {
+			sensor_write_reg(gdata->client,
+					 MPU6500_GYRO_OFFSET_XH,
+					 gdata->gyro_xh);
+			sensor_write_reg(gdata->client,
+					 MPU6500_GYRO_OFFSET_XL,
+					 gdata->gyro_xl);
+			sensor_write_reg(gdata->client,
+					 MPU6500_GYRO_OFFSET_YH,
+					 gdata->gyro_yh);
+			sensor_write_reg(gdata->client,
+					 MPU6500_GYRO_OFFSET_YL,
+					 gdata->gyro_yl);
+			sensor_write_reg(gdata->client,
+					 MPU6500_GYRO_OFFSET_ZH,
+					 gdata->gyro_zh);
+			sensor_write_reg(gdata->client,
+					 MPU6500_GYRO_OFFSET_ZL,
+					 gdata->gyro_zl);
+		}
 	}
 
 	return 0;
@@ -1003,6 +1051,7 @@ static int sensor_active(struct i2c_client *client, int enable, int rate)
 		sensor_write_reg(client, MPU6500_INT_PIN_CFG, data);
 		data = BIT_GYRO_STANDBY;
 		sensor_write_reg(client, MPU6500_PWR_MGMT_1, data);
+		atomic_set(&gdata->gyro_enable, 0);
 	} else {
 		/* Enable sensor Select Clk Source */
 		data = BIT_CLKSEL;
@@ -1023,6 +1072,7 @@ static int sensor_active(struct i2c_client *client, int enable, int rate)
 		}
 
 		mpu6500_gyro_setoffset(1);
+		atomic_set(&gdata->gyro_enable, 1);
 	}
 
 	return result;
