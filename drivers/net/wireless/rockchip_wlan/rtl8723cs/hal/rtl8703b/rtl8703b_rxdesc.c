@@ -33,7 +33,7 @@ void rtl8703b_query_rx_desc_status(union recv_frame *precvframe, u8 *pdesc)
 	pattrib->pkt_rpt_type = GET_RX_STATUS_DESC_RPT_SEL_8703B(pdesc) ? C2H_PACKET : NORMAL_RX;
 
 	if (pattrib->pkt_rpt_type == NORMAL_RX) {
-		// Offset 0
+		/* Offset 0 */
 		pattrib->crc_err = (u8)GET_RX_STATUS_DESC_CRC32_8703B(pdesc);
 		pattrib->icv_err = (u8)GET_RX_STATUS_DESC_ICV_8703B(pdesc);
 		pattrib->drvinfo_sz = (u8)GET_RX_STATUS_DESC_DRVINFO_SIZE_8703B(pdesc) << 3;
@@ -43,17 +43,17 @@ void rtl8703b_query_rx_desc_status(union recv_frame *precvframe, u8 *pdesc)
 		pattrib->physt = (u8)GET_RX_STATUS_DESC_PHY_STATUS_8703B(pdesc);
 		pattrib->bdecrypted = (u8)GET_RX_STATUS_DESC_SWDEC_8703B(pdesc) ? 0 : 1;
 
-		// Offset 4
+		/* Offset 4 */
 		pattrib->priority = (u8)GET_RX_STATUS_DESC_TID_8703B(pdesc);
 		pattrib->amsdu = (u8)GET_RX_STATUS_DESC_AMSDU_8703B(pdesc);
 		pattrib->mdata = (u8)GET_RX_STATUS_DESC_MORE_DATA_8703B(pdesc);
 		pattrib->mfrag = (u8)GET_RX_STATUS_DESC_MORE_FRAG_8703B(pdesc);
 
-		// Offset 8
+		/* Offset 8 */
 		pattrib->seq_num = (u16)GET_RX_STATUS_DESC_SEQ_8703B(pdesc);
 		pattrib->frag_num = (u8)GET_RX_STATUS_DESC_FRAG_8703B(pdesc);
 
-		// Offset 12
+		/* Offset 12 */
 		pattrib->data_rate = (u8)GET_RX_STATUS_DESC_RX_RATE_8703B(pdesc);
 
 		/* Offset 16 */
@@ -66,4 +66,3 @@ void rtl8703b_query_rx_desc_status(union recv_frame *precvframe, u8 *pdesc)
 		/* pattrib->tsfl=(u8)GET_RX_STATUS_DESC_TSFL_8703B(pdesc); */
 	}
 }
-

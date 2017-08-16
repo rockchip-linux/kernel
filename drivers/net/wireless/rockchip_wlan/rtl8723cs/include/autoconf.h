@@ -53,6 +53,7 @@
 	#endif /* !CONFIG_PLATFORM_INTEL_BYT */
 	/* #define CONFIG_DEBUG_CFG80211 */
 	#define CONFIG_SET_SCAN_DENY_TIMER
+	/*#define SUPPLICANT_RTK_VERSION_LOWER_THAN_JB42*/ /* wpa_supplicant realtek version <= jb42 will be defined this */
 #endif
 
 #define CONFIG_AP_MODE
@@ -75,7 +76,6 @@
 
 	/* #define CONFIG_DBG_P2P */
 	#define CONFIG_P2P_PS
-	/* #define CONFIG_P2P_IPS */
 	#define CONFIG_P2P_OP_CHK_SOCIAL_CH
 	#define CONFIG_CFG80211_ONECHANNEL_UNDER_CONCURRENT  /* replace CONFIG_P2P_CHK_INVITE_CH_LIST flag */
 	#define CONFIG_P2P_INVITE_IOT
@@ -89,13 +89,15 @@
 	#endif */
 	/* #define CONFIG_TDLS_AUTOSETUP */
 	#define CONFIG_TDLS_AUTOCHECKALIVE
-	#define CONFIG_TDLS_CH_SW		/* Enable "CONFIG_TDLS_CH_SW" by default, however limit it to only work in wifi logo test mode but not in normal mode currently */
+	#define CONFIG_TDLS_CH_SW	/* Enable this flag only when we confirm that TDLS CH SW is supported in FW */
 #endif
 
 /* #define CONFIG_CONCURRENT_MODE */	/* Set from Makefile */
 #ifdef CONFIG_CONCURRENT_MODE
-	/* #define CONFIG_HWPORT_SWAP */				/* Port0->Sec , Port1 -> Pri */
 	#define CONFIG_RUNTIME_PORT_SWITCH
+	/* #define DBG_RUNTIME_PORT_SWITCH */
+
+
 	#ifndef CONFIG_RUNTIME_PORT_SWITCH
 		#define CONFIG_TSF_RESET_OFFLOAD			/* For 2 PORT TSF SYNC. */
 	#endif
@@ -123,9 +125,7 @@
 	#define CONFIG_ACTIVE_KEEP_ALIVE_CHECK
 #endif
 
-#define CONFIG_C2H_PACKET_EN
-
-#define CONFIG_RF_GAIN_OFFSET
+#define CONFIG_RF_POWER_TRIM
 
 #define DISABLE_BB_RF	0
 
@@ -151,7 +151,11 @@
 #define CONFIG_NEW_SIGNAL_STAT_PROCESS
 
 #define CONFIG_EMBEDDED_FWIMG
-/* #define CONFIG_FILE_FWIMG */
+
+#ifdef CONFIG_EMBEDDED_FWIMG
+	#define	LOAD_FW_HEADER_FROM_DRIVER
+#endif
+ #define CONFIG_FILE_FWIMG 
 
 #define CONFIG_LONG_DELAY_ISSUE
 /* #define CONFIG_PATCH_JOIN_WRONG_CHANNEL */
@@ -217,13 +221,8 @@
 
 #ifdef CONFIG_BT_COEXIST
 	/* for ODM and outsrc BT-Coex */
-
 	#ifndef CONFIG_LPS
 		#define CONFIG_LPS	/* download reserved page to FW */
-	#endif
-
-	#ifndef CONFIG_C2H_PACKET_EN
-		#define CONFIG_C2H_PACKET_EN
 	#endif
 #endif /* !CONFIG_BT_COEXIST */
 
@@ -234,7 +233,7 @@
 
 #ifdef CONFIG_GPIO_WAKEUP
 	#ifndef WAKEUP_GPIO_IDX
-		#define WAKEUP_GPIO_IDX	12	/* WIFI Chip Side */
+		#define WAKEUP_GPIO_IDX	8	/* WIFI Chip Side */
 	#endif /* !WAKEUP_GPIO_IDX */
 #endif /* CONFIG_GPIO_WAKEUP */
 
@@ -286,14 +285,11 @@
 /*
  * Debug Related Config
  */
-/* #define CONFIG_DEBUG */
-
-#ifdef CONFIG_DEBUG
+#ifdef CONFIG_RTW_DEBUG
 #define DBG	1	/* for ODM & BTCOEX debug */
-/* #define CONFIG_DEBUG_RTL871X */ /* RT_TRACE, RT_PRINT_DATA, _func_enter_, _func_exit_ */
-#else /* !CONFIG_DEBUG */
+#else /* !CONFIG_RTW_DEBUG */
 #define DBG	0	/* for ODM & BTCOEX debug */
-#endif /* !CONFIG_DEBUG */
+#endif /* !CONFIG_RTW_DEBUG */
 
 #define CONFIG_PROC_DEBUG
 
@@ -303,3 +299,4 @@
 #define DBG_CHECK_FW_PS_STATE
 #define DBG_CHECK_FW_PS_STATE_H2C
 /* #define CONFIG_FW_C2H_DEBUG */
+#define	DBG_RX_DFRAME_RAW_DATA

@@ -21,23 +21,23 @@
 
 #include "rtl8703b_hal.h"
 
-//================================================================================
-// LED object.
-//================================================================================
+/* ********************************************************************************
+ * LED object.
+ * ******************************************************************************** */
 
 
-//================================================================================
-//	Prototype of protected function.
-//================================================================================
+/* ********************************************************************************
+ *	Prototype of protected function.
+ * ******************************************************************************** */
 
-//================================================================================
-// LED_819xUsb routines.
-//================================================================================
+/* ********************************************************************************
+ * LED_819xUsb routines.
+ * ******************************************************************************** */
 
-//
-//	Description:
-//		Turn on LED according to LedPin specified.
-//
+/*
+ *	Description:
+ *		Turn on LED according to LedPin specified.
+ *   */
 void
 SwLedOn_8703BS(
 	_adapter			*padapter,
@@ -55,10 +55,10 @@ SwLedOn_8703BS(
 }
 
 
-//
-//	Description:
-//		Turn off LED according to LedPin specified.
-//
+/*
+ *	Description:
+ *		Turn off LED according to LedPin specified.
+ *   */
 void
 SwLedOff_8703BS(
 	_adapter			*padapter,
@@ -76,22 +76,22 @@ exit:
 
 }
 
-//================================================================================
-// Interface to manipulate LED objects.
-//================================================================================
+/* ********************************************************************************
+ * Interface to manipulate LED objects.
+ * ******************************************************************************** */
 
-//================================================================================
-// Default LED behavior.
-//================================================================================
+/* ********************************************************************************
+ * Default LED behavior.
+ * ******************************************************************************** */
 
-//
-//	Description:
-//		Initialize all LED_871x objects.
-//
+/*
+ *	Description:
+ *		Initialize all LED_871x objects.
+ *   */
 void
 rtl8703bs_InitSwLeds(
 	_adapter	*padapter
-	)
+)
 {
 #if 0
 	struct led_priv *pledpriv = &(padapter->ledpriv);
@@ -100,28 +100,27 @@ rtl8703bs_InitSwLeds(
 
 	pledpriv->SwLedOn = SwLedOn_8703BS;
 	pledpriv->SwLedOff = SwLedOff_8703BS;
-	
+
 	InitLed871x(padapter, &(pledpriv->SwLed0), LED_PIN_LED0);
 
-	InitLed871x(padapter,&(pledpriv->SwLed1), LED_PIN_LED1);
+	InitLed871x(padapter, &(pledpriv->SwLed1), LED_PIN_LED1);
 #endif
 }
 
 
-//
-//	Description:
-//		DeInitialize all LED_819xUsb objects.
-//
+/*
+ *	Description:
+ *		DeInitialize all LED_819xUsb objects.
+ *   */
 void
 rtl8703bs_DeInitSwLeds(
 	_adapter	*padapter
-	)
+)
 {
 #if 0
 	struct led_priv	*ledpriv = &(padapter->ledpriv);
 
-	DeInitLed871x( &(ledpriv->SwLed0) );
-	DeInitLed871x( &(ledpriv->SwLed1) );
+	DeInitLed871x(&(ledpriv->SwLed0));
+	DeInitLed871x(&(ledpriv->SwLed1));
 #endif
 }
-
