@@ -130,6 +130,8 @@ module_param_named(dbg_level, dbg_enable, int, 0644);
 /* DC ADC */
 #define DC_ADC_TRIGGER			150
 
+#define TEMP_RECORD_NUM			30
+
 static const char *bat_status[] = {
 	"charge off", "dead charge", "trickle charge", "cc cv",
 	"finish", "usb over vol", "bat temp error", "timer error",
@@ -1850,6 +1852,72 @@ static bool rk816_bat_ocv_sw_reset(struct rk816_battery *di)
 	}
 }
 
+static void rk816_bat_setup_ocv_table(struct rk816_battery *di, int temp)
+{
+	int i, idx = 0;
+	int temp_h, temp_l, percent, volt_htemp, volt_ltemp;
+	int *temp_t = di->pdata->temp_t;
+	int temp_t_num = di->pdata->temp_t_num;
+
+	if (temp_t_num < 2)
+		return;
+
+	DBG("<%s>. temperature=%d\n", __func__, temp);
+
+	/* Out of MIN, select MIN */
+	if (temp < temp_t[0]) {
+		DBG("<%s>. Out MIN\n", __func__);
+		di->pdata->ocv_table = di->pdata->table_t[0];
+		return;
+	}
+
+	/* Out of MAX, select MAX */
+	if (temp > temp_t[temp_t_num - 1]) {
+		DBG("<%s>. Out MAX\n", __func__);
+		di->pdata->ocv_table = di->pdata->table_t[temp_t_num - 1];
+		return;
+	}
+
+	/* Exactly match some one */
+	for (i = 0; i < temp_t_num; i++) {
+		if (temp == temp_t[i]) {
+			DBG("<%s>. Match: %d'C\n", __func__, temp_t[i]);
+			di->pdata->ocv_table = di->pdata->table_t[i];
+			return;
+		}
+	}
+
+	/* Find position of current temperature, must be fond */
+	for (i = 0; i < temp_t_num - 1; i++) {
+		if ((temp > temp_t[i]) && (temp < temp_t[i + 1])) {
+			idx = i;
+			break;
+		}
+	}
+
+	DBG("<%s>. found! idx = %d\n", __func__, idx);
+
+	/* calculate percent */
+	temp_l = temp_t[idx];
+	temp_h = temp_t[idx + 1];
+	percent = (temp - temp_l) * 100 / DIV(temp_h - temp_l);
+
+	/* Fill in new ocv table members */
+	for (i = 0; i < di->pdata->ocv_size; i++) {
+		volt_ltemp = di->pdata->table_t[idx][i];
+		volt_htemp = di->pdata->table_t[idx + 1][i];
+
+		di->pdata->ocv_table[i] = volt_ltemp +
+			(volt_htemp - volt_ltemp) * percent / 100;
+
+		DBG("#low=%d'C[%dmv], me=%d'C[%dmv], high=%d'C[%dmv]."
+		    "percent=%d, delta=%dmv\n",
+		    temp_l, volt_ltemp, temp, di->pdata->ocv_table[i],
+		    temp_h, volt_htemp, percent,
+		    (volt_htemp - volt_ltemp) * percent / 100);
+	}
+}
+
 static void rk816_bat_init_rsoc(struct rk816_battery *di)
 {
 	di->bat_first_power_on = is_rk816_bat_first_pwron(di);
@@ -2144,6 +2212,9 @@ static void rk816_bat_init_zero_table(struct rk816_battery *di)
 	diff = (max - min) / DIV(ocv_size - 1);
 	for (i = 0; i < ocv_size; i++)
 		di->pdata->zero_table[i] = min + (i * diff);
+
+	if (!dbg_enable)
+		return;
 
 	for (i = 0; i < ocv_size; i++)
 		DBG("zero[%d] = %d\n", i, di->pdata->zero_table[i]);
@@ -3506,6 +3577,57 @@ static void rk816_bat_update_temperature(struct rk816_battery *di)
 	}
 }
 
+static void rk816_bat_update_ocv_table(struct rk816_battery *di)
+{
+	static bool initialized;
+	static int temp_idx, temperature_sum, last_avg_temp, curr_avg_temp;
+	static int temp_record_table[TEMP_RECORD_NUM];
+	int i, curr_temp = di->temperature / 10;
+
+	if (di->pdata->temp_t_num < 2)
+		return;
+
+	/* only run once for initialize */
+	if (!initialized) {
+		for (i = 0; i < TEMP_RECORD_NUM; i++)
+			temp_record_table[i] = curr_temp;
+
+		temperature_sum = curr_temp * TEMP_RECORD_NUM;
+		last_avg_temp = curr_temp;
+		initialized = true;
+	}
+
+	/* pick out earliest temperature from sum */
+	temperature_sum -= temp_record_table[temp_idx];
+
+	/* add current temperature into sum */
+	temp_record_table[temp_idx] = curr_temp;
+	temperature_sum += curr_temp;
+
+	/* new avg temperature currently */
+	curr_avg_temp = temperature_sum / TEMP_RECORD_NUM;
+
+	/* move to next idx */
+	temp_idx = (temp_idx + 1) % TEMP_RECORD_NUM;
+
+	DBG("<%s>: temp_idx=%d, curr_temp=%d, last_avg=%d, curr_avg=%d\n",
+	    __func__, temp_idx, curr_temp, last_avg_temp, curr_avg_temp);
+
+	/* tempearture changed, update ocv table */
+	if (curr_avg_temp != last_avg_temp) {
+		BAT_INFO("OCV table update, temperature now=%d, last=%d\n",
+			 curr_avg_temp, last_avg_temp);
+		rk816_bat_setup_ocv_table(di, curr_avg_temp);
+		last_avg_temp = curr_avg_temp;
+
+		if (!dbg_enable)
+			return;
+
+		for (i = 0; i < di->pdata->ocv_size; i++)
+			DBG("* ocv_table[%d]=%d\n", i, di->pdata->ocv_table[i]);
+	}
+}
+
 static void rk816_battery_work(struct work_struct *work)
 {
 	struct rk816_battery *di =
@@ -3516,6 +3638,7 @@ static void rk816_battery_work(struct work_struct *work)
 	rk816_bat_rsoc_daemon(di);
 	rk816_bat_check_charger(di);
 	rk816_bat_update_temperature(di);
+	rk816_bat_update_ocv_table(di);
 	rk816_bat_lowpwr_check(di);
 	rk816_bat_display_smooth(di);
 	rk816_bat_power_supply_changed(di);
@@ -3937,6 +4060,8 @@ static void rk816_bat_init_fg(struct rk816_battery *di)
 	rk816_bat_set_ioffset_sample(di);
 	rk816_bat_set_ocv_sample(di);
 	rk816_bat_init_ts_detect(di);
+	rk816_bat_update_temperature(di);
+	rk816_bat_setup_ocv_table(di, di->temperature / 10);
 	rk816_bat_init_rsoc(di);
 	rk816_bat_init_coulomb_cap(di, di->nac);
 	rk816_bat_init_age_algorithm(di);
@@ -3959,6 +4084,126 @@ static void rk816_bat_init_fg(struct rk816_battery *di)
 	DBG("nac=%d cap=%d ov=%d v=%d rv=%d dl=%d rl=%d c=%d\n",
 	    di->nac, di->remain_cap, di->voltage_ocv, di->voltage_avg,
 	    di->voltage_relax, di->dsoc, di->rsoc, di->current_avg);
+}
+
+static int rk816_bat_read_ocv_tables(struct rk816_battery *di,
+				     struct device_node *np)
+{
+	struct battery_platform_data *pdata = di->pdata;
+	u32 negative, value;
+	int length, i, j;
+	int idx = 0;
+
+	/* t0 */
+	if (of_find_property(np, "table_t0", &length) &&
+	    of_find_property(np, "temp_t0", &length)) {
+		DBG("%s: read table_t0\n", __func__);
+
+		if (of_property_read_u32_array(np, "table_t0",
+					       pdata->table_t[idx],
+					       pdata->ocv_size)) {
+			dev_err(di->dev, "invalid table_t0\n");
+			return -EINVAL;
+		}
+
+		if (of_property_read_u32_index(np, "temp_t0", 1, &value) ||
+		    of_property_read_u32_index(np, "temp_t0", 0, &negative)) {
+			dev_err(di->dev, "invalid temp_t0\n");
+			return -EINVAL;
+		}
+		if (negative)
+			pdata->temp_t[idx] = -value;
+		else
+			pdata->temp_t[idx] = value;
+		idx++;
+	}
+
+	/* t1 */
+	if (of_find_property(np, "table_t1", &length) &&
+	    of_find_property(np, "temp_t1", &length)) {
+		DBG("%s: read table_t1\n", __func__);
+
+		if (of_property_read_u32_array(np, "table_t1",
+					       pdata->table_t[idx],
+					       pdata->ocv_size)) {
+			dev_err(di->dev, "invalid table_t1\n");
+			return -EINVAL;
+		}
+
+		if (of_property_read_u32_index(np, "temp_t1", 1, &value) ||
+		    of_property_read_u32_index(np, "temp_t1", 0, &negative)) {
+			dev_err(di->dev, "invalid temp_t1\n");
+			return -EINVAL;
+		}
+		if (negative)
+			pdata->temp_t[idx] = -value;
+		else
+			pdata->temp_t[idx] = value;
+		idx++;
+	}
+
+	/* t2 */
+	if (of_find_property(np, "table_t2", &length) &&
+	    of_find_property(np, "temp_t2", &length)) {
+		DBG("%s: read table_t2\n", __func__);
+
+		if (of_property_read_u32_array(np, "table_t2",
+					       pdata->table_t[idx],
+					       pdata->ocv_size)) {
+			dev_err(di->dev, "invalid table_t2\n");
+			return -EINVAL;
+		}
+
+		if (of_property_read_u32_index(np, "temp_t2", 1, &value) ||
+		    of_property_read_u32_index(np, "temp_t2", 0, &negative)) {
+			dev_err(di->dev, "invalid temp_t2\n");
+			return -EINVAL;
+		}
+		if (negative)
+			pdata->temp_t[idx] = -value;
+		else
+			pdata->temp_t[idx] = value;
+		idx++;
+	}
+
+	/* t3 */
+	if (of_find_property(np, "table_t3", &length) &&
+	    of_find_property(np, "temp_t3", &length)) {
+		DBG("%s: read table_t3\n", __func__);
+
+		if (of_property_read_u32_array(np, "table_t3",
+					       pdata->table_t[idx],
+					       pdata->ocv_size)) {
+			dev_err(di->dev, "invalid table_t3\n");
+			return -EINVAL;
+		}
+
+		if (of_property_read_u32_index(np, "temp_t3", 1, &value) ||
+		    of_property_read_u32_index(np, "temp_t3", 0, &negative)) {
+			dev_err(di->dev, "invalid temp_t3\n");
+			return -EINVAL;
+		}
+		if (negative)
+			pdata->temp_t[idx] = -value;
+		else
+			pdata->temp_t[idx] = value;
+		idx++;
+	}
+
+	di->pdata->temp_t_num = idx;
+
+	BAT_INFO("realtime ocv table nums=%d\n", di->pdata->temp_t_num);
+
+	if (dbg_enable) {
+		for (j = 0; j < pdata->temp_t_num; j++) {
+			DBG("\n\ntemperature[%d]=%d\n", j, pdata->temp_t[j]);
+			for (i = 0; i < di->pdata->ocv_size; i++)
+				DBG("table_t%d[%d]=%d\n",
+				    j, i, pdata->table_t[j][i]);
+		}
+	}
+
+	return 0;
 }
 
 #ifdef CONFIG_OF
@@ -4018,6 +4263,13 @@ static int rk816_bat_parse_dt(struct rk816_battery *di)
 					 pdata->ocv_size);
 	if (ret < 0)
 		return ret;
+
+	ret = rk816_bat_read_ocv_tables(di, np);
+	if (ret < 0) {
+		di->pdata->temp_t_num = 0;
+		dev_err(dev, "read table_t error\n");
+		return ret;
+	}
 
 	ret = of_property_read_u32(np, "design_capacity", &out_value);
 	if (ret < 0) {

@@ -156,6 +156,11 @@
 struct battery_platform_data {
 	u32 *ocv_table;
 	u32 *zero_table;
+
+	u32 table_t[4][21];
+	int temp_t[4];
+	u32 temp_t_num;
+
 	u32 *ntc_table;
 	u32 ocv_size;
 	u32 ntc_size;
