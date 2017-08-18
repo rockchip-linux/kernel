@@ -1079,15 +1079,24 @@
 					#address-cells = <1>;
 					#size-cells = <1>;
 
-					clk_rga: clk_rga_div {
+					clk_rga_div: clk_rga_div {
 						compatible = "rockchip,rk3188-div-con";
 						rockchip,bits = <0 5>;
-						clocks = <&aclk_rga>;
+						clocks = <&clk_rga>;
 						clock-output-names = "clk_rga";
 						rockchip,div-type = <CLK_DIVIDER_PLUS_ONE>;
 						#clock-cells = <0>;
 						rockchip,clkops-idx = <CLKOPS_RATE_MUX_DIV>;
 						rockchip,flags = <CLK_SET_RATE_PARENT_IN_ORDER>;
+					};
+
+					clk_rga: clk_rga_mux {
+						compatible = "rockchip,rk3188-mux-con";
+						rockchip,bits = <5 2>;
+						clocks = <&clk_gpll>, <&clk_cpll>, <&aclk_rga>;
+						clock-output-names = "clk_rga";
+						#clock-cells = <0>;
+						#clock-init-cells = <1>;
 					};
 
 					/* 7:0 reserved */
@@ -1776,7 +1785,7 @@
 					<&aclk_rkvdec>,	<&clk_vdec_cabac>,
 
 					<&clk_vdec_core>,	<&clk_hdcp>,
-					<&aclk_rga>,	<&xin24m>,
+					<&clk_rga>,	<&xin24m>,
 
 					<&clk_hdmi_cec>,	<&dummy>,
 					<&dummy>,	<&aclk_vpu>,
