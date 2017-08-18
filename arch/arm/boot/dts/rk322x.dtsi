@@ -274,7 +274,7 @@
 			<&aclk_rga 250000000>, <&clk_gpu 250000000>,
 			<&aclk_vpu 25000000>, <&clk_vdec_core 250000000>,
 			<&clk_vdec_cabac 250000000>, <&aclk_rkvdec 16000000>,
-			<&aclk_vop 400000000>;
+			<&aclk_vop 400000000>, <&clk_rga 300000000>;
 /*
 		rockchip,clocks-uboot-has-init =
 			<&aclk_vio0>;
