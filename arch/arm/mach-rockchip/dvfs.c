@@ -202,7 +202,9 @@ static int sys_stat_notifier_call(struct notifier_block *nb,
 {
 	if (clk_cpu_dvfs_node && cpu_is_rk322x()) {
 		mutex_lock(&temp_limit_mutex);
-		if (val & (SYS_STATUS_VIDEO_4K_10B | SYS_STATUS_VIDEO_4K)) {
+		if (val & (SYS_STATUS_VIDEO_4K_10B | SYS_STATUS_VIDEO_4K |
+			   SYS_STATUS_VIDEO_4K_60FPS |
+			   SYS_STATUS_VIDEO_4K_10B_60FPS)) {
 			clk_cpu_dvfs_node->min_rate = CPU_MIN_RATE_4K;
 			clk_cpu_dvfs_node->max_rate = CPU_MAX_RATE_4K;
 			clk_cpu_dvfs_node->target_temp = CPU_TARGET_TMEP_4K;
@@ -1279,7 +1281,8 @@ static void dvfs_temp_limit_4k(void)
 
 	if (cpu_is_rk322x() &&
 	    (rockchip_get_system_status() &
-	     (SYS_STATUS_VIDEO_4K | SYS_STATUS_VIDEO_4K_10B))) {
+	     (SYS_STATUS_VIDEO_4K | SYS_STATUS_VIDEO_4K_10B |
+	      SYS_STATUS_VIDEO_4K_60FPS | SYS_STATUS_VIDEO_4K_10B_60FPS))) {
 		clk = clk_get(NULL, "aclk_rkvdec");
 		if (!IS_ERR_OR_NULL(clk)) {
 			clk_set_rate(clk, 100 * MHz);
@@ -1316,7 +1319,9 @@ static void dvfs_temp_unlimit_4k(void)
 				  clk_ddr_dvfs_node->last_set_rate);
 
 		if (rockchip_get_system_status() &
-		    (SYS_STATUS_VIDEO_4K | SYS_STATUS_VIDEO_4K_10B)) {
+		    (SYS_STATUS_VIDEO_4K | SYS_STATUS_VIDEO_4K_10B |
+		     SYS_STATUS_VIDEO_4K_60FPS |
+		     SYS_STATUS_VIDEO_4K_10B_60FPS)) {
 			clk = clk_get(NULL, "aclk_rkvdec");
 			if (!IS_ERR_OR_NULL(clk)) {
 				clk_set_rate(clk, 500 * MHz);

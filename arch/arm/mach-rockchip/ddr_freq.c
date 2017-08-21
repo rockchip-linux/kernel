@@ -99,7 +99,9 @@ struct ddr {
 	unsigned long normal_rate;
 	unsigned long video_1080p_rate;
 	unsigned long video_4k_rate;
+	unsigned long video_4k_60fps_rate;
 	unsigned long video_4k_10b_rate;
+	unsigned long video_4k_10b_60fps_rate;
 	unsigned long performance_rate;
 	unsigned long dualview_rate;
 	unsigned long hdmi_rate;
@@ -357,12 +359,30 @@ static noinline long ddrfreq_work(unsigned long sys_status)
 		}
 	}
 
+	if (ddr.video_4k_60fps_rate &&
+	    (s & SYS_STATUS_VIDEO_4K_60FPS) && !(s & SYS_STATUS_SUSPEND)) {
+		if (ddr.video_4k_60fps_rate > target_rate) {
+			target_rate = ddr.video_4k_60fps_rate;
+			auto_self_refresh = false;
+			mode = "video_4k_60fps";
+		}
+	}
+
 	if (ddr.video_4k_10b_rate &&
 	    (s & SYS_STATUS_VIDEO_4K_10B) && !(s & SYS_STATUS_SUSPEND)) {
 		if (ddr.video_4k_10b_rate > target_rate) {
 			target_rate = ddr.video_4k_10b_rate;
 			auto_self_refresh = false;
 			mode = "video_4k_10b";
+		}
+	}
+
+	if (ddr.video_4k_10b_60fps_rate &&
+	    (s & SYS_STATUS_VIDEO_4K_10B_60FPS) && !(s & SYS_STATUS_SUSPEND)) {
+		if (ddr.video_4k_10b_60fps_rate > target_rate) {
+			target_rate = ddr.video_4k_10b_60fps_rate;
+			auto_self_refresh = false;
+			mode = "video_4k_10b_60fps";
 		}
 	}
 
@@ -510,6 +530,7 @@ static void update_video_info(void)
 {
 	struct video_info *video_info, *max_res_video;
 	int max_res = 0, max_stream_bitrate = 0, res = 0;
+	int max_frame_rate = 0;
 
 	mutex_lock(&video_info_mutex);
 	if (list_empty(&ddr.video_info_list)) {
@@ -524,18 +545,27 @@ static void update_video_info(void)
 			max_res = res;
 			max_res_video = video_info;
 		}
+		if (video_info->videoFramerate > max_frame_rate)
+			max_frame_rate = video_info->videoFramerate;
 		if (video_info->streamBitrate > max_stream_bitrate)
 			max_stream_bitrate = video_info->streamBitrate;
 	}
 	mutex_unlock(&video_info_mutex);
 
-	if (max_res <= 1920*1080) {
+	if (max_res <= 1920 * 1080) {
 		rockchip_set_system_status(SYS_STATUS_VIDEO_1080P);
 	} else {
-		if (max_stream_bitrate == 10)
-			rockchip_set_system_status(SYS_STATUS_VIDEO_4K_10B);
-		else
-			rockchip_set_system_status(SYS_STATUS_VIDEO_4K);
+		if (max_stream_bitrate == 10) {
+			if ((max_frame_rate > 35) && (max_frame_rate < 66))
+				rockchip_set_system_status(SYS_STATUS_VIDEO_4K_10B_60FPS);
+			else
+				rockchip_set_system_status(SYS_STATUS_VIDEO_4K_10B);
+		} else {
+			if ((max_frame_rate > 35) && (max_frame_rate < 66))
+				rockchip_set_system_status(SYS_STATUS_VIDEO_4K_60FPS);
+			else
+				rockchip_set_system_status(SYS_STATUS_VIDEO_4K);
+		}
 	}
 	return;
 }
@@ -967,8 +997,12 @@ int of_init_ddr_freq_table(void)
 			ddr.video_1080p_rate = rate;
 		if (status & SYS_STATUS_VIDEO_4K)
 			ddr.video_4k_rate = rate;
+		if (status & SYS_STATUS_VIDEO_4K_60FPS)
+			ddr.video_4k_60fps_rate = rate;
 		if (status & SYS_STATUS_VIDEO_4K_10B)
 			ddr.video_4k_10b_rate = rate;
+		if (status & SYS_STATUS_VIDEO_4K_10B_60FPS)
+			ddr.video_4k_10b_60fps_rate = rate;
 		if (status & SYS_STATUS_PERFORMANCE)
 			ddr.performance_rate= rate;
 		if ((status & SYS_STATUS_LCDC0)&&(status & SYS_STATUS_LCDC1))
@@ -988,6 +1022,11 @@ int of_init_ddr_freq_table(void)
 
 		nr -= 2;
 	}
+
+	if (ddr.video_4k_60fps_rate < ddr.video_4k_rate)
+		ddr.video_4k_60fps_rate = ddr.video_4k_rate;
+	if (ddr.video_4k_10b_60fps_rate < ddr.video_4k_10b_rate)
+		ddr.video_4k_10b_60fps_rate = ddr.video_4k_10b_rate;
 
 	bd_freq_table = of_get_bd_freq_table(clk_ddr_dev_node, "bd-freq-table");
 
@@ -1078,18 +1117,23 @@ static int ddrfreq_init(void)
 	rockchip_register_system_status_notifier(&ddrfreq_system_status_notifier);
 	fb_register_client(&ddr_freq_suspend_notifier);
 
-	pr_info("verion 1.2 20140526\n");
-	pr_info("normal %luMHz performance %luMHz low_power %luMHz video_1080p %luMHz video_4k %luMHz dualview %luMHz idle %luMHz suspend %luMHz reboot %luMHz video_4k_10b %luMHz\n",
+	pr_info("verion 1.3 20170830\n");
+	pr_info("normal %luMHz performance %luMHz low_power %luMHz\
+		 video_1080p %luMHz video_4k %luMHz video_4k_60fps %luMHz\
+		 dualview %luMHz idle %luMHz suspend %luMHz reboot %luMHz\
+		 video_4k_10b %luMHz video_4k_10b_60fps %luMHz\n",
 		ddr.normal_rate / MHZ,
 		ddr.performance_rate / MHZ,
 		ddr.low_power_rate / MHZ,
 		ddr.video_1080p_rate / MHZ,
 		ddr.video_4k_rate / MHZ,
+		ddr.video_4k_60fps_rate / MHZ,
 		ddr.dualview_rate / MHZ,
 		ddr.idle_rate / MHZ,
 		ddr.suspend_rate / MHZ,
 		ddr.reboot_rate / MHZ,
-		ddr.video_4k_10b_rate / MHZ);
+		ddr.video_4k_10b_rate / MHZ,
+		ddr.video_4k_10b_60fps_rate / MHZ);
 
 	pr_info("auto-freq=%d\n", ddr.auto_freq);
 	if (auto_freq_table) {
