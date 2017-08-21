@@ -885,6 +885,7 @@ static int wlan_platdata_parse_dt(struct device *dev,
         }
 		data->power_n.io = -1;
 		data->reset_n.io = -1;
+		data->vbat_n.io = -1;
 		gpio = of_get_named_gpio_flags(node, "WIFI,host_wake_irq", 0, &flags);
 		if (gpio_is_valid(gpio)) {
 			data->wifi_int_b.io = gpio;
