@@ -30,6 +30,7 @@
 #include <linux/kthread.h>
 #include <linux/proc_fs.h>
 #include <linux/version.h>
+#include <linux/soc/rockchip/rk_vendor_storage.h>
 
 #include "rk_nand_blk.h"
 #include "rk_ftl_api.h"
@@ -698,6 +699,14 @@ static int nand_blk_register(struct nand_blk_ops *nandr)
 
 	rknand_create_procfs();
 	rk_ftl_storage_sys_init();
+
+	ret = rk_ftl_vendor_storage_init();
+	if (!ret) {
+#ifdef CONFIG_ROCKCHIP_VENDOR_STORAGE
+		rk_vendor_register(rk_ftl_vendor_read, rk_ftl_vendor_write);
+#endif
+		rknand_vendor_storage_init();
+	}
 
 	return 0;
 }
