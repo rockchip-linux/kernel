@@ -451,6 +451,8 @@ struct vpu_service_info {
 	ion_phys_addr_t pf_pa;
 	unsigned long war_iova;
 	struct regmap *cru;
+	struct clk *p_cpll;
+	struct clk *p_gpll;
 	unsigned long cpll_rate;
 	unsigned long gpll_rate;
 };
@@ -731,12 +733,16 @@ static void rkvdec_set_clk_by_cru(unsigned long vcodec_rate,
 					     0x00df0000 | (aclk_div - 1));
 				vpu_dvfs->aclk_vcodec->rate =
 					vpu_dvfs->cpll_rate / aclk_div;
+				clk_set_parent(vpu_dvfs->aclk_vcodec,
+					       vpu_dvfs->p_cpll);
 			} else {
 				aclk_div = vpu_dvfs->gpll_rate / vcodec_rate;
 				regmap_write(vpu_dvfs->cru, 0x1c0,
 					     0x00df0040 | aclk_div);
 				vpu_dvfs->aclk_vcodec->rate =
 					vpu_dvfs->gpll_rate / (aclk_div + 1);
+				clk_set_parent(vpu_dvfs->aclk_vcodec,
+					       vpu_dvfs->p_gpll);
 			}
 			vcodec_old_rate = vcodec_rate;
 		}
@@ -747,12 +753,16 @@ static void rkvdec_set_clk_by_cru(unsigned long vcodec_rate,
 					     0x00df0000 | (core_div - 1));
 				vpu_dvfs->clk_core->rate =
 					vpu_dvfs->cpll_rate / core_div;
+				clk_set_parent(vpu_dvfs->clk_core,
+					       vpu_dvfs->p_cpll);
 			} else {
 				core_div = vpu_dvfs->gpll_rate / core_rate;
 				regmap_write(vpu_dvfs->cru, 0x1c4,
 					     0x00df0040 | core_div);
 				vpu_dvfs->clk_core->rate =
 					vpu_dvfs->gpll_rate / (core_div + 1);
+				clk_set_parent(vpu_dvfs->clk_core,
+					       vpu_dvfs->p_gpll);
 			}
 			core_old_rate = core_rate;
 		}
@@ -764,12 +774,16 @@ static void rkvdec_set_clk_by_cru(unsigned long vcodec_rate,
 					     ((cabac_div - 1) << 8));
 				vpu_dvfs->clk_cabac->rate =
 					vpu_dvfs->cpll_rate / cabac_div;
+				clk_set_parent(vpu_dvfs->clk_cabac,
+					       vpu_dvfs->p_cpll);
 			} else {
 				cabac_div = vpu_dvfs->gpll_rate / cabac_rate;
 				regmap_write(vpu_dvfs->cru, 0x1c0,
 					     0xdf004000 | (cabac_div << 8));
 				vpu_dvfs->clk_cabac->rate =
 					vpu_dvfs->gpll_rate / (cabac_div + 1);
+				clk_set_parent(vpu_dvfs->clk_cabac,
+					       vpu_dvfs->p_gpll);
 			}
 			cabac_old_rate = cabac_rate;
 		}
@@ -3140,8 +3154,10 @@ static int vcodec_probe(struct platform_device *pdev)
 	pservice->cru =
 		syscon_regmap_lookup_by_compatible("rockchip,rk322xh-cru");
 	if (!IS_ERR(pservice->cru)) {
-		pservice->cpll_rate = clk_get_rate(clk_get(NULL, "clk_cpll"));
-		pservice->gpll_rate = clk_get_rate(clk_get(NULL, "clk_gpll"));
+		pservice->p_cpll = clk_get(NULL, "clk_cpll");
+		pservice->p_gpll = clk_get(NULL, "clk_gpll");
+		pservice->cpll_rate = clk_get_rate(pservice->p_cpll);
+		pservice->gpll_rate = clk_get_rate(pservice->p_gpll);
 	}
 	vpu_dvfs = pservice;
 
