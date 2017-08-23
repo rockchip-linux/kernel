@@ -88,6 +88,24 @@ static void cecworkfunc(struct work_struct *work)
 	kfree(cec_w);
 }
 
+int rockchip_hdmi_cec_send_suspend(void)
+{
+	struct cec_framedata cecframe;
+
+	HDMIDBG(1, "%s\n", __func__);
+	if (!cec_dev->settven) {
+		HDMIDBG(1, "stb wake up tv disabled\n");
+		return -EPERM;
+	}
+
+	memset(&cecframe, 0, sizeof(struct cec_framedata));
+	cecframe.opcode        = CECOP_STANDBY;
+	cecframe.srcdestaddr   = 0x40;
+	cecframe.argcount      = 0;
+
+	return cecsendframe(&cecframe);
+}
+
 void rockchip_hdmi_cec_submit_work(int event, int delay, void *data)
 {
 	struct cec_delayed_work *work;
@@ -252,6 +270,11 @@ static long cec_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	case HDMI_IOCTL_CECWAKESTATE:
 		ret = copy_to_user(argp, &cec_dev->hdmi->sleep, sizeof(int));
 		break;
+	case HDMI_IOCTL_CECSETTVEN:
+		ret = copy_from_user(&cec_dev->settven, argp, sizeof(bool));
+		if (cec_dev->settven)
+			HDMIDBG(1, "settven true\n");
+		break;
 
 	default:
 		break;
@@ -306,6 +329,7 @@ int rockchip_hdmi_cec_init(struct hdmi *hdmi,
 	INIT_LIST_HEAD(&cec_dev->ceclist);
 	cec_dev->hdmi = hdmi;
 	cec_dev->enable = 1;
+	cec_dev->settven = false;
 	cec_dev->sendframe = sendframe;
 	cec_dev->readframe = readframe;
 	cec_dev->setceclogicaddr = setceclogicaddr;

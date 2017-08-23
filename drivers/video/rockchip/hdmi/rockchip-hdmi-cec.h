@@ -163,6 +163,7 @@ struct cec_device {
 	int address_logic;
 	int powerstatus;
 	int enable;
+	bool settven; /* enable stb set tv suspend by set prop */
 	struct list_head ceclist;
 	struct mutex cec_lock;	/* mutex for hdmicec operation*/
 	struct input_dev *devinput;
@@ -181,6 +182,7 @@ struct cec_device {
 #define HDMI_IOCTL_CECSETLA  _IOW(HDMI_CEC_MAGIC, 5, int)
 #define HDMI_IOCTL_CECCLEARLA  _IOW(HDMI_CEC_MAGIC, 6, int)
 #define HDMI_IOCTL_CECWAKESTATE  _IOR(HDMI_CEC_MAGIC, 7, int)
+#define HDMI_IOCTL_CECSETTVEN  _IOR(HDMI_CEC_MAGIC, 8, bool)
 /*for HAL ioctl end*/
 
 int rockchip_hdmi_cec_init(struct hdmi *hdmi,
@@ -191,4 +193,5 @@ int rockchip_hdmi_cec_init(struct hdmi *hdmi,
 			   void (*setceclogicaddr)(struct hdmi *, int));
 void rockchip_hdmi_cec_set_pa(int devpa);
 void rockchip_hdmi_cec_submit_work(int event, int delay, void *data);
+int rockchip_hdmi_cec_send_suspend(void);
 #endif /* __HDMI_CEC_H__ */

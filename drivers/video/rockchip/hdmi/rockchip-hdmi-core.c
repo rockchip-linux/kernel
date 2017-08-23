@@ -469,6 +469,8 @@ static void hdmi_work_queue(struct work_struct *work)
 		break;
 	case HDMI_SUSPEND_CTL:
 		if (!hdmi->sleep) {
+			if (hdmi->property->feature & SUPPORT_CEC)
+				rockchip_hdmi_cec_send_suspend();
 			if (hdmi->hotplug == HDMI_HPD_ACTIVATED)
 				hdmi_wq_set_output(hdmi,
 						   HDMI_VIDEO_MUTE |
