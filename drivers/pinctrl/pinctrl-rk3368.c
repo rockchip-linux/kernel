@@ -1032,6 +1032,7 @@ static int rockchip_set_pull(struct rockchip_pin_bank *bank,
 
 #define RV1108_SCHMITT_BITS_PER_PIN     1
 #define RV1108_SCHMITT_PINS_PER_REG     16
+#define RV1108_SCHMITT_PMU_PINS_PER_REG	8
 #define RV1108_SCHMITT_BANK_STRIDE      8
 
 #define RV1108_SCHMITT_PMU_GRF_OFFSET   0x30
@@ -1048,8 +1049,8 @@ static void rv1108_calc_schmitt_reg_and_bit(struct rockchip_pin_bank *bank,
 		*regmap = info->regmap_pmu;
 		*reg = RV1108_SCHMITT_PMU_GRF_OFFSET;
 
-		*reg += ((pin_num / RV1108_SCHMITT_PINS_PER_REG) * 4);
-		*bit = pin_num % RV1108_SCHMITT_PINS_PER_REG;
+		*reg += ((pin_num / RV1108_SCHMITT_PMU_PINS_PER_REG) * 4);
+		*bit = pin_num % RV1108_SCHMITT_PMU_PINS_PER_REG;
 	} else {
 		*regmap = info->regmap_base;
 		*reg = RV1108_SCHMITT_GRF_OFFSET;
