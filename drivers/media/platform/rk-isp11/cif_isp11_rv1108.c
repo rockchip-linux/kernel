@@ -271,18 +271,18 @@ static int soc_clk_disable(void)
 
 static int soc_isp_clk_cfg(int *data_rate)
 {
-	int isp_clk[] = {396, 480, 594};
+	int isp_clk[] = {400, 480, 594};
 	int tmp, i;
 	struct cif_isp11_clk_rst_rv1108 *clk_rst = &rv1108->clk_rst;
 
-	tmp = (*data_rate * 10) >> 6;
+	tmp = *data_rate >> 3;
 	for (i = 0; i < ARRAY_SIZE(isp_clk); i++)
 		if (tmp <= isp_clk[i])
 			break;
 	if (i == ARRAY_SIZE(isp_clk))
 		i--;
 
-	if (isp_clk[i] > 396)
+	if (isp_clk[i] > 400)
 		pr_warn("rv1108 isp signoff is 360MHz, using %dMHz maybe unstable\n",
 			isp_clk[i]);
 
