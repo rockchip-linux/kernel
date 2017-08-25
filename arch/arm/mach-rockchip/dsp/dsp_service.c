@@ -155,7 +155,7 @@ static int dsp_dequeue_work(struct dsp_session *session,
 	dsp_debug_enter();
 
 	timeout = wait_event_timeout(session->wait,
-				     !list_empty(&session->done), HZ);
+				     !list_empty(&session->done), 5 * HZ);
 	if (unlikely(timeout <= 0)) {
 		dsp_err("dequeue work timeout\n");
 		ret = -EBUSY;
@@ -283,7 +283,6 @@ static int dsp_service_clean_pending_works(struct dsp_service *service,
  */
 static int dsp_work_consume(void *data)
 {
-	int ret = 0;
 	struct dsp_service *service = data;
 	struct dsp_work *work;
 
@@ -305,16 +304,15 @@ static int dsp_work_consume(void *data)
 
 		work = list_first_entry(&service->pending,
 					struct dsp_work, list_node);
-		list_del(&work->list_node);
-		list_add_tail(&work->list_node, &service->running);
+
+		if (!service->dev->work(service->dev, work)) {
+			list_del(&work->list_node);
+			list_add_tail(&work->list_node, &service->running);
+			dsp_debug(DEBUG_SERVICE, "consume a work=0x%08x\n",
+				  work->id);
+		}
 
 		mutex_unlock(&service->work_lock);
-
-		dsp_debug(DEBUG_SERVICE, "consume a work=0x%08x\n", work->id);
-
-		ret = service->dev->work(service->dev, work);
-		if (ret)
-			dsp_err("fatal error, dsp work failed\n");
 	}
 
 	dsp_debug_leave();
