@@ -1116,7 +1116,9 @@ static irqreturn_t mpu6500_irq_work_func(int irq, void *data)
 
 	if ((gdata->tbuf1_count >= BUF_DATA_SIZE) ||
 	    (gdata->tbuf2_count >= BUF_DATA_SIZE)) {
+#ifdef MPU6500_TEST
 		pr_info("mpu6500 timestamp buffer overflow\n");
+#endif
 		mpu6500_fifo_reset();
 	}
 
