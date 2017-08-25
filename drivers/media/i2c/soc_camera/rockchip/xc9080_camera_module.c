@@ -705,6 +705,16 @@ int xc9080_camera_module_g_ctrl(struct v4l2_subdev *sd,
 		return 0;
 	}
 
+	if (ctrl->id == V4L2_CID_BAND_STOP_FILTER) {
+		struct v4l2_subdev *ircut_ctrl;
+
+		ircut_ctrl = pltfrm_camera_module_get_ircut_ctrl(sd);
+		if (!IS_ERR_OR_NULL(ircut_ctrl)) {
+			ret = v4l2_subdev_call(ircut_ctrl, core, g_ctrl, ctrl);
+			return ret;
+		}
+	}
+
 	if ((cam_mod->state != XC9080_CAMERA_MODULE_SW_STANDBY) &&
 		(cam_mod->state != XC9080_CAMERA_MODULE_STREAMING)) {
 		pltfrm_camera_module_pr_err(&cam_mod->sd,
@@ -718,16 +728,6 @@ int xc9080_camera_module_g_ctrl(struct v4l2_subdev *sd,
 		af_ctrl = pltfrm_camera_module_get_af_ctrl(sd);
 		if (!IS_ERR_OR_NULL(af_ctrl)) {
 			ret = v4l2_subdev_call(af_ctrl, core, g_ctrl, ctrl);
-			return ret;
-		}
-	}
-
-	if (ctrl->id == V4L2_CID_BAND_STOP_FILTER) {
-		struct v4l2_subdev *ircut_ctrl;
-
-		ircut_ctrl = pltfrm_camera_module_get_ircut_ctrl(sd);
-		if (!IS_ERR_OR_NULL(ircut_ctrl)) {
-			ret = v4l2_subdev_call(ircut_ctrl, core, g_ctrl, ctrl);
 			return ret;
 		}
 	}
