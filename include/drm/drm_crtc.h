@@ -117,6 +117,53 @@ enum subpixel_order {
 	SubPixelVerticalRGB,
 	SubPixelVerticalBGR,
 	SubPixelNone,
+
+};
+
+/**
+ * struct drm_scrambling: sink's scrambling support.
+ */
+struct drm_scrambling {
+	/**
+	 * @supported: scrambling supported for rates > 340 Mhz.
+	 */
+	bool supported;
+	/**
+	 * @low_rates: scrambling supported for rates <= 340 Mhz.
+	 */
+	bool low_rates;
+};
+
+/*
+ * struct drm_scdc - Information about scdc capabilities of a HDMI 2.0 sink
+ *
+ * Provides SCDC register support and capabilities related information on a
+ * HDMI 2.0 sink. In case of a HDMI 1.4 sink, all parameter must be 0.
+ */
+struct drm_scdc {
+	/**
+	 * @supported: status control & data channel present.
+	 */
+	bool supported;
+	/**
+	 * @read_request: sink is capable of generating scdc read request.
+	 */
+	bool read_request;
+	/**
+	 * @scrambling: sink's scrambling capabilities
+	 */
+	struct drm_scrambling scrambling;
+};
+
+
+/**
+ * struct drm_hdmi_info - runtime information about the connected HDMI sink
+ *
+ * Describes if a given display supports advanced HDMI 2.0 features.
+ * This information is available in CEA-861-F extension blocks (like HF-VSDB).
+ */
+struct drm_hdmi_info {
+	struct drm_scdc scdc;
 };
 
 #define DRM_COLOR_FORMAT_RGB444		(1<<0)
@@ -159,6 +206,11 @@ struct drm_display_info {
 	u8 edid_hdmi_dc_modes;
 
 	u8 cea_rev;
+
+	/**
+	 * @hdmi: advance features of a HDMI sink.
+	 */
+	struct drm_hdmi_info hdmi;
 };
 
 /* data corresponds to displayid vend/prod/serial */
@@ -270,11 +322,18 @@ struct drm_atomic_state;
  * @mode_changed: crtc_state->mode or crtc_state->enable has been changed
  * @active_changed: crtc_state->active has been toggled.
  * @connectors_changed: connectors to this crtc have been updated
+ * @color_mgmt_changed: color management properties have changed (degamma or
+ *	gamma LUT or CSC matrix)
  * @plane_mask: bitmask of (1 << drm_plane_index(plane)) of attached planes
  * @last_vblank_count: for helpers and drivers to capture the vblank of the
  * 	update to ensure framebuffer cleanup isn't done too early
  * @adjusted_mode: for use by helpers and drivers to compute adjusted mode timings
  * @mode: current mode timings
+ * @degamma_lut: Lookup table for converting framebuffer pixel data
+ *	before apply the conversion matrix
+ * @ctm: Transformation matrix
+ * @gamma_lut: Lookup table for converting pixel data after the
+ *	conversion matrix
  * @event: optional pointer to a DRM event to signal upon completion of the
  * 	state update
  * @state: backpointer to global drm_atomic_state
@@ -296,6 +355,7 @@ struct drm_crtc_state {
 	bool mode_changed : 1;
 	bool active_changed : 1;
 	bool connectors_changed : 1;
+	bool color_mgmt_changed : 1;
 
 	/* attached planes bitmask:
 	 * WARNING: transitional helpers do not maintain plane_mask so
@@ -314,6 +374,11 @@ struct drm_crtc_state {
 
 	/* blob property to expose current mode to atomic userspace */
 	struct drm_property_blob *mode_blob;
+
+	/* blob property to expose color management to userspace */
+	struct drm_property_blob *degamma_lut;
+	struct drm_property_blob *ctm;
+	struct drm_property_blob *gamma_lut;
 
 	struct drm_pending_vblank_event *event;
 
@@ -495,7 +560,7 @@ struct drm_crtc {
 	int x, y;
 	const struct drm_crtc_funcs *funcs;
 
-	/* CRTC gamma size for reporting to userspace */
+	/* Legacy FB CRTC gamma size for reporting to userspace */
 	uint32_t gamma_size;
 	uint16_t *gamma_store;
 
@@ -514,6 +579,35 @@ struct drm_crtc {
 };
 
 /**
+ * struct drm_tv_connector_state - TV connector related states
+ * @subconnector: selected subconnector
+ * @margins: left/right/top/bottom margins
+ * @mode: TV mode
+ * @brightness: brightness in percent
+ * @contrast: contrast in percent
+ * @flicker_reduction: flicker reduction in percent
+ * @overscan: overscan in percent
+ * @saturation: saturation in percent
+ * @hue: hue in percent
+ */
+struct drm_tv_connector_state {
+	enum drm_mode_subconnector subconnector;
+	struct {
+		unsigned int left;
+		unsigned int right;
+		unsigned int top;
+		unsigned int bottom;
+	} margins;
+	unsigned int mode;
+	unsigned int brightness;
+	unsigned int contrast;
+	unsigned int flicker_reduction;
+	unsigned int overscan;
+	unsigned int saturation;
+	unsigned int hue;
+};
+
+/**
  * struct drm_connector_state - mutable connector state
  * @connector: backpointer to the connector
  * @crtc: CRTC to connect connector to, NULL if disabled
@@ -528,6 +622,8 @@ struct drm_connector_state {
 	struct drm_encoder *best_encoder;
 
 	struct drm_atomic_state *state;
+
+	struct drm_tv_connector_state tv;
 };
 
 /**
@@ -657,6 +753,7 @@ struct drm_encoder_funcs {
 /**
  * struct drm_encoder - central DRM encoder structure
  * @dev: parent DRM device
+ * @port: OF node used by find encoder by node
  * @head: list management
  * @base: base KMS object
  * @name: encoder name
@@ -673,6 +770,7 @@ struct drm_encoder_funcs {
  */
 struct drm_encoder {
 	struct drm_device *dev;
+	struct device_node *port;
 	struct list_head head;
 
 	struct drm_mode_object base;
@@ -680,6 +778,7 @@ struct drm_encoder {
 	int encoder_type;
 	uint32_t possible_crtcs;
 	uint32_t possible_clones;
+	bool loader_protect;
 
 	struct drm_crtc *crtc;
 	struct drm_bridge *bridge;
@@ -734,11 +833,6 @@ struct drm_encoder {
  * @audio_latency: audio latency info from ELD, if found
  * @null_edid_counter: track sinks that give us all zeros for the EDID
  * @bad_edid_counter: track sinks that give us an EDID with invalid checksum
- * @max_tmds_char: indicates the maximum TMDS Character Rate supported
- * @scdc_present: when set the sink supports SCDC functionality
- * @rr_capable: when set the sink is capable of initiating an SCDC read request
- * @lte_340mcsc_scramble: when set the sink supports less than 340Mcsc scramble
- * @flags_3d: 3D view(s) supported by the sink, see drm_edid.h (DRM_EDID_3D_*)
  * @edid_corrupt: indicates whether the last read EDID was corrupt
  * @debugfs_entry: debugfs directory for this connector
  * @state: current atomic state for this connector
@@ -811,13 +905,6 @@ struct drm_connector {
 	int audio_latency[2];
 	int null_edid_counter; /* needed to workaround some HW bugs where we get all 0s */
 	unsigned bad_edid_counter;
-
-	/* EDID bits HDMI 2.0 */
-	int max_tmds_char;	/* in Mcsc */
-	bool scdc_present;
-	bool rr_capable;
-	bool lte_340mcsc_scramble;
-	int flags_3d;
 
 	/* Flag for raw EDID header corruption - used in Displayport
 	 * compliance testing - * Displayport Link CTS Core 1.2 rev1.1 4.2.2.6
@@ -1015,12 +1102,79 @@ struct drm_bridge_funcs {
 	bool (*mode_fixup)(struct drm_bridge *bridge,
 			   const struct drm_display_mode *mode,
 			   struct drm_display_mode *adjusted_mode);
+	/**
+	 * @disable:
+	 *
+	 * This callback should disable the bridge. It is called right before
+	 * the preceding element in the display pipe is disabled. If the
+	 * preceding element is a bridge this means it's called before that
+	 * bridge's ->disable() function. If the preceding element is a
+	 * &drm_encoder it's called right before the encoder's ->disable(),
+	 * ->prepare() or ->dpms() hook from struct &drm_encoder_helper_funcs.
+	 *
+	 * The bridge can assume that the display pipe (i.e. clocks and timing
+	 * signals) feeding it is still running when this callback is called.
+	 *
+	 * The disable callback is optional.
+	 */
 	void (*disable)(struct drm_bridge *bridge);
+
+	/**
+	 * @post_disable:
+	 *
+	 * This callback should disable the bridge. It is called right after
+	 * the preceding element in the display pipe is disabled. If the
+	 * preceding element is a bridge this means it's called after that
+	 * bridge's ->post_disable() function. If the preceding element is a
+	 * &drm_encoder it's called right after the encoder's ->disable(),
+	 * ->prepare() or ->dpms() hook from struct &drm_encoder_helper_funcs.
+	 *
+	 * The bridge must assume that the display pipe (i.e. clocks and timing
+	 * singals) feeding it is no longer running when this callback is
+	 * called.
+	 *
+	 * The post_disable callback is optional.
+	 */
 	void (*post_disable)(struct drm_bridge *bridge);
 	void (*mode_set)(struct drm_bridge *bridge,
 			 struct drm_display_mode *mode,
 			 struct drm_display_mode *adjusted_mode);
+	/**
+	 * @pre_enable:
+	 *
+	 * This callback should enable the bridge. It is called right before
+	 * the preceding element in the display pipe is enabled. If the
+	 * preceding element is a bridge this means it's called before that
+	 * bridge's ->pre_enable() function. If the preceding element is a
+	 * &drm_encoder it's called right before the encoder's ->enable(),
+	 * ->commit() or ->dpms() hook from struct &drm_encoder_helper_funcs.
+	 *
+	 * The display pipe (i.e. clocks and timing signals) feeding this bridge
+	 * will not yet be running when this callback is called. The bridge must
+	 * not enable the display link feeding the next bridge in the chain (if
+	 * there is one) when this callback is called.
+	 *
+	 * The pre_enable callback is optional.
+	 */
 	void (*pre_enable)(struct drm_bridge *bridge);
+
+	/**
+	 * @enable:
+	 *
+	 * This callback should enable the bridge. It is called right after
+	 * the preceding element in the display pipe is enabled. If the
+	 * preceding element is a bridge this means it's called after that
+	 * bridge's ->enable() function. If the preceding element is a
+	 * &drm_encoder it's called right after the encoder's ->enable(),
+	 * ->commit() or ->dpms() hook from struct &drm_encoder_helper_funcs.
+	 *
+	 * The bridge can assume that the display pipe (i.e. clocks and timing
+	 * signals) feeding it is running when this callback is called. This
+	 * callback must enable the display link feeding the next bridge in the
+	 * chain if there is one.
+	 *
+	 * The enable callback is optional.
+	 */
 	void (*enable)(struct drm_bridge *bridge);
 };
 
@@ -1167,6 +1321,15 @@ struct drm_mode_config_funcs {
  * @property_blob_list: list of all the blob property objects
  * @blob_lock: mutex for blob property allocation and management
  * @*_property: core property tracking
+ * @degamma_lut_property: LUT used to convert the framebuffer's colors to linear
+ *	gamma
+ * @degamma_lut_size_property: size of the degamma LUT as supported by the
+ *	driver (read-only)
+ * @ctm_property: Matrix used to convert colors after the lookup in the
+ *	degamma LUT
+ * @gamma_lut_property: LUT used to convert the colors, after the CSC matrix, to
+ *	the gamma space of the connected screen (read-only)
+ * @gamma_lut_size_property: size of the gamma LUT as supported by the driver
  * @preferred_depth: preferred RBG pixel depth, used by fb helpers
  * @prefer_shadow: hint to userspace to prefer shadow-fb rendering
  * @async_page_flip: does this device support async flips on the primary plane?
@@ -1273,6 +1436,13 @@ struct drm_mode_config {
 	struct drm_property *scaling_mode_property;
 	struct drm_property *aspect_ratio_property;
 	struct drm_property *dirty_info_property;
+
+	/* Optional color correction properties */
+	struct drm_property *degamma_lut_property;
+	struct drm_property *degamma_lut_size_property;
+	struct drm_property *ctm_property;
+	struct drm_property *gamma_lut_property;
+	struct drm_property *gamma_lut_size_property;
 
 	/* properties for virtual machine layout */
 	struct drm_property *suggested_x_property;
@@ -1689,6 +1859,21 @@ static inline struct drm_property *drm_property_find(struct drm_device *dev,
 	struct drm_mode_object *mo;
 	mo = drm_mode_object_find(dev, id, DRM_MODE_OBJECT_PROPERTY);
 	return mo ? obj_to_property(mo) : NULL;
+}
+
+/*
+ * Extract a degamma/gamma LUT value provided by user and round it to the
+ * precision supported by the hardware.
+ */
+static inline uint32_t drm_color_lut_extract(uint32_t user_input,
+					     uint32_t bit_precision)
+{
+	uint32_t val = user_input + (1 << (16 - bit_precision - 1));
+	uint32_t max = 0xffff >> (16 - bit_precision);
+
+	val >>= 16 - bit_precision;
+
+	return clamp_val(val, 0, max);
 }
 
 /* Plane list iterator for legacy (overlay only) planes. */

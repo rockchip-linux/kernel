@@ -44,6 +44,7 @@
 #include <dt-bindings/pinctrl/rockchip.h>
 #include <dt-bindings/clock/rk3228-cru.h>
 #include <dt-bindings/suspend/rockchip-rk322x.h>
+#include <dt-bindings/soc/rockchip,boot-mode.h>
 #include <dt-bindings/thermal/thermal.h>
 #include "skeleton.dtsi"
 
@@ -54,6 +55,7 @@
 		serial0 = &uart0;
 		serial1 = &uart1;
 		serial2 = &uart2;
+		spi0 = &spi0;
 	};
 
 	cpus {
@@ -67,6 +69,7 @@
 			resets = <&cru SRST_CORE0>;
 			operating-points-v2 = <&cpu0_opp_table>;
 			#cooling-cells = <2>; /* min followed by max */
+			dynamic-power-coefficient = <122>;
 			clock-latency = <40000>;
 			clocks = <&cru ARMCLK>;
 		};
@@ -237,6 +240,16 @@
 			status = "disabled";
 		};
 
+		reboot-mode {
+			compatible = "syscon-reboot-mode";
+			offset = <0x5c8>;
+			mode-normal = <BOOT_NORMAL>;
+			mode-recovery = <BOOT_RECOVERY>;
+			mode-bootloader = <BOOT_FASTBOOT>;
+			mode-loader = <BOOT_BL_DOWNLOAD>;
+			mode-ums = <BOOT_UMS>;
+		};
+
 		u2phy0: usb2-phy@760 {
 			compatible = "rockchip,rk322x-usb2phy";
 			reg = <0x0760 0x0c>;
@@ -400,6 +413,19 @@
 		status = "disabled";
 	};
 
+	spi0: spi@11090000 {
+		compatible = "rockchip,rk3228-spi";
+		reg = <0x11090000 0x1000>;
+		interrupts = <GIC_SPI 49 IRQ_TYPE_LEVEL_HIGH>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&spi0_clk &spi0_tx &spi0_rx &spi0_cs0 &spi0_cs1>;
+		clocks = <&cru SCLK_SPI0>, <&cru PCLK_SPI0>;
+		clock-names = "spiclk", "apb_pclk";
+		status = "disabled";
+	};
+
 	wdt: watchdog@110a0000 {
 		compatible = "rockchip,rk322x-wdt", "snps,dw-wdt";
 		reg = <0x110a0000 0x100>;
@@ -480,25 +506,26 @@
 			<75000000>;
 	};
 
-	thermal-zones {
-		cpu_thermal: cpu-thermal {
+	thermal_zones: thermal-zones {
+		soc_thermal: soc-thermal {
 			polling-delay-passive = <100>; /* milliseconds */
 			polling-delay = <5000>; /* milliseconds */
+			sustainable-power = <1200>; /* milliwatts */
 
 			thermal-sensors = <&tsadc 0>;
 
 			trips {
-				cpu_alert0: cpu_alert0 {
+				threshold: trip-point@0 {
 					temperature = <70000>; /* millicelsius */
 					hysteresis = <2000>; /* millicelsius */
 					type = "passive";
 				};
-				cpu_alert1: cpu_alert1 {
-					temperature = <75000>; /* millicelsius */
+				target: trip-point@1 {
+					temperature = <85000>; /* millicelsius */
 					hysteresis = <2000>; /* millicelsius */
 					type = "passive";
 				};
-				cpu_crit: cpu_crit {
+				soc_crit: soc-crit {
 					temperature = <90000>; /* millicelsius */
 					hysteresis = <2000>; /* millicelsius */
 					type = "critical";
@@ -507,14 +534,16 @@
 
 			cooling-maps {
 				map0 {
-					trip = <&cpu_alert0>;
+					trip = <&target>;
 					cooling-device =
-						<&cpu0 THERMAL_NO_LIMIT 6>;
+					<&cpu0 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+					contribution = <1024>;
 				};
 				map1 {
-					trip = <&cpu_alert1>;
+					trip = <&target>;
 					cooling-device =
-						<&cpu0 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+					<&gpu THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+					contribution = <1024>;
 				};
 			};
 		};
@@ -582,9 +611,20 @@
 				  "Mali_PP1_IRQ",
 				  "Mali_PP1_MMU_IRQ";
 		clocks = <&cru ACLK_GPU>;
+		#cooling-cells = <2>; /* min followed by max */
 		clock-names = "clk_mali";
 		operating-points-v2 = <&gpu_opp_table>;
 		status = "disabled";
+
+		gpu_power_model: power_model {
+			compatible = "arm,mali-simple-power-model";
+			voltage = <900>;
+			frequency = <500>;
+			static-power = <300>;
+			dynamic-power = <396>;
+			ts = <32000 4700 (-80) 2>;
+			thermal-zone = "soc-thermal";
+		};
 	};
 
 	gpu_opp_table: opp-table2 {
@@ -607,6 +647,7 @@
 	vop: vop@20050000 {
 		compatible = "rockchip,rk322x-vop";
 		reg = <0x20050000 0x1ffc>, <0x20052000 0x1000>;
+		reg-names = "regs", "gamma_lut";
 		interrupts = <GIC_SPI 32 IRQ_TYPE_LEVEL_HIGH>;
 		clocks = <&cru ACLK_VOP>, <&cru DCLK_VOP>, <&cru HCLK_VOP>;
 		clock-names = "aclk_vop", "dclk_vop", "hclk_vop";
@@ -1039,6 +1080,42 @@
 			i2c3_xfer: i2c3-xfer {
 				rockchip,pins = <0 6 RK_FUNC_1 &pcfg_pull_none>,
 						<0 7 RK_FUNC_1 &pcfg_pull_none>;
+			};
+		};
+
+		spi-0 {
+			spi0_clk: spi0-clk {
+				rockchip,pins = <0 9 RK_FUNC_2 &pcfg_pull_up>;
+			};
+			spi0_cs0: spi0-cs0 {
+				rockchip,pins = <0 14 RK_FUNC_2 &pcfg_pull_up>;
+			};
+			spi0_tx: spi0-tx {
+				rockchip,pins = <0 11 RK_FUNC_2 &pcfg_pull_up>;
+			};
+			spi0_rx: spi0-rx {
+				rockchip,pins = <0 13 RK_FUNC_2 &pcfg_pull_up>;
+			};
+			spi0_cs1: spi0-cs1 {
+				rockchip,pins = <1 12 RK_FUNC_1 &pcfg_pull_up>;
+			};
+		};
+
+		spi-1 {
+			spi1_clk: spi1-clk {
+				rockchip,pins = <0 23 RK_FUNC_2 &pcfg_pull_up>;
+			};
+			spi1_cs0: spi1-cs0 {
+				rockchip,pins = <2 2 RK_FUNC_2 &pcfg_pull_up>;
+			};
+			spi1_rx: spi1-rx {
+				rockchip,pins = <2 0 RK_FUNC_2 &pcfg_pull_up>;
+			};
+			spi1_tx: spi1-tx {
+				rockchip,pins = <2 1 RK_FUNC_2 &pcfg_pull_up>;
+			};
+			spi1_cs1: spi1-cs1 {
+				rockchip,pins = <2 3 RK_FUNC_2 &pcfg_pull_up>;
 			};
 		};
 

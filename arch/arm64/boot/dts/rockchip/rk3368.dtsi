@@ -47,6 +47,7 @@
 #include <dt-bindings/pinctrl/rockchip.h>
 #include <dt-bindings/power/rk3368-power.h>
 #include <dt-bindings/soc/rockchip,boot-mode.h>
+#include <dt-bindings/soc/rockchip-system-status.h>
 #include <dt-bindings/suspend/rockchip-rk3368.h>
 #include <dt-bindings/thermal/thermal.h>
 #include <dt-bindings/display/mipi_dsi.h>
@@ -219,7 +220,7 @@
 	cluster0_opp: opp_table0 {
 		compatible = "operating-points-v2";
 		opp-shared;
-		leakage-voltage-sel = <
+		rockchip,leakage-voltage-sel = <
 			1   24   0
 			25  254  1
 		>;
@@ -274,12 +275,12 @@
 	cluster1_opp: opp_table1 {
 		compatible = "operating-points-v2";
 		opp-shared;
-		leakage-scaling-sel = <
+		rockchip,leakage-scaling-sel = <
 			1   24   36
 			25  254  0
 		>;
 		clocks = <&cru PLL_APLLB>;
-		leakage-voltage-sel = <
+		rockchip,leakage-voltage-sel = <
 			1   24   0
 			25  254  1
 		>;
@@ -1201,6 +1202,20 @@
 		downdifferential = <20>;
 		operating-points-v2 = <&dmc_opp_table>;
 		vop-dclk-mode = <0>;
+		system-status-freq = <
+			/*system status		freq(KHz)*/
+			SYS_STATUS_NORMAL	600000
+			SYS_STATUS_REBOOT	600000
+			SYS_STATUS_SUSPEND	192000
+			SYS_STATUS_VIDEO_1080P	300000
+			SYS_STATUS_VIDEO_4K	600000
+			SYS_STATUS_PERFORMANCE	600000
+			SYS_STATUS_BOOST	396000
+			SYS_STATUS_DUALVIEW	600000
+			SYS_STATUS_ISP		528000
+		>;
+		auto-min-freq = <396000>;
+		auto-freq-en = <0>;
 		status = "disabled";
 	};
 
@@ -1351,6 +1366,7 @@
 	vop: vop@ff930000 {
 		compatible = "rockchip,rk3368-vop";
 		reg = <0x0 0xff930000 0x0 0x2fc>, <0x0 0xff931000 0x0 0x400>;
+		reg-names = "regs", "gamma_lut";
 		interrupts = <GIC_SPI 15 IRQ_TYPE_LEVEL_HIGH>;
 		clocks = <&cru ACLK_VOP>, <&cru DCLK_VOP>, <&cru HCLK_VOP>;
 		clock-names = "aclk_vop", "dclk_vop", "hclk_vop";
@@ -1366,9 +1382,9 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 
-			vop_out_mipi: endpoint@0 {
+			vop_out_dsi: endpoint@0 {
 				reg = <0>;
-				remote-endpoint = <&mipi_in_vop>;
+				remote-endpoint = <&dsi_in_vop>;
 			};
 
 			vop_out_edp: endpoint@1 {
@@ -1406,12 +1422,12 @@
 		status = "disabled";
 	};
 
-	mipi_dsi_host: mipi-dsi-host@ff960000 {
+	dsi: dsi@ff960000 {
 		compatible = "rockchip,rk3368-mipi-dsi";
 		reg = <0x0 0xff960000 0x0 0x4000>;
 		interrupts = <GIC_SPI 19 IRQ_TYPE_LEVEL_HIGH>;
-		clocks = <&cru PCLK_MIPI_DSI0>;
-		clock-names = "pclk";
+		clocks = <&cru PCLK_MIPI_DSI0>, <&mipi_dphy>;
+		clock-names = "pclk", "hs_clk";
 		resets = <&cru SRST_MIPIDSI0>;
 		reset-names = "apb";
 		phys = <&mipi_dphy>;
@@ -1424,8 +1440,8 @@
 
 		ports {
 			port {
-				mipi_in_vop: endpoint {
-					remote-endpoint = <&vop_out_mipi>;
+				dsi_in_vop: endpoint {
+					remote-endpoint = <&vop_out_dsi>;
 				};
 			};
 		};
@@ -1434,17 +1450,19 @@
 	mipi_dphy: mipi-dphy@ff968000 {
 		compatible = "rockchip,rk3368-mipi-dphy";
 		reg = <0x0 0xff968000 0x0 0x4000>;
-		#phy-cells = <0>;
 		clocks = <&cru SCLK_MIPIDSI_24M>, <&cru PCLK_DPHYTX0>;
 		clock-names = "ref", "pclk";
+		clock-output-names = "mipi_dphy_pll";
+		#clock-cells = <0>;
 		resets = <&cru SRST_MIPIDPHYTX>;
 		reset-names = "apb";
+		#phy-cells = <0>;
 		status = "disabled";
 	};
 
 	lvds: lvds@ff968000 {
-		compatible = "rockchip,rk33xx-lvds";
-		reg = <0x0 0xff968000 0x0 0x4000>, <0x0 0xff9600a0 0x0 0x20>;
+		compatible = "rockchip,rk3368-lvds";
+		reg = <0x0 0xff968000 0x0 0x4000>, <0x0 0xff960000 0x0 0x100>;
 		reg-names = "mipi_lvds_phy", "mipi_lvds_ctl";
 		clocks = <&cru PCLK_DPHYTX0>, <&cru PCLK_MIPI_DSI0>;
 		clock-names = "pclk_lvds", "pclk_lvds_ctl";
@@ -1908,7 +1926,7 @@
 
 		pwm3 {
 			pwm3_pin: pwm3-pin {
-				rockchip,pins = <3 29 RK_FUNC_3 &pcfg_pull_none>;
+				rockchip,pins = <3 30 RK_FUNC_3 &pcfg_pull_none>;
 			};
 		};
 
@@ -2193,7 +2211,7 @@
 					<0 31 RK_FUNC_1 &pcfg_pull_none>,  /* DCLK */
 					<0 30 RK_FUNC_1 &pcfg_pull_none>,  /* DEN */
 					<0 28 RK_FUNC_1 &pcfg_pull_none>,  /* HSYNC */
-					<0 28 RK_FUNC_1 &pcfg_pull_none>;  /* VSYN */
+					<0 29 RK_FUNC_1 &pcfg_pull_none>;  /* VSYN */
 			};
 
 			lcdc_gpio: lcdc-gpio {

@@ -19,17 +19,14 @@
 
 /* memory type definitions. */
 enum drm_rockchip_gem_mem_type {
-	/* Physically Continuous memory and used as default. */
-	ROCKCHIP_BO_CONTIG	= 0 << 0,
-	/* Physically Non-Continuous memory. */
-	ROCKCHIP_BO_NONCONTIG	= 1 << 0,
-	/* non-cachable mapping and used as default. */
-	ROCKCHIP_BO_NONCACHABLE	= 0 << 1,
+	/* Physically Continuous memory. */
+	ROCKCHIP_BO_CONTIG	= 1 << 0,
 	/* cachable mapping. */
 	ROCKCHIP_BO_CACHABLE	= 1 << 1,
 	/* write-combine mapping. */
 	ROCKCHIP_BO_WC		= 1 << 2,
-	ROCKCHIP_BO_MASK	= ROCKCHIP_BO_NONCONTIG | ROCKCHIP_BO_CACHABLE |
+	ROCKCHIP_BO_SECURE	= 1 << 3,
+	ROCKCHIP_BO_MASK	= ROCKCHIP_BO_CONTIG | ROCKCHIP_BO_CACHABLE |
 				ROCKCHIP_BO_WC
 };
 
@@ -45,6 +42,11 @@ struct drm_rockchip_gem_create {
 	uint64_t size;
 	uint32_t flags;
 	uint32_t handle;
+};
+
+struct drm_rockchip_gem_phys {
+	uint32_t handle;
+	uint32_t phy_addr;
 };
 
 /**
@@ -125,10 +127,18 @@ enum rockchip_crtc_feture {
 	ROCKCHIP_DRM_CRTC_FEATURE_AFBDC,
 };
 
+enum rockchip_cabc_mode {
+	ROCKCHIP_DRM_CABC_MODE_DISABLE,
+	ROCKCHIP_DRM_CABC_MODE_NORMAL,
+	ROCKCHIP_DRM_CABC_MODE_LOWPOWER,
+	ROCKCHIP_DRM_CABC_MODE_USERSPACE,
+};
+
 #define DRM_ROCKCHIP_GEM_CREATE		0x00
 #define DRM_ROCKCHIP_GEM_MAP_OFFSET	0x01
 #define DRM_ROCKCHIP_GEM_CPU_ACQUIRE	0x02
 #define DRM_ROCKCHIP_GEM_CPU_RELEASE	0x03
+#define DRM_ROCKCHIP_GEM_GET_PHYS	0x04
 
 #define DRM_ROCKCHIP_RGA_GET_VER	0x20
 #define DRM_ROCKCHIP_RGA_SET_CMDLIST	0x21
@@ -145,6 +155,9 @@ enum rockchip_crtc_feture {
 
 #define DRM_IOCTL_ROCKCHIP_GEM_CPU_RELEASE	DRM_IOWR(DRM_COMMAND_BASE + \
 		DRM_ROCKCHIP_GEM_CPU_RELEASE, struct drm_rockchip_gem_cpu_release)
+
+#define DRM_IOCTL_ROCKCHIP_GEM_GET_PHYS		DRM_IOWR(DRM_COMMAND_BASE + \
+		DRM_ROCKCHIP_GEM_GET_PHYS, struct drm_rockchip_gem_phys)
 
 #define DRM_IOCTL_ROCKCHIP_RGA_GET_VER		DRM_IOWR(DRM_COMMAND_BASE + \
 		DRM_ROCKCHIP_RGA_GET_VER, struct drm_rockchip_rga_get_ver)

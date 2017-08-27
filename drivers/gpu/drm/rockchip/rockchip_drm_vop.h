@@ -23,9 +23,23 @@
 #define VOP_MAJOR(version) 	((version) >> 8)
 #define VOP_MINOR(version) 	((version) & 0xff)
 
+#define ROCKCHIP_OUTPUT_DSI_DUAL_CHANNEL	BIT(0)
+#define ROCKCHIP_OUTPUT_DSI_DUAL_LINK		BIT(1)
+
 #define AFBDC_FMT_RGB565	0x0
 #define AFBDC_FMT_U8U8U8U8	0x5
 #define AFBDC_FMT_U8U8U8	0x4
+
+enum cabc_stage_mode {
+	LAST_FRAME_PWM_VAL	= 0x0,
+	CUR_FRAME_PWM_VAL	= 0x1,
+	STAGE_BY_STAGE		= 0x2
+};
+
+enum cabc_stage_up_mode {
+	MUL_MODE,
+	ADD_MODE,
+};
 
 enum vop_csc_format {
 	CSC_BT601,
@@ -95,15 +109,26 @@ struct vop_ctrl {
 	struct vop_reg dclk_ddr;
 	struct vop_reg p2i_en;
 	struct vop_reg rgb_en;
+	struct vop_reg lvds_en;
 	struct vop_reg edp_en;
 	struct vop_reg hdmi_en;
 	struct vop_reg mipi_en;
+	struct vop_reg data01_swap;
+	struct vop_reg mipi_dual_channel_en;
 	struct vop_reg dp_en;
+	struct vop_reg dclk_pol;
 	struct vop_reg pin_pol;
+	struct vop_reg rgb_dclk_pol;
 	struct vop_reg rgb_pin_pol;
+	struct vop_reg lvds_dclk_pol;
+	struct vop_reg lvds_pin_pol;
+	struct vop_reg hdmi_dclk_pol;
 	struct vop_reg hdmi_pin_pol;
+	struct vop_reg edp_dclk_pol;
 	struct vop_reg edp_pin_pol;
+	struct vop_reg mipi_dclk_pol;
 	struct vop_reg mipi_pin_pol;
+	struct vop_reg dp_dclk_pol;
 	struct vop_reg dp_pin_pol;
 	struct vop_reg dither_up;
 	struct vop_reg dither_down;
@@ -138,6 +163,35 @@ struct vop_ctrl {
 	struct vop_reg afbdc_pic_size;
 	struct vop_reg afbdc_hdr_ptr;
 	struct vop_reg afbdc_rstn;
+
+	/* CABC */
+	struct vop_reg cabc_total_num;
+	struct vop_reg cabc_config_mode;
+	struct vop_reg cabc_stage_up_mode;
+	struct vop_reg cabc_scale_cfg_value;
+	struct vop_reg cabc_scale_cfg_enable;
+	struct vop_reg cabc_global_dn_limit_en;
+	struct vop_reg cabc_lut_en;
+	struct vop_reg cabc_en;
+	struct vop_reg cabc_handle_en;
+	struct vop_reg cabc_stage_up;
+	struct vop_reg cabc_stage_down;
+	struct vop_reg cabc_global_dn;
+	struct vop_reg cabc_calc_pixel_num;
+
+	/* BCSH */
+	struct vop_reg bcsh_brightness;
+	struct vop_reg bcsh_contrast;
+	struct vop_reg bcsh_sat_con;
+	struct vop_reg bcsh_sin_hue;
+	struct vop_reg bcsh_cos_hue;
+	struct vop_reg bcsh_r2y_csc_mode;
+	struct vop_reg bcsh_r2y_en;
+	struct vop_reg bcsh_y2r_csc_mode;
+	struct vop_reg bcsh_y2r_en;
+	struct vop_reg bcsh_color_bar;
+	struct vop_reg bcsh_out_mode;
+	struct vop_reg bcsh_en;
 
 	struct vop_reg cfg_done;
 };
@@ -426,7 +480,6 @@ enum vop_pol {
 	HSYNC_POSITIVE = 0,
 	VSYNC_POSITIVE = 1,
 	DEN_NEGATIVE   = 2,
-	DCLK_INVERT    = 3
 };
 
 #define FRAC_16_16(mult, div)    (((mult) << 16) / (div))
@@ -503,6 +556,11 @@ static inline int scl_vop_cal_lb_mode(int width, bool is_yuv)
 static inline int us_to_vertical_line(struct drm_display_mode *mode, int us)
 {
 	return us * mode->clock / mode->htotal / 1000;
+}
+
+static inline int interpolate(int x1, int y1, int x2, int y2, int x)
+{
+	return y1 + (y2 - y1) * (x - x1) / (x2 - x1);
 }
 
 extern const struct component_ops vop_component_ops;

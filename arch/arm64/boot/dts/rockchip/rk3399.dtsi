@@ -47,6 +47,7 @@
 #include <dt-bindings/pinctrl/rockchip.h>
 #include <dt-bindings/power/rk3399-power.h>
 #include <dt-bindings/soc/rockchip,boot-mode.h>
+#include <dt-bindings/soc/rockchip-system-status.h>
 #include <dt-bindings/suspend/rockchip-rk3399.h>
 #include <dt-bindings/thermal/thermal.h>
 
@@ -74,6 +75,8 @@
 		serial2 = &uart2;
 		serial3 = &uart3;
 		serial4 = &uart4;
+		dsi0 = &dsi;
+		dsi1 = &dsi1;
 	};
 
 	cpus {
@@ -1115,6 +1118,8 @@
 			compatible = "rockchip,rk3399-pmu-pvtm";
 			clocks = <&pmucru SCLK_PVTM_PMU>;
 			clock-names = "pmu";
+			resets = <&cru SRST_PVTM>;
+			reset-names = "pmu";
 			status = "disabled";
 		};
 	};
@@ -1286,6 +1291,23 @@
 		clocks = <&cru SCLK_DDRCLK>;
 		clock-names = "dmc_clk";
 		ddr_timing = <&ddr_timing>;
+		upthreshold = <40>;
+		downdifferential = <20>;
+		system-status-freq = <
+			/*system status         freq(KHz)*/
+			SYS_STATUS_NORMAL       800000
+			SYS_STATUS_REBOOT       528000
+			SYS_STATUS_SUSPEND      200000
+			SYS_STATUS_VIDEO_1080P  300000
+			SYS_STATUS_VIDEO_4K     600000
+			SYS_STATUS_VIDEO_4K_10B 800000
+			SYS_STATUS_PERFORMANCE  800000
+			SYS_STATUS_BOOST        400000
+			SYS_STATUS_DUALVIEW     600000
+			SYS_STATUS_ISP          600000
+		>;
+		auto-min-freq = <400000>;
+		auto-freq-en = <1>;
 		status = "disabled";
 	};
 
@@ -1333,8 +1355,11 @@
 			 <&cru SCLK_VDU_CA>, <&cru SCLK_VDU_CORE>;
 		clock-names = "aclk_vcodec", "hclk_vcodec",
 			      "clk_cabac", "clk_core";
-		resets = <&cru SRST_H_VDU>, <&cru SRST_A_VDU>;
-		reset-names = "video_h", "video_a";
+		resets = <&cru SRST_H_VDU>, <&cru SRST_A_VDU>,
+			<&cru SRST_VDU_CORE>, <&cru SRST_VDU_CA>,
+			<&cru SRST_A_VDU_NOC>, <&cru SRST_H_VDU_NOC>;
+		reset-names = "video_h", "video_a", "video_core", "video_cabac",
+				"niu_a", "niu_h";
 		power-domains = <&power RK3399_PD_VDU>;
 		dev_mode = <2>;
 		name = "rkvdec";
@@ -1381,7 +1406,6 @@
 		compatible = "rockchip,rk3399-rga";
 		reg = <0x0 0xff680000 0x0 0x10000>;
 		interrupts = <GIC_SPI 55 IRQ_TYPE_LEVEL_HIGH 0>;
-		interrupt-names = "rga";
 		clocks = <&cru ACLK_RGA>, <&cru HCLK_RGA>, <&cru SCLK_RGA_CORE>;
 		clock-names = "aclk", "hclk", "sclk";
 		resets = <&cru SRST_RGA_CORE>, <&cru SRST_A_RGA>, <&cru SRST_H_RGA>;
@@ -1541,6 +1565,11 @@
 				 <&cru SCLK_PVTM_GPU>,
 				 <&cru SCLK_PVTM_DDR>;
 			clock-names = "core_l", "core_b", "gpu", "ddr";
+			resets = <&cru SRST_PVTM_CORE_L>,
+				 <&cru SRST_PVTM_CORE_B>,
+				 <&cru SRST_PVTM_GPU>,
+				 <&cru SRST_PVTM_DDR>;
+			reset-names = "core_l", "core_b", "gpu", "ddr";
 			status = "disabled";
 		};
 	};
@@ -1714,7 +1743,10 @@
 
 	vopl: vop@ff8f0000 {
 		compatible = "rockchip,rk3399-vop-lit";
-		reg = <0x0 0xff8f0000 0x0 0x1ffc>, <0x0 0xff8f2000 0x0 0x400>;
+		reg = <0x0 0xff8f0000 0x0 0x600>,
+			<0x0 0xff8f1c00 0x0 0x200>,
+			<0x0 0xff8f2000 0x0 0x400>;
+		reg-names = "regs", "cabc_lut", "gamma_lut";
 		interrupts = <GIC_SPI 119 IRQ_TYPE_LEVEL_HIGH 0>;
 		clocks = <&cru ACLK_VOP1>, <&cru DCLK_VOP1>, <&cru HCLK_VOP1>, <&cru DCLK_VOP1_DIV>;
 		clock-names = "aclk_vop", "dclk_vop", "hclk_vop", "dclk_source";
@@ -1728,9 +1760,9 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 
-			vopl_out_mipi: endpoint@0 {
+			vopl_out_dsi: endpoint@0 {
 				reg = <0>;
-				remote-endpoint = <&mipi_in_vopl>;
+				remote-endpoint = <&dsi_in_vopl>;
 			};
 
 			vopl_out_edp: endpoint@1 {
@@ -1746,6 +1778,11 @@
 			vopl_out_dp: endpoint@3 {
 				reg = <3>;
 				remote-endpoint = <&dp_in_vopl>;
+			};
+
+			vopl_out_dsi1: endpoint@4 {
+				reg = <4>;
+				remote-endpoint = <&dsi1_in_vopl>;
 			};
 		};
 	};
@@ -1775,7 +1812,10 @@
 
 	vopb: vop@ff900000 {
 		compatible = "rockchip,rk3399-vop-big";
-		reg = <0x0 0xff900000 0x0 0x1ffc>, <0x0 0xff902000 0x0 0x1000>;
+		reg = <0x0 0xff900000 0x0 0x600>,
+			<0x0 0xff901c00 0x0 0x200>,
+			<0x0 0xff902000 0x0 0x1000>;
+		reg-names = "regs", "cabc_lut", "gamma_lut";
 		interrupts = <GIC_SPI 118 IRQ_TYPE_LEVEL_HIGH 0>;
 		clocks = <&cru ACLK_VOP0>, <&cru DCLK_VOP0>, <&cru HCLK_VOP0>, <&cru DCLK_VOP0_DIV>;
 		clock-names = "aclk_vop", "dclk_vop", "hclk_vop", "dclk_source";
@@ -1794,9 +1834,9 @@
 				remote-endpoint = <&edp_in_vopb>;
 			};
 
-			vopb_out_mipi: endpoint@1 {
+			vopb_out_dsi: endpoint@1 {
 				reg = <1>;
-				remote-endpoint = <&mipi_in_vopb>;
+				remote-endpoint = <&dsi_in_vopb>;
 			};
 
 			vopb_out_hdmi: endpoint@2 {
@@ -1807,6 +1847,11 @@
 			vopb_out_dp: endpoint@3 {
 				reg = <3>;
 				remote-endpoint = <&dp_in_vopb>;
+			};
+
+			vopb_out_dsi1: endpoint@4 {
+				reg = <4>;
+				remote-endpoint = <&dsi1_in_vopb>;
 			};
 		};
 	};
@@ -1889,13 +1934,15 @@
 		};
 	};
 
-	mipi_dsi: mipi@ff960000 {
-		compatible = "rockchip,rk3399-mipi-dsi", "snps,dw-mipi-dsi";
+	dsi: dsi@ff960000 {
+		compatible = "rockchip,rk3399-mipi-dsi";
 		reg = <0x0 0xff960000 0x0 0x8000>;
 		interrupts = <GIC_SPI 45 IRQ_TYPE_LEVEL_HIGH 0>;
-		clocks = <&cru SCLK_MIPIDPHY_REF>, <&cru PCLK_MIPI_DSI0>,
+		clocks = <&cru SCLK_DPHY_PLL>, <&cru PCLK_MIPI_DSI0>,
 			 <&cru SCLK_DPHY_TX0_CFG>;
 		clock-names = "ref", "pclk", "phy_cfg";
+		resets = <&cru SRST_P_MIPI_DSI0>;
+		reset-names = "apb";
 		power-domains = <&power RK3399_PD_VIO>;
 		rockchip,grf = <&grf>;
 		#address-cells = <1>;
@@ -1903,21 +1950,51 @@
 		status = "disabled";
 
 		ports {
-			#address-cells = <1>;
-			#size-cells = <0>;
-			reg = <1>;
-
-			mipi_in: port {
+			port {
 				#address-cells = <1>;
 				#size-cells = <0>;
 
-				mipi_in_vopb: endpoint@0 {
+				dsi_in_vopb: endpoint@0 {
 					reg = <0>;
-					remote-endpoint = <&vopb_out_mipi>;
+					remote-endpoint = <&vopb_out_dsi>;
 				};
-				mipi_in_vopl: endpoint@1 {
+
+				dsi_in_vopl: endpoint@1 {
 					reg = <1>;
-					remote-endpoint = <&vopl_out_mipi>;
+					remote-endpoint = <&vopl_out_dsi>;
+				};
+			};
+		};
+	};
+
+	dsi1: dsi@ff968000 {
+		compatible = "rockchip,rk3399-mipi-dsi";
+		reg = <0x0 0xff968000 0x0 0x8000>;
+		interrupts = <GIC_SPI 46 IRQ_TYPE_LEVEL_HIGH 0>;
+		clocks = <&cru SCLK_DPHY_PLL>, <&cru PCLK_MIPI_DSI1>,
+			 <&cru SCLK_DPHY_TX1RX1_CFG>;
+		clock-names = "ref", "pclk", "phy_cfg";
+		resets = <&cru SRST_P_MIPI_DSI1>;
+		reset-names = "apb";
+		power-domains = <&power RK3399_PD_VIO>;
+		rockchip,grf = <&grf>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		status = "disabled";
+
+		ports {
+			port {
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				dsi1_in_vopb: endpoint@0 {
+					reg = <0>;
+					remote-endpoint = <&vopb_out_dsi1>;
+				};
+
+				dsi1_in_vopl: endpoint@1 {
+					reg = <1>;
+					remote-endpoint = <&vopl_out_dsi1>;
 				};
 			};
 		};

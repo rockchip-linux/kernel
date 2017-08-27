@@ -221,6 +221,8 @@
 		regulator-max-microvolt = <1500000>;
 		regulator-ramp-delay = <1000>;
 		fcs,suspend-voltage-selector = <1>;
+		pinctrl-0 = <&vsel_gpio>;
+		vsel-gpios = <&gpio0 0 GPIO_ACTIVE_HIGH>;
 		regulator-always-on;
 		regulator-boot-on;
 		regulator-initial-state = <3>;
@@ -493,6 +495,15 @@
 	cpu-supply = <&syr827>;
 };
 
+&dfi {
+	status = "okay";
+};
+
+&dmc {
+	center-supply = <&vdd_logic>;
+	status = "okay";
+};
+
 &gpu {
 	logic-supply = <&vdd_logic>;
 };
@@ -585,21 +596,22 @@
 	status = "okay";
 };
 
-&mipi_dsi_host {
+&dsi {
 	status = "okay";
 
-	dsi_panel: panel@0 {
+	panel@0 {
 		compatible = "simple-panel-dsi";
 		reg = <0>;
 		backlight = <&backlight>;
 		enable-gpios = <&gpio0 22 GPIO_ACTIVE_HIGH>;
+
 		dsi,flags = <(MIPI_DSI_MODE_VIDEO | MIPI_DSI_MODE_VIDEO_BURST)>;
 		dsi,format = <MIPI_DSI_FMT_RGB888>;
 		dsi,lanes = <4>;
-		delay,prepare = <120>;
-		status = "okay";
 
-		disp_timings: display-timings {
+		prepare-delay-ms = <120>;
+
+		display-timings {
 			native-mode = <&timing0>;
 
 			timing0: timing0 {
@@ -622,11 +634,10 @@
 };
 
 &mipi_dphy {
-	rockchip,dsi-panel = <&dsi_panel>;
 	status = "okay";
 };
 
-&route_mipi {
+&route_dsi {
 	status = "okay";
 };
 
@@ -643,6 +654,9 @@
 	pmic {
 		pmic_int_l: pmic-int-l {
 			rockchip,pins = <RK_GPIO0 1 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+		vsel_gpio: vsel-gpio {
+			rockchip,pins = <0 0 RK_FUNC_GPIO &pcfg_pull_down>;
 		};
 	};
 

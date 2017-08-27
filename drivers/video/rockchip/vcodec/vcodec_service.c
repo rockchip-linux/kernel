@@ -385,6 +385,13 @@ struct vpu_service_info {
 	atomic_t power_off_cnt;
 	atomic_t service_on;
 	struct mutex shutdown_lock;
+	/*
+	 * FIXME: if someone call iommu translate function during vpu_reset,
+	 * it may cause system core dump without any message. we suggest
+	 * modify iommu driver to avoid this situation. before that,
+	 * this is a temporary solution.
+	 */
+	struct mutex reset_lock;
 	struct vpu_reg *reg_codec;
 	struct vpu_reg *reg_pproc;
 	struct vpu_reg *reg_resev;
@@ -405,6 +412,8 @@ struct vpu_service_info {
 	struct reset_control *rst_a;
 	struct reset_control *rst_h;
 	struct reset_control *rst_v;
+	struct reset_control *rst_core;
+	struct reset_control *rst_cabac;
 	struct reset_control *rst_niu_a;
 	struct reset_control *rst_niu_h;
 #endif
@@ -699,13 +708,17 @@ static void _vpu_reset(struct vpu_subdev_data *data)
 	try_reset_assert(pservice->rst_v);
 	try_reset_assert(pservice->rst_a);
 	try_reset_assert(pservice->rst_h);
+	try_reset_assert(pservice->rst_core);
+	try_reset_assert(pservice->rst_cabac);
 	udelay(5);
 
-	try_reset_deassert(pservice->rst_h);
-	try_reset_deassert(pservice->rst_a);
-	try_reset_deassert(pservice->rst_v);
 	try_reset_deassert(pservice->rst_niu_h);
 	try_reset_deassert(pservice->rst_niu_a);
+	try_reset_deassert(pservice->rst_v);
+	try_reset_deassert(pservice->rst_h);
+	try_reset_deassert(pservice->rst_a);
+	try_reset_deassert(pservice->rst_core);
+	try_reset_deassert(pservice->rst_cabac);
 
 	rockchip_pmu_idle_request(pservice->dev, false);
 	clk_set_rate(pservice->aclk_vcodec, rate);
@@ -717,7 +730,9 @@ static void vpu_reset(struct vpu_subdev_data *data)
 {
 	struct vpu_service_info *pservice = data->pservice;
 
+	mutex_lock(&pservice->reset_lock);
 	_vpu_reset(data);
+	mutex_unlock(&pservice->reset_lock);
 	if (data->mmu_dev && test_bit(MMU_ACTIVATED, &data->state)) {
 		clear_bit(MMU_ACTIVATED, &data->state);
 		if (atomic_read(&pservice->enabled)) {
@@ -1040,12 +1055,6 @@ static int vcodec_bufid_to_iova(struct vpu_subdev_data *data,
 			continue;
 
 		/*
-		 * for avoiding cache sync issue, we need to map/unmap
-		 * input buffer every time. FIX ME, if it is unnecessary
-		 */
-		if (task->reg_rlc == tbl[i])
-			vcodec_iommu_free_fd(data->iommu_info, session, usr_fd);
-		/*
 		 * special offset scale case
 		 *
 		 * This translation is for fd + offset translation.
@@ -1275,9 +1284,11 @@ static struct vpu_reg *reg_init(struct vpu_subdev_data *data,
 		return NULL;
 	}
 
+	mutex_lock(&pservice->reset_lock);
 	if (vcodec_reg_address_translate(data, session, reg, &extra_info) < 0) {
 		int i = 0;
 
+		mutex_unlock(&pservice->reset_lock);
 		vpu_err("error: translate reg address failed, dumping regs\n");
 		for (i = 0; i < size >> 2; i++)
 			dev_err(pservice->dev, "reg[%02d]: %08x\n",
@@ -1286,6 +1297,7 @@ static struct vpu_reg *reg_init(struct vpu_subdev_data *data,
 		kfree(reg);
 		return NULL;
 	}
+	mutex_unlock(&pservice->reset_lock);
 
 	mutex_lock(&pservice->lock);
 	list_add_tail(&reg->status_link, &pservice->waiting);
@@ -2551,6 +2563,10 @@ static void vcodec_read_property(struct device_node *np,
 	pservice->rst_v = devm_reset_control_get(pservice->dev, "video");
 	pservice->rst_niu_a = devm_reset_control_get(pservice->dev, "niu_a");
 	pservice->rst_niu_h = devm_reset_control_get(pservice->dev, "niu_h");
+	pservice->rst_core = devm_reset_control_get(pservice->dev,
+						    "video_core");
+	pservice->rst_cabac = devm_reset_control_get(pservice->dev,
+						     "video_cabac");
 
 	if (IS_ERR_OR_NULL(pservice->rst_a)) {
 		dev_dbg(pservice->dev, "No aclk reset resource define\n");
@@ -2563,7 +2579,7 @@ static void vcodec_read_property(struct device_node *np,
 	}
 
 	if (IS_ERR_OR_NULL(pservice->rst_v)) {
-		dev_dbg(pservice->dev, "No core reset resource define\n");
+		dev_dbg(pservice->dev, "No core rst_v reset resource define\n");
 		pservice->rst_v = NULL;
 	}
 
@@ -2575,6 +2591,16 @@ static void vcodec_read_property(struct device_node *np,
 	if (IS_ERR_OR_NULL(pservice->rst_niu_h)) {
 		dev_dbg(pservice->dev, "No NIU hclk reset resource define\n");
 		pservice->rst_niu_h = NULL;
+	}
+
+	if (IS_ERR_OR_NULL(pservice->rst_core)) {
+		dev_dbg(pservice->dev, "No core reset resource define\n");
+		pservice->rst_core = NULL;
+	}
+
+	if (IS_ERR_OR_NULL(pservice->rst_cabac)) {
+		dev_dbg(pservice->dev, "No cabac reset resource define\n");
+		pservice->rst_cabac = NULL;
 	}
 #endif
 
@@ -2591,6 +2617,7 @@ static void vcodec_init_drvdata(struct vpu_service_info *pservice)
 	INIT_LIST_HEAD(&pservice->running);
 	mutex_init(&pservice->lock);
 	mutex_init(&pservice->shutdown_lock);
+	mutex_init(&pservice->reset_lock);
 	atomic_set(&pservice->service_on, 1);
 
 	INIT_LIST_HEAD(&pservice->done);

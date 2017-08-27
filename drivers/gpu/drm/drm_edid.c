@@ -35,6 +35,7 @@
 #include <drm/drmP.h>
 #include <drm/drm_edid.h>
 #include <drm/drm_displayid.h>
+#include <drm/drm_scdc_helper.h>
 
 #define version_greater(edid, maj, min) \
 	(((edid)->version > (maj)) || \
@@ -3448,6 +3449,23 @@ cea_db_offsets(const u8 *cea, int *start, int *end)
 		*end = 127;
 	if (*end < 4 || *end > 127)
 		return -ERANGE;
+
+	/*
+	 * XXX: cea[2] is equal to the real value minus one in some sink edid.
+	 */
+	if (*end != 4) {
+		int i;
+
+		i = *start;
+		while (i < (*end) &&
+		       i + cea_db_payload_len(&(cea)[i]) < (*end))
+			i += cea_db_payload_len(&(cea)[i]) + 1;
+
+		if (cea_db_payload_len(&(cea)[i]) &&
+		    i + cea_db_payload_len(&(cea)[i]) == (*end))
+			(*end)++;
+	}
+
 	return 0;
 }
 
@@ -3464,21 +3482,6 @@ static bool cea_db_is_hdmi_vsdb(const u8 *db)
 	hdmi_id = db[1] | (db[2] << 8) | (db[3] << 16);
 
 	return hdmi_id == HDMI_IEEE_OUI;
-}
-
-static bool cea_db_is_hdmi_hf_vsdb(const u8 *db)
-{
-	int hdmi_id;
-
-	if (cea_db_tag(db) != VENDOR_BLOCK)
-		return false;
-
-	if (cea_db_payload_len(db) < 7)
-		return false;
-
-	hdmi_id = db[1] | (db[2] << 8) | (db[3] << 16);
-
-	return hdmi_id == HDMI_IEEE_OUI_HF;
 }
 
 static bool cea_db_is_hdmi_vdb420(const u8 *db)
@@ -3501,6 +3504,21 @@ static bool cea_db_is_hdmi_vcb420(const u8 *db)
 		return false;
 
 	return true;
+}
+
+static bool cea_db_is_hdmi_forum_vsdb(const u8 *db)
+{
+	unsigned int oui;
+
+	if (cea_db_tag(db) != VENDOR_BLOCK)
+		return false;
+
+	if (cea_db_payload_len(db) < 7)
+		return false;
+
+	oui = db[3] << 16 | db[2] << 8 | db[1];
+
+	return oui == HDMI_FORUM_IEEE_OUI;
 }
 
 #define for_each_cea_db(cea, i, start, end) \
@@ -3633,36 +3651,6 @@ drm_parse_hdmi_vsdb_audio(struct drm_connector *connector, const u8 *db)
 }
 
 static void
-parse_hdmi_hf_vsdb(struct drm_connector *connector, const u8 *db)
-{
-	u8 len = cea_db_payload_len(db);
-
-	if (len < 7)
-		return;
-
-	if (db[4] != 1)
-		return; /* invalid version */
-
-	connector->max_tmds_char = db[5] * 5;
-	connector->scdc_present = db[6] & (1 << 7);
-	connector->rr_capable = db[6] & (1 << 6);
-	connector->flags_3d = db[6] & 0x7;
-	connector->lte_340mcsc_scramble = db[6] & (1 << 3);
-
-	DRM_DEBUG_KMS("HDMI v2: max TMDS clock %d, "
-			"scdc %s, "
-			"rr %s, "
-			"3D flags 0x%x, "
-			"scramble %s\n",
-			connector->max_tmds_char,
-			connector->scdc_present ? "available" : "not available",
-			connector->rr_capable ? "capable" : "not capable",
-			connector->flags_3d,
-			connector->lte_340mcsc_scramble ?
-				"supported" : "not supported");
-}
-
-static void
 monitor_name(struct detailed_timing *t, void *data)
 {
 	if (t->data.other_data.type == EDID_DETAIL_MONITOR_NAME)
@@ -3753,9 +3741,6 @@ void drm_edid_to_eld(struct drm_connector *connector, struct edid *edid)
 				/* HDMI Vendor-Specific Data Block */
 				if (cea_db_is_hdmi_vsdb(db))
 					drm_parse_hdmi_vsdb_audio(connector, db);
-				/* HDMI Forum Vendor-Specific Data Block */
-				else if (cea_db_is_hdmi_hf_vsdb(db))
-					parse_hdmi_hf_vsdb(connector, db);
 				break;
 			default:
 				break;
@@ -4069,6 +4054,48 @@ bool drm_rgb_quant_range_selectable(struct edid *edid)
 }
 EXPORT_SYMBOL(drm_rgb_quant_range_selectable);
 
+static void drm_parse_hdmi_forum_vsdb(struct drm_connector *connector,
+				 const u8 *hf_vsdb)
+{
+	struct drm_display_info *display = &connector->display_info;
+	struct drm_hdmi_info *hdmi = &display->hdmi;
+
+	if (hf_vsdb[6] & 0x80) {
+		hdmi->scdc.supported = true;
+		if (hf_vsdb[6] & 0x40)
+			hdmi->scdc.read_request = true;
+	}
+
+	/*
+	 * All HDMI 2.0 monitors must support scrambling at rates > 340 MHz.
+	 * And as per the spec, three factors confirm this:
+	 * * Availability of a HF-VSDB block in EDID (check)
+	 * * Non zero Max_TMDS_Char_Rate filed in HF-VSDB (let's check)
+	 * * SCDC support available (let's check)
+	 * Lets check it out.
+	 */
+
+	if (hf_vsdb[5]) {
+		/* max clock is 5000 KHz times block value */
+		u32 max_tmds_clock = hf_vsdb[5] * 5000;
+		struct drm_scdc *scdc = &hdmi->scdc;
+
+		if (max_tmds_clock > 340000) {
+			display->max_tmds_clock = max_tmds_clock;
+			DRM_DEBUG_KMS("HF-VSDB: max TMDS clock %d kHz\n",
+				display->max_tmds_clock);
+		}
+
+		if (scdc->supported) {
+			scdc->scrambling.supported = true;
+
+			/* Few sinks support scrambling for cloks < 340M */
+			if ((hf_vsdb[6] & 0x8))
+				scdc->scrambling.low_rates = true;
+		}
+	}
+}
+
 static void drm_parse_hdmi_deep_color_info(struct drm_connector *connector,
 					   const u8 *hdmi)
 {
@@ -4182,6 +4209,8 @@ static void drm_parse_cea_ext(struct drm_connector *connector,
 
 		if (cea_db_is_hdmi_vsdb(db))
 			drm_parse_hdmi_vsdb_video(connector, db);
+		if (cea_db_is_hdmi_forum_vsdb(db))
+			drm_parse_hdmi_forum_vsdb(connector, db);
 	}
 }
 
@@ -4199,6 +4228,8 @@ static void drm_add_display_info(struct drm_connector *connector,
 	info->cea_rev = 0;
 	info->max_tmds_clock = 0;
 	info->dvi_dual = false;
+
+	memset(&info->hdmi, 0, sizeof(info->hdmi));
 
 	if (edid->revision < 3)
 		return;

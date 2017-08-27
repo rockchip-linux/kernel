@@ -271,7 +271,7 @@
 			#power-domain-cells = <1>;
 			#address-cells = <1>;
 			#size-cells = <0>;
-			status = "disabled";
+			status = "okay";
 
 			pd_hevc@RK3328_PD_HEVC {
 				reg = <RK3328_PD_HEVC>;
@@ -327,6 +327,11 @@
 				map0 {
 					trip = <&target>;
 					cooling-device = <&cpu0 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+					contribution = <4096>;
+				};
+				map1 {
+					trip = <&target>;
+					cooling-device = <&gpu THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
 					contribution = <4096>;
 				};
 			};
@@ -600,8 +605,19 @@
 				  "Mali_PP1_MMU_IRQ";
 		clocks = <&cru ACLK_GPU>;
 		clock-names = "clk_mali";
+		#cooling-cells = <2>; /* min followed by max */
 		operating-points-v2 = <&gpu_opp_table>;
 		status = "disabled";
+
+		gpu_power_model: power_model {
+			compatible = "arm,mali-simple-power-model";
+			voltage = <900>;
+			frequency = <500>;
+			static-power = <300>;
+			dynamic-power = <396>;
+			ts = <32000 4700 (-80) 2>;
+			thermal-zone = "soc-thermal";
+		};
 	};
 
 	gpu_opp_table: opp-table2 {
@@ -637,6 +653,7 @@
 		rockchip,grf = <&grf>;
 		iommus = <&vpu_mmu>;
 		allocator = <1>;
+		power-domains = <&power RK3328_PD_VPU>;
 		status = "disabled";
 	};
 
@@ -647,6 +664,7 @@
 		interrupt-names = "vpu_mmu";
 		clock-names = "aclk", "hclk";
 		clocks = <&cru ACLK_VPU>, <&cru HCLK_VPU>;
+		power-domains = <&power RK3328_PD_VPU>;
 		#iommu-cells = <0>;
 	};
 
@@ -667,6 +685,7 @@
 		rockchip,grf = <&grf>;
 		iommus = <&rkvdec_mmu>;
 		allocator = <1>;
+		power-domains = <&power RK3328_PD_VIDEO>;
 		status = "disabled";
 	};
 
@@ -677,6 +696,7 @@
 		interrupt-names = "rkvdec_mmu";
 		clocks = <&cru ACLK_RKVDEC>, <&cru HCLK_RKVDEC>;
 		clock-names = "aclk_vcodec", "hclk_vcodec";
+		power-domains = <&power RK3328_PD_VIDEO>;
 		#iommu-cells = <0>;
 	};
 
@@ -761,6 +781,10 @@
 				reg = <0>;
 				remote-endpoint = <&hdmi_in_vop>;
 			};
+			vop_out_tve: endpoint@1 {
+				reg = <1>;
+				remote-endpoint = <&tve_in_vop>;
+			};
 		};
 	};
 
@@ -774,24 +798,18 @@
 
 	hdmi: hdmi@ff3c0000 {
 		compatible = "rockchip,rk3328-dw-hdmi";
-		reg = <0x0 0xff3c0000 0x0 0x20000>,
-		      <0x0 0xff430000 0x0 0x10000>;
+		reg = <0x0 0xff3c0000 0x0 0x20000>;
 		reg-io-width = <4>;
 		interrupts = <GIC_SPI 35 IRQ_TYPE_LEVEL_HIGH>,
-			     <GIC_SPI 71 IRQ_TYPE_LEVEL_HIGH>,
-			     <GIC_SPI 83 IRQ_TYPE_LEVEL_HIGH>;
+			     <GIC_SPI 71 IRQ_TYPE_LEVEL_HIGH>;
 		clocks = <&cru PCLK_HDMI>,
 			 <&cru SCLK_HDMI_SFC>,
-			 <&cru PCLK_HDMIPHY>,
 			 <&cru HCLK_VIO>;
 		clock-names = "iahb",
 			      "isfr",
-			      "pclk_hdmiphy",
 			      "hclk_vio";
-		#clock-cells = <0>;
-		clock-output-names = "hdmi_phy";
-		assigned-clocks = <&cru HDMIPHY>;
-		assigned-clock-parents = <&hdmi>;
+		phys = <&hdmiphy>;
+		phy-names = "hdmi_phy";
 		pinctrl-names = "default", "gpio";
 		pinctrl-0 = <&hdmi_cec &hdmii2c_xfer &hdmi_hpd>;
 		pinctrl-1 = <&i2c3_gpio>;
@@ -814,6 +832,32 @@
 		};
 	};
 
+	tve: tve@ff373e00 {
+		compatible = "rockchip,rk3328-tve";
+		reg = <0x0 0xff373e00 0x0 0x100>,
+		      <0x0 0xff420000 0x0 0x10000>;
+		rockchip,saturation = <0x00376749>;
+		rockchip,brightcontrast = <0x0000a305>;
+		rockchip,adjtiming = <0xb6c00880>;
+		rockchip,lumafilter0 = <0x01ff0000>;
+		rockchip,lumafilter1 = <0xf40200fe>;
+		rockchip,lumafilter2 = <0xf332d70c>;
+		rockchip,daclevel = <0x22>;
+		rockchip,dac1level = <0x7>;
+		status = "disabled";
+
+		ports {
+			tve_in: port {
+				#address-cells = <1>;
+				#size-cells = <0>;
+				tve_in_vop: endpoint@0 {
+					reg = <0>;
+					remote-endpoint = <&vop_out_tve>;
+				};
+			};
+		};
+	};
+
 	display_subsystem: display-subsystem {
 		compatible = "rockchip,display-subsystem";
 		ports = <&vop_out>;
@@ -826,6 +870,18 @@
 		rockchip,grf = <&grf>;
 		clocks = <&cru PCLK_ACODEC>;
 		clock-names = "pclk";
+		status = "disabled";
+	};
+
+	hdmiphy: hdmiphy@ff430000 {
+		compatible = "rockchip,rk3328-hdmi-phy";
+		reg = <0x0 0xff430000 0x0 0x10000>;
+		interrupts = <GIC_SPI 83 IRQ_TYPE_LEVEL_HIGH>;
+		#phy-cells = <0>;
+		clocks = <&cru PCLK_HDMIPHY>, <&xin24m>;
+		clock-names = "sysclk", "refclk";
+		#clock-cells = <0>;
+		clock-output-names = "hdmi_phy";
 		status = "disabled";
 	};
 

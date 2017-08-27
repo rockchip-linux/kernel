@@ -17,12 +17,21 @@
 
 #define to_rockchip_obj(x) container_of(x, struct rockchip_gem_object, base)
 
+enum rockchip_gem_buf_type {
+	ROCKCHIP_GEM_BUF_TYPE_CMA,
+	ROCKCHIP_GEM_BUF_TYPE_SHMEM,
+	ROCKCHIP_GEM_BUF_TYPE_SECURE,
+};
+
 struct rockchip_gem_object {
 	struct drm_gem_object base;
 	unsigned int flags;
+	enum rockchip_gem_buf_type buf_type;
 
 	void *kvaddr;
+	void *cookie;
 	dma_addr_t dma_addr;
+	dma_addr_t dma_handle;
 
 	/* Used when IOMMU is disabled */
 	struct dma_attrs dma_attrs;
@@ -67,8 +76,8 @@ int rockchip_gem_mmap_buf(struct drm_gem_object *obj,
 			  struct vm_area_struct *vma);
 
 struct rockchip_gem_object *
-	rockchip_gem_create_object(struct drm_device *drm, unsigned int size,
-				   bool alloc_kmap);
+rockchip_gem_create_object(struct drm_device *drm, unsigned int size,
+			   bool alloc_kmap, unsigned int flags);
 
 void rockchip_gem_free_object(struct drm_gem_object *obj);
 
@@ -90,6 +99,9 @@ int rockchip_gem_create_ioctl(struct drm_device *dev, void *data,
 int rockchip_gem_map_offset_ioctl(struct drm_device *dev, void *data,
 				  struct drm_file *file_priv);
 
+int rockchip_gem_get_phys_ioctl(struct drm_device *dev, void *data,
+				struct drm_file *file_priv);
+
 /*
  * acquire gem object for CPU access.
  */
@@ -100,5 +112,13 @@ int rockchip_gem_cpu_acquire_ioctl(struct drm_device *dev, void* data,
  */
 int rockchip_gem_cpu_release_ioctl(struct drm_device *dev, void* data,
 				   struct drm_file *file_priv);
+
+int rockchip_gem_prime_begin_cpu_access(struct drm_gem_object *obj,
+					size_t start, size_t len,
+					enum dma_data_direction dir);
+
+void rockchip_gem_prime_end_cpu_access(struct drm_gem_object *obj,
+				       size_t start, size_t len,
+				       enum dma_data_direction dir);
 
 #endif /* _ROCKCHIP_DRM_GEM_H */

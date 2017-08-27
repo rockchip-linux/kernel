@@ -251,6 +251,13 @@
 		| RKPM_SLP_SFT_PD_NBSCUS
 		)
 	>;
+	rockchip,wakeup-config = <
+		(0
+		| RKPM_GPIO_WKUP_EN
+		| RKPM_USB_WKUP_EN
+		| RKPM_CLUSTER_L_WKUP_EN
+		)
+	>;
 };
 
 &emmc {
@@ -305,13 +312,14 @@
 		compatible = "silergy,syr827";
 		status = "okay";
 		reg = <0x40>;
-
 		regulator-compatible = "fan53555-reg";
 		regulator-name = "vdd_arm";
 		regulator-min-microvolt = <712500>;
 		regulator-max-microvolt = <1500000>;
 		regulator-ramp-delay = <1000>;
 		fcs,suspend-voltage-selector = <1>;
+		pinctrl-0 = <&vsel_gpio>;
+		vsel-gpios = <&gpio0 0 GPIO_ACTIVE_HIGH>;
 		regulator-always-on;
 		regulator-boot-on;
 		regulator-initial-state = <3>;
@@ -667,22 +675,23 @@
 	status = "okay";
 };
 
-&mipi_dsi_host {
+&dsi {
 	status = "okay";
 
-	dsi_panel: panel@0 {
+	panel@0 {
 		compatible = "simple-panel-dsi";
 		reg = <0>;
 		backlight = <&backlight>;
 		enable-gpios = <&gpio0 22 GPIO_ACTIVE_HIGH>;
+
 		dsi,flags = <(MIPI_DSI_MODE_VIDEO | MIPI_DSI_MODE_VIDEO_BURST)>;
 		dsi,format = <MIPI_DSI_FMT_RGB888>;
 		dsi,lanes = <4>;
 
-		delay,prepare = <120>;
-		delay,enable = <200>;
+		prepare-delay-ms = <120>;
+		enable-delay-ms = <200>;
 
-		disp_timings: display-timings {
+		display-timings {
 			native-mode = <&timing0>;
 
 			timing0: timing0 {
@@ -704,11 +713,10 @@
 };
 
 &mipi_dphy {
-	rockchip,dsi-panel = <&dsi_panel>;
 	status = "okay";
 };
 
-&route_mipi {
+&route_dsi {
 	status = "okay";
 };
 
@@ -721,6 +729,9 @@
 	pmic {
 		pmic_int_l: pmic-int-l {
 			rockchip,pins = <RK_GPIO0 1 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+		vsel_gpio: vsel-gpio {
+			rockchip,pins = <0 0 RK_FUNC_GPIO &pcfg_pull_down>;
 		};
 	};
 

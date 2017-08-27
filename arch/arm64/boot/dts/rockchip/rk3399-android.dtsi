@@ -74,12 +74,12 @@
 	fiq_debugger: fiq-debugger {
 		compatible = "rockchip,fiq-debugger";
 		rockchip,serial-id = <2>;
-		rockchip,signal-irq = <182>;
 		rockchip,wake-irq = <0>;
-		rockchip,irq-mode-enable = <1>;  /* If enable uart uses irq instead of fiq */
+		rockchip,irq-mode-enable = <0>;  /* If enable uart uses irq instead of fiq */
 		rockchip,baudrate = <1500000>;  /* Only 115200 and 1500000 */
 		pinctrl-names = "default";
 		pinctrl-0 = <&uart2c_xfer>;
+		interrupts = <GIC_SPI 150 IRQ_TYPE_LEVEL_HIGH 0>;
 	};
 
 	reserved-memory {
@@ -89,6 +89,11 @@
 
 		drm_logo: drm-logo@00000000 {
 			compatible = "rockchip,drm-logo";
+			reg = <0x0 0x0 0x0 0x0>;
+		};
+
+		secure_memory: secure-memory@00000000 {
+			compatible = "rockchip,secure-memory";
 			reg = <0x0 0x0 0x0 0x0>;
 		};
 
@@ -284,6 +289,7 @@
 
 	ports = <&vopb_out>, <&vopl_out>;
 	memory-region = <&drm_logo>;
+	secure-memory-region = <&secure_memory>;
 	route {
 		route_hdmi: route-hdmi {
 			status = "disabled";
@@ -294,13 +300,22 @@
 			connect = <&vopb_out_hdmi>;
 		};
 
-		route_mipi: route-mipi {
+		route_dsi: route-dsi {
 			status = "disabled";
 			logo,uboot = "logo.bmp";
 			logo,kernel = "logo_kernel.bmp";
 			logo,mode = "fullscreen";
 			charge_logo,mode = "center";
-			connect = <&vopb_out_mipi>;
+			connect = <&vopb_out_dsi>;
+		};
+
+		route_dsi1: route-dsi1 {
+			status = "disabled";
+			logo,uboot = "logo.bmp";
+			logo,kernel = "logo_kernel.bmp";
+			logo,mode = "fullscreen";
+			charge_logo,mode = "center";
+			connect = <&vopl_out_dsi1>;
 		};
 
 		route_edp: route-edp {
@@ -336,6 +351,10 @@
 };
 
 &vpu {
+	status = "okay";
+};
+
+&pvtm {
 	status = "okay";
 };
 

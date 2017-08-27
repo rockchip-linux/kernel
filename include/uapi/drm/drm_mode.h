@@ -230,14 +230,16 @@ struct drm_mode_get_encoder {
 
 /* This is for connectors with multiple signal types. */
 /* Try to match DRM_MODE_CONNECTOR_X as closely as possible. */
-#define DRM_MODE_SUBCONNECTOR_Automatic	0
-#define DRM_MODE_SUBCONNECTOR_Unknown	0
-#define DRM_MODE_SUBCONNECTOR_DVID	3
-#define DRM_MODE_SUBCONNECTOR_DVIA	4
-#define DRM_MODE_SUBCONNECTOR_Composite	5
-#define DRM_MODE_SUBCONNECTOR_SVIDEO	6
-#define DRM_MODE_SUBCONNECTOR_Component	8
-#define DRM_MODE_SUBCONNECTOR_SCART	9
+enum drm_mode_subconnector {
+	DRM_MODE_SUBCONNECTOR_Automatic = 0,
+	DRM_MODE_SUBCONNECTOR_Unknown = 0,
+	DRM_MODE_SUBCONNECTOR_DVID = 3,
+	DRM_MODE_SUBCONNECTOR_DVIA = 4,
+	DRM_MODE_SUBCONNECTOR_Composite = 5,
+	DRM_MODE_SUBCONNECTOR_SVIDEO = 6,
+	DRM_MODE_SUBCONNECTOR_Component = 8,
+	DRM_MODE_SUBCONNECTOR_SCART = 9,
+};
 
 #define DRM_MODE_CONNECTOR_Unknown	0
 #define DRM_MODE_CONNECTOR_VGA		1
@@ -500,6 +502,21 @@ struct drm_mode_crtc_lut {
 	__u64 red;
 	__u64 green;
 	__u64 blue;
+};
+
+struct drm_color_ctm {
+	/* Conversion matrix in S31.32 format. */
+	__s64 matrix[9];
+};
+
+struct drm_color_lut {
+	/*
+	 * Data is U0.16 fixed point format.
+	 */
+	__u16 red;
+	__u16 green;
+	__u16 blue;
+	__u16 reserved;
 };
 
 #define DRM_MODE_PAGE_FLIP_EVENT 0x01

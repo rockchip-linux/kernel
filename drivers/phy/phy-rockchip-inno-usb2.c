@@ -886,19 +886,17 @@ static void rockchip_usb2phy_otg_sm_work(struct work_struct *work)
 		} else {
 			rphy->chg_state = USB_CHG_STATE_UNDEFINED;
 			rphy->chg_type = POWER_SUPPLY_TYPE_UNKNOWN;
+			mutex_unlock(&rport->mutex);
+			rockchip_usb2phy_power_off(rport->phy);
+			mutex_lock(&rport->mutex);
 		}
 		break;
 	case OTG_STATE_B_PERIPHERAL:
 		if (!rport->vbus_attached) {
 			dev_dbg(&rport->phy->dev, "usb disconnect\n");
-			rphy->chg_state = USB_CHG_STATE_UNDEFINED;
-			rphy->chg_type = POWER_SUPPLY_TYPE_UNKNOWN;
 			rport->state = OTG_STATE_B_IDLE;
 			rport->perip_connected = false;
-			delay = 0;
-			mutex_unlock(&rport->mutex);
-			rockchip_usb2phy_power_off(rport->phy);
-			mutex_lock(&rport->mutex);
+			delay = OTG_SCHEDULE_DELAY * 2;
 			wake_unlock(&rport->wakelock);
 		}
 		sch_work = true;
@@ -1246,6 +1244,7 @@ static irqreturn_t rockchip_usb2phy_bvalid_irq(int irq, void *data)
 
 	mutex_unlock(&rport->mutex);
 
+	cancel_delayed_work_sync(&rport->otg_sm_work);
 	rockchip_usb2phy_otg_sm_work(&rport->otg_sm_work.work);
 
 	return IRQ_HANDLED;
@@ -1295,7 +1294,6 @@ static int rockchip_usb2phy_host_port_init(struct rockchip_usb2phy *rphy,
 
 	rport->port_id = USB2PHY_PORT_HOST;
 	rport->port_cfg = &rphy->phy_cfg->port_cfgs[USB2PHY_PORT_HOST];
-	rport->suspended = true;
 
 	mutex_init(&rport->mutex);
 	INIT_DELAYED_WORK(&rport->sm_work, rockchip_usb2phy_sm_work);
@@ -1315,6 +1313,16 @@ static int rockchip_usb2phy_host_port_init(struct rockchip_usb2phy *rphy,
 		return ret;
 	}
 
+	/*
+	 * Let us put phy-port into suspend mode here for saving power
+	 * consumption, and usb controller will resume it during probe
+	 * time if needed.
+	 */
+	ret = property_enable(rphy, &rport->port_cfg->phy_sus, true);
+	if (ret)
+		return ret;
+	rport->suspended = true;
+
 	return 0;
 }
 
@@ -1324,6 +1332,7 @@ static int rockchip_otg_event(struct notifier_block *nb,
 	struct rockchip_usb2phy_port *rport =
 		container_of(nb, struct rockchip_usb2phy_port, event_nb);
 
+	cancel_delayed_work_sync(&rport->otg_sm_work);
 	schedule_delayed_work(&rport->otg_sm_work, OTG_SCHEDULE_DELAY);
 
 	return NOTIFY_DONE;
@@ -1339,14 +1348,6 @@ static int rockchip_usb2phy_otg_port_init(struct rockchip_usb2phy *rphy,
 	rport->port_id = USB2PHY_PORT_OTG;
 	rport->port_cfg = &rphy->phy_cfg->port_cfgs[USB2PHY_PORT_OTG];
 	rport->state = OTG_STATE_UNDEFINED;
-
-	/*
-	 * set suspended flag to true, but actually don't
-	 * put phy in suspend mode, it aims to enable usb
-	 * phy and clock in power_on() called by usb controller
-	 * driver during probe.
-	 */
-	rport->suspended = true;
 	rport->vbus_attached = false;
 	rport->perip_connected = false;
 
@@ -1385,13 +1386,13 @@ static int rockchip_usb2phy_otg_port_init(struct rockchip_usb2phy *rphy,
 			extcon_set_state(rphy->edev, EXTCON_USB_VBUS_EN, true);
 			gpiod_set_value_cansleep(rport->vbus_drv_gpio, 1);
 		}
-		return 0;
+		goto out;
 	}
 
 	rport->vbus_always_on =
 		of_property_read_bool(child_np, "rockchip,vbus-always-on");
 	if (rport->vbus_always_on)
-		return 0;
+		goto out;
 
 	wake_lock_init(&rport->wakelock, WAKE_LOCK_SUSPEND, "rockchip_otg");
 	INIT_DELAYED_WORK(&rport->chg_work, rockchip_chg_detect_work);
@@ -1454,6 +1455,17 @@ static int rockchip_usb2phy_otg_port_init(struct rockchip_usb2phy *rphy,
 			return ret;
 		}
 	}
+
+out:
+	/*
+	 * Let us put phy-port into suspend mode here for saving power
+	 * consumption, and usb controller will resume it during probe
+	 * time if needed.
+	 */
+	ret = property_enable(rphy, &rport->port_cfg->phy_sus, true);
+	if (ret)
+		return ret;
+	rport->suspended = true;
 
 	return 0;
 }

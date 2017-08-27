@@ -88,6 +88,7 @@ enum dw_hdmi_devtype {
 	RK3228_HDMI,
 	RK3288_HDMI,
 	RK3328_HDMI,
+	RK3366_HDMI,
 	RK3368_HDMI,
 	RK3399_HDMI,
 };
@@ -134,8 +135,6 @@ struct dw_hdmi_phy_ops {
 		    struct drm_display_mode *mode);
 	void (*disable)(struct dw_hdmi *hdmi, void *data);
 	enum drm_connector_status (*read_hpd)(struct dw_hdmi *hdmi, void *data);
-	int (*read)(struct dw_hdmi *hdmi, void *data, int offset);
-	void (*write)(struct dw_hdmi *hdmi, void *data, int val, int offset);
 };
 
 struct dw_hdmi_plat_data {

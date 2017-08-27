@@ -1125,7 +1125,6 @@ int drm_connector_register_all(struct drm_device *dev)
 	return 0;
 
 err:
-	mutex_unlock(&dev->mode_config.mutex);
 	drm_connector_unregister_all(dev);
 	return ret;
 }
@@ -1146,7 +1145,7 @@ void drm_connector_unregister_all(struct drm_device *dev)
 	struct drm_connector *connector;
 
 	/* FIXME: taking the mode config mutex ends up in a clash with sysfs */
-	drm_for_each_connector(connector, dev)
+	list_for_each_entry(connector, &dev->mode_config.connector_list, head)
 		drm_connector_unregister(connector);
 }
 EXPORT_SYMBOL(drm_connector_unregister_all);
@@ -1751,6 +1750,41 @@ static int drm_mode_create_standard_properties(struct drm_device *dev)
 	if (!prop)
 		return -ENOMEM;
 	dev->mode_config.prop_mode_id = prop;
+
+	prop = drm_property_create(dev,
+			DRM_MODE_PROP_BLOB,
+			"DEGAMMA_LUT", 0);
+	if (!prop)
+		return -ENOMEM;
+	dev->mode_config.degamma_lut_property = prop;
+
+	prop = drm_property_create_range(dev,
+			DRM_MODE_PROP_IMMUTABLE,
+			"DEGAMMA_LUT_SIZE", 0, UINT_MAX);
+	if (!prop)
+		return -ENOMEM;
+	dev->mode_config.degamma_lut_size_property = prop;
+
+	prop = drm_property_create(dev,
+			DRM_MODE_PROP_BLOB,
+			"CTM", 0);
+	if (!prop)
+		return -ENOMEM;
+	dev->mode_config.ctm_property = prop;
+
+	prop = drm_property_create(dev,
+			DRM_MODE_PROP_BLOB,
+			"GAMMA_LUT", 0);
+	if (!prop)
+		return -ENOMEM;
+	dev->mode_config.gamma_lut_property = prop;
+
+	prop = drm_property_create_range(dev,
+			DRM_MODE_PROP_IMMUTABLE,
+			"GAMMA_LUT_SIZE", 0, UINT_MAX);
+	if (!prop)
+		return -ENOMEM;
+	dev->mode_config.gamma_lut_size_property = prop;
 
 	return 0;
 }

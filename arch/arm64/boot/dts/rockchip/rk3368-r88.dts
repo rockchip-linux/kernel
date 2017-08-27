@@ -49,6 +49,29 @@
 	model = "Rockchip R88";
 	compatible = "rockchip,r88", "rockchip,rk3368";
 
+	xin32k: xin32k {
+		status = "okay";
+		compatible = "pwm-clock";
+		#clock-cells = <0>;
+		clock-frequency = <32768>;
+		clock-output-names = "xin32k";
+		pwms = <&pwm1 0 30518 0>; /* 1 / 30518 ns = 32.7675 KHz */
+	};
+
+	hdmi_sound: hdmi-sound {
+		status = "okay";
+		compatible = "simple-audio-card";
+		simple-audio-card,format = "i2s";
+		simple-audio-card,mclk-fs = <256>;
+		simple-audio-card,name = "rockchip,hdmi";
+		simple-audio-card,cpu {
+			sound-dai = <&i2s_8ch>;
+		};
+		simple-audio-card,codec {
+			sound-dai = <&hdmi>;
+		};
+	};
+
 	keys: gpio-keys {
 		compatible = "gpio-keys";
 		#address-cells = <1>;
@@ -157,6 +180,14 @@
 	};
 };
 
+&i2s_8ch {
+	status = "okay";
+	rockchip,i2s-broken-burst-len;
+	rockchip,playback-channels = <8>;
+	rockchip,capture-channels = <2>;
+	#sound-dai-cells = <0>;
+};
+
 &emmc {
 	status = "okay";
 	bus-width = <8>;
@@ -190,7 +221,7 @@
 	clock_in_out = "output";
 	snps,reset-gpio = <&gpio3 12 0>;
 	snps,reset-active-low;
-	snps,reset-delays-us = <0 10000 50000>;
+	snps,reset-delays-us = <0 50000 50000>;
 	//assigned-clocks = <&cru SCLK_RMII_SRC>;
 	//assigned-clock-parents = <&clkin_gmac>;
 	pinctrl-names = "default";
@@ -214,7 +245,7 @@
 		rockchip,system-power-controller;
 		wakeup-source;
 		#clock-cells = <1>;
-		clock-output-names = "xin32k", "rk808-clkout2";
+		clock-output-names = "rk808-clkout1", "rk808-clkout2";
 
 		vcc1-supply = <&vcc_sys>;
 		vcc2-supply = <&vcc_sys>;
@@ -222,12 +253,12 @@
 		vcc4-supply = <&vcc_sys>;
 		vcc6-supply = <&vcc_sys>;
 		vcc7-supply = <&vcc_sys>;
-		vcc8-supply = <&vcc_18>;
-		vcc9-supply = <&vcc_io>;
-		vcc10-supply = <&vcc_io>;
+		vcc8-supply = <&vcc_io>;
+		vcc9-supply = <&vcc_sys>;
+		vcc10-supply = <&vcc_sys>;
 		vcc11-supply = <&vcc_sys>;
 		vcc12-supply = <&vcc_io>;
-		vddio-supply = <&vccio_pmu>;
+		vddio-supply = <&vcc_io>;
 
 		regulators {
 			vdd_cpu: DCDC_REG1 {
@@ -275,24 +306,24 @@
 				};
 			};
 
-			vccio_pmu: LDO_REG1 {
+			vcc18_flash: LDO_REG1 {
 				regulator-always-on;
 				regulator-boot-on;
-				regulator-min-microvolt = <3300000>;
-				regulator-max-microvolt = <3300000>;
-				regulator-name = "vccio_pmu";
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <1800000>;
+				regulator-name = "vcc18_flash";
 				regulator-state-mem {
 					regulator-on-in-suspend;
-					regulator-suspend-microvolt = <3300000>;
+					regulator-suspend-microvolt = <1800000>;
 				};
 			};
 
-			vcc_tp: LDO_REG2 {
+			vcca_33: LDO_REG2 {
 				regulator-always-on;
 				regulator-boot-on;
 				regulator-min-microvolt = <3300000>;
 				regulator-max-microvolt = <3300000>;
-				regulator-name = "vcc_tp";
+				regulator-name = "vcca_33";
 				regulator-state-mem {
 					regulator-off-in-suspend;
 				};
@@ -310,15 +341,15 @@
 				};
 			};
 
-			vcca_codec: LDO_REG4 {
+			vcca_18: LDO_REG4 {
 				regulator-always-on;
 				regulator-boot-on;
-				regulator-min-microvolt = <3300000>;
-				regulator-max-microvolt = <3300000>;
-				regulator-name = "vcca_codec";
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <1800000>;
+				regulator-name = "vcca_18";
 				regulator-state-mem {
 					regulator-on-in-suspend;
-					regulator-suspend-microvolt = <3300000>;
+					regulator-suspend-microvolt = <1800000>;
 				};
 			};
 
@@ -370,19 +401,19 @@
 				};
 			};
 
-			vcc_wl: SWITCH_REG1 {
+			vcc_sd: SWITCH_REG1 {
 				regulator-always-on;
 				regulator-boot-on;
-				regulator-name = "vcc_wl";
+				regulator-name = "vcc_sd";
 				regulator-state-mem {
 					regulator-on-in-suspend;
 				};
 			};
 
-			vcc_lcd: SWITCH_REG2 {
+			vcc_lan: SWITCH_REG2 {
 				regulator-always-on;
 				regulator-boot-on;
-				regulator-name = "vcc_lcd";
+				regulator-name = "vcc_lan";
 				regulator-state-mem {
 					regulator-on-in-suspend;
 				};
@@ -400,28 +431,83 @@
 	};
 };
 
+&i2c1 {
+	status = "okay";
+
+	rk1000_ctl: rk1000-ctl@40 {
+		compatible = "rockchip,rk1000-ctl";
+		status = "okay";
+		reg = <0x40>;
+		reset-gpios = <&gpio0 1 GPIO_ACTIVE_LOW>;
+		clocks = <&cru SCLK_I2S_8CH_OUT>;
+		clock-names = "mclk";
+		pinctrl-names = "default";
+		pinctrl-0 = <&i2s_8ch_bus>;
+	};
+
+	rk1000-tve@42 {
+		status = "okay";
+		compatible = "rockchip,rk1000-tve";
+		reg = <0x42>;
+		rockchip,data-width = <24>;
+		rockchip,output = "rgb";
+		rockchip,ctl = <&rk1000_ctl>;
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			tve_in: port@0 {
+				reg = <0>;
+				tve_in_lvds: endpoint {
+					remote-endpoint = <&lvds_out_tve>;
+				};
+			};
+		};
+	};
+};
+
+&lvds {
+	status = "okay";
+
+	ports {
+		lvds_out: port@1 {
+			reg = <1>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			lvds_out_tve: endpoint@0 {
+				reg = <0>;
+				remote-endpoint = <&tve_in_lvds>;
+			};
+		};
+	};
+};
+
 &io_domains {
 	status = "ok";
 
-	audio-supply = <&vcc_io>;
-	gpio30-supply = <&vcc_io>;
-	gpio1830-supply = <&vcc_io>;
-	wifi-supply = <&vcc_wl>;
+	dvp-supply = <&vcc_18>;		/* DVPIO_VDD */
+	flash0-supply = <&vcc18_flash>;	/* FLASH0_VDD (emmc) */
+	sdcard-supply = <&vccio_sd>;	/* SDMMC0_VDD (sdmmc) */
+
+	audio-supply = <&vcc_io>;	/* APIO3_VDD */
+	gpio30-supply = <&vcc_io>;	/* APIO1_VDD */
+	gpio1830-supply = <&vcc_io>;	/* APIO4_VDD (gpujtag) */
+	wifi-supply = <&vcc_io>;	/* APIO2_VDD (sdio0) */
 };
 
 &sdio0 {
-	assigned-clocks = <&cru SCLK_SDIO0>;
-	assigned-clock-parents = <&cru PLL_CPLL>;
-	broken-cd;
 	bus-width = <4>;
 	cap-sd-highspeed;
 	cap-sdio-irq;
+	keep-power-in-suspend;
+	max-frequency = <100000000>;
+	mmc-pwrseq = <&sdio_pwrseq>;
 	non-removable;
 	num-slots = <1>;
 	pinctrl-names = "default";
-	pinctrl-0 = <&sdio0_clk &sdio0_cmd &sdio0_bus4>;
-	vmmc-supply = <&vcc_io>;
-	vqmmc-supply = <&vcc_wl>;
+	pinctrl-0 = <&sdio0_bus4 &sdio0_cmd &sdio0_clk>;
+	sd-uhs-sdr104;
+	supports-sdio;
 	status = "okay";
 };
 
@@ -528,8 +614,20 @@
 	status = "okay";
 };
 
+&usb_host0_ohci {
+	status = "okay";
+};
+
 &usb_otg {
 	dr_mode = "device";
+	status = "okay";
+};
+
+&u2phy {
+	status = "okay";
+};
+
+&u2phy_host {
 	status = "okay";
 };
 
@@ -543,6 +641,7 @@
 
 &hdmi {
 	status = "okay";
+	#sound-dai-cells = <0>;
 };
 
 &mailbox {
@@ -594,6 +693,29 @@
 	logic-supply = <&vdd_gpu>;
 };
 
+&rockchip_suspend {
+	status = "okay";
+	rockchip,sleep-debug-en = <1>;
+	rockchip,sleep-mode-config = <
+		(0
+		| RKPM_SLP_ARMOFF
+		| RKPM_SLP_PMU_PLLS_PWRDN
+		| RKPM_SLP_SFT_PD_NBSCUS
+		)
+	>;
+	rockchip,wakeup-config = <
+		(0
+		| RKPM_GPIO_WKUP_EN
+		| RKPM_USB_WKUP_EN
+		| RKPM_CLUSTER_L_WKUP_EN
+		)
+	>;
+};
+
+&pwm1 {
+	status = "okay";
+};
+
 &pwm3 {
 	status = "okay";
 
@@ -601,6 +723,7 @@
 	compatible = "rockchip,remotectl-pwm";
 	remote_pwm_id = <3>;
 	handle_cpu_id = <1>;
+	remote_support_psci = <1>;
 
 	ir_key1 {
 		rockchip,usercode = <0x4040>;

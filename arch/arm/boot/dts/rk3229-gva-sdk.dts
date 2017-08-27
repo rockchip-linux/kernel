@@ -50,11 +50,6 @@
 	model = "RK3229 GOOGLE VOICE ASSISTANT SDK Board";
 	compatible = "rockchip,rk3229-gva-sdk", "rockchip,rk3229";
 
-	memory@60000000 {
-		device_type = "memory";
-		reg = <0x60000000 0x40000000>;
-	};
-
 	sdio_pwrseq: sdio-pwrseq {
 		compatible = "mmc-pwrseq-simple";
 		clocks = <&rk805 1>;
@@ -69,17 +64,6 @@
 		 * - PDN (power down when low)
 		 */
 		reset-gpios = <&gpio2 26 GPIO_ACTIVE_LOW>; /* GPIO2_D2 */
-	};
-
-	vcc_host: vcc-host-regulator {
-		compatible = "regulator-fixed";
-		enable-active-high;
-		gpio = <&gpio3 20 GPIO_ACTIVE_HIGH>;
-		pinctrl-names = "default";
-		pinctrl-0 = <&host_vbus_drv>;
-		regulator-name = "vcc_host";
-		regulator-always-on;
-		regulator-boot-on;
 	};
 
 	wireless-bluetooth {
@@ -104,6 +88,38 @@
 		WIFI,host_wake_irq = <&gpio0 28 GPIO_ACTIVE_HIGH>;
 		status = "okay";
 	};
+
+	gpio_keys {
+		compatible = "gpio-keys";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		autorepeat;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&pwr_key &bt_key &mute_key>;
+
+		power_key {
+			label = "GPIO Key Power";
+			gpios = <&gpio1 18 GPIO_ACTIVE_HIGH>;
+			linux,code = <116>;
+			debounce-interval = <100>;
+			wakeup-source;
+		};
+
+		bt_key {
+			label = "Blutooth Key";
+			gpios = <&gpio3 31 GPIO_ACTIVE_HIGH>;
+			linux,code = <237>;
+			debounce-interval = <100>;
+		};
+
+		mute_key {
+			label = "Mute Key";
+			gpios = <&gpio3 20 GPIO_ACTIVE_HIGH>;
+			linux,code = <113>;
+			debounce-interval = <100>;
+		};
+	};
 };
 
 &gpu {
@@ -112,11 +128,11 @@
 };
 
 &nandc {
-	status = "okay";
+	status = "disabled";
 };
 
 &emmc {
-	status = "disabled";
+	status = "okay";
 };
 
 &i2c0 {
@@ -256,6 +272,35 @@
 	};
 };
 
+&i2c1 {
+	status = "okay";
+	ts@8 {
+		compatible = "cypress,cy8c4024";
+		reg = <0x8>;
+		interrupt-parent = <&gpio1>;
+		interrupts = <RK_PA1 IRQ_TYPE_LEVEL_LOW>;
+		status = "okay";
+	};
+};
+
+&i2c2 {
+	status = "okay";
+
+	cw2015@62 {
+		status = "okay";
+		compatible = "cw201x";
+		reg = <0x62>;
+		bat_config_info = <0x15 0x42 0x60 0x59 0x52 0x58 0x4D 0x48 0x48 0x44 0x44 0x46 0x49 0x48 0x32
+		0x24 0x20 0x17 0x13 0x0F 0x19 0x3E 0x51 0x45 0x08 0x76 0x0B 0x85 0x0E 0x1C 0x2E 0x3E 0x4D 0x52 0x52
+		0x57 0x3D 0x1B 0x6A 0x2D 0x25 0x43 0x52 0x87 0x8F 0x91 0x94 0x52 0x82 0x8C 0x92 0x96 0xFF 0x7B 0xBB
+		0xCB 0x2F 0x7D 0x72 0xA5 0xB5 0xC1 0x46 0xAE>;
+		monitor_sec = <5>;
+		virtual_power = <0>;
+		divider_res1 = <200>;
+		divider_res2 = <200>;
+	};
+};
+
 &cpu0 {
 	cpu-supply = <&vdd_arm>;
 };
@@ -269,6 +314,20 @@
 };
 
 &pinctrl {
+	keys {
+		pwr_key: pwr-key {
+			rockchip,pins = <1 18 RK_FUNC_GPIO &pcfg_pull_down>;
+		};
+
+		bt_key: bt-key {
+			rockchip,pins = <3 31 RK_FUNC_GPIO &pcfg_pull_down>;
+		};
+
+		mute_key: mute-key {
+			rockchip,pins = <3 20 RK_FUNC_GPIO &pcfg_pull_down>;
+		};
+	};
+
 	pmic {
 		pmic_int_l: pmic-int-l {
 			rockchip,pins = <1 12 RK_FUNC_GPIO &pcfg_pull_up>; /* gpio1_b4 */
@@ -281,12 +340,6 @@
 		};
 	};
 
-	usb {
-		host_vbus_drv: host-vbus-drv {
-			rockchip,pins = <3 20 RK_FUNC_GPIO &pcfg_pull_none>;
-		};
-	};
-
 };
 
 &sdio {
@@ -294,8 +347,4 @@
 	mmc-pwrseq = <&sdio_pwrseq>;
 	assigned-clocks = <&cru SCLK_SDIO_SRC>;
 	assigned-clock-parents = <&xin24m>;
-};
-
-&u2phy0_host {
-	phy-supply = <&vcc_host>;
 };
