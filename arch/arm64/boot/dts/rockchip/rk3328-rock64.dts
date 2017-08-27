@@ -96,8 +96,8 @@
 	sound {
 		compatible = "simple-audio-card";
 		simple-audio-card,format = "i2s";
-		simple-audio-card,mclk-fs = <256>;
-		simple-audio-card,name = "rockchip,rk3328";
+		simple-audio-card,mclk-fs = <128>;
+		simple-audio-card,name = "HDMI";
 		simple-audio-card,cpu {
 			sound-dai = <&i2s1>;
 		};
@@ -109,8 +109,8 @@
 	hdmi-sound {
 		compatible = "simple-audio-card";
 		simple-audio-card,format = "i2s";
-		simple-audio-card,mclk-fs = <128>;
-		simple-audio-card,name = "rockchip,hdmi";
+		simple-audio-card,mclk-fs = <256>;
+		simple-audio-card,name = "ACODEC";
 		simple-audio-card,cpu {
 			sound-dai = <&i2s0>;
 		};
