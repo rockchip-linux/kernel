@@ -72,7 +72,7 @@
 			mode = <0x23>;
 			default-state = "on";
 		};
-	 }
+	};
 
 	fiq-debugger {
 		compatible = "rockchip,fiq-debugger";
