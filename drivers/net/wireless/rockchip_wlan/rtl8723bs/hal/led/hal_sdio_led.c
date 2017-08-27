@@ -19,7 +19,6 @@
  ******************************************************************************/
 
 #include <drv_types.h>
-#include <hal_data.h>
 
 //
 //	Description:
@@ -149,13 +148,13 @@ SwLedBlink1(
 	)
 {
 	_adapter				*padapter = pLed->padapter;
-	PHAL_DATA_TYPE		pHalData = GET_HAL_DATA(padapter);	
+	EEPROM_EFUSE_PRIV	*pEEPROM = GET_EEPROM_EFUSE_PRIV(padapter);
 	struct led_priv		*ledpriv = &(padapter->ledpriv);
 	struct mlme_priv		*pmlmepriv = &(padapter->mlmepriv);
 	PLED_SDIO 			pLed1 = &(ledpriv->SwLed1);
 	u8					bStopBlinking = _FALSE;
 	
-	if(pHalData->CustomerID == RT_CID_819x_CAMEO)
+	if(pEEPROM->CustomerID == RT_CID_819x_CAMEO)
 		pLed = &(ledpriv->SwLed1);
 
 	// Change LED according to BlinkingLedState specified.
@@ -171,7 +170,7 @@ SwLedBlink1(
 	}
 
 
-	if(pHalData->CustomerID == RT_CID_DEFAULT)
+	if(pEEPROM->CustomerID == RT_CID_DEFAULT)
 	{
 		if(check_fwstate(pmlmepriv, _FW_LINKED)== _TRUE)
 		{
@@ -1015,12 +1014,10 @@ void BlinkHandler(PLED_SDIO	pLed)
 	struct led_priv	*ledpriv = &(padapter->ledpriv);
 
 	//DBG_871X("%s (%s:%d)\n",__FUNCTION__, current->comm, current->pid);
-	if (RTW_CANNOT_RUN(padapter) || (!rtw_is_hw_init_completed(padapter))) {
-		DBG_871X("%s bDriverStopped:%s, bSurpriseRemoved:%s\n"
-		, __func__
-		, rtw_is_drv_stopped(padapter)?"True":"False"
-		, rtw_is_surprise_removed(padapter)?"True":"False");
-		
+
+	if( (padapter->bSurpriseRemoved == _TRUE) || ( padapter->bDriverStopped == _TRUE))	
+	{
+		//DBG_871X("%s bSurpriseRemoved:%d, bDriverStopped:%d\n", __FUNCTION__, padapter->bSurpriseRemoved, padapter->bDriverStopped);
 		return;
 	}
 
@@ -1073,11 +1070,9 @@ void BlinkTimerCallback(void *data)
 
 	//DBG_871X("%s\n", __FUNCTION__);
 
-	if (RTW_CANNOT_RUN(padapter) || (!rtw_is_hw_init_completed(padapter))) {
-		/*DBG_871X("%s bDriverStopped:%s, bSurpriseRemoved:%s\n"
-			, __func__
-			, rtw_is_drv_stopped(padapter)?"True":"False"
-			, rtw_is_surprise_removed(padapter)?"True":"False" );*/
+	if( (padapter->bSurpriseRemoved == _TRUE) || ( padapter->bDriverStopped == _TRUE))	
+	{
+		//DBG_871X("%s bSurpriseRemoved:%d, bDriverStopped:%d\n", __FUNCTION__, padapter->bSurpriseRemoved, padapter->bDriverStopped);
 		return;
 	}
 
@@ -1225,9 +1220,9 @@ SwLedControlMode1(
 	struct led_priv		*ledpriv = &(padapter->ledpriv);
 	PLED_SDIO			pLed = &(ledpriv->SwLed0);
 	struct mlme_priv		*pmlmepriv = &(padapter->mlmepriv);
-	PHAL_DATA_TYPE		pHalData = GET_HAL_DATA(padapter);
+	EEPROM_EFUSE_PRIV	*pEEPROM = GET_EEPROM_EFUSE_PRIV(padapter);
 	
-	if(pHalData->CustomerID == RT_CID_819x_CAMEO)
+	if(pEEPROM->CustomerID == RT_CID_819x_CAMEO)
 		pLed = &(ledpriv->SwLed1);
 
 	switch(LedAction)
@@ -2167,10 +2162,10 @@ SwLedControlMode5(
 {
 	struct led_priv	*ledpriv = &(padapter->ledpriv);
 	struct mlme_priv	*pmlmepriv = &padapter->mlmepriv;
-	PHAL_DATA_TYPE	pHalData = GET_HAL_DATA(padapter);
+	EEPROM_EFUSE_PRIV	*pEEPROM = GET_EEPROM_EFUSE_PRIV(padapter);
 	PLED_SDIO		pLed = &(ledpriv->SwLed0);
 
-	if(pHalData->CustomerID == RT_CID_819x_CAMEO)
+	if(pEEPROM->CustomerID == RT_CID_819x_CAMEO)
 		pLed = &(ledpriv->SwLed1);
 
 	switch(LedAction)
@@ -2291,13 +2286,10 @@ LedControlSDIO(
 		return;
 #endif
 
-	if (RTW_CANNOT_RUN(padapter) || (!rtw_is_hw_init_completed(padapter))) {
-		/*DBG_871X("%s bDriverStopped:%s, bSurpriseRemoved:%s\n"
-		, __func__
-		, rtw_is_drv_stopped(padapter)?"True":"False"
-		, rtw_is_surprise_removed(padapter)?"True":"False");*/
-		return;
-	}
+       if( (padapter->bSurpriseRemoved == _TRUE) ||(padapter->hw_init_completed == _FALSE) )
+       {
+             return;
+       }
 
 	if( ledpriv->bRegUseLed == _FALSE)
 		return;

@@ -492,6 +492,7 @@ NDIS_STATUS oid_rt_get_channelplan_hdl(struct oid_par_priv* poid_par_priv)
 {
 	NDIS_STATUS	 	status = NDIS_STATUS_SUCCESS;
 	PADAPTER		padapter = (PADAPTER)(poid_par_priv->adapter_context);
+	struct eeprom_priv*	peeprompriv = &padapter->eeprompriv;	
 
 	if(poid_par_priv->type_of_oid != QUERY_OID)
 	{
@@ -499,7 +500,7 @@ NDIS_STATUS oid_rt_get_channelplan_hdl(struct oid_par_priv* poid_par_priv)
 		return status;
 	}		
 	*poid_par_priv->bytes_rw = poid_par_priv->information_buf_len;
-	*(u16 *)poid_par_priv->information_buf = padapter->mlmepriv.ChannelPlan ;
+	*(u16 *)poid_par_priv->information_buf = peeprompriv->channel_plan ;
 
 	return status;
 }
@@ -507,6 +508,7 @@ NDIS_STATUS oid_rt_set_channelplan_hdl(struct oid_par_priv* poid_par_priv)
 {
 	NDIS_STATUS	 	status = NDIS_STATUS_SUCCESS;
 	PADAPTER		padapter = (PADAPTER)(poid_par_priv->adapter_context);
+	struct eeprom_priv*	peeprompriv = &padapter->eeprompriv;	
 	
 	if(poid_par_priv->type_of_oid != SET_OID)
 	{
@@ -514,7 +516,7 @@ NDIS_STATUS oid_rt_set_channelplan_hdl(struct oid_par_priv* poid_par_priv)
 		return status;
 	}		
 	
-	padapter->mlmepriv.ChannelPlan  = *(u16 *)poid_par_priv->information_buf ;
+	peeprompriv->channel_plan = *(u16 *)poid_par_priv->information_buf ;
 
 	return status;
 }

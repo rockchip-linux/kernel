@@ -40,6 +40,8 @@
 
 /*------------------------------Define structure----------------------------*/ 
 
+#define MAX_PG_GROUP 13
+
 #define	MAX_TX_COUNT_8188E			1
 
 /* BB/RF related */
@@ -87,6 +89,9 @@ int	PHY_RFConfig8188E(IN	PADAPTER	Adapter	);
 
 /* RF config */
 int	rtl8188e_PHY_ConfigRFWithParaFile(IN PADAPTER Adapter, IN u8 * pFileName, u8 eRFPath);
+
+/* Read initi reg value for tx power setting. */
+void	rtl8192c_PHY_GetHWRegOriginalValue(	IN	PADAPTER		Adapter	);
 
 //
 // RF Power setting
@@ -159,10 +164,6 @@ PHY_SetSwChnlBWMode8188E(
 	IN	u8					Offset80
 );
 
-VOID
-PHY_SetRFEReg_8188E(
-	IN PADAPTER		Adapter
-);
 //
 // BB/MAC/RF other monitor API
 //

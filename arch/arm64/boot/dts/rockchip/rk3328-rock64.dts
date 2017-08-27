@@ -44,8 +44,8 @@
 #include "rk3328.dtsi"
 
 / {
-	model = "PINE64 ROCK64";
-	compatible = "pine64,rock64", "rockchip,rk3328";
+	model = "Rockchip RK3328 Rock64";
+	compatible = "rockchip,rk3328-rock64", "rockchip,rk3328";
 
 	chosen {
 		bootargs = "rockchip_jtag earlyprintk=uart8250-32bit,0xff130000";
@@ -110,7 +110,7 @@
 		compatible = "simple-audio-card";
 		simple-audio-card,format = "i2s";
 		simple-audio-card,mclk-fs = <128>;
-		simple-audio-card,name = "ROCK64";
+		simple-audio-card,name = "rockchip,hdmi";
 		simple-audio-card,cpu {
 			sound-dai = <&i2s0>;
 		};
@@ -121,7 +121,7 @@
 
 	spdif-sound {
 		compatible = "simple-audio-card";
-		simple-audio-card,name = "SPDIF";
+		simple-audio-card,name = "rockchip,spdif";
 		simple-audio-card,cpu {
 			sound-dai = <&spdif>;
 		};

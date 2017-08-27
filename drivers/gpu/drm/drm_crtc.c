@@ -2879,8 +2879,6 @@ int drm_crtc_check_viewport(const struct drm_crtc *crtc,
 
 {
 	int hdisplay, vdisplay;
-	pr_info("%s: skip check\n", __func__);
-	return 0;
 
 	drm_crtc_get_hv_timing(mode, &hdisplay, &vdisplay);
 

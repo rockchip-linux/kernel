@@ -48,11 +48,8 @@
 #include <linux/ipv6.h>
 #include <linux/icmpv6.h>
 #include <net/ndisc.h>
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 24))
-#include <net/ip6_checksum.h>
-#else
 #include <net/checksum.h>
-#endif
+#include <net/ip6_checksum.h>
 #endif
 #endif
 

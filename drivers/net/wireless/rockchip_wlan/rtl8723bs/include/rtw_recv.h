@@ -45,12 +45,8 @@
 			#define NR_RECVBUFF (8)
 		#endif	
 	#endif //CONFIG_SINGLE_RECV_BUF
-	#ifdef CONFIG_PREALLOC_RX_SKB_BUFFER
-		#define NR_PREALLOC_RECV_SKB (rtw_rtkm_get_nr_recv_skb()>>1)
-	#else /*!CONFIG_PREALLOC_RX_SKB_BUFFER */
-		#define NR_PREALLOC_RECV_SKB 8
-	#endif /* CONFIG_PREALLOC_RX_SKB_BUFFER */
 
+	#define NR_PREALLOC_RECV_SKB (8)	
 #endif
 
 #define NR_RECVFRAME 256
@@ -63,7 +59,7 @@
 #define MAX_RXFRAME_CNT	512
 #define MAX_RX_NUMBLKS		(32)
 #define RECVFRAME_HDR_ALIGN 128
-#define MAX_CONTINUAL_NORXPACKET_COUNT 1    /*  In MAX_CONTINUAL_NORXPACKET_COUNT*2 sec  , no rx traffict would issue DELBA*/
+
 
 #define PHY_RSSI_SLID_WIN_MAX				100
 #define PHY_LINKQUALITY_SLID_WIN_MAX		20
@@ -100,10 +96,8 @@ struct recv_reorder_ctrl
 	u16 indicate_seq;//=wstart_b, init_value=0xffff
 	u16 wend_b;
 	u8 wsize_b;
-	u8 ampdu_size;
 	_queue pending_recvframe_queue;
 	_timer reordering_ctrl_timer;
-	u8 bReorderWaiting;
 };
 
 struct	stainfo_rxcache	{
@@ -180,32 +174,26 @@ typedef struct _ODM_Phy_Status_Info_
 
 struct phy_info
 {		
-	u8			RxPWDBAll;
-	u8			SignalQuality;				/* in 0-100 index. */
-	s8			RxMIMOSignalQuality[4];		/* per-path's EVM */
-	u8			RxMIMOEVMdbm[4];			/* per-path's EVM dbm */
-	u8			RxMIMOSignalStrength[4];	/* in 0~100 index */
-	s16			Cfo_short[4];				/* per-path's Cfo_short */
-	s16			Cfo_tail[4];					/* per-path's Cfo_tail */
-	s8			RxPower;					/* in dBm Translate from PWdB */
-	s8			RecvSignalPower;			/* Real power in dBm for this packet, no beautification and aggregation. Keep this raw info to be used for the other procedures. */
-	u8			BTRxRSSIPercentage;	
-	u8			SignalStrength;				/* in 0-100 index. */
-	s8			RxPwr[4];					/* per-path's pwdb */
-	s8			RxSNR[4];
-#if (RTL8822B_SUPPORT == 1)
-	u8			RxCount:2;
-	u8			BandWidth:2;
-	u8			rxsc:4;
-#else
-	u8			BandWidth;
-#endif
-	u8			btCoexPwrAdjust;
-#if (RTL8822B_SUPPORT == 1)
-	u8			channel;						/* channel number---*/
-	BOOLEAN		bMuPacket;					/* is MU packet or not---*/
-	BOOLEAN		bBeamformed;
-#endif
+	u8		RxPWDBAll;
+
+	u8		SignalQuality;	 // in 0-100 index. 
+	s8		RxMIMOSignalQuality[4];	//per-path's EVM
+	u8		RxMIMOEVMdbm[4]; 		//per-path's EVM dbm
+
+	u8		RxMIMOSignalStrength[4];// in 0~100 index
+
+	u16		Cfo_short[4]; 			// per-path's Cfo_short
+	u16		Cfo_tail[4];			// per-path's Cfo_tail
+
+	s8		RxPower; // in dBm Translate from PWdB
+	s8		RecvSignalPower;// Real power in dBm for this packet, no beautification and aggregation. Keep this raw info to be used for the other procedures.
+	u8		BTRxRSSIPercentage;	
+	u8		SignalStrength; // in 0-100 index.
+
+	s8		RxPwr[4];				//per-path's pwdb
+	u8		RxSNR[4];				//per-path's SNR	
+	u8		BandWidth;
+	u8		btCoexPwrAdjust;
 };
 
 #ifdef DBG_RX_SIGNAL_DISPLAY_RAW_DATA
@@ -215,8 +203,8 @@ struct rx_raw_rssi
 	u8 pwdball;
 	s8 pwr_all;
 	
-	u8 mimo_signal_strength[4];/* in 0~100 index */
-	u8 mimo_signal_quality[4];
+	u8 mimo_singal_strength[4];// in 0~100 index
+	u8 mimo_singal_quality[4];
 	
 	s8 ofdm_pwr[4];
 	u8 ofdm_snr[4];
@@ -266,12 +254,8 @@ struct rx_pkt_attrib	{
 	u8 	key_index;
 
 	u8	data_rate;
-	u8	bw;
-	u8	stbc;
-	u8	ldpc;
 	u8 	sgi;
 	u8 	pkt_rpt_type;
-	u32 tsfl;
 	u32	MacIDValidEntry[2];	// 64 bits present 64 entry.
 
 /*
@@ -281,7 +265,7 @@ struct rx_pkt_attrib	{
 	u32	RxPWDBAll;	
 	s32	RecvSignalPower;
 */
-	struct phy_info phy_info;
+	struct phy_info phy_info;	
 };
 
 
@@ -294,7 +278,7 @@ struct rx_pkt_attrib	{
 
 #define RECVBUFF_ALIGN_SZ 8
 
-#if defined(CONFIG_RTL8192E) || defined(CONFIG_RTL8814A)
+#if defined (CONFIG_RTL8192E)
 	#ifdef CONFIG_PCI_HCI
 		#define RXDESC_SIZE 16
 		#define RX_WIFI_INFO_SIZE	24
@@ -312,7 +296,7 @@ struct recv_stat
 
 	unsigned int rxdw1;
 
-#if !((defined(CONFIG_RTL8192E) || defined(CONFIG_RTL8814A)) && defined(CONFIG_PCI_HCI))  /* exclude 8192ee, 8814ae */
+#if !(defined(CONFIG_RTL8192E) && defined(CONFIG_PCI_HCI)) //exclude 8192ee
 	unsigned int rxdw2;
 
 	unsigned int rxdw3;
@@ -537,9 +521,11 @@ struct recv_buf
 
 #ifdef PLATFORM_LINUX
 	_pkt	*pskb;
+	u8	reuse;
 #endif
 #ifdef PLATFORM_FREEBSD //skb solution
 	struct sk_buff *pskb;
+	u8	reuse;
 #endif //PLATFORM_FREEBSD //skb solution
 };
 
@@ -616,8 +602,6 @@ union recv_frame{
 
 };
 
-bool rtw_rframe_del_wfd_ie(union recv_frame *rframe, u8 ies_offset);
-
 typedef enum _RX_PACKET_TYPE{
 	NORMAL_RX,//Normal rx packet
 	TX_REPORT1,//CCX
@@ -643,10 +627,6 @@ sint rtw_enqueue_recvbuf(struct recv_buf *precvbuf, _queue *queue);
 struct recv_buf *rtw_dequeue_recvbuf (_queue *queue);
 
 void rtw_reordering_ctrl_timeout_handler(void *pcontext);
-
-void rx_query_phy_status(union recv_frame *rframe, u8 *phy_stat);
-int rtw_inc_and_chk_continual_no_rx_packet(struct sta_info *sta, int tid_index);
-void rtw_reset_continual_no_rx_packet(struct sta_info *sta, int tid_index);
 
 __inline static u8 *get_rxmem(union recv_frame *precvframe)
 {
@@ -735,8 +715,6 @@ __inline static u8 *recvframe_put(union recv_frame *precvframe, sint sz)
 	//used for append sz bytes from ptr to rx_tail, update rx_tail and return the updated rx_tail to the caller
 	//after putting, rx_tail must be still larger than rx_end.
  	unsigned char * prev_rx_tail;
-
-	/* DBG_871X("recvframe_put: len=%d\n", sz); */
 
 	if(precvframe==NULL)
 		return NULL;
@@ -857,13 +835,13 @@ __inline static s32 translate_percentage_to_dbm(u32 SignalStrengthIndex)
 {
 	s32	SignalPower; // in dBm.
 
-#ifdef CONFIG_SIGNAL_SCALE_MAPPING
-	/* Translate to dBm (x=0.5y-95). */
+#ifdef CONFIG_SKIP_SIGNAL_SCALE_MAPPING
+	// Translate to dBm (x=y-100)
+	SignalPower = SignalStrengthIndex - 100;
+#else
+	// Translate to dBm (x=0.5y-95).
 	SignalPower = (s32)((SignalStrengthIndex + 1) >> 1); 
 	SignalPower -= 95; 
-#else
-	/* Translate to dBm (x=y-100) */
-	SignalPower = SignalStrengthIndex - 100;
 #endif
 
 	return SignalPower;
