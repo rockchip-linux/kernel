@@ -422,6 +422,16 @@
 };
 
 &i2s1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2s1_mclk
+		     &i2s1_sclk
+		     &i2s1_lrcktx
+		     &i2s1_lrckrx
+		     &i2s1_sdo
+		     &i2s1_sdi
+		     &i2s1_sdio1
+		     &i2s1_sdio2
+		     &i2s1_sdio3>;
 	#sound-dai-cells = <0>;
 	status = "okay";
 };
@@ -468,6 +478,8 @@
 };
 
 &spdif {
+	pinctrl-names = "default";
+	pinctrl-0 = <&spdifm0_tx>;
 	#sound-dai-cells = <0>;
 	status = "okay";
 };
