@@ -51,6 +51,29 @@
 		bootargs = "rockchip_jtag earlyprintk=uart8250-32bit,0xff130000";
 	};
 
+	leds {
+		compatible = "gpio-leds";
+
+		standby-red {
+			linux,default-trigger = "none";
+			gpios = <&rk805 1 1>;
+			default-state = "on";
+		};
+
+		power-white {
+			linux,default-trigger = "none";
+			gpios = <&rk805 0 0>;
+			default-state = "on";
+		};
+
+		usb-switch {
+			linux,default-trigger = "none";
+			gpios = <&gpio0 2 1>;
+			mode = <0x23>;
+			default-state = "on";
+		};
+	 }
+
 	fiq-debugger {
 		compatible = "rockchip,fiq-debugger";
 		rockchip,serial-id = <2>;
@@ -214,7 +237,7 @@
 		};
 
 		pwrkey {
-			status = "disabled";
+			status = "okay";
 		};
 
 		gpio {
