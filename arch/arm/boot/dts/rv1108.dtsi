@@ -803,7 +803,7 @@
 		compatible = "rockchip,rv1108-rkvenc", "rockchip,rkvenc";
 		rockchip,grf = <&grf>;
 		iommu_enabled = <0>;
-		reg = <0x28000000 0x400>;
+		reg = <0x28000000 0x8ec>;
 		interrupts = <GIC_SPI 8 IRQ_TYPE_LEVEL_HIGH>;
 		clocks = <&aclk_rkvenc_pre>, <&clk_gates19 9>,
 			<&clk_venc_core>;
