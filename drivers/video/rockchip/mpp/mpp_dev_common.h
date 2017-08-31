@@ -101,6 +101,9 @@ extern int mpp_dev_debug;
 #define mpp_err(fmt, args...)				\
 		pr_err("%s:%d: " fmt, __func__, __LINE__, ##args)
 
+#define PREF_TAB_NUM_OF_COLUMNS		(3)
+#define PREF_TAB_ROW2INDEX(x)		((x) * PREF_TAB_NUM_OF_COLUMNS)
+
 struct mpp_trans_info {
 	const int count;
 	const char * const table;
@@ -202,6 +205,10 @@ struct rockchip_mpp_dev {
 
 	struct device *mmu_dev;
 	u32 iommu_enable;
+
+	const u32 *pref_tables;
+	u32 pref_table_num;
+	u32 pref_level;
 
 	struct wake_lock wake_lock;
 	struct delayed_work power_off_work;

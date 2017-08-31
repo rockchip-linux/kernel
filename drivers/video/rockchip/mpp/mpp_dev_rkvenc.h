@@ -56,6 +56,7 @@ struct rkvenc_result_elem {
 struct rkvenc_result {
 	u32 tbl_num;
 	struct rkvenc_result_elem elem[10];
+	struct rkvenc_result_elem pref;
 };
 
 struct rkvenc_ctx {
@@ -160,6 +161,8 @@ struct rockchip_rkvenc_dev {
 	struct clk *aclk;
 	struct clk *hclk;
 	struct clk *core;
+	/* in MHZ unit, -1 for the init, 0 for keep the current */
+	int next_clock_rate;
 
 	struct reset_control *rst_a;
 	struct reset_control *rst_h;

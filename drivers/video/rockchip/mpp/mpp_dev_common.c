@@ -331,7 +331,7 @@ void mpp_dev_power_off(struct rockchip_mpp_dev *mpp)
 		pr_alert("alert: delay 50 ms for running task\n");
 	}
 
-	pr_info("%s: power off...", dev_name(mpp->dev));
+	dev_info(mpp->dev, "power off...");
 
 #ifdef CONFIG_ROCKCHIP_IOMMU
 	if (mpp->iommu_enable) {
@@ -844,6 +844,44 @@ static const struct of_device_id mpp_dev_dt_ids[] = {
 };
 #endif
 
+static int mpp_dev_load_pref_table(struct rockchip_mpp_dev *mpp)
+{
+	struct device *dev = mpp->dev;
+	struct device_node *dn = mpp->dev->of_node;
+	u32 *pref_tables = NULL;
+	int pcount, ret;
+
+	/* Checkt whether the table is complete */
+	pcount = of_property_count_u32_elems(dn, "pref-table");
+	if (pcount % PREF_TAB_NUM_OF_COLUMNS) {
+		ret = -EINVAL;
+		goto fail;
+	}
+
+	pref_tables = devm_kmalloc_array(dev, pcount, sizeof(*pref_tables),
+					 GFP_KERNEL);
+	if (!pref_tables) {
+		ret = -ENOMEM;
+		goto fail;
+	}
+
+	ret = of_property_read_u32_array(dn, "pref-table", pref_tables, pcount);
+	if (ret) {
+		dev_err(dev, "parsing performance table failed: %d\n", ret);
+		ret = -EINVAL;
+		goto fail;
+	}
+
+	mpp->pref_tables = pref_tables;
+	mpp->pref_table_num = pcount;
+
+	return 0;
+fail:
+	mpp->pref_tables = NULL;
+	mpp->pref_table_num = 0;
+	return ret;
+}
+
 static int mpp_dev_probe(struct platform_device *pdev)
 {
 	int ret = 0;
@@ -957,11 +995,12 @@ static int mpp_dev_probe(struct platform_device *pdev)
 		goto err;
 	}
 
-	mpp->child_dev = device_create(mpp->srv->cls, dev,
-		mpp->dev_t, NULL, name);
+	mpp->child_dev = device_create(mpp->srv->cls, dev, mpp->dev_t, NULL,
+				       "%s", name);
 
 	mpp_srv_attach(mpp->srv, &mpp->lnk_service);
 
+	mpp_dev_load_pref_table(mpp);
 	platform_set_drvdata(pdev, mpp);
 
 	return 0;

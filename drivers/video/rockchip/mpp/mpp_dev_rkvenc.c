@@ -28,6 +28,9 @@
 #include "mpp_dev_common.h"
 #include "mpp_dev_rkvenc.h"
 
+#define DEFAULT_FREQ	(300)
+#define MHZ	(1000 * 1000)
+
 #define MPP_ALIGN_SIZE	0x1000
 
 #define LINK_TABLE_START	12
@@ -81,6 +84,7 @@
 #define		RKVENC_LKT_STATUS_FNUM_CFG(x)		(((x) >> 8) & 0xff)
 #define		RKVENC_LKT_STATUS_FNUM_INT(x)		(((x) >> 16) & 0xff)
 #define	RKVENC_OSD_PLT(i)		(0x400 + (4 * i))
+#define RKVENC_DBG_FRAME_CNT		(0x08b8)
 
 #define to_rkvenc_ctx(ctx)		\
 		container_of(ctx, struct rkvenc_ctx, ictx)
@@ -88,6 +92,12 @@
 		container_of(session, struct rkvenc_session, isession)
 #define to_rkvenc_dev(dev)		\
 		container_of(dev, struct rockchip_rkvenc_dev, idev)
+
+#define PIC_HEIGHT_FILLING_IN_ENC_RSL(x)	((x >> 26) & 0x3F)
+#define PIC_HEIGHT_IN_ENC_RSL(x)		((((x & 0x01FF0000) >> 16) \
+								+ 1) << 3)
+#define PIC_WIDTH_FILLING_IN_ENC_RSL(x)		((x >> 10) & 0x3F)
+#define PIC_WIDTH_IN_ENC_RSL(x)			(((x & 0x01FF) + 1) << 3)
 
 /*
  * file handle translate information
@@ -335,6 +345,55 @@ static int rockchip_mpp_rkvenc_reset(struct rockchip_mpp_dev *mpp)
 	return 0;
 }
 
+static int mpp_rkenc_freq_adjust(struct rockchip_mpp_dev *mpp)
+{
+	struct rockchip_rkvenc_dev *enc = to_rkvenc_dev(mpp);
+	struct rkvenc_ctx *ctx =
+		to_rkvenc_ctx(mpp_srv_get_current_ctx(mpp->srv));
+
+	if (enc->core && enc->next_clock_rate) {
+		if (enc->next_clock_rate == -1) {
+			int i, row;
+			int mb_total = 0;
+			int width, height;
+			u32 *src = ctx->cfg.elem[0].reg;
+
+			width = PIC_WIDTH_IN_ENC_RSL(src[12])
+				- PIC_WIDTH_FILLING_IN_ENC_RSL(src[12]);
+			height = PIC_HEIGHT_IN_ENC_RSL(src[12])
+				- PIC_HEIGHT_FILLING_IN_ENC_RSL(src[12]);
+			/* Assume the MB is always 16x16 */
+			mb_total = (width * height) >> 8;
+
+			/*
+			 * Set a low frequency for the MB is small than
+			 * the lowest in the table
+			 */
+			enc->next_clock_rate = DEFAULT_FREQ;
+
+			row = mpp->pref_table_num / PREF_TAB_NUM_OF_COLUMNS;
+			for (i = 0; i < row; i++) {
+				int mb = 0;
+
+				mb = mpp->pref_tables[PREF_TAB_ROW2INDEX(i)];
+				if (mb < mb_total) {
+					u32 rate = 0;
+
+					rate = mpp->pref_tables
+					       [PREF_TAB_ROW2INDEX(i) + 1];
+					enc->next_clock_rate = rate;
+					mpp->pref_level = i;
+					break;
+				}
+			}
+		}
+		clk_set_rate(enc->core, enc->next_clock_rate * MHZ);
+		enc->next_clock_rate = 0;
+	}
+
+	return 0;
+}
+
 static int rockchip_mpp_rkvenc_prepare(struct rockchip_mpp_dev *mpp)
 {
 	struct rkvenc_ctx *ctx_curr;
@@ -409,6 +468,8 @@ static int rockchip_mpp_rkvenc_run(struct rockchip_mpp_dev *mpp)
 	switch (ctx->mode) {
 	case RKVENC_MODE_ONEFRAME: {
 		u32 *src = ctx->cfg.elem[0].reg;
+
+		mpp_rkenc_freq_adjust(mpp);
 
 		for (i = 2; i < (LINK_TABLE_START + LINK_TABLE_LEN); i++)
 			mpp_write_relaxed(mpp, src[i], i * 4);
@@ -497,6 +558,7 @@ static int rockchip_mpp_rkvenc_done(struct rockchip_mpp_dev *mpp)
 		for (i = 0; i < sizeof(result->elem[0].result) / 4; i++)
 			result->elem[0].result[i] =
 				mpp_read(mpp, RKVENC_STATUS(i));
+		result->pref.result[0] = mpp_read(mpp, RKVENC_DBG_FRAME_CNT);
 		break;
 	case RKVENC_MODE_LINKTABLE_FIX:
 	case RKVENC_MODE_LINKTABLE_UPDATE: {
@@ -556,6 +618,27 @@ static int rockchip_mpp_rkvenc_irq(struct rockchip_mpp_dev *mpp)
 	return 0;
 }
 
+static int rockchip_mpp_rkvenc_pref(struct rockchip_mpp_dev *mpp,
+				    struct rkvenc_result *result)
+{
+	struct rockchip_rkvenc_dev *enc = to_rkvenc_dev(mpp);
+
+	mpp_debug(DEBUG_TIMING, "run %04d cycles\n", result->pref.result[0]);
+
+	/* Check whether there is a level to boost and the table exists */
+	if (PREF_TAB_ROW2INDEX(mpp->pref_level + 1) + PREF_TAB_NUM_OF_COLUMNS
+	    <= mpp->pref_table_num) {
+		if (result->pref.result[0] >
+		    mpp->pref_tables[PREF_TAB_ROW2INDEX(mpp->pref_level) + 2]) {
+			mpp->pref_level++;
+			enc->next_clock_rate = mpp->pref_tables
+					       [PREF_TAB_ROW2INDEX
+					       (mpp->pref_level) + 1];
+		}
+	}
+	return 0;
+}
+
 static int rockchip_mpp_rkvenc_result(struct rockchip_mpp_dev *mpp,
 				      struct mpp_ctx *ictx, u32 __user *dst)
 {
@@ -566,6 +649,11 @@ static int rockchip_mpp_rkvenc_result(struct rockchip_mpp_dev *mpp,
 
 	switch (ctx->mode) {
 	case RKVENC_MODE_ONEFRAME:
+		/*
+		 * The frequency adjusting policy will apply on the one shot
+		 * one frame mode
+		 */
+		rockchip_mpp_rkvenc_pref(mpp, result);
 	case RKVENC_MODE_LINKTABLE_FIX:
 	case RKVENC_MODE_LINKTABLE_UPDATE: {
 		if (copy_to_user(dst, &ctx->result, tbl_size)) {
@@ -677,6 +765,12 @@ static void rockchip_mpp_rkvenc_power_off(struct rockchip_mpp_dev *mpp)
 		clk_disable_unprepare(enc->hclk);
 	if (enc->aclk)
 		clk_disable_unprepare(enc->aclk);
+
+	/* Reset the performance settings */
+	if (mpp->pref_tables)
+		enc->next_clock_rate = -1;
+	else
+		enc->next_clock_rate = 0;
 }
 
 static int rockchip_mpp_rkvenc_probe(struct rockchip_mpp_dev *mpp)
@@ -744,6 +838,12 @@ static int rockchip_mpp_rkvenc_probe(struct rockchip_mpp_dev *mpp)
 	}
 
 	rockchip_mpp_rkvenc_reset_init(mpp);
+
+	/* Adjust the clock at first time, if performance table exists */
+	if (mpp->pref_table_num)
+		enc->next_clock_rate = -1;
+	else
+		enc->next_clock_rate = 0;
 
 	return 0;
 
