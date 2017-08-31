@@ -29,7 +29,7 @@
 #include <linux/slab.h>
 #include <linux/of.h>
 #include <linux/of_gpio.h>
-
+#include <linux/of_mdio.h>
 #include <asm/io.h>
 
 #include "stmmac.h"
@@ -199,6 +199,7 @@ int stmmac_mdio_register(struct net_device *ndev)
 	int *irqlist;
 	struct stmmac_priv *priv = netdev_priv(ndev);
 	struct stmmac_mdio_bus_data *mdio_bus_data = priv->plat->mdio_bus_data;
+	struct device_node *mdio_node = priv->plat->mdio_node;
 	int addr, found;
 
 	if (!mdio_bus_data)
@@ -231,11 +232,15 @@ int stmmac_mdio_register(struct net_device *ndev)
 	new_bus->irq = irqlist;
 	new_bus->phy_mask = mdio_bus_data->phy_mask;
 	new_bus->parent = priv->device;
-	err = mdiobus_register(new_bus);
+
+	err = of_mdiobus_register(new_bus, mdio_node);
 	if (err != 0) {
 		pr_err("%s: Cannot register as MDIO bus\n", new_bus->name);
 		goto bus_register_fail;
 	}
+
+	if (priv->plat->phy_node || mdio_node)
+		goto bus_register_done;
 
 	found = 0;
 	for (addr = 0; addr < PHY_MAX_ADDR; addr++) {
@@ -284,13 +289,14 @@ int stmmac_mdio_register(struct net_device *ndev)
 		}
 	}
 
-	if (!found) {
+	if (!found && !mdio_node) {
 		pr_warn("%s: No PHY found\n", ndev->name);
 		mdiobus_unregister(new_bus);
 		mdiobus_free(new_bus);
 		return -ENODEV;
 	}
 
+bus_register_done:
 	priv->mii = new_bus;
 
 	return 0;
