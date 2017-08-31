@@ -169,8 +169,7 @@ static int dsp_dev_work(struct dsp_dev *dev, struct dsp_work *work)
 
 	dsp_debug_enter();
 
-	ret = mutex_trylock(&dev->lock);
-	if (!ret) {
+	if (!mutex_trylock(&dev->lock)) {
 		ret = -EBUSY;
 		dsp_debug(DEBUG_DEVICE, "DSP device is busy\n");
 		goto out;
@@ -187,7 +186,6 @@ static int dsp_dev_work(struct dsp_dev *dev, struct dsp_work *work)
 	dev->running_work = work;
 	dev->mbox->send_data(dev->mbox, MBOX_CHAN_0, DSP_CMD_WORK,
 			     work->dma_addr);
-
 out:
 	dsp_debug_leave();
 	return ret;

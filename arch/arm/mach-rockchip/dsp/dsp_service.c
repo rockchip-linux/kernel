@@ -290,9 +290,11 @@ static int dsp_work_consume(void *data)
 
 	while (!kthread_should_stop()) {
 		struct list_head *pending = &service->pending;
+		struct list_head *running = &service->running;
 
 		wait_event_interruptible_timeout(service->wait,
-						 !list_empty(pending) ||
+						 (!list_empty(pending) &&
+						 list_empty(running)) ||
 						 kthread_should_stop(),
 						 HZ);
 
