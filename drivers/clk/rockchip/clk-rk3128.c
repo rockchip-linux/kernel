@@ -315,13 +315,13 @@ static struct rockchip_clk_branch common_clk_branches[] __initdata = {
 			RK2928_CLKGATE_CON(10), 8, GFLAGS),
 
 	GATE(SCLK_PVTM_CORE, "clk_pvtm_core", "xin24m", 0,
-			RK2928_CLKGATE_CON(10), 8, GFLAGS),
+			RK2928_CLKGATE_CON(10), 0, GFLAGS),
 	GATE(SCLK_PVTM_GPU, "clk_pvtm_gpu", "xin24m", 0,
-			RK2928_CLKGATE_CON(10), 8, GFLAGS),
+			RK2928_CLKGATE_CON(10), 1, GFLAGS),
 	GATE(SCLK_PVTM_FUNC, "clk_pvtm_func", "xin24m", 0,
-			RK2928_CLKGATE_CON(10), 8, GFLAGS),
+			RK2928_CLKGATE_CON(10), 2, GFLAGS),
 	GATE(SCLK_MIPI_24M, "clk_mipi_24m", "xin24m", CLK_IGNORE_UNUSED,
-			RK2928_CLKGATE_CON(10), 8, GFLAGS),
+			RK2928_CLKGATE_CON(2), 15, GFLAGS),
 
 	COMPOSITE(SCLK_SDMMC, "sclk_sdmmc0", mux_mmc_src_p, 0,
 			RK2928_CLKSEL_CON(11), 6, 2, MFLAGS, 0, 6, DFLAGS,
@@ -577,6 +577,8 @@ static const char *const rk3128_critical_clocks[] __initconst = {
 	"aclk_peri",
 	"hclk_peri",
 	"pclk_peri",
+	"pclk_pmu",
+	"sclk_timer5",
 };
 
 static struct rockchip_clk_provider *__init rk3128_common_clk_init(struct device_node *np)

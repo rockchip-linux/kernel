@@ -1,5 +1,5 @@
 /*
- * tc358743 - Toshiba HDMI to CSI-2 bridge - register names and bit masks
+ * tc35874x - Toshiba HDMI to CSI-2 bridge - register names and bit masks
  *
  * Copyright 2015 Cisco Systems, Inc. and/or its affiliates. All rights
  * reserved.
@@ -22,12 +22,13 @@
 /*
  * References (c = chapter, p = page):
  * REF_01 - Toshiba, TC358743XBG (H2C), Functional Specification, Rev 0.60
+ * REF_02 - Toshiba, TC358749XBG (H2C+), Functional Specification, Rev 0.74
  */
 
 /* Bit masks has prefix 'MASK_' and options after '_'. */
 
-#ifndef __TC358743_REGS_H
-#define __TC358743_REGS_H
+#ifndef __TC35874X_REGS_H
+#define __TC35874X_REGS_H
 
 #define CHIPID                                0x0000
 #define MASK_CHIPID                           0xff00
@@ -420,6 +421,7 @@
 #define MASK_MODE_RST_TN                      0x20
 #define MASK_LINE_REKEY                       0x10
 #define MASK_AUTO_CLR                         0x04
+#define MASK_MANUAL_AUTHENTICATION            0x02 /* Not in REF_01 */
 
 #define HDCP_REG1                             0x8563 /* Not in REF_01 */
 #define MASK_AUTH_UNAUTH_SEL                  0x70
