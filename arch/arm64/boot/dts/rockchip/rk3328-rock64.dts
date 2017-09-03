@@ -120,30 +120,62 @@
 		status = "okay";
 	};
 
+	dummy_codec: dummy-codec {
+		compatible = "linux,snd-soc-dummy";
+		#sound-dai-cells = <0>;
+	};
+
 	sound {
 		compatible = "simple-audio-card";
-		simple-audio-card,format = "i2s";
 		simple-audio-card,mclk-fs = <256>;
-		simple-audio-card,name = "rockchip,rk3328";
-		simple-audio-card,cpu {
-			sound-dai = <&i2s1>;
+		simple-audio-card,name = "I2S";
+		simple-audio-card,dai-link@0 {
+			format = "i2s";
+			cpu {
+				sound-dai = <&i2s1>;
+			};
+			codec {
+				sound-dai = <&codec>;
+			};
 		};
-		simple-audio-card,codec {
-			sound-dai = <&codec>;
+		simple-audio-card,dai-link@1 {
+			format = "i2s";
+			cpu {
+				sound-dai = <&i2s1>;
+			};
+			codec {
+				sound-dai = <&dummy_codec>;
+			};
 		};
 	};
 
 	hdmi-sound {
 		compatible = "simple-audio-card";
 		simple-audio-card,format = "i2s";
-		simple-audio-card,mclk-fs = <128>;
-		simple-audio-card,name = "rockchip,hdmi";
+		simple-audio-card,mclk-fs = <256>;
+		simple-audio-card,name = "HDMI";
 		simple-audio-card,cpu {
 			sound-dai = <&i2s0>;
 		};
 		simple-audio-card,codec {
 			sound-dai = <&hdmi>;
 		};
+	};
+
+	spdif-sound {
+		compatible = "simple-audio-card";
+		simple-audio-card,name = "SPDIF";
+		simple-audio-card,cpu {
+			sound-dai = <&spdif>;
+		};
+		simple-audio-card,codec {
+			sound-dai = <&spdif_out>;
+		};
+	};
+
+	spdif_out: spdif-out {
+		compatible = "linux,spdif-dit";
+		#sound-dai-cells = <0>;
 	};
 };
 
