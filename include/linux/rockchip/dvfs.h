@@ -106,9 +106,16 @@ struct lkg_adjust_volt_table {
 	int	dlt_volt;
 };
 
+struct scaling_sel_table {
+	int min;
+	int max;
+	int sel;
+};
+
 struct lkg_info {
 	int	def_table_lkg;
 	int	min_adjust_freq;
+	int	max_volt;
 	struct	lkg_adjust_volt_table *table;
 };
 
@@ -169,6 +176,7 @@ struct dvfs_node {
 	unsigned int		cluster;
 	unsigned int        max_limit_freq;
 	unsigned int        pvtm_min_temp;
+	struct scaling_sel_table	*scaling_sel_tbl;
 };
 
 

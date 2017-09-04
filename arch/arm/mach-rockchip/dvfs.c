@@ -19,6 +19,7 @@
 #include <linux/stat.h>
 #include <linux/of.h>
 #include <linux/opp.h>
+#include <linux/rockchip/cru.h>
 #include <linux/rockchip/dvfs.h>
 #include <linux/rockchip/common.h>
 #include <linux/fb.h>
@@ -1670,6 +1671,31 @@ int dvfs_set_freq_volt_table(struct dvfs_node *clk_dvfs_node, struct cpufreq_fre
 }
 EXPORT_SYMBOL(dvfs_set_freq_volt_table);
 
+static void adjust_avs_by_leakage(struct dvfs_node *dvfs_node)
+{
+	int i, j = -1, leakage = 0;
+
+	if (!dvfs_node->vd || !dvfs_node->scaling_sel_tbl)
+		return;
+
+	if (dvfs_node->vd->leakage == 0) {
+		leakage = rockchip_get_leakage(dvfs_node->channel);
+		if (!leakage)
+			return;
+		dvfs_node->vd->leakage = leakage;
+	} else {
+		leakage = dvfs_node->vd->leakage;
+	}
+
+	for (i = 0; dvfs_node->scaling_sel_tbl[i].sel != CPUFREQ_TABLE_END;
+	     i++) {
+		if (leakage >= dvfs_node->scaling_sel_tbl[i].min)
+			j = i;
+	}
+	if (j != -1)
+		rockchip_adjust_avs(dvfs_node->scaling_sel_tbl[j].sel);
+}
+
 static int get_adjust_volt_by_leakage(struct dvfs_node *dvfs_node)
 {
 	int leakage = 0;
@@ -1733,6 +1759,11 @@ static void adjust_table_by_leakage(struct dvfs_node *dvfs_node)
 		if (dvfs_node->dvfs_table[i].frequency >=
 			dvfs_node->lkg_info.min_adjust_freq)
 			dvfs_node->dvfs_table[i].index += adjust_volt;
+		if (dvfs_node->lkg_info.max_volt &&
+		    (dvfs_node->dvfs_table[i].index >
+		     dvfs_node->lkg_info.max_volt))
+			dvfs_node->dvfs_table[i].index =
+				dvfs_node->lkg_info.max_volt;
 	}
 }
 
@@ -1818,6 +1849,8 @@ static int initialize_dvfs_node(struct dvfs_node *clk_dvfs_node)
 	dvfs_get_rate_range(clk_dvfs_node);
 	clk_dvfs_node->freq_limit_en = 1;
 	clk_dvfs_node->max_limit_freq = clk_dvfs_node->max_rate;
+
+	adjust_avs_by_leakage(clk_dvfs_node);
 
 	volt = rockchip_efuse_get_volt_adjust(clk_dvfs_node->channel);
 	if (volt) {
@@ -2473,6 +2506,46 @@ static struct lkg_adjust_volt_table
 	return lkg_adjust_volt_table;
 }
 
+static  struct scaling_sel_table *of_get_sel_table(struct device_node *np,
+						   char *propname)
+{
+	struct scaling_sel_table *sel_table = NULL;
+	const struct property *prop;
+	int count, i;
+
+	prop = of_find_property(np, propname, NULL);
+	if (!prop)
+		return NULL;
+
+	if (!prop->value)
+		return NULL;
+
+	count = of_property_count_u32_elems(np, propname);
+	if (count < 0)
+		return NULL;
+
+	if (count % 3)
+		return NULL;
+
+	sel_table = kzalloc(sizeof(*sel_table) * (count / 3 + 1), GFP_KERNEL);
+	if (!sel_table)
+		return NULL;
+
+	for (i = 0; i < count / 3; i++) {
+		of_property_read_u32_index(np, propname, 3 * i,
+					   &sel_table[i].min);
+		of_property_read_u32_index(np, propname, 3 * i + 1,
+					   &sel_table[i].max);
+		of_property_read_u32_index(np, propname, 3 * i + 2,
+					   &sel_table[i].sel);
+	}
+	sel_table[i].min = 0;
+	sel_table[i].max = 0;
+	sel_table[i].sel = CPUFREQ_TABLE_END;
+
+	return sel_table;
+}
+
 static int dvfs_node_parse_dt(struct device_node *np,
 			      struct dvfs_node *dvfs_node)
 {
@@ -2578,10 +2651,16 @@ static int dvfs_node_parse_dt(struct device_node *np,
 					   &dvfs_node->lkg_info.min_adjust_freq
 					   );
 
+		of_property_read_u32_index(np, "max_adjust_volt", 0,
+					   &dvfs_node->lkg_info.max_volt);
+
 		dvfs_node->lkg_info.table =
 			of_get_lkg_adjust_volt_table(np,
 						     "lkg_adjust_volt_table");
 	}
+
+	dvfs_node->scaling_sel_tbl = of_get_sel_table(np,
+						      "leakage-scaling-sel");
 
 	return 0;
 }
