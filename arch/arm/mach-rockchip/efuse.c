@@ -597,9 +597,9 @@ static int __init rockchip_efuse_probe(struct platform_device *pdev)
 				avs_delta = 2;
 			else
 				avs_delta = 4;
-			rk322xh_adjust_avs(avs_delta);
+			rockchip_adjust_avs(avs_delta);
 		} else {
-			rk322xh_adjust_avs(0);
+			rockchip_adjust_avs(0);
 		}
 
 		return 0;

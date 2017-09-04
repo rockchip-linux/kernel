@@ -245,95 +245,95 @@ static const struct pll_clk_set rk312xplus_pll_com_table[] = {
 };
 
 static const struct apll_clk_set rk3368_apllb_table[] = {
-			/*(_mhz,	nr,	nf,	no,	aclkm,	atclk,	pclk_dbg)*/
-	_RK3368_APLL_SET_CLKS(1608,	1,	67,	1,	2,	6,	6),
-	_RK3368_APLL_SET_CLKS(1560,	1,	65,	1,	2,	6,	6),
-	_RK3368_APLL_SET_CLKS(1512,	1,	63,	1,	2,	6,	6),
-	_RK3368_APLL_SET_CLKS(1488,	1,	62,	1,	2,	5,	5),
-	_RK3368_APLL_SET_CLKS(1464,	1,	61,	1,	2,	5,	5),
-	_RK3368_APLL_SET_CLKS(1440,	1,	60,	1,	2,	5,	5),
-	_RK3368_APLL_SET_CLKS(1416,	1,	59,	1,	2,	5,	5),
-	_RK3368_APLL_SET_CLKS(1392,	1,	58,	1,	2,	5,	5),
-	_RK3368_APLL_SET_CLKS(1368,	1,	57,	1,	2,	5,	5),
-	_RK3368_APLL_SET_CLKS(1344,	1,	56,	1,	2,	5,	5),
-	_RK3368_APLL_SET_CLKS(1320,	1,	55,	1,	2,	5,	5),
-	_RK3368_APLL_SET_CLKS(1296,	1,	54,	1,	2,	5,	5),
-	_RK3368_APLL_SET_CLKS(1272,	1,	53,	1,	2,	5,	5),
-	_RK3368_APLL_SET_CLKS(1248,	1,	52,	1,	2,	5,	5),
-	_RK3368_APLL_SET_CLKS(1224,	1,	51,	1,	2,	5,	5),
-	_RK3368_APLL_SET_CLKS(1200,	1,	50,	1,	2,	4,	4),
-	_RK3368_APLL_SET_CLKS(1176,	1,	49,	1,	2,	4,	4),
-	_RK3368_APLL_SET_CLKS(1128,	1,	47,	1,	2,	4,	4),
-	_RK3368_APLL_SET_CLKS(1104,	1,	46,	1,	2,	4,	4),
-	_RK3368_APLL_SET_CLKS(1008,	1,	84,	2,	2,	4,	4),
-	_RK3368_APLL_SET_CLKS(912,	1,	76,	2,	2,	4,	4),
-	_RK3368_APLL_SET_CLKS(888,	1,	74,	2,	2,	3,	3),
-	_RK3368_APLL_SET_CLKS(816,	1,	68,	2,	2,	3,	3),
-	_RK3368_APLL_SET_CLKS(792,	1,	66,	2,	2,	3,	3),
-	_RK3368_APLL_SET_CLKS(696,	1,	58,	2,	2,	3,	3),
-	_RK3368_APLL_SET_CLKS(672,	1,	56,	2,	2,	3,	3),
-	_RK3368_APLL_SET_CLKS(648,	1,	54,	2,	2,	3,	3),
-	_RK3368_APLL_SET_CLKS(624,	1,	52,	2,	2,	3,	3),
-	_RK3368_APLL_SET_CLKS(600,	1,	50,	2,	2,	2,	2),
-	_RK3368_APLL_SET_CLKS(576,	1,	48,	2,	2,	2,	2),
-	_RK3368_APLL_SET_CLKS(552,	1,	92,	4,	2,	2,	2),
-	_RK3368_APLL_SET_CLKS(528,	1,	88,	4,	2,	2,	2),
-	_RK3368_APLL_SET_CLKS(504,	1,	84,	4,	2,	2,	2),
-	_RK3368_APLL_SET_CLKS(480,	1,	80,	4,	2,	2,	2),
-	_RK3368_APLL_SET_CLKS(456,	1,	76,	4,	2,	2,	2),
-	_RK3368_APLL_SET_CLKS(408,	1,	68,	4,	2,	2,	2),
-	_RK3368_APLL_SET_CLKS(312,	1,	52,	4,	2,	2,	2),
-	_RK3368_APLL_SET_CLKS(252,	1,	84,	8,	2,	1,	1),
-	_RK3368_APLL_SET_CLKS(216,	1,	72,	8,	2,	1,	1),
-	_RK3368_APLL_SET_CLKS(126,	2,	84,	8,	2,	1,	1),
-	_RK3368_APLL_SET_CLKS(48,	2,	32,	8,	2,	1,	1),
-	_RK3368_APLL_SET_CLKS(0,	1,	32,	16,	2,	1,	1),
+	/*(_mhz,	nr,	nf,	no,	aclkm,	atclk,	pclk_dbg)*/
+	_RK3368_APLL_SET_CLKS(1608, 1, 67, 1,  2, 6, 6, 1),
+	_RK3368_APLL_SET_CLKS(1560, 1, 65, 1,  2, 6, 6, 1),
+	_RK3368_APLL_SET_CLKS(1512, 1, 63, 1,  2, 6, 6, 0),
+	_RK3368_APLL_SET_CLKS(1488, 1, 62, 1,  2, 5, 5, 0),
+	_RK3368_APLL_SET_CLKS(1464, 1, 61, 1,  2, 5, 5, 0),
+	_RK3368_APLL_SET_CLKS(1440, 1, 60, 1,  2, 5, 5, 0),
+	_RK3368_APLL_SET_CLKS(1416, 1, 59, 1,  2, 5, 5, 0),
+	_RK3368_APLL_SET_CLKS(1392, 1, 58, 1,  2, 5, 5, 0),
+	_RK3368_APLL_SET_CLKS(1368, 1, 57, 1,  2, 5, 5, 0),
+	_RK3368_APLL_SET_CLKS(1344, 1, 56, 1,  2, 5, 5, 0),
+	_RK3368_APLL_SET_CLKS(1320, 1, 55, 1,  2, 5, 5, 0),
+	_RK3368_APLL_SET_CLKS(1296, 1, 54, 1,  2, 5, 5, 0),
+	_RK3368_APLL_SET_CLKS(1272, 1, 53, 1,  2, 5, 5, 0),
+	_RK3368_APLL_SET_CLKS(1248, 1, 52, 1,  2, 5, 5, 0),
+	_RK3368_APLL_SET_CLKS(1224, 1, 51, 1,  2, 5, 5, 0),
+	_RK3368_APLL_SET_CLKS(1200, 1, 50, 1,  2, 4, 4, 0),
+	_RK3368_APLL_SET_CLKS(1176, 1, 49, 1,  2, 4, 4, 0),
+	_RK3368_APLL_SET_CLKS(1128, 1, 47, 1,  2, 4, 4, 0),
+	_RK3368_APLL_SET_CLKS(1104, 1, 46, 1,  2, 4, 4, 0),
+	_RK3368_APLL_SET_CLKS(1008, 1, 84, 2,  2, 4, 4, 0),
+	_RK3368_APLL_SET_CLKS(912,  1, 76, 2,  2, 4, 4, 0),
+	_RK3368_APLL_SET_CLKS(888,  1, 74, 2,  2, 3, 3, 0),
+	_RK3368_APLL_SET_CLKS(816,  1, 68, 2,  2, 3, 3, 0),
+	_RK3368_APLL_SET_CLKS(792,  1, 66, 2,  2, 3, 3, 0),
+	_RK3368_APLL_SET_CLKS(696,  1, 58, 2,  2, 3, 3, 0),
+	_RK3368_APLL_SET_CLKS(672,  1, 56, 2,  2, 3, 3, 0),
+	_RK3368_APLL_SET_CLKS(648,  1, 54, 2,  2, 3, 3, 0),
+	_RK3368_APLL_SET_CLKS(624,  1, 52, 2,  2, 3, 3, 0),
+	_RK3368_APLL_SET_CLKS(600,  1, 50, 2,  2, 2, 2, 0),
+	_RK3368_APLL_SET_CLKS(576,  1, 48, 2,  2, 2, 2, 0),
+	_RK3368_APLL_SET_CLKS(552,  1, 92, 4,  2, 2, 2, 0),
+	_RK3368_APLL_SET_CLKS(528,  1, 88, 4,  2, 2, 2, 0),
+	_RK3368_APLL_SET_CLKS(504,  1, 84, 4,  2, 2, 2, 0),
+	_RK3368_APLL_SET_CLKS(480,  1, 80, 4,  2, 2, 2, 0),
+	_RK3368_APLL_SET_CLKS(456,  1, 76, 4,  2, 2, 2, 0),
+	_RK3368_APLL_SET_CLKS(408,  1, 68, 4,  2, 2, 2, 0),
+	_RK3368_APLL_SET_CLKS(312,  1, 52, 4,  2, 2, 2, 0),
+	_RK3368_APLL_SET_CLKS(252,  1, 84, 8,  2, 1, 1, 0),
+	_RK3368_APLL_SET_CLKS(216,  1, 72, 8,  2, 1, 1, 0),
+	_RK3368_APLL_SET_CLKS(126,  2, 84, 8,  2, 1, 1, 0),
+	_RK3368_APLL_SET_CLKS(48,   2, 32, 8,  2, 1, 1, 0),
+	_RK3368_APLL_SET_CLKS(0,    1, 32, 16, 2, 1, 1, 0),
 };
 
 static const struct apll_clk_set rk3368_aplll_table[] = {
-			/*(_mhz,	nr,	nf,	no,	aclkm,	atclk,	pclk_dbg)*/
-	_RK3368_APLL_SET_CLKS(1608,	1,	67,	1,	2,	7,	7),
-	_RK3368_APLL_SET_CLKS(1560,	1,	65,	1,	2,	7,	7),
-	_RK3368_APLL_SET_CLKS(1512,	1,	63,	1,	2,	7,	7),
-	_RK3368_APLL_SET_CLKS(1488,	1,	62,	1,	2,	6,	6),
-	_RK3368_APLL_SET_CLKS(1464,	1,	61,	1,	2,	6,	6),
-	_RK3368_APLL_SET_CLKS(1440,	1,	60,	1,	2,	6,	6),
-	_RK3368_APLL_SET_CLKS(1416,	1,	59,	1,	2,	6,	6),
-	_RK3368_APLL_SET_CLKS(1392,	1,	58,	1,	2,	6,	6),
-	_RK3368_APLL_SET_CLKS(1368,	1,	57,	1,	2,	6,	6),
-	_RK3368_APLL_SET_CLKS(1344,	1,	56,	1,	2,	6,	6),
-	_RK3368_APLL_SET_CLKS(1320,	1,	55,	1,	2,	6,	6),
-	_RK3368_APLL_SET_CLKS(1296,	1,	54,	1,	2,	6,	6),
-	_RK3368_APLL_SET_CLKS(1272,	1,	53,	1,	2,	6,	6),
-	_RK3368_APLL_SET_CLKS(1248,	1,	52,	1,	2,	5,	5),
-	_RK3368_APLL_SET_CLKS(1224,	1,	51,	1,	2,	5,	5),
-	_RK3368_APLL_SET_CLKS(1200,	1,	50,	1,	2,	5,	5),
-	_RK3368_APLL_SET_CLKS(1176,	1,	49,	1,	2,	5,	5),
-	_RK3368_APLL_SET_CLKS(1128,	1,	47,	1,	2,	5,	5),
-	_RK3368_APLL_SET_CLKS(1104,	1,	46,	1,	2,	5,	5),
-	_RK3368_APLL_SET_CLKS(1008,	1,	84,	2,	2,	5,	5),
-	_RK3368_APLL_SET_CLKS(912,	1,	76,	2,	2,	4,	4),
-	_RK3368_APLL_SET_CLKS(888,	1,	74,	2,	2,	4,	4),
-	_RK3368_APLL_SET_CLKS(816,	1,	68,	2,	2,	4,	4),
-	_RK3368_APLL_SET_CLKS(792,	1,	66,	2,	2,	4,	4),
-	_RK3368_APLL_SET_CLKS(696,	1,	58,	2,	2,	3,	3),
-	_RK3368_APLL_SET_CLKS(672,	1,	56,	2,	2,	3,	3),
-	_RK3368_APLL_SET_CLKS(648,	1,	54,	2,	2,	3,	3),
-	_RK3368_APLL_SET_CLKS(624,	1,	52,	2,	2,	3,	3),
-	_RK3368_APLL_SET_CLKS(600,	1,	50,	2,	2,	3,	3),
-	_RK3368_APLL_SET_CLKS(576,	1,	48,	2,	2,	3,	3),
-	_RK3368_APLL_SET_CLKS(552,	1,	92,	4,	2,	3,	3),
-	_RK3368_APLL_SET_CLKS(528,	1,	88,	4,	2,	3,	3),
-	_RK3368_APLL_SET_CLKS(504,	1,	84,	4,	2,	3,	3),
-	_RK3368_APLL_SET_CLKS(480,	1,	80,	4,	2,	2,	2),
-	_RK3368_APLL_SET_CLKS(456,	1,	76,	4,	2,	2,	2),
-	_RK3368_APLL_SET_CLKS(408,	1,	68,	4,	2,	2,	2),
-	_RK3368_APLL_SET_CLKS(312,	1,	52,	4,	2,	2,	2),
-	_RK3368_APLL_SET_CLKS(252,	1,	84,	8,	2,	2,	2),
-	_RK3368_APLL_SET_CLKS(216,	1,	72,	8,	2,	1,	1),
-	_RK3368_APLL_SET_CLKS(126,	2,	84,	8,	2,	1,	1),
-	_RK3368_APLL_SET_CLKS(48,	2,	32,	8,	2,	1,	1),
-	_RK3368_APLL_SET_CLKS(0,	1,	32,	16,	2,	1,	1),
+	/*(_mhz,	nr,	nf,	no,	aclkm,	atclk,	pclk_dbg)*/
+	_RK3368_APLL_SET_CLKS(1608, 1, 67, 1,  2, 7, 7, 0),
+	_RK3368_APLL_SET_CLKS(1560, 1, 65, 1,  2, 7, 7, 0),
+	_RK3368_APLL_SET_CLKS(1512, 1, 63, 1,  2, 7, 7, 0),
+	_RK3368_APLL_SET_CLKS(1488, 1, 62, 1,  2, 6, 6, 0),
+	_RK3368_APLL_SET_CLKS(1464, 1, 61, 1,  2, 6, 6, 0),
+	_RK3368_APLL_SET_CLKS(1440, 1, 60, 1,  2, 6, 6, 0),
+	_RK3368_APLL_SET_CLKS(1416, 1, 59, 1,  2, 6, 6, 0),
+	_RK3368_APLL_SET_CLKS(1392, 1, 58, 1,  2, 6, 6, 0),
+	_RK3368_APLL_SET_CLKS(1368, 1, 57, 1,  2, 6, 6, 0),
+	_RK3368_APLL_SET_CLKS(1344, 1, 56, 1,  2, 6, 6, 0),
+	_RK3368_APLL_SET_CLKS(1320, 1, 55, 1,  2, 6, 6, 0),
+	_RK3368_APLL_SET_CLKS(1296, 1, 54, 1,  2, 6, 6, 0),
+	_RK3368_APLL_SET_CLKS(1272, 1, 53, 1,  2, 6, 6, 0),
+	_RK3368_APLL_SET_CLKS(1248, 1, 52, 1,  2, 5, 5, 0),
+	_RK3368_APLL_SET_CLKS(1224, 1, 51, 1,  2, 5, 5, 0),
+	_RK3368_APLL_SET_CLKS(1200, 1, 50, 1,  2, 5, 5, 0),
+	_RK3368_APLL_SET_CLKS(1176, 1, 49, 1,  2, 5, 5, 0),
+	_RK3368_APLL_SET_CLKS(1128, 1, 47, 1,  2, 5, 5, 0),
+	_RK3368_APLL_SET_CLKS(1104, 1, 46, 1,  2, 5, 5, 0),
+	_RK3368_APLL_SET_CLKS(1008, 1, 84, 2,  2, 5, 5, 0),
+	_RK3368_APLL_SET_CLKS(912,  1, 76, 2,  2, 4, 4, 0),
+	_RK3368_APLL_SET_CLKS(888,  1, 74, 2,  2, 4, 4, 0),
+	_RK3368_APLL_SET_CLKS(816,  1, 68, 2,  2, 4, 4, 0),
+	_RK3368_APLL_SET_CLKS(792,  1, 66, 2,  2, 4, 4, 0),
+	_RK3368_APLL_SET_CLKS(696,  1, 58, 2,  2, 3, 3, 0),
+	_RK3368_APLL_SET_CLKS(672,  1, 56, 2,  2, 3, 3, 0),
+	_RK3368_APLL_SET_CLKS(648,  1, 54, 2,  2, 3, 3, 0),
+	_RK3368_APLL_SET_CLKS(624,  1, 52, 2,  2, 3, 3, 0),
+	_RK3368_APLL_SET_CLKS(600,  1, 50, 2,  2, 3, 3, 0),
+	_RK3368_APLL_SET_CLKS(576,  1, 48, 2,  2, 3, 3, 0),
+	_RK3368_APLL_SET_CLKS(552,  1, 92, 4,  2, 3, 3, 0),
+	_RK3368_APLL_SET_CLKS(528,  1, 88, 4,  2, 3, 3, 0),
+	_RK3368_APLL_SET_CLKS(504,  1, 84, 4,  2, 3, 3, 0),
+	_RK3368_APLL_SET_CLKS(480,  1, 80, 4,  2, 2, 2, 0),
+	_RK3368_APLL_SET_CLKS(456,  1, 76, 4,  2, 2, 2, 0),
+	_RK3368_APLL_SET_CLKS(408,  1, 68, 4,  2, 2, 2, 0),
+	_RK3368_APLL_SET_CLKS(312,  1, 52, 4,  2, 2, 2, 0),
+	_RK3368_APLL_SET_CLKS(252,  1, 84, 8,  2, 2, 2, 0),
+	_RK3368_APLL_SET_CLKS(216,  1, 72, 8,  2, 1, 1, 0),
+	_RK3368_APLL_SET_CLKS(126,  2, 84, 8,  2, 1, 1, 0),
+	_RK3368_APLL_SET_CLKS(48,   2, 2,  8,  2, 1, 1, 0),
+	_RK3368_APLL_SET_CLKS(0,    1, 2,  16, 2, 1, 1, 0),
 };
 
 static const struct pll_clk_set rk3368_pll_table_low_jitter[] = {
@@ -459,7 +459,37 @@ static const struct apll_clk_set rk322xh_apll_table[] = {
 	_RK322XH_APLL_SET_CLKS(0, 1, 0, 1, 1, 1, 0, 2, 2, 0),
 };
 
+int rockchip_avs_delta;
 static int SOC_IS_RK322XH;
+static const struct apll_clk_set *rockchip_apll_ps;
+
+static void clk_rockchip_apll_table_correct(void)
+{
+	struct apll_clk_set *ps = (struct apll_clk_set *)(rockchip_apll_ps);
+	unsigned long corr_rate;
+
+	while (ps->rate) {
+		if (ps->rst_dly == 0)
+			break;
+		ps++;
+	}
+	corr_rate = ps->rate + (24 * MHZ * rockchip_avs_delta);
+	ps = (struct apll_clk_set *)(rockchip_apll_ps);
+	while (ps->rate) {
+		if (ps->rate > corr_rate)
+			ps->rst_dly = 1;
+		else
+			ps->rst_dly = 0;
+		ps++;
+	}
+}
+
+void rockchip_adjust_avs(int delta)
+{
+	rockchip_avs_delta += delta;
+
+	clk_rockchip_apll_table_correct();
+}
 
 static void pll_wait_lock(struct clk_hw *hw)
 {
@@ -2315,6 +2345,74 @@ static const struct clk_ops clk_pll_ops_312xplus = {
 	.set_rate = clk_cpll_set_rate_312xplus,
 };
 
+static struct apll_clk_set *rk3368_get_best_set(unsigned long rate,
+						unsigned long parent_rate,
+						const struct apll_clk_set *tbl)
+{
+	struct apll_clk_set *ps = (struct apll_clk_set *)tbl;
+	struct apll_clk_set *aps;
+	unsigned long curr;
+	u32 nr, nf, no;
+
+	while (ps->rate) {
+		if (ps->rate == rate)
+			break;
+		ps++;
+	}
+
+	if (ps->rate != rate) {
+		clk_err("%s: unsupport arm rate %lu\n", __func__, rate);
+		return 0;
+	}
+
+	if (ps->rst_dly) {
+		aps = ps;
+		while (aps->rate) {
+			if (aps->rst_dly == 0)
+				break;
+			aps++;
+		}
+		curr = aps->rate / KHZ +
+		       (((rate / MHZ - aps->rate / MHZ) / 24) * KHZ);
+		clk_debug("####%s####%ld#%ld#%ld\n", __func__, rate, aps->rate,
+			  curr * KHZ);
+		if (pll_clk_get_best_set(parent_rate, curr * KHZ, &nr,
+					 &nf, &no) != 0) {
+			pr_err("pll auto set rate error\n");
+			return NULL;
+		}
+
+		ps->pllcon0 = RK3188PLUS_PLL_CLKR_SET(nr) |
+			      RK3188PLUS_PLL_CLKOD_SET(no);
+		ps->pllcon1 = RK3188PLUS_PLL_CLKF_SET(nf);
+		ps->pllcon2 = RK3188PLUS_PLL_CLK_BWADJ_SET(nf >> 1);
+	}
+	return ps;
+}
+
+static unsigned long clk_pll_recalc_rate_3368_apllb(struct clk_hw *hw,
+						    unsigned long parent_rate)
+{
+	struct apll_clk_set *ps = (struct apll_clk_set *)(rk3368_apllb_table);
+	unsigned long rate, curr;
+
+	rate = clk_pll_recalc_rate_3188plus(hw, parent_rate);
+	while (ps->rate) {
+		if (ps->rst_dly == 0)
+			break;
+		ps++;
+	}
+	if (rate > ps->rate) {
+		curr = (ps->rate / KHZ +
+			(rate / MHZ - ps->rate / MHZ) * 24 * KHZ);
+		clk_debug("####%s####%ld#%ld#%ld\n", __func__, rate, ps->rate,
+			  curr);
+		return curr * KHZ;
+	} else {
+		return rate;
+	}
+}
+
 static long clk_pll_round_rate_3368_apllb(struct clk_hw *hw, unsigned long rate,
 					  unsigned long *prate)
 {
@@ -2343,12 +2441,12 @@ static int clk_pll_set_rate_3368_apllb(struct clk_hw *hw, unsigned long rate,
 	struct clk *clk = hw->clk;
 	struct clk *arm_gpll = __clk_lookup("clk_gpll");
 	unsigned long arm_gpll_rate, temp_rate, old_rate;
-	const struct apll_clk_set *ps;
+	struct apll_clk_set *ps;
 	u32 temp_div;
 	unsigned long flags;
 	int sel_gpll = 0;
 
-	ps = apll_get_best_set(rate, rk3368_apllb_table);
+	ps = rk3368_get_best_set(rate, parent_rate, rk3368_apllb_table);
 	clk_debug("apllb will set rate %lu\n", ps->rate);
 	clk_debug("table con:%08x,%08x,%08x, sel:%08x,%08x\n",
 		  ps->pllcon0, ps->pllcon1, ps->pllcon2,
@@ -2512,7 +2610,7 @@ CHANGE_APLL:
 }
 
 static const struct clk_ops clk_pll_ops_3368_apllb = {
-	.recalc_rate = clk_pll_recalc_rate_3188plus,
+	.recalc_rate = clk_pll_recalc_rate_3368_apllb,
 	.round_rate = clk_pll_round_rate_3368_apllb,
 	.set_rate = clk_pll_set_rate_3368_apllb,
 };
@@ -2719,36 +2817,6 @@ static const struct clk_ops clk_pll_ops_3368_aplll = {
 	.set_rate = clk_pll_set_rate_3368_aplll,
 };
 
-int rockchip_avs_delta;
-
-static void clk_322xh_apll_table_correct(void)
-{
-	struct apll_clk_set *ps = (struct apll_clk_set *)(rk322xh_apll_table);
-	unsigned long corr_rate;
-
-	while (ps->rate) {
-		if (ps->rst_dly == 0)
-			break;
-		ps++;
-	}
-	corr_rate = ps->rate + (24 * MHZ * rockchip_avs_delta);
-	ps = (struct apll_clk_set *)(rk322xh_apll_table);
-	while (ps->rate) {
-		if (ps->rate > corr_rate)
-			ps->rst_dly = 1;
-		else
-			ps->rst_dly = 0;
-		ps++;
-	}
-}
-
-void rk322xh_adjust_avs(int delta)
-{
-	rockchip_avs_delta += delta;
-
-	clk_322xh_apll_table_correct();
-}
-
 static int clk_pll_set_rate_322xh_apll(struct clk_hw *hw, unsigned long rate,
 				       unsigned long parent_rate)
 {
@@ -2940,6 +3008,7 @@ const struct clk_ops *rk_get_pll_ops(u32 pll_flags)
 			return &clk_pll_ops_312xplus;
 
 		case CLK_PLL_3368_APLLB:
+			rockchip_apll_ps = rk3368_apllb_table;
 			return &clk_pll_ops_3368_apllb;
 
 		case CLK_PLL_3368_APLLL:
@@ -2950,6 +3019,7 @@ const struct clk_ops *rk_get_pll_ops(u32 pll_flags)
 
 		case CLK_PLL_322XH_APLL:
 			SOC_IS_RK322XH = 1;
+			rockchip_apll_ps = rk322xh_apll_table;
 			return &clk_pll_ops_322xh_apll;
 
 		default:

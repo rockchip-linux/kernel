@@ -444,13 +444,14 @@
 #define RK3368_PCLK_DBG_DIV(i)	\
 	CLK_DIV_PLUS_ONE_SET(i, RK3368_PCLK_DBG_SHIFT, RK3368_PCLK_DBG_WIDTH)
 
-#define _RK3368_APLL_SET_CLKS(_mhz, nr, nf, no, aclkm_div, atclk_div, pclk_dbg_div) \
+#define _RK3368_APLL_SET_CLKS(_mhz, nr, nf, no, aclkm_div, atclk_div, \
+			      pclk_dbg_div, flag) \
 { \
 	.rate   = _mhz * MHZ, \
 	.pllcon0 = RK3188PLUS_PLL_CLKR_SET(nr) | RK3188PLUS_PLL_CLKOD_SET(no), \
 	.pllcon1 = RK3188PLUS_PLL_CLKF_SET(nf),\
 	.pllcon2 = RK3188PLUS_PLL_CLK_BWADJ_SET(nf >> 1),\
-	.rst_dly = ((nr*500)/24+1),\
+	.rst_dly = flag,\
 	.clksel0 = RK3368_ACLKM_CORE_DIV(aclkm_div),\
 	.clksel1 = RK3368_ATCLK_CORE_DIV(atclk_div) | RK3368_PCLK_DBG_DIV(pclk_dbg_div) \
 }
