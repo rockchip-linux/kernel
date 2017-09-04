@@ -1071,12 +1071,17 @@
 					lkg_adjust_volt_en = <1>;
 					channel = <0>;
 					tsadc-ch = <0>;
-					def_table_lkg = <25>;
+					def_table_lkg = <24>;
 					min_adjust_freq = <216000>;
+					max_adjust_volt = <1350000>;
 					lkg_adjust_volt_table = <
 						/*lkg(mA)  volt(uV)*/
-						0         25000
+						0         100000
 						>;
+					leakage-scaling-sel = <
+						1	24	(-9)
+						25	254	0
+					>;
 					pvtm_min_temp = <25>;
 				};
 				clk_core_l_dvfs_table: clk_core_l {
@@ -1106,11 +1111,12 @@
 					lkg_adjust_volt_en = <1>;
 					channel = <0>;
 					tsadc-ch = <0>;
-					def_table_lkg = <25>;
+					def_table_lkg = <24>;
 					min_adjust_freq = <216000>;
+					max_adjust_volt = <1350000>;
 					lkg_adjust_volt_table = <
 						/*lkg(mA)  volt(uV)*/
-						0         25000
+						0         100000
 						>;
 					pvtm_min_temp = <25>;
 				};
