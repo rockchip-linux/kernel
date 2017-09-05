@@ -1231,31 +1231,20 @@ static void ddr_freq_scale_tasklet(unsigned long data)
 	id = mr->id;
 	end = tmp + ddr_freq_period;
 
-	if (ddr_freq_is_event_active(ISP_FE_EVENT, tmp)) {
-		if ((gmr[ISP_VS_EVENT].start < gmr[ISP_FE_EVENT].start) &&
-			(gmr[VOP_EVENT].end > end)) {
-			if (ddr_freq_new != ddr_freq_current) {
-				__ddr_change_freq(ddr_freq_new);
-				ddr_freq_current = ddr_freq_new;
-				schedule_work(&ws);
-				wake_up(&wq);
-			}
-		}
-	} else if (ddr_freq_is_event_active(VOP_EVENT, tmp)) {
-		if (gmr[VOP_EVENT].end > end) {
-			if (ddr_freq_new != ddr_freq_current) {
-				__ddr_change_freq(ddr_freq_new);
-				ddr_freq_current = ddr_freq_new;
-				wake_up(&wq);
-			}
-		}
-	} else {
-		if (ddr_freq_new != ddr_freq_current) {
-			__ddr_change_freq(ddr_freq_new);
-			ddr_freq_current = ddr_freq_new;
-		}
+	if (ddr_freq_is_event_active(ISP_FE_EVENT, tmp))
+		if (gmr[ISP_VS_EVENT].start >= gmr[ISP_FE_EVENT].start)
+			return;
+
+	if (ddr_freq_is_event_active(VOP_EVENT, tmp))
+		if (gmr[VOP_EVENT].end <= end)
+			return;
+
+	if (ddr_freq_new != ddr_freq_current) {
+		__ddr_change_freq(ddr_freq_new);
+		ddr_freq_current = ddr_freq_new;
+		schedule_work(&ws);
+		wake_up(&wq);
 	}
-	wake_up(&wq);
 }
 
 static int _ddr_freq_scale_send_event(int id, unsigned long timeout)
@@ -1282,8 +1271,10 @@ static int _ddr_freq_scale_send_event(int id, unsigned long timeout)
 			pr_warn("%s please adjust vback-porch vfront-porch vsync-len of lcd dts\n",
 				__func__);
 		}
-		tasklet_hi_schedule(&ddr_freq_ts[id]);
 	}
+
+	if (id <= ISP_FE_EVENT)
+		tasklet_hi_schedule(&ddr_freq_ts[id]);
 
 	return 0;
 }
@@ -1448,6 +1439,8 @@ int ddr_init(u32 freq, void *arg)
 			(unsigned long)&gmr[0]);
 	tasklet_init(&ddr_freq_ts[VOP_EVENT], ddr_freq_scale_tasklet,
 			(unsigned long)&gmr[VOP_EVENT]);
+	tasklet_init(&ddr_freq_ts[ISP_FE_EVENT], ddr_freq_scale_tasklet,
+			(unsigned long)&gmr[ISP_FE_EVENT]);
 
 	_ddr_freq_register_nb(&isp_nb);
 
