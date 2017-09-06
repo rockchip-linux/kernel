@@ -1392,6 +1392,7 @@ static int bma2x2_get_orient_flat_status(struct i2c_client *client, unsigned
 
 	 return 0;
 }
+#endif /* defined(BMA2X2_ENABLE_INT1)||defined(BMA2X2_ENABLE_INT2) */
 
 static int bma2x2_set_int_mode(struct i2c_client *client, unsigned char mode)
 {
@@ -1405,7 +1406,6 @@ static int bma2x2_set_int_mode(struct i2c_client *client, unsigned char mode)
 
 	 return comres;
 }
-#endif /* defined(BMA2X2_ENABLE_INT1)||defined(BMA2X2_ENABLE_INT2) */
 
 static int bma2x2_set_mode(struct i2c_client *client, unsigned char mode)
 {
@@ -2167,13 +2167,14 @@ static int sensor_use_interrupt(struct i2c_client *client, int num, int enable)
 	int result = 0;
 	char data;
 
+	bma2x2_set_int_mode(client, 2);/* latch interrupt 500ms */
 	switch (num) {
 	case 1: /* interrupt 1*/
 		if (enable == 1) {
 			/* slope_enable_z interrupt */
 			data = 0x01;
 			sensor_write_reg(client, BMA2X2_SLOPE_DURN_REG, data);
-			data = 0x04;
+			data = 0x24;
 			sensor_write_reg(client, BMA2X2_SLOPE_THRES_REG, data);
 			data = 0x04;
 			sensor_write_reg(client, BMA2X2_INT_ENABLE1_REG, data);
@@ -2197,7 +2198,7 @@ static int sensor_use_interrupt(struct i2c_client *client, int num, int enable)
 			/* slope_enable_z interrupt */
 			data = 0x01;
 			sensor_write_reg(client, BMA2X2_SLOPE_DURN_REG, data);
-			data = 0x04;
+			data = 0x24;
 			sensor_write_reg(client, BMA2X2_SLOPE_THRES_REG, data);
 			data = 0x04;
 			sensor_write_reg(client, BMA2X2_INT_ENABLE1_REG, data);
