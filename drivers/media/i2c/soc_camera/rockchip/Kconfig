@@ -67,3 +67,10 @@ config VIDEO_IMX291
 	default n
 	---help---
 	  This is imx291 camera driver adapt to rockchip cif isp platform.
+
+config VIDEO_GC2023
+	tristate "gc2023 driver adapt to rockchip cif isp platform"
+	depends on VIDEO_V4L2 && VIDEO_RK_CIF_ISP11 && I2C
+	default n
+	---help---
+	  This is gc2023 camera driver adapt to rockchip cif isp platform.

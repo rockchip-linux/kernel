@@ -9,3 +9,4 @@ obj-$(CONFIG_CAMERA_IRCUTTER) += rk_ircut_v4l2-plt-subdev.o
 obj-$(CONFIG_VIDEO_IMX258) += imx_camera_module.o rk_camera_module.o imx258_v4l2-i2c-subdev.o
 obj-$(CONFIG_VIDEO_XC9080_HM2131) += xc9080_camera_module.o rk_camera_module.o xc9080_hm2131_v4l2-i2c-subdev.o
 obj-$(CONFIG_VIDEO_IMX291) += imx_camera_module.o rk_camera_module.o imx291_v4l2-i2c-subdev.o
+obj-$(CONFIG_VIDEO_GC2023) += gc_camera_module.o rk_camera_module.o gc2023_v4l2-i2c-subdev.o
