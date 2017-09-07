@@ -114,29 +114,6 @@ static unsigned int get_freq_from_table(unsigned int max_freq)
 	return target_freq;
 }
 
-static int cpufreq_notifier_policy(struct notifier_block *nb, unsigned long val, void *data)
-{
-	static unsigned int min_rate=0, max_rate=-1;
-	struct cpufreq_policy *policy = data;
-
-	if (val != CPUFREQ_ADJUST)
-		return 0;
-
-	if (cpufreq_is_ondemand(policy)) {
-		FREQ_DBG("queue work\n");
-		dvfs_clk_enable_limit(clk_cpu_dvfs_node, min_rate, max_rate);
-	} else {
-		FREQ_DBG("cancel work\n");
-		dvfs_clk_get_limit(clk_cpu_dvfs_node, &min_rate, &max_rate);
-	}
-
-	return 0;
-}
-
-static struct notifier_block notifier_policy_block = {
-	.notifier_call = cpufreq_notifier_policy
-};
-
 static int cpufreq_verify(struct cpufreq_policy *policy)
 {
 	if (!freq_table)
@@ -227,8 +204,6 @@ static int cpufreq_init_cpu0(struct cpufreq_policy *policy)
 	low_battery_freq = get_freq_from_table(low_battery_freq);
 	clk_enable_dvfs(clk_cpu_dvfs_node);
 
-	cpufreq_register_notifier(&notifier_policy_block, CPUFREQ_POLICY_NOTIFIER);
-
 	printk("cpufreq version " VERSION ", suspend freq %d MHz\n", suspend_freq / 1000);
 	return 0;
 }
@@ -267,7 +242,6 @@ static int cpufreq_exit(struct cpufreq_policy *policy)
 
 	cpufreq_frequency_table_cpuinfo(policy, freq_table);
 	clk_put_dvfs_node(clk_cpu_dvfs_node);
-	cpufreq_unregister_notifier(&notifier_policy_block, CPUFREQ_POLICY_NOTIFIER);
 
 	return 0;
 }

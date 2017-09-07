@@ -145,8 +145,10 @@ struct dvfs_node {
 	int			support_pvtm;
 	unsigned int		min_rate;	//limit min frequency
 	unsigned int		max_rate;	//limit max frequency
+	unsigned int		boost_en;
 	unsigned long		boost_freq;
 	unsigned long		last_set_rate;
+	unsigned int		early_suspend_freq;
 	unsigned int		channel;
 	unsigned int		tsadc_ch;
 	unsigned long		temp_limit_rate;
@@ -160,6 +162,7 @@ struct dvfs_node {
 	struct vd_node		*vd;
 	struct list_head	node;
 	struct notifier_block	dvfs_nb;
+	struct notifier_block	early_suspend_nb;
 	struct delayed_work	dwork;
 	struct cpufreq_frequency_table	*dvfs_table;
 	struct cpufreq_frequency_table	*pvtm_table;

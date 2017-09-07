@@ -195,6 +195,53 @@ static struct notifier_block early_suspend_notifier = {
 		.notifier_call = early_suspend_notifier_call,
 };
 
+static int early_suspend_limit_notifier_call(struct notifier_block *self,
+					     unsigned long action, void *data)
+{
+	struct fb_event *event = data;
+	struct dvfs_node *clk_dvfs_node;
+	unsigned int early_suspend_freq;
+	static unsigned int min_rate = 0, max_rate = UINT_MAX;
+	static int freq_limit_en = 1;
+
+	clk_dvfs_node = container_of(self, struct dvfs_node, early_suspend_nb);
+	early_suspend_freq = clk_dvfs_node->early_suspend_freq;
+	if ((!clk_dvfs_node->enable_count) || !early_suspend_freq)
+		return NOTIFY_OK;
+
+	if (action == FB_EVENT_BLANK) {
+		switch (*((int *)event->data)) {
+		case FB_BLANK_UNBLANK:
+			clk_dvfs_node->boost_en = 1;
+			if (freq_limit_en)
+				dvfs_clk_enable_limit(clk_dvfs_node,
+						      min_rate,
+						      max_rate);
+			else
+				dvfs_clk_disable_limit(clk_dvfs_node);
+			break;
+		default:
+			break;
+		}
+	} else if (action == FB_EARLY_EVENT_BLANK) {
+		switch (*((int *)event->data)) {
+		case FB_BLANK_POWERDOWN:
+			clk_dvfs_node->boost_en = 0;
+			freq_limit_en = dvfs_clk_get_limit(clk_dvfs_node,
+							   &min_rate,
+							   &max_rate);
+			dvfs_clk_enable_limit(clk_dvfs_node,
+					      0,
+					      early_suspend_freq * 1000);
+			break;
+		default:
+			break;
+		}
+	}
+
+	return NOTIFY_OK;
+}
+
 #define CPU_TARGET_TMEP_4K	105
 #define CPU_MIN_RATE_4K		408000000
 #define CPU_MAX_RATE_4K		816000000
@@ -1849,6 +1896,7 @@ static int initialize_dvfs_node(struct dvfs_node *clk_dvfs_node)
 	dvfs_get_rate_range(clk_dvfs_node);
 	clk_dvfs_node->freq_limit_en = 1;
 	clk_dvfs_node->max_limit_freq = clk_dvfs_node->max_rate;
+	clk_dvfs_node->boost_en = 1;
 
 	adjust_avs_by_leakage(clk_dvfs_node);
 
@@ -1867,6 +1915,10 @@ static int initialize_dvfs_node(struct dvfs_node *clk_dvfs_node)
 		clk_dvfs_node->vd->volt_init_enable_cnt++;
 
 	INIT_DELAYED_WORK(&clk_dvfs_node->dwork, dvfs_clk_boost_work_func);
+
+	clk_dvfs_node->early_suspend_nb.notifier_call =
+		early_suspend_limit_notifier_call;
+	fb_register_client(&clk_dvfs_node->early_suspend_nb);
 
 	clk_dvfs_node->is_initialized = true;
 
@@ -1995,6 +2047,7 @@ int clk_disable_dvfs(struct dvfs_node *clk_dvfs_node)
 				__func__, __clk_get_name(clk_dvfs_node->clk));
 			volt_new = dvfs_vd_get_newvolt_byclk(clk_dvfs_node);
 			dvfs_scale_volt_direct(clk_dvfs_node->vd, volt_new);
+			fb_unregister_client(&clk_dvfs_node->early_suspend_nb);
 
 #if 0
 			clk_notifier_unregister(clk, clk_dvfs_node->dvfs_nb);
@@ -2028,7 +2081,7 @@ static unsigned long dvfs_get_limit_rate(struct dvfs_node *clk_dvfs_node, unsign
 			limit_rate = clk_dvfs_node->max_limit_freq;
 	}
 
-	if (clk_dvfs_node->boost_freq &&
+	if (clk_dvfs_node->boost_freq && clk_dvfs_node->boost_en &&
 	    clk_dvfs_node->old_temp < clk_dvfs_node->target_temp &&
 	    clk_dvfs_node->boost_freq > limit_rate)
 		limit_rate = clk_dvfs_node->boost_freq;
@@ -2552,6 +2605,9 @@ static int dvfs_node_parse_dt(struct device_node *np,
 	int process_version = rockchip_process_version();
 	int i = 0;
 	int ret;
+
+	of_property_read_u32_index(np, "early_suspend_freq", 0,
+				   &dvfs_node->early_suspend_freq);
 
 	of_property_read_u32_index(np, "skip_adjusting_volt", 0,
 				   &dvfs_node->skip_adjusting_volt);
