@@ -993,6 +993,7 @@
 						>;
 
 					channel = <0>;
+					early_suspend_freq = <816000>;
 					tsadc-ch = <1>;
 					temp-limit-enable = <1>;
 					target-temp = <80>;
