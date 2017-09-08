@@ -1104,6 +1104,10 @@ static int host20_driver_probe(struct platform_device *_dev)
 		dwc_otg_device->common_irq_installed = 1;
 	}
 
+	/* Indicates need to force a host channel halt */
+	dwc_otg_device->core_if->hc_halt_quirk =
+		of_property_read_bool(node, "rockchip,hc-halt-quirk");
+
 	/*
 	 * Initialize the DWC_otg core.
 	 * In order to reduce the time of initialization,
@@ -1552,6 +1556,10 @@ static int otg20_driver_probe(struct platform_device *_dev)
 	dwc_otg_device->core_if->delay_en_diepint_nak_quirk =
 		of_property_read_bool(node,
 				      "rockchip,delay-en-diepint-nak-quirk");
+
+	/* Indicates need to force a host channel halt */
+	dwc_otg_device->core_if->hc_halt_quirk =
+		of_property_read_bool(node, "rockchip,hc-halt-quirk");
 
 #ifndef DWC_HOST_ONLY
 	/*

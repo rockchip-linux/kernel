@@ -855,6 +855,9 @@ struct dwc_otg_core_if {
 	/* Indicates need to delay enable device in ep nak interrupt */
 	bool delay_en_diepint_nak_quirk;
 
+	/* Indicates need to force a host channel halt */
+	bool hc_halt_quirk;
+
 	/* True if support high bandwidth endpoints */
 	bool high_bandwidth_en;
 

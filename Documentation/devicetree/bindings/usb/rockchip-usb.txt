@@ -28,6 +28,8 @@ Optional properties:
  - rockchip,delay-en-diepint-nak-quirk: when set, don't enable device
    in endpoints nak interrupt when activate ISOC endpoints, delay
    until next ep queue to enable nak interrupt.
+ - rockchip,hc-halt-quirk: when set, force to halt a host channel
+   even if it's used for a non-split periodic transfer.
 
 Example:
  - RK3288
