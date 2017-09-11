@@ -3618,6 +3618,8 @@ int rk_fb_switch_screen(struct rk_screen *screen, int enable, int lcdc_id)
 	char envplcdc[32];
 	char envpfbdev[32];
 	int ret, list_is_empty = 0;
+	ktime_t timestamp;
+	long timeout;
 
 	if (unlikely(!rk_fb) || unlikely(!screen))
 		return -ENODEV;
@@ -3661,6 +3663,14 @@ int rk_fb_switch_screen(struct rk_screen *screen, int enable, int lcdc_id)
 				pr_info("%s: wait update_regs_wait timeout\n",
 					__func__);
 		}
+
+		/* make sure set_par complete at rk_fb_update_reg() */
+		timestamp = dev_drv->vsync_info.timestamp;
+		timeout = wait_event_interruptible_timeout(dev_drv->vsync_info.wait,
+				ktime_compare(dev_drv->vsync_info.timestamp, timestamp) > 0,
+				msecs_to_jiffies(50));
+		if (timeout <= 0)
+			dev_info(dev_drv->dev, "timeout: %ld\n", timeout);
 	}
 
 	envp[0] = "switch screen";
@@ -3768,6 +3778,13 @@ int rk_fb_switch_screen(struct rk_screen *screen, int enable, int lcdc_id)
 					dev_drv->ops->win_direct_en)
 				dev_drv->ops->win_direct_en(dev_drv, i, 0);
 			}
+			/* make sure win close take effect */
+			timestamp = dev_drv->vsync_info.timestamp;
+			timeout = wait_event_interruptible_timeout(dev_drv->vsync_info.wait,
+				ktime_compare(dev_drv->vsync_info.timestamp, timestamp) > 0,
+				msecs_to_jiffies(50));
+			if (timeout <= 0)
+				dev_info(dev_drv->dev, "timeout: %ld\n", timeout);
 		}
 		if (dev_drv->screen1)
 			dev_drv->cur_screen = dev_drv->screen1;

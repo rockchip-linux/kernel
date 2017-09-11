@@ -495,6 +495,8 @@ static int vop_win_direct_en(struct rk_lcdc_driver *drv,
 {
 	struct vop_device *vop_dev =
 	    container_of(drv, struct vop_device, driver);
+
+	vop_dev->driver.win[win_id]->state = en;
 	if (win_id == 0)
 		win0_enable(vop_dev, en);
 	else if (win_id == 1)
