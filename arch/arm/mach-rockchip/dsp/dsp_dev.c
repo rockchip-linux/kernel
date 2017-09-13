@@ -43,6 +43,10 @@
 
 #define DSP_DEV_SESSION      0
 
+#define MHZ (1000 * 1000)
+#define DSP_MIN_RATE (100 * MHZ)
+#define DSP_MAX_RATE (600 * MHZ)
+
 static int dsp_dev_power_off(struct dsp_dev *dev);
 
 static void dsp_set_div_clk(struct clk *clock, int divide)
@@ -143,13 +147,11 @@ static int dsp_dev_work_done(struct dsp_dev *dev, struct dsp_work *work)
 		  dvfs_clk_get_rate(dev->dsp_dvfs_node));
 
 	/*
-	 * Algorithms can request its satisfying DSP
-	 * rate respectively
+	 * When work has been done, the DSP is in idle status, so we request
+	 * a lowest frequency here to save power consumption.
 	 */
-	if (dev->dsp_dvfs_node && work->rate) {
-		dvfs_clk_set_rate(dev->dsp_dvfs_node, work->rate);
-		dsp_debug(DEBUG_DEVICE, "request DSP rate=%d\n", work->rate);
-	}
+	if (dev->dsp_dvfs_node)
+		dvfs_clk_set_rate(dev->dsp_dvfs_node, DSP_MIN_RATE);
 
 	/* We should not cancel work in timeout callback */
 	if (work->result != DSP_WORK_ETIMEOUT)
@@ -177,10 +179,13 @@ static int dsp_dev_work(struct dsp_dev *dev, struct dsp_work *work)
 
 	schedule_delayed_work(&dev->guard_work, HZ);
 
-	if (dev->dsp_dvfs_node)
+	if (dev->dsp_dvfs_node) {
+		/* Do the DSP best to make work done as soon as possible. */
+		dvfs_clk_set_rate(dev->dsp_dvfs_node, DSP_MAX_RATE);
 		work->rate = dvfs_clk_get_rate(dev->dsp_dvfs_node);
-	else
+	} else {
 		work->rate = 0;
+	}
 	dsp_work_set_status(work, DSP_WORK_RUNNING);
 
 	dev->running_work = work;
