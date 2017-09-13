@@ -2537,10 +2537,14 @@ static int hdmi_dev_enable(struct hdmi *hdmi)
 
 	HDMIDBG(2, "%s\n", __func__);
 	if (!hdmi_dev->enable) {
-		if (hdmi->property->feature & SUPPORT_CEC_WAKEUP)
+		if (hdmi->property->feature & SUPPORT_CEC_WAKEUP) {
 			hdmi_writel(hdmi_dev, IH_MUTE, 0x02);
-		else
+			hdmi_msk_reg(hdmi_dev, CEC_CTRL,
+				     m_CEC_STANBY, v_CEC_STANBY(0));
+			hdmi_writel(hdmi_dev, CEC_WKUPCTRL, 0x00);
+		} else {
 			hdmi_writel(hdmi_dev, IH_MUTE, 0);
+		}
 		hdmi_dev->enable = 1;
 	}
 	hdmi_submit_work(hdmi, HDMI_HPD_CHANGE, 10, 0);
