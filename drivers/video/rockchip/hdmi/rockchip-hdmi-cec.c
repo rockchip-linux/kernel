@@ -100,7 +100,7 @@ int rockchip_hdmi_cec_send_suspend(void)
 
 	memset(&cecframe, 0, sizeof(struct cec_framedata));
 	cecframe.opcode        = CECOP_STANDBY;
-	cecframe.srcdestaddr   = 0x40;
+	cecframe.srcdestaddr   = 0x4f;
 	cecframe.argcount      = 0;
 
 	return cecsendframe(&cecframe);
