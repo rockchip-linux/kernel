@@ -27,8 +27,7 @@
 #define DSP_DMA_2DCFG1  0x644
 #define DSP_DMA_2DCFG2  0x648
 
-int dsp_dma_transfer_code(struct dsp_dma *dma, void *src,
-			  void *dst, size_t size)
+int dsp_dma_transfer_code(struct dsp_dma *dma, u32 src, u32 dst, size_t size)
 {
 	int ret = 0;
 	int timeout = 100;
@@ -36,7 +35,7 @@ int dsp_dma_transfer_code(struct dsp_dma *dma, void *src,
 
 	dsp_debug_enter();
 
-	writel_relaxed(virt_to_phys(src), dma->base + DSP_DMA_PDEA);
+	writel_relaxed(src, dma->base + DSP_DMA_PDEA);
 	writel_relaxed(dst, dma->base + DSP_DMA_PDIA);
 	writel_relaxed((size & 0x1fffe0), dma->base + DSP_DMA_PDTC);
 
@@ -57,8 +56,7 @@ out:
 	return ret;
 }
 
-int dsp_dma_transfer_data(struct dsp_dma *dma, void *src,
-			  void *dst, size_t size)
+int dsp_dma_transfer_data(struct dsp_dma *dma, u32 src, u32 dst, size_t size)
 {
 	int ret = 0;
 	int timeout = 100;
@@ -66,7 +64,7 @@ int dsp_dma_transfer_data(struct dsp_dma *dma, void *src,
 
 	dsp_debug_enter();
 
-	writel_relaxed(virt_to_phys(src), dma->base + DSP_DMA_DDEA);
+	writel_relaxed(src, dma->base + DSP_DMA_DDEA);
 	writel_relaxed(dst, dma->base + DSP_DMA_DDIA);
 	writel_relaxed(0, dma->base + DSP_DMA_2DCFG1);
 	writel_relaxed(0, dma->base + DSP_DMA_2DCFG2);
@@ -106,8 +104,6 @@ int dsp_dma_create(void __iomem *dma_base, struct dsp_dma **dma_out)
 	}
 
 	dma->base = dma_base;
-	dma->transfer_data = dsp_dma_transfer_data;
-	dma->transfer_code = dsp_dma_transfer_code;
 
 	(*dma_out) = dma;
 	dsp_debug(DEBUG_DEVICE,

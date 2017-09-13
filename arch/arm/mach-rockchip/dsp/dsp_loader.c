@@ -15,10 +15,6 @@
 #include <linux/slab.h>
 #include <linux/err.h>
 #include <linux/vmalloc.h>
-#if defined(CONFIG_ION_ROCKCHIP)
-#include <linux/rockchip_ion.h>
-#endif
-#include <asm/cacheflush.h>
 #include "dsp_dbg.h"
 #include "dsp_loader.h"
 
@@ -96,7 +92,8 @@ out:
 	return ret;
 }
 
-static int dsp_loader_image_destroy(struct dsp_image *image)
+static int dsp_loader_image_destroy(struct dsp_loader *loader,
+				    struct dsp_image *image)
 {
 	int i;
 
@@ -104,9 +101,12 @@ static int dsp_loader_image_destroy(struct dsp_image *image)
 
 	for (i = 0; i < DSP_IMAGE_MAX_SECTION; i++) {
 		struct dsp_section *section = &image->sections[i];
+		struct dsp_section_extras *extra = &image->extras[i];
 
-		if (section->valid)
-			kfree(section->src);
+		if (section->valid) {
+			ion_unmap_kernel(loader->ion_client, extra->src_hdl);
+			ion_free(loader->ion_client, extra->src_hdl);
+		}
 	}
 
 	kfree(image);
@@ -121,6 +121,7 @@ static int dsp_loader_image_parse(struct dsp_loader *loader,
 	int ret = 0;
 	int idx;
 	u32 offset = 0, dst_offset = 0;
+	u32 phys_size = 0;
 	struct dsp_image *image;
 	struct dsp_image_header *image_hdr;
 
@@ -140,6 +141,7 @@ static int dsp_loader_image_parse(struct dsp_loader *loader,
 	for (idx = 0; idx < image_hdr->section_count; idx++) {
 		struct dsp_section_header *section_hdr;
 		struct dsp_section *section = &image->sections[idx];
+		struct dsp_section_extras *extra = &image->extras[idx];
 
 		section_hdr = (struct dsp_section_header *)
 			      (image_data + offset);
@@ -147,36 +149,53 @@ static int dsp_loader_image_parse(struct dsp_loader *loader,
 
 		section->type = section_hdr->type;
 		section->size = section_hdr->size;
-		section->dst = (void *)section_hdr->load_address;
+		section->dst_phys = section_hdr->load_address;
 
 		if (!section->size)
 			continue;
 
 		dsp_debug(DEBUG_LOADER,
-			  "Read an image section, type=%d, size=%d, load_addr=0x%08x.\n",
-			  section->type, section->size, (u32)section->dst);
+			  "Read a section, type=%d, size=%d, dst=0x%08x.\n",
+			  section->type, section->size, section->dst_phys);
 
 		if (section->type == DSP_IMAGE_CODE_EXTERNAL ||
 		    section->type == DSP_IMAGE_DATA_EXTERNAL) {
-			dst_offset = (u32)section->dst & DSP_TEXT_OFFSET_MASK;
+			dst_offset = section->dst_phys & DSP_TEXT_OFFSET_MASK;
 
 			/*
 			 * External data is resident, just copy external data
 			 * to destination directly.
 			 */
-			memcpy(loader->external_text + dst_offset,
+			memcpy(loader->ext_text + dst_offset,
 			       image_data + offset, section->size);
 		} else {
 			/* We Should save loadable section data in buffer. */
-			section->src = kzalloc(section->size, GFP_KERNEL);
-			if (!section->src) {
-				dsp_err("Cannot alloc mem for section, size=%d.\n",
+			extra->src_hdl = ion_alloc(loader->ion_client,
+						   section->size, 0,
+						   ION_HEAP(ION_CMA_HEAP_ID),
+						   0);
+			if (!extra->src_hdl) {
+				dsp_err("Cannot alloc %d mem for section\n",
 					section->size);
 				ret = -ENOMEM;
 				goto out;
 			}
+			extra->src_virt = ion_map_kernel(loader->ion_client,
+							 extra->src_hdl);
+			if (!extra->src_virt) {
+				dsp_err("DSP section map to kernel failed\n");
+				ion_free(loader->ion_client, extra->src_hdl);
+				extra->src_hdl = NULL;
+				ret = -ENOMEM;
+				goto out;
+			}
 
-			memcpy(section->src, image_data + offset,
+			ion_phys(loader->ion_client, extra->src_hdl,
+				 (ion_phys_addr_t *)&section->src_phys,
+				 &phys_size);
+
+			memset(extra->src_virt, 0, section->size);
+			memcpy(extra->src_virt, image_data + offset,
 			       section->size);
 
 			section->valid = 1;
@@ -196,7 +215,7 @@ static int dsp_loader_image_parse(struct dsp_loader *loader,
 
 out:
 	if (ret)
-		dsp_loader_image_destroy(image);
+		dsp_loader_image_destroy(loader, image);
 	dsp_debug_leave();
 	return ret;
 }
@@ -276,13 +295,6 @@ static int dsp_loader_prepare_image(struct device *device,
 		vfree(image_data);
 	}
 
-	/*
-	 * The data of images will be transferred to DSP by DMA soon,
-	 * so we call flush_cache_all() here to make cache coherence
-	 * of it's memory.
-	 */
-	flush_cache_all();
-
 	loader->image_prepared = 1;
 out:
 	if (fw)
@@ -327,18 +339,18 @@ int dsp_loader_load_image(struct device *device,
 
 		switch (section->type) {
 		case DSP_IMAGE_CODE_INTERNAL:
-			loader->dma->transfer_code(loader->dma, section->src,
-						   section->dst, section->size);
+			dsp_dma_transfer_code(loader->dma, section->src_phys,
+					      section->dst_phys, section->size);
 			dsp_debug(DEBUG_LOADER,
-				  "load section, src=0x%p, dst=0x%p\n",
-				  section->src, section->dst);
+				  "load section, src=0x%08x, dst=0x%08x\n",
+				  section->src_phys, section->dst_phys);
 			break;
 		case DSP_IMAGE_DATA_INTERNAL:
-			loader->dma->transfer_data(loader->dma, section->src,
-						   section->dst, section->size);
+			dsp_dma_transfer_data(loader->dma, section->src_phys,
+					      section->dst_phys, section->size);
 			dsp_debug(DEBUG_LOADER,
-				  "load section, src=0x%p, dst=0x%p\n",
-				  section->src, section->dst);
+				  "load section, src=0x%08x, dst=0x%08x\n",
+				  section->src_phys, section->dst_phys);
 			break;
 		default:
 			dsp_err("unknown section type\n");
@@ -355,8 +367,6 @@ out:
 int dsp_loader_create(struct dsp_dma *dma, struct dsp_loader **loader_out)
 {
 	int ret = 0;
-	struct ion_client *ion_client;
-	struct ion_handle *hdl;
 	struct dsp_loader *loader;
 
 	dsp_debug_enter();
@@ -368,20 +378,22 @@ int dsp_loader_create(struct dsp_dma *dma, struct dsp_loader **loader_out)
 		goto out;
 	}
 
-	ion_client = rockchip_ion_client_create("dsp");
-	if (IS_ERR(ion_client)) {
-		ret = PTR_ERR(ion_client);
+	loader->ion_client = rockchip_ion_client_create("dsp");
+	if (IS_ERR(loader->ion_client)) {
+		ret = PTR_ERR(loader->ion_client);
 		dsp_err("cannot create ion client\n");
 		goto out;
 	}
-	hdl = ion_alloc(ion_client, (size_t)DSP_TEXT_MEM_SIZE, 0,
-			ION_HEAP(ION_CARVEOUT_HEAP_ID), 0);
-	if (IS_ERR(hdl)) {
+	loader->ext_text_hdl = ion_alloc(loader->ion_client,
+					 (size_t)DSP_TEXT_MEM_SIZE, 0,
+					 ION_HEAP(ION_CARVEOUT_HEAP_ID), 0);
+	if (IS_ERR(loader->ext_text_hdl)) {
 		dsp_err("cannnot alloc memory for dsp to run\n");
-		ret = PTR_ERR(hdl);
+		ret = PTR_ERR(loader->ext_text_hdl);
 		goto out;
 	}
-	loader->external_text = ion_map_kernel(ion_client, hdl);
+	loader->ext_text = ion_map_kernel(loader->ion_client,
+					  loader->ext_text_hdl);
 
 	loader->dma = dma;
 	INIT_LIST_HEAD(&loader->images);
@@ -409,8 +421,13 @@ int dsp_loader_destroy(struct dsp_loader *loader)
 				struct dsp_image, list_node);
 
 		list_del(pos);
-		dsp_loader_image_destroy(image);
+		dsp_loader_image_destroy(loader, image);
 	}
+
+	ion_unmap_kernel(loader->ion_client, loader->ext_text_hdl);
+	ion_free(loader->ion_client, loader->ext_text_hdl);
+
+	ion_client_destroy(loader->ion_client);
 
 	kfree(loader);
 out:

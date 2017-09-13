@@ -17,6 +17,10 @@
 
 #include <linux/device.h>
 #include <linux/firmware.h>
+#if defined(CONFIG_ION_ROCKCHIP)
+#include <linux/rockchip_ion.h>
+#endif
+
 #include "dsp_dma.h"
 
 #define DSP_IMAGE_NAME_SIZE            32
@@ -38,28 +42,40 @@
 #define DSP_IMAGE_DATA_INTERNAL 0x2
 #define DSP_IMAGE_DATA_EXTERNAL 0x3
 
+/*
+ * This section struct must be the same as the struct
+ * defined in DSP side.
+ */
 struct dsp_section {
 	u32 valid;
 	u32 type;
 	u32 size;
-	void *src;
-	void *dst;
+	u32 src_phys;
+	u32 dst_phys;
+};
+
+struct dsp_section_extras {
+	void *src_virt;
+	struct ion_handle *src_hdl;
 };
 
 struct dsp_image {
 	u32 id;
 	char name[DSP_IMAGE_NAME_SIZE];
 	struct dsp_section sections[DSP_IMAGE_MAX_SECTION];
+	struct dsp_section_extras extras[DSP_IMAGE_MAX_SECTION];
 	struct list_head list_node;
 };
 
 struct dsp_loader {
 	struct dsp_dma *dma;
+	struct ion_client *ion_client;
 	struct list_head images;
 	int image_prepared;
 
 	/* Reserved dsp external text memory */
-	u8 *external_text;
+	struct ion_handle *ext_text_hdl;
+	u8 *ext_text;
 };
 
 int dsp_loader_create(struct dsp_dma *dma, struct dsp_loader **loader);

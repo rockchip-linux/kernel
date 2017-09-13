@@ -18,13 +18,12 @@
 
 struct dsp_dma {
 	void __iomem *base;
-
-	int (*transfer_data)(struct dsp_dma *, void *, void *, size_t);
-	int (*transfer_code)(struct dsp_dma *, void *, void *, size_t);
 };
 
 int dsp_dma_create(void __iomem *dma_base, struct dsp_dma **dma);
-
 int dsp_dma_destroy(struct dsp_dma *dma);
+
+int dsp_dma_transfer_code(struct dsp_dma *dma, u32 src, u32 dst, size_t size);
+int dsp_dma_transfer_data(struct dsp_dma *dma, u32 src, u32 dst, size_t size);
 
 #endif
