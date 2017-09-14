@@ -184,17 +184,36 @@ static int rockchip_mmc_set_phase(int degrees, struct dw_mci *host)
 		return -EPERM;
 	}
 
-	degrees++;
-	degrees -= ((degrees) * 10 % (360/NUM_PHASES*10)) / 10;
+
 	nineties = degrees / 90;
-	remainder = (degrees % 90) / (360/NUM_PHASES);
+	remainder = (degrees % 90);
+	/*
+	 * Due to the inexact nature of the "fine" delay, we might
+	 * actually go non-monotonic.  We don't go _too_ monotonic
+	 * though, so we should be OK.  Here are options of how we may
+	 * work:
+	 *
+	 * Ideally we end up with:
+	 *   1.0, 2.0, ..., 69.0, 70.0, ...,  89.0, 90.0
+	 *
+	 * On one extreme (if delay is actually 44ps):
+	 *   .73, 1.5, ..., 50.6, 51.3, ...,  65.3, 90.0
+	 * The other (if delay is actually 77ps):
+	 *   1.3, 2.6, ..., 88.6. 89.8, ..., 114.0, 90
+	 *
+	 * It's possible we might make a delay that is up to 25
+	 * degrees off from what we think we're making.  That's OK
+	 * though because we should be REALLY far from any bad range.
+	 */
 
-	delay = PSECS_PER_SEC;
-	do_div(delay, rate);
-	do_div(delay, NUM_PHASES);
-	do_div(delay, ROCKCHIP_MMC_DELAY_ELEMENT_PSEC);
-
+	/*
+	 * Convert to delay; do a little extra work to make sure we
+	 * don't overflow 32-bit / 64-bit numbers.
+	 */
+	delay = 100000000; /* PSECS_PER_SEC / 10000 / 10 */
 	delay *= remainder;
+	do_div(delay, 10000);
+	do_div(delay, (rate / 1000) * 36 * ROCKCHIP_MMC_DELAY_ELEMENT_PSEC);
 	delay_num = (u8) min(delay, 255ULL);
 
 	raw_value = delay_num ? delay_sel : 0;
