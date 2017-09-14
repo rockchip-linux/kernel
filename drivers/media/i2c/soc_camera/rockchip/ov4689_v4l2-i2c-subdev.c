@@ -253,10 +253,10 @@ static struct ov_camera_module_reg ov4689_init_tab_2688_1520_30fps[] = {
 {OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3809, 0x80},/* h output size [7:0]*/
 {OV_CAMERA_MODULE_REG_TYPE_DATA, 0x380a, 0x05},/* v output size [11:8]*/
 {OV_CAMERA_MODULE_REG_TYPE_DATA, 0x380b, 0xf0},/* v output size [7:0]*/
-{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x380c, 0x0a},/* h total size [14:8]*/
-{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x380d, 0x18},/* h total size [7:0]*/
-{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x380e, 0x06},/* v total size [14:8]*/
-{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x380f, 0x12},/* v total size [7:0]*/
+{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x380c, 0x08},/* h total size [14:8]*/
+{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x380d, 0x6a},/* h total size [7:0]*/
+{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x380e, 0x07},/* v total size [14:8]*/
+{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x380f, 0x48},/* v total size [7:0]*/
 {OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3810, 0x00},/* h win offset [11:8]*/
 {OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3811, 0x08},/* h win offset [7:0]*/
 {OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3812, 0x00},/* v win offset [11:8]*/
@@ -509,10 +509,10 @@ static struct ov_camera_module_reg ov4689_init_tab_2688_1520_60fps[] = {
 {OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3809, 0x80},/* h output size [7:0]*/
 {OV_CAMERA_MODULE_REG_TYPE_DATA, 0x380a, 0x05},/* v output size [11:8]*/
 {OV_CAMERA_MODULE_REG_TYPE_DATA, 0x380b, 0xf0},/* v output size [7:0]*/
-{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x380c, 0x05},/* h total size [14:8]*/
-{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x380d, 0x12},/* h total size [7:0]*/
-{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x380e, 0x06},/* v total size [14:8]*/
-{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x380f, 0x12},/* v total size [7:0]*/
+{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x380c, 0x04},/* h total size [14:8]*/
+{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x380d, 0x32},/* h total size [7:0]*/
+{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x380e, 0x07},/* v total size [14:8]*/
+{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x380f, 0x48},/* v total size [7:0]*/
 {OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3810, 0x00},/* h win offset [11:8]*/
 {OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3811, 0x08},/* h win offset [7:0]*/
 {OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3812, 0x00},/* v win offset [11:8]*/
@@ -610,6 +610,7 @@ static struct ov_camera_module_reg ov4689_init_tab_2688_1520_60fps[] = {
 {OV_CAMERA_MODULE_REG_TYPE_DATA, 0x8008, 0x00},/* TEST CTRL9*/
 {OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3638, 0x00}
 };
+
 /* ======================================================================== */
 
 static struct ov_camera_module_config ov4689_configs[] = {
@@ -631,7 +632,7 @@ static struct ov_camera_module_config ov4689_configs[] = {
 		.auto_wb_enabled = false,
 		.reg_table = (void *)ov4689_init_tab_2688_1520_30fps,
 		.reg_table_num_entries = ARRAY_SIZE(ov4689_init_tab_2688_1520_30fps),
-		.v_blanking_time_us = 5000,
+		.v_blanking_time_us = 6100,
 		PLTFRM_CAM_ITF_MIPI_CFG(0, 2, 999, ov4689_EXT_CLK)
 	},
 	{
@@ -652,7 +653,7 @@ static struct ov_camera_module_config ov4689_configs[] = {
 		.auto_wb_enabled = false,
 		.reg_table = (void *)ov4689_init_tab_2688_1520_60fps,
 		.reg_table_num_entries = ARRAY_SIZE(ov4689_init_tab_2688_1520_60fps),
-		.v_blanking_time_us = 5000,
+		.v_blanking_time_us = 3000,
 		PLTFRM_CAM_ITF_MIPI_CFG(0, 4, 800, ov4689_EXT_CLK)
 	}
 };
