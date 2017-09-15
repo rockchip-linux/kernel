@@ -3343,6 +3343,9 @@ static int cifisp_reset(struct file *file)
 	isp_dev->active_meas = 0;
 	isp_dev->frame_id = 0;
 	isp_dev->cif_ism_cropping = false;
+
+	isp_dev->meta_info.write_id = 0;
+	isp_dev->meta_info.read_id = 0;
 	return 0;
 }
 static int cifisp_open(struct file *file)
@@ -3627,17 +3630,27 @@ void cifisp_frame_in(
 	struct cif_isp11_isp_dev *isp_dev,
 	const struct timeval *fi_t)
 {
+	unsigned int write_id;
 	/* Called in an interrupt context. */
 	isp_dev->fi_t = *fi_t;
+
+	write_id = isp_dev->meta_info.write_id;
+	isp_dev->meta_info.fi_t[write_id] = *fi_t;
+	isp_dev->meta_info.write_id = (write_id + 1) % CIF_ISP11_META_INFO_NUM;
 }
 
 void cifisp_v_start(
 	struct cif_isp11_isp_dev *isp_dev,
 	const struct timeval *vs_t)
 {
+	unsigned int write_id;
 	/* Called in an interrupt context. */
 	isp_dev->frame_id += 2;
 	isp_dev->vs_t = *vs_t;
+
+	write_id = isp_dev->meta_info.write_id;
+	isp_dev->meta_info.frame_id[write_id] = isp_dev->frame_id;
+	isp_dev->meta_info.vs_t[write_id] = *vs_t;
 }
 
 void cifisp_frame_id_reset(
@@ -3656,6 +3669,9 @@ void cifisp_frame_id_reset(
 			0x00,
 			sizeof(isp_dev->meas_cfgs.log[i].s_frame_id));
 	}
+
+	isp_dev->meta_info.read_id = 0;
+	isp_dev->meta_info.write_id = 0;
 }
 
 /* Not called when the camera active, thus not isr protection. */
@@ -3708,11 +3724,6 @@ static void cifisp_send_measurement(
 	struct pltfrm_cam_ls  cam_ls;
 
 	spin_lock_irqsave(&isp_dev->irq_lock, lock_flags);
-	if (isp_dev->frame_id != meas_work->frame_id) {
-		spin_unlock_irqrestore(&isp_dev->irq_lock, lock_flags);
-		goto end;
-	}
-
 	if (!list_empty(&isp_dev->stat)) {
 		vb = list_first_entry(&isp_dev->stat, struct videobuf_buffer, queue);
 	} else {
@@ -3728,65 +3739,40 @@ static void cifisp_send_measurement(
 	stat_buf = (struct cifisp_stat_buffer *)videobuf_to_vmalloc(vb);
 	memset(stat_buf, 0x00, sizeof(struct cifisp_stat_buffer));
 
-	if (active_meas & CIF_ISP_AWB_DONE) {
-		cifisp_get_awb_meas(isp_dev, stat_buf);
-	}
-
-	if (active_meas & CIF_ISP_AFM_FIN) {
-		cifisp_get_afc_meas(isp_dev, stat_buf);
-	}
-
-	if (active_meas & CIF_ISP_EXP_END) {
-		cifisp_get_aec_meas(isp_dev, stat_buf);
-		cifisp_bls_get_meas(isp_dev, stat_buf);
-	}
-
-	if (active_meas & CIF_ISP_HIST_MEASURE_RDY) {
-		cifisp_get_hst_meas(isp_dev, stat_buf);
-	}
 	spin_lock_irqsave(&isp_dev->irq_lock, lock_flags);
-
-	if (isp_dev->frame_id != meas_work->frame_id) {
-		spin_unlock_irqrestore(&isp_dev->irq_lock, lock_flags);
-		goto end;
-	}
-
 	vb->ts = isp_dev->vs_t;
 	list_del(&vb->queue);
 	spin_unlock_irqrestore(&isp_dev->irq_lock, lock_flags);
 
 	if (active_meas & CIF_ISP_AWB_DONE) {
-		memcpy(&isp_dev->meas_stats.stat.params.awb,
-			&stat_buf->params.awb,
+		memcpy(&stat_buf->params.awb,
+			&isp_dev->meas_stats.stat.params.awb,
 			sizeof(struct cifisp_awb_stat));
-		isp_dev->meas_stats.stat.meas_type |= CIFISP_STAT_AWB;
+		stat_buf->meas_type |= CIFISP_STAT_AWB;
 	}
 	if (active_meas & CIF_ISP_AFM_FIN) {
-		memcpy(&isp_dev->meas_stats.stat.params.af,
-			&stat_buf->params.af,
+		memcpy(&stat_buf->params.af,
+			&isp_dev->meas_stats.stat.params.af,
 			sizeof(struct cifisp_af_stat));
-		isp_dev->meas_stats.stat.meas_type |= CIFISP_STAT_AFM_FIN;
+		stat_buf->meas_type |= CIFISP_STAT_AFM_FIN;
 	}
 	if (active_meas & CIF_ISP_EXP_END) {
+		memcpy(&stat_buf->params.ae,
+			&isp_dev->meas_stats.stat.params.ae,
+			sizeof(struct cifisp_ae_stat));
+
 		cif_isp11_sensor_mode_data_sync(cif_dev,
 			meas_work->frame_id,
 			&stat_buf->sensor_mode);
-		memcpy(&isp_dev->meas_stats.stat.params.ae,
-			&stat_buf->params.ae,
-			sizeof(struct cifisp_ae_stat));
-		memcpy(&isp_dev->meas_stats.stat.sensor_mode,
-			&stat_buf->sensor_mode,
-			sizeof(struct isp_supplemental_sensor_mode_data));
 
-		isp_dev->meas_stats.stat.meas_type |= CIFISP_STAT_AUTOEXP;
+		stat_buf->meas_type |= CIFISP_STAT_AUTOEXP;
 	}
 	if (active_meas & CIF_ISP_HIST_MEASURE_RDY) {
-		memcpy(&isp_dev->meas_stats.stat.params.hist,
-			&stat_buf->params.hist,
+		memcpy(&stat_buf->params.hist,
+			&isp_dev->meas_stats.stat.params.hist,
 			sizeof(struct cifisp_hist_stat));
-		isp_dev->meas_stats.stat.meas_type |= CIFISP_STAT_HIST;
+		stat_buf->meas_type |= CIFISP_STAT_HIST;
 	}
-	isp_dev->meas_stats.g_frame_id = meas_work->frame_id;
 	vb->field_count = meas_work->frame_id;
 
 	cif_isp11_img_src_ioctl(cif_dev->img_src,
@@ -3825,6 +3811,10 @@ static int cifisp_s_vb_metadata(
 		&isp_metadata->meas_stat;
 	unsigned int i, j, match_id;
 	unsigned long int lock_flags;
+
+	cif_isp11_sensor_mode_data_sync(cif_dev,
+			readout_work->frame_id,
+			&isp_dev->meas_stats.stat.sensor_mode);
 
 	spin_lock_irqsave(&isp_dev->config_lock, lock_flags);
 	other_cfg->module_ens = 0;
@@ -4317,30 +4307,40 @@ int cifisp_isp_isr(struct cif_isp11_isp_dev *isp_dev, u32 isp_mis)
 	if (isp_mis & (CIF_ISP_DATA_LOSS | CIF_ISP_PIC_SIZE_ERROR))
 		return 0;
 
+	cifisp_iowrite32(
+		(isp_mis & (CIF_ISP_AWB_DONE | CIF_ISP_AFM_FIN |
+		CIF_ISP_EXP_END | CIF_ISP_HIST_MEASURE_RDY)),
+		CIF_ISP_ICR);
+
+	isp_mis_tmp = cifisp_ioread32(CIF_ISP_MIS);
+	if (isp_mis_tmp &
+		(isp_mis & (CIF_ISP_AWB_DONE | CIF_ISP_AFM_FIN |
+		CIF_ISP_EXP_END | CIF_ISP_HIST_MEASURE_RDY)))
+		CIFISP_DPRINT(CIFISP_ERROR,
+			"isp icr 3A info err: 0x%x\n",
+			 isp_mis_tmp);
+
+	if (isp_mis & CIF_ISP_AWB_DONE)
+		cifisp_get_awb_meas(isp_dev, &isp_dev->meas_stats.stat);
+
+	if (isp_mis & CIF_ISP_AFM_FIN)
+		cifisp_get_afc_meas(isp_dev, &isp_dev->meas_stats.stat);
+
+	if (isp_mis & CIF_ISP_EXP_END) {
+		cifisp_get_aec_meas(isp_dev, &isp_dev->meas_stats.stat);
+		cifisp_bls_get_meas(isp_dev, &isp_dev->meas_stats.stat);
+		isp_dev->meas_stats.g_frame_id = isp_dev->frame_id;
+	}
+
+	if (isp_mis & CIF_ISP_HIST_MEASURE_RDY)
+		cifisp_get_hst_meas(isp_dev, &isp_dev->meas_stats.stat);
+
 	if (isp_mis & CIF_ISP_FRAME) {
-		u32 isp_ris = cifisp_ioread32(CIF_ISP_RIS);
-
-		cifisp_iowrite32(
-			(CIF_ISP_AWB_DONE|CIF_ISP_AFM_FIN|
-			CIF_ISP_EXP_END|CIF_ISP_HIST_MEASURE_RDY),
-			CIF_ISP_ICR);
-		isp_mis_tmp = cifisp_ioread32(CIF_ISP_MIS);
-		if (isp_mis_tmp &
-			(CIF_ISP_AWB_DONE|CIF_ISP_AFM_FIN|
-			CIF_ISP_EXP_END|CIF_ISP_HIST_MEASURE_RDY))
-			CIFISP_DPRINT(CIFISP_ERROR,
-				      "isp icr 3A info err: 0x%x\n",
-				      isp_mis_tmp);
-
-		CIFISP_DPRINT(CIFISP_DEBUG, "isp_ris 0x%x\n", isp_ris);
-
 		if (((isp_dev->meas_cfgs.module_updates &
 			(CIFISP_MODULE_AWB |
 			CIFISP_MODULE_AEC |
 			CIFISP_MODULE_AFC)) == 0) &&
-			isp_dev->active_meas &&
-			((isp_dev->active_meas & isp_ris) ==
-			isp_dev->active_meas)) {
+			isp_dev->active_meas) {
 
 			work = (struct cif_isp11_isp_readout_work *)
 				kmalloc(sizeof(struct cif_isp11_isp_readout_work), GFP_ATOMIC);

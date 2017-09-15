@@ -1912,7 +1912,11 @@ static int cif_isp11_config_isp(
 		CIF_ISP_FRAME |
 		CIF_ISP_PIC_SIZE_ERROR |
 		CIF_ISP_FRAME_IN |
-		CIF_ISP_V_START;
+		CIF_ISP_V_START |
+		CIF_ISP_AWB_DONE |
+		CIF_ISP_AFM_FIN |
+		CIF_ISP_EXP_END |
+		CIF_ISP_HIST_MEASURE_RDY;
 	cif_iowrite32(irq_mask,
 		dev->config.base_addr + CIF_ISP_IMSC);
 
@@ -4450,13 +4454,21 @@ static int cif_isp11_mi_frame_end(
 			spin_lock(&stream->metadata.spinlock);
 			if (stream->metadata.d && dev->isp_dev.streamon) {
 				struct v4l2_buffer_metadata_s *metadata;
+				unsigned int meta_read_id;
 
 				metadata = (struct v4l2_buffer_metadata_s *)
 					(stream->metadata.d +
 					stream->curr_buf->i*CAMERA_METADATA_LEN);
-				metadata->frame_id = dev->isp_dev.frame_id;
-				metadata->frame_t.vs_t = dev->isp_dev.vs_t;
-				metadata->frame_t.fi_t = dev->isp_dev.fi_t;
+
+				meta_read_id = dev->isp_dev.meta_info.read_id;
+				metadata->frame_id = dev->isp_dev.meta_info.frame_id[meta_read_id];
+				metadata->frame_t.vs_t = dev->isp_dev.meta_info.vs_t[meta_read_id];
+				metadata->frame_t.fi_t = dev->isp_dev.meta_info.fi_t[meta_read_id];
+				dev->isp_dev.meta_info.read_cnt++;
+				if (dev->isp_dev.meta_info.read_cnt >= dev->isp_dev.meta_info.read_max) {
+					dev->isp_dev.meta_info.read_cnt = 0;
+					dev->isp_dev.meta_info.read_id = (meta_read_id + 1) % CIF_ISP11_META_INFO_NUM;
+				}
 				spin_unlock(&stream->metadata.spinlock);
 
 				work = (struct cif_isp11_isp_readout_work *)
@@ -4471,7 +4483,7 @@ static int cif_isp11_mi_frame_end(
 					work->isp_dev =
 						&dev->isp_dev;
 					work->frame_id =
-						dev->isp_dev.frame_id;
+						metadata->frame_id;
 					if (stream->next_buf != NULL)
 						work->vb = stream->curr_buf;
 					else
@@ -5178,6 +5190,16 @@ static int cif_isp11_start(
 		dev->dma_stream.stop = false;
 		cif_isp11_dma_next_buff(dev);
 	}
+
+	dev->isp_dev.meta_info.read_cnt = 0;
+	dev->isp_dev.meta_info.read_max = 0;
+	if (dev->sp_stream.state == CIF_ISP11_STATE_STREAMING)
+		dev->isp_dev.meta_info.read_max++;
+	if (dev->mp_stream.state == CIF_ISP11_STATE_STREAMING)
+		dev->isp_dev.meta_info.read_max++;
+	if (dev->y12_stream.state == CIF_ISP11_STATE_STREAMING)
+		dev->isp_dev.meta_info.read_max++;
+
 	cif_isp11_pltfrm_pr_dbg(dev->dev,
 		"SP state = %s, MP state = %s, Y12 state = %s, DMA state = %s, img_src state = %s\n"
 		"  MI_CTRL 0x%08x\n"

@@ -25,6 +25,8 @@
 /****************************************************************************
 *                                                     ISP device struct
 ****************************************************************************/
+#define CIF_ISP11_META_INFO_NUM		2
+
 enum cif_isp11_pix_fmt;
 
 enum cif_isp11_pix_fmt_quantization {
@@ -56,6 +58,16 @@ struct cif_isp11_isp_meas_cfgs {
 struct cif_isp11_isp_meas_stats {
 	unsigned int g_frame_id;
 	struct cifisp_stat_buffer stat;
+};
+
+struct cif_isp11_isp_meta_info {
+	unsigned int write_id;
+	unsigned int read_id;
+	unsigned int read_cnt;
+	unsigned int read_max;
+	unsigned int frame_id[CIF_ISP11_META_INFO_NUM];
+	struct timeval vs_t[CIF_ISP11_META_INFO_NUM];
+	struct timeval fi_t[CIF_ISP11_META_INFO_NUM];
 };
 
 struct cif_isp11_isp_dev {
@@ -95,6 +107,7 @@ struct cif_isp11_isp_dev {
 	struct timeval vs_t;	/* updated each frame */
 	struct timeval fi_t;	/* updated each frame */
 	struct workqueue_struct *readout_wq;
+	struct cif_isp11_isp_meta_info meta_info;
 
 	unsigned int *dev_id;
 };

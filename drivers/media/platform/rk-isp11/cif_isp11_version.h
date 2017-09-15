@@ -131,9 +131,14 @@
 *v0.2.b:
 *1. Add error judgement and spinlock to fix kernel crash in long time test;
 *Change the call of drain_workqueue;
+*
+*v0.2.c:
+*1. Fix the issue that the frame time of different frame is same;
+*2. Fix the issue that 3A information is not correct when v-blank time of
+* sensor data is too short;
 */
 
-#define CONFIG_CIFISP11_DRIVER_VERSION KERNEL_VERSION(0, 2, 0xb)
+#define CONFIG_CIFISP11_DRIVER_VERSION KERNEL_VERSION(0, 2, 0xc)
 
 
 #endif
