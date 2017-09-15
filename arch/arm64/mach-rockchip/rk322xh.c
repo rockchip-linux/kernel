@@ -102,6 +102,7 @@ static int rk322xh_do_idle_request(enum pmu_idle_req req, bool idle)
 	u32 idle_mask, target, status;
 	u32 mask = BIT(bit);
 	u32 val;
+	s32 cnt = 1000;
 
 	idle_mask = BIT(bit + 16);
 	target = (idle << bit) | (idle << (bit + 10));
@@ -114,8 +115,11 @@ static int rk322xh_do_idle_request(enum pmu_idle_req req, bool idle)
 		val &= ~mask;
 	writel_relaxed(val | idle_mask, grf + RK322XH_PMU_IDLE_REQ);
 
-	while ((readl_relaxed(grf + RK322XH_PMU_IDLE_ST) & status) != target)
-		;
+	while ((readl_relaxed(grf + RK322XH_PMU_IDLE_ST) & status) != target) {
+		udelay(10);
+		if (cnt-- <= 0)
+			return -ETIMEDOUT;
+	}
 
 	return 0;
 }
@@ -123,6 +127,7 @@ static int rk322xh_do_idle_request(enum pmu_idle_req req, bool idle)
 static int rk322xh_set_idle_request(enum pmu_idle_req req, bool idle)
 {
 	unsigned long flags;
+	int ret;
 
 	spin_lock_irqsave(&pmu_idle_lock, flags);
 
@@ -164,7 +169,7 @@ static int rk322xh_set_idle_request(enum pmu_idle_req req, bool idle)
 		}
 	}
 
-	rk322xh_do_idle_request(req, idle);
+	ret = rk322xh_do_idle_request(req, idle);
 
 	if (!idle) {
 		if (req == IDLE_REQ_VIO) {
@@ -204,7 +209,7 @@ static int rk322xh_set_idle_request(enum pmu_idle_req req, bool idle)
 		}
 	}
 	spin_unlock_irqrestore(&pmu_idle_lock, flags);
-	return 0;
+	return ret;
 }
 
 static __init int rk322xh_dt_init(void)

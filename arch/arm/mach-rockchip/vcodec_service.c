@@ -44,6 +44,7 @@
 #include <linux/rockchip/grf.h>
 #include <linux/rockchip/dvfs.h>
 #include <linux/rockchip/common.h>
+#include <linux/rockchip/psci.h>
 #include <video/rk_vpu_service.h>
 
 #if defined(CONFIG_ION_ROCKCHIP)
@@ -873,6 +874,7 @@ static void vpu_reset(struct vpu_subdev_data *data)
 {
 	struct vpu_service_info *pservice = data->pservice;
 	enum pmu_idle_req type = IDLE_REQ_VIDEO;
+	int ret = -1;
 
 	atomic_set(&pservice->reset_request, 0);
 
@@ -895,26 +897,31 @@ static void vpu_reset(struct vpu_subdev_data *data)
 #ifdef CONFIG_RESET_CONTROLLER
 	if (pservice->rst_a && pservice->rst_h) {
 		if (rockchip_pmu_ops.set_idle_request)
-			rockchip_pmu_ops.set_idle_request(type, true);
-		if (pservice->hw_ops->reduce_freq)
-			pservice->hw_ops->reduce_freq(pservice);
+			ret = rockchip_pmu_ops.set_idle_request(type, true);
+		if (ret < 0) {
+			pr_info("msch idle request and reset rkvdec\n");
+			sip_smc_vpu_reset(0, 0, 0);
+		} else {
+			if (pservice->hw_ops->reduce_freq)
+				pservice->hw_ops->reduce_freq(pservice);
 
-		safe_reset(pservice->rst_niu_a);
-		safe_reset(pservice->rst_niu_h);
-		safe_reset(pservice->rst_a);
-		safe_reset(pservice->rst_h);
-		safe_reset(pservice->rst_core);
-		safe_reset(pservice->rst_cabac);
-		udelay(2);
-		safe_unreset(pservice->rst_niu_h);
-		safe_unreset(pservice->rst_niu_a);
-		safe_unreset(pservice->rst_a);
-		safe_unreset(pservice->rst_h);
-		safe_unreset(pservice->rst_core);
-		safe_unreset(pservice->rst_cabac);
+			safe_reset(pservice->rst_niu_a);
+			safe_reset(pservice->rst_niu_h);
+			safe_reset(pservice->rst_a);
+			safe_reset(pservice->rst_h);
+			safe_reset(pservice->rst_core);
+			safe_reset(pservice->rst_cabac);
+			udelay(2);
+			safe_unreset(pservice->rst_niu_h);
+			safe_unreset(pservice->rst_niu_a);
+			safe_unreset(pservice->rst_a);
+			safe_unreset(pservice->rst_h);
+			safe_unreset(pservice->rst_core);
+			safe_unreset(pservice->rst_cabac);
 
-		if (rockchip_pmu_ops.set_idle_request)
-			rockchip_pmu_ops.set_idle_request(type, false);
+			if (rockchip_pmu_ops.set_idle_request)
+				rockchip_pmu_ops.set_idle_request(type, false);
+		}
 	}
 #endif
 
