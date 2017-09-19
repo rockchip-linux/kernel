@@ -365,6 +365,7 @@ static int dsp_work_done(struct dsp_dev_client *client, struct dsp_work *work)
 
 out:
 	mutex_unlock(&service->lock);
+	wake_up(&service->wait);
 	dsp_debug_leave();
 	return ret;
 }
