@@ -136,9 +136,12 @@
 *1. Fix the issue that the frame time of different frame is same;
 *2. Fix the issue that 3A information is not correct when v-blank time of
 * sensor data is too short;
+*
+*v0.2.d:
+*1. Add check of AE window;
 */
 
-#define CONFIG_CIFISP11_DRIVER_VERSION KERNEL_VERSION(0, 2, 0xc)
+#define CONFIG_CIFISP11_DRIVER_VERSION KERNEL_VERSION(0, 2, 0xd)
 
 
 #endif
