@@ -103,6 +103,12 @@ struct cif_isp11_isp_dev {
 	unsigned int frame_id;
 	unsigned int frame_id_setexp;
 	unsigned int active_meas;
+	unsigned int meas_send_alone;
+
+	bool awb_meas_ready;
+	bool afm_meas_ready;
+	bool aec_meas_ready;
+	bool hst_meas_ready;
 
 	struct timeval vs_t;	/* updated each frame */
 	struct timeval fi_t;	/* updated each frame */
@@ -121,6 +127,9 @@ struct cif_isp11_isp_readout_work {
 	struct cif_isp11_isp_dev *isp_dev;
 
 	unsigned int frame_id;
+	unsigned int active_meas;
+	struct timeval vs_t;
+	struct timeval fi_t;
 	enum cif_isp11_isp_readout_cmd readout;
 	struct videobuf_buffer *vb;
 	unsigned int stream_id;

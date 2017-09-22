@@ -152,6 +152,12 @@ struct pltfrm_cam_itf {
 	(PLTFRM_CIFCAM_IOCTL_INTERNAL_BASE + 4)
 #define PLTFRM_CIFCAM_R_LIGHTSENSOR	\
 	(PLTFRM_CIFCAM_IOCTL_INTERNAL_BASE + 5)
+#define PLTFRM_CIFCAM_SET_VCM_POS	\
+	(PLTFRM_CIFCAM_IOCTL_INTERNAL_BASE + 6)
+#define PLTFRM_CIFCAM_GET_VCM_POS	\
+	(PLTFRM_CIFCAM_IOCTL_INTERNAL_BASE + 7)
+#define PLTFRM_CIFCAM_GET_VCM_MOVE_RES	\
+	(PLTFRM_CIFCAM_IOCTL_INTERNAL_BASE + 8)
 
 enum pltfrm_cam_ls_val {
 	PLTFRM_LS_INVAL = -1,
@@ -161,6 +167,11 @@ enum pltfrm_cam_ls_val {
 };
 struct pltfrm_cam_ls {
 	enum pltfrm_cam_ls_val val;
+};
+
+struct pltfrm_cam_vcm_tim {
+	struct timeval vcm_start_t;
+	struct timeval vcm_end_t;
 };
 
 struct pltfrm_cam_defrect {

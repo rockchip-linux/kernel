@@ -561,6 +561,31 @@ struct cif_isp11_isp_vs_work {
 	enum cif_isp11_isp_vs_cmd cmd;
 	void *param;
 };
+
+struct cif_isp11_img_src_vcm {
+	struct list_head list;
+	unsigned int id;
+	int val;
+};
+
+struct cif_isp11_img_src_vcms {
+	spinlock_t lock;	/* protect list */
+	struct list_head list;
+};
+
+enum cif_isp11_isp_vcm_cmd {
+	CIF_ISP11_VCM_EXIT = 0,
+	CIF_ISP11_VCM_VCM = 1
+
+};
+
+struct cif_isp11_isp_vcm_work {
+	struct work_struct work;
+	struct cif_isp11_device *dev;
+	enum cif_isp11_isp_vcm_cmd cmd;
+	void *param;
+};
+
 /* ======================================================================== */
 
 struct cif_isp11_fmt {
@@ -590,6 +615,7 @@ struct cif_isp11_device {
 	struct cif_isp11_img_src *img_src_array[CIF_ISP11_NUM_INPUTS];
 	unsigned int img_src_cnt;
 	struct cif_isp11_img_src_exps img_src_exps;
+	struct cif_isp11_img_src_vcms img_src_vcms;
 
 	struct cif_isp11_config config;
 	struct cif_isp11_isp_dev isp_dev;
@@ -599,6 +625,7 @@ struct cif_isp11_device {
 	struct cif_isp11_stream dma_stream;
 
 	struct workqueue_struct *vs_wq;
+	struct workqueue_struct *vcm_wq;
 	void (*sof_event)(struct cif_isp11_device *dev, __u32 frame_sequence);
 	/* requeue_bufs() is used to clean and rebuild the local buffer
 	lists xx_stream.buf_queue. This is used e.g. in the CAPTURE use

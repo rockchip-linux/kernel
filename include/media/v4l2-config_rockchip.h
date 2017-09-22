@@ -69,6 +69,7 @@ struct camera_module_info_s {
 	bool iq_flip;
 	int flash_support;
 	int flash_exp_percent;
+	int af_support;
 };
 
 struct flash_timeinfo_s {

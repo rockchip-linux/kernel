@@ -5170,11 +5170,23 @@ static int cif_isp11_start(
 		cif_isp11_img_src_ioctl(dev->img_src,
 			RK_VIDIOC_SENSOR_MODE_DATA,
 			&dev->img_src_exps.data[0].data);
-		cif_isp11_img_src_ioctl(dev->img_src,
-			RK_VIDIOC_SENSOR_MODE_DATA,
-			&dev->img_src_exps.data[1].data);
 		dev->img_src_exps.data[0].v_frame_id = 0;
 		dev->img_src_exps.data[1].v_frame_id = 0;
+		dev->img_src_exps.data[0].data.isp_input_width =
+			dev->config.isp_config.input->defrect.width;
+		dev->img_src_exps.data[0].data.isp_input_height =
+			dev->config.isp_config.input->defrect.height;
+		dev->img_src_exps.data[0].data.isp_input_horizontal_start =
+			dev->config.isp_config.input->defrect.left;
+		dev->img_src_exps.data[0].data.isp_input_vertical_start =
+			dev->config.isp_config.input->defrect.top;
+
+		dev->img_src_exps.data[0].data.isp_output_width =
+			dev->config.isp_config.output.width;
+		dev->img_src_exps.data[0].data.isp_output_height =
+			dev->config.isp_config.output.height;
+		memcpy(&dev->img_src_exps.data[1], &dev->img_src_exps.data[0],
+			sizeof(dev->img_src_exps.data[0]));
 		mutex_unlock(&dev->img_src_exps.mutex);
 
 		cif_isp11_pltfrm_rtrace_printf(dev->dev,
@@ -5601,6 +5613,19 @@ static void cif_isp11_vs_work(struct work_struct *work)
 		cif_isp11_img_src_ioctl(dev->img_src,
 			RK_VIDIOC_SENSOR_MODE_DATA,
 			&new_data->data);
+		new_data->data.isp_input_width =
+			dev->config.isp_config.input->defrect.width;
+		new_data->data.isp_input_height =
+			dev->config.isp_config.input->defrect.height;
+		new_data->data.isp_input_horizontal_start =
+			dev->config.isp_config.input->defrect.left;
+		new_data->data.isp_input_vertical_start =
+			dev->config.isp_config.input->defrect.top;
+
+		new_data->data.isp_output_width =
+			dev->config.isp_config.output.width;
+		new_data->data.isp_output_height =
+			dev->config.isp_config.output.height;
 		mutex_unlock(&dev->img_src_exps.mutex);
 
 		/*pr_info("%s: exp_time: %d gain: %d, frame_id: s %d, v %d \n",
@@ -5649,6 +5674,63 @@ static int cif_isp11_vs_work_cmd(
 			cif_isp11_pltfrm_pr_err(dev->dev,
 				"%s: queue work failed\n", __func__);
 			kfree(vs_wk);
+		}
+		return 0;
+	} else {
+		return -ENOMEM;
+	}
+}
+
+static void cif_isp11_vcm_work(struct work_struct *work)
+{
+	struct cif_isp11_isp_vcm_work *vcm_wk =
+		container_of(work, struct cif_isp11_isp_vcm_work, work);
+	struct cif_isp11_device *dev = vcm_wk->dev;
+
+	switch (vcm_wk->cmd) {
+	case CIF_ISP11_VCM_VCM: {
+		struct cif_isp11_img_src_vcm *vcm =
+			(struct cif_isp11_img_src_vcm *)vcm_wk->param;
+
+		if (dev->img_src != NULL)
+			cif_isp11_img_src_ioctl(dev->img_src,
+				PLTFRM_CIFCAM_SET_VCM_POS, &vcm->val);
+		else
+			cif_isp11_pltfrm_pr_err(dev->dev, "dev->img_src is NULL\n");
+
+		kfree(vcm);
+		vcm = NULL;
+		break;
+	}
+	default:
+		break;
+	}
+
+	kfree(vcm_wk);
+	vcm_wk = NULL;
+}
+
+static int cif_isp11_vcm_work_cmd(
+	struct cif_isp11_device *dev,
+	enum cif_isp11_isp_vcm_cmd cmd,
+	void *para)
+{
+	struct cif_isp11_isp_vcm_work *vcm_wk;
+
+	vcm_wk = kmalloc(sizeof(struct cif_isp11_isp_vcm_work),
+		GFP_ATOMIC);
+
+	if (vcm_wk) {
+		vcm_wk->cmd = cmd;
+		vcm_wk->dev = dev;
+		vcm_wk->param = (void *)para;
+		INIT_WORK((struct work_struct *)&vcm_wk->work,
+			cif_isp11_vcm_work);
+		if (!queue_work(dev->vcm_wq,
+			(struct work_struct *)&vcm_wk->work)) {
+			cif_isp11_pltfrm_pr_err(dev->dev,
+				"%s: queue work failed\n", __func__);
+			kfree(vcm_wk);
 		}
 		return 0;
 	} else {
@@ -5871,6 +5953,7 @@ int cif_isp11_streamoff(
 	bool streamoff_y12 = stream_ids & CIF_ISP11_STREAM_Y12;
 	unsigned int streamoff_all = 0;
 	unsigned long lock_flags;
+	struct cif_isp11_img_src_vcm *vcm;
 
 	cif_isp11_pltfrm_pr_dbg(dev->dev,
 		"SP state = %s, MP state = %s, DMA state = %s, Y12 state = %s,"
@@ -5930,6 +6013,17 @@ int cif_isp11_streamoff(
 		}
 		spin_unlock_irqrestore(&dev->img_src_exps.lock, lock_flags);
 		drain_workqueue(dev->vs_wq);
+
+		spin_lock_irqsave(&dev->img_src_vcms.lock, lock_flags);
+		if (!list_empty(&dev->img_src_vcms.list)) {
+			vcm = list_first_entry(&dev->img_src_vcms.list,
+				struct cif_isp11_img_src_vcm,
+				list);
+			list_del(&vcm->list);
+			kfree(vcm);
+		}
+		spin_unlock_irqrestore(&dev->img_src_vcms.lock, lock_flags);
+		drain_workqueue(dev->vcm_wq);
 	}
 
 	ret = cif_isp11_stop(dev, streamoff_sp, streamoff_mp, streamoff_y12);
@@ -6313,6 +6407,10 @@ struct cif_isp11_device *cif_isp11_create(
 	INIT_LIST_HEAD(&dev->img_src_exps.list);
 	dev->vs_wq = alloc_workqueue("cif isp11 vs workqueue",
 			WQ_UNBOUND | WQ_MEM_RECLAIM, 1);
+	spin_lock_init(&dev->img_src_vcms.lock);
+	INIT_LIST_HEAD(&dev->img_src_vcms.list);
+	dev->vcm_wq = alloc_workqueue("cif isp11 vcm workqueue",
+			WQ_UNBOUND | WQ_MEM_RECLAIM, 1);
 
 	/* TBD: clean this up */
 	init_output_formats();
@@ -6580,6 +6678,40 @@ failed:
 		kfree(ctrl_exp_g);
 		ctrl_exp_g = NULL;
 	}
+	return retval;
+}
+
+int cif_isp11_s_vcm(
+	struct cif_isp11_device *dev,
+	unsigned int id,
+	int val)
+{
+	struct cif_isp11_img_src_vcm *vcm = NULL;
+	unsigned long lock_flags;
+	int retval = 0;
+
+	if (!dev->vs_wq)
+		return -ENODEV;
+
+	vcm = kmalloc(sizeof(struct cif_isp11_img_src_vcm), GFP_KERNEL);
+	if (!vcm) {
+		retval = -ENOMEM;
+		goto failed;
+	}
+	vcm->id = id;
+	vcm->val = val;
+
+	spin_lock_irqsave(&dev->img_src_vcms.lock, lock_flags);
+	list_add_tail(&vcm->list, &dev->img_src_vcms.list);
+	spin_unlock_irqrestore(&dev->img_src_vcms.lock, lock_flags);
+	return 0;
+
+failed:
+	if (vcm) {
+		kfree(vcm);
+		vcm = NULL;
+	}
+
 	return retval;
 }
 
@@ -6945,7 +7077,6 @@ int cif_isp11_s_ctrl(
 	case CIF_ISP11_CID_ANALOG_GAIN:
 	case CIF_ISP11_CID_EXPOSURE_TIME:
 	case CIF_ISP11_CID_BLACK_LEVEL:
-	case CIF_ISP11_CID_FOCUS_ABSOLUTE:
 	case CIF_ISP11_CID_AUTO_N_PRESET_WHITE_BALANCE:
 	case CIF_ISP11_CID_SCENE_MODE:
 	case CIF_ISP11_CID_AUTO_FPS:
@@ -6954,6 +7085,8 @@ int cif_isp11_s_ctrl(
 	case CIF_ISP11_CID_BAND_STOP_FILTER:
 		return cif_isp11_img_src_s_ctrl(dev->img_src,
 			id, val);
+	case CIF_ISP11_CID_FOCUS_ABSOLUTE:
+		return cif_isp11_s_vcm(dev, id, val);
 	default:
 		cif_isp11_pltfrm_pr_err(dev->dev,
 			"unknown/unsupported control %d\n", id);
@@ -7113,6 +7246,7 @@ int cif_isp11_isp_isr(unsigned int isp_mis, void *cntxt)
 
 	if (isp_mis & CIF_ISP_V_START) {
 		struct cif_isp11_img_src_exp *exp;
+		struct cif_isp11_img_src_vcm *vcm;
 
 		if (ddr_freq_scale_send_event)
 			ddr_freq_scale_send_event(ISP_VS_EVENT, 0);
@@ -7149,6 +7283,20 @@ int cif_isp11_isp_isr(unsigned int isp_mis, void *cntxt)
 
 		if (exp)
 			cif_isp11_vs_work_cmd(dev, CIF_ISP11_VS_EXP, (void *)exp);
+
+		spin_lock(&dev->img_src_vcms.lock);
+		if (!list_empty(&dev->img_src_vcms.list)) {
+			vcm = list_first_entry(&dev->img_src_vcms.list,
+				struct cif_isp11_img_src_vcm,
+				list);
+			list_del(&vcm->list);
+		} else {
+			vcm = NULL;
+		}
+		spin_unlock(&dev->img_src_vcms.lock);
+
+		if (vcm)
+			cif_isp11_vcm_work_cmd(dev, CIF_ISP11_VCM_VCM, (void *)vcm);
 	}
 
 	if (isp_mis & CIF_ISP_FRAME_IN) {

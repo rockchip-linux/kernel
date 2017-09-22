@@ -32,6 +32,8 @@
 #include "cif_isp11.h"
 
 
+#define CIFISP_MEAS_SEND_ALONE	(CIF_ISP_AFM_FIN)
+
 #define _GET_ 0
 #define _SET_ 1
 #define CIFISP_MODULE_EN(v, m)				(v |= m)
@@ -2541,14 +2543,14 @@ static void cifisp_afc_config(const struct cif_isp11_isp_dev *isp_dev)
 
 	for (i = 0; i < num_of_win; i++) {
 		cifisp_iowrite32(
-			CIFISP_AFC_WINDOW_X(pconfig->afm_win[0].h_offs) |
-			CIFISP_AFC_WINDOW_Y(pconfig->afm_win[0].v_offs),
+			CIFISP_AFC_WINDOW_X(pconfig->afm_win[i].h_offs) |
+			CIFISP_AFC_WINDOW_Y(pconfig->afm_win[i].v_offs),
 			CIF_ISP_AFM_LT_A + i*8);
 		cifisp_iowrite32(
-			CIFISP_AFC_WINDOW_X(pconfig->afm_win[0].h_size +
-			pconfig->afm_win[0].h_offs) |
-			CIFISP_AFC_WINDOW_Y(pconfig->afm_win[0].v_size +
-			pconfig->afm_win[0].v_offs),
+			CIFISP_AFC_WINDOW_X(pconfig->afm_win[i].h_size +
+			pconfig->afm_win[i].h_offs) |
+			CIFISP_AFC_WINDOW_Y(pconfig->afm_win[i].v_size +
+			pconfig->afm_win[i].v_offs),
 			CIF_ISP_AFM_RB_A + i*8);
 	}
 
@@ -2575,7 +2577,7 @@ static void cifisp_afc_end(struct cif_isp11_isp_dev *isp_dev)
 static void cifisp_get_afc_meas(struct cif_isp11_isp_dev *isp_dev,
 				struct cifisp_stat_buffer *pbuf)
 {
-	pbuf->meas_type = CIFISP_STAT_AFM_FIN;
+	pbuf->meas_type |= CIFISP_STAT_AFM_FIN;
 
 	pbuf->params.af.window[0].sum =
 		cifisp_ioread32(CIF_ISP_AFM_SUM_A);
@@ -3344,6 +3346,12 @@ static int cifisp_reset(struct file *file)
 	isp_dev->frame_id = 0;
 	isp_dev->cif_ism_cropping = false;
 
+	isp_dev->meas_send_alone = CIFISP_MEAS_SEND_ALONE;
+	isp_dev->awb_meas_ready = false;
+	isp_dev->afm_meas_ready = false;
+	isp_dev->aec_meas_ready = false;
+	isp_dev->hst_meas_ready = false;
+
 	isp_dev->meta_info.write_id = 0;
 	isp_dev->meta_info.read_id = 0;
 	return 0;
@@ -3368,6 +3376,50 @@ static int cifisp_close(struct file *file)
 	videobuf_mmap_free(&isp_dev->vbq_stat);
 
 	/* cifisp_reset(file); */
+	return 0;
+}
+
+static int cifisp_meas_queue_work(struct cif_isp11_isp_dev *isp_dev, unsigned int send_meas)
+{
+	unsigned int module_updates = 0;
+	struct cif_isp11_isp_readout_work *work;
+
+	if (send_meas & CIF_ISP_AWB_DONE)
+		module_updates |= CIFISP_MODULE_AWB;
+	if (send_meas & CIF_ISP_AFM_FIN)
+		module_updates |= CIFISP_MODULE_AFC;
+	if (send_meas & CIF_ISP_EXP_END)
+		module_updates |= CIFISP_MODULE_AEC;
+	if (send_meas & CIF_ISP_HIST_MEASURE_RDY)
+		module_updates |= CIFISP_MODULE_HST;
+
+	if ((isp_dev->meas_cfgs.module_updates & module_updates) == 0 &&
+		(isp_dev->active_meas & send_meas)) {
+		work = kmalloc(sizeof(*work), GFP_ATOMIC);
+		if (work) {
+			INIT_WORK((struct work_struct *)work,
+				cifisp_isp_readout_work);
+			work->readout = CIF_ISP11_ISP_READOUT_MEAS;
+			work->isp_dev = isp_dev;
+			work->frame_id = isp_dev->frame_id;
+			work->active_meas = send_meas;
+			work->vs_t = isp_dev->vs_t;
+			work->fi_t = isp_dev->fi_t;
+
+			if (!queue_work(isp_dev->readout_wq,
+				(struct work_struct *)work)) {
+				CIFISP_DPRINT(CIFISP_ERROR,
+				"Could not schedule work\n");
+				kfree((void *)work);
+			}
+
+			CIFISP_DPRINT(CIFISP_DEBUG,
+				"Send 0x%x Packet\n", send_meas);
+		} else {
+			CIFISP_DPRINT(CIFISP_ERROR,
+			"Could not allocate work\n");
+		}
+	}
 	return 0;
 }
 
@@ -3717,11 +3769,13 @@ static void cifisp_send_measurement(
 {
 	unsigned long lock_flags = 0;
 	struct videobuf_buffer *vb = NULL;
-	unsigned int active_meas = isp_dev->active_meas;
+	unsigned int active_meas = meas_work->active_meas;
 	struct cifisp_stat_buffer *stat_buf;
 	struct cif_isp11_device *cif_dev =
 		container_of(isp_dev, struct cif_isp11_device, isp_dev);
 	struct pltfrm_cam_ls  cam_ls;
+	struct pltfrm_cam_vcm_tim vcm_tim;
+	long ret;
 
 	spin_lock_irqsave(&isp_dev->irq_lock, lock_flags);
 	if (!list_empty(&isp_dev->stat)) {
@@ -3744,6 +3798,7 @@ static void cifisp_send_measurement(
 	list_del(&vb->queue);
 	spin_unlock_irqrestore(&isp_dev->irq_lock, lock_flags);
 
+	stat_buf->meas_type = 0;
 	if (active_meas & CIF_ISP_AWB_DONE) {
 		memcpy(&stat_buf->params.awb,
 			&isp_dev->meas_stats.stat.params.awb,
@@ -3780,13 +3835,25 @@ static void cifisp_send_measurement(
 			&cam_ls);
 	stat_buf->subdev_stat.ls.val = (enum cifisp_lightsensor_val)cam_ls.val;
 
+	ret = cif_isp11_img_src_ioctl(cif_dev->img_src,
+			PLTFRM_CIFCAM_GET_VCM_MOVE_RES,
+			&vcm_tim);
+	if (ret == 0) {
+		stat_buf->subdev_stat.vcm.vcm_start_t = vcm_tim.vcm_start_t;
+		stat_buf->subdev_stat.vcm.vcm_end_t = vcm_tim.vcm_end_t;
+	}
+
+	stat_buf->vs_t = meas_work->vs_t;
+	stat_buf->fi_t = meas_work->fi_t;
+
 	vb->state = VIDEOBUF_DONE;
 	wake_up(&vb->done);
 
 	CIFISP_DPRINT(CIFISP_DEBUG,
-		"Measurement done(%d, %d)\n",
+		"Measurement done(%d, %d, %d)\n",
 		vb->field_count,
-		vb->i);
+		vb->i,
+		stat_buf->meas_type);
 	vb = NULL;
 end:
 
@@ -4299,8 +4366,9 @@ static inline bool cifisp_isp_isr_meas_config(
 int cifisp_isp_isr(struct cif_isp11_isp_dev *isp_dev, u32 isp_mis)
 {
 	unsigned int isp_mis_tmp = 0;
-	struct cif_isp11_isp_readout_work *work;
 	unsigned int time_left = isp_dev->v_blanking_us;
+	unsigned int active_meas = 0;
+
 #ifdef LOG_ISR_EXE_TIME
 	ktime_t in_t = ktime_get();
 #endif
@@ -4320,47 +4388,54 @@ int cifisp_isp_isr(struct cif_isp11_isp_dev *isp_dev, u32 isp_mis)
 			"isp icr 3A info err: 0x%x\n",
 			 isp_mis_tmp);
 
-	if (isp_mis & CIF_ISP_AWB_DONE)
+	if (isp_mis & CIF_ISP_AWB_DONE) {
+		isp_dev->awb_meas_ready = true;
 		cifisp_get_awb_meas(isp_dev, &isp_dev->meas_stats.stat);
-
-	if (isp_mis & CIF_ISP_AFM_FIN)
+	}
+	if (isp_mis & CIF_ISP_AFM_FIN) {
+		isp_dev->afm_meas_ready = true;
 		cifisp_get_afc_meas(isp_dev, &isp_dev->meas_stats.stat);
-
+	}
 	if (isp_mis & CIF_ISP_EXP_END) {
+		isp_dev->aec_meas_ready = true;
 		cifisp_get_aec_meas(isp_dev, &isp_dev->meas_stats.stat);
 		cifisp_bls_get_meas(isp_dev, &isp_dev->meas_stats.stat);
 		isp_dev->meas_stats.g_frame_id = isp_dev->frame_id;
 	}
-
-	if (isp_mis & CIF_ISP_HIST_MEASURE_RDY)
+	if (isp_mis & CIF_ISP_HIST_MEASURE_RDY) {
+		isp_dev->hst_meas_ready = true;
 		cifisp_get_hst_meas(isp_dev, &isp_dev->meas_stats.stat);
+	}
+
+	if ((isp_dev->meas_send_alone & CIF_ISP_AWB_DONE) && isp_dev->awb_meas_ready) {
+		isp_dev->awb_meas_ready = false;
+		cifisp_meas_queue_work(isp_dev, CIF_ISP_AWB_DONE);
+	}
+	if ((isp_dev->meas_send_alone & CIF_ISP_AFM_FIN) && isp_dev->afm_meas_ready) {
+		isp_dev->afm_meas_ready = false;
+		cifisp_meas_queue_work(isp_dev, CIF_ISP_AFM_FIN);
+	}
+	if ((isp_dev->meas_send_alone & (CIF_ISP_EXP_END | CIF_ISP_HIST_MEASURE_RDY)) &&
+		isp_dev->aec_meas_ready && isp_dev->hst_meas_ready) {
+		isp_dev->aec_meas_ready = false;
+		isp_dev->hst_meas_ready = false;
+		cifisp_meas_queue_work(isp_dev, CIF_ISP_EXP_END | CIF_ISP_HIST_MEASURE_RDY);
+	}
 
 	if (isp_mis & CIF_ISP_FRAME) {
-		if (((isp_dev->meas_cfgs.module_updates &
-			(CIFISP_MODULE_AWB |
-			CIFISP_MODULE_AEC |
-			CIFISP_MODULE_AFC)) == 0) &&
-			isp_dev->active_meas) {
+		active_meas = isp_dev->active_meas;
+		active_meas &= ~isp_dev->meas_send_alone;
 
-			work = (struct cif_isp11_isp_readout_work *)
-				kmalloc(sizeof(struct cif_isp11_isp_readout_work), GFP_ATOMIC);
-			if (work) {
-				INIT_WORK((struct work_struct *)work,
-					cifisp_isp_readout_work);
-				work->readout = CIF_ISP11_ISP_READOUT_MEAS;
-				work->isp_dev = isp_dev;
-				work->frame_id = isp_dev->frame_id;
-				if (!queue_work(isp_dev->readout_wq,
-					(struct work_struct *)work)) {
-					CIFISP_DPRINT(CIFISP_ERROR,
-					"Could not schedule work\n");
-					kfree((void *)work);
-				}
-			} else {
-				CIFISP_DPRINT(CIFISP_ERROR,
-				"Could not allocate work\n");
-			}
-		}
+		if (!(isp_dev->meas_send_alone & CIF_ISP_AWB_DONE))
+			isp_dev->awb_meas_ready = false;
+		if (!(isp_dev->meas_send_alone & CIF_ISP_AFM_FIN))
+			isp_dev->afm_meas_ready = false;
+		if (!(isp_dev->meas_send_alone & CIF_ISP_EXP_END))
+			isp_dev->aec_meas_ready = false;
+		if (!(isp_dev->meas_send_alone & CIF_ISP_HIST_MEASURE_RDY))
+			isp_dev->hst_meas_ready = false;
+
+		cifisp_meas_queue_work(isp_dev, active_meas);
 
 		/* Then update  changed configs. Some of them involve
 		   lot of register writes. Do those only one per frame.

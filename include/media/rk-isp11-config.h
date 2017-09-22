@@ -246,8 +246,21 @@ struct cifisp_lightsensor_stat {
 	enum cifisp_lightsensor_val val;
 };
 
+enum cifisp_vcm_val {
+	CIFISP_VCM_INVAL = -1,
+	CIFISP_VCM_MOVE_START = 0,
+	CIFISP_VCM_MOVE_RUNNING = 1,
+	CIFISP_VCM_MOVE_END = 2
+};
+
+struct cifisp_vcm_tim {
+	struct timeval vcm_start_t;
+	struct timeval vcm_end_t;
+};
+
 struct cifisp_subdev_stat {
 	struct cifisp_lightsensor_stat ls;
+	struct cifisp_vcm_tim vcm;
 };
 
 struct cifisp_stat {
@@ -262,6 +275,8 @@ struct cifisp_stat_buffer {
 	struct cifisp_stat params;
 	struct isp_supplemental_sensor_mode_data sensor_mode;
 	struct cifisp_subdev_stat subdev_stat;
+	struct timeval vs_t;
+	struct timeval fi_t;
 };
 
 struct cifisp_dpcc_methods_config {
