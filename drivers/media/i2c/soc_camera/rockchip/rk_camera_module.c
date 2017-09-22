@@ -132,6 +132,7 @@ struct pltfrm_camera_module_info_s {
 	int flash_exp_percent;
 	int flash_turn_on_time;
 	int flash_on_timeout;
+	int af_support;
 };
 
 struct pltfrm_camera_module_mipi {
@@ -395,7 +396,7 @@ static struct pltfrm_camera_module_data *pltfrm_camera_module_get_data(
 		}
 	}
 
-
+	pdata->info.af_support = 0;
 	af_ctrl_node = of_parse_phandle(np, "rockchip,af-ctrl", 0);
 	if (!IS_ERR_OR_NULL(af_ctrl_node)) {
 		af_ctrl_client = of_find_i2c_device_by_node(af_ctrl_node);
@@ -413,6 +414,7 @@ static struct pltfrm_camera_module_data *pltfrm_camera_module_get_data(
 			ret = -EPROBE_DEFER;
 			goto err;
 		}
+		pdata->info.af_support = 1;
 		pltfrm_camera_module_pr_info(sd,
 			"camera module has auto focus controller %s\n",
 			pltfrm_dev_string(pdata->af_ctrl));
@@ -1866,6 +1868,7 @@ long pltfrm_camera_module_ioctl(struct v4l2_subdev *sd,
 		p_camera_module->flash_support = pdata->info.flash_support;
 		p_camera_module->flash_exp_percent =
 			pdata->info.flash_exp_percent;
+		p_camera_module->af_support = pdata->info.af_support;
 
 		return 0;
 	} else if (cmd == PLTFRM_CIFCAM_G_DEFRECT) {

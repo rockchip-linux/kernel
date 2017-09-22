@@ -2158,6 +2158,8 @@ static int ov8858_write_aec(struct ov_camera_module *cam_mod)
 		a_gain = a_gain > 0x7ff ? 0x7ff : a_gain;
 		a_gain = a_gain * cam_mod->exp_config.gain_percent / 100;
 		exp_time = cam_mod->exp_config.exp_time << 4;
+
+		mutex_lock(&cam_mod->lock);
 		if (cam_mod->state == OV_CAMERA_MODULE_STREAMING)
 			ret = ov_camera_module_write_reg(cam_mod,
 			ov8858_AEC_GROUP_UPDATE_ADDRESS,
@@ -2190,6 +2192,8 @@ static int ov8858_write_aec(struct ov_camera_module *cam_mod)
 				ov8858_AEC_GROUP_UPDATE_ADDRESS,
 				ov8858_AEC_GROUP_UPDATE_END_LAUNCH);
 		}
+		mutex_unlock(&cam_mod->lock);
+
 	}
 
 	if (IS_ERR_VALUE(ret))
@@ -2218,7 +2222,7 @@ static int ov8858_g_ctrl(struct ov_camera_module *cam_mod, u32 ctrl_id)
 	}
 
 	if (IS_ERR_VALUE(ret))
-		ov_camera_module_pr_debug(cam_mod,
+		ov_camera_module_pr_err(cam_mod,
 			"failed with error (%d)\n", ret);
 	return ret;
 }
@@ -2519,7 +2523,7 @@ static int ov8858_s_ctrl(struct ov_camera_module *cam_mod, u32 ctrl_id)
 	}
 
 	if (IS_ERR_VALUE(ret))
-		ov_camera_module_pr_debug(cam_mod,
+		ov_camera_module_pr_err(cam_mod,
 			"failed with error (%d) 0x%x\n", ret, ctrl_id);
 	return ret;
 }
@@ -2532,19 +2536,14 @@ static int ov8858_s_ext_ctrls(struct ov_camera_module *cam_mod,
 	int ret = 0;
 
 	/* Handles only exposure and gain together special case. */
-	if (ctrls->count == 1)
-		ret = ov8858_s_ctrl(cam_mod, ctrls->ctrls[0].id);
-	else if ((ctrls->count == 3) &&
-		 ((ctrls->ctrls[0].id == V4L2_CID_GAIN &&
-		   ctrls->ctrls[1].id == V4L2_CID_EXPOSURE) ||
-		  (ctrls->ctrls[1].id == V4L2_CID_GAIN &&
-		   ctrls->ctrls[0].id == V4L2_CID_EXPOSURE)))
+	if ((ctrls->ctrls[0].id == V4L2_CID_GAIN ||
+		ctrls->ctrls[0].id == V4L2_CID_EXPOSURE))
 		ret = ov8858_write_aec(cam_mod);
 	else
 		ret = -EINVAL;
 
 	if (IS_ERR_VALUE(ret))
-		ov_camera_module_pr_debug(cam_mod,
+		ov_camera_module_pr_err(cam_mod,
 			"failed with error (%d)\n", ret);
 	return ret;
 }
@@ -2616,7 +2615,7 @@ static int ov8858_start_streaming(struct ov_camera_module *cam_mod)
 {
 	int ret = 0;
 
-	ov_camera_module_pr_debug(cam_mod, "active config=%s\n", cam_mod->active_config->name);
+	ov_camera_module_pr_info(cam_mod, "active config=%s\n", cam_mod->active_config->name);
 
 	if (otp_ptr != NULL && otp_ptr->otp_en == 1 && cam_mod->update_config
 	    && cam_mod->active_config->soft_reset) {
@@ -2637,7 +2636,10 @@ static int ov8858_start_streaming(struct ov_camera_module *cam_mod)
 		goto err;
 	*/
 
-	if (IS_ERR_VALUE(ov_camera_module_write_reg(cam_mod, 0x0100, 1)))
+	mutex_lock(&cam_mod->lock);
+	ret = ov_camera_module_write_reg(cam_mod, 0x0100, 1);
+	mutex_unlock(&cam_mod->lock);
+	if (IS_ERR_VALUE(ret))
 		goto err;
 
 	msleep(25);
@@ -2657,7 +2659,9 @@ static int ov8858_stop_streaming(struct ov_camera_module *cam_mod)
 
 	ov_camera_module_pr_debug(cam_mod, "\n");
 
+	mutex_lock(&cam_mod->lock);
 	ret = ov_camera_module_write_reg(cam_mod, 0x0100, 0);
+	mutex_unlock(&cam_mod->lock);
 	if (IS_ERR_VALUE(ret))
 		goto err;
 
@@ -3093,23 +3097,16 @@ static int ov8858_probe(
 	struct i2c_client *client,
 	const struct i2c_device_id *id)
 {
-	int ret = 0;
-
 	dev_info(&client->dev, "probing...\n");
 
+	ov8858_filltimings(&ov8858_custom_config);
 	v4l2_i2c_subdev_init(&ov8858.sd, client, &ov8858_camera_module_ops);
-	ret = ov_camera_module_init(&ov8858,
-			&ov8858_custom_config);
-	if (IS_ERR_VALUE(ret))
-		goto err;
+	ov8858.sd.flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
+	ov8858.custom = ov8858_custom_config;
 
+	mutex_init(&ov8858.lock);
 	dev_info(&client->dev, "probing successful\n");
-
 	return 0;
-err:
-	dev_err(&client->dev, "probing failed with error (%d)\n", ret);
-	ov_camera_module_release(&ov8858);
-	return -22;
 }
 
 static int ov8858_remove(struct i2c_client *client)
@@ -3121,6 +3118,7 @@ static int ov8858_remove(struct i2c_client *client)
 	if (!client->adapter)
 		return -ENODEV;	/* our client isn't attached */
 
+	mutex_destroy(&cam_mod->lock);
 	ov_camera_module_release(cam_mod);
 
 	if (otp_ptr != NULL)

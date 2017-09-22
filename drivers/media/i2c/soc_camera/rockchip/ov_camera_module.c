@@ -1097,10 +1097,25 @@ long ov_camera_module_ioctl(struct v4l2_subdev *sd,
 			ov_camera_module_release(cam_mod);
 			return ret;
 		}
+	} else if ((cmd == PLTFRM_CIFCAM_SET_VCM_POS) ||
+				(cmd == PLTFRM_CIFCAM_GET_VCM_POS) ||
+				(cmd == PLTFRM_CIFCAM_GET_VCM_MOVE_RES)) {
+		struct v4l2_subdev *af_ctrl;
+
+		af_ctrl = pltfrm_camera_module_get_af_ctrl(sd);
+		if (!IS_ERR_OR_NULL(af_ctrl)) {
+			ret = v4l2_subdev_call(af_ctrl,
+				core, ioctl, cmd, arg);
+			return ret;
+		} else {
+			return -EINVAL;
+		}
 	} else {
 		ret = pltfrm_camera_module_ioctl(sd, cmd, arg);
 		return ret;
 	}
+
+	return 0;
 }
 /* ======================================================================== */
 

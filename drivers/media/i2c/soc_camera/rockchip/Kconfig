@@ -95,3 +95,11 @@ config VIDEO_IMX327
 	default n
 	---help---
 	  This is imx327 camera driver adapt to rockchip cif isp platform.
+
+config VCM_VM149C
+	tristate "vm149c driver"
+	depends on VIDEO_V4L2
+	default n
+	---help---
+	  This is vm149c driver.
+
