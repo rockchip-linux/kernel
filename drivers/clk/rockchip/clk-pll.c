@@ -180,47 +180,50 @@ static const struct apll_clk_set rk3288_apll_table[] = {
 };
 
 static const struct apll_clk_set rk3036_apll_table[] = {
-	_RK3036_APLL_SET_CLKS(1608, 1, 67, 1, 1, 1, 0, 81),
-	_RK3036_APLL_SET_CLKS(1584, 1, 66, 1, 1, 1, 0, 81),
-	_RK3036_APLL_SET_CLKS(1560, 1, 65, 1, 1, 1, 0, 81),
-	_RK3036_APLL_SET_CLKS(1536, 1, 64, 1, 1, 1, 0, 81),
-	_RK3036_APLL_SET_CLKS(1512, 1, 63, 1, 1, 1, 0, 81),
-	_RK3036_APLL_SET_CLKS(1488, 1, 62, 1, 1, 1, 0, 81),
-	_RK3036_APLL_SET_CLKS(1464, 1, 61, 1, 1, 1, 0, 81),
-	_RK3036_APLL_SET_CLKS(1440, 1, 60, 1, 1, 1, 0, 81),
-	_RK3036_APLL_SET_CLKS(1416, 1, 59, 1, 1, 1, 0, 81),
-	_RK3036_APLL_SET_CLKS(1392, 1, 58, 1, 1, 1, 0, 81),
-	_RK3036_APLL_SET_CLKS(1368, 1, 57, 1, 1, 1, 0, 81),
-	_RK3036_APLL_SET_CLKS(1344, 1, 56, 1, 1, 1, 0, 81),
-	_RK3036_APLL_SET_CLKS(1320, 1, 55, 1, 1, 1, 0, 81),
-	_RK3036_APLL_SET_CLKS(1296, 1, 54, 1, 1, 1, 0, 81),
-	_RK3036_APLL_SET_CLKS(1272, 1, 53, 1, 1, 1, 0, 81),
-	_RK3036_APLL_SET_CLKS(1248, 1, 52, 1, 1, 1, 0, 81),
-	_RK3036_APLL_SET_CLKS(1200, 1, 50, 1, 1, 1, 0, 81),
-	_RK3036_APLL_SET_CLKS(1104, 1, 46, 1, 1, 1, 0, 81),
-	_RK3036_APLL_SET_CLKS(1100, 12, 550, 1, 1, 1, 0, 81),
-	_RK3036_APLL_SET_CLKS(1008, 1, 84, 2, 1, 1, 0, 81),
-	_RK3036_APLL_SET_CLKS(1000, 6, 500, 2, 1, 1, 0, 81),
-	_RK3036_APLL_SET_CLKS(984, 1, 82, 2, 1, 1, 0, 81),
-	_RK3036_APLL_SET_CLKS(960, 1, 80, 2, 1, 1, 0, 81),
-	_RK3036_APLL_SET_CLKS(936, 1, 78, 2, 1, 1, 0, 81),
-	_RK3036_APLL_SET_CLKS(912, 1, 76, 2, 1, 1, 0, 41),
-	_RK3036_APLL_SET_CLKS(900, 4, 300, 2, 1, 1, 0, 41),
-	_RK3036_APLL_SET_CLKS(888, 1, 74, 2, 1, 1, 0, 41),
-	_RK3036_APLL_SET_CLKS(864, 1, 72, 2, 1, 1, 0, 41),
-	_RK3036_APLL_SET_CLKS(840, 1, 70, 2, 1, 1, 0, 41),
-	_RK3036_APLL_SET_CLKS(816, 1, 68, 2, 1, 1, 0, 41),
-	_RK3036_APLL_SET_CLKS(800, 6, 400, 2, 1, 1, 0, 41),
-	_RK3036_APLL_SET_CLKS(700, 6, 350, 2, 1, 1, 0, 41),
-	_RK3036_APLL_SET_CLKS(696, 1, 58, 2, 1, 1, 0, 41),
-	_RK3036_APLL_SET_CLKS(600, 1, 75, 3, 1, 1, 0, 41),
-	_RK3036_APLL_SET_CLKS(504, 1, 63, 3, 1, 1, 0, 41),
-	_RK3036_APLL_SET_CLKS(500, 6, 250, 2, 1, 1, 0, 41),
-	_RK3036_APLL_SET_CLKS(408, 1, 68, 2, 2, 1, 0, 41),
-	_RK3036_APLL_SET_CLKS(312, 1, 52, 2, 2, 1, 0, 41),
-	_RK3036_APLL_SET_CLKS(216, 1, 72, 4, 2, 1, 0, 41),
-	_RK3036_APLL_SET_CLKS(96, 1, 64, 4, 4, 1, 0, 21),
-	_RK3036_APLL_SET_CLKS(0, 1, 0, 1, 1, 1, 0, 21),
+	_RK3036_APLL_SET_CLKS(1608, 1, 67, 1, 1, 1, 0, 81, 1),
+	_RK3036_APLL_SET_CLKS(1584, 1, 66, 1, 1, 1, 0, 81, 0),
+	_RK3036_APLL_SET_CLKS(1560, 1, 65, 1, 1, 1, 0, 81, 0),
+	_RK3036_APLL_SET_CLKS(1536, 1, 64, 1, 1, 1, 0, 81, 0),
+	_RK3036_APLL_SET_CLKS(1512, 1, 63, 1, 1, 1, 0, 81, 0),
+	_RK3036_APLL_SET_CLKS(1488, 1, 62, 1, 1, 1, 0, 81, 0),
+	_RK3036_APLL_SET_CLKS(1464, 1, 61, 1, 1, 1, 0, 81, 0),
+	_RK3036_APLL_SET_CLKS(1440, 1, 60, 1, 1, 1, 0, 81, 0),
+	_RK3036_APLL_SET_CLKS(1416, 1, 59, 1, 1, 1, 0, 81, 0),
+	_RK3036_APLL_SET_CLKS(1392, 1, 58, 1, 1, 1, 0, 81, 0),
+	_RK3036_APLL_SET_CLKS(1368, 1, 57, 1, 1, 1, 0, 81, 0),
+	_RK3036_APLL_SET_CLKS(1344, 1, 56, 1, 1, 1, 0, 81, 0),
+	_RK3036_APLL_SET_CLKS(1320, 1, 55, 1, 1, 1, 0, 81, 0),
+	_RK3036_APLL_SET_CLKS(1296, 1, 54, 1, 1, 1, 0, 81, 0),
+	_RK3036_APLL_SET_CLKS(1272, 1, 53, 1, 1, 1, 0, 81, 0),
+	_RK3036_APLL_SET_CLKS(1248, 1, 52, 1, 1, 1, 0, 81, 0),
+	_RK3036_APLL_SET_CLKS(1224, 1, 51, 1, 1, 1, 0, 81, 0),
+	_RK3036_APLL_SET_CLKS(1200, 1, 50, 1, 1, 1, 0, 81, 0),
+	_RK3036_APLL_SET_CLKS(1176, 1, 49, 1, 1, 1, 0, 81, 0),
+	_RK3036_APLL_SET_CLKS(1152, 1, 48, 1, 1, 1, 0, 81, 0),
+	_RK3036_APLL_SET_CLKS(1128, 1, 47, 1, 1, 1, 0, 81, 0),
+	_RK3036_APLL_SET_CLKS(1100, 12, 550, 1, 1, 1, 0, 81, 0),
+	_RK3036_APLL_SET_CLKS(1008, 1, 84, 2, 1, 1, 0, 81, 0),
+	_RK3036_APLL_SET_CLKS(1000, 6, 500, 2, 1, 1, 0, 81, 0),
+	_RK3036_APLL_SET_CLKS(984, 1, 82, 2, 1, 1, 0, 81, 0),
+	_RK3036_APLL_SET_CLKS(960, 1, 80, 2, 1, 1, 0, 81, 0),
+	_RK3036_APLL_SET_CLKS(936, 1, 78, 2, 1, 1, 0, 81, 0),
+	_RK3036_APLL_SET_CLKS(912, 1, 76, 2, 1, 1, 0, 41, 0),
+	_RK3036_APLL_SET_CLKS(900, 4, 300, 2, 1, 1, 0, 41, 0),
+	_RK3036_APLL_SET_CLKS(888, 1, 74, 2, 1, 1, 0, 41, 0),
+	_RK3036_APLL_SET_CLKS(864, 1, 72, 2, 1, 1, 0, 41, 0),
+	_RK3036_APLL_SET_CLKS(840, 1, 70, 2, 1, 1, 0, 41, 0),
+	_RK3036_APLL_SET_CLKS(816, 1, 68, 2, 1, 1, 0, 41, 0),
+	_RK3036_APLL_SET_CLKS(800, 6, 400, 2, 1, 1, 0, 41, 0),
+	_RK3036_APLL_SET_CLKS(700, 6, 350, 2, 1, 1, 0, 41, 0),
+	_RK3036_APLL_SET_CLKS(696, 1, 58, 2, 1, 1, 0, 41, 0),
+	_RK3036_APLL_SET_CLKS(600, 1, 75, 3, 1, 1, 0, 41, 0),
+	_RK3036_APLL_SET_CLKS(504, 1, 63, 3, 1, 1, 0, 41, 0),
+	_RK3036_APLL_SET_CLKS(500, 6, 250, 2, 1, 1, 0, 41, 0),
+	_RK3036_APLL_SET_CLKS(408, 1, 68, 2, 2, 1, 0, 41, 0),
+	_RK3036_APLL_SET_CLKS(312, 1, 52, 2, 2, 1, 0, 41, 0),
+	_RK3036_APLL_SET_CLKS(216, 1, 72, 4, 2, 1, 0, 41, 0),
+	_RK3036_APLL_SET_CLKS(96, 1, 64, 4, 4, 1, 0, 21, 0),
+	_RK3036_APLL_SET_CLKS(0, 1, 0, 1, 1, 1, 0, 21, 0),
 };
 
 static const struct pll_clk_set rk3036plus_pll_com_table[] = {
@@ -1956,10 +1959,29 @@ static unsigned long rv1108_pll_clk_recalc(struct clk_hw *hw,
 static unsigned long clk_pll_recalc_rate_3036_apll(struct clk_hw *hw,
 		unsigned long parent_rate)
 {
-	if (cpu_is_rv110x())
+	struct apll_clk_set *ps = (struct apll_clk_set *)(rk3036_apll_table);
+	unsigned long rate, curr;
+
+	if (cpu_is_rv110x()) {
 		return rv1108_pll_clk_recalc(hw, parent_rate);
-	else
-		return rk3036_pll_clk_recalc(hw, parent_rate);
+	} else {
+		rate = rk3036_pll_clk_recalc(hw, parent_rate);
+		while (ps->rate) {
+			if (ps->rst_dly == 0)
+				break;
+			ps++;
+		}
+		if (rate > ps->rate) {
+			curr = roundup(((ps->rate / KHZ +
+				(((rate / KHZ - ps->rate / KHZ) *
+				RK322XH_APLL_SCALE) / RK322XH_APLL_REFIN)) *
+				KHZ),
+				24 * MHZ);
+			return curr;
+		} else {
+			return rate;
+		}
+	}
 }
 
 static long clk_pll_round_rate_3036_apll(struct clk_hw *hw, unsigned long rate,
@@ -2097,7 +2119,6 @@ static int rk3036_pll_set_con(struct clk_hw *hw, u32 refdiv, u32 fbdiv, u32 post
 		temp_clk_set.pllcon1 |= RK3036_PLL_SET_DSMPD(1);
 
 	temp_clk_set.pllcon2 = RK3036_PLL_SET_FRAC(frac);
-	temp_clk_set.rst_dly = 0;
 	clk_debug("setting....\n");
 	return rk3036_pll_clk_set_rate(&temp_clk_set, hw);
 }
@@ -2128,11 +2149,13 @@ static int clk_pll_set_rate_3036_apll(struct clk_hw *hw, unsigned long rate,
 {
 	struct clk_pll *pll = to_clk_pll(hw);
 	struct apll_clk_set *ps = (struct apll_clk_set *)(rk3036_apll_table);
+	struct apll_clk_set *aps;
 	struct clk *arm_gpll = __clk_lookup("clk_gpll");
 	struct clk *clk = hw->clk;
-	unsigned long flags, arm_gpll_rate, old_rate, temp_rate;
+	unsigned long flags, arm_gpll_rate, old_rate, temp_rate, curr;
 	u32 temp_div;
 	u32 clksel0_offset, clksel1_offset;
+	u32 refdiv, fbdiv, postdiv1, postdiv2, frac;
 
 	if (cpu_is_rv110x())
 		ps = (struct apll_clk_set *)(rv1108_apll_table);
@@ -2147,6 +2170,38 @@ static int clk_pll_set_rate_3036_apll(struct clk_hw *hw, unsigned long rate,
 	if (ps->rate != rate) {
 		clk_err("%s: unsupport arm rate %lu\n", __func__, rate);
 		return 0;
+	}
+
+	if (ps->rst_dly && (!cpu_is_rv110x())) {
+		aps = ps;
+		while (aps->rate) {
+			if (aps->rst_dly == 0)
+				break;
+			aps++;
+		}
+		curr = (((rate / KHZ - aps->rate / KHZ) *
+			RK322XH_APLL_REFIN) / RK322XH_APLL_SCALE) +
+			aps->rate / KHZ;
+		clk_debug("%s##set_rate= %ld ##real_rate= %ld\n",
+			  __func__, rate, curr * KHZ);
+		if (rk3036_pll_clk_get_set(parent_rate, curr * KHZ, &refdiv,
+					   &fbdiv, &postdiv1, &postdiv2,
+					   &frac) != 0) {
+			pr_err("pll auto set rate error\n");
+			return -ENOENT;
+		}
+		ps->pllcon0 = RK3036_PLL_SET_FBDIV(fbdiv) |
+			      RK3036_PLL_SET_POSTDIV1(postdiv1);
+		ps->pllcon1 = RK3036_PLL_SET_REFDIV(refdiv) |
+			      RK3036_PLL_SET_POSTDIV2(postdiv2);
+		if (frac != 0)
+			ps->pllcon1 |= RK3036_PLL_SET_DSMPD(0);
+		else
+			ps->pllcon1 |= RK3036_PLL_SET_DSMPD(1);
+
+		ps->pllcon2 = RK3036_PLL_SET_FRAC(frac);
+		ps->clksel1 = RK3036_ACLK_CORE_DIV(2) |
+			      RK3036_CLK_CORE_PERI_DIV(8);
 	}
 
 	if (!arm_gpll) {
@@ -2242,6 +2297,15 @@ static const struct clk_ops clk_pll_ops_3036_apll = {
 
 /* CLK_PLL_3036_plus_autotype ops */
 
+static unsigned long clk_pll_recalc_rate_3036_pll(struct clk_hw *hw,
+						  unsigned long parent_rate)
+{
+	if (cpu_is_rv110x())
+		return rv1108_pll_clk_recalc(hw, parent_rate);
+	else
+		return rk3036_pll_clk_recalc(hw, parent_rate);
+}
+
 static long clk_pll_round_rate_3036plus_auto(struct clk_hw *hw, unsigned long rate,
 		unsigned long *prate)
 {
@@ -2281,7 +2345,7 @@ static int clk_pll_set_rate_3036plus_auto(struct clk_hw *hw, unsigned long rate,
 }
 
 static const struct clk_ops clk_pll_ops_3036plus_auto = {
-	.recalc_rate = clk_pll_recalc_rate_3036_apll,
+	.recalc_rate = clk_pll_recalc_rate_3036_pll,
 	.round_rate = clk_pll_round_rate_3036plus_auto,
 	.set_rate = clk_pll_set_rate_3036plus_auto,
 };
@@ -2340,7 +2404,7 @@ static int clk_cpll_set_rate_312xplus(struct clk_hw *hw, unsigned long rate,
 }
 
 static const struct clk_ops clk_pll_ops_312xplus = {
-	.recalc_rate = clk_pll_recalc_rate_3036_apll,
+	.recalc_rate = clk_pll_recalc_rate_3036_pll,
 	.round_rate = clk_cpll_round_rate_312xplus,
 	.set_rate = clk_cpll_set_rate_312xplus,
 };
@@ -2999,6 +3063,7 @@ const struct clk_ops *rk_get_pll_ops(u32 pll_flags)
 			return &clk_pll_ops_3188plus_auto;
 
 		case CLK_PLL_3036_APLL:
+			rockchip_apll_ps = rk3036_apll_table;
 			return &clk_pll_ops_3036_apll;
 
 		case CLK_PLL_3036PLUS_AUTO:

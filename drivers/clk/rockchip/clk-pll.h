@@ -397,7 +397,7 @@
 #define RK3036_CLK_GATE_CLKID(i)	(16 * (i))
 
 #define _RK3036_APLL_SET_CLKS(_mhz, _refdiv, _fbdiv, _postdiv1, _postdiv2, _dsmpd, _frac, \
-		_periph_div) \
+		_periph_div, flag) \
 { \
 	.rate	= (_mhz) * MHZ,	\
 	.pllcon0 = RK3036_PLL_SET_POSTDIV1(_postdiv1) | RK3036_PLL_SET_FBDIV(_fbdiv),	\
@@ -405,7 +405,7 @@
 	.pllcon2 = RK3036_PLL_SET_FRAC(_frac),	\
 	.clksel1 = RK3036_CLK_CORE_PERI_DIV(RATIO_##_periph_div),	\
 	.lpj	= (CLK_LOOPS_JIFFY_REF * _mhz) / CLK_LOOPS_RATE_REF,	\
-	.rst_dly = 0,\
+	.rst_dly = flag,\
 }
 
 #define _RK3036_PLL_SET_CLKS(_mhz, _refdiv, _fbdiv, _postdiv1, _postdiv2, _dsmpd, _frac) \
