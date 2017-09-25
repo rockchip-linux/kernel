@@ -111,7 +111,7 @@
 				696000 1100000
 				816000 1150000
 				1008000 1275000
-				1200000 1450000
+				1200000 1425000
 				>;
 			virt-temp-limit-1-cpu-busy = <
 			/* target-temp	limit-freq */
@@ -146,10 +146,16 @@
 			channel = <0>;
 			lkg_adjust_volt_en = <1>;
 			def_table_lkg = <18>;
-			min_adjust_freq = <600000>;
+			min_adjust_freq = <816000>;
 			lkg_adjust_volt_table = <
 				/*lkg(mA)  volt(uV)*/
+				1	   50000
+				14	   0
 				60         50000
+				>;
+			leakage-scaling-sel = <
+				1	19	(-20)
+				20	254	0
 				>;
 			status = "okay";
 		};
@@ -204,7 +210,7 @@
 				200000 975000
 				300000 1050000
 				400000 1150000
-				480000 1250000
+//				480000 1250000
 				>;
 				channel = <0>;
 				lkg_adjust_volt_en = <1>;
@@ -212,6 +218,8 @@
 				min_adjust_freq = <400000>;
 				lkg_adjust_volt_table = <
 					/*lkg(mA)  volt(uV)*/
+					1	   50000
+					14	   0
 					60         50000
 					>;
 				status = "okay";
@@ -427,7 +435,7 @@
 		rk816_dcdc1_reg: regulator@0{
 			regulator-name= "vdd_arm";
 			regulator-min-microvolt = <700000>;
-			regulator-max-microvolt = <1500000>;
+			regulator-max-microvolt = <1425000>;
 			regulator-initial-mode = <0x1>;
 			regulator-initial-state = <3>;
 			regulator-always-on;
@@ -441,7 +449,7 @@
 		rk816_dcdc2_reg: regulator@1 {
 			regulator-name= "vdd_logic";
 			regulator-min-microvolt = <700000>;
-			regulator-max-microvolt = <1500000>;
+			regulator-max-microvolt = <1425000>;
 			regulator-initial-mode = <0x1>;
 			regulator-initial-state = <3>;
 			regulator-always-on;
