@@ -252,8 +252,10 @@ static u32 CHIP_NAME;
 		no need switching to 36M before.
 *v0.5.0:
 		1. prepare clk_cif_pll before disable to avoid warning.
+*v0.6.0:
+		1. revert v0.4.0&v0.5.0 commit.
 */
-#define RK_CAM_VERSION_CODE KERNEL_VERSION(0, 5, 0)
+#define RK_CAM_VERSION_CODE KERNEL_VERSION(0, 6, 0)
 static int version = RK_CAM_VERSION_CODE;
 module_param(version, int, S_IRUGO);
 
@@ -355,7 +357,6 @@ struct rk_cif_clk
     struct clk *cif_clk_in;
     struct clk *cif_clk_out;
 	struct clk *pclk_cif;
-	struct clk *clk_cif_pll;
 	/************must modify end************/
 
    // spinlock_t lock;
@@ -1362,12 +1363,11 @@ static int rk_camera_mclk_ctrl(int cif_idx, int on, int clk_rate)
     	clk_prepare_enable(clk->hclk_cif);
 		if (CHIP_NAME != 3228)
 			clk_prepare_enable(clk->cif_clk_in);
-		if (clk->clk_cif_pll)
-			clk_prepare_enable(clk->clk_cif_pll);
     	clk_prepare_enable(clk->cif_clk_out);
         clk_set_rate(clk->cif_clk_out,clk_rate);
         clk->on = true;
     } else if (!on && clk->on) {
+		clk_set_rate(clk->cif_clk_out, 36000000);/*just for close clk which base on XIN24M */
 		clk_disable_unprepare(clk->aclk_cif);
 		clk_disable_unprepare(clk->hclk_cif);
 		if (CHIP_NAME != 3228)
@@ -1377,11 +1377,7 @@ static int rk_camera_mclk_ctrl(int cif_idx, int on, int clk_rate)
 			write_cru_reg(CRU_CLK_OUT, 0x00800080);
 		}
 
-		if (clk->clk_cif_pll)
-			clk_disable(clk->clk_cif_pll);
-		else
-			RKCAMERA_TR(KERN_ERR "clk->clk_cif_pll is NULL, cif_clk_out maybe not disabled\n");
-
+		clk_disable_unprepare(clk->cif_clk_out);
 		if (CHIP_NAME != 3228)
 			clk_disable_unprepare(clk->pd_cif);
 		if (CHIP_NAME == 3368)
@@ -3277,7 +3273,6 @@ static int rk_camera_probe(struct platform_device *pdev)
 		if (CHIP_NAME != 3228)
 			cif_clk[0].cif_clk_in = devm_clk_get(dev_cif, "cif0_in");
 		cif_clk[0].cif_clk_out = devm_clk_get(dev_cif, "cif0_out");
-		cif_clk[0].clk_cif_pll = clk_get(NULL, "clk_cif_pll");
 		/* spin_lock_init(&cif_clk[0].lock); */
 		cif_clk[0].on = false;
 		rk_camera_cif_iomux(dev_cif);
@@ -3291,7 +3286,6 @@ static int rk_camera_probe(struct platform_device *pdev)
 		if (CHIP_NAME != 3228)
 			cif_clk[1].cif_clk_in = devm_clk_get(dev_cif, "cif0_in");
         cif_clk[1].cif_clk_out = devm_clk_get(dev_cif, "cif0_out");
-		cif_clk[1].clk_cif_pll = clk_get(NULL, "clk_cif_pll");
         //spin_lock_init(&cif_clk[1].lock);
         cif_clk[1].on = false;
         rk_camera_cif_iomux(dev_cif);
