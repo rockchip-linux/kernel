@@ -297,6 +297,11 @@ static int dw_wdt_release(struct inode *inode, struct file *filp)
 			pr_crit("watchdog cannot be disabled, system will reboot soon\n");
 	}
 
+	if (!IS_ERR(dw_wdt.rst)) {
+		reset_control_assert(dw_wdt.rst);
+		reset_control_deassert(dw_wdt.rst);
+	}
+
 	dw_wdt.expect_close = 0;
 
 	return 0;
