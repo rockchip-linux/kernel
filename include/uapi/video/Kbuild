@@ -1,4 +1,5 @@
 # UAPI Header export list
 header-y += edid.h
+header-y += rk_vpu_service.h
 header-y += sisfb.h
 header-y += uvesafb.h

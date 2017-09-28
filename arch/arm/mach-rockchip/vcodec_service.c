@@ -44,6 +44,7 @@
 #include <linux/rockchip/grf.h>
 #include <linux/rockchip/dvfs.h>
 #include <linux/rockchip/common.h>
+#include <video/rk_vpu_service.h>
 
 #if defined(CONFIG_ION_ROCKCHIP)
 #include <linux/rockchip_ion.h>
@@ -60,7 +61,6 @@
 #include "vcodec_hw_rkv.h"
 #include "vcodec_hw_vpu2.h"
 
-#include "vcodec_service.h"
 #include <linux/clk-private.h>
 
 /*
@@ -131,6 +131,14 @@ enum VPU_FREQ {
 	VPU_FREQ_600M,
 	VPU_FREQ_DEFAULT,
 	VPU_FREQ_BUT,
+};
+
+enum VPU_CLIENT_TYPE {
+	VPU_ENC                 = 0x0,
+	VPU_DEC                 = 0x1,
+	VPU_PP                  = 0x2,
+	VPU_DEC_PP              = 0x3,
+	VPU_TYPE_BUTT,
 };
 
 struct extra_info_elem {
@@ -455,11 +463,6 @@ struct vpu_service_info {
 	struct clk *p_gpll;
 	unsigned long cpll_rate;
 	unsigned long gpll_rate;
-};
-
-struct vpu_request {
-	u32 *req;
-	u32 size;
 };
 
 #ifdef CONFIG_COMPAT
@@ -2020,6 +2023,16 @@ static long vpu_service_ioctl(struct file *filp, unsigned int cmd,
 }
 
 #ifdef CONFIG_COMPAT
+
+#define COMPAT_VPU_IOC_SET_CLIENT_TYPE		_IOW(VPU_IOC_MAGIC, 1, u32)
+#define COMPAT_VPU_IOC_GET_HW_FUSE_STATUS	_IOW(VPU_IOC_MAGIC, 2, u32)
+
+#define COMPAT_VPU_IOC_SET_REG			_IOW(VPU_IOC_MAGIC, 3, u32)
+#define COMPAT_VPU_IOC_GET_REG			_IOW(VPU_IOC_MAGIC, 4, u32)
+
+#define COMPAT_VPU_IOC_PROBE_IOMMU_STATUS	_IOR(VPU_IOC_MAGIC, 5, u32)
+#define COMPAT_VPU_IOC_SET_DRIVER_DATA		_IOW(VPU_IOC_MAGIC, 64, u32)
+
 static long compat_vpu_service_ioctl(struct file *filp, unsigned int cmd,
 				     unsigned long arg)
 {
