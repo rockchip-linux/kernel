@@ -139,9 +139,13 @@
 *
 *v0.2.d:
 *1. Add check of AE window;
+*
+*v0.2.e:
+*1. Remove check of AE window;
+* The check function will move to CameraHal;
 */
 
-#define CONFIG_CIFISP11_DRIVER_VERSION KERNEL_VERSION(0, 2, 0xd)
+#define CONFIG_CIFISP11_DRIVER_VERSION KERNEL_VERSION(0, 2, 0xe)
 
 
 #endif

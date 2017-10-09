@@ -1195,23 +1195,6 @@ static int cifisp_aec_param(struct cif_isp11_isp_dev *isp_dev,
 		goto end;
 	}
 
-	if (arg->meas_window.h_offs > CIFISP_EXP_MAX_HOFFS ||
-		arg->meas_window.v_offs > CIFISP_EXP_MAX_VOFFS ||
-		arg->meas_window.h_size < CIFISP_EXP_MIN_HSIZE ||
-		arg->meas_window.h_size > CIFISP_EXP_MAX_HSIZE ||
-		arg->meas_window.v_size < CIFISP_EXP_MIN_VSIZE ||
-		arg->meas_window.v_size > CIFISP_EXP_MAX_VSIZE) {
-		CIFISP_DPRINT(CIFISP_ERROR,
-			      "%s: aec window is error, h_offs: %d, v_offs: %d,\
-			      h_size: %d, v_size: %d\n",
-			      __func__,
-			      arg->meas_window.h_offs,
-			      arg->meas_window.v_offs,
-			      arg->meas_window.h_size,
-			      arg->meas_window.v_size);
-		goto end;
-	}
-
 	memcpy(new_cfg,
 		arg,
 		sizeof(struct cifisp_aec_config));
