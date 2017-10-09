@@ -131,6 +131,14 @@ struct arm_smccc_res sip_smc_dram(u32 arg0, u32 arg1, u32 arg2)
 	return res;
 }
 
+struct arm_smccc_res sip_smc_vpu_reset(u32 arg0, u32 arg1, u32 arg2)
+{
+	struct arm_smccc_res res;
+
+	sip_fn_smc32(PSCI_SIP_VPU_RESET, arg0, arg1, arg2, &res);
+	return res;
+}
+
 struct arm_smccc_res rockchip_psci_smc_read(u32 function_id, u32 arg0,
 					    u32 arg1, u32 arg2)
 {
