@@ -56,13 +56,13 @@
 
 		standby-led {
 			linux,default-trigger = "heartbeat";
-			gpios = <&rk805 0 GPIO_ACTIVE_LOW>;
+			gpios = <&rk805 1 GPIO_ACTIVE_LOW>;
 			default-state = "on";
 		};
 
 		power-led {
 			linux,default-trigger = "mmc0";
-			gpios = <&rk805 1 GPIO_ACTIVE_LOW>;
+			gpios = <&rk805 0 GPIO_ACTIVE_LOW>;
 			default-state = "on";
 		};
 	};
