@@ -1090,8 +1090,8 @@ static const struct uvc_processing_unit_descriptor uvc_processing = {
 	.bSourceID		= 1,
 	.wMaxMultiplier		= cpu_to_le16(16 * 1024),
 	.bControlSize		= 2,
-	.bmControls[0]		= 0x7f,
-	.bmControls[1]		= 0x17,
+	.bmControls[0]		= 0x4f,
+	.bmControls[1]		= 0x04,
 	.iProcessing		= 0,
 };
 
