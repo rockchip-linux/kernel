@@ -467,10 +467,14 @@ u32 flash_init(void __iomem *nandc_addr)
 			    id_byte[0][0] == 0 ||
 			    id_byte[0][1] == 0xFF)
 				return FTL_NO_FLASH;
-			if ((id_byte[0][1] != 0xF1) && (id_byte[0][1] != 0xDA))
+			if (id_byte[0][1] != 0xF1 &&
+			    id_byte[0][1] != 0xDA &&
+			    id_byte[0][1] != 0xD1 &&
+			    id_byte[0][1] != 0x95)
 				return FTL_UNSUPPORTED_FLASH;
 		}
 	}
+	nand_para.nand_id[1] = id_byte[0][1];
 	if (id_byte[0][1] == 0xDA) {
 		nand_para.plane_per_die = 2;
 		nand_para.nand_id[1] = 0xDA;
