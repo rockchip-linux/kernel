@@ -171,11 +171,8 @@ static int ar0330cs_auto_adjust_fps(struct aptina_camera_module *cam_mod,
 	int ret;
 	u32 vts;
 
-	if ((cam_mod->exp_config.exp_time +
-		AR0330CS_COARSE_INTG_TIME_MAX_MARGIN)
-		> cam_mod->vts_min)
-		vts = cam_mod->exp_config.exp_time+
-			AR0330CS_COARSE_INTG_TIME_MAX_MARGIN;
+	if ((exp_time + AR0330CS_COARSE_INTG_TIME_MAX_MARGIN) > cam_mod->vts_min)
+		vts = exp_time + AR0330CS_COARSE_INTG_TIME_MAX_MARGIN;
 	else
 		vts = cam_mod->vts_min;
 
