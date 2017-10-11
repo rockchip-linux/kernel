@@ -116,21 +116,40 @@ static int hdmi_check_format(struct hdmi *hdmi, struct hdmi_video *vpara)
 		vpara->color_output_depth = 12;
 	}
 	if ((tmdsclk > 594000000) ||
-	    (tmdsclk > 340000000 &&
-	     tmdsclk > hdmi->edid.maxtmdsclock)) {
+	    (tmdsclk > 340000000 && tmdsclk > hdmi->edid.maxtmdsclock)) {
+		pr_info("out of max tmds clock, limit to 8bit\n");
+		vpara->color_output_depth = 8;
 		if (vpara->format_3d == HDMI_3D_FRAME_PACKING) {
 			pr_err("out of max tmdsclk, disable 3d\n");
 			vpara->format_3d = 0;
-		} else if (vpara->color_output == HDMI_COLOR_YCBCR444 &&
-			   hdmi->edid.ycbcr422) {
-			pr_warn("out of max tmdsclk, down to YCbCr422");
-			vpara->color_output = HDMI_COLOR_YCBCR422;
-		} else {
-			pr_warn("out of max tmds clock, limit to 8bit\n");
-			vpara->color_output_depth = 8;
+		}
+		if (hdmi->vic & HDMI_VIDEO_YUV420) {
+			pr_info("out of max tmdsclk, down to YCbCr420");
+			vpara->color_output = HDMI_COLOR_YCBCR420;
+			vpara->color_input = HDMI_COLOR_YCBCR420;
 		}
 	}
 	return 0;
+}
+
+static bool is_support_600M(struct hdmi *hdmi, int vic)
+{
+	struct hdmi_video_timing *timing;
+	struct fb_videomode *mode;
+
+	timing = (struct hdmi_video_timing *)hdmi_vic2timing(vic);
+	if (!timing) {
+		pr_err("[%s] not found vic %d\n", __func__, vic);
+		return false;
+	}
+	mode = &timing->mode;
+
+	if (mode->pixclock > 340000000 && hdmi->edid.maxtmdsclock < 340000000)
+		return false;
+	if (mode->pixclock == 594000000 &&
+	    !(hdmi->property->feature & SUPPORT_TMDS_600M))
+		return false;
+	return true;
 }
 
 static void hdmi_wq_set_video(struct hdmi *hdmi)
@@ -157,7 +176,9 @@ static void hdmi_wq_set_video(struct hdmi *hdmi)
 		video->color_output = HDMI_COLOR_RGB_0_255;
 	} else {
 		if (hdmi->colormode == HDMI_COLOR_AUTO) {
-			if (hdmi->edid.ycbcr444)
+			if (hdmi->vic & HDMI_VIDEO_YUV420)
+				video->color_output = HDMI_COLOR_YCBCR420;
+			else if (hdmi->edid.ycbcr444)
 				video->color_output = HDMI_COLOR_YCBCR444;
 			else if (hdmi->edid.ycbcr422)
 				video->color_output = HDMI_COLOR_YCBCR422;
@@ -166,12 +187,27 @@ static void hdmi_wq_set_video(struct hdmi *hdmi)
 		} else {
 			video->color_output = hdmi->colormode;
 		}
-		if (hdmi->vic & HDMI_VIDEO_YUV420) {
-			video->color_output = HDMI_COLOR_YCBCR420;
-			deepcolor = hdmi->edid.deepcolor_420;
-		} else {
-			deepcolor = hdmi->edid.deepcolor;
+		if (!(hdmi->vic & HDMI_VIDEO_YUV420) &&
+		    video->color_output == HDMI_VIDEO_YUV420) {
+			if (hdmi->edid.ycbcr444)
+				video->color_output = HDMI_COLOR_YCBCR444;
+			else
+				video->color_output = HDMI_COLOR_RGB_0_255;
 		}
+		if (!is_support_600M(hdmi, hdmi->vic & HDMI_VIC_MASK) &&
+		    video->color_output != HDMI_COLOR_YCBCR420) {
+			if (hdmi->vic & HDMI_VIDEO_YUV420) {
+				video->color_output = HDMI_COLOR_YCBCR420;
+			} else {
+				pr_info("invalid hdmi mode\n");
+				return;
+			}
+		}
+		if (video->color_output == HDMI_COLOR_YCBCR420)
+			deepcolor = hdmi->edid.deepcolor_420;
+		else
+			deepcolor = hdmi->edid.deepcolor;
+
 		if ((hdmi->property->feature & SUPPORT_DEEP_10BIT) &&
 		    (deepcolor & HDMI_DEEP_COLOR_30BITS) &&
 		     hdmi->colordepth == 10)
