@@ -1406,6 +1406,7 @@ static void dvfs_temp_limit_performance(struct dvfs_node *dvfs_node, int temp)
 
 static void dvfs_temp_limit_normal(struct dvfs_node *dvfs_node, int temp)
 {
+	unsigned int cpu;
 	int delta_temp = 0;
 	unsigned long arm_rate_step = 0;
 	int i;
@@ -1461,6 +1462,24 @@ static void dvfs_temp_limit_normal(struct dvfs_node *dvfs_node, int temp)
 						  dvfs_node->last_set_rate);
 				dvfs_temp_unlimit_4k();
 			}
+		}
+	}
+
+	if (!cpumask_weight(&dvfs_node->offline_cpus) ||
+	    !dvfs_node->offline_temp)
+		return;
+
+	if (temp >= dvfs_node->offline_temp &&
+	    dvfs_node->temp_limit_rate == dvfs_node->min_temp_limit) {
+		for_each_cpu(cpu, &dvfs_node->offline_cpus) {
+			if (cpu_online(cpu))
+				cpu_down(cpu);
+		}
+	} else if (temp < dvfs_node->target_temp &&
+		   dvfs_node->temp_limit_rate > dvfs_node->min_temp_limit) {
+		for_each_cpu(cpu, &dvfs_node->offline_cpus) {
+			if (!cpu_online(cpu))
+				cpu_up(cpu);
 		}
 	}
 }
@@ -2603,6 +2622,7 @@ static int dvfs_node_parse_dt(struct device_node *np,
 			      struct dvfs_node *dvfs_node)
 {
 	int process_version = rockchip_process_version();
+	const char *buf = NULL;
 	int i = 0;
 	int ret;
 
@@ -2637,7 +2657,12 @@ static int dvfs_node_parse_dt(struct device_node *np,
 		dvfs_node->max_temp_limit *= 1000;
 		of_property_read_u32_index(np, "target-temp",
 					   0, &dvfs_node->target_temp);
+		of_property_read_u32_index(np, "offline-temp",
+					   0, &dvfs_node->offline_temp);
 		pr_info("target-temp:%d\n", dvfs_node->target_temp);
+		ret = of_property_read_string(np, "offline-cpus", &buf);
+		if (!ret)
+			cpulist_parse(buf, &dvfs_node->offline_cpus);
 		dvfs_node->nor_temp_limit_table =
 			of_get_temp_limit_table(np,
 						"normal-temp-limit");

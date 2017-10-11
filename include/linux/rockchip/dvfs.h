@@ -180,6 +180,8 @@ struct dvfs_node {
 	unsigned int        max_limit_freq;
 	unsigned int        pvtm_min_temp;
 	struct scaling_sel_table	*scaling_sel_tbl;
+	int			offline_temp;
+	struct cpumask		offline_cpus;
 };
 
 
