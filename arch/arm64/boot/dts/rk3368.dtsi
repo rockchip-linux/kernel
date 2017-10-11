@@ -1068,6 +1068,8 @@
 						/*temp    freq*/
 						100     816000
 						>;
+					offline-temp = <90>;
+					offline-cpus = "4-7";
 					lkg_adjust_volt_en = <1>;
 					channel = <0>;
 					tsadc-ch = <0>;
