@@ -16,6 +16,11 @@
 #include <linux/spinlock.h>
 #include <linux/atomic.h>
 #include <linux/err.h>
+
+#ifdef CONFIG_PREEMPT_RT
+#include <linux/rwsem-rt.h>
+#else /* PREEMPT_RT */
+
 #ifdef CONFIG_RWSEM_SPIN_ON_OWNER
 #include <linux/osq_lock.h>
 #endif
@@ -118,6 +123,13 @@ static inline int rwsem_is_contended(struct rw_semaphore *sem)
 {
 	return !list_empty(&sem->wait_list);
 }
+
+#endif /* !PREEMPT_RT */
+
+/*
+ * The functions below are the same for all rwsem implementations including
+ * the RT specific variant.
+ */
 
 /*
  * lock for reading

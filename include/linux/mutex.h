@@ -22,6 +22,20 @@
 
 struct ww_acquire_ctx;
 
+#ifdef CONFIG_DEBUG_LOCK_ALLOC
+# define __DEP_MAP_MUTEX_INITIALIZER(lockname)			\
+		, .dep_map = {					\
+			.name = #lockname,			\
+			.wait_type_inner = LD_WAIT_SLEEP,	\
+		}
+#else
+# define __DEP_MAP_MUTEX_INITIALIZER(lockname)
+#endif
+
+#ifdef CONFIG_PREEMPT_RT
+# include <linux/mutex_rt.h>
+#else
+
 /*
  * Simple, straightforward mutexes with strict semantics:
  *
@@ -119,16 +133,6 @@ do {									\
 	__mutex_init((mutex), #mutex, &__key);				\
 } while (0)
 
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
-# define __DEP_MAP_MUTEX_INITIALIZER(lockname)			\
-		, .dep_map = {					\
-			.name = #lockname,			\
-			.wait_type_inner = LD_WAIT_SLEEP,	\
-		}
-#else
-# define __DEP_MAP_MUTEX_INITIALIZER(lockname)
-#endif
-
 #define __MUTEX_INITIALIZER(lockname) \
 		{ .owner = ATOMIC_LONG_INIT(0) \
 		, .wait_lock = __SPIN_LOCK_UNLOCKED(lockname.wait_lock) \
@@ -223,5 +227,7 @@ enum mutex_trylock_recursive_enum {
  */
 extern /* __deprecated */ __must_check enum mutex_trylock_recursive_enum
 mutex_trylock_recursive(struct mutex *lock);
+
+#endif /* !PREEMPT_RT */
 
 #endif /* __LINUX_MUTEX_H */
