@@ -1469,12 +1469,33 @@ rt_mutex_fastunlock(struct rt_mutex *lock,
 		rt_mutex_postunlock(&wake_q);
 }
 
-static inline void __rt_mutex_lock(struct rt_mutex *lock, unsigned int subclass)
+int __sched __rt_mutex_lock_state(struct rt_mutex *lock, int state)
 {
 	might_sleep();
+	return rt_mutex_fastlock(lock, state, rt_mutex_slowlock);
+}
+
+/**
+ * rt_mutex_lock_state - lock a rt_mutex with a given state
+ *
+ * @lock:      The rt_mutex to be locked
+ * @state:     The state to set when blocking on the rt_mutex
+ */
+static inline int __sched rt_mutex_lock_state(struct rt_mutex *lock,
+					      unsigned int subclass, int state)
+{
+	int ret;
 
 	mutex_acquire(&lock->dep_map, subclass, 0, _RET_IP_);
-	rt_mutex_fastlock(lock, TASK_UNINTERRUPTIBLE, rt_mutex_slowlock);
+	ret = __rt_mutex_lock_state(lock, state);
+	if (ret)
+		mutex_release(&lock->dep_map, _RET_IP_);
+	return ret;
+}
+
+static inline void __rt_mutex_lock(struct rt_mutex *lock, unsigned int subclass)
+{
+	rt_mutex_lock_state(lock, subclass, TASK_UNINTERRUPTIBLE);
 }
 
 #ifdef CONFIG_DEBUG_LOCK_ALLOC
@@ -1515,16 +1536,7 @@ EXPORT_SYMBOL_GPL(rt_mutex_lock);
  */
 int __sched rt_mutex_lock_interruptible(struct rt_mutex *lock)
 {
-	int ret;
-
-	might_sleep();
-
-	mutex_acquire(&lock->dep_map, 0, 0, _RET_IP_);
-	ret = rt_mutex_fastlock(lock, TASK_INTERRUPTIBLE, rt_mutex_slowlock);
-	if (ret)
-		mutex_release(&lock->dep_map, _RET_IP_);
-
-	return ret;
+	return rt_mutex_lock_state(lock, 0, TASK_INTERRUPTIBLE);
 }
 EXPORT_SYMBOL_GPL(rt_mutex_lock_interruptible);
 
@@ -1539,6 +1551,14 @@ int __sched rt_mutex_futex_trylock(struct rt_mutex *lock)
 int __sched __rt_mutex_futex_trylock(struct rt_mutex *lock)
 {
 	return __rt_mutex_slowtrylock(lock);
+}
+
+int __sched __rt_mutex_trylock(struct rt_mutex *lock)
+{
+	if (WARN_ON_ONCE(in_irq() || in_nmi() || in_serving_softirq()))
+		return 0;
+
+	return rt_mutex_fasttrylock(lock, rt_mutex_slowtrylock);
 }
 
 /**
@@ -1556,16 +1576,18 @@ int __sched rt_mutex_trylock(struct rt_mutex *lock)
 {
 	int ret;
 
-	if (WARN_ON_ONCE(in_irq() || in_nmi() || in_serving_softirq()))
-		return 0;
-
-	ret = rt_mutex_fasttrylock(lock, rt_mutex_slowtrylock);
+	ret = __rt_mutex_trylock(lock);
 	if (ret)
 		mutex_acquire(&lock->dep_map, 0, 1, _RET_IP_);
 
 	return ret;
 }
 EXPORT_SYMBOL_GPL(rt_mutex_trylock);
+
+void __sched __rt_mutex_unlock(struct rt_mutex *lock)
+{
+	rt_mutex_fastunlock(lock, rt_mutex_slowunlock);
+}
 
 /**
  * rt_mutex_unlock - unlock a rt_mutex
