@@ -19,6 +19,10 @@
 
 extern int max_lock_depth; /* for sysctl */
 
+#ifdef CONFIG_DEBUG_MUTEXES
+#include <linux/debug_locks.h>
+#endif
+
 /**
  * The rt_mutex structure
  *
@@ -31,6 +35,7 @@ struct rt_mutex {
 	raw_spinlock_t		wait_lock;
 	struct rb_root_cached   waiters;
 	struct task_struct	*owner;
+	int			save_state;
 #ifdef CONFIG_DEBUG_LOCK_ALLOC
 	struct lockdep_map	dep_map;
 #endif
@@ -67,11 +72,19 @@ do { \
 #define __DEP_MAP_RT_MUTEX_INITIALIZER(mutexname)
 #endif
 
-#define __RT_MUTEX_INITIALIZER(mutexname) \
-	{ .wait_lock = __RAW_SPIN_LOCK_UNLOCKED(mutexname.wait_lock) \
+#define __RT_MUTEX_INITIALIZER_PLAIN(mutexname) \
+	  .wait_lock = __RAW_SPIN_LOCK_UNLOCKED(mutexname.wait_lock) \
 	, .waiters = RB_ROOT_CACHED \
 	, .owner = NULL \
-	__DEP_MAP_RT_MUTEX_INITIALIZER(mutexname)}
+	__DEP_MAP_RT_MUTEX_INITIALIZER(mutexname)
+
+#define __RT_MUTEX_INITIALIZER(mutexname) \
+	{ __RT_MUTEX_INITIALIZER_PLAIN(mutexname) \
+	, .save_state = 0 }
+
+#define __RT_MUTEX_INITIALIZER_SAVE_STATE(mutexname) \
+	{ __RT_MUTEX_INITIALIZER_PLAIN(mutexname)    \
+	, .save_state = 1 }
 
 #define DEFINE_RT_MUTEX(mutexname) \
 	struct rt_mutex mutexname = __RT_MUTEX_INITIALIZER(mutexname)
