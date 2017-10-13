@@ -915,6 +915,7 @@ static int dw_spi_setup(struct spi_device *spi)
 		chip->tx_threshold = 0;
 
 		chip->enable_dma = chip_info->enable_dma;
+		chip->slave_enable = chip_info->slave_enable;
 	}
 
 	if (spi->bits_per_word <= 8) {
