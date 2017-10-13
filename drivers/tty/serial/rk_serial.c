@@ -249,6 +249,7 @@ struct uart_rk_port {
 	struct platform_device	*pdev;
 	struct clk		*clk;
 	struct clk		*pclk;
+	unsigned int		max_clk;
 	unsigned int		tx_loadsz;	/* transmit fifo load size */
 	unsigned char		ier;
 	unsigned char		lcr;
@@ -1344,7 +1345,7 @@ serial_rk_set_termios(struct uart_port *port, struct ktermios *termios,
 		container_of(port, struct uart_rk_port, port);
 	unsigned char cval = 0, fcr = 0, mcr = 0;
 	unsigned long flags;
-	unsigned int baud, quot;
+	unsigned int baud, quot, rate, baud_temp, div;
 
 	dev_dbg(port->dev, "+%s\n", __func__);
 
@@ -1385,12 +1386,52 @@ serial_rk_set_termios(struct uart_port *port, struct ktermios *termios,
 	/*
 	 * Ask the core to calculate the divisor for us.
 	 */
-	baud = uart_get_baud_rate(port, termios, old,
-				  port->uartclk / 16 / 0xffff,
-				  port->uartclk / 16);
+	baud = uart_get_baud_rate(port, termios, old, 0, 4000000);
+
+	/*
+	* Set uart clk the max value. If max clk is larger than
+	* 20*16*buadrate, use decimal frequency. Or we can judge
+	* the buadrate error is under -+2%, if not warn user to
+	* modify the pll frequency.
+	*/
+
+	clk_set_rate(up->clk, up->max_clk);
+	rate = clk_get_rate(up->clk);
+
+	if (rate >= (baud * 16 * 20)) {
+		/*
+		 * Fractional frequency division
+		 */
+		if ((baud * 16) <= 4000000) {
+			/*
+			 * Make sure uart sclk is high enough
+			 */
+			quot = 4000000 / baud / 16;
+			rate = baud * 16 * quot;
+		} else {
+			rate = baud * 16;
+		}
+		clk_set_rate(up->clk, rate);
+
+	} else {
+		/*
+		 * Integer frequency division
+		 */
+		div = rate / 16 / baud;
+		baud_temp = rate / 16 / div;
+
+		if ((baud_temp - baud) * 1000 / baud > 20) {
+			baud_temp = rate / 16 / (div + 1);
+
+			if ((baud - baud_temp) * 1000 / baud > 20)
+				dev_info(up->port.dev, "please modify the uart clk to fit the buad rate\n");
+		}
+	}
+
+	up->port.uartclk = clk_get_rate(up->clk);
 
 	quot = uart_get_divisor(port, baud);
-	/* dev_info(up->port.dev, "uartclk:%d\n", port->uartclk/16);
+	/* dev_info(up->port.dev, "uartclk:%d\n", port->uartclk);
 	dev_info(up->port.dev, "baud:%d\n", baud);
 	dev_info(up->port.dev, "quot:%d\n", quot); */
 
@@ -2026,11 +2067,10 @@ static int serial_rk_probe(struct platform_device *pdev)
 	up->port.iobase = mem->start;
 	up->port.mapbase = mem->start;
 	up->port.irqflags = IRQF_DISABLED;
-#if defined(CONFIG_CLOCK_CTRL)
-	up->port.uartclk = clk_get_rate(up->clk);
-#elif defined(CONFIG_OF)
-	up->port.uartclk = rks.uartclk;
+#if defined(CONFIG_OF)
+	up->max_clk = rks.uartclk;
 #else
+	up->max_clk = 24000000
 	up->port.uartclk = 24000000;
 #endif
 
