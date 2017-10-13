@@ -308,7 +308,7 @@
 		compatible = "rockchip,serial";
 		reg = <0x10124000 0x100>;
 		interrupts = <GIC_SPI 34 IRQ_TYPE_LEVEL_HIGH>;
-		clock-frequency = <24000000>;
+		clock-frequency = <768000000>;
 		clocks = <&clk_uart0>, <&clk_gates8 0>;
 		clock-names = "sclk_uart", "pclk_uart";
 		reg-shift = <2>;
@@ -324,7 +324,7 @@
 		compatible = "rockchip,serial";
 		reg = <0x10126000 0x100>;
 		interrupts = <GIC_SPI 35 IRQ_TYPE_LEVEL_HIGH>;
-		clock-frequency = <24000000>;
+		clock-frequency = <768000000>;
 		clocks = <&clk_uart1>, <&clk_gates8 1>;
 		clock-names = "sclk_uart", "pclk_uart";
 		reg-shift = <2>;
@@ -340,7 +340,7 @@
 		compatible = "rockchip,serial";
 		reg = <0x20064000 0x100>;
 		interrupts = <GIC_SPI 36 IRQ_TYPE_LEVEL_HIGH>;
-		clock-frequency = <24000000>;
+		clock-frequency = <768000000>;
 		clocks = <&clk_uart2>, <&clk_gates8 2>;
 		clock-names = "sclk_uart", "pclk_uart";
 		current-speed = <115200>;
@@ -355,7 +355,7 @@
 		compatible = "rockchip,serial";
 		reg = <0x20068000 0x100>;
 		interrupts = <GIC_SPI 37 IRQ_TYPE_LEVEL_HIGH>;
-		clock-frequency = <24000000>;
+		clock-frequency = <768000000>;
 		clocks = <&clk_uart3>, <&clk_gates8 3>;
 		clock-names = "sclk_uart", "pclk_uart";
 		reg-shift = <2>;
