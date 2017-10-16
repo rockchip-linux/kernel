@@ -579,7 +579,7 @@ static void detach_attrs(struct config_item * item)
 
 static int populate_attrs(struct config_item *item)
 {
-	struct config_item_type *t = item->ci_type;
+	const struct config_item_type *t = item->ci_type;
 	struct configfs_attribute *attr;
 	int error = 0;
 	int i;
@@ -888,7 +888,7 @@ static void configfs_detach_group(struct config_item *item)
 static void client_disconnect_notify(struct config_item *parent_item,
 				     struct config_item *item)
 {
-	struct config_item_type *type;
+	const struct config_item_type *type;
 
 	type = parent_item->ci_type;
 	BUG_ON(!type);
@@ -907,7 +907,7 @@ static void client_disconnect_notify(struct config_item *parent_item,
 static void client_drop_item(struct config_item *parent_item,
 			     struct config_item *item)
 {
-	struct config_item_type *type;
+	const struct config_item_type *type;
 
 	type = parent_item->ci_type;
 	BUG_ON(!type);
@@ -1155,7 +1155,7 @@ static int configfs_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode
 	struct config_item *parent_item;
 	struct configfs_subsystem *subsys;
 	struct configfs_dirent *sd;
-	struct config_item_type *type;
+	const struct config_item_type *type;
 	struct module *subsys_owner = NULL, *new_item_owner = NULL;
 	char *name;
 
@@ -1710,7 +1710,7 @@ EXPORT_SYMBOL(configfs_unregister_group);
 struct config_group *
 configfs_register_default_group(struct config_group *parent_group,
 				const char *name,
-				struct config_item_type *item_type)
+				const struct config_item_type *item_type)
 {
 	int ret;
 	struct config_group *group;
