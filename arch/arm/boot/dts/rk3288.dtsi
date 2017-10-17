@@ -766,6 +766,8 @@
 		interrupts = <GIC_SPI 19 IRQ_TYPE_LEVEL_HIGH>;
 		clocks = <&clk_gates5 15>, <&clk_gates16 4> , <&pd_mipidsi>;
 		clock-names = "clk_mipi_24m", "pclk_mipi_dsi", "pd_mipi_dsi";
+		resets = <&reset RK3288_SOFT_RST_MIPIDSI0_P>;
+		reset-names = "dsi_rst";
 		status = "disabled";
 	};
 
@@ -776,6 +778,8 @@
 		interrupts = <GIC_SPI 20 IRQ_TYPE_LEVEL_HIGH>;
 		clocks = <&clk_gates5 15>, <&clk_gates16 5>, <&pd_mipidsi>;
 		clock-names = "clk_mipi_24m", "pclk_mipi_dsi", "pd_mipi_dsi";
+		resets = <&reset RK3288_SOFT_RST_MIPIDSI1_P>;
+		reset-names = "dsi_rst";
 		status = "disabled";
 	};
 
