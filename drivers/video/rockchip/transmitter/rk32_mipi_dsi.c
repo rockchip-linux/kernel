@@ -671,6 +671,9 @@ static int rk32_phy_init(struct dsi *dsi)
 	test_data[0] = (fbdiv - 1) & 0x1f;
 	rk32_dwc_phy_test_wr(dsi, code_pll_loop_div_rat, test_data, 1);
 	mdelay(2);
+	test_data[0] = 0x30;
+	rk32_dwc_phy_test_wr(dsi, code_pll_input_loop_div_rat, test_data, 1);
+	mdelay(2);
 	test_data[0] = (fbdiv - 1) >> 5 | 0x80;
 	rk32_dwc_phy_test_wr(dsi, code_pll_loop_div_rat, test_data, 1);
 	mdelay(2);
