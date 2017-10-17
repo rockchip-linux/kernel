@@ -1073,6 +1073,16 @@ static int rk_mipi_dsi_init(void *arg, u32 n)
 	MIPI_DBG("txclkesc:%d, Ttxclkesc:%d\n", dsi->phy.txclkesc, dsi->phy.Ttxclkesc);
 
 	mdelay(10);
+
+	if (dsi->ops.id == DSI_RK3288) {
+		if (dsi->dsi_rst) {
+			reset_control_assert(dsi->dsi_rst);
+			udelay(20);
+			reset_control_deassert(dsi->dsi_rst);
+			udelay(20);
+		}
+	}
+
 	rk_phy_power_up(dsi);
 	rk32_mipi_dsi_host_power_up(dsi);
 	rk_phy_init(dsi);
@@ -1890,6 +1900,12 @@ static int rk32_mipi_dsi_probe(struct platform_device *pdev)
 		if (unlikely(IS_ERR(dsi->dsi_pd))) {
 			dev_err(&pdev->dev, "get pd_mipi_dsi clock fail\n");
 			return PTR_ERR(dsi->dsi_pd);
+		}
+
+		dsi->dsi_rst = devm_reset_control_get(&dsi->pdev->dev, "dsi_rst");
+		if (IS_ERR(dsi->dsi_rst)) {
+			dev_err(&pdev->dev, "failed to get dsi_rst reset\n");
+			dsi->dsi_rst = NULL;
 		}
 	}
 

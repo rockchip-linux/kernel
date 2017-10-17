@@ -5,6 +5,8 @@ drivers/video/rockchip/transmitter/rk32_mipi_dsi.h
 #ifndef RK32_MIPI_DSI_H
 #define RK32_MIPI_DSI_H
 
+#include <linux/reset.h>
+
 #ifdef CONFIG_RK_3288_DSI_UBOOT
 #include <asm/arch/rkplat.h>
 #define RK_GRF_VIRT			RKIO_GRF_PHYS
@@ -307,6 +309,7 @@ struct dsi {
 	struct mipi_dsi_ops ops;
 	struct mipi_dsi_screen screen;
 	struct regmap *grf;
+	struct reset_control *dsi_rst;
 #ifdef CONFIG_MIPI_DSI_LINUX
 	struct clk	*dsi_pclk; /* for mipi phy */
 	struct clk	*dsi_host_pclk; /* for mipi host */
