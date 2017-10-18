@@ -1727,7 +1727,10 @@ static int cif_isp11_v4l2_drv_probe(struct platform_device *pdev)
 	struct cif_isp11_v4l2_device *cif_isp11_v4l2_dev;
 	int ret;
 
-	cif_isp11_pltfrm_pr_info(NULL, "probing...\n");
+	cif_isp11_pltfrm_pr_info(NULL, "CIF ISP11 driver version: v%x.%x.%x\n",
+		CONFIG_CIFISP11_DRIVER_VERSION >> 16,
+		(CONFIG_CIFISP11_DRIVER_VERSION & 0xff00) >> 8,
+		CONFIG_CIFISP11_DRIVER_VERSION & 0x00ff);
 
 	cif_isp11_v4l2_dev = devm_kzalloc(
 				&pdev->dev,
