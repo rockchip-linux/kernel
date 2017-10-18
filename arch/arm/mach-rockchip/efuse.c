@@ -570,6 +570,10 @@ static int __init rk322xh_get_volt_adjust(int ch)
 		/* 50 mV */
 		return 50000;
 
+	/* arm leakage <= 8mA */
+	if (efuse_buf[23] <= 8)
+		return 25000;
+
 	return 0;
 }
 
