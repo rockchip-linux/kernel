@@ -3171,21 +3171,23 @@ static int vcodec_probe(struct platform_device *pdev)
 		vcodec_subdev_probe(pdev, pservice);
 	}
 
-	pservice->cru =
-		syscon_regmap_lookup_by_compatible("rockchip,rk322xh-cru");
-	if (!IS_ERR(pservice->cru)) {
-		pservice->p_cpll = clk_get(NULL, "clk_cpll");
-		pservice->p_gpll = clk_get(NULL, "clk_gpll");
-		pservice->cpll_rate = clk_get_rate(pservice->p_cpll);
-		pservice->gpll_rate = clk_get_rate(pservice->p_gpll);
-	}
-	vpu_dvfs = pservice;
+	if (of_device_is_compatible(np, "rockchip,rk322xh-rkvdec")) {
+		pservice->cru =
+			syscon_regmap_lookup_by_compatible("rockchip,rk322xh-cru");
+		if (!IS_ERR(pservice->cru)) {
+			pservice->p_cpll = clk_get(NULL, "clk_cpll");
+			pservice->p_gpll = clk_get(NULL, "clk_gpll");
+			pservice->cpll_rate = clk_get_rate(pservice->p_cpll);
+			pservice->gpll_rate = clk_get_rate(pservice->p_gpll);
+		}
+		vpu_dvfs = pservice;
 
-	clk_rkvdec_dvfs_node = clk_get_dvfs_node("aclk_rkvdec");
-	if (clk_rkvdec_dvfs_node) {
-		clk_enable_dvfs(clk_rkvdec_dvfs_node);
-		register_dvfs_notifier_callback(clk_rkvdec_dvfs_node,
-						rkvdec_dvfs_notifier_call);
+		clk_rkvdec_dvfs_node = clk_get_dvfs_node("aclk_rkvdec");
+		if (clk_rkvdec_dvfs_node) {
+			clk_enable_dvfs(clk_rkvdec_dvfs_node);
+			register_dvfs_notifier_callback(clk_rkvdec_dvfs_node,
+							rkvdec_dvfs_notifier_call);
+		}
 	}
 
 	pr_info("init success\n");
