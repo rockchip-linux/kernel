@@ -374,11 +374,9 @@ static int OV7251_auto_adjust_fps(struct ov_camera_module *cam_mod,
 		(vts >> 8) & 0xFF);
 
 	if (IS_ERR_VALUE(ret)) {
-		ov_camera_module_pr_err(cam_mod,
-				"failed with error (%d)\n", ret);
+		ov_camera_module_pr_err(cam_mod, "failed with error (%d)\n", ret);
 	} else {
-		ov_camera_module_pr_debug(cam_mod,
-					  "updated vts = 0x%x,vts_min=0x%x\n", vts, cam_mod->vts_min);
+		ov_camera_module_pr_debug(cam_mod, "updated vts = 0x%x,vts_min=0x%x\n", vts, cam_mod->vts_min);
 		cam_mod->vts_cur = vts;
 	}
 
@@ -637,6 +635,7 @@ static int OV7251_g_timings(struct ov_camera_module *cam_mod,
 	vts = (!cam_mod->vts_cur) ?
 		timings->frame_length_lines :
 		cam_mod->vts_cur;
+
 	if (cam_mod->frm_intrvl_valid)
 		timings->vt_pix_clk_freq_hz =
 			cam_mod->frm_intrvl.interval.denominator
@@ -647,6 +646,8 @@ static int OV7251_g_timings(struct ov_camera_module *cam_mod,
 			cam_mod->active_config->frm_intrvl.interval.denominator
 			* vts
 			* timings->line_length_pck;
+
+	timings->frame_length_lines = vts;
 
 	return ret;
 err:

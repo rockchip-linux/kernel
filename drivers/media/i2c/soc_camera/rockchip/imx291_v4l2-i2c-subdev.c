@@ -54,7 +54,7 @@
 #define IMX291_FINE_INTG_TIME_MIN 0
 #define IMX291_FINE_INTG_TIME_MAX_MARGIN 0
 #define IMX291_COARSE_INTG_TIME_MIN 16
-#define IMX291_COARSE_INTG_TIME_MAX_MARGIN 4
+#define IMX291_COARSE_INTG_TIME_MAX_MARGIN 2
 
 #define IMX291_EXT_CLK 37125000
 
@@ -233,11 +233,9 @@ static int imx291_auto_adjust_fps(struct imx_camera_module *cam_mod,
 		IMX291_TIMING_VTS_HIGH_REG, (vts >> 8) & 0xFF);
 
 	if (IS_ERR_VALUE(ret)) {
-		imx_camera_module_pr_err(cam_mod,
-			"failed with error (%d)\n", ret);
+		imx_camera_module_pr_err(cam_mod, "failed with error (%d)\n", ret);
 	} else {
-		imx_camera_module_pr_debug(cam_mod,
-			"updated vts = %d,vts_min=%d\n", vts, cam_mod->vts_min);
+		imx_camera_module_pr_info(cam_mod, "updated vts = %d,vts_min=%d\n", vts, cam_mod->vts_min);
 		cam_mod->vts_cur = vts;
 	}
 
@@ -395,6 +393,8 @@ static int imx291_g_timings(struct imx_camera_module *cam_mod,
 			cam_mod->active_config->frm_intrvl.interval.denominator
 			* vts
 			* timings->line_length_pck;
+
+	timings->frame_length_lines = vts;
 
 	return ret;
 err:

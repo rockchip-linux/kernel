@@ -181,12 +181,9 @@ static int ar0330cs_auto_adjust_fps(struct aptina_camera_module *cam_mod,
 		vts & 0xFFFF);
 
 	if (IS_ERR_VALUE(ret)) {
-		aptina_camera_module_pr_err(cam_mod,
-			"failed with error (%d)\n", ret);
+		aptina_camera_module_pr_err(cam_mod, "failed with error (%d)\n", ret);
 	} else {
-		aptina_camera_module_pr_debug(cam_mod,
-			"updated vts = %d,vts_min=%d\n",
-			vts, cam_mod->vts_min);
+		aptina_camera_module_pr_info(cam_mod, "updated vts = %d,vts_min=%d\n", vts, cam_mod->vts_min);
 		cam_mod->vts_cur = vts;
 	}
 
@@ -365,13 +362,14 @@ static int ar0330cs_g_timings(struct aptina_camera_module *cam_mod,
 	if (cam_mod->frm_intrvl_valid)
 		timings->vt_pix_clk_freq_hz =
 			cam_mod->frm_intrvl.interval.denominator
-			* timings->frame_length_lines
+			* vts
 			* timings->line_length_pck;
 	else
 		timings->vt_pix_clk_freq_hz =
 			cam_mod->active_config->frm_intrvl.interval.denominator
-			* timings->frame_length_lines
+			* vts
 			* timings->line_length_pck;
+
 	timings->frame_length_lines = vts;
 
 	return ret;
