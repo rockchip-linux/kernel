@@ -1313,9 +1313,11 @@ static void stmmac_dma_operation_mode(struct stmmac_priv *priv)
 static void stmmac_tx_clean(struct stmmac_priv *priv)
 {
 	unsigned int bytes_compl = 0, pkts_compl = 0;
-	unsigned int entry = priv->dirty_tx;
+	unsigned int entry;
 
 	netif_tx_lock(priv->dev);
+
+	entry = priv->dirty_tx;
 
 	priv->xstats.tx_clean++;
 
