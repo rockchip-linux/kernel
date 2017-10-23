@@ -120,11 +120,7 @@ static int devfreq_get_freq_level(struct devfreq *devfreq, unsigned long freq)
 	return -EINVAL;
 }
 
-/**
- * devfreq_set_freq_table() - Initialize freq_table for the frequency
- * @devfreq:	the devfreq instance
- */
-static void devfreq_set_freq_table(struct devfreq *devfreq)
+static int set_freq_table(struct devfreq *devfreq)
 {
 	struct devfreq_dev_profile *profile = devfreq->profile;
 	struct dev_pm_opp *opp;
@@ -134,7 +130,7 @@ static void devfreq_set_freq_table(struct devfreq *devfreq)
 	/* Initialize the freq_table from OPP table */
 	count = dev_pm_opp_get_opp_count(devfreq->dev.parent);
 	if (count <= 0)
-		return;
+		return -EINVAL;
 
 	profile->max_state = count;
 	profile->freq_table = devm_kcalloc(devfreq->dev.parent,
@@ -143,7 +139,7 @@ static void devfreq_set_freq_table(struct devfreq *devfreq)
 					GFP_KERNEL);
 	if (!profile->freq_table) {
 		profile->max_state = 0;
-		return;
+		return -ENOMEM;
 	}
 
 	rcu_read_lock();
@@ -153,11 +149,13 @@ static void devfreq_set_freq_table(struct devfreq *devfreq)
 			devm_kfree(devfreq->dev.parent, profile->freq_table);
 			profile->max_state = 0;
 			rcu_read_unlock();
-			return;
+			return PTR_ERR(opp);
 		}
 		profile->freq_table[i] = freq;
 	}
 	rcu_read_unlock();
+
+	return 0;
 }
 
 /**
@@ -606,7 +604,9 @@ struct devfreq *devfreq_add_device(struct device *dev,
 
 	if (!devfreq->profile->max_state && !devfreq->profile->freq_table) {
 		mutex_unlock(&devfreq->lock);
-		devfreq_set_freq_table(devfreq);
+		err = set_freq_table(devfreq);
+		if (err < 0)
+			goto err_out;
 		mutex_lock(&devfreq->lock);
 	}
 
