@@ -2478,6 +2478,8 @@ void dwc2_hsotg_disconnect(struct dwc2_hsotg *hsotg)
 
 	call_gadget(hsotg, disconnect);
 	hsotg->lx_state = DWC2_L3;
+
+	usb_gadget_set_state(&hsotg->gadget, USB_STATE_NOTATTACHED);
 }
 
 /**
