@@ -1198,23 +1198,16 @@ static ssize_t available_frequencies_show(struct device *d,
 					  char *buf)
 {
 	struct devfreq *df = to_devfreq(d);
-	struct device *dev = df->dev.parent;
-	struct dev_pm_opp *opp;
 	ssize_t count = 0;
-	unsigned long freq = 0;
+	int i;
 
-	rcu_read_lock();
-	do {
-		opp = dev_pm_opp_find_freq_ceil(dev, &freq);
-		if (IS_ERR(opp))
-			break;
+	mutex_lock(&df->lock);
 
+	for (i = 0; i < df->profile->max_state; i++)
 		count += scnprintf(&buf[count], (PAGE_SIZE - count - 2),
-				   "%lu ", freq);
-		freq++;
-	} while (1);
-	rcu_read_unlock();
+				"%lu ", df->profile->freq_table[i]);
 
+	mutex_unlock(&df->lock);
 	/* Truncate the trailing space */
 	if (count)
 		count--;
