@@ -148,6 +148,8 @@ struct devfreq_governor {
  *		touch this.
  * @min_freq:	Limit minimum frequency requested by user (0: none)
  * @max_freq:	Limit maximum frequency requested by user (0: none)
+ * @scaling_min_freq:	Limit minimum frequency requested by OPP interface
+ * @scaling_max_freq:	Limit maximum frequency requested by OPP interface
  * @stop_polling:	 devfreq polling status of a device.
  * @total_trans:	Number of devfreq transitions
  * @trans_table:	Statistics of devfreq transitions
@@ -181,6 +183,8 @@ struct devfreq {
 
 	unsigned long min_freq;
 	unsigned long max_freq;
+	unsigned long scaling_min_freq;
+	unsigned long scaling_max_freq;
 	bool stop_polling;
 
 	/* information for device frequency transition */
