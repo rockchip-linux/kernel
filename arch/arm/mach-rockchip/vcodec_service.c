@@ -409,6 +409,10 @@ struct vpu_service_info {
 	bool bug_dec_addr;
 	atomic_t freq_status;
 
+	wait_queue_head_t *wait_secure_isr;
+	bool secure_isr;
+	atomic_t secure_mode;
+	bool secure_irq_status;
 	struct clk *aclk_vcodec;
 	struct clk *hclk_vcodec;
 	struct clk *clk_core;
@@ -1904,7 +1908,12 @@ static long vpu_service_ioctl(struct file *filp, unsigned int cmd,
 
 	switch (cmd) {
 	case VPU_IOC_SET_CLIENT_TYPE: {
+		int secure_mode;
+
 		session->type = (enum VPU_CLIENT_TYPE)arg;
+		secure_mode = (session->type & 0xffff0000) >> 16;
+		session->type = session->type & 0xffff;
+		atomic_set(&pservice->secure_mode, secure_mode);
 		vpu_debug(DEBUG_IOCTL, "pid %d set client type %d\n",
 			  session->pid, session->type);
 	} break;
@@ -1937,18 +1946,27 @@ static long vpu_service_ioctl(struct file *filp, unsigned int cmd,
 
 		vpu_debug(DEBUG_IOCTL, "pid %d set reg type %d\n",
 			  session->pid, session->type);
-		if (copy_from_user(&req, (void __user *)arg,
-				   sizeof(struct vpu_request))) {
-			vpu_err("error: set reg copy_from_user failed\n");
-			return -EFAULT;
-		}
-		reg = reg_init(data, session, (void __user *)req.req, req.size);
-		if (NULL == reg) {
-			return -EFAULT;
+		if (atomic_read(&pservice->secure_mode) == 1) {
+			vpu_service_power_on(pservice);
+			pservice->wait_secure_isr = &(session->wait);
+			if (!pservice->secure_isr &&
+			    !pservice->secure_irq_status) {
+				enable_irq(data->irq_dec);
+			}
 		} else {
-			mutex_lock(&pservice->lock);
-			try_set_reg(data);
-			mutex_unlock(&pservice->lock);
+			if (copy_from_user(&req, (void __user *)arg,
+					   sizeof(struct vpu_request))) {
+				vpu_err("error: set reg copy_from_user failed\n");
+				return -EFAULT;
+			}
+			reg = reg_init(data, session, (void __user *)req.req, req.size);
+			if (NULL == reg) {
+				return -EFAULT;
+			} else {
+				mutex_lock(&pservice->lock);
+				try_set_reg(data);
+				mutex_unlock(&pservice->lock);
+			}
 		}
 	} break;
 	case VPU_IOC_GET_REG: {
@@ -1958,57 +1976,68 @@ static long vpu_service_ioctl(struct file *filp, unsigned int cmd,
 
 		vpu_debug(DEBUG_IOCTL, "pid %d get reg type %d\n",
 			  session->pid, session->type);
-		if (copy_from_user(&req, (void __user *)arg,
-				   sizeof(struct vpu_request))) {
-			vpu_err("error: get reg copy_from_user failed\n");
-			return -EFAULT;
-		}
-
-		ret = wait_event_timeout(session->wait,
-					 !list_empty(&session->done),
-					 VPU_TIMEOUT_DELAY);
-
-		if (!list_empty(&session->done)) {
-			if (ret < 0)
-				vpu_err("warning: pid %d wait task error ret %d\n",
-					session->pid, ret);
-			ret = 0;
-		} else {
-			if (unlikely(ret < 0)) {
-				vpu_err("error: pid %d wait task ret %d\n",
-					session->pid, ret);
-			} else if (ret == 0) {
-				vpu_err("error: pid %d wait %d task done timeout\n",
-					session->pid,
-					atomic_read(&session->task_running));
-				ret = -ETIMEDOUT;
+		if (atomic_read(&pservice->secure_mode) == 1) {
+			ret = wait_event_timeout(session->wait,
+						 pservice->secure_isr,
+						 VPU_TIMEOUT_DELAY);
+			if (ret < 0) {
+				pr_info("warning: secure wait timeout\n");
+				ret = 0;
 			}
-		}
+			pservice->secure_isr = false;
+		} else {
+			if (copy_from_user(&req, (void __user *)arg,
+					   sizeof(struct vpu_request))) {
+				vpu_err("error: get reg copy_from_user failed\n");
+				return -EFAULT;
+			}
 
-		if (ret < 0) {
-			int task_running = atomic_read(&session->task_running);
+			ret = wait_event_timeout(session->wait,
+						 !list_empty(&session->done),
+						 VPU_TIMEOUT_DELAY);
+
+			if (!list_empty(&session->done)) {
+				if (ret < 0)
+					vpu_err("warning: pid %d wait task error ret %d\n",
+						session->pid, ret);
+				ret = 0;
+			} else {
+				if (unlikely(ret < 0)) {
+					vpu_err("error: pid %d wait task ret %d\n",
+						session->pid, ret);
+				} else if (ret == 0) {
+					vpu_err("error: pid %d wait %d task done timeout\n",
+						session->pid,
+						atomic_read(&session->task_running));
+					ret = -ETIMEDOUT;
+				}
+			}
+
+			if (ret < 0) {
+				int task_running = atomic_read(&session->task_running);
+
+				mutex_lock(&pservice->lock);
+				vpu_service_dump(pservice);
+				if (task_running) {
+					atomic_set(&session->task_running, 0);
+					atomic_sub(task_running,
+						   &pservice->total_running);
+					pr_err("%d task is running but not return, reset hardware...",
+					       task_running);
+					vpu_reset(data);
+					pr_err("done\n");
+				}
+				vpu_service_session_clear(data, session);
+				mutex_unlock(&pservice->lock);
+				return ret;
+			}
 
 			mutex_lock(&pservice->lock);
-			vpu_service_dump(pservice);
-			if (task_running) {
-				atomic_set(&session->task_running, 0);
-				atomic_sub(task_running,
-					   &pservice->total_running);
-				pr_err("%d task is running but not return, reset hardware...",
-				       task_running);
-				vpu_reset(data);
-				pr_err("done\n");
-			}
-			vpu_service_session_clear(data, session);
+			reg = list_entry(session->done.next,
+					 struct vpu_reg, session_link);
+			return_reg(data, reg, (u32 __user *)req.req);
 			mutex_unlock(&pservice->lock);
-			return ret;
 		}
-
-		mutex_lock(&pservice->lock);
-		reg = list_entry(session->done.next,
-				 struct vpu_reg, session_link);
-		return_reg(data, reg, (u32 __user *)req.req);
-		mutex_unlock(&pservice->lock);
 	} break;
 	case VPU_IOC_PROBE_IOMMU_STATUS: {
 		int iommu_enable = 1;
@@ -2057,7 +2086,12 @@ static long compat_vpu_service_ioctl(struct file *filp, unsigned int cmd,
 
 	switch (cmd) {
 	case COMPAT_VPU_IOC_SET_CLIENT_TYPE: {
+		int secure_mode;
+
 		session->type = (enum VPU_CLIENT_TYPE)arg;
+		secure_mode = (session->type & 0xffff0000) >> 16;
+		session->type = session->type & 0xffff;
+		atomic_set(&pservice->secure_mode, secure_mode);
 		vpu_debug(DEBUG_IOCTL, "compat set client type %d\n",
 			  session->type);
 	} break;
@@ -2090,21 +2124,31 @@ static long compat_vpu_service_ioctl(struct file *filp, unsigned int cmd,
 		struct compat_vpu_request req;
 		struct vpu_reg *reg;
 
-		vpu_debug(DEBUG_IOCTL, "compat set reg type %d\n",
-			  session->type);
-		if (copy_from_user(&req, compat_ptr((compat_uptr_t)arg),
-				   sizeof(struct compat_vpu_request))) {
-			vpu_err("compat set_reg copy_from_user failed\n");
-			return -EFAULT;
-		}
-		reg = reg_init(data, session,
-			       compat_ptr((compat_uptr_t)req.req), req.size);
-		if (NULL == reg) {
-			return -EFAULT;
+		if (atomic_read(&pservice->secure_mode) == 1) {
+			vpu_service_power_on(pservice);
+			pservice->wait_secure_isr = &(session->wait);
+			if (!pservice->secure_isr &&
+			    !pservice->secure_irq_status) {
+				enable_irq(data->irq_dec);
+			}
 		} else {
-			mutex_lock(&pservice->lock);
-			try_set_reg(data);
-			mutex_unlock(&pservice->lock);
+			vpu_debug(DEBUG_IOCTL, "compat set reg type %d\n",
+				  session->type);
+			if (copy_from_user(&req, compat_ptr((compat_uptr_t)arg),
+					   sizeof(struct compat_vpu_request))) {
+				vpu_err("compat set_reg copy_from_user failed\n");
+				return -EFAULT;
+			}
+			reg = reg_init(data, session,
+				       compat_ptr((compat_uptr_t)req.req),
+				       req.size);
+			if (NULL == reg) {
+				return -EFAULT;
+			} else {
+				mutex_lock(&pservice->lock);
+				try_set_reg(data);
+				mutex_unlock(&pservice->lock);
+			}
 		}
 	} break;
 	case COMPAT_VPU_IOC_GET_REG: {
@@ -2112,59 +2156,71 @@ static long compat_vpu_service_ioctl(struct file *filp, unsigned int cmd,
 		struct vpu_reg *reg;
 		int ret;
 
-		vpu_debug(DEBUG_IOCTL, "compat get reg type %d\n",
-			  session->type);
-		if (copy_from_user(&req, compat_ptr((compat_uptr_t)arg),
-				   sizeof(struct compat_vpu_request))) {
-			vpu_err("compat get reg copy_from_user failed\n");
-			return -EFAULT;
-		}
-
-		ret = wait_event_timeout(session->wait,
-					 !list_empty(&session->done),
-					 VPU_TIMEOUT_DELAY);
-
-		if (!list_empty(&session->done)) {
-			if (ret < 0)
-				vpu_err("warning: pid %d wait task error ret %d\n",
-					session->pid, ret);
-			ret = 0;
-		} else {
-			if (unlikely(ret < 0)) {
-				vpu_err("error: pid %d wait task ret %d\n",
-					session->pid, ret);
-			} else if (ret == 0) {
-				vpu_err("error: pid %d wait %d task done timeout\n",
-					session->pid,
-					atomic_read(&session->task_running));
-				ret = -ETIMEDOUT;
+		if (atomic_read(&pservice->secure_mode) == 1) {
+			ret = wait_event_timeout(session->wait,
+						 pservice->secure_isr,
+						 VPU_TIMEOUT_DELAY);
+			if (ret < 0) {
+				pr_info("warning: secure wait timeout\n");
+				ret = 0;
 			}
-		}
+			pservice->secure_isr = false;
+		} else {
+			vpu_debug(DEBUG_IOCTL, "compat get reg type %d\n",
+				  session->type);
+			if (copy_from_user(&req, compat_ptr((compat_uptr_t)arg),
+					   sizeof(struct compat_vpu_request))) {
+				vpu_err("compat get reg copy_from_user failed\n");
+				return -EFAULT;
+			}
 
-		if (ret < 0) {
-			int task_running = atomic_read(&session->task_running);
+			ret = wait_event_timeout(session->wait,
+						 !list_empty(&session->done),
+						 VPU_TIMEOUT_DELAY);
+
+			if (!list_empty(&session->done)) {
+				if (ret < 0)
+					vpu_err("warning: pid %d wait task error ret %d\n",
+						session->pid, ret);
+				ret = 0;
+			} else {
+				if (unlikely(ret < 0)) {
+					vpu_err("error: pid %d wait task ret %d\n",
+						session->pid, ret);
+				} else if (ret == 0) {
+					vpu_err("error: pid %d wait %d task done timeout\n",
+						session->pid,
+					atomic_read(&session->task_running));
+					ret = -ETIMEDOUT;
+				}
+			}
+
+			if (ret < 0) {
+				int task_running = atomic_read(&session->task_running);
+
+				mutex_lock(&pservice->lock);
+				vpu_service_dump(pservice);
+				if (task_running) {
+					atomic_set(&session->task_running, 0);
+					atomic_sub(task_running,
+						   &pservice->total_running);
+					pr_err("%d task is running but not return, reset hardware...",
+					       task_running);
+					vpu_reset(data);
+					pr_err("done\n");
+				}
+				vpu_service_session_clear(data, session);
+				mutex_unlock(&pservice->lock);
+				return ret;
+			}
 
 			mutex_lock(&pservice->lock);
-			vpu_service_dump(pservice);
-			if (task_running) {
-				atomic_set(&session->task_running, 0);
-				atomic_sub(task_running,
-					   &pservice->total_running);
-				pr_err("%d task is running but not return, reset hardware...",
-				       task_running);
-				vpu_reset(data);
-				pr_err("done\n");
-			}
-			vpu_service_session_clear(data, session);
+			reg = list_entry(session->done.next,
+					 struct vpu_reg, session_link);
+			return_reg(data, reg,
+				   compat_ptr((compat_uptr_t)req.req));
 			mutex_unlock(&pservice->lock);
-			return ret;
 		}
-
-		mutex_lock(&pservice->lock);
-		reg = list_entry(session->done.next,
-				 struct vpu_reg, session_link);
-		return_reg(data, reg, compat_ptr((compat_uptr_t)req.req));
-		mutex_unlock(&pservice->lock);
 	} break;
 	case COMPAT_VPU_IOC_PROBE_IOMMU_STATUS: {
 		int iommu_enable = 1;
@@ -2237,6 +2293,9 @@ static int vpu_service_open(struct inode *inode, struct file *filp)
 		return -ENOMEM;
 	}
 
+	pservice->secure_isr = false;
+	pservice->secure_irq_status = true;
+
 	session->type	= VPU_TYPE_BUTT;
 	session->pid	= current->pid;
 	INIT_LIST_HEAD(&session->waiting);
@@ -2274,7 +2333,13 @@ static int vpu_service_release(struct inode *inode, struct file *filp)
 		msleep(50);
 	}
 	wake_up(&session->wait);
-
+	if (atomic_read(&pservice->secure_mode)) {
+		atomic_set(&pservice->secure_mode, 0);
+		if (!pservice->secure_irq_status) {
+			enable_irq(data->irq_dec);
+			pservice->secure_irq_status = true;
+		}
+	}
 	mutex_lock(&pservice->lock);
 	/* remove this filp from the asynchronusly notified filp's */
 	list_del_init(&session->list_session);
@@ -3314,6 +3379,14 @@ static irqreturn_t vdpu_irq(int irq, void *dev_id)
 	u32 raw_status;
 	u32 dec_status;
 
+	/* this interrupt can be cleared here, no need in security zone */
+	if (atomic_read(&pservice->secure_mode)) {
+		disable_irq_nosync(data->irq_dec);
+		pservice->secure_isr = true;
+		pservice->secure_irq_status = false;
+		wake_up(pservice->wait_secure_isr);
+		return IRQ_WAKE_THREAD;
+	}
 	task = &data->task_info[TASK_DEC];
 
 	raw_status = readl_relaxed(dev->regs + task->reg_irq);
@@ -3382,6 +3455,8 @@ static irqreturn_t vdpu_isr(int irq, void *dev_id)
 	struct vpu_service_info *pservice = data->pservice;
 	struct vpu_device *dev = &data->dec_dev;
 
+	if (atomic_read(&pservice->secure_mode))
+		return IRQ_HANDLED;
 	mutex_lock(&pservice->lock);
 	if (atomic_read(&dev->irq_count_codec)) {
 		atomic_sub(1, &dev->irq_count_codec);
