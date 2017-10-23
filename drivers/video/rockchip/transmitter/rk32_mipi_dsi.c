@@ -1721,7 +1721,7 @@ static void rk32_init_phy_mode(int lcdc_id)
 			val0 = 0x1 << 25 | 0x1 <<  9 | 0x1 << 22 | 0x1 <<  6;
 			val1 = 0x1 << 31 | 0x1 << 30 | 0x0 << 15 | 0x1 << 14;
 		} else {
-			val0 = 0x1 << 25 | 0x0 <<  9 | 0x1 << 22 | 0x0 << 14;
+			val0 = 0x1 << 25 | 0x0 <<  9 | 0x1 << 22 | 0x0 << 6;
 			val1 = 0x1 << 31 | 0x1 << 30 | 0x0 << 15 | 0x1 << 14;
 		}
 		writel_relaxed(val0, RK_GRF_VIRT + RK3288_GRF_SOC_CON6);
