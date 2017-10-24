@@ -2632,6 +2632,9 @@ static int dvfs_node_parse_dt(struct device_node *np,
 	of_property_read_u32_index(np, "skip_adjusting_volt", 0,
 				   &dvfs_node->skip_adjusting_volt);
 
+	if (soc_is_rk3288w())
+		process_version = RK3288_PROCESS_V2;
+
 	of_property_read_u32_index(np, "channel", 0, &dvfs_node->channel);
 
 	dvfs_node->vd->leakage = rockchip_get_leakage(dvfs_node->channel);
@@ -2701,8 +2704,6 @@ static int dvfs_node_parse_dt(struct device_node *np,
 		for (i = 0; i < ARRAY_SIZE(pvtm_info_table); i++) {
 			struct pvtm_info *pvtm_info = pvtm_info_table[i];
 
-			if (soc_is_rk3288w())
-				break;
 
 			if ((pvtm_info->channel == dvfs_node->channel) &&
 			    (pvtm_info->process_version == process_version) &&
