@@ -141,7 +141,6 @@ static unsigned int chain_mode;
 module_param(chain_mode, int, S_IRUGO);
 MODULE_PARM_DESC(chain_mode, "To use chain instead of ring mode");
 
-static int rk322x_phy_adjust(struct phy_device *phydev);
 static irqreturn_t stmmac_interrupt(int irq, void *dev_id);
 
 #ifdef CONFIG_GMAC_DEBUG_FS
@@ -684,9 +683,6 @@ static void stmmac_release_ptp(struct stmmac_priv *priv)
 	stmmac_ptp_unregister(priv);
 }
 
-static int g_bmcr = 0;
-static int g_bmcr_change = 0;
-
 /**
  * stmmac_adjust_link
  * @dev: net device structure
@@ -720,12 +716,6 @@ static void stmmac_adjust_link(struct net_device *dev)
 				gpio_direction_output(bsp_priv->link_io,
 						      bsp_priv->link_io_level);
 		} else {
-			if (priv->speed == 10 && g_bmcr_change) {
-				/* restore MII_BMCR */
-				phy_write(phydev, MII_BMCR, g_bmcr);
-                                g_bmcr_change = 0;
-			}
-
 			if (gpio_is_valid(bsp_priv->link_io))
 				/* link LED off */
 				gpio_direction_output(bsp_priv->link_io,
@@ -772,38 +762,6 @@ static void stmmac_adjust_link(struct net_device *dev)
 					ctrl &= ~priv->hw->link.port;
 				}
 				stmmac_hw_fix_mac_speed(priv);
-
-				if ((bsp_priv->chip == RK322X_GMAC ||
-				     bsp_priv->chip == RK322XH_GMAC) &&
-				    (bsp_priv->internal_phy)) {
-					if (priv->oldspeed == 10 &&
-					    phydev->speed == 100) {
-						rk322x_phy_adjust(phydev);
-					}
-				}
-
-				if ((bsp_priv->chip == RK322X_GMAC ||
-				     bsp_priv->chip == RK322XH_GMAC) &&
-				    (bsp_priv->internal_phy) &&
-				    (phydev->speed == 10)) {
-					int an_expan;
-
-					an_expan = phy_read(phydev,
-							    MII_EXPANSION);
-					/* link partner does not have */
-					/* auto-negotiation ability, setting */
-					/* PHY to 10M full-duplex by force */
-					if (!(an_expan & 0x1) &&
-					    (phydev->speed == 10)) {
-						g_bmcr = phy_read(phydev,
-								  MII_BMCR);
-						pr_info("10BT-no auto-neg\n");
-						phy_write(phydev, MII_BMCR,
-							  0x100);
-                                                g_bmcr_change = 1;
-					}
-				}
-
 				break;
 			default:
 				if (netif_msg_link(priv))
@@ -813,7 +771,6 @@ static void stmmac_adjust_link(struct net_device *dev)
 			}
 
 			priv->speed = phydev->speed;
-			priv->oldspeed = phydev->speed;
 		}
 
 		writel(ctrl, priv->ioaddr + MAC_CTRL_REG);
@@ -919,14 +876,219 @@ static ssize_t set_phy_regValue(struct device *dev,
 	return count;
 }
 
+#ifdef CONFIG_ROCKCHIP_PHY
+
+static struct phy_device *gphy_device;
+
+static void rockchip_integrated_phy_dump_phy_wol_bank_reg(void)
+{
+	int reg = 0;
+	int val = 0;
+	int low = 0;
+
+	if (!gphy_device)
+		return;
+
+	for (reg = 0; reg < 13; reg++) {
+		val = (1 << 15) | (1 << 11) | (1 << 10) | (reg << 5);
+		phy_write(gphy_device, 0x14, val);
+		low = phy_read(gphy_device, 0x15);
+		val = low;
+		pr_info("wol reg_%d 0x%x\n", reg, val);
+	}
+}
+
+static void rockchip_integrated_phy_dump_phy_bist_bank_reg(void)
+{
+	int reg = 0;
+	int val = 0;
+	int low = 0;
+
+	if (!gphy_device)
+		return;
+
+	for (reg = 0; reg < 32; reg++) {
+		val = (1 << 15) | (3 << 11) | (1 << 10) | (reg << 5);
+		phy_write(gphy_device, 0x14, val);
+		low = phy_read(gphy_device, 0x15);
+		val = low;
+		pr_info("bist reg_%d 0x%x\n", reg, val);
+	}
+}
+
+static void rockchip_integrated_phy_dump_phy_dsp_bank_reg(void)
+{
+	int reg = 0;
+	int val = 0;
+	int low = 0;
+
+	if (!gphy_device)
+		return;
+
+	for (reg = 0; reg < 32; reg++) {
+		val = (1 << 15) | (1 << 10) | (reg << 5);
+		phy_write(gphy_device, 0x14, val);
+		low = phy_read(gphy_device, 0x15);
+		val = low;
+		pr_info("dsp reg_%d 0x%x\n", reg, val);
+	}
+}
+
+static void rockchip_integrated_phy_phy_read_priv_reg(int bank, int reg)
+{
+	int val = 0;
+	int low = 0;
+
+	if (!gphy_device)
+		return;
+
+	switch (bank) {
+	case 0: /* analog and DSP reg bank */
+		val = (1 << 15) | (1 << 10) | (reg << 5);
+		phy_write(gphy_device, 0x14, val);
+		low = phy_read(gphy_device, 0x15);
+		val = low;
+		pr_info("read dsp reg_%d 0x%x\n", reg, val);
+		break;
+
+	case 1: /* WOL register bank */
+		val = (1 << 15) | (1 << 11) | (1 << 10) | (reg << 5);
+		phy_write(gphy_device, 0x14, val);
+		low = phy_read(gphy_device, 0x15);
+		val = low;
+		pr_info("read wol reg_%d 0x%x\n", reg, val);
+		break;
+
+	case 3: /* BIST register bank */
+		val = (1 << 15) | (3 << 11) | (1 << 10) | (reg << 5);
+		phy_write(gphy_device, 0x14, val);
+		low = phy_read(gphy_device, 0x15);
+		val = low;
+		pr_info("read bist reg_%d 0x%x\n", reg, val);
+		break;
+	}
+}
+
+static void rockchip_integrated_phy_phy_write_priv_reg(
+	int bank, int reg, int rval)
+{
+	int val = 0;
+
+	if (!gphy_device)
+		return;
+
+	switch (bank) {
+	case 0: /* analog and DSP reg bank */
+		phy_write(gphy_device, 0x17, rval);
+		val = (1 << 14) | (1 << 10) | reg;
+		phy_write(gphy_device, 0x14, val);
+		pr_info("write dsp reg_%d 0x%x\n", reg, rval);
+		break;
+
+	case 1: /* WOL register bank */
+		phy_write(gphy_device, 0x17, rval);
+		val = (1 << 14) | (1 << 11) | (1 << 10) | reg;
+		phy_write(gphy_device, 0x14, val);
+		pr_info("write wol reg_%d 0x%x\n", reg, rval);
+		break;
+
+	case 3: /* BIST register bank */
+		phy_write(gphy_device, 0x17, rval);
+		val = (1 << 14) | (3 << 11) | (1 << 10) | reg;
+		phy_write(gphy_device, 0x14, val);
+		pr_info("write bist reg_%d 0x%x\n", reg, rval);
+		break;
+	}
+}
+
+static ssize_t rockchip_integrated_phy_set_phy_param(
+			struct device *dev,
+			struct device_attribute *attr,
+			const char *buf, size_t count)
+{
+	int argc;
+	char *buff, *p, *para;
+	char *argv[4];
+	char cmd;
+	int arg1, arg2, arg3, ret;
+
+	buff = kstrdup(buf, GFP_KERNEL);
+	p = buff;
+	for (argc = 0; argc < 4; argc++) {
+		para = strsep(&p, " ");
+		if (!para) {
+			argv[argc] = NULL;
+			continue;
+		}
+		argv[argc] = para;
+	}
+	if (argc < 1 || argc > 4)
+		goto end;
+
+	if (argv[1]) {
+		ret = kstrtoint(argv[1], 0, &arg1);
+		if (ret)
+			pr_debug("kstrtoint failed\n");
+	}
+	if (argv[2]) {
+		ret = kstrtoint(argv[2], 0, &arg2);
+		if (ret)
+			pr_debug("kstrtoint failed\n");
+	}
+	if (argv[3]) {
+		ret = kstrtoint(argv[3], 0, &arg3);
+		if (ret)
+			pr_debug("kstrtoint failed\n");
+	}
+
+	cmd = argv[0][0];
+	switch (cmd) {
+	case 'R':
+		rockchip_integrated_phy_phy_read_priv_reg(arg1, arg2);
+		break;
+	case 'W':
+		rockchip_integrated_phy_phy_write_priv_reg(arg1, arg2, arg3);
+		break;
+	case 'd':
+		rockchip_integrated_phy_dump_phy_dsp_bank_reg();
+		break;
+	case 'w':
+		rockchip_integrated_phy_dump_phy_wol_bank_reg();
+		break;
+	case 'b':
+		rockchip_integrated_phy_dump_phy_bist_bank_reg();
+		break;
+	case 'r':
+		if (gphy_device && gphy_device->drv->soft_reset)
+			gphy_device->drv->soft_reset(gphy_device);
+		break;
+	default:
+		goto end;
+	}
+
+	return count;
+
+end:
+	kfree(buff);
+	return 0;
+}
+#endif
+
 static struct device_attribute phy_reg_attrs[] = {
-	__ATTR(phy_reg, S_IRUGO | S_IWUSR, show_phy_reg, set_phy_reg),
-	__ATTR(phy_regValue, S_IRUGO | S_IWUSR, show_phy_regValue, set_phy_regValue)
+	__ATTR(phy_reg, 0644, show_phy_reg, set_phy_reg),
+	__ATTR(phy_regValue, 0644, show_phy_regValue, set_phy_regValue),
+#ifdef CONFIG_ROCKCHIP_PHY
+	__ATTR(phy_param, 0200, NULL, rockchip_integrated_phy_set_phy_param),
+#endif
 };
 
 int gmac_create_sysfs(struct phy_device * phy_dev) {
 	int r;
 	int t;
+
+#ifdef CONFIG_ROCKCHIP_PHY
+	gphy_device = phy_dev;
+#endif
 
 	dev_set_drvdata(&phy_dev->dev, phy_dev);
 	for (t = 0; t < ARRAY_SIZE(phy_reg_attrs); t++) {
@@ -989,27 +1151,6 @@ static void macphy_led_work(struct work_struct *work)
 	}
 }
 
-static int rk322x_phy_adjust(struct phy_device *phydev) {
-	// disable auto MDIX
-	int resv1 = phy_read(phydev, 17);
-	printk("resv1 = %x\n", resv1);
-	phy_write(phydev, 17, resv1 & 0x3F);
-
-	// enable access to Analog and DSP register bank
-	phy_write(phydev, 20, 0x400);
-	phy_write(phydev, 20, 0x0);
-	phy_write(phydev, 20, 0x400);
-
-	// adjust TXAMP
-	phy_write(phydev, 23, 0xb);    // default is 0x8, set to 0xb
-	phy_write(phydev, 20, 0x4418);
-//	phy_write(phydev, 20, 0x8700);
-
-	// disable access to Analog and DSP register bank
-	phy_write(phydev, 20, 0x0);
-	return 0;
-}
-
 static void phy_resume_work(struct work_struct *work)
 {
 	struct bsp_priv *bsp_priv =
@@ -1040,7 +1181,6 @@ static int stmmac_init_phy(struct net_device *dev)
 	struct bsp_priv *bsp_priv = priv->plat->bsp_priv;
 	priv->oldlink = 0;
 	priv->speed = 0;
-	priv->oldspeed = 0;
 	priv->oldduplex = -1;
 
 	if (priv->plat->phy_bus_name)
@@ -1088,7 +1228,6 @@ static int stmmac_init_phy(struct net_device *dev)
 	if ((bsp_priv->chip == RK322X_GMAC ||
 	     bsp_priv->chip == RK322XH_GMAC) &&
 	    (bsp_priv->internal_phy)) {
-		rk322x_phy_adjust(phydev);
 		if (gpio_is_valid(bsp_priv->led_io))
 			/* LED off */
 			gpio_direction_output(bsp_priv->led_io,
@@ -3226,12 +3365,6 @@ int stmmac_resume(struct net_device *ndev)
 
 	if (priv->phydev)
 		phy_start(priv->phydev);
-
-	if ((bsp_priv->chip == RK322X_GMAC ||
-	     bsp_priv->chip == RK322XH_GMAC) &&
-	    (bsp_priv->internal_phy)) {
-		rk322x_phy_adjust(priv->phydev);
-	}
 
 	if ((bsp_priv->chip == RK322X_GMAC ||
 	     bsp_priv->chip == RK322XH_GMAC) &&
