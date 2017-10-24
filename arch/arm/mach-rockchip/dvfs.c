@@ -46,9 +46,15 @@ struct regulator *vdd_gpu_regulator;
 static DEFINE_MUTEX(temp_limit_mutex);
 static int cpu_target_temp;
 static bool temp_limit_4k;
+static int lkg_adjust_temp;
 
 static int dvfs_get_rate_range(struct dvfs_node *clk_dvfs_node);
 static void dvfs_temp_unlimit_4k(void);
+
+static int virt_temp_for_tempctrl(int temp)
+{
+	return temp + lkg_adjust_temp;
+}
 
 static int dvfs_get_temp(int chn)
 {
@@ -72,6 +78,8 @@ static int dvfs_get_temp(int chn)
 #else
 	temp = rockchip_tsadc_get_temp(chn, 0);
 #endif
+	if (ROCKCHIP_PM_POLICY_PERFORMANCE == rockchip_pm_get_policy())
+		temp = virt_temp_for_tempctrl(temp);
 
 	return temp;
 }
@@ -2652,6 +2660,9 @@ static int dvfs_node_parse_dt(struct device_node *np,
 	of_property_read_u32_index(np, "temp-limit-enable", 0,
 				   &dvfs_node->temp_limit_enable);
 	if (dvfs_node->temp_limit_enable) {
+		int tmp[2];
+		int leakage = rockchip_get_leakage(dvfs_node->channel);
+
 		of_property_read_u32_index(np, "min_temp_limit",
 					   0, &dvfs_node->min_temp_limit);
 		dvfs_node->min_temp_limit *= 1000;
@@ -2662,6 +2673,12 @@ static int dvfs_node_parse_dt(struct device_node *np,
 					   0, &dvfs_node->target_temp);
 		of_property_read_u32_index(np, "offline-temp",
 					   0, &dvfs_node->offline_temp);
+		ret = of_property_read_u32_array(np, "lkg-adjust-temp",
+					   tmp, ARRAY_SIZE(tmp));
+		if (!ret)
+			if (leakage >= tmp[0])
+				lkg_adjust_temp = tmp[1];
+
 		pr_info("target-temp:%d\n", dvfs_node->target_temp);
 		ret = of_property_read_string(np, "offline-cpus", &buf);
 		if (!ret)
