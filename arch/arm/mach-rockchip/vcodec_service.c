@@ -2586,12 +2586,23 @@ static void vcodec_set_freq_rk322xh(struct vpu_service_info *pservice,
 				    struct vpu_reg *reg)
 {
 	if (pservice->dev_id == VCODEC_DEVICE_ID_RKVDEC) {
-		if (reg->reg[1] & 0x00800000)
-			rkvdec_set_clk(500 * MHZ, 250 * MHZ,
-				       400 * MHZ, -1);
-		else
-			rkvdec_set_clk(500 * MHZ, 300 * MHZ,
-				       400 * MHZ, -1);
+		if (reg->reg[1] & 0x00800000) {
+			if (rkv_dec_get_fmt(reg->reg) == FMT_H264D) {
+				rkvdec_set_clk(400 * MHZ, 250 * MHZ,
+						400 * MHZ, -1);
+			} else {
+				rkvdec_set_clk(500 * MHZ, 250 * MHZ,
+						400 * MHZ, -1);
+			}
+		} else {
+			if (rkv_dec_get_fmt(reg->reg) == FMT_H264D) {
+				rkvdec_set_clk(400 * MHZ, 300 * MHZ,
+						400 * MHZ, -1);
+			} else {
+				rkvdec_set_clk(500 * MHZ, 300 * MHZ,
+						400 * MHZ, -1);
+			}
+		}
 	}
 }
 
