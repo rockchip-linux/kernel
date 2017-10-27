@@ -411,6 +411,40 @@
 						>;
 				};
 			};
+			pd_isp {
+				clk_isp_dvfs_table: clk_isp {
+					operating-points = <
+						/* KHz    uV */
+						400000 975000
+						480000 1025000
+						594000 1100000
+						>;
+					skip_adjusting_volt = <1>;
+					lkg_adjust_volt_en = <1>;
+					channel = <0>;
+					def_table_lkg = <6>;
+					min_adjust_freq = <300000>;
+					lkg_adjust_volt_table = <
+						/*lkg(mA)  volt(uV)*/
+						60         25000
+						>;
+					status = "disabled";
+				};
+			};
+			pd_venc {
+				clk_venc_dvfs_table: clk_venc_core {
+					operating-points = <
+						/* KHz    uV */
+						300000 975000
+						400000 1025000
+						480000 1100000
+						>;
+					skip_adjusting_volt = <1>;
+					lkg_adjust_volt_en = <0>;
+					channel = <0>;
+					status = "disabled";
+				};
+			};
 		};
 	};
 
