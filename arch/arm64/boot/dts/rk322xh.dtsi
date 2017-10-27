@@ -464,6 +464,11 @@
 			rockchip,ion_heap = <4>;
 			reg = <0x00000000 0x00000000>; /* 0MB */
 		};
+		ion_drm: rockchip,ion-heap@5 { /* DRM HEAP */
+			compatible = "rockchip,ion-heap";
+			rockchip,ion_heap = <5>;
+			reg = <0x00000000 0x00000000>; /* 0MB */
+		};
 		rockchip,ion-heap@0 { /* VMALLOC HEAP */
 			compatible = "rockchip,ion-heap";
 			rockchip,ion_heap = <0>;
