@@ -161,6 +161,7 @@ void rockchip_gem_free_object(struct drm_gem_object *obj)
 	rockchip_gem_free_buf(rk_obj);
 	if (obj->import_attach)
 		drm_prime_gem_destroy(obj, NULL);
+	drm_gem_object_release(&rk_obj->base);
 
 	kfree(rk_obj);
 }
