@@ -138,6 +138,11 @@ LIST_HEAD(rk_clks);
 #define RKCLK_FIXED_FACTOR_TYPE	(1 << 6)
 #define RKCLK_PD_TYPE		(1 << 7)
 
+void rkclk_cpuclk_div_setting(int div)
+{
+	if (cpu_is_rk312x())
+		cru_writel((0x001f0000 | (div - 1)), RK3036_CRU_CLKSELS_CON(0));
+}
 
 static int rkclk_init_muxinfo(struct device_node *np, void __iomem *addr)
 {

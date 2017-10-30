@@ -236,13 +236,6 @@ int rk816_set_bits(struct rk816 *rk8xx, u8 reg, u8 mask, u8 val)
 		mutex_unlock(&rk8xx->io_lock);
 		return ret;
 	}
-	ret = rk816_i2c_read(rk8xx, reg, 1, &tmp);
-	if (ret < 0) {
-		mutex_unlock(&rk8xx->io_lock);
-		return ret;
-	}
-	RK8xx_DBG("2 reg read 0x%02x -> 0x%02x\n",
-		  (int)reg, (unsigned)tmp & 0xff);
 	mutex_unlock(&rk8xx->io_lock);
 
 	return ret;

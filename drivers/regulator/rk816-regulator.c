@@ -22,6 +22,7 @@
 #include <linux/of_device.h>
 #include <linux/of_gpio.h>
 #include <linux/mfd/rk816.h>
+#include <linux/clk-provider.h>
 
 /* Field Definitions */
 #define RK816_BUCK_VSEL_MASK	0x3f
@@ -297,7 +298,7 @@ static int rk816_dcdc_set_voltage(struct regulator_dev *dev,
 {
 	struct rk816 *rk816 = rdev_get_drvdata(dev);
 	int buck = rdev_get_id(dev) - rk8xx_reg->dcdc1_id;
-	int val, ret = 0;
+	int val, ret = 0, real_val, delay = 100;
 
 	if (buck == 2) {
 		return 0;
@@ -306,8 +307,25 @@ static int rk816_dcdc_set_voltage(struct regulator_dev *dev,
 		if (val < 0)
 			return val;
 
-		ret = rk816_set_bits(rk816, dev->desc->vsel_reg,
-				     dev->desc->vsel_mask, val);
+		if (buck == 0) {
+			if (min_uV > 1000000)
+				rkclk_cpuclk_div_setting(4);
+			else
+				rkclk_cpuclk_div_setting(2);
+			do {
+				ret = rk816_set_bits(rk816, dev->desc->vsel_reg,
+						     dev->desc->vsel_mask, val);
+				real_val =
+				rk816_reg_read(rk816,
+					       dev->desc->vsel_reg)
+				&  dev->desc->vsel_mask;
+				delay--;
+			} while ((val != real_val) && (delay > 0));
+			rkclk_cpuclk_div_setting(1);
+		} else {
+			ret = rk816_set_bits(rk816, dev->desc->vsel_reg,
+					     dev->desc->vsel_mask, val);
+		}
 	}
 
 	if (ret < 0)
