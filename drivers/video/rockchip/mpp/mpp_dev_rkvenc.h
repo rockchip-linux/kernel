@@ -161,6 +161,7 @@ struct rockchip_rkvenc_dev {
 	struct clk *aclk;
 	struct clk *hclk;
 	struct clk *core;
+	struct dvfs_node *dvfs_core;
 	/* in MHZ unit, -1 for the init, 0 for keep the current */
 	int next_clock_rate;
 

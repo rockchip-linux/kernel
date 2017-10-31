@@ -14,6 +14,8 @@
  *
  */
 
+#include <dt-bindings/clock/rk_system_status.h>
+
 #include <linux/clk.h>
 #include <linux/compiler.h>
 #include <linux/delay.h>
@@ -22,6 +24,8 @@
 #include <linux/uaccess.h>
 #include <linux/rockchip_ion.h>
 #include <linux/reset.h>
+#include <linux/rockchip/common.h>
+#include <linux/rockchip/dvfs.h>
 #include <linux/rockchip/pmu.h>
 
 #include "mpp_service.h"
@@ -351,7 +355,19 @@ static int mpp_rkenc_freq_adjust(struct rockchip_mpp_dev *mpp)
 	struct rkvenc_ctx *ctx =
 		to_rkvenc_ctx(mpp_srv_get_current_ctx(mpp->srv));
 
-	if (enc->core && enc->next_clock_rate) {
+	if (!enc->core)
+		return 0;
+
+	if (enc->dvfs_core &&
+	    (rockchip_get_system_status() & SYS_STATUS_LOW_POWER)) {
+		u32 rate = DEFAULT_FREQ * MHZ;
+
+		if (dvfs_clk_get_rate(enc->dvfs_core) > rate)
+			dvfs_clk_set_rate(enc->dvfs_core, rate);
+		return 0;
+	}
+
+	if (enc->next_clock_rate) {
 		if (enc->next_clock_rate == -1) {
 			int i, row;
 			int mb_total = 0;
@@ -387,7 +403,11 @@ static int mpp_rkenc_freq_adjust(struct rockchip_mpp_dev *mpp)
 				}
 			}
 		}
-		clk_set_rate(enc->core, enc->next_clock_rate * MHZ);
+		if (enc->dvfs_core)
+			dvfs_clk_set_rate(enc->dvfs_core,
+					  enc->next_clock_rate * MHZ);
+		else
+			clk_set_rate(enc->core, enc->next_clock_rate * MHZ);
 		enc->next_clock_rate = 0;
 	}
 
@@ -745,8 +765,12 @@ static void rockchip_mpp_rkvenc_power_on(struct rockchip_mpp_dev *mpp)
 		clk_prepare_enable(enc->aclk);
 	if (enc->hclk)
 		clk_prepare_enable(enc->hclk);
-	if (enc->core)
+	if (enc->dvfs_core) {
+		clk_enable_dvfs(enc->dvfs_core);
+		dvfs_clk_prepare_enable(enc->dvfs_core);
+	} else if (enc->core) {
 		clk_prepare_enable(enc->core);
+	}
 
 	/*
 	 * Because hw cannot reset status fully in all its modules, we make a
@@ -759,8 +783,12 @@ static void rockchip_mpp_rkvenc_power_off(struct rockchip_mpp_dev *mpp)
 {
 	struct rockchip_rkvenc_dev *enc = to_rkvenc_dev(mpp);
 
-	if (enc->core)
+	if (enc->dvfs_core) {
+		dvfs_clk_disable_unprepare(enc->dvfs_core);
+		clk_disable_dvfs(enc->dvfs_core);
+	} else if (enc->core) {
 		clk_disable_unprepare(enc->core);
+	}
 	if (enc->hclk)
 		clk_disable_unprepare(enc->hclk);
 	if (enc->aclk)
@@ -835,6 +863,11 @@ static int rockchip_mpp_rkvenc_probe(struct rockchip_mpp_dev *mpp)
 	if (IS_ERR_OR_NULL(enc->core)) {
 		dev_err(mpp->dev, "failed on clk_get core\n");
 		goto fail;
+	}
+	enc->dvfs_core = clk_get_dvfs_node("clk_venc_core");
+	if (IS_ERR_OR_NULL(enc->dvfs_core)) {
+		dev_dbg(mpp->dev, "without dvfs node");
+		enc->dvfs_core = NULL;
 	}
 
 	rockchip_mpp_rkvenc_reset_init(mpp);
