@@ -67,29 +67,36 @@ struct nand_info {
 	u8 max_ecc_bits;
 	u8 QE_address;
 	u8 QE_bits;
+
+	u8 spare_offs_1;
+	u8 spare_offs_2;
 };
 
 static struct nand_info spi_nand_tbl[] = {
 	/* TC58CVG0S0HxAIx */
-	{0x98C2, 4, 64, 1, 1024, 0x13, 0x10, 0x03, 0x02, 0x6B, 0x02, 0xD8, 0x00, 18, 8, 0xB0, 0XFF},
+	{0x98C2, 4, 64, 1, 1024, 0x13, 0x10, 0x03, 0x02, 0x6B, 0x02, 0xD8, 0x00, 18, 8, 0xB0, 0XFF, 4, 8},
 	/* TC58CVG1S0HxAIx */
-	{0x98CB, 4, 64, 2, 1024, 0x13, 0x10, 0x03, 0x02, 0x6B, 0x02, 0xD8, 0x00, 19, 8, 0xB0, 0XFF},
+	{0x98CB, 4, 64, 2, 1024, 0x13, 0x10, 0x03, 0x02, 0x6B, 0x02, 0xD8, 0x00, 19, 8, 0xB0, 0XFF, 4, 8},
 	/* MX35LF1GE4AB */
-	{0xC212, 4, 64, 1, 1024, 0x13, 0x10, 0x03, 0x02, 0x6B, 0x32, 0xD8, 0x0C, 18, 4, 0xB0, 0},
+	{0xC212, 4, 64, 1, 1024, 0x13, 0x10, 0x03, 0x02, 0x6B, 0x32, 0xD8, 0x0C, 18, 4, 0xB0, 0, 4, 8},
 	/* MX35LF2GE4AB */
-	{0xC222, 4, 64, 2, 1024, 0x13, 0x10, 0x03, 0x02, 0x6B, 0x32, 0xD8, 0x0C, 19, 4, 0xB0, 0},
+	{0xC222, 4, 64, 2, 1024, 0x13, 0x10, 0x03, 0x02, 0x6B, 0x32, 0xD8, 0x0C, 19, 4, 0xB0, 0, 4, 8},
 	/* GD5F1GQ4UAYIG */
-	{0xC8F1, 4, 64, 1, 1024, 0x13, 0x10, 0x03, 0x02, 0x6B, 0x32, 0xD8, 0x0C, 18, 4, 0xB0, 0},
+	{0xC8F1, 4, 64, 1, 1024, 0x13, 0x10, 0x03, 0x02, 0x6B, 0x32, 0xD8, 0x0C, 18, 4, 0xB0, 0, 4, 8},
 	/* GD5F2GQ40BY2GR */
-	{0xC8D2, 4, 64, 1, 1024, 0x13, 0x10, 0x03, 0x02, 0x6B, 0x32, 0xD8, 0x0C, 18, 4, 0xB0, 0},
+	{0xC8D2, 4, 64, 1, 1024, 0x13, 0x10, 0x03, 0x02, 0x6B, 0x32, 0xD8, 0x0C, 18, 4, 0xB0, 0, 4, 8},
 	/* MT29F1G01ZAC */
-	{0x2C12, 4, 64, 1, 1024, 0x13, 0x10, 0x03, 0x02, 0x6B, 0x32, 0xD8, 0x00, 18, 4, 0xB0, 0},
+	{0x2C12, 4, 64, 1, 1024, 0x13, 0x10, 0x03, 0x02, 0x6B, 0x32, 0xD8, 0x00, 18, 4, 0xB0, 0, 4, 8},
 	/* GD5F1GQ4U */
-	{0xC8B1, 4, 64, 1, 1024, 0x13, 0x10, 0x03, 0x02, 0x6B, 0x32, 0xD8, 0x0C, 18, 4, 0xB0, 0},
+	{0xC8B1, 4, 64, 1, 1024, 0x13, 0x10, 0x03, 0x02, 0x6B, 0x32, 0xD8, 0x0C, 18, 4, 0xB0, 0, 4, 8},
 	/* GD5F2GQ4U */
-	{0xC8B2, 4, 64, 2, 1024, 0x13, 0x10, 0x03, 0x02, 0x6B, 0x32, 0xD8, 0x0C, 19, 4, 0xB0, 0},
+	{0xC8B2, 4, 64, 2, 1024, 0x13, 0x10, 0x03, 0x02, 0x6B, 0x32, 0xD8, 0x0C, 19, 4, 0xB0, 0, 4, 8},
 	/* GD5F1GQ4U */
-	{0xC8D1, 4, 64, 1, 1024, 0x13, 0x10, 0x03, 0x02, 0x6B, 0x32, 0xD8, 0x0C, 18, 4, 0xB0, 0},
+	{0xC8D1, 4, 64, 1, 1024, 0x13, 0x10, 0x03, 0x02, 0x6B, 0x32, 0xD8, 0x0C, 18, 4, 0xB0, 0, 4, 8},
+	/* IS37SML01G1 */
+	{0xC821, 4, 64, 1, 1024, 0x13, 0x10, 0x03, 0x02, 0x6B, 0x32, 0xD8, 0x00, 18, 4, 0xB0, 0XFF, 8, 12},
+	/* W25N01GV */
+	{0xEFAA, 4, 64, 1, 1024, 0x13, 0x10, 0x03, 0x02, 0x6B, 0x32, 0xD8, 0x0C, 18, 1, 0xFF, 0XFF, 4, 20},
 };
 
 static u8 id_byte[8];
@@ -117,6 +124,23 @@ static int sfc_nand_write_en(void)
 	sfcmd.d32 = 0;
 	sfcmd.b.cmd = CMD_WRITE_EN;
 	ret = sfc_request(sfcmd.d32, 0, 0, NULL);
+	return ret;
+}
+
+static int sfc_nand_rw_preset(void)
+{
+	int ret;
+	union SFCCTRL_DATA sfctrl;
+	union SFCCMD_DATA sfcmd;
+	u8 status = 0xFF;
+
+	sfcmd.d32 = 0;
+	sfcmd.b.cmd = 0;
+	sfcmd.b.datasize = 1;
+	sfcmd.b.rw = SFC_WRITE;
+
+	sfctrl.b.datalines = 2;
+	ret = sfc_request(sfcmd.d32, sfctrl.d32, 0, &status);
 	return ret;
 }
 
@@ -201,13 +225,18 @@ u32 sfc_nand_prog_page(u8 cs, u32 addr, u32 *p_data, u32 *p_spare)
 	union SFCCTRL_DATA sfctrl;
 	u8 status;
 	u32 data_sz = 2048;
-	u32 spare_sz = 8;
-	u32 spare_offs = 4;
+	u32 spare_offs_1 = p_nand_info->spare_offs_1;
+	u32 spare_offs_2 = p_nand_info->spare_offs_2;
 
 	memcpy(gp_page_buf, p_data, data_sz);
-	memcpy(gp_page_buf + (data_sz + spare_offs) / 4, p_spare, spare_sz);
+	gp_page_buf[(data_sz + spare_offs_1) / 4] = p_spare[0];
+	gp_page_buf[(data_sz + spare_offs_2) / 4] = p_spare[1];
 
 	sfc_nand_write_en();
+	if (sfc_nand_dev.prog_lines == DATA_LINES_X4 &&
+	    p_nand_info->QE_address == 0xFF)
+		sfc_nand_rw_preset();
+
 	sfcmd.d32 = 0;
 	sfcmd.b.cmd = sfc_nand_dev.page_prog_cmd;
 	sfcmd.b.addrbits = SFC_ADDR_XBITS;
@@ -216,7 +245,6 @@ u32 sfc_nand_prog_page(u8 cs, u32 addr, u32 *p_data, u32 *p_spare)
 
 	sfctrl.d32 = 0;
 	sfctrl.b.datalines = sfc_nand_dev.prog_lines;
-	sfctrl.b.enbledma = 1;
 	sfctrl.b.addrbits = 16;
 	ret = sfc_request(sfcmd.d32, sfctrl.d32, 0, gp_page_buf);
 
@@ -242,8 +270,8 @@ u32 sfc_nand_read_page(u8 cs, u32 addr, u32 *p_data, u32 *p_spare)
 	u8 status;
 	u8 ecc;
 	u32 data_sz = 2048;
-	u32 spare_sz = 8;
-	u32 spare_offs = 4;
+	u32 spare_offs_1 = p_nand_info->spare_offs_1;
+	u32 spare_offs_2 = p_nand_info->spare_offs_2;
 
 	sfcmd.d32 = 0;
 	sfcmd.b.cmd = p_nand_info->page_read_cmd;
@@ -253,18 +281,23 @@ u32 sfc_nand_read_page(u8 cs, u32 addr, u32 *p_data, u32 *p_spare)
 
 	ret = sfc_nand_wait_busy(&status, 1000 * 1000);
 	ecc = (status >> 4) & 0x03;
+	if (sfc_nand_dev.read_lines == DATA_LINES_X4 &&
+	    p_nand_info->QE_address == 0xFF)
+		sfc_nand_rw_preset();
+
 	sfcmd.d32 = 0;
 	sfcmd.b.cmd = sfc_nand_dev.page_read_cmd;
 	sfcmd.b.datasize = SFC_NAND_PAGE_MAX_SIZE;
 	sfcmd.b.addrbits = SFC_ADDR_24BITS;
 	sfctrl.d32 = 0;
 	sfctrl.b.datalines = sfc_nand_dev.read_lines;
-	sfctrl.b.enbledma = 1;
 
 	memset(gp_page_buf, 0, SFC_NAND_PAGE_MAX_SIZE);
 	ret = sfc_request(sfcmd.d32, sfctrl.d32, 0, gp_page_buf);
+
 	memcpy(p_data, gp_page_buf, data_sz);
-	memcpy(p_spare, gp_page_buf + (data_sz + spare_offs) / 4, spare_sz);
+	p_spare[0] = gp_page_buf[(data_sz + spare_offs_1) / 4];
+	p_spare[1] = gp_page_buf[(data_sz + spare_offs_2) / 4];
 	if (ret != SFC_OK)
 		return SFC_NAND_ECC_ERROR;
 
@@ -277,12 +310,16 @@ u32 sfc_nand_read_page(u8 cs, u32 addr, u32 *p_data, u32 *p_spare)
 	 * 3, Bit errors were detected and corrected. Bit error count exceed
 	 *	the bit flip detection threshold
 	 */
-	if ((ecc == 0) || (ecc == 1))
-		ret = SFC_NAND_ECC_OK;
-	else if (ecc == 3)
+	if (ecc == 0 || ecc == 1) {
+		if (ecc == 1 && p_nand_info->max_ecc_bits == 1)
+			ret = SFC_NAND_ECC_REFRESH;
+		else
+			ret = SFC_NAND_ECC_OK;
+	} else if (ecc == 3) {
 		ret = SFC_NAND_ECC_REFRESH;
-	else
+	} else {
 		ret = SFC_NAND_ECC_ERROR;
+	}
 
 	if (ret != SFC_NAND_ECC_OK) {
 		PRINT_E("sfc_nand_read_page[0x%x], ret=0x%x\n", addr, ret);
