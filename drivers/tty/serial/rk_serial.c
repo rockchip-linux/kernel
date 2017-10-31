@@ -1394,40 +1394,40 @@ serial_rk_set_termios(struct uart_port *port, struct ktermios *termios,
 	* the buadrate error is under -+2%, if not warn user to
 	* modify the pll frequency.
 	*/
+	if (up->port.line != DBG_PORT) {
+		clk_set_rate(up->clk, up->max_clk);
+		rate = clk_get_rate(up->clk);
 
-	clk_set_rate(up->clk, up->max_clk);
-	rate = clk_get_rate(up->clk);
-
-	if (rate >= (baud * 16 * 20)) {
-		/*
-		 * Fractional frequency division
-		 */
-		if ((baud * 16) <= 4000000) {
+		if (rate >= (baud * 16 * 20)) {
 			/*
-			 * Make sure uart sclk is high enough
+			 * Fractional frequency division
 			 */
-			quot = 4000000 / baud / 16;
-			rate = baud * 16 * quot;
+			if ((baud * 16) <= 4000000) {
+				/*
+				 * Make sure uart sclk is high enough
+				 */
+				quot = 4000000 / baud / 16;
+				rate = baud * 16 * quot;
+			} else {
+				rate = baud * 16;
+			}
+			clk_set_rate(up->clk, rate);
+
 		} else {
-			rate = baud * 16;
-		}
-		clk_set_rate(up->clk, rate);
+			/*
+			 * Integer frequency division
+			 */
+			div = rate / 16 / baud;
+			baud_temp = rate / 16 / div;
 
-	} else {
-		/*
-		 * Integer frequency division
-		 */
-		div = rate / 16 / baud;
-		baud_temp = rate / 16 / div;
+			if ((baud_temp - baud) * 1000 / baud > 20) {
+				baud_temp = rate / 16 / (div + 1);
 
-		if ((baud_temp - baud) * 1000 / baud > 20) {
-			baud_temp = rate / 16 / (div + 1);
-
-			if ((baud - baud_temp) * 1000 / baud > 20)
-				dev_info(up->port.dev, "please modify the uart clk to fit the buad rate\n");
+				if ((baud - baud_temp) * 1000 / baud > 20)
+					dev_info(up->port.dev, "please modify the uart clk to fit the buad rate\n");
+			}
 		}
 	}
-
 	up->port.uartclk = clk_get_rate(up->clk);
 
 	quot = uart_get_divisor(port, baud);
