@@ -354,6 +354,11 @@ static int rockchip_bl_cpufreq_init(struct cpufreq_policy *policy)
 	if (cpu0_err)
 		return cpu0_err;
 
+	if (!freq_table[cur_cluster]) {
+		FREQ_ERR("No freq table for cluster %d\n", cur_cluster);
+		return -EINVAL;
+	}
+
 	/* set freq min max */
 	cpufreq_frequency_table_cpuinfo(policy, freq_table[cur_cluster]);
 	/* sys nod */
