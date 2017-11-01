@@ -122,7 +122,7 @@ static int dsp_dev_trace(struct dsp_dev *dev, u32 index)
 				DSP_TRACE_SLOT_SIZE * slot_index;
 
 		if (*trace_slot)
-			pr_info("##dsp##: %s\n", trace_slot);
+			pr_info("##dsp##: %s", trace_slot);
 
 		*trace_slot = 0;
 		trace_start++;
@@ -206,6 +206,8 @@ static void dsp_dev_work_timeout(struct work_struct *work)
 	struct dsp_work *timeout_work = dev->running_work;
 
 	dsp_debug_enter();
+
+	dsp_dev_trace(dev, dev->trace_index + DSP_TRACE_SLOT_COUNT);
 
 	dev->client->device_pause(dev->client);
 
