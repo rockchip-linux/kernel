@@ -53,7 +53,8 @@ static int mali_runtime_suspend(struct device *device)
 		ret = device->driver->pm->runtime_suspend(device);
 	}
 
-	mali_platform_power_mode_change(MALI_POWER_MODE_LIGHT_SLEEP);
+	if (!ret)
+		mali_platform_power_mode_change(MALI_POWER_MODE_LIGHT_SLEEP);
 
 	return ret;
 }
@@ -91,8 +92,6 @@ static int mali_runtime_idle(struct device *device)
 			return ret;
 	}
 
-	pm_runtime_suspend(device);
-
 	return 0;
 }
 #endif
@@ -110,7 +109,8 @@ static int mali_os_suspend(struct device *device)
 		ret = device->driver->pm->suspend(device);
 	}
 
-	mali_platform_power_mode_change(MALI_POWER_MODE_DEEP_SLEEP);
+	if (!ret)
+		mali_platform_power_mode_change(MALI_POWER_MODE_DEEP_SLEEP);
 
 	return ret;
 }
