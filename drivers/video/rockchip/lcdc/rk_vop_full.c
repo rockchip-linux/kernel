@@ -4112,6 +4112,39 @@ static ssize_t vop_show_hdr2sdr_yn(struct rk_lcdc_driver *dev_drv, char *buf)
 	return strlen(buf);
 }
 
+static int vop_wait_frame_start(struct rk_lcdc_driver *dev_drv, int enable)
+{
+	u32 line_scane_num, vsync_end, vact_end, interlace_mode;
+	struct vop_device *vop_dev =
+		container_of(dev_drv, struct vop_device, driver);
+
+	if (unlikely(!vop_dev->clk_on)) {
+		dev_info(dev_drv->dev, "clk_on = %d\n", vop_dev->clk_on);
+		return 0;
+	}
+	interlace_mode = vop_read_bit(vop_dev, DSP_CTRL0, V_DSP_INTERLACE(0));
+	if (interlace_mode) {
+		vsync_end = vop_readl(vop_dev, DSP_VS_ST_END_F1) &
+					MASK(DSP_VS_END_F1);
+		vact_end = vop_readl(vop_dev, DSP_VACT_ST_END_F1) &
+					MASK(DSP_VACT_END_F1);
+	} else {
+		vsync_end = vop_readl(vop_dev, DSP_VTOTAL_VS_END) &
+					MASK(DSP_VS_END);
+		vact_end = vop_readl(vop_dev, DSP_VACT_ST_END) &
+					MASK(DSP_VACT_END);
+	}
+	while (1) {
+		line_scane_num = vop_readl(vop_dev, VOP_STATUS) &
+					MASK(DSP_VCNT);
+		if ((line_scane_num > vsync_end) &&
+		    (line_scane_num <= vact_end - 100))
+			break;
+	}
+
+	return 0;
+}
+
 static struct rk_lcdc_drv_ops lcdc_drv_ops = {
 	.open = vop_open,
 	.win_direct_en = vop_win_direct_en,
@@ -4150,6 +4183,7 @@ static struct rk_lcdc_drv_ops lcdc_drv_ops = {
 	.set_hdr_st2084oetf = vop_set_hdr_st2084oetf,
 	.set_hdr2sdr_yn = vop_set_hdr2sdr_yn,
 	.show_hdr2sdr_yn = vop_show_hdr2sdr_yn,
+	.wait_frame_start = vop_wait_frame_start,
 };
 
 static irqreturn_t vop_isr(int irq, void *dev_id)
