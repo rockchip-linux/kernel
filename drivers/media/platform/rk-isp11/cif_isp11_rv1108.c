@@ -25,6 +25,7 @@
 #include <linux/kernel.h>
 #include <linux/platform_device.h>
 #include <linux/platform_data/rk_isp11_platform.h>
+#include <linux/rockchip/dvfs.h>
 #include "cif_isp11_pltfrm.h"
 #include "cif_isp11_regs.h"
 
@@ -79,6 +80,8 @@ struct cif_isp11_clk_rst_rv1108 {
 	struct clk *sclk_mipidsi_24m;
 	struct clk *pclk_mipi_csi;
 	struct clk *pclk_isp_in;
+
+	struct dvfs_node *dvfs_core;
 
 	struct reset_control *isp_rst;
 	struct reset_control *isp_niu_arst;
@@ -223,7 +226,12 @@ static int soc_clk_enable(void)
 
 	clk_prepare_enable(clk_rst->hclk_isp);
 	clk_prepare_enable(clk_rst->aclk_isp);
-	clk_prepare_enable(clk_rst->sclk_isp);
+	if (clk_rst->dvfs_core) {
+		clk_enable_dvfs(clk_rst->dvfs_core);
+		dvfs_clk_prepare_enable(clk_rst->dvfs_core);
+	} else {
+		clk_prepare_enable(clk_rst->sclk_isp);
+	}
 	clk_prepare_enable(clk_rst->sclk_isp_jpe);
 	clk_prepare_enable(clk_rst->sclk_mipidsi_24m);
 	clk_prepare_enable(clk_rst->pclk_isp_in);
@@ -248,7 +256,12 @@ static int soc_clk_disable(void)
 
 	clk_disable_unprepare(clk_rst->hclk_isp);
 	clk_disable_unprepare(clk_rst->aclk_isp);
-	clk_disable_unprepare(clk_rst->sclk_isp);
+	if (clk_rst->dvfs_core) {
+		dvfs_clk_disable_unprepare(clk_rst->dvfs_core);
+		clk_disable_dvfs(clk_rst->dvfs_core);
+	} else {
+		clk_disable_unprepare(clk_rst->sclk_isp);
+	}
 	clk_disable_unprepare(clk_rst->sclk_isp_jpe);
 	clk_disable_unprepare(clk_rst->sclk_mipidsi_24m);
 	clk_disable_unprepare(clk_rst->pclk_isp_in);
@@ -273,8 +286,13 @@ static int soc_isp_clk_cfg(int *data_rate)
 		pr_warn("rv1108 isp signoff is 360MHz, using %dMHz maybe unstable\n",
 			isp_clk[i]);
 
-	clk_set_rate(clk_rst->sclk_isp, isp_clk[i] * 1000000);
+	if (clk_rst->dvfs_core)
+		dvfs_clk_set_rate(clk_rst->dvfs_core, isp_clk[i] * 1000000);
+	else
+		clk_set_rate(clk_rst->sclk_isp, isp_clk[i] * 1000000);
+
 	clk_set_rate(clk_rst->sclk_isp_jpe, isp_clk[i] * 1000000);
+	printk(KERN_INFO "%s: set isp clk = %dMHz\n", __func__, isp_clk[i]);
 	return 0;
 }
 
@@ -337,6 +355,14 @@ static int soc_init(struct pltfrm_soc_init_para *init)
 	clk_rst->isp_niu_hrst = devm_reset_control_get(&pdev->dev, "rst_isp_niu_h");
 	clk_rst->isp_hrst = devm_reset_control_get(&pdev->dev, "rst_isp_h");
 
+	clk_rst->dvfs_core = clk_get_dvfs_node("clk_isp");
+	if (IS_ERR_OR_NULL(clk_rst->dvfs_core)) {
+		dev_info(&pdev->dev, "without dvfs node\n");
+		clk_rst->dvfs_core = NULL;
+	} else {
+		dev_info(&pdev->dev, "with dvfs node\n");
+	}
+
 	if (IS_ERR_OR_NULL(clk_rst->aclk_isp) ||
 		IS_ERR_OR_NULL(clk_rst->hclk_isp) ||
 		IS_ERR_OR_NULL(clk_rst->sclk_isp) ||
@@ -353,8 +379,6 @@ static int soc_init(struct pltfrm_soc_init_para *init)
 		goto clk_failed;
 	}
 
-	clk_set_rate(clk_rst->sclk_isp, 300000000);
-	clk_set_rate(clk_rst->sclk_isp_jpe, 300000000);
 	reset_control_deassert(clk_rst->isp_rst);
 
 	rv1108->isp_base = init->isp_base;

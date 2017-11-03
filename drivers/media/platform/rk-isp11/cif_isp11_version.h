@@ -143,9 +143,13 @@
 *v0.2.e:
 *1. Remove check of AE window;
 * The check function will move to CameraHal;
+*
+*v0.2.f:
+*1. Add support for dvfs;
+*
 */
 
-#define CONFIG_CIFISP11_DRIVER_VERSION KERNEL_VERSION(0, 2, 0xe)
+#define CONFIG_CIFISP11_DRIVER_VERSION KERNEL_VERSION(0, 2, 0xf)
 
 
 #endif
