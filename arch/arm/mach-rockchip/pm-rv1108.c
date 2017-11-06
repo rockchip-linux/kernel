@@ -94,19 +94,6 @@ void PIE_FUNC(sram_printch)(char byte)
 	uart_printch(byte);
 }
 
-static void pll_udelay(u32 udelay)
-{
-#if 0
-	u32 mode;
-
-	mode = cru_readl(RV1108_CRU_MODE_CON);
-	cru_writel(RV1108_PLL_MODE_SLOW(APLL_ID), RV1108_CRU_MODE_CON);
-	rkpm_udelay(udelay * 5);
-	cru_writel(mode | (RV1108_PLL_MODE_MSK(APLL_ID) << 16),
-		   RV1108_CRU_MODE_CON);
-#endif
-}
-
 #define RV1108_PLL_MODE_SLOW	((0x0 << 8) | \
 		(0x1 << (16 + RV1108_PLLS_MODE_OFFSET)))
 
@@ -130,12 +117,8 @@ static void pm_pll_wait_lock(u32 pll_idx)
 	dsb();
 	dsb();
 	while (delay > 0) {
-		if ((cru_readl(RV1108_PLL_CONS(pll_idx, 2)) & (0x1 << 31))) {
-			rkpm_ddr_printascii("lock-pll-ok:");
-			rkpm_ddr_printhex(pll_idx);
-			rkpm_ddr_printch('\n');
+		if (cru_readl(RV1108_PLL_CONS(pll_idx, 2)) & (0x1 << 31))
 			break;
-		}
 		delay--;
 	}
 	if (delay == 0) {
@@ -146,7 +129,7 @@ static void pm_pll_wait_lock(u32 pll_idx)
 }
 
 /* #define RV1108_SOFT_PD_PLL */
-#define RV1108_SUSPEND_DEBUG
+
 static u32 cru_plls_con_save[END_PLL_ID][6];
 
 static inline void plls_suspend(u32 pll_id)
@@ -211,24 +194,6 @@ static void pm_plls_suspend(void)
 	cru_writel(CRU_W_MSK_SETBITS(0, 0, 0x1f),
 		   RV1108_CRU_CLKSELS_CON(11));
 #endif
-#ifdef RV1108_SUSPEND_DEBUG
-{
-	int i;
-	enum rk_plls_id plls_id;
-
-	rkpm_ddr_printascii("\npll_sus_dump\n");
-	for (plls_id = APLL_ID; plls_id < END_PLL_ID; plls_id++) {
-		for (i = 0; i < 6; i++) {
-			rkpm_ddr_printhex(
-				cru_readl(RV1108_PLL_CONS(plls_id, i))
-			);
-			rkpm_ddr_printch(' ');
-		}
-		rkpm_ddr_printch('\n');
-	}
-	rkpm_ddr_printascii("pllsus1\n");
-}
-#endif
 }
 
 static void pm_plls_resume(void)
@@ -249,24 +214,6 @@ static void pm_plls_resume(void)
 
 	plls_resume(APLL_ID);
 	plls_resume(GPLL_ID);
-
-#ifdef RV1108_SUSPEND_DEBUG
-{
-	int i;
-	enum rk_plls_id plls_id;
-
-	rkpm_ddr_printascii("pllres_dump:\n");
-	for (plls_id = APLL_ID; plls_id < END_PLL_ID; plls_id++) {
-		for (i = 0; i < 6; i++) {
-			rkpm_ddr_printhex(
-				cru_readl(RV1108_PLL_CONS(plls_id, i))
-			);
-			rkpm_ddr_printch(' ');
-		}
-		rkpm_ddr_printch('\n');
-	}
-}
-#endif
 }
 
 #ifdef CONFIG_RK_LAST_LOG
@@ -284,7 +231,6 @@ static void  ddr_printch(char byte)
 		rk_last_log_text(&byte, 1);
 	}
 #endif
-	pll_udelay(2);
 }
 
 static noinline void rv1108_pm_dump_inten(void)
@@ -678,47 +624,7 @@ static u32 rkpm_slp_mode_set(u32 ctrbits)
 	pmu_writel(pwr_mode_common_config, RV1108_PMU_PWRMODE_COMMON_CON);
 	rv1108_core_powermode = pwr_mode_core_config;
 	rv1108_common_powermode = pwr_mode_common_config;
-#ifdef RV1108_SUSPEND_DEBUG
-	rkpm_ddr_printascii("pwr_mode_core_config:");
-	rkpm_ddr_printhex(pmu_readl(RV1108_PMU_PWRMODE_CORE_CON));
-	rkpm_ddr_printch('\n');
-	rkpm_ddr_printascii("pwr_mode_common_config:");
-	rkpm_ddr_printhex(pmu_readl(RV1108_PMU_PWRMODE_COMMON_CON));
-	rkpm_ddr_printch('\n');
-	rkpm_ddr_printascii("pmu_sft_con:");
-	rkpm_ddr_printhex(pmu_readl(RV1108_PMU_SFT_CON));
-	rkpm_ddr_printascii("\n");
-	rkpm_ddr_printascii("grf_soc_con0:");
-	rkpm_ddr_printhex(pmu_grf_readl(RV1108_PMUGRF_SOC_CON0));
-	rkpm_ddr_printascii("\n");
-	rkpm_ddr_printascii("\nPMUGRF_GPIO_BMUX_:");
-	rkpm_ddr_printhex(pmu_grf_readl(0x04));
-	rkpm_ddr_printascii(" ");
-	rkpm_ddr_printhex(gpio_pmic_sleep_mode);
-	rkpm_ddr_printascii("\n");
-	rkpm_ddr_printascii("\nPMUGRF_DLL_CON0:");
-	rkpm_ddr_printhex(pmu_grf_readl(RV1108_PMUGRF_DLL_CON0));
-	rkpm_ddr_printascii("\n");
-	rkpm_ddr_printascii("PMUGRF_DLL_CON1:");
-	rkpm_ddr_printhex(pmu_grf_readl(RV1108_PMUGRF_DLL_CON1));
-	rkpm_ddr_printascii("\n");
-	rkpm_ddr_printascii("PMUGRF_DLL__STATUS0:");
-	rkpm_ddr_printhex(pmu_grf_readl(RV1108_PMUGRF_DLL_STATUS0));
-	rkpm_ddr_printascii("\n");
-	rkpm_ddr_printascii("PMUGRF_DLL__STATUS1:");
-	rkpm_ddr_printhex(pmu_grf_readl(RV1108_PMUGRF_DLL_STATUS1));
-	rkpm_ddr_printascii("\n");
-	rkpm_ddr_printascii("fast_boot_addr:");
-	rkpm_ddr_printhex(pmu_grf_readl(RV1108_PMUGRF_FAST_BOOT_ADDR));
-	rkpm_ddr_printch('\n');
-	rkpm_ddr_printascii("PMU_STABLE_CNT:");
-	rkpm_ddr_printhex(pmu_readl(RV1108_PMU_STABLE_CNT));
-	rkpm_ddr_printch('\n');
-	rkpm_ddr_printascii("RV1108_CRU_MISC_CON:");
-	rkpm_ddr_printhex(cru_readl(RV1108_CRU_MISC_CON));
-	rkpm_ddr_printascii("\n");
-	rkpm_ddr_printascii("sleep set end\n");
-#endif
+
 	return 1;
 }
 
@@ -849,64 +755,6 @@ static void rkpm_save_setting(u32 ctrbits)
 		}
 	}
 }
-
-#if 0
-#define UART_DLL	(0)	/* Out: Divisor Latch Low */
-#define UART_DLM	(1)	/* Out: Divisor Latch High */
-#define UART_IER	(1)
-#define UART_FCR	(2)
-#define UART_LCR	(3)	/* Out: Line Control Register */
-#define UART_MCR	(4)
-
-static void slp1108_uartdbg_resume(void)
-{
-	void __iomem *b_addr = RK_DEBUG_UART_VIRT;
-	u32 pclk_id = RV1108_CLKGATE_PCLK_UART2;
-	u32 clk_id = (RV1108_CLKGATE_UART0_SRC + 2 * 2);
-	u32 gate_reg[2];
-	u32 rfl_reg, lsr_reg;
-
-	gate_reg[0] = cru_readl(RV1108_CRU_GATEID_CONS(pclk_id));
-	gate_reg[1] = cru_readl(RV1108_CRU_GATEID_CONS(clk_id));
-
-	RV1108_CRU_UNGATING_OPS(pclk_id);
-	grf_writel(0x00f00000, 0x00c0);
-
-	do {
-		cru_writel(CRU_W_MSK_SETBITS(0x2, 8, 0x3),
-			   RV1108_CRU_CLKSELS_CON(16));
-		cru_writel(0 | CRU_W_MSK_SETBITS(1, 9, 0x1),
-			   RV1108_CRU_SOFTRSTS_CON(2));
-		dsb();
-		dsb();
-		rkpm_udelay(10);
-		cru_writel(0 | CRU_W_MSK_SETBITS(0, 9, 0x1),
-			   RV1108_CRU_SOFTRSTS_CON(2));
-
-		reg_writel(0x83, b_addr + UART_LCR * 4);
-
-		reg_writel(0xd, b_addr + UART_DLL * 4);
-		reg_writel(0x0, b_addr + UART_DLM * 4);
-
-		reg_writel(0x3, b_addr + UART_LCR * 4);
-
-		reg_writel(0x5, b_addr + UART_IER * 4);
-		reg_writel(0xc1, b_addr + UART_FCR * 4);
-
-		rfl_reg = readl_relaxed(b_addr + 0x84);
-		lsr_reg = readl_relaxed(b_addr + 0x14);
-	} while ((rfl_reg & 0x1f) || (lsr_reg & 0xf));
-
-	cru_writel(CRU_W_MSK_SETBITS(0x2, 8, 0x3), RV1108_CRU_CLKSELS_CON(16));
-
-	grf_writel(0x00f000a0, 0x00c0);
-
-	cru_writel(gate_reg[0] | CRU_W_MSK(pclk_id % 16, 0x1),
-		   RV1108_CRU_GATEID_CONS(pclk_id));
-	cru_writel(gate_reg[1] | CRU_W_MSK(clk_id % 16, 0x1),
-		   RV1108_CRU_GATEID_CONS(clk_id));
-}
-#endif
 
 static void rkpm_gic_dist_resume(u32 *context)
 {
@@ -1086,27 +934,6 @@ static void rkpm_save_setting_resume(void)
 	}
 }
 
-#if 0
-static inline void rkpm_peri_resume_first(u32 power_mode)
-{
-	slp1108_uartdbg_resume();
-}
-
-extern void rk_sram_suspend(void);
-
-static void rkpm_slp_setting(void)
-{
-	rk_usb_power_down();
-	rk_sram_suspend();
-}
-
-static void rkpm_save_setting_resume_first(void)
-{
-	rk_usb_power_up();
-	rkpm_peri_resume_first(pmu_pwrmode_con);
-}
-#endif
-
 static u32 clk_ungt_msk[RV1108_CRU_CLKGATES_CON_CNT];
 
 static u32 clk_ungt_msk_1[RV1108_CRU_CLKGATES_CON_CNT];
@@ -1124,30 +951,9 @@ static void gtclks_suspend(void)
 
 	for (i = 0; i < RV1108_CRU_CLKGATES_CON_CNT; i++) {
 		clk_ungt_save[i] = cru_readl(RV1108_CRU_CLKGATES_CON(i));
-#ifdef RV1108_SUSPEND_DEBUG
-		rkpm_ddr_printhex(i);
-		rkpm_ddr_printascii(" mask: ");
-		rkpm_ddr_printhex(clk_ungt_msk[i]);
-		rkpm_ddr_printascii(" save: ");
-		rkpm_ddr_printhex(cru_readl(RV1108_CRU_CLKGATES_CON(i)));
-#endif
 		CLK_MSK_UNGATING(clk_ungt_msk[i], RV1108_CRU_CLKGATES_CON(i));
-
 		/* cru_writel(0xffff0000, RV1108_CRU_CLKGATES_CON(i)); */
-#ifdef RV1108_SUSPEND_DEBUG
-		rkpm_ddr_printascii(" ~msk: ");
-		rkpm_ddr_printhex(((~clk_ungt_msk[i]) << 16) | 0xffff);
-		rkpm_ddr_printascii(" after gating: ");
-		rkpm_ddr_printhex(cru_readl(RV1108_CRU_CLKGATES_CON(i)));
-		rkpm_ddr_printch('\n');
-#endif
 	}
-#if 0
-	CLK_MSK_UNGATING(0x1400, RV1108_CRU_CLKGATES_CON(9));
-	CLK_MSK_UNGATING(0x183e, RV1108_CRU_CLKGATES_CON(14));
-	CLK_MSK_UNGATING(0x7b, RV1108_CRU_CLKGATES_CON(6));
-	CLK_MSK_UNGATING(0x1e4c, RV1108_CRU_CLKGATES_CON(7));
-#endif
 }
 
 static void gtclks_resume(void)
@@ -1157,15 +963,6 @@ static void gtclks_resume(void)
 	for (i = 0; i < RV1108_CRU_CLKGATES_CON_CNT; i++)
 		cru_writel(clk_ungt_save[i] | 0xffff0000,
 			   RV1108_CRU_CLKGATES_CON(i));
-#if 0
-	rkpm_ddr_printascii("resume gating:\n");
-	for (i = 0; i < RV1108_CRU_CLKGATES_CON_CNT; i++) {
-		rkpm_ddr_printhex(i);
-		rkpm_ddr_printch(':');
-		rkpm_ddr_printhex(cru_readl(RV1108_CRU_CLKGATES_CON(i)));
-		rkpm_ddr_printch('\n');
-	}
-#endif
 }
 
 static void clks_gating_suspend_init(void)
@@ -1177,17 +974,7 @@ static void clks_gating_suspend_init(void)
 				       RV1108_CRU_CLKGATES_CON_CNT) ==
 				       RV1108_CRU_CLKGATES_CON(0)) {
 		rkpm_set_ops_gtclks(gtclks_suspend, gtclks_resume);
-		pr_info("%s:init ok\n", __func__);
 	}
-#ifdef RV1108_SUSPEND_DEBUG
-{
-	int i;
-
-	pr_info("%s:ungt_mask:\n", __func__);
-	for (i = 0; i < RV1108_CRU_CLKGATES_CON_CNT; i++)
-		pr_info("%d:0x%x\n", i, clk_ungt_msk[i]);
-}
-#endif
 }
 
 static void pmic_sleep_gpio_get_dts_info(struct device_node *parent)
@@ -1255,10 +1042,7 @@ static void __init rv1108_suspend_init(void)
 	rkpm_set_ops_plls(pm_plls_suspend, pm_plls_resume);
 	rkpm_set_ops_save_setting(rkpm_save_setting,
 				  rkpm_save_setting_resume);
-#if 0
-	rkpm_set_ops_regs_sleep(rkpm_slp_setting,
-				rkpm_save_setting_resume_first);
-#endif
+
 	rkpm_set_ops_regs_pread(reg_pread);
 	rkpm_set_ops_printch(ddr_printch);
 }
