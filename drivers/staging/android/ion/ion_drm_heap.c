@@ -140,29 +140,6 @@ static void ion_drm_heap_unmap_dma(struct ion_heap *heap,
 	return;
 }
 
-static int ion_drm_heap_mmap(struct ion_heap *mapper,
-                        struct ion_buffer *buffer,
-                        struct vm_area_struct *vma)
-{
-        pr_info("%s: mmaping from secure heap %s disallowed\n",
-                __func__, mapper->name);
-        return -EINVAL;
-}
-
-static void *ion_drm_heap_map_kernel(struct ion_heap *heap,
-                                struct ion_buffer *buffer)
-{
-        pr_info("%s: kernel mapping from secure heap %s disallowed\n",
-                __func__, heap->name);
-        return NULL;
-}
-
-static void ion_drm_heap_unmap_kernel(struct ion_heap *heap,
-                                 struct ion_buffer *buffer)
-{
-        return;
-}
-
 #ifdef CONFIG_ROCKCHIP_IOMMU
 static int ion_drm_heap_map_iommu(struct ion_buffer *buffer,
 				struct device *iommu_dev,
@@ -206,9 +183,6 @@ static struct ion_heap_ops drm_heap_ops = {
 	.phys = ion_drm_heap_phys,
 	.map_dma = ion_drm_heap_map_dma,
 	.unmap_dma = ion_drm_heap_unmap_dma,
-	.map_user = ion_drm_heap_mmap,
-	.map_kernel = ion_drm_heap_map_kernel,
-	.unmap_kernel = ion_drm_heap_unmap_kernel,
 #ifdef CONFIG_ROCKCHIP_IOMMU
 	.map_iommu = ion_drm_heap_map_iommu,
 	.unmap_iommu = ion_drm_heap_unmap_iommu,
