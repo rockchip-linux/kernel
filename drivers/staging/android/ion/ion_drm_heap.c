@@ -192,7 +192,6 @@ static struct ion_heap_ops drm_heap_ops = {
 struct ion_heap *ion_drm_heap_create(struct ion_platform_heap *heap_data)
 {
 	struct ion_drm_heap *drm_heap;
-	int ret;
 
 	struct page *page;
 	size_t size;
@@ -203,10 +202,6 @@ struct ion_heap *ion_drm_heap_create(struct ion_platform_heap *heap_data)
 	printk("%s: %zx@%lx\n", __func__, size, heap_data->base);
 
 	ion_pages_sync_for_device(NULL, page, size, DMA_BIDIRECTIONAL);
-
-	ret = ion_heap_pages_zero(page, size, pgprot_writecombine(PAGE_KERNEL));
-	if (ret)
-		return ERR_PTR(ret);
 
 	drm_heap = kzalloc(sizeof(struct ion_drm_heap), GFP_KERNEL);
 	if (!drm_heap)
