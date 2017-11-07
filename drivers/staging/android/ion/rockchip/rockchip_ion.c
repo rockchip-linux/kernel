@@ -290,23 +290,15 @@ static int rockchip_ion_probe(struct platform_device *pdev)
 		struct ion_platform_heap *heap_data = &pdata->heaps[i];
 
 		heaps[i] = ion_heap_create(heap_data);
-		if (IS_ERR_OR_NULL(heaps[i])) {
-			err = PTR_ERR(heaps[i]);
-			goto err;
-		}
+		if (IS_ERR_OR_NULL(heaps[i]))
+			continue;
+
 		ion_device_add_heap(idev, heaps[i]);
 	}
 	platform_set_drvdata(pdev, idev);
 
 	pr_info("Rockchip ion module is successfully loaded (%s)\n", ROCKCHIP_ION_VERSION);
 	return 0;
-err:
-	for (i = 0; i < num_heaps; i++) {
-		if (heaps[i])
-		ion_heap_destroy(heaps[i]);
-	}
-	kfree(heaps);
-	return err;
 }
 
 static int rockchip_ion_remove(struct platform_device *pdev)
@@ -315,8 +307,11 @@ static int rockchip_ion_remove(struct platform_device *pdev)
 	int i;
 
 	ion_device_destroy(idev);
-	for (i = 0; i < num_heaps; i++)
+	for (i = 0; i < num_heaps; i++) {
+		if (IS_ERR_OR_NULL(heaps[i]))
+			continue;
 		ion_heap_destroy(heaps[i]);
+	}
 	kfree(heaps);
 	return 0;
 }
