@@ -423,6 +423,10 @@ static inline bool rockchip_iommu_raw_reset(void __iomem *base)
 	unsigned int ret;
 	unsigned int grf_value;
 
+	if (base == rk312x_vop_mmu_base &&
+	    (of_machine_is_compatible("rockchip,rk3228h") ||
+	     of_machine_is_compatible("rockchip,rk3328")))
+		return true;
 	__raw_writel(0xCAFEBABE, base + IOMMU_REGISTER_DTE_ADDR);
 
 	if (base != rk312x_vop_mmu_base) {
@@ -1172,7 +1176,9 @@ static int rockchip_iommu_probe(struct platform_device *pdev)
 			&res->start, i, data->res_bases[i]);
 
 		if (strstr(data->dbgname, "vop") &&
-		    (soc_is_rk3128() || soc_is_rk3126())) {
+		    (soc_is_rk3128() || soc_is_rk3126() ||
+		     of_machine_is_compatible("rockchip,rk3228h") ||
+		     of_machine_is_compatible("rockchip,rk3328"))) {
 			rk312x_vop_mmu_base = data->res_bases[0];
 			dev_dbg(dev, "rk312x_vop_mmu_base = %p\n",
 				rk312x_vop_mmu_base);
