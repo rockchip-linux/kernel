@@ -4468,7 +4468,7 @@ int rk_fb_register(struct rk_lcdc_driver *dev_drv,
 			if (dev_drv->ops->post_dspbuf) {
 				dev_drv->ops->post_dspbuf(dev_drv,
 					main_fbi->fix.smem_start +
-					(mirror ? logo_len : 0),
+					(mirror ? (logo_len - 4 * xvir) : 0),
 					rk_fb_data_fmt(0, bits),
 					width, height, xvir,
 					ymirror);
@@ -4536,7 +4536,7 @@ int rk_fb_register(struct rk_lcdc_driver *dev_drv,
 			mirror = y_mirror || dev_drv->cur_screen->y_mirror;
 			dev_drv->ops->post_dspbuf(dev_drv,
 					main_fbi->fix.smem_start +
-					(mirror ? logo_len : 0),
+					(mirror ? (logo_len - 4 * xvir) : 0),
 					format,	xact, yact,
 					xvir,
 					y_mirror);
