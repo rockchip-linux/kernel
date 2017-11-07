@@ -1112,6 +1112,9 @@ static inline u64 val_mask(int val, u64 msk, int shift)
 #define  V_READ_BUS_ERROR(x)                    VAL_MASK(x, 1, 1)
 #define MMU_AUTO_GATING                 0x00003f24
 #define  V_MMU_AUTO_GATING(x)                   VAL_MASK(x, 1, 0)
+#define  V_MMU_CFG_MODE(x)			VAL_MASK(x, 1, 1)
+#define MMU_CFG_DONE			0x00003f28
+#define  V_REG_ROLAD_MMU_EN(x)			VAL_MASK(x, 1, 0)
 
 #define  INTR_FS			BIT(0)
 #define  INTR_FS_NEW			BIT(1)

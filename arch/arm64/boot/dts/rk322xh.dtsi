@@ -1005,7 +1005,7 @@
 		compatible = "rockchip,rk322xh-lcdc";
 		rockchip,prop = <PRMRY>;
 		rockchip,iommu-enabled = <1>;
-		reg = <0x0 0xff370000 0x0 0x2000>;
+		reg = <0x0 0xff370000 0x0 0x3f30>;
 		interrupts = <GIC_SPI 32 IRQ_TYPE_LEVEL_HIGH>;
 		clocks = <&aclk_vop>,
 			 <&dclk_vop>,

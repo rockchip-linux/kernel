@@ -726,6 +726,7 @@ static int vop_pre_init(struct rk_lcdc_driver *dev_drv)
 	vop_msk_reg(vop_dev, HDR2SDR_DST_RANGE, val);
 	val = V_NORMFACCGAMMA(5120);
 	vop_msk_reg(vop_dev, HDR2SDR_NORMFACCGAMMA, val);
+	vop_msk_reg(vop_dev, MMU_AUTO_GATING, V_MMU_CFG_MODE(0));
 
 	vop_cfg_done(vop_dev);
 	vop_dev->pre_init = true;
@@ -1786,6 +1787,7 @@ static int vop_mmu_en(struct rk_lcdc_driver *dev_drv)
 			}
 			vop_dev->iommu_status = 1;
 			rockchip_iovmm_activate(dev_drv->dev);
+			vop_cfg_done(vop_dev);
 		}
 	}
 	return 0;
@@ -2015,7 +2017,6 @@ static int vop_post_dspbuf(struct rk_lcdc_driver *dev_drv, u32 rgb_mst,
 
 	vop_writel(vop_dev, WIN0_YRGB_MST, rgb_mst);
 
-	vop_cfg_done(vop_dev);
 
 	if (format == RGB888)
 		win->area[0].format = BGR888;
@@ -3103,6 +3104,7 @@ static int vop_early_suspend(struct rk_lcdc_driver *dev_drv)
 		if (dev_drv->iommu_enabled && dev_drv->mmu_dev) {
 			mdelay(50);
 			rockchip_iovmm_deactivate(dev_drv->dev);
+			vop_cfg_done(vop_dev);
 		}
 
 		spin_unlock(&vop_dev->reg_lock);
@@ -3142,6 +3144,7 @@ static int vop_early_resume(struct rk_lcdc_driver *dev_drv)
 		 */
 		mdelay(50);
 		rockchip_iovmm_activate(dev_drv->dev);
+		vop_cfg_done(vop_dev);
 	}
 
 	dev_drv->suspend_flag = 0;
