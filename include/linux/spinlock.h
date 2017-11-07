@@ -355,6 +355,12 @@ static __always_inline void spin_unlock(spinlock_t *lock)
 	raw_spin_unlock(&lock->rlock);
 }
 
+static __always_inline int spin_unlock_no_deboost(spinlock_t *lock)
+{
+	raw_spin_unlock(&lock->rlock);
+	return 0;
+}
+
 static __always_inline void spin_unlock_bh(spinlock_t *lock)
 {
 	raw_spin_unlock_bh(&lock->rlock);

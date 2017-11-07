@@ -345,6 +345,7 @@ static netdev_tx_t is_ip_tx_frame(struct sk_buff *skb, struct net_device *dev)
 
 static netdev_tx_t vrf_xmit(struct sk_buff *skb, struct net_device *dev)
 {
+	int len = skb->len;
 	netdev_tx_t ret = is_ip_tx_frame(skb, dev);
 
 	if (likely(ret == NET_XMIT_SUCCESS || ret == NET_XMIT_CN)) {
@@ -352,7 +353,7 @@ static netdev_tx_t vrf_xmit(struct sk_buff *skb, struct net_device *dev)
 
 		u64_stats_update_begin(&dstats->syncp);
 		dstats->tx_pkts++;
-		dstats->tx_bytes += skb->len;
+		dstats->tx_bytes += len;
 		u64_stats_update_end(&dstats->syncp);
 	} else {
 		this_cpu_inc(dev->dstats->tx_drps);
@@ -732,15 +733,15 @@ static int vrf_del_slave(struct net_device *dev, struct net_device *port_dev)
 static void vrf_dev_uninit(struct net_device *dev)
 {
 	struct net_vrf *vrf = netdev_priv(dev);
-	struct slave_queue *queue = &vrf->queue;
-	struct list_head *head = &queue->all_slaves;
-	struct slave *slave, *next;
+//	struct slave_queue *queue = &vrf->queue;
+//	struct list_head *head = &queue->all_slaves;
+//	struct slave *slave, *next;
 
 	vrf_rtable_destroy(vrf);
 	vrf_rt6_destroy(vrf);
 
-	list_for_each_entry_safe(slave, next, head, list)
-		vrf_del_slave(dev, slave->dev);
+//	list_for_each_entry_safe(slave, next, head, list)
+//		vrf_del_slave(dev, slave->dev);
 
 	free_percpu(dev->dstats);
 	dev->dstats = NULL;
@@ -913,6 +914,14 @@ static int vrf_validate(struct nlattr *tb[], struct nlattr *data[])
 
 static void vrf_dellink(struct net_device *dev, struct list_head *head)
 {
+	struct net_vrf *vrf = netdev_priv(dev);
+	struct slave_queue *queue = &vrf->queue;
+	struct list_head *all_slaves = &queue->all_slaves;
+	struct slave *slave, *next;
+
+	list_for_each_entry_safe(slave, next, all_slaves, list)
+		vrf_del_slave(dev, slave->dev);
+
 	unregister_netdevice_queue(dev, head);
 }
 

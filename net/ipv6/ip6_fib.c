@@ -290,8 +290,7 @@ struct dst_entry *fib6_rule_lookup(struct net *net, struct flowi6 *fl6,
 	struct rt6_info *rt;
 
 	rt = lookup(net, net->ipv6.fib6_main_tbl, fl6, flags);
-	if (rt->rt6i_flags & RTF_REJECT &&
-	    rt->dst.error == -EAGAIN) {
+	if (rt->dst.error == -EAGAIN) {
 		ip6_rt_put(rt);
 		rt = net->ipv6.ip6_null_entry;
 		dst_hold(&rt->dst);
@@ -768,10 +767,7 @@ static int fib6_add_rt2node(struct fib6_node *fn, struct rt6_info *rt,
 				goto next_iter;
 			}
 
-			if (iter->dst.dev == rt->dst.dev &&
-			    iter->rt6i_idev == rt->rt6i_idev &&
-			    ipv6_addr_equal(&iter->rt6i_gateway,
-					    &rt->rt6i_gateway)) {
+			if (rt6_duplicate_nexthop(iter, rt)) {
 				if (rt->rt6i_nsiblings)
 					rt->rt6i_nsiblings = 0;
 				if (!(iter->rt6i_flags & RTF_EXPIRES))
@@ -896,6 +892,8 @@ add:
 		}
 		nsiblings = iter->rt6i_nsiblings;
 		fib6_purge_rt(iter, fn, info->nl_net);
+		if (fn->rr_ptr == iter)
+			fn->rr_ptr = NULL;
 		rt6_release(iter);
 
 		if (nsiblings) {
@@ -903,9 +901,13 @@ add:
 			ins = &rt->dst.rt6_next;
 			iter = *ins;
 			while (iter) {
+				if (iter->rt6i_metric > rt->rt6i_metric)
+					break;
 				if (rt6_qualify_for_ecmp(iter)) {
 					*ins = iter->dst.rt6_next;
 					fib6_purge_rt(iter, fn, info->nl_net);
+					if (fn->rr_ptr == iter)
+						fn->rr_ptr = NULL;
 					rt6_release(iter);
 					nsiblings--;
 				} else {
@@ -994,7 +996,7 @@ int fib6_add(struct fib6_node *root, struct rt6_info *rt,
 			/* Create subtree root node */
 			sfn = node_alloc();
 			if (!sfn)
-				goto st_failure;
+				goto failure;
 
 			sfn->leaf = info->nl_net->ipv6.ip6_null_entry;
 			atomic_inc(&info->nl_net->ipv6.ip6_null_entry->rt6i_ref);
@@ -1010,12 +1012,12 @@ int fib6_add(struct fib6_node *root, struct rt6_info *rt,
 
 			if (IS_ERR(sn)) {
 				/* If it is failed, discard just allocated
-				   root, and then (in st_failure) stale node
+				   root, and then (in failure) stale node
 				   in main tree.
 				 */
 				node_free(sfn);
 				err = PTR_ERR(sn);
-				goto st_failure;
+				goto failure;
 			}
 
 			/* Now link new subtree to main tree */
@@ -1029,7 +1031,7 @@ int fib6_add(struct fib6_node *root, struct rt6_info *rt,
 
 			if (IS_ERR(sn)) {
 				err = PTR_ERR(sn);
-				goto st_failure;
+				goto failure;
 			}
 		}
 
@@ -1071,22 +1073,22 @@ out:
 			atomic_inc(&pn->leaf->rt6i_ref);
 		}
 #endif
-		if (!(rt->dst.flags & DST_NOCACHE))
-			dst_free(&rt->dst);
+		goto failure;
 	}
 	return err;
 
-#ifdef CONFIG_IPV6_SUBTREES
-	/* Subtree creation failed, probably main tree node
-	   is orphan. If it is, shoot it.
+failure:
+	/* fn->leaf could be NULL if fn is an intermediate node and we
+	 * failed to add the new route to it in both subtree creation
+	 * failure and fib6_add_rt2node() failure case.
+	 * In both cases, fib6_repair_tree() should be called to fix
+	 * fn->leaf.
 	 */
-st_failure:
 	if (fn && !(fn->fn_flags & (RTN_RTINFO|RTN_ROOT)))
 		fib6_repair_tree(info->nl_net, fn);
 	if (!(rt->dst.flags & DST_NOCACHE))
 		dst_free(&rt->dst);
 	return err;
-#endif
 }
 
 /*

@@ -1012,8 +1012,11 @@ area_found:
 		mutex_unlock(&pcpu_alloc_mutex);
 	}
 
-	if (chunk != pcpu_reserved_chunk)
+	if (chunk != pcpu_reserved_chunk) {
+		spin_lock_irqsave(&pcpu_lock, flags);
 		pcpu_nr_empty_pop_pages -= occ_pages;
+		spin_unlock_irqrestore(&pcpu_lock, flags);
+	}
 
 	if (pcpu_nr_empty_pop_pages < PCPU_EMPTY_POP_PAGES_LOW)
 		pcpu_schedule_balance_work();
@@ -1282,6 +1285,28 @@ void free_percpu(void __percpu *ptr)
 }
 EXPORT_SYMBOL_GPL(free_percpu);
 
+bool __is_kernel_percpu_address(unsigned long addr, unsigned long *can_addr)
+{
+#ifdef CONFIG_SMP
+	const size_t static_size = __per_cpu_end - __per_cpu_start;
+	void __percpu *base = __addr_to_pcpu_ptr(pcpu_base_addr);
+	unsigned int cpu;
+
+	for_each_possible_cpu(cpu) {
+		void *start = per_cpu_ptr(base, cpu);
+		void *va = (void *)addr;
+
+		if (va >= start && va < start + static_size) {
+			if (can_addr)
+				*can_addr = (unsigned long) (va - start);
+			return true;
+		}
+	}
+#endif
+	/* on UP, can't distinguish from other static vars, always false */
+	return false;
+}
+
 /**
  * is_kernel_percpu_address - test whether address is from static percpu area
  * @addr: address to test
@@ -1295,20 +1320,7 @@ EXPORT_SYMBOL_GPL(free_percpu);
  */
 bool is_kernel_percpu_address(unsigned long addr)
 {
-#ifdef CONFIG_SMP
-	const size_t static_size = __per_cpu_end - __per_cpu_start;
-	void __percpu *base = __addr_to_pcpu_ptr(pcpu_base_addr);
-	unsigned int cpu;
-
-	for_each_possible_cpu(cpu) {
-		void *start = per_cpu_ptr(base, cpu);
-
-		if ((void *)addr >= start && (void *)addr < start + static_size)
-			return true;
-        }
-#endif
-	/* on UP, can't distinguish from other static vars, always false */
-	return false;
+	return __is_kernel_percpu_address(addr, NULL);
 }
 
 /**
