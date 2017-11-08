@@ -545,6 +545,8 @@ static void lcdc_read_reg_defalut_cfg(struct vop_device *vop_dev)
 	u32 h_pw_bp = screen->mode.hsync_len + screen->mode.left_margin;
 	u32 V_pw_bp = screen->mode.vsync_len + screen->mode.upper_margin;
 	u32 st_x, st_y;
+	u32 htotal, hsync, hact_st, hact_end;
+	u32 vtotal, vsync, vact_st, vact_end;
 	struct rk_lcdc_win *win0 = vop_dev->driver.win[0];
 
 	spin_lock(&vop_dev->reg_lock);
@@ -602,20 +604,53 @@ static void lcdc_read_reg_defalut_cfg(struct vop_device *vop_dev)
 		case WIN0_CBR_MST:
 			win0->area[0].cbr_start = val;
 			break;
-		case DSP_VACT_ST_END:
+		case DSP_HTOTAL_HS_END:
 			if (support_uboot_display()) {
-				screen->mode.yres =
-					(val & MASK(DSP_VACT_END)) -
-					((val & MASK(DSP_VACT_ST)) >> 16);
-				if (screen->mode.vmode)
-					screen->mode.yres *= 2;
+				htotal = (val & MASK(DSP_HTOTAL)) >> 16;
+				hsync = val & MASK(DSP_HS_END);
 			}
 			break;
 		case DSP_HACT_ST_END:
-			if (support_uboot_display())
-				screen->mode.xres =
-					(val & MASK(DSP_HACT_END)) -
-					((val & MASK(DSP_HACT_ST)) >> 16);
+			if (support_uboot_display()) {
+				hact_st = (val & MASK(DSP_HACT_ST)) >> 16;
+				hact_end = val & MASK(DSP_HACT_END);
+			}
+			break;
+		case DSP_VTOTAL_VS_END:
+			if (support_uboot_display()) {
+				vtotal = (val & MASK(DSP_VTOTAL)) >> 16;
+				vsync = val & MASK(DSP_VS_END);
+			}
+			break;
+		case DSP_VACT_ST_END:
+			if (support_uboot_display()) {
+				vact_st = (val & MASK(DSP_VACT_ST)) >> 16;
+				vact_end = val & MASK(DSP_VACT_END);
+
+				if (screen->mode.vmode) {
+					screen->mode.yres =
+						2 * (vact_end - vact_st);
+					screen->mode.vsync_len = vsync;
+					screen->mode.upper_margin =
+							vact_st - vsync;
+					screen->mode.lower_margin =
+						(vtotal - 1 - screen->mode.yres) / 2 -
+						vact_st;
+				} else {
+					screen->mode.yres =
+							vact_end - vact_st;
+					screen->mode.vsync_len = vsync;
+					screen->mode.upper_margin =
+							vact_st - vsync;
+					screen->mode.lower_margin =
+							vtotal - vact_end;
+				}
+
+				screen->mode.xres = hact_end - hact_st;
+				screen->mode.hsync_len = hsync;
+				screen->mode.left_margin = hact_st - hsync;
+				screen->mode.right_margin = htotal - hact_end;
+			}
 			break;
 		default:
 			break;
