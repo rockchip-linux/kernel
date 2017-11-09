@@ -241,6 +241,16 @@
 		#address-cells = <1>;
 		#size-cells = <0>;
 
+		ion_cma: rockchip,ion-heap@4 { /* CMA HEAP */
+			compatible = "rockchip,ion-heap";
+			rockchip,ion_heap = <4>;
+			reg = <0x00000000 0x00000000>; /* MB */
+		};
+		ion_drm: rockchip,ion-heap@5 { /* DRM HEAP */
+			compatible = "rockchip,ion-heap";
+			rockchip,ion_heap = <5>;
+			reg = <0x00000000 0x00000000>; /* MB */
+		};
 		system_heap: system-heap {
 			compatible = "rockchip,ion-heap";
 			rockchip,ion_heap = <0>;
@@ -337,7 +347,7 @@
 			<&clk_gates15 7>,/*g_hclk_rkvdec_noc*/
 
 			<&clk_gates13 11>,/*g_aclk_rga_noc*/
-			
+
 			<&clk_gates7 15>, /* g_aclk_gpu_noc */
 
 			<&clk_gates13 9>,/*g_aclk_iep_noc*/
