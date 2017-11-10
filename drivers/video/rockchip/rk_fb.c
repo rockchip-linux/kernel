@@ -4500,8 +4500,10 @@ int rk_fb_register(struct rk_lcdc_driver *dev_drv,
 				pr_err("logo size > uboot reserve buffer size\n");
 				return -1;
 			}
+			xvir = ALIGN(xact * rk_fb_pixel_width(format),
+				     1 << 5) >> 5;
 			if (y_mirror)
-				start -= logo_len;
+				start -= (logo_len - xvir * 4);
 
 			align = start % PAGE_SIZE;
 			start -= align;
@@ -4528,8 +4530,6 @@ int rk_fb_register(struct rk_lcdc_driver *dev_drv,
 
 			kfree(pages);
 			vunmap(vaddr);
-			xvir = ALIGN(xact * rk_fb_pixel_width(format),
-				     1 << 5) >> 5;
 			local_irq_save(flags);
 			if (dev_drv->ops->wait_frame_start)
 				dev_drv->ops->wait_frame_start(dev_drv, 0);
