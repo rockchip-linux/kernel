@@ -1220,13 +1220,13 @@ input_next:
 
 	spin_unlock_irqrestore(&speedchange_cpumask_lock, flags);
 
-	delay = usecs_to_jiffies(touchboostpulse_duration_val);
-	dvfs_clk_boost(clk_cpu_dvfs_node,
-		       1000 * touchboost_freq,
-		       delay);
-
-	if (anyboost)
+	if (anyboost) {
+		delay = usecs_to_jiffies(touchboostpulse_duration_val);
+		dvfs_clk_boost(clk_cpu_dvfs_node,
+			       1000 * touchboost_freq,
+			       delay);
 		wake_up_process(speedchange_task);
+	}
 }
 
 static int cpufreq_interactive_input_connect(struct input_handler *handler,
