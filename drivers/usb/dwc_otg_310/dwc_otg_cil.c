@@ -3966,6 +3966,15 @@ void dwc_otg_ep_deactivate(dwc_otg_core_if_t *core_if, dwc_ep_t *ep)
 		}
 	}
 
+	if (ep->type == DWC_OTG_EP_TYPE_ISOC && ep->is_in &&
+	    core_if->delay_en_diepint_nak_quirk) {
+		diepmsk_data_t diepmsk = {.d32 = 0 };
+
+		diepmsk.b.nak = 1;
+		DWC_MODIFY_REG32(&core_if->dev_if->dev_global_regs->diepmsk,
+				 diepmsk.d32, 0);
+	}
+
 	/* Disable the Interrupt for this EP */
 	if (core_if->multiproc_int_enable) {
 		DWC_MODIFY_REG32(&core_if->dev_if->dev_global_regs->deachintmsk,
