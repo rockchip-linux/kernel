@@ -5566,7 +5566,6 @@ static void cif_isp11_vs_work(struct work_struct *work)
 	struct cif_isp11_device *dev = vs_wk->dev;
 	unsigned int v_frame_id;
 
-
 	switch (vs_wk->cmd) {
 	case CIF_ISP11_VS_EXP: {
 		struct cif_isp11_img_src_exp *exp =
@@ -6478,7 +6477,7 @@ int cif_isp11_s_exp(
 	struct cif_isp11_img_src_ctrl  *ctrl_exp_t = NULL, *ctrl_exp_g = NULL;
 	struct cif_isp11_img_src_exp *exp = NULL, *exp_t = NULL, *exp_g = NULL;
 	unsigned long lock_flags;
-	int retval, i;
+	int retval, i, exp_cnt;
 
 	if (!dev->vs_wq)
 		return -ENODEV;
@@ -6501,7 +6500,7 @@ int cif_isp11_s_exp(
 			retval = -ENOMEM;
 			goto failed;
 		}
-		ctrl_exp_t = kmalloc(sizeof(struct cif_isp11_img_src_ctrl), GFP_KERNEL);
+		ctrl_exp_t = kmalloc(sizeof(struct cif_isp11_img_src_ctrl) * 2, GFP_KERNEL);
 		if (!ctrl_exp_t) {
 			retval = -ENOMEM;
 			goto failed;
@@ -6518,9 +6517,15 @@ int cif_isp11_s_exp(
 			goto failed;
 		}
 
+		exp_cnt = 0;
 		for (i = 0; i < exp_ctrl->cnt; i++) {
 			if (exp_ctrl->ctrls[i].id == V4L2_CID_EXPOSURE) {
 				*ctrl_exp_t = exp_ctrl->ctrls[i];
+				exp_cnt++;
+			}
+			if (exp_ctrl->ctrls[i].id == RK_V4L2_CID_VTS) {
+				*(ctrl_exp_t + 1) = exp_ctrl->ctrls[i];
+				exp_cnt++;
 			}
 			if (exp_ctrl->ctrls[i].id == V4L2_CID_GAIN) {
 				*ctrl_exp_g = exp_ctrl->ctrls[i];
@@ -6532,7 +6537,7 @@ int cif_isp11_s_exp(
 		kfree(exp_ctrl->ctrls);
 		exp_ctrl->ctrls = NULL;
 
-		exp_t->exp.cnt = 1;
+		exp_t->exp.cnt = exp_cnt;
 		exp_t->exp.class = exp_ctrl->class;
 		exp_t->exp.ctrls = ctrl_exp_t;
 		exp_g->exp.cnt = 2;

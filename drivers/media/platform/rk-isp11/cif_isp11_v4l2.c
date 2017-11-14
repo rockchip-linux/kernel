@@ -275,6 +275,8 @@ static int cif_isp11_v4l2_cid2cif_isp11_cid(u32 v4l2_cid)
 		return CIF_ISP11_CID_ISO_SENSITIVITY;
 	case RK_V4L2_CID_AUTO_FPS:
 		return CIF_ISP11_CID_AUTO_FPS;
+	case RK_V4L2_CID_VTS:
+		return CIF_ISP11_CID_VTS;
 	case V4L2_CID_BAND_STOP_FILTER:
 		return CIF_ISP11_CID_BAND_STOP_FILTER;
 	default:

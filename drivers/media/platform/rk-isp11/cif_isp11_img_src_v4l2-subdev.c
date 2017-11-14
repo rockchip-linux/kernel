@@ -245,6 +245,8 @@ static int cif_isp11_v4l2_cid2v4l2_cid(u32 cif_isp11_cid)
 		return V4L2_CID_VFLIP;
 	case CIF_ISP11_CID_BAND_STOP_FILTER:
 		return V4L2_CID_BAND_STOP_FILTER;
+	case CIF_ISP11_CID_VTS:
+		return RK_V4L2_CID_VTS;
 	default:
 		cif_isp11_pltfrm_pr_err(NULL,
 			"unknown/unsupported CIF ISP20 ID %d\n",

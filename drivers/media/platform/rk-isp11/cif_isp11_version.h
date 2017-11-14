@@ -147,9 +147,12 @@
 *v0.2.f:
 *1. Add support for dvfs;
 *
+*v0.3.0:
+*1. Set vts with exposure time and gain;
+*
 */
 
-#define CONFIG_CIFISP11_DRIVER_VERSION KERNEL_VERSION(0, 2, 0xf)
+#define CONFIG_CIFISP11_DRIVER_VERSION KERNEL_VERSION(0, 3, 0x0)
 
 
 #endif
