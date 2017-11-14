@@ -201,6 +201,29 @@ static int imx323_auto_adjust_fps(struct imx_camera_module *cam_mod,
 
 /*--------------------------------------------------------------------------*/
 
+static int imx323_set_vts(struct imx_camera_module *cam_mod,
+	u32 vts)
+{
+	int ret = 0;
+
+	if (vts < cam_mod->vts_min)
+		return ret;
+
+	ret = imx_camera_module_write_reg(cam_mod, IMX323_TIMING_VTS_LOW_REG, vts & 0xFF);
+	ret |= imx_camera_module_write_reg(cam_mod, IMX323_TIMING_VTS_HIGH_REG, (vts >> 8) & 0xFF);
+
+	if (IS_ERR_VALUE(ret)) {
+		imx_camera_module_pr_err(cam_mod, "failed with error (%d)\n", ret);
+	} else {
+		imx_camera_module_pr_info(cam_mod, "updated vts = %d,vts_min=%d\n", vts, cam_mod->vts_min);
+		cam_mod->vts_cur = vts;
+	}
+
+	return ret;
+}
+
+/*--------------------------------------------------------------------------*/
+
 static int imx323_write_aec(struct imx_camera_module *cam_mod)
 {
 	int ret = 0;
@@ -253,6 +276,9 @@ static int imx323_write_aec(struct imx_camera_module *cam_mod)
 					IMX323_FETCH_LOW_BYTE_EXP(exp_time)
 					);
 		}
+
+		if (!cam_mod->auto_adjust_fps)
+			ret |= imx323_set_vts(cam_mod, cam_mod->exp_config.vts_value);
 	}
 
 	if (IS_ERR_VALUE(ret))

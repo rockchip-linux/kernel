@@ -39,6 +39,8 @@
 #define XC9080_CAMERA_MODULE_CTRL_UPDT_AUTO_EXP		0x20
 #define XC9080_CAMERA_MODULE_CTRL_UPDT_FOCUS_ABSOLUTE	0x40
 #define XC9080_CAMERA_MODULE_CTRL_UPDT_PRESET_WB	0x80
+#define XC9080_CAMERA_MODULE_CTRL_UPDT_VTS_VALUE	0x100
+
 
 enum xc9080_sub_i2c_bypass_mode {
 	XC9080_SUB_I2C_BYPASS_OFF = 0,
@@ -108,6 +110,7 @@ struct xc9080_camera_module_exp_config {
 	u16 gain_percent;
 	bool auto_gain;
 	enum v4l2_flash_led_mode flash_mode;
+	u32 vts_value;
 };
 
 struct xc9080_camera_module_wb_config {

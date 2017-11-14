@@ -2093,6 +2093,32 @@ static int OV2718_auto_adjust_fps(struct ov_camera_module *cam_mod,
 	return ret;
 }
 
+static int ov2718_set_vts(struct ov_camera_module *cam_mod,
+	u32 vts)
+{
+	int ret = 0;
+
+	if (vts < cam_mod->vts_min)
+		return ret;
+
+	ret = ov_camera_module_write_reg(cam_mod,
+		OV2718_TIMING_VTS_LOW_REG,
+		vts & 0xFF);
+	ret |= ov_camera_module_write_reg(cam_mod,
+		OV2718_TIMING_VTS_HIGH_REG,
+		(vts >> 8) & 0x0F);
+
+	if (IS_ERR_VALUE(ret)) {
+		ov_camera_module_pr_err(cam_mod, "failed with error (%d)\n", ret);
+	} else {
+		ov_camera_module_pr_info(cam_mod,
+			"updated vts = 0x%x,vts_min=0x%x\n", vts, cam_mod->vts_min);
+		cam_mod->vts_cur = vts;
+	}
+
+	return ret;
+}
+
 static void ov2718_gains_update(struct ov_camera_module *cam_mod, int again)
 {
 	static int again_table[8] = {100, 200, 410, 810, 1110, 2210, 4410, 8810};
@@ -2159,6 +2185,8 @@ static int ov2718_write_aec(struct ov_camera_module *cam_mod)
 			(exp_time >> 0) & 0xff);
 
 		ov2718_gains_update(cam_mod, a_gain);
+		if (!cam_mod->auto_adjust_fps)
+			ret |= ov2718_set_vts(cam_mod, cam_mod->exp_config.vts_value);
 		mutex_unlock(&cam_mod->lock);
 	}
 

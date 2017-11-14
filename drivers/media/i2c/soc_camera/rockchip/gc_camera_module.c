@@ -819,6 +819,10 @@ int gc_camera_module_s_ext_ctrls(
 			ctrl_updt = GC_CAMERA_MODULE_CTRL_UPDT_GAIN;
 			cam_mod->exp_config.gain_percent = ctrl->value;
 			break;
+		case RK_V4L2_CID_VTS:
+			ctrl_updt = GC_CAMERA_MODULE_CTRL_UPDT_VTS_VALUE;
+			cam_mod->exp_config.vts_value = ctrl->value;
+			break;
 		case V4L2_CID_FLASH_LED_MODE:
 			ret = flash_light_ctrl(sd, cam_mod, ctrl->value);
 			if (ret == 0) {

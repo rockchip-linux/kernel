@@ -192,6 +192,30 @@ static int ar0330cs_auto_adjust_fps(struct aptina_camera_module *cam_mod,
 
 /*--------------------------------------------------------------------------*/
 
+static int ar0330cs_set_vts(struct aptina_camera_module *cam_mod,
+	u32 vts)
+{
+	int ret = 0;
+
+	if (vts < cam_mod->vts_min)
+		return ret;
+
+	ret = aptina_camera_module_write_reg(cam_mod,
+		AR0330CS_TIMING_VTS_REG,
+		vts & 0xFFFF);
+
+	if (IS_ERR_VALUE(ret)) {
+		aptina_camera_module_pr_err(cam_mod, "failed with error (%d)\n", ret);
+	} else {
+		aptina_camera_module_pr_info(cam_mod, "updated vts = %d,vts_min=%d\n", vts, cam_mod->vts_min);
+		cam_mod->vts_cur = vts;
+	}
+
+	return ret;
+}
+
+/*--------------------------------------------------------------------------*/
+
 static int ar0330cs_write_aec(struct aptina_camera_module *cam_mod)
 {
 	int ret = 0;
@@ -244,6 +268,9 @@ static int ar0330cs_write_aec(struct aptina_camera_module *cam_mod)
 		ret |= aptina_camera_module_write_reg(cam_mod,
 			AR0330CS_AEC_PK_LONG_EXPO_REG,
 			AR0330CS_FETCH_BYTE_EXP(exp_time));
+
+		if (!cam_mod->auto_adjust_fps)
+			ret |= ar0330cs_set_vts(cam_mod, cam_mod->exp_config.vts_value);
 
 		/* GROUPED_PARAMETER_HOLD*/
 		ret |= aptina_camera_module_write_reg(cam_mod,

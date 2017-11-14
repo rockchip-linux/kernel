@@ -377,6 +377,61 @@ err:
 	return ret;
 }
 
+static int gc2023_set_vts(struct gc_camera_module *cam_mod,
+	u32 vts)
+{
+	int ret = 0;
+	u32 vb, winv;
+	u32 msb, lsb;
+
+	if (vts > 0xfff)
+		vts = 0xfff;
+	else
+		vts = vts;
+
+	if (vts < cam_mod->vts_min)
+		return ret;
+
+	ret = gc_camera_module_read_reg_table(
+		cam_mod,
+		PLTFRM_CAMERA_MODULE_REG1_TYPE_DATA1,
+		GC2023_TIMING_WINH_HIGH_REG,
+		&msb);
+	if (IS_ERR_VALUE(ret))
+		goto err;
+
+	ret = gc_camera_module_read_reg_table(
+		cam_mod,
+		PLTFRM_CAMERA_MODULE_REG1_TYPE_DATA1,
+		GC2023_TIMING_WINH_LOW_REG,
+		&lsb);
+	if (IS_ERR_VALUE(ret))
+		goto err;
+
+	winv = (msb << 8) | lsb;
+	vb = vts - winv - 16;
+
+	ret = gc_camera_module_write_reg(cam_mod,
+		PLTFRM_CAMERA_MODULE_REG1_TYPE_DATA1,
+		GC2023_TIMING_VB_LOW_REG,
+		vb & 0xFF);
+	ret |= gc_camera_module_write_reg(cam_mod,
+		PLTFRM_CAMERA_MODULE_REG1_TYPE_DATA1,
+		GC2023_TIMING_VB_HIGH_REG,
+		(vb >> 8) & 0x0F);
+
+	if (IS_ERR_VALUE(ret)) {
+		gc_camera_module_pr_err(cam_mod,
+				"failed with error (%d)\n", ret);
+	} else {
+		gc_camera_module_pr_info(cam_mod,
+				"updated vts = 0x%x,vts_min=0x%x\n", vts, cam_mod->vts_min);
+		cam_mod->vts_cur = vts;
+	}
+err:
+	return ret;
+}
+
 static int gc2023_write_aec(struct gc_camera_module *cam_mod)
 {
 	int i;
@@ -440,6 +495,9 @@ static int gc2023_write_aec(struct gc_camera_module *cam_mod)
 			PLTFRM_CAMERA_MODULE_REG1_TYPE_DATA1,
 			GC2023_AEC_EXPO_LOW_REG,
 			GC2023_FETCH_LOW_BYTE_EXP(exp_time));
+
+		if (!cam_mod->auto_adjust_fps)
+			ret |= gc2023_set_vts(cam_mod, cam_mod->exp_config.vts_value);
 	}
 
 	if (IS_ERR_VALUE(ret))

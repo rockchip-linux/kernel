@@ -2110,6 +2110,33 @@ static int ov8858_auto_adjust_fps(struct ov_camera_module *cam_mod,
 }
 
 /*--------------------------------------------------------------------------*/
+
+static int ov8858_set_vts(struct ov_camera_module *cam_mod,
+	u32 vts)
+{
+	int ret = 0;
+
+	if (vts < cam_mod->vts_min)
+		return ret;
+
+	ret = ov_camera_module_write_reg(cam_mod,
+		ov8858_TIMING_VTS_LOW_REG,
+		vts & 0xFF);
+	ret |= ov_camera_module_write_reg(cam_mod,
+		ov8858_TIMING_VTS_HIGH_REG,
+		(vts >> 8) & 0xFF);
+
+	if (IS_ERR_VALUE(ret)) {
+		ov_camera_module_pr_err(cam_mod, "failed with error (%d)\n", ret);
+	} else {
+		ov_camera_module_pr_info(cam_mod, "updated vts = %d,vts_min=%d\n", vts, cam_mod->vts_min);
+		cam_mod->vts_cur = vts;
+	}
+
+	return ret;
+}
+
+/*--------------------------------------------------------------------------*/
 static int ov8858_write_aec(struct ov_camera_module *cam_mod)
 {
 	int ret = 0;
@@ -2153,6 +2180,8 @@ static int ov8858_write_aec(struct ov_camera_module *cam_mod)
 		ret |= ov_camera_module_write_reg(cam_mod,
 			ov8858_AEC_PK_LONG_EXPO_1ST_REG,
 			ov8858_FETCH_1ST_BYTE_EXP(exp_time));
+		if (!cam_mod->auto_adjust_fps)
+			ret |= ov8858_set_vts(cam_mod, cam_mod->exp_config.vts_value);
 		if (cam_mod->state == OV_CAMERA_MODULE_STREAMING) {
 			ret = ov_camera_module_write_reg(cam_mod,
 				ov8858_AEC_GROUP_UPDATE_ADDRESS,
@@ -3012,10 +3041,6 @@ err:
 	return ret;
 }
 
-static int ov8858_g_exposure_valid_frame(struct ov_camera_module *cam_mod)
-{
-	return ov8858_EXP_VALID_FRAMES;
-}
 /* ======================================================================== */
 /* This part is platform dependent */
 /* ======================================================================== */
