@@ -63,6 +63,7 @@
 #include "dwc_otg_driver.h"
 #include "usbdev_rk.h"
 #include "dwc_otg_hcd.h"
+#include "dwc_otg_pcd.h"
 
 static int dwc_otg_setup_params(dwc_otg_core_if_t *core_if);
 
@@ -3790,7 +3791,9 @@ void dwc_otg_ep_activate(dwc_otg_core_if_t *core_if, dwc_ep_t *ep)
 	} else {
 		if (ep->type == DWC_OTG_EP_TYPE_ISOC) {
 			if (ep->is_in) {
-				if (core_if->delay_en_diepint_nak_quirk) {
+				if (core_if->delay_en_diepint_nak_quirk &&
+				    (core_if->otg_dev->pcd->ep0state ==
+				    EP0_IN_STATUS_PHASE)) {
 					core_if->diepint_nak_enable = 1;
 				} else {
 					diepmsk_data_t diepmsk = {.d32 = 0 };
