@@ -37,7 +37,9 @@
 #include "sram.h"
 #include <linux/rockchip/cpu.h>
 #include "pm.h"
+#ifdef CONFIG_SUSPEND
 #include "pm-rv1108.c"
+#endif
 
 #define RV1108_DEVICE(name) \
 	{ \
@@ -68,8 +70,10 @@ static struct map_desc rv1108_io_desc[] __initdata = {
 	RK_DEVICE(RK_GIC_VIRT, RV1108_GIC_DIST_PHYS, RV1108_GIC_DIST_SIZE),
 	RK_DEVICE(RK_GIC_VIRT + RV1108_GIC_DIST_SIZE, RV1108_GIC_CPU_PHYS,
 		  RV1108_GIC_CPU_SIZE),
+#ifdef CONFIG_SUSPEND
 	RK_DEVICE(RK_PMU_GRF_VIRT, RV1108_PMU_GRF_PHYS, RV1108_PMU_GRF_SIZE),
 	RK_DEVICE(RK_PMU_MEM_VIRT, RV1108_PMU_MEM_PHYS, RV1108_PMU_MEM_SIZE),
+#endif
 	RK_DEVICE(RK_PWM_VIRT, RV1108_PWM_PHYS, RV1108_PWM_SIZE),
 	RK_DEVICE(RK_PMU_VIRT, RV1108_PMU_PHYS, RV1108_PMU_SIZE),
 	RK_DEVICE(RK_SERVICE_MSCH_VIRT, RV1108_SERVICE_MSCH_PHYS,
@@ -175,8 +179,10 @@ static void __init rv1108_init_late(void)
 {
 	if (rockchip_jtag_enabled)
 		clk_prepare_enable(clk_get_sys(NULL, "clk_jtag"));
+#ifdef CONFIG_SUSPEND
 	rv1108_suspend_init();
 	rockchip_suspend_init();
+#endif
 }
 
 static void rv1108_restart(char mode, const char *cmd)
