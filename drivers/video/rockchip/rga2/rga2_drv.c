@@ -78,8 +78,6 @@ ktime_t rga2_end;
 int rga2_flag = 0;
 int first_RGA2_proc = 0;
 
-extern long (*rga_ioctl_kernel_p)(struct rga_req *);
-
 rga2_session rga2_session_global;
 
 struct rga2_drvdata_t {
@@ -1202,8 +1200,6 @@ static int rga2_drv_probe(struct platform_device *pdev)
 	atomic_set(&rga2_service.src_format_swt, 0);
 	rga2_service.last_prc_src_format = 1;
 	rga2_service.enable = false;
-
-	rga_ioctl_kernel_p = rga2_ioctl_kernel;
 
 	data = devm_kzalloc(&pdev->dev, sizeof(struct rga2_drvdata_t),
 			    GFP_KERNEL);

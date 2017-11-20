@@ -53,6 +53,7 @@ static void rga_dma_flush_page(struct page *page)
 	paddr = page_to_phys(page);
 #ifdef CONFIG_ARM
 	if (PageHighMem(page)) {
+#ifdef CONFIG_HIGHMEM
 		if (cache_is_vipt_nonaliasing()) {
 			virt = kmap_atomic(page);
 			dmac_flush_range(virt, virt + PAGE_SIZE);
@@ -62,6 +63,7 @@ static void rga_dma_flush_page(struct page *page)
 			dmac_flush_range(virt, virt + PAGE_SIZE);
 			kunmap_high(page);
 		}
+#endif
 	} else {
 		virt = page_address(page);
 		dmac_flush_range(virt, virt + PAGE_SIZE);
