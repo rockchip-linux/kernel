@@ -742,6 +742,7 @@ static int ov4689_set_vts(struct ov_camera_module *cam_mod,
 static int ov4689_write_aec(struct ov_camera_module *cam_mod)
 {
 	int ret = 0;
+	u32 vts;
 
 	ov_camera_module_pr_debug(cam_mod,
 		  "exp_time = %d, gain = %d, flash_mode = %d\n",
@@ -759,6 +760,12 @@ static int ov4689_write_aec(struct ov_camera_module *cam_mod)
 		a_gain = a_gain * cam_mod->exp_config.gain_percent / 100;
 
 		mutex_lock(&cam_mod->lock);
+		vts = cam_mod->vts_cur == 0 ? cam_mod->vts_min : cam_mod->vts_cur;
+		if (!cam_mod->auto_adjust_fps &&
+			exp_time > vts - ov4689_COARSE_INTG_TIME_MAX_MARGIN) {
+			exp_time = vts - ov4689_COARSE_INTG_TIME_MAX_MARGIN;
+		}
+
 		/* hold reg en */
 		ret = ov_camera_module_write_reg(cam_mod,
 			ov4689_AEC_GROUP_UPDATE_ADDRESS,
