@@ -1689,7 +1689,9 @@ static struct platform_driver dwc_otg_driver = {
 void rk_usb_power_up(void)
 {
 	struct dwc_otg_platform_data *pldata_otg;
+#ifdef CONFIG_USB20_HOST
 	struct dwc_otg_platform_data *pldata_host;
+#endif
 #ifdef CONFIG_USB_EHCI_RK
 	struct rkehci_platform_data *pldata_ehci;
 #endif
@@ -1745,7 +1747,9 @@ void rk_usb_power_up(void)
 void rk_usb_power_down(void)
 {
 	struct dwc_otg_platform_data *pldata_otg;
+#ifdef CONFIG_USB20_HOST
 	struct dwc_otg_platform_data *pldata_host;
+#endif
 #ifdef CONFIG_USB_EHCI_RK
 	struct rkehci_platform_data *pldata_ehci;
 #endif
