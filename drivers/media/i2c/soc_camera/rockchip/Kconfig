@@ -81,3 +81,10 @@ config VIDEO_OV2718
 	default n
 	---help---
 	  This is ov2718 camera driver adapt to rockchip cif isp platform.
+
+config VIDEO_GC2145
+	tristate "gc2145 driver adapt to rockchip cif isp platform"
+	depends on VIDEO_V4L2 && VIDEO_RK_CIF_ISP11 && I2C
+	default n
+	---help---
+	  This is gc2145 camera driver adapt to rockchip cif isp platform.
