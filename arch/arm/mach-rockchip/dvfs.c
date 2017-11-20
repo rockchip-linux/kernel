@@ -282,6 +282,7 @@ static struct notifier_block sys_stat_notifier = {
 		.notifier_call = sys_stat_notifier_call,
 };
 
+#ifdef CONFIG_ARM64
 #define RK322XH_CPU_MIN_RATE_4K		816000000
 #define RK322XH_CPU_MAX_RATE_4K		816000000
 static int __cpuinit rk322xh_sys_stat_notifier_call(struct notifier_block *nb,
@@ -314,6 +315,7 @@ static int __cpuinit rk322xh_sys_stat_notifier_call(struct notifier_block *nb,
 static struct notifier_block rk322xh_sys_stat_notifier __cpuinitdata = {
 	.notifier_call = rk322xh_sys_stat_notifier_call,
 };
+#endif
 
 #define DVFS_REGULATOR_MODE_STANDBY	1
 #define DVFS_REGULATOR_MODE_IDLE	2
@@ -1414,7 +1416,6 @@ static void dvfs_temp_limit_performance(struct dvfs_node *dvfs_node, int temp)
 
 static void dvfs_temp_limit_normal(struct dvfs_node *dvfs_node, int temp)
 {
-	unsigned int cpu;
 	int delta_temp = 0;
 	unsigned long arm_rate_step = 0;
 	int i;
@@ -1477,19 +1478,25 @@ static void dvfs_temp_limit_normal(struct dvfs_node *dvfs_node, int temp)
 	    !dvfs_node->offline_temp)
 		return;
 
+#ifdef CONFIG_HOTPLUG_CPU
 	if (temp >= dvfs_node->offline_temp &&
 	    dvfs_node->temp_limit_rate == dvfs_node->min_temp_limit) {
+		unsigned int cpu;
+
 		for_each_cpu(cpu, &dvfs_node->offline_cpus) {
 			if (cpu_online(cpu))
 				cpu_down(cpu);
 		}
 	} else if (temp < dvfs_node->target_temp &&
 		   dvfs_node->temp_limit_rate > dvfs_node->min_temp_limit) {
+		unsigned int cpu;
+
 		for_each_cpu(cpu, &dvfs_node->offline_cpus) {
 			if (!cpu_online(cpu))
 				cpu_up(cpu);
 		}
 	}
+#endif
 }
 
 static void dvfs_temp_limit(struct dvfs_node *dvfs_node, int temp)
@@ -2782,8 +2789,10 @@ int __init of_dvfs_init(void)
 		return PTR_ERR(dvfs_dev_node);
 	}
 
+#ifdef CONFIG_ARM64
 	if (of_device_is_compatible(dvfs_dev_node, "rockchip,rk322xh-dvfs"))
 		rockchip_register_system_status_notifier(&rk322xh_sys_stat_notifier);
+#endif
 
 	for_each_available_child_of_node(dvfs_dev_node, vd_dev_node) {
 		vd = kzalloc(sizeof(struct vd_node), GFP_KERNEL);
