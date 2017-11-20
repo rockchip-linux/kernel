@@ -3185,6 +3185,7 @@ static int dw_mci_of_get_wp_gpio(struct device *dev, u8 slot)
 	return gpio;
 }
 
+#ifdef CONFIG_PM_SLEEP
 /* find the cd gpio for a given slot */
 static void dw_mci_of_get_cd_gpio(struct device *dev, u8 slot,
 					struct mmc_host *mmc)
@@ -3204,6 +3205,7 @@ static void dw_mci_of_get_cd_gpio(struct device *dev, u8 slot,
 	if (mmc_gpio_request_cd(mmc, gpio, 0))
 		dev_warn(dev, "gpio [%d] request failed\n", gpio);
 }
+#endif
 
 static irqreturn_t dw_mci_gpio_cd_irqt(int irq, void *dev_id)
 {
@@ -3291,11 +3293,13 @@ static int dw_mci_of_get_wp_gpio(struct device *dev, u8 slot)
 {
 	return -EINVAL;
 }
+#ifdef CONFIG_PM_SLEEP
 static void dw_mci_of_get_cd_gpio(struct device *dev, u8 slot,
 					struct mmc_host *mmc)
 {
 	return;
 }
+#endif
 #endif /* CONFIG_OF */
 
 /* @host: dw_mci host prvdata
