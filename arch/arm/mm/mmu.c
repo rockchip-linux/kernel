@@ -644,6 +644,7 @@ static void __init early_pte_install(pmd_t *pmd, pte_t *pte, unsigned long prot)
 	BUG_ON(pmd_bad(*pmd));
 }
 
+#ifdef CONFIG_HIGHMEM
 static pte_t * __init early_pte_alloc_and_install(pmd_t *pmd,
 	unsigned long addr, unsigned long prot)
 {
@@ -654,6 +655,7 @@ static pte_t * __init early_pte_alloc_and_install(pmd_t *pmd,
 	BUG_ON(pmd_bad(*pmd));
 	return pte_offset_kernel(pmd, addr);
 }
+#endif
 
 static void __init alloc_init_pte(pmd_t *pmd, unsigned long addr,
 				  unsigned long end, unsigned long pfn,
