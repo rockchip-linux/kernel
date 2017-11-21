@@ -2,13 +2,13 @@ config ARCH_ROCKCHIP
 	bool "Rockchip SoCs" if ARCH_MULTI_V7
 	select PIE
 	select PINCTRL
-	select PINCTRL_RK3368
-	select PINCTRL_ROCKCHIP
+	select PINCTRL_RK3368 if (CPU_RV110X || CPU_RK322X)
+	select PINCTRL_ROCKCHIP if (CPU_RK2928 || CPU_RK30XX || CPU_RK3066B || CPU_RK3188 || CPU_RK3288 || CPU_RK3036 || CPU_RK312X)
 	select ARCH_REQUIRE_GPIOLIB
 	select ARM_GIC
-	select CACHE_L2X0
+	select CACHE_L2X0 if (CPU_RK2928 || CPU_RK30XX || CPU_RK3188 || CPU_RK319X)
 	select HAVE_ARM_SCU if SMP
-	select HAVE_ARM_TWD if LOCAL_TIMERS
+	select HAVE_ARM_TWD if LOCAL_TIMERS && (CPU_RK2928 || CPU_RK30XX || CPU_RK3188 || CPU_RK319X)
 	select HAVE_ARM_ARCH_TIMER
 	select HAVE_SMP
 	select LOCAL_TIMERS if SMP
@@ -21,10 +21,59 @@ config ARCH_ROCKCHIP
 	select DMADEVICES
 	select PL330_DMA
 	select FIQ_GLUE
-	select ARM_ERRATA_818325 if !ARM_TRUSTZONE
-	select ARM_ERRATA_821420 if !ARM_TRUSTZONE
+	select ARM_ERRATA_818325 if !ARM_TRUSTZONE && CPU_RK3288
+	select ARM_ERRATA_821420 if !ARM_TRUSTZONE && CPU_RK3288
 	select MFD_SYSCON
 	select ZONE_DMA if ARM_LPAE
 	select ARCH_DMA_ADDR_T_64BIT if ARM_LPAE
+
+menu "CPU selection"
+	depends on ARCH_ROCKCHIP
+
+config CPU_RK2928
+	bool "RK2926/8"
+	default y
+
+config CPU_RK3026
+	bool "RK3026/28A"
+	default y
+
+config CPU_RK312X
+	bool "RK3126/8"
+	default y
+
+config CPU_RK3036
+	bool "RK3036"
+	default y
+
+config CPU_RK30XX
+	bool "RK3066/8"
+	default y
+
+config CPU_RK3066B
+	bool "RK3066B/3168/3028"
+	default y
+
+config CPU_RK3188
+	bool "RK3188"
+	default y
+
+config CPU_RK319X
+	bool "RK3190"
+	default y
+
+config CPU_RK3288
+	bool "RK3288"
+	default y
+
+config CPU_RK322X
+	bool "RK3228/9"
+	default y
+
+config CPU_RV110X
+	bool "RV1107/8"
+	default y
+
+endmenu
 
 source "arch/arm/mach-rockchip/Kconfig.common"
