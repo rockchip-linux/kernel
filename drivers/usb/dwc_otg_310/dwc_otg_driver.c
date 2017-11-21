@@ -925,22 +925,30 @@ static int host20_driver_remove(struct platform_device *_dev)
 
 static const struct of_device_id usb20_host_of_match[] = {
 #ifdef CONFIG_ARM
+#ifdef CONFIG_CPU_RK3188
 	{
 	 .compatible = "rockchip,rk3188_usb20_host",
 	 .data = &usb20host_pdata_rk3188,
 	 },
+#endif
+#ifdef CONFIG_CPU_RK3288
 	{
 	 .compatible = "rockchip,rk3288_usb20_host",
 	 .data = &usb20host_pdata_rk3288,
 	 },
+#endif
+#ifdef CONFIG_CPU_RK3036
 	{
 	 .compatible = "rockchip,rk3036_usb20_host",
 	 .data = &usb20host_pdata_rk3036,
 	 },
+#endif
+#ifdef CONFIG_CPU_RK312X
 	{
 	 .compatible = "rockchip,rk3126_usb20_host",
 	 .data = &usb20host_pdata_rk3126,
 	 },
+#endif
 #endif
 	{},
 };
@@ -1307,30 +1315,42 @@ static int otg20_driver_remove(struct platform_device *_dev)
 
 static const struct of_device_id usb20_otg_of_match[] = {
 #ifdef CONFIG_ARM
+#ifdef CONFIG_CPU_RK3188
 	{
 	 .compatible = "rockchip,rk3188_usb20_otg",
 	 .data = &usb20otg_pdata_rk3188,
 	 },
+#endif
+#ifdef CONFIG_CPU_RK3288
 	{
 	 .compatible = "rockchip,rk3288_usb20_otg",
 	 .data = &usb20otg_pdata_rk3288,
 	 },
+#endif
+#ifdef CONFIG_CPU_RK3036
 	{
 	 .compatible = "rockchip,rk3036_usb20_otg",
 	 .data = &usb20otg_pdata_rk3036,
 	 },
+#endif
+#ifdef CONFIG_CPU_RK312X
 	{
 	 .compatible = "rockchip,rk3126_usb20_otg",
 	 .data = &usb20otg_pdata_rk3126,
 	 },
+#endif
+#ifdef CONFIG_CPU_RK322X
 	 {
 	 .compatible = "rockchip,rk322x_usb20_otg",
 	 .data = &usb20otg_pdata_rk322x,
 	 },
+#endif
+#ifdef CONFIG_CPU_RV110X
 	 {
 	 .compatible = "rockchip,rv1108_usb20_otg",
 	 .data = &usb20otg_pdata_rv1108,
 	 },
+#endif
 #endif
 #ifdef CONFIG_ARM64
 	{
