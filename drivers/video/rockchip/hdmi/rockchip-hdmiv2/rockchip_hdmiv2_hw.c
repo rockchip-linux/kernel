@@ -1,6 +1,7 @@
 #include <linux/clk.h>
 #include <linux/delay.h>
 #include <linux/interrupt.h>
+#include <linux/kernel.h>
 #include <linux/rockchip/cpu.h>
 #include <linux/rockchip/cru.h>
 #include <linux/rockchip/grf.h>
@@ -2209,12 +2210,174 @@ static void hdmi_dev_config_aai(struct hdmi_dev *hdmi_dev,
 	hdmi_writel(hdmi_dev, FC_AUDICONF3, 0x00);
 }
 
+struct hdmi_audio_tmds_n_cts {
+	unsigned long tmds;
+	unsigned int n_32k;
+	unsigned int n_44k1;
+	unsigned int n_48k;
+};
+
+static const struct hdmi_audio_tmds_n_cts common_tmds_n_table[] = {
+	{ .tmds = 27000000, .n_32k = 4096, .n_44k1 = 5488, .n_48k = 6144, },
+	{ .tmds = 28320000, .n_32k = 4096, .n_44k1 = 5586, .n_48k = 6144, },
+	{ .tmds = 30240000, .n_32k = 4096, .n_44k1 = 5642, .n_48k = 6144, },
+	{ .tmds = 31500000, .n_32k = 4096, .n_44k1 = 5600, .n_48k = 6144, },
+	{ .tmds = 32000000, .n_32k = 4096, .n_44k1 = 5733, .n_48k = 6144, },
+	{ .tmds = 33750000, .n_32k = 4096, .n_44k1 = 6272, .n_48k = 6144, },
+	{ .tmds = 36000000, .n_32k = 4096, .n_44k1 = 5684, .n_48k = 6144, },
+	{ .tmds = 40000000, .n_32k = 4096, .n_44k1 = 5733, .n_48k = 6144, },
+	{ .tmds = 49500000, .n_32k = 4096, .n_44k1 = 5488, .n_48k = 6144, },
+	{ .tmds = 50000000, .n_32k = 4096, .n_44k1 = 5292, .n_48k = 6144, },
+	{ .tmds = 54000000, .n_32k = 4096, .n_44k1 = 5684, .n_48k = 6144, },
+	{ .tmds = 65000000, .n_32k = 4096, .n_44k1 = 7056, .n_48k = 6144, },
+	{ .tmds = 68250000, .n_32k = 4096, .n_44k1 = 5376, .n_48k = 6144, },
+	{ .tmds = 71000000, .n_32k = 4096, .n_44k1 = 7056, .n_48k = 6144, },
+	{ .tmds = 72000000, .n_32k = 4096, .n_44k1 = 5635, .n_48k = 6144, },
+	{ .tmds = 73250000, .n_32k = 4096, .n_44k1 = 14112, .n_48k = 6144, },
+	{ .tmds = 74176000, .n_32k = 11648, .n_44k1 = 17836, .n_48k = 11648, },
+	{ .tmds = 74250000, .n_32k = 4096, .n_44k1 = 6272, .n_48k = 6144, },
+	{ .tmds = 75000000, .n_32k = 4096, .n_44k1 = 5880, .n_48k = 6144, },
+	{ .tmds = 78750000, .n_32k = 4096, .n_44k1 = 5600, .n_48k = 6144, },
+	{ .tmds = 78800000, .n_32k = 4096, .n_44k1 = 5292, .n_48k = 6144, },
+	{ .tmds = 79500000, .n_32k = 4096, .n_44k1 = 4704, .n_48k = 6144, },
+	{ .tmds = 83500000, .n_32k = 4096, .n_44k1 = 7056, .n_48k = 6144, },
+	{ .tmds = 85500000, .n_32k = 4096, .n_44k1 = 5488, .n_48k = 6144, },
+	{ .tmds = 88750000, .n_32k = 4096, .n_44k1 = 14112, .n_48k = 6144, },
+	{ .tmds = 97750000, .n_32k = 4096, .n_44k1 = 14112, .n_48k = 6144, },
+	{ .tmds = 101000000, .n_32k = 4096, .n_44k1 = 7056, .n_48k = 6144, },
+	{ .tmds = 106500000, .n_32k = 4096, .n_44k1 = 4704, .n_48k = 6144, },
+	{ .tmds = 108000000, .n_32k = 4096, .n_44k1 = 5684, .n_48k = 6144, },
+	{ .tmds = 115500000, .n_32k = 4096, .n_44k1 = 5712, .n_48k = 6144, },
+	{ .tmds = 119000000, .n_32k = 4096, .n_44k1 = 5544, .n_48k = 6144, },
+	{ .tmds = 135000000, .n_32k = 4096, .n_44k1 = 5488, .n_48k = 6144, },
+	{ .tmds = 146250000, .n_32k = 4096, .n_44k1 = 6272, .n_48k = 6144, },
+	{ .tmds = 148352000, .n_32k = 11648, .n_44k1 = 8918, .n_48k = 5824, },
+	{ .tmds = 148500000, .n_32k = 4096, .n_44k1 = 5488, .n_48k = 6144, },
+	{ .tmds = 154000000, .n_32k = 4096, .n_44k1 = 5544, .n_48k = 6144, },
+	{ .tmds = 162000000, .n_32k = 4096, .n_44k1 = 5684, .n_48k = 6144, },
+
+	/* For 297 MHz+ HDMI spec have some other rule for setting N */
+	{ .tmds = 296703000, .n_32k = 5824, .n_44k1 = 4459, .n_48k = 5824, },
+	{ .tmds = 297000000, .n_32k = 3073, .n_44k1 = 4704, .n_48k = 5120, },
+	{ .tmds = 593407000, .n_32k = 5824, .n_44k1 = 8918, .n_48k = 5824, },
+	{ .tmds = 594000000, .n_32k = 3073, .n_44k1 = 9408, .n_48k = 10240, },
+
+	/* End of table */
+	{ .tmds = 0,         .n_32k = 0,    .n_44k1 = 0,    .n_48k = 0, },
+};
+
+static u64 hdmi_audio_math_diff(unsigned int freq, unsigned int n,
+				unsigned int pixel_clk)
+{
+	u64 final, diff;
+	u64 cts;
+
+	final = (u64)pixel_clk * n;
+
+	cts = final;
+	do_div(cts, 128 * freq);
+
+	diff = final - (u64)cts * (128 * freq);
+
+	return diff;
+}
+
+static unsigned int hdmi_compute_n(struct hdmi_dev *hdmi,
+				   unsigned long pixel_clk,
+				   unsigned long freq)
+{
+	unsigned int min_n = DIV_ROUND_UP((128 * freq), 1500);
+	unsigned int max_n = (128 * freq) / 300;
+	unsigned int ideal_n = (128 * freq) / 1000;
+	unsigned int best_n_distance = ideal_n;
+	unsigned int best_n = 0;
+	u64 best_diff = U64_MAX;
+	int n;
+
+	/* If the ideal N could satisfy the audio math, then just take it */
+	if (hdmi_audio_math_diff(freq, ideal_n, pixel_clk) == 0)
+		return ideal_n;
+
+	for (n = min_n; n <= max_n; n++) {
+		u64 diff = hdmi_audio_math_diff(freq, n, pixel_clk);
+
+		if (diff < best_diff ||
+		    (diff == best_diff &&
+		     abs(n - ideal_n) < best_n_distance)) {
+			best_n = n;
+			best_diff = diff;
+			best_n_distance = abs(best_n - ideal_n);
+		}
+
+		/*
+		 * The best N already satisfy the audio math, and also be
+		 * the closest value to ideal N, so just cut the loop.
+		 */
+		if (best_diff == 0 && abs(n - ideal_n) > best_n_distance)
+			break;
+	}
+
+	return best_n;
+}
+
+static int hdmi_match_tmds_n_table(struct hdmi_dev *hdmi,
+				   unsigned long pixel_clk,
+				   unsigned long freq)
+{
+	const struct hdmi_audio_tmds_n_cts *tmds_n = NULL;
+	int i;
+
+	if (!tmds_n) {
+		for (i = 0; common_tmds_n_table[i].tmds != 0; i++) {
+			if (pixel_clk == common_tmds_n_table[i].tmds) {
+				tmds_n = &common_tmds_n_table[i];
+				break;
+			}
+		}
+	}
+
+	if (!tmds_n)
+		return -ENOENT;
+
+	switch (freq) {
+	case 32000:
+		return tmds_n->n_32k;
+	case 44100:
+	case 88200:
+	case 176400:
+		return (freq / 44100) * tmds_n->n_44k1;
+	case 48000:
+	case 96000:
+	case 192000:
+		return (freq / 48000) * tmds_n->n_48k;
+	default:
+		return -ENOENT;
+	}
+}
+
+static unsigned int hdmi_find_n(struct hdmi_dev *hdmi,
+				unsigned long pixel_clk,
+				unsigned long sample_rate)
+{
+	int n;
+
+	n = hdmi_match_tmds_n_table(hdmi, pixel_clk, sample_rate);
+	if (n > 0)
+		return n;
+
+	dev_warn(hdmi->dev, "Rate %lu missing; compute N dynamically\n",
+		 pixel_clk);
+
+	return hdmi_compute_n(hdmi, pixel_clk, sample_rate);
+}
+
 static int hdmi_dev_config_audio(struct hdmi *hdmi, struct hdmi_audio *audio)
 {
 	struct hdmi_dev *hdmi_dev = hdmi->property->priv;
-	int word_length = 0, channel = 0, mclk_fs;
-	unsigned int N = 0, CTS = 0;
-	int rate = 0;
+	int word_length = 0, channel = 0, mclk_fs, sample_rate;
+	unsigned int N = 0, CTS = 0, rate;
+	unsigned long ftdms = hdmi_dev->tmdsclk;
+	u64 tmp;
 
 	HDMIDBG(2, "%s\n", __func__);
 
@@ -2227,105 +2390,35 @@ static int hdmi_dev_config_audio(struct hdmi *hdmi, struct hdmi_audio *audio)
 	else
 		channel = I2S_CHANNEL_7_8;
 
+	mclk_fs = FS_128;
 	switch (audio->rate) {
 	case HDMI_AUDIO_FS_32000:
-		mclk_fs = FS_128;
+		sample_rate = 32000;
 		rate = AUDIO_32K;
-		if (hdmi_dev->tmdsclk >= 594000000)
-			N = N_32K_HIGHCLK;
-		else if (hdmi_dev->tmdsclk >= 297000000)
-			N = N_32K_MIDCLK;
-		else
-			N = N_32K_LOWCLK;
-		/*div a num to avoid the value is exceed 2^32(int)*/
-		if (hdmi_dev->frac_en)
-			CTS = CALC_CTS(N, hdmi_dev->tmdsclk / 1001, 32);
-		else
-			CTS = CALC_CTS(N, hdmi_dev->tmdsclk / 1000, 32);
 		break;
 	case HDMI_AUDIO_FS_44100:
-		mclk_fs = FS_128;
+		sample_rate = 44100;
 		rate = AUDIO_441K;
-		if (hdmi_dev->tmdsclk >= 594000000)
-			N = N_441K_HIGHCLK;
-		else if (hdmi_dev->tmdsclk >= 297000000)
-			N = N_441K_MIDCLK;
-		else
-			N = N_441K_LOWCLK;
-		if (hdmi_dev->frac_en)
-			CTS = CALC_CTS(N, hdmi_dev->tmdsclk * 10 / 1001, 441);
-		else
-			CTS = CALC_CTS(N, hdmi_dev->tmdsclk / 100, 441);
 		break;
 	case HDMI_AUDIO_FS_48000:
-		mclk_fs = FS_128;
+		sample_rate = 48000;
 		rate = AUDIO_48K;
-		if (hdmi_dev->tmdsclk >= 594000000)	/*FS_153.6*/
-			N = N_48K_HIGHCLK;
-		else if (hdmi_dev->tmdsclk >= 297000000)
-			N = N_48K_MIDCLK;
-		else
-			N = N_48K_LOWCLK;
-		if (hdmi_dev->frac_en)
-			CTS = CALC_CTS(N, hdmi_dev->tmdsclk / 1001, 48);
-		else
-			CTS = CALC_CTS(N, hdmi_dev->tmdsclk / 1000, 48);
 		break;
 	case HDMI_AUDIO_FS_88200:
-		mclk_fs = FS_128;
+		sample_rate = 88200;
 		rate = AUDIO_882K;
-		if (hdmi_dev->tmdsclk >= 594000000)
-			N = N_882K_HIGHCLK;
-		else if (hdmi_dev->tmdsclk >= 297000000)
-			N = N_882K_MIDCLK;
-		else
-			N = N_882K_LOWCLK;
-		if (hdmi_dev->frac_en)
-			CTS = CALC_CTS(N, hdmi_dev->tmdsclk * 10 / 1001, 882);
-		else
-			CTS = CALC_CTS(N, hdmi_dev->tmdsclk / 100, 882);
 		break;
 	case HDMI_AUDIO_FS_96000:
-		mclk_fs = FS_128;
+		sample_rate = 96000;
 		rate = AUDIO_96K;
-		if (hdmi_dev->tmdsclk >= 594000000)	/*FS_153.6*/
-			N = N_96K_HIGHCLK;
-		else if (hdmi_dev->tmdsclk >= 297000000)
-			N = N_96K_MIDCLK;
-		else
-			N = N_96K_LOWCLK;
-		if (hdmi_dev->frac_en)
-			CTS = CALC_CTS(N, hdmi_dev->tmdsclk / 1001, 96);
-		else
-			CTS = CALC_CTS(N, hdmi_dev->tmdsclk / 1000, 96);
 		break;
 	case HDMI_AUDIO_FS_176400:
-		mclk_fs = FS_128;
+		sample_rate = 176400;
 		rate = AUDIO_1764K;
-		if (hdmi_dev->tmdsclk >= 594000000)
-			N = N_1764K_HIGHCLK;
-		else if (hdmi_dev->tmdsclk >= 297000000)
-			N = N_1764K_MIDCLK;
-		else
-			N = N_1764K_LOWCLK;
-		if (hdmi_dev->frac_en)
-			CTS = CALC_CTS(N, hdmi_dev->tmdsclk * 10 / 1001, 1764);
-		else
-			CTS = CALC_CTS(N, hdmi_dev->tmdsclk / 100, 1764);
 		break;
 	case HDMI_AUDIO_FS_192000:
-		mclk_fs = FS_128;
+		sample_rate = 192000;
 		rate = AUDIO_192K;
-		if (hdmi_dev->tmdsclk >= 594000000)	/*FS_153.6*/
-			N = N_192K_HIGHCLK;
-		else if (hdmi_dev->tmdsclk >= 297000000)
-			N = N_192K_MIDCLK;
-		else
-			N = N_192K_LOWCLK;
-		if (hdmi_dev->frac_en)
-			CTS = CALC_CTS(N, hdmi_dev->tmdsclk / 1001, 192);
-		else
-			CTS = CALC_CTS(N, hdmi_dev->tmdsclk / 1000, 192);
 		break;
 	default:
 		dev_err(hdmi_dev->hdmi->dev,
@@ -2333,6 +2426,14 @@ static int hdmi_dev_config_audio(struct hdmi *hdmi, struct hdmi_audio *audio)
 			__func__, audio->rate);
 		return -ENOENT;
 	}
+
+	if (hdmi_dev->frac_en)
+		ftdms = DIV_ROUND_CLOSEST(hdmi_dev->tmdsclk, 1001) * 1000;
+
+	N = hdmi_find_n(hdmi_dev, ftdms, sample_rate);
+	tmp = (u64)ftdms * N;
+	do_div(tmp, 128 * sample_rate);
+	CTS = tmp;
 
 	switch (audio->word_length) {
 	case HDMI_AUDIO_WORD_LENGTH_16bit:
@@ -2348,8 +2449,8 @@ static int hdmi_dev_config_audio(struct hdmi *hdmi, struct hdmi_audio *audio)
 		word_length = I2S_16BIT_SAMPLE;
 	}
 
-	HDMIDBG(2, "rate = %d, tmdsclk = %u, N = %d, CTS = %d\n",
-		audio->rate, hdmi_dev->tmdsclk, N, CTS);
+	HDMIDBG(2, "rate = %d, tmdsclk = %lu, N = %d, CTS = %d\n",
+		sample_rate, ftdms, N, CTS);
 	/* more than 2 channels => layout 1 else layout 0 */
 	hdmi_msk_reg(hdmi_dev, FC_AUDSCONF,
 		     m_AUD_PACK_LAYOUT,
