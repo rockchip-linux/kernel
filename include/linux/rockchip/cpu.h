@@ -50,17 +50,71 @@ static inline bool cpu_is_##id(void) \
 static inline bool cpu_is_##id(void) { return false; }
 #endif
 
+#ifdef CONFIG_CPU_RK2928
 ROCKCHIP_CPU(rk2928, RK2928)
+#else
+static inline bool cpu_is_rk2928(void) { return false; }
+#endif
+
+#ifdef CONFIG_CPU_RK3026
 ROCKCHIP_CPU(rk3026, RK3026)
+#else
+static inline bool cpu_is_rk3026(void) { return false; }
+#endif
+
+#ifdef CONFIG_CPU_RK3036
 ROCKCHIP_CPU(rk3036, RK3036)
+#else
+static inline bool cpu_is_rk3036(void) { return false; }
+#endif
+
+#ifdef CONFIG_CPU_RK30XX
 ROCKCHIP_CPU(rk30xx, RK30XX)
+#else
+static inline bool cpu_is_rk30xx(void) { return false; }
+#endif
+
+#ifdef CONFIG_CPU_RK3066B
 ROCKCHIP_CPU(rk3066b, RK3066B)
+#else
+static inline bool cpu_is_rk3066b(void) { return false; }
+#endif
+
+#ifdef CONFIG_CPU_RK312X
 ROCKCHIP_CPU(rk312x, RK312X)
+#else
+static inline bool cpu_is_rk312x(void) { return false; }
+#endif
+
+#ifdef CONFIG_CPU_RK3188
 ROCKCHIP_CPU(rk3188, RK3188)
+#else
+static inline bool cpu_is_rk3188(void) { return false; }
+#endif
+
+#ifdef CONFIG_CPU_RK319X
 ROCKCHIP_CPU(rk319x, RK319X)
+#else
+static inline bool cpu_is_rk319x(void) { return false; }
+#endif
+
+#ifdef CONFIG_CPU_RK3288
 ROCKCHIP_CPU(rk3288, RK3288)
+#else
+static inline bool cpu_is_rk3288(void) { return false; }
+#endif
+
+#ifdef CONFIG_CPU_RK322X
 ROCKCHIP_CPU(rk322x, RK322X)
+#else
+static inline bool cpu_is_rk322x(void) { return false; }
+#endif
+
+#ifdef CONFIG_CPU_RV110X
 ROCKCHIP_CPU(rv110x, RV110X)
+#else
+static inline bool cpu_is_rv110x(void) { return false; }
+#endif
 
 #define ROCKCHIP_SOC_MASK	(ROCKCHIP_CPU_MASK | 0xff)
 #define ROCKCHIP_SOC_RK2926     (ROCKCHIP_CPU_RK2928 | 0x00)
