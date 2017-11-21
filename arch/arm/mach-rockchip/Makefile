@@ -1,12 +1,12 @@
 obj-y += common.o
 obj-y += cpu.o
-obj-y += rv1108.o
-obj-y += rk3036.o
-obj-y += rk312x.o
-obj-y += rk3126b.o
-obj-y += rk3188.o
-obj-y += rk3288.o
-obj-y += rk322x.o
+obj-$(CONFIG_CPU_RV110X) += rv1108.o
+obj-$(CONFIG_CPU_RK3036) += rk3036.o
+obj-$(CONFIG_CPU_RK312X) += rk312x.o
+obj-$(CONFIG_CPU_RK312X) += rk3126b.o
+obj-$(CONFIG_CPU_RK3188) += rk3188.o
+obj-$(CONFIG_CPU_RK3288) += rk3288.o
+obj-$(CONFIG_CPU_RK322X) += rk322x.o
 obj-$(CONFIG_ARM_PSCI) += psci.o
 obj-$(CONFIG_ARM_PSCI) += psci_ddr.o
 obj-$(CONFIG_ARM_PSCI) += ddr_rk312x.o
@@ -16,7 +16,12 @@ endif
 obj-y += efuse.o
 obj-y += pvtm.o
 obj-y += rk_system_status.o
-obj-$(CONFIG_PM) += rockchip_pm.o sleep.o rk312x_sleep.o rv1108_sleep.o
+obj-$(CONFIG_PM) += rockchip_pm.o
+ifeq ($(CONFIG_SUSPEND),y)
+obj-y += sleep.o
+obj-$(CONFIG_CPU_RK312X) += rk312x_sleep.o
+obj-$(CONFIG_CPU_RV110X) += rv1108_sleep.o
+endif
 obj-$(CONFIG_RK_FPGA) += fpga.o
 obj-$(CONFIG_CPU_IDLE) += cpuidle.o
 obj-$(CONFIG_SMP) += platsmp.o
