@@ -1843,6 +1843,18 @@ static inline void pcd_setup(dwc_otg_pcd_t *pcd)
 	if (ctrl.bmRequestType & UE_DIR_IN) {
 		ep0->dwc_ep.is_in = 1;
 		pcd->ep0state = EP0_IN_DATA_PHASE;
+		if (core_if->delay_en_diepint_nak_quirk) {
+			diepmsk_data_t diepmsk;
+
+			diepmsk.d32 = DWC_READ_REG32(&dev_if->dev_global_regs->diepmsk);
+			core_if->diepint_nak_enable = diepmsk.b.nak ? 1 : 0;
+
+			/* mask nak */
+			diepmsk.d32 = 0;
+			diepmsk.b.nak = 1;
+			DWC_MODIFY_REG32(&dev_if->dev_global_regs->diepmsk,
+					 diepmsk.d32, 0);
+		}
 	} else {
 		ep0->dwc_ep.is_in = 0;
 		pcd->ep0state = EP0_OUT_DATA_PHASE;
