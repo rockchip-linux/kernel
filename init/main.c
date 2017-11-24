@@ -380,6 +380,7 @@ static void __init setup_command_line(char *command_line)
  */
 
 static __initdata DECLARE_COMPLETION(kthreadd_done);
+extern bool slab_do_irq_on;
 
 static noinline void __init_refok rest_init(void)
 {
@@ -398,6 +399,7 @@ static noinline void __init_refok rest_init(void)
 	rcu_read_lock();
 	kthreadd_task = find_task_by_pid_ns(pid, &init_pid_ns);
 	rcu_read_unlock();
+	slab_do_irq_on = true;
 	complete(&kthreadd_done);
 
 	/*
