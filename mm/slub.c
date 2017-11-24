@@ -1449,6 +1449,8 @@ static inline struct page *alloc_slab_page(struct kmem_cache *s,
 	return page;
 }
 
+bool slab_do_irq_on;
+
 static struct page *allocate_slab(struct kmem_cache *s, gfp_t flags, int node)
 {
 	struct page *page;
@@ -1463,7 +1465,7 @@ static struct page *allocate_slab(struct kmem_cache *s, gfp_t flags, int node)
 	if (gfpflags_allow_blocking(flags))
 		enableirqs = true;
 #ifdef CONFIG_PREEMPT_RT_FULL
-	if (system_state == SYSTEM_RUNNING)
+	if (slab_do_irq_on)
 		enableirqs = true;
 #endif
 	if (enableirqs)
