@@ -88,3 +88,10 @@ config VIDEO_GC2145
 	default n
 	---help---
 	  This is gc2145 camera driver adapt to rockchip cif isp platform.
+
+config VIDEO_IMX327
+	tristate "imx327 driver adapt to rockchip cif isp platform"
+	depends on VIDEO_V4L2 && VIDEO_RK_CIF_ISP11 && I2C
+	default n
+	---help---
+	  This is imx327 camera driver adapt to rockchip cif isp platform.

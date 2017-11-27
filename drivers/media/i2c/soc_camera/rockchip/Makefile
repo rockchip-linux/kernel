@@ -12,3 +12,4 @@ obj-$(CONFIG_VIDEO_IMX291) += imx_camera_module.o rk_camera_module.o imx291_v4l2
 obj-$(CONFIG_VIDEO_GC2023) += gc_camera_module.o rk_camera_module.o gc2023_v4l2-i2c-subdev.o
 obj-$(CONFIG_VIDEO_OV2718) += ov_camera_module.o rk_camera_module.o ov2718_v4l2-i2c-subdev.o
 obj-$(CONFIG_VIDEO_GC2145) += gc_camera_module.o rk_camera_module.o gc2145_v4l2-i2c-subdev.o
+obj-$(CONFIG_VIDEO_IMX327) += imx_camera_module.o rk_camera_module.o imx327_v4l2-i2c-subdev.o
