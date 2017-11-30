@@ -80,22 +80,24 @@ static int chacha20_simd(struct blkcipher_desc *desc, struct scatterlist *dst,
 
 	crypto_chacha20_init(state, crypto_blkcipher_ctx(desc->tfm), walk.iv);
 
-	kernel_fpu_begin();
-
 	while (walk.nbytes >= CHACHA20_BLOCK_SIZE) {
+		kernel_fpu_begin();
+
 		chacha20_dosimd(state, walk.dst.virt.addr, walk.src.virt.addr,
 				rounddown(walk.nbytes, CHACHA20_BLOCK_SIZE));
+		kernel_fpu_end();
 		err = blkcipher_walk_done(desc, &walk,
 					  walk.nbytes % CHACHA20_BLOCK_SIZE);
 	}
 
 	if (walk.nbytes) {
+		kernel_fpu_begin();
 		chacha20_dosimd(state, walk.dst.virt.addr, walk.src.virt.addr,
 				walk.nbytes);
+		kernel_fpu_end();
 		err = blkcipher_walk_done(desc, &walk, 0);
 	}
 
-	kernel_fpu_end();
 
 	return err;
 }
