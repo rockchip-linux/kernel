@@ -157,9 +157,12 @@ static void drm_gem_map_detach(struct dma_buf *dma_buf,
 
 	sgt = prime_attach->sgt;
 	if (sgt) {
-		if (prime_attach->dir != DMA_NONE)
-			dma_unmap_sg(attach->dev, sgt->sgl, sgt->nents,
-					prime_attach->dir);
+		if (prime_attach->dir != DMA_NONE) {
+			DEFINE_DMA_ATTRS(attrs);
+			dma_set_attr(DMA_ATTR_SKIP_CPU_SYNC, &attrs);
+			dma_unmap_sg_attrs(attach->dev, sgt->sgl, sgt->nents,
+					   prime_attach->dir, &attrs);
+		}
 		sg_free_table(sgt);
 	}
 
@@ -206,7 +209,10 @@ static struct sg_table *drm_gem_map_dma_buf(struct dma_buf_attachment *attach,
 	sgt = obj->dev->driver->gem_prime_get_sg_table(obj);
 
 	if (!IS_ERR(sgt)) {
-		if (!dma_map_sg(attach->dev, sgt->sgl, sgt->nents, dir)) {
+		DEFINE_DMA_ATTRS(attrs);
+		dma_set_attr(DMA_ATTR_SKIP_CPU_SYNC, &attrs);
+		if (!dma_map_sg_attrs(attach->dev, sgt->sgl, sgt->nents, dir,
+				      &attrs)) {
 			sg_free_table(sgt);
 			kfree(sgt);
 			sgt = ERR_PTR(-ENOMEM);
