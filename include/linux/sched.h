@@ -234,7 +234,6 @@ extern char ___assert_task_state[1 - 2*!!(
 
 /* Convenience macros for the sake of wake_up */
 #define TASK_NORMAL		(TASK_INTERRUPTIBLE | TASK_UNINTERRUPTIBLE)
-#define TASK_ALL		(TASK_NORMAL | __TASK_STOPPED | __TASK_TRACED)
 
 /* get_task_state() */
 #define TASK_REPORT		(TASK_RUNNING | TASK_INTERRUPTIBLE | \
@@ -980,8 +979,20 @@ struct wake_q_head {
 #define WAKE_Q(name)					\
 	struct wake_q_head name = { WAKE_Q_TAIL, &name.first }
 
-extern void wake_q_add(struct wake_q_head *head,
-			      struct task_struct *task);
+extern void __wake_q_add(struct wake_q_head *head,
+			 struct task_struct *task, bool sleeper);
+static inline void wake_q_add(struct wake_q_head *head,
+			      struct task_struct *task)
+{
+	__wake_q_add(head, task, false);
+}
+
+static inline void wake_q_add_sleeper(struct wake_q_head *head,
+				      struct task_struct *task)
+{
+	__wake_q_add(head, task, true);
+}
+
 extern void __wake_up_q(struct wake_q_head *head, bool sleeper);
 
 static inline void wake_up_q(struct wake_q_head *head)
@@ -1439,6 +1450,7 @@ struct task_struct {
 	unsigned int policy;
 #ifdef CONFIG_PREEMPT_RT_FULL
 	int migrate_disable;
+	int migrate_disable_update;
 # ifdef CONFIG_SCHED_DEBUG
 	int migrate_disable_atomic;
 # endif
@@ -1640,6 +1652,7 @@ struct task_struct {
 	raw_spinlock_t pi_lock;
 
 	struct wake_q_node wake_q;
+	struct wake_q_node wake_q_sleeper;
 
 #ifdef CONFIG_RT_MUTEXES
 	/* PI waiters blocked on a rt_mutex held by this task */

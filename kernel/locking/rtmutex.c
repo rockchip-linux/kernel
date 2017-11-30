@@ -1557,7 +1557,7 @@ static void mark_wakeup_next_waiter(struct wake_q_head *wake_q,
 	raw_spin_unlock(&current->pi_lock);
 
 	if (waiter->savestate)
-		wake_q_add(wake_sleeper_q, waiter->task);
+		wake_q_add_sleeper(wake_sleeper_q, waiter->task);
 	else
 		wake_q_add(wake_q, waiter->task);
 }
@@ -1672,18 +1672,13 @@ __rt_mutex_slowlock(struct rt_mutex *lock, int state,
 		if (try_to_take_rt_mutex(lock, current, waiter))
 			break;
 
-		/*
-		 * TASK_INTERRUPTIBLE checks for signals and
-		 * timeout. Ignored otherwise.
-		 */
-		if (unlikely(state == TASK_INTERRUPTIBLE)) {
-			/* Signal pending? */
-			if (signal_pending(current))
-				ret = -EINTR;
-			if (timeout && !timeout->task)
-				ret = -ETIMEDOUT;
-			if (ret)
-				break;
+		if (timeout && !timeout->task) {
+			ret = -ETIMEDOUT;
+			break;
+		}
+		if (signal_pending_state(state, current)) {
+			ret = -EINTR;
+			break;
 		}
 
 		if (ww_ctx && ww_ctx->acquired > 0) {

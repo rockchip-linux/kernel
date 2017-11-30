@@ -455,7 +455,13 @@ static inline int hrtimer_is_queued(struct hrtimer *timer)
  */
 static inline int hrtimer_callback_running(const struct hrtimer *timer)
 {
-	return timer->base->cpu_base->running == timer;
+	if (timer->base->cpu_base->running == timer)
+		return 1;
+#ifdef CONFIG_PREEMPT_RT_BASE
+	if (timer->base->cpu_base->running_soft == timer)
+		return 1;
+#endif
+	return 0;
 }
 
 /* Forward a hrtimer so it expires after now: */
