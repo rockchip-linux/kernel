@@ -1,0 +1,43 @@
+/*
+ * Copyright (C) 2017 ROCKCHIP, Inc.
+ *
+ * SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+ */
+afc0: af-controller@0 {
+	compatible = "silicon touch,vm149c-v4l2-i2c-subdev";
+	reg = <0x0c>;
+	rockchip,vcm-start-current = <0>;
+	rockchip,vcm-rated-current = <100>;
+	rockchip,vcm-step-mode = <4>;
+};
+
+camera0: camera-module@10 {
+	status = "okay";
+	compatible = "omnivision,ov8858-v4l2-i2c-subdev";
+	reg = <0x10>;
+	device_type = "v4l2-i2c-subdev";
+	clocks = <&clk_cif_out>;
+	clock-names = "clk_cif_out";
+	pinctrl-names = "rockchip,camera_default", "rockchip,camera_sleep";
+	pinctrl-0 = <&cif_dvp_clk_out>;
+	pinctrl-1 = <&cif_dvp_clk_out_sleep>;
+	rockchip,pd-gpio = <&gpio3 GPIO_B5 GPIO_ACTIVE_LOW>;
+	rockchip,pwr-gpio = <&gpio3 GPIO_B0 GPIO_ACTIVE_HIGH>;
+	#rockchip,rst-gpio = <&gpio3 GPIO_D1 GPIO_ACTIVE_LOW>;
+	rockchip,af-ctrl = <&afc0>;
+	rockchip,camera-module-mclk-name = "clk_cif_out";
+	rockchip,camera-module-facing = "back";
+	rockchip,camera-module-name = "LA6111PA";
+	rockchip,camera-module-len-name = "YM6011P";
+	rockchip,camera-module-fov-h = "116";
+	rockchip,camera-module-fov-v = "61";
+	rockchip,camera-module-orientation = <0>;
+	rockchip,camera-module-iq-flip = <0>;
+	rockchip,camera-module-iq-mirror = <0>;
+	rockchip,camera-module-flip = <0>;
+	rockchip,camera-module-mirror = <0>;
+	/* resolution.w, resolution.h, defrect.left, defrect.top, defrect.w, defrect.h */
+	rockchip,camera-module-defrect0 = <3264 2448 0 0 3264 2448>;
+	rockchip,camera-module-flash-support = <0>;
+	rockchip,camera-module-mipi-dphy-index = <0>;
+};
