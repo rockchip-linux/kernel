@@ -40,6 +40,9 @@
 #define RTL8201F_ISR				0x1e
 #define RTL8201F_IER				0x13
 
+#define RTL8211F_INTBCR				0x16
+#define RTL8211F_INTBCR_INTB_PMEB		BIT(5)
+
 MODULE_DESCRIPTION("Realtek PHY driver");
 MODULE_AUTHOR("Johnson Leung");
 MODULE_LICENSE("GPL");
@@ -161,12 +164,32 @@ static int rtl8211e_config_intr(struct phy_device *phydev)
 
 static int rtl8211f_config_intr(struct phy_device *phydev)
 {
+	int err;
 	u16 val;
 
-	if (phydev->interrupts == PHY_INTERRUPT_ENABLED)
+	if (phydev->interrupts == PHY_INTERRUPT_ENABLED) {
+		/*
+		 * The interrupt pin has two functions:
+		 * 0: INTB: it acts as interrupt pin which can be configured
+		 *    through RTL821x_INER and the status can be read through
+		 *    RTL8211F_INSR
+		 * 1: PMEB: a special "Power Management Event" mode for
+		 *    Wake-on-LAN operation (with support for a "pulse low"
+		 *    wave format). Interrupts configured through RTL821x_INER
+		 *    will not work in this mode
+		 *
+		 * select INTB mode in the "INTB pin control" register to
+		 * ensure that the interrupt pin is in the correct mode.
+		 */
+		err = rtl8211x_page_mask_bits(phydev, 0xd40, RTL8211F_INTBCR,
+					      RTL8211F_INTBCR_INTB_PMEB, 0);
+		if (err)
+			return err;
+
 		val = RTL8211F_INER_LINK_STATUS;
-	else
+	} else {
 		val = 0;
+	}
 
 	return rtl8211x_page_write(phydev, 0xa42, RTL821x_INER, val);
 }
