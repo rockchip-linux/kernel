@@ -32,7 +32,10 @@
 
 #define RTL8211F_INSR				0x1d
 
-#define RTL8211F_TX_DELAY			BIT(8)
+#define RTL8211F_RX_DELAY_REG			0x15
+#define RTL8211F_RX_DELAY_EN			BIT(3)
+#define RTL8211F_TX_DELAY_REG			0x11
+#define RTL8211F_TX_DELAY_EN			BIT(8)
 
 #define RTL8201F_ISR				0x1e
 #define RTL8201F_IER				0x13
@@ -72,6 +75,23 @@ static int rtl8211x_page_write(struct phy_device *phydev, u16 page,
 	phy_write(phydev, RTL821x_PAGE_SELECT, 0x0);
 
 	return ret;
+}
+
+static int rtl8211x_page_mask_bits(struct phy_device *phydev, u16 page,
+				   u16 address, u16 mask, u16 set)
+{
+	int ret;
+	u16 val;
+
+	ret = rtl8211x_page_read(phydev, page, address);
+	if (ret < 0)
+		return ret;
+
+	val = ret & 0xffff;
+	val &= ~mask;
+	val |= (set & mask);
+
+	return rtl8211x_page_write(phydev, page, address, val);
 }
 
 static int rtl8201_ack_interrupt(struct phy_device *phydev)
@@ -160,20 +180,35 @@ static int rtl8211f_config_init(struct phy_device *phydev)
 	if (ret < 0)
 		return ret;
 
-	ret = rtl8211x_page_read(phydev, 0xd08, 0x11);
-	if (ret < 0)
-		return ret;
-
-	val = ret & 0xffff;
-
-	/* enable TX-delay for rgmii-id and rgmii-txid, otherwise disable it */
+	/*
+	 * enable TX-delay for rgmii-id and rgmii-txid, otherwise disable it.
+	 * this is needed because it can be enabled by pin strapping and
+	 * conflict with the TX-delay configured by the MAC.
+	 */
 	if (phydev->interface == PHY_INTERFACE_MODE_RGMII_ID ||
 	    phydev->interface == PHY_INTERFACE_MODE_RGMII_TXID)
-		val |= RTL8211F_TX_DELAY;
+		val = RTL8211F_TX_DELAY_EN;
 	else
-		val &= ~RTL8211F_TX_DELAY;
+		val = 0;
 
-	ret = rtl8211x_page_write(phydev, 0xd08, 0x11, val);
+	ret = rtl8211x_page_mask_bits(phydev, 0xd08, RTL8211F_TX_DELAY_REG,
+				      RTL8211F_TX_DELAY_EN, val);
+	if (ret)
+		return ret;
+
+	/*
+	 * enable RX-delay for rgmii-id and rgmii-rxid, otherwise disable it.
+	 * this is needed because it can be enabled by pin strapping and
+	 * conflict with the RX-delay configured by the MAC.
+	 */
+	if (phydev->interface == PHY_INTERFACE_MODE_RGMII_ID ||
+	    phydev->interface == PHY_INTERFACE_MODE_RGMII_RXID)
+		val = RTL8211F_RX_DELAY_EN;
+	else
+		val = 0;
+
+	ret = rtl8211x_page_mask_bits(phydev, 0xd08, RTL8211F_RX_DELAY_REG,
+				      RTL8211F_RX_DELAY_EN, val);
 	if (ret)
 		return ret;
 
