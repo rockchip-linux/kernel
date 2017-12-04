@@ -383,6 +383,7 @@ struct drm_connector *rockchip_drm_connector_create(struct drm_device *dev,
 		break;
 	case ROCKCHIP_DISPLAY_TYPE_LCD:
 		type = DRM_MODE_CONNECTOR_LVDS;
+		connector->interlace_allowed = true;
 		break;
 	default:
 		type = DRM_MODE_CONNECTOR_Unknown;
