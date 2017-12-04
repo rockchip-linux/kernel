@@ -2129,7 +2129,7 @@ static int ov8858_set_vts(struct ov_camera_module *cam_mod,
 	if (IS_ERR_VALUE(ret)) {
 		ov_camera_module_pr_err(cam_mod, "failed with error (%d)\n", ret);
 	} else {
-		ov_camera_module_pr_info(cam_mod, "updated vts = %d,vts_min=%d\n", vts, cam_mod->vts_min);
+		ov_camera_module_pr_debug(cam_mod, "updated vts = %d,vts_min=%d\n", vts, cam_mod->vts_min);
 		cam_mod->vts_cur = vts;
 	}
 

@@ -424,7 +424,7 @@ static int gc2023_set_vts(struct gc_camera_module *cam_mod,
 		gc_camera_module_pr_err(cam_mod,
 				"failed with error (%d)\n", ret);
 	} else {
-		gc_camera_module_pr_info(cam_mod,
+		gc_camera_module_pr_debug(cam_mod,
 				"updated vts = 0x%x,vts_min=0x%x\n", vts, cam_mod->vts_min);
 		cam_mod->vts_cur = vts;
 	}
@@ -536,7 +536,7 @@ static int gc2023_filltimings(struct gc_camera_module_custom_config *custom)
 {
 	int i, j;
 	u32 win_h_off = 0, win_v_off = 0;
-	u32 vb, hb, winv, winh;
+	u32 vb = 0, hb = 0, winv = 0, winh = 0;
 	struct gc_camera_module_config *config;
 	struct gc_camera_module_timings *timings;
 	struct gc_camera_module_reg *reg_table;

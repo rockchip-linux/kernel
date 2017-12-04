@@ -207,7 +207,7 @@ static int ar0330cs_set_vts(struct aptina_camera_module *cam_mod,
 	if (IS_ERR_VALUE(ret)) {
 		aptina_camera_module_pr_err(cam_mod, "failed with error (%d)\n", ret);
 	} else {
-		aptina_camera_module_pr_info(cam_mod, "updated vts = %d,vts_min=%d\n", vts, cam_mod->vts_min);
+		aptina_camera_module_pr_debug(cam_mod, "updated vts = %d,vts_min=%d\n", vts, cam_mod->vts_min);
 		cam_mod->vts_cur = vts;
 	}
 
