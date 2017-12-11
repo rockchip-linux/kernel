@@ -1064,6 +1064,25 @@ static const struct UVC_HEADER_DESCRIPTOR(1) uvc_control_header = {
 	.baInterfaceNr[0]	= 0, /* dynamic */
 };
 
+DECLARE_UVC_EXTENSION_UNIT_DESCRIPTOR(1, 1);
+
+static const struct UVC_EXTENSION_UNIT_DESCRIPTOR(1, 1) uvc_extension_unit = {
+	.bLength		= UVC_DT_EXTENSION_UNIT_SIZE(1, 1),
+	.bDescriptorType	= USB_DT_CS_INTERFACE,
+	.bDescriptorSubType	= UVC_VC_EXTENSION_UNIT,
+	.bUnitID		= 6,
+	.guidExtensionCode	= {
+		0xa2, 0x9e, 0x76, 0x41, 0xde, 0x04, 0x47, 0xe3,
+		0x8b, 0x2b, 0xf4, 0x34, 0x1a, 0xff, 0x00, 0x3b
+	},
+	.bNumControls		= 1,
+	.bNrInPins		= 1,
+	.baSourceID[0]		= 2,
+	.bControlSize		= 1,
+	.bmControls[0]		= 0x01,
+	.iExtension		= 0
+};
+
 static const struct uvc_camera_terminal_descriptor uvc_camera_terminal = {
 	.bLength		= UVC_DT_CAMERA_TERMINAL_SIZE(3),
 	.bDescriptorType	= USB_DT_CS_INTERFACE,
@@ -1466,6 +1485,7 @@ static const struct uvc_color_matching_descriptor uvc_color_matching = {
 
 static const struct uvc_descriptor_header * const uvc_fs_control_cls[] = {
 	(const struct uvc_descriptor_header *)&uvc_control_header,
+	(const struct uvc_descriptor_header *)&uvc_extension_unit,
 	(const struct uvc_descriptor_header *)&uvc_camera_terminal,
 	(const struct uvc_descriptor_header *)&uvc_processing,
 	(const struct uvc_descriptor_header *)&uvc_output_terminal,
@@ -1474,6 +1494,7 @@ static const struct uvc_descriptor_header * const uvc_fs_control_cls[] = {
 
 static const struct uvc_descriptor_header * const uvc_ss_control_cls[] = {
 	(const struct uvc_descriptor_header *)&uvc_control_header,
+	(const struct uvc_descriptor_header *)&uvc_extension_unit,
 	(const struct uvc_descriptor_header *)&uvc_camera_terminal,
 	(const struct uvc_descriptor_header *)&uvc_processing,
 	(const struct uvc_descriptor_header *)&uvc_output_terminal,
