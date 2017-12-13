@@ -195,6 +195,9 @@ static void android_work(struct work_struct *data)
 		case 3:
 			set_funcs[1] = "SET_ADB";
 			break;
+		case 0xf:
+			set_funcs[1] = "SET_ROCKUSB";
+			break;
 		default:
 			set_funcs[1] = NULL;
 			break;
@@ -211,6 +214,13 @@ static void android_work(struct work_struct *data)
 
 	dev->sw_connected = dev->connected;
 	spin_unlock_irqrestore(&cdev->lock, flags);
+
+	if (set_funcs[1]) {
+		if (!strcmp(set_funcs[1], "SET_ROCKUSB")) {
+			pr_info("%s: reboot loader by usb cmd\n", __func__);
+			kernel_restart("loader");
+		}
+	}
 
 	if (uevent_envp) {
 		kobject_uevent_env(&dev->dev->kobj, KOBJ_CHANGE, uevent_envp);
