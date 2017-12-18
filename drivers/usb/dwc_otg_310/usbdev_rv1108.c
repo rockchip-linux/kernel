@@ -19,6 +19,10 @@ static void usb20otg_hw_init(void)
 	/* Set disconnect detection trigger point to 625mv */
 	regmap_write(control_usb->usb_grf, 0x01c,
 		     UOC_HIWORD_UPDATE(0x9, 0xf, 11));
+
+	/* other haredware init,include: otg_drv_gpio GPIO init */
+	if (gpio_is_valid(control_usb->otg_gpios->gpio))
+		gpio_set_value(control_usb->otg_gpios->gpio, 0);
 }
 
 static void usb20otg_phy_suspend(void *pdata, int suspend)
@@ -169,6 +173,24 @@ static void dwc_otg_uart_mode(void *pdata, int enter_usb_uart_mode)
 {
 }
 
+static void usb20otg_power_enable(int enable)
+{
+	if (enable) {
+		/* enable otg_drv power */
+		if (gpio_is_valid(control_usb->otg_gpios->gpio))
+			gpio_set_value(control_usb->otg_gpios->gpio, 1);
+
+		if (!usb20otg_get_status(USB_STATUS_BVABLID))
+			rk_battery_charger_detect_cb(USB_OTG_POWER_ON);
+	} else {
+		/* disable otg_drv power */
+		if (gpio_is_valid(control_usb->otg_gpios->gpio))
+			gpio_set_value(control_usb->otg_gpios->gpio, 0);
+
+		rk_battery_charger_detect_cb(USB_OTG_POWER_OFF);
+	}
+}
+
 struct dwc_otg_platform_data usb20otg_pdata_rv1108 = {
 	.phyclk = NULL,
 	.ahbclk = NULL,
@@ -180,6 +202,7 @@ struct dwc_otg_platform_data usb20otg_pdata_rv1108 = {
 	.soft_reset = usb20otg_soft_reset,
 	.clock_init = usb20otg_clock_init,
 	.clock_enable = usb20otg_clock_enable,
+	.power_enable = usb20otg_power_enable,
 	.get_status = usb20otg_get_status,
 	.dwc_otg_uart_mode = dwc_otg_uart_mode,
 	.bc_detect_cb = rk_battery_charger_detect_cb,
@@ -314,6 +337,26 @@ static int dwc_otg_control_usb_probe(struct platform_device *pdev)
 		}
 
 		gpio_direction_output(gpio, 1);
+	}
+
+	/* Init otg_drv_gpio GPIOs */
+	control_usb->otg_gpios =
+		devm_kzalloc(&pdev->dev, sizeof(struct gpio), GFP_KERNEL);
+	if (!control_usb->otg_gpios) {
+		dev_err(&pdev->dev, "Unable to alloc memory for otg_gpios\n");
+		return -ENOMEM;
+	}
+
+	gpio = of_get_named_gpio(np, "otg_drv_gpio", 0);
+	control_usb->otg_gpios->gpio = gpio;
+
+	if (gpio_is_valid(gpio)) {
+		if (devm_gpio_request(&pdev->dev, gpio, "usb_otg_drv")) {
+			dev_err(&pdev->dev,
+				"failed to request GPIO%d for otg_drv\n", gpio);
+			return -EINVAL;
+		}
+		gpio_direction_output(control_usb->otg_gpios->gpio, 0);
 	}
 
 	control_usb->remote_wakeup =
