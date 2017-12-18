@@ -890,6 +890,8 @@ static int rk8xx_i2c_probe(struct i2c_client *i2c,
 	/* init irqs */
 	rk8xx->irq_gpio = pdev->irq_gpio;
 	ret = rk8xx_irq_init(rk8xx);
+	if (ret)
+		return ret;
 
 	/* add mfd devices */
 	ret = mfd_add_devices(rk8xx->dev, -1,
