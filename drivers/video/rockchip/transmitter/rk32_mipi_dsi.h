@@ -316,6 +316,10 @@ struct dsi {
 	struct clk	*h2p_hclk;
 	struct clk	*dsi_pd;
 #endif
+
+#ifdef RK_DSI_ESD
+	struct delayed_work esd_work;
+#endif
 	struct dentry *debugfs_dir;
 	struct platform_device *pdev;
 };

@@ -1622,10 +1622,36 @@ struct file_operations reg_proc_fops1 = {
 	.read = seq_read,
 };
 #endif
-#if 0/* def CONFIG_MIPI_DSI_LINUX */
+
+#ifdef RK_DSI_ESD
+static int rk32_dsi_enable(void);
+static int rk32_dsi_disable(void);
+
+static void rockchip_dsi_esd_work_handler(struct work_struct *work)
+{
+	int val;
+
+	/*
+	 * clear invalid interrupts
+	 * and only focus on bit 7 of INT_ST1
+	 */
+	rk32_dsi_get_bits(dsi0, INT_ST0);
+	val = rk32_dsi_get_bits(dsi0, INT_ST1);
+	if (val & 0x80) {
+		rk32_dsi_disable();
+		mdelay(10);
+		rk32_dsi_enable();
+	}
+
+	enable_irq(dsi0->host.irq);
+}
+
 static irqreturn_t rk32_mipi_dsi_irq_handler(int irq, void *data)
 {
-	printk("-------rk32_mipi_dsi_irq_handler-------\n");
+	struct dsi *dsi = (struct dsi *)data;
+
+	disable_irq_nosync(irq);
+	schedule_delayed_work(&dsi->esd_work, 0);
 	return IRQ_HANDLED;
 }
 #endif
@@ -1673,6 +1699,19 @@ static int rk32_dsi_enable(void)
 		dsi_is_enable(0, 1);
 		if (rk_mipi_get_dsi_num() == 2)
 			dsi_is_enable(1, 1);
+
+#ifdef RK_DSI_ESD
+		/* read interrupt status rigister to clear interrupt */
+		rk32_dsi_get_bits(dsi0, INT_ST0);
+		rk32_dsi_get_bits(dsi0, INT_ST1);
+		if (rk_mipi_get_dsi_num() == 2) {
+			rk32_dsi_get_bits(dsi1, INT_ST0);
+			rk32_dsi_get_bits(dsi1, INT_ST1);
+		}
+
+		/* dsi0 only */
+		enable_irq(dsi0->host.irq);
+#endif
 	}
 	return 0;
 }
@@ -1683,6 +1722,11 @@ static int rk32_dsi_disable(void)
 	MIPI_DBG("rk32_dsi_disable-------\n");
 	if (dsi0->clk_on) {
 		dsi0->clk_on = 0;
+
+#ifdef RK_DSI_ESD
+		disable_irq(dsi0->host.irq);
+#endif
+
 		rk_mipi_screen_standby(1);
 		dsi_power_off(0);
 		if (rk_mipi_get_dsi_num() == 2)
@@ -1918,21 +1962,27 @@ static int rk32_mipi_dsi_probe(struct platform_device *pdev)
 		}
 	}
 
+#ifdef RK_DSI_ESD
 	dsi->host.irq = platform_get_irq(pdev, 0);
 	if (dsi->host.irq < 0) {
 		dev_err(&pdev->dev, "no irq resource?\n");
 		return dsi->host.irq;
 	}
-	/*
-	ret = request_irq(dsi->host.irq, rk32_mipi_dsi_irq_handler, 0,dev_name(&pdev->dev), dsi);
+
+	ret = devm_request_irq(&pdev->dev, dsi->host.irq,
+			       rk32_mipi_dsi_irq_handler, IRQF_SHARED,
+			       dev_name(&pdev->dev), dsi);
 	if (ret) {
 		dev_err(&pdev->dev, "request mipi_dsi irq fail\n");
 		return -EINVAL;
 	}
-	*/
+
 	printk("dsi->host.irq =%d\n", dsi->host.irq);
 
 	disable_irq(dsi->host.irq);
+
+	INIT_DELAYED_WORK(&dsi->esd_work, rockchip_dsi_esd_work_handler);
+#endif
 
 	screen = devm_kzalloc(&pdev->dev, sizeof(struct rk_screen), GFP_KERNEL);
 	if (!screen) {
@@ -2026,6 +2076,11 @@ static int rk32_mipi_dsi_probe(struct platform_device *pdev)
 
 		dsi->clk_on = 1;
 		udelay(10);
+
+#ifdef RK_DSI_ESD
+		if (dsi == dsi0)
+			enable_irq(dsi->host.irq);
+#endif
 	}
 
 	dev_info(&pdev->dev, "rk mipi_dsi probe success!\n");
