@@ -542,8 +542,6 @@ static struct rk8xx_reg_data rk816_resume_reg[] = {
 };
 
 static struct rk8xx_reg_data rk8xx_init_reg[] = {
-	/* buck4 Max ILMIT*/
-	{RK816_BUCK4_CONFIG_REG, BUCK4_MAX_ILIMIT, REG_WRITE_MSK},
 	/* hotdie temperature: 105c*/
 	{RK816_THERMAL_REG, TEMP105C, REG_WRITE_MSK},
 	/* set buck 12.5mv/us */
@@ -554,6 +552,7 @@ static struct rk8xx_reg_data rk8xx_init_reg[] = {
 };
 
 static struct rk8xx_reg_data rk816_init_reg[] = {
+	{RK816_BUCK4_CONFIG_REG, BUCK4_MAX_ILIMIT, REG_WRITE_MSK},
 	/* set bat 3.0 low and act shutdown */
 	{RK816_VB_MON_REG, RK816_VBAT_LOW_3V0 | EN_VABT_LOW_SHUT_DOWN,
 	 VBAT_LOW_VOL_MASK | VBAT_LOW_ACT_MASK},
@@ -580,10 +579,6 @@ static struct rk8xx_reg_data rk805_init_reg[] = {
 	{RK805_GPIO_IO_POL_REG, SLEEP_FUN, SLP_SD_MSK},
 	/* hotdie temperature: 115c */
 	{RK805_THERMAL_REG, TEMP115C, TEMP_HOTDIE_MSK},
-	{RK805_BUCK1_CONFIG_REG, BUCK1_2_IMAX_3A, BUCK1_2_IMAX_MSK},
-	{RK805_BUCK2_CONFIG_REG, BUCK1_2_IMAX_3A, BUCK1_2_IMAX_MSK},
-	{RK805_BUCK3_CONFIG_REG, BUCK3_IMAX_3A, BUCK3_4_IMAX_MSK},
-	{RK805_BUCK4_CONFIG_REG, BUCK4_IMAX_3A, BUCK3_4_IMAX_MSK},
 	{RK805_BUCK4_CONFIG_REG, BUCK4_IMIN_MAX, BUCK4_IMIN_MSK},
 	{RK805_DCDC_VRP_REG, BUCK4_VRP_3PERCENT, REG_WRITE_MSK},
 };
