@@ -838,8 +838,6 @@ __mod_timer(struct timer_list *timer, unsigned long expires,
 	if (!ret && pending_only)
 		goto out_unlock;
 
-	debug_activate(timer, expires);
-
 	new_base = get_target_base(base, pinned);
 
 	if (base != new_base) {
@@ -853,6 +851,8 @@ __mod_timer(struct timer_list *timer, unsigned long expires,
 		if (likely(base->running_timer != timer))
 			base = switch_timer_base(timer, base, new_base);
 	}
+
+	debug_activate(timer, expires);
 
 	timer->expires = expires;
 	internal_add_timer(base, timer);
