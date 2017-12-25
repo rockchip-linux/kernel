@@ -96,10 +96,16 @@ config VIDEO_IMX327
 	---help---
 	  This is imx327 camera driver adapt to rockchip cif isp platform.
 
+config VIDEO_S5K4H8
+	tristate "s5k4h8 driver adapt to rockchip cif isp platform"
+	depends on VIDEO_V4L2 && VIDEO_RK_CIF_ISP11 && I2C
+	default n
+	---help---
+	  This is s5k4h8 camera driver adapt to rockchip cif isp platform.
+
 config VCM_VM149C
 	tristate "vm149c driver"
 	depends on VIDEO_V4L2
 	default n
 	---help---
 	  This is vm149c driver.
-
