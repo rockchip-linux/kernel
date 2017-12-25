@@ -109,3 +109,10 @@ config VCM_VM149C
 	default n
 	---help---
 	  This is vm149c driver.
+
+config VCM_GT9760S
+	tristate "gt9760s driver"
+	depends on VIDEO_V4L2
+	default n
+	---help---
+	  This is gt9760s driver.
