@@ -452,7 +452,7 @@
 
 &cif_cif0 {
 	rockchip,camera-modules-attached = <&nvp6124 &cvbsin>;
-	status = "okay";
+	status = "disabled";
 };
 
 &cif_cif1 {
@@ -471,7 +471,7 @@
 };
 
 &cif_isp0 {
-	rockchip,camera-modules-attached = <&camera0 &camera1 &camera2>;
+	rockchip,camera-modules-attached = <&camera5>;
 	status = "okay";
 };
 
@@ -630,4 +630,15 @@
 	rockchip,camera-module-name = "LA6271";
 	rockchip,camera-module-flip = <1>;
 	rockchip,camera-module-mirror = <1>;
+};
+
+&pinctrl {
+	cif_dvp_pins {
+		cif-dvp-clk-out {
+			rockchip,pins = <3 GPIO_B5 RK_FUNC_1 &pcfg_pull_none>;
+		};
+		cif-dvp-clk-out-sleep {
+			rockchip,pins = <3 GPIO_B5 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
 };

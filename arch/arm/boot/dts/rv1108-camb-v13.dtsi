@@ -1,3 +1,10 @@
+afc0: af-controller@0 {
+	compatible = "silicon touch,gt9760s-v4l2-i2c-subdev";
+	reg = <0x0c>;
+	rockchip,vcm-start-current = <0>;
+	rockchip,vcm-rated-current = <120>;
+	rockchip,vcm-step-mode = <4>;
+};
 
 camera0: camera-module@36 {
 	status = "okay";
@@ -147,4 +154,39 @@ camera4: camera-module@1a-1 {
 	rockchip,camera-module-defrect0 = <1920 1080 0 0 1920 1080>;
 	rockchip,camera-module-flash-support = <0>;
 	rockchip,camera-module-mipi-dphy-index = <0>;
+};
+
+camera5: camera-module@37 {
+	status = "okay";
+	compatible = "samsung,s5k4h8-v4l2-i2c-subdev";
+	reg = <0x10>;
+	device_type = "v4l2-i2c-subdev";
+	clocks = <&clk_mipicsi_out>;
+	clock-names = "clk_mipicsi_out";
+	pinctrl-names = "rockchip,camera_default", "rockchip,camera_sleep";
+	pinctrl-0 = <&cif_dvp_clk_out>;
+	pinctrl-1 = <&cif_dvp_clk_out_sleep>;
+	rockchip,pd-gpio = <&gpio3 GPIO_B0 GPIO_ACTIVE_LOW>;
+	rockchip,dvdd-gpio = <&gpio1 GPIO_D0 GPIO_ACTIVE_HIGH>;
+	rockchip,dovdd-gpio = <&gpio1 GPIO_D3 GPIO_ACTIVE_HIGH>;
+	rockchip,rst-gpio = <&gpio3 GPIO_D1 GPIO_ACTIVE_LOW>;
+	rockchip,camera-module-mclk-name = "clk_mipicsi_out";
+	rockchip,camera-module-regulator-names = "avdd_cam";
+	rockchip,camera-module-regulator-voltages = <2800000>;
+	rockchip,camera-module-facing = "back";
+	rockchip,camera-module-name = "LA6110PA";
+	rockchip,camera-module-len-name = "YM6011P";
+	rockchip,camera-module-fov-h = "128";
+	rockchip,camera-module-fov-v = "55.7";
+	rockchip,camera-module-orientation = <0>;
+	rockchip,camera-module-iq-flip = <0>;
+	rockchip,camera-module-iq-mirror = <0>;
+	rockchip,camera-module-flip = <0>;
+	rockchip,camera-module-mirror = <0>;
+	/* resolution.w, resolution.h, defrect.left, defrect.top, defrect.w, defrect.h */
+	rockchip,camera-module-defrect0 = <3264 2448 0 0 3264 2448>;
+	rockchip,camera-module-flash-support = <0>;
+	rockchip,camera-module-mipi-dphy-index = <0>;
+
+	rockchip,af-ctrl = <&afc0>;
 };
