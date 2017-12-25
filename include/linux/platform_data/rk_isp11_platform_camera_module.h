@@ -48,6 +48,9 @@
 
 extern const char *PLTFRM_CAMERA_MODULE_PIN_PD;
 extern const char *PLTFRM_CAMERA_MODULE_PIN_PWR;
+extern const char *PLTFRM_CAMERA_MODULE_PIN_AVDD;
+extern const char *PLTFRM_CAMERA_MODULE_PIN_DVDD;
+extern const char *PLTFRM_CAMERA_MODULE_PIN_DOVDD;
 extern const char *PLTFRM_CAMERA_MODULE_PIN_FLASH;
 extern const char *PLTFRM_CAMERA_MODULE_PIN_TORCH;
 extern const char *PLTFRM_CAMERA_MODULE_PIN_RESET;
