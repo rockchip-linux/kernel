@@ -400,9 +400,9 @@ static int __init rockchip_ddr_probe(struct platform_device *pdev)
 	 * first 4KB is used for interface parameters
 	 * after 4KB * N is dts parameters
 	 */
-	res = sip_smc_request_share_mem(SHARE_PAGE_TYPE_DDR,
+	res = sip_smc_request_share_mem(
 		DIV_ROUND_UP(sizeof(struct ddr_dts_config_timing),
-			     4096) + 1);
+			     4096) + 1, SHARE_PAGE_TYPE_DDR);
 	if (res.a0 != 0) {
 		dev_err(&pdev->dev, "no ATF memory for init\n");
 		return -ENOMEM;
