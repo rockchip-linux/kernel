@@ -1936,7 +1936,7 @@ out:
     return ret;
 }
 
-static uint32 _ddr_change_freq_3036(uint32_t nMHz)
+uint32 _ddr_change_freq_3036(uint32_t nMHz)
 {
 	struct ddr_freq_t ddr_freq_t;
 	ddr_freq_t.screen_ft_us = 0;
