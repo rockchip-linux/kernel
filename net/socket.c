@@ -3316,6 +3316,7 @@ static int compat_sock_ioctl_trans(struct file *file, struct socket *sock,
 	case SIOCGMIIPHY:
 	case SIOCGMIIREG:
 	case SIOCSMIIREG:
+	case SIOCKILLADDR:
 		return dev_ifsioc(net, sock, cmd, argp);
 
 	case SIOCSARP:
