@@ -481,7 +481,13 @@ ZSTD		= zstd
 
 # Use the wrapper for the compiler. This wrapper scans for new
 # warnings and causes the build to stop upon encountering them.
-ifeq ($(CC),$(CROSS_COMPILE)gcc)
+ifeq ("$(origin GCC_WRAPPER)", "command line")
+  KGCC_WRAPPER = $(GCC_WRAPPER)
+endif
+ifndef KGCC_WRAPPER
+  KGCC_WRAPPER = 0
+endif
+ifeq ($(KGCC_WRAPPER),1)
 ifneq ($(wildcard $(srctree)/scripts/gcc-wrapper.py),)
 CC		= $(srctree)/scripts/gcc-wrapper.py $(CROSS_COMPILE)gcc
 endif
