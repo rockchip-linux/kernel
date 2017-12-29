@@ -1593,6 +1593,16 @@ static int mmc_blk_err_check(struct mmc_card *card,
 				pr_err("%s: Card stuck in programming state!"\
 					" %s %s\n", mmc_hostname(card->host),
 					req->rq_disk->disk_name, __func__);
+				/*
+				 * It's pointless to propagate MMC_BLK_NOMEDIUM
+				 * for eMMC as a main storage which will leads
+				 * the system throttle anyway.
+				 */
+				if (mmc_card_sd(card)) {
+					pr_err("%s: probably an EOL SD card",
+					       mmc_hostname(card->host));
+					return MMC_BLK_NOMEDIUM;
+				}
 
 				return MMC_BLK_CMD_ERR;
 			}
@@ -2307,6 +2317,8 @@ static int mmc_blk_issue_rw_rq(struct mmc_queue *mq, struct request *rqc)
 				goto start_new_req;
 			break;
 		case MMC_BLK_NOMEDIUM:
+			if (mmc_card_sd(card))
+				mmc_card_set_removed(card);
 			goto cmd_abort;
 		default:
 			pr_err("%s: Unhandled return value (%d)",
