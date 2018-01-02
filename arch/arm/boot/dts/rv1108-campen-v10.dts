@@ -162,6 +162,18 @@
 		pmu-supply = <&rk816_dcdc4_reg>;
 	};
 
+	key {
+		compatible = "rockchip,key";
+		pinctrl-names = "default";
+		pinctrl-0 = <&key_en>;
+		esc-key {
+			gpios = <&gpio0 GPIO_A4 GPIO_ACTIVE_LOW>;
+			linux,code = <1>;
+			label = "esc";
+			gpio-key,wakeup;
+		};
+	};
+
 	/* pmic_sleep */
 	gpio_poweroff {
 		compatible = "gpio-poweroff";
@@ -209,27 +221,6 @@
 
 		status = "okay";
 	};
-
-	motor_1 {
-		compatible = "motor-gpio";
-		gpios = <&gpio0 GPIO_A4 GPIO_ACTIVE_LOW>,
-				<&gpio0 GPIO_A5 GPIO_ACTIVE_LOW>,
-				<&gpio0 GPIO_A6 GPIO_ACTIVE_LOW>,
-				<&gpio0 GPIO_A7 GPIO_ACTIVE_LOW>;
-		rockchip,motor-id = <1>;
-		status = "okay";
-	};
-
-	motor_2 {
-		compatible = "motor-gpio";
-		gpios = <&gpio0 GPIO_B6 GPIO_ACTIVE_LOW>,
-				<&gpio0 GPIO_B0 GPIO_ACTIVE_LOW>,
-				<&gpio0 GPIO_C3 GPIO_ACTIVE_LOW>,
-				<&gpio0 GPIO_C5 GPIO_ACTIVE_LOW>;
-		rockchip,motor-id = <2>;
-		status = "okay";
-	};
-
 };
 
 /*
@@ -298,60 +289,6 @@
 		compatible = "rockchip,light_sensor";
 		io-channels = <&adc 2>;
 	};
-
-	key0 {
-		compatible = "rockchip,key";
-		io-channels = <&adc 0>;
-		adc-drift = <45>;
-
-		tab-key {
-			linux,code = <15>;
-			label = "tab";
-			rockchip,adc_value = <685>;
-		};
-
-		enter-key {
-			linux,code = <28>;
-			label = "volume down";
-			rockchip,adc_value = <802>;
-		};
-
-		up-key {
-			linux,code = <103>;
-			label = "up";
-			rockchip,adc_value = <238>;
-		};
-
-		down-key {
-			linux,code = <108>;
-			label = "down";
-			rockchip,adc_value = <353>;
-		};
-
-		left-key {
-			linux,code = <105>;
-			label = "left";
-			rockchip,adc_value = <465>;
-		};
-
-		right-key {
-			linux,code = <106>;
-			label = "right";
-			rockchip,adc_value = <109>;
-		};
-
-		menu-key {
-			linux,code = <127>;
-			label = "menu";
-			rockchip,adc_value = <581>;
-		};
-
-		esc-key {
-			linux,code = <1>;
-			label = "esc";
-			rockchip,adc_value = <1>;
-		};
-	};
 };
 
 &i2c0 {
@@ -418,30 +355,22 @@
 #include "rv1108-camb-v13.dtsi" /* camera board v13 */
 };
 
-/ {
-	cam_ircut0: cam_ircut {
-		status = "okay";
-		compatible = "rockchip,ircut";
-		rockchip,ircut-gpio-close = <&gpio1 GPIO_D2 GPIO_ACTIVE_LOW>;
-		rockchip,ircut-gpio-open  = <&gpio1 GPIO_D1 GPIO_ACTIVE_LOW>;
-		rockchip,led              = <&gpio0 GPIO_C0 GPIO_ACTIVE_LOW>;
-	};
+&i2c3 {
+	status = "okay";
+	clock-frequency = <400000>;
 };
 
 &camera0 {
-	rockchip,camera-ircut = <&cam_ircut0>;
 	rockchip,camera-ls = <&light_sensor0>;
 	rockchip,camera-ls-range = <0 700 800 1024>;
 };
 
 &camera1 {
-	rockchip,camera-ircut = <&cam_ircut0>;
 	rockchip,camera-ls = <&light_sensor0>;
 	rockchip,camera-ls-range = <0 700 800 1024>;
 };
 
 &camera2 {
-	rockchip,camera-ircut = <&cam_ircut0>;
 	rockchip,camera-ls = <&light_sensor0>;
 	rockchip,camera-ls-range = <0 750 950 1024>;
 };
@@ -614,11 +543,6 @@
 	status = "okay";
 };
 
-&codec {
-	spk_ctl_io = <&gpio0 GPIO_C4 GPIO_ACTIVE_HIGH>;
-	rockchip,single-ended = <1>;
-	status = "okay";
-};
 
 &hdmi {
 	status = "okay";
@@ -639,6 +563,12 @@
 		};
 		cif-dvp-clk-out-sleep {
 			rockchip,pins = <3 GPIO_B5 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	key {
+		key_en: key-en {
+			rockchip,pins = <0 GPIO_A4 RK_FUNC_GPIO &pcfg_pull_up>;
 		};
 	};
 };
