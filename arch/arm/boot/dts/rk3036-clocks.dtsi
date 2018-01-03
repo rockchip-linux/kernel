@@ -361,7 +361,7 @@
 					clk_i2s_out: i2s_outclk_mux {
 						compatible = "rockchip,rk3188-mux-con";
 						rockchip,bits = <12 1>;
-						clocks = <&xin12m>, <&clk_i2s>;
+						clocks = <&clk_i2s>, <&xin12m>;
 						clock-output-names = "clk_i2s_out";
 						#clock-cells = <0>;
 					};
