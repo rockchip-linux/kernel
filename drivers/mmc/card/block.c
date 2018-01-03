@@ -35,6 +35,7 @@
 #include <linux/capability.h>
 #include <linux/compat.h>
 #include <linux/pm_runtime.h>
+#include <linux/rockchip/cpu.h>
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/mmc.h>
@@ -1496,9 +1497,10 @@ static int mmc_blk_err_check(struct mmc_card *card,
 {
 	struct mmc_queue_req *mq_mrq = container_of(areq, struct mmc_queue_req,
 						    mmc_active);
+	struct mmc_host *host = card->host;
 	struct mmc_blk_request *brq = &mq_mrq->brq;
 	struct request *req = mq_mrq->req;
-	int need_retune = card->host->need_retune;
+	int need_retune = host->need_retune;
 	int ecc_err = 0, gen_err = 0;
 
 	/*
@@ -1541,9 +1543,10 @@ static int mmc_blk_err_check(struct mmc_card *card,
 	 * kind.  If it was a write, we may have transitioned to
 	 * program mode, which we have to wait for it to complete.
 	 */
-	if (!mmc_host_is_spi(card->host) && rq_data_dir(req) != READ) {
+	if (!mmc_host_is_spi(host) && rq_data_dir(req) != READ) {
 		u32 status;
 		unsigned long timeout;
+		int err;
 
 		/* Check stop command response */
 		if (brq->stop.resp[0] & R1_ERROR) {
@@ -1555,7 +1558,21 @@ static int mmc_blk_err_check(struct mmc_card *card,
 
 		timeout = jiffies + msecs_to_jiffies(MMC_BLK_TIMEOUT_MS);
 		do {
-			int err = get_card_status(card, &status, 5);
+			if (host->ops->card_busy && !host->ops->card_busy(host)) {
+				/*
+				 * Schedule for the others request like
+				 * we invoke mmc_wait_for_req_done in
+				 * get_card_status.
+				 */
+				if (cpu_is_rv110x())
+					usleep_range(1000, 3000);
+				else
+					usleep_range(100, 500);
+				continue;
+			}
+
+			err = get_card_status(card, &status, 5);
+
 			if (err) {
 				pr_err("%s: error %d requesting status\n",
 				       req->rq_disk->disk_name, err);
