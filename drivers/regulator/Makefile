@@ -55,6 +55,7 @@ obj-$(CONFIG_REGULATOR_S5M8767) += s5m8767.o
 
 obj-$(CONFIG_ROCKCHIP_PWM_REGULATOR) += rockchip-pwm-regulator.o
 
+obj-$(CONFIG_REGULATOR_TPS549B22) += tps549b22-regulator.o
 obj-$(CONFIG_REGULATOR_TPS6105X) += tps6105x-regulator.o
 obj-$(CONFIG_REGULATOR_TPS62360) += tps62360-regulator.o
 obj-$(CONFIG_REGULATOR_TPS65023) += tps65023-regulator.o
