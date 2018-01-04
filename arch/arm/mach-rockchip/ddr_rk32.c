@@ -3695,11 +3695,11 @@ static noinline uint32 ddr_change_freq_sram(void *arg)
     volatile unsigned int * temp=(volatile unsigned int *)SRAM_CODE_OFFSET;
     uint32 i;
     uint32 gpllvaluel;
-    freq_t *p_freq_t=(freq_t *)arg;    
+    freq_t *p_freq_t=(freq_t *)arg;
     uint32 nMHz=p_freq_t->nMHz;
 	static struct rk_screen screen;
 	static int dclk_div, down_dclk_div;
-	uint32 down_dclk_en;
+	static uint32 down_dclk_en;
 	struct rk_lcdc_driver *lcdc_dev = NULL;
 	uint32 screen_type;
 
