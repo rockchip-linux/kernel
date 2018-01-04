@@ -155,7 +155,7 @@
 		status = "okay";
 		vccio1-supply = <&rk816_dcdc4_reg>;
 		vccio2-supply = <&rk816_ldo2_reg>;
-		vccio3-supply = <&vccio_sd>;
+		vccio3-supply = <&rk816_ldo5_reg>;
 		vccio5-supply = <&rk816_ldo2_reg>;
 
 		/* PMU_GRF_IO_VSEL */
@@ -446,6 +446,7 @@
 	ignore-pm-notify;
 	keep-power-in-suspend;
 	power-inverted;
+	vmmc-supply = <&rk816_ldo5_reg>;
 	status = "okay";
 };
 
