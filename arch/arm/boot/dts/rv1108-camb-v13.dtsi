@@ -3,7 +3,7 @@ afc0: af-controller@0 {
 	reg = <0x0c>;
 	rockchip,vcm-start-current = <0>;
 	rockchip,vcm-rated-current = <120>;
-	rockchip,vcm-step-mode = <4>;
+	rockchip,vcm-step-mode = <0>;
 };
 
 camera0: camera-module@36 {
