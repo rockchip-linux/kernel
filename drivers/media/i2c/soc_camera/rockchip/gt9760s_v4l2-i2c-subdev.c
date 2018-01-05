@@ -31,17 +31,16 @@
 #define GT9760S_SEL_ON_BYTE1 0xEC
 #define GT9760S_SEL_ON_BYTE2 0xA3
 #define GT9760S_DVO_DLC_BYTE1 0xA1
-#define GT9760S_DVO_DLC_BYTE2 0x5
+#define GT9760S_DVO_DLC_BYTE2 0xD
 #define GT9760S_T_SRC_BYTE1 0xF2
-#define GT9760S_T_SRC_BYTE2 0x0
+#define GT9760S_T_SRC_BYTE2 0xF8
 #define GT9760S_SEL_OFF_BYTE1 0xDC
 #define GT9760S_SEL_OFF_BYTE2 0x51
 
 /*
-* According to the "Linear Slope Control - T_SRC[4:0] selection table"
-* The default value of T_SRC[4:0] is 0
+* Time to move the motor, This is fixed in the DLC specific setting
 */
-static unsigned int period_per_step[4] = {81, 162, 324, 648};
+#define GT9760S_DLC_MOVE_MS 13
 
 /*
  * Focus position values:
@@ -169,30 +168,29 @@ static int gt9760s_init(struct v4l2_subdev *sd, u32 val)
 {
 	int ret = 0;
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
-	struct gt9760s_dev *dev = container_of(sd, struct gt9760s_dev, sd);
 
-	if ((dev->step_mode & 0x0c) != 0) {
-		msleep(7);
+	msleep(7);
 
-		ret = gt9760s_write_msg(client, GT9760S_SEL_ON_BYTE1, GT9760S_SEL_ON_BYTE2);
-		if (IS_ERR_VALUE(ret))
-			goto err;
+	ret = gt9760s_write_msg(client, GT9760S_SEL_ON_BYTE1,
+				GT9760S_SEL_ON_BYTE2);
+	if (IS_ERR_VALUE(ret))
+		goto err;
 
-		ret = gt9760s_write_msg(client, GT9760S_DVO_DLC_BYTE1, GT9760S_DVO_DLC_BYTE2);
-		if (IS_ERR_VALUE(ret))
-			goto err;
+	ret = gt9760s_write_msg(client, GT9760S_DVO_DLC_BYTE1,
+				GT9760S_DVO_DLC_BYTE2);
+	if (IS_ERR_VALUE(ret))
+		goto err;
 
-		ret = gt9760s_write_msg(client, GT9760S_T_SRC_BYTE1, GT9760S_T_SRC_BYTE2);
-		if (IS_ERR_VALUE(ret))
-			goto err;
+	ret = gt9760s_write_msg(client, GT9760S_T_SRC_BYTE1,
+				GT9760S_T_SRC_BYTE2);
+	if (IS_ERR_VALUE(ret))
+		goto err;
 
-		ret = gt9760s_write_msg(client, GT9760S_SEL_OFF_BYTE1, GT9760S_SEL_OFF_BYTE2);
-		if (IS_ERR_VALUE(ret))
-			goto err;
-	} else {
-		dev_err(&client->dev, "this driving mode isn't supported!\n");
-		return -1;
-	}
+	ret = gt9760s_write_msg(client, GT9760S_SEL_OFF_BYTE1,
+				GT9760S_SEL_OFF_BYTE2);
+	if (IS_ERR_VALUE(ret))
+		goto err;
+
 	return 0;
 err:
 	dev_err(&client->dev, "failed with error %d\n", ret);
@@ -334,20 +332,14 @@ static long gt9760s_ioctl(struct v4l2_subdev *sd,
 
 	if (cmd == PLTFRM_CIFCAM_SET_VCM_POS) {
 		unsigned int *dest_pos = (unsigned int *)arg;
-		int move_pos;
 
 		if (*dest_pos > MAX_LOG) {
 			return -EINVAL;
 		} else {
-			/* calculate move time */
-			move_pos = dev->current_related_pos - *dest_pos;
-			if (move_pos < 0)
-				move_pos = -move_pos;
 
 			ret = gt9760s_set_pos(sd, *dest_pos);
-			*dest_pos = ((dev->vcm_movefull_t * (uint32_t)move_pos) / MAX_LOG);
 
-			dev->move_ms = *dest_pos;
+			dev->move_ms = GT9760S_DLC_MOVE_MS;
 			do_gettimeofday(&dev->start_move_tv);
 			dev->end_move_tv.tv_usec += dev->move_ms * 1000;
 			if (dev->end_move_tv.tv_usec >= 1000000) {
@@ -450,11 +442,7 @@ static int gt9760s_probe(
 	do_gettimeofday(&dev->start_move_tv);
 	do_gettimeofday(&dev->end_move_tv);
 
-	if ((dev->step_mode & 0x0c) != 0)
-		dev->vcm_movefull_t = period_per_step[dev->step_mode & 0x03] * 1024 /
-			((1 << (((dev->step_mode & 0x0c) >> 2) - 1)) * 1000);
-	else
-		dev->vcm_movefull_t = 64 * 1023 / 1000;
+	dev->vcm_movefull_t = GT9760S_DLC_MOVE_MS;
 
 	dev_info(&client->dev, "probing successful\n");
 	return 0;
