@@ -1558,7 +1558,7 @@ static int mmc_blk_err_check(struct mmc_card *card,
 
 		timeout = jiffies + msecs_to_jiffies(MMC_BLK_TIMEOUT_MS);
 		do {
-			if (host->ops->card_busy && !host->ops->card_busy(host)) {
+			if (host->ops->card_busy && host->ops->card_busy(host)) {
 				/*
 				 * Schedule for the others request like
 				 * we invoke mmc_wait_for_req_done in
@@ -1568,7 +1568,9 @@ static int mmc_blk_err_check(struct mmc_card *card,
 					usleep_range(1000, 3000);
 				else
 					usleep_range(100, 500);
-				continue;
+
+				if (time_before(jiffies, timeout))
+					continue;
 			}
 
 			err = get_card_status(card, &status, 5);
