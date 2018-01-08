@@ -6686,33 +6686,10 @@ int cif_isp11_s_vcm(
 	unsigned int id,
 	int val)
 {
-	struct cif_isp11_img_src_vcm *vcm = NULL;
-	unsigned long lock_flags;
-	int retval = 0;
-
-	if (!dev->vs_wq)
-		return -ENODEV;
-
-	vcm = kmalloc(sizeof(struct cif_isp11_img_src_vcm), GFP_KERNEL);
-	if (!vcm) {
-		retval = -ENOMEM;
-		goto failed;
-	}
-	vcm->id = id;
-	vcm->val = val;
-
-	spin_lock_irqsave(&dev->img_src_vcms.lock, lock_flags);
-	list_add_tail(&vcm->list, &dev->img_src_vcms.list);
-	spin_unlock_irqrestore(&dev->img_src_vcms.lock, lock_flags);
+	if (dev->img_src != NULL)
+		cif_isp11_img_src_ioctl(dev->img_src,
+			PLTFRM_CIFCAM_SET_VCM_POS, &val);
 	return 0;
-
-failed:
-	if (vcm) {
-		kfree(vcm);
-		vcm = NULL;
-	}
-
-	return retval;
 }
 
 int cif_isp11_s_vb_metadata(

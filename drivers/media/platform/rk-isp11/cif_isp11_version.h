@@ -150,9 +150,11 @@
 *v0.3.0:
 *1. Set vts with exposure time and gain;
 *
+*v0.3.1:
+*1. Change method of setting vcm;
 */
 
-#define CONFIG_CIFISP11_DRIVER_VERSION KERNEL_VERSION(0, 3, 0x0)
+#define CONFIG_CIFISP11_DRIVER_VERSION KERNEL_VERSION(0, 3, 0x1)
 
 
 #endif
