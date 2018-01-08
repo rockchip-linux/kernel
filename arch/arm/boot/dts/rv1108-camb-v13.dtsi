@@ -1,8 +1,8 @@
 afc0: af-controller@0 {
 	compatible = "silicon touch,gt9760s-v4l2-i2c-subdev";
 	reg = <0x0c>;
-	rockchip,vcm-start-current = <0>;
-	rockchip,vcm-rated-current = <120>;
+	rockchip,vcm-start-current = <20>;
+	rockchip,vcm-rated-current = <100>;
 	rockchip,vcm-step-mode = <0>;
 };
 
