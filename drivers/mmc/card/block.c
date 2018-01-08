@@ -1544,7 +1544,7 @@ static int mmc_blk_err_check(struct mmc_card *card,
 	 * program mode, which we have to wait for it to complete.
 	 */
 	if (!mmc_host_is_spi(host) && rq_data_dir(req) != READ) {
-		u32 status;
+		u32 status = 0;
 		unsigned long timeout;
 		int err;
 
