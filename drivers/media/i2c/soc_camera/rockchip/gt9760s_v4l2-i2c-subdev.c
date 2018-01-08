@@ -40,7 +40,7 @@
 /*
 * Time to move the motor, This is fixed in the DLC specific setting
 */
-#define GT9760S_DLC_MOVE_MS 13
+#define GT9760S_DLC_MOVE_MS 33
 
 /*
  * Focus position values:
@@ -332,6 +332,7 @@ static long gt9760s_ioctl(struct v4l2_subdev *sd,
 
 	if (cmd == PLTFRM_CIFCAM_SET_VCM_POS) {
 		unsigned int *dest_pos = (unsigned int *)arg;
+		long int mv_us;
 
 		if (*dest_pos > MAX_LOG) {
 			return -EINVAL;
@@ -341,10 +342,13 @@ static long gt9760s_ioctl(struct v4l2_subdev *sd,
 
 			dev->move_ms = GT9760S_DLC_MOVE_MS;
 			do_gettimeofday(&dev->start_move_tv);
-			dev->end_move_tv.tv_usec += dev->move_ms * 1000;
-			if (dev->end_move_tv.tv_usec >= 1000000) {
-				dev->end_move_tv.tv_sec += 1;
-				dev->end_move_tv.tv_usec -= 1000000;
+			mv_us = dev->start_move_tv.tv_usec + dev->move_ms * 1000;
+			if (mv_us >= 1000000) {
+				dev->end_move_tv.tv_sec = dev->start_move_tv.tv_sec + 1;
+				dev->end_move_tv.tv_usec = mv_us - 1000000;
+			} else {
+				dev->end_move_tv.tv_sec = dev->start_move_tv.tv_sec;
+				dev->end_move_tv.tv_usec = mv_us;
 			}
 
 			dev_dbg(&client->dev, "gt9760s_set_vcm_pos 0x%lx, 0x%lx, 0x%lx\n",
