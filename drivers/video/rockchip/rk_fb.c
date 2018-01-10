@@ -1734,6 +1734,7 @@ static void rk_fb_update_win(struct rk_lcdc_driver *dev_drv,
 				win->area[i].smem_start =
 					reg_win_data->reg_area_data[i].smem_start;
 				if (inf->disp_mode == DUAL ||
+				    inf->disp_mode == ONE_DUAL ||
 				    inf->disp_mode == NO_DUAL) {
 					win->area[i].xpos =
 						reg_win_data->reg_area_data[i].xpos;
