@@ -2753,17 +2753,16 @@ static int vcodec_spec_init_rk322xh(struct vpu_service_info *pservice)
 static void vcodec_spec_config_rk322xh(struct vpu_subdev_data *data)
 {
 	u32 *dst = data->dec_dev.regs;
-	struct vpu_reg *reg = data->pservice->reg_codec;
 	u32 cfg;
 
 	/*
 	 * HW defeat workaround: VP9 power save optimization cause decoding
 	 * corruption, disable optimization here.
+	 * H265, H264 decoder on rk3328 rkvdec also found decoding corruption.
+	 * disable rkvdec optimaztion all.
 	 */
-	if (rkv_dec_get_fmt(reg->reg) == FMT_VP9D) {
-		cfg = readl(dst + 99);
-		writel(cfg & (~(1 << 12)), dst + 99);
-	}
+	cfg = readl(dst + 99);
+	writel(cfg & (~(1 << 12)), dst + 99);
 }
 
 static struct vcodec_hw_ops hw_ops_default = {
