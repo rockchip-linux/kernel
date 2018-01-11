@@ -473,6 +473,10 @@ void __init smp_setup_processor_id(void)
 	printk(KERN_INFO "Booting Linux on physical CPU 0x%x\n", mpidr);
 }
 
+#ifdef CONFIG_CPU_V7
+extern void cpu_v7_btbinv_switch_mm(unsigned long pgd_phys, struct mm_struct *mm);
+#endif
+
 static void __init setup_processor(void)
 {
 	struct proc_info_list *list;
@@ -494,6 +498,17 @@ static void __init setup_processor(void)
 
 #ifdef MULTI_CPU
 	processor = *list->proc;
+#ifdef CONFIG_CPU_V7
+	switch(read_cpuid_part()) {
+	case ARM_CPU_PART_CORTEX_A8:
+	case ARM_CPU_PART_CORTEX_A9:
+	case ARM_CPU_PART_CORTEX_A12:
+	case ARM_CPU_PART_CORTEX_A17:
+		processor.switch_mm = cpu_v7_btbinv_switch_mm;
+		break;
+	}
+	printk("cpu_do_switch_mm is %pf\n", cpu_do_switch_mm);
+#endif
 #endif
 #ifdef MULTI_TLB
 	cpu_tlb = *list->tlb;
