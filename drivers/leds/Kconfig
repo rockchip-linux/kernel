@@ -73,6 +73,15 @@ config LEDS_LM3642
 	  converter plus 1.5A constant current driver for a high-current
 	  white LED.
 
+config LEDS_LM3648
+	tristate "LED support for LM3648 Chip"
+	depends on LEDS_CLASS && I2C
+	select REGMAP_I2C
+	help
+	  This option enables support for LEDs connected to LM3648.
+	  The LM3648 utilizes a 2-MHz or 4-MHz fixedfrom 1.954 mA
+	  to 1.5 Afrequency synchronous boost converter to provide
+	  power to the 1.5-A constant current LED source.
 
 config LEDS_LOCOMO
 	tristate "LED Support for Locomo device"
