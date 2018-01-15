@@ -358,6 +358,14 @@
 &i2c3 {
 	status = "okay";
 	clock-frequency = <400000>;
+
+	lm3648: leds-lm3648@29 {
+		status = "okay";
+		compatible = "leds-lm3648";
+		reg = <0x63>;
+		lm3648,hwen-gpio = <&gpio0 GPIO_C0 GPIO_ACTIVE_HIGH>;
+		lm3648,strobe-gpio = <&gpio1 GPIO_D7 GPIO_ACTIVE_LOW>;
+	};
 };
 
 &camera0 {
