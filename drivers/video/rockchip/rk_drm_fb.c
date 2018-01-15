@@ -1108,7 +1108,7 @@ int rk_fb_register(struct rk_lcdc_driver *dev_drv,
 		drm_display->screen_type = RK_DRM_PRIMARY_SCREEN;
 		drm_display->num_videomode = 1;
 		drm_display->best_mode = 0;
-		drm_display->is_connected = 1;
+		drm_display->is_connected = true;
 		memcpy(&modelist_new->mode, &dev_drv->cur_screen->mode,
 		       sizeof(struct fb_videomode));
 		list_add_tail(&modelist_new->list, drm_display->modelist);
@@ -1126,7 +1126,7 @@ int rk_fb_register(struct rk_lcdc_driver *dev_drv,
 		ext_dev_drv = dev_drv;
 		drm_screen_priv->ex_display = rk_drm_extend_display_get(SCREEN_HDMI);
 		drm_display->screen_type = RK_DRM_EXTEND_SCREEN;
-		drm_display->is_connected = 0;
+		drm_display->is_connected = false;
 #if 0
 		drm_screen_priv->ex_display->ops->getmodelist(drm_screen_priv->ex_display, &modelist);
 		memcpy(&drm_display->modelist, modelist, sizeof(struct list_head));
@@ -1446,9 +1446,6 @@ static int rk_drm_fb_probe(struct platform_device *pdev)
 
 static int rk_drm_fb_remove(struct platform_device *pdev)
 {
-	struct rk_drm_private  *rk_drm_priv = platform_get_drvdata(pdev);
-
-	kfree(rk_drm_priv);
 	platform_set_drvdata(pdev, NULL);
 	return 0;
 }
