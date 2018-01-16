@@ -1960,6 +1960,9 @@ DESCRIPTOR_ATTR(bDeviceProtocol, "%d\n")
 DESCRIPTOR_STRING_ATTR(iManufacturer, manufacturer_string)
 DESCRIPTOR_STRING_ATTR(iProduct, product_string)
 DESCRIPTOR_STRING_ATTR(iSerial, serial_string)
+#ifdef CONFIG_VIDEO_DEV
+DESCRIPTOR_STRING_ATTR(ifunction_uvc, function_uvc_string)
+#endif
 
 static DEVICE_ATTR(functions, S_IRUGO | S_IWUSR, functions_show,
 						 functions_store);
@@ -1979,6 +1982,9 @@ static struct device_attribute *android_usb_attributes[] = {
 	&dev_attr_functions,
 	&dev_attr_enable,
 	&dev_attr_state,
+#ifdef CONFIG_VIDEO_DEV
+	&dev_attr_ifunction_uvc,
+#endif
 	NULL
 };
 

@@ -59,8 +59,10 @@ MODULE_PARM_DESC(bulk_streaming_ep,
 #define UVC_STRING_CONTROL_IDX			0
 #define UVC_STRING_STREAMING_IDX		1
 
+static char function_uvc_string[256] = "UVC Camera";
+
 static struct usb_string uvc_en_us_strings[] = {
-	[UVC_STRING_CONTROL_IDX].s = "UVC Camera",
+	[UVC_STRING_CONTROL_IDX].s = function_uvc_string,
 	[UVC_STRING_STREAMING_IDX].s = "Video Streaming",
 	{  }
 };
