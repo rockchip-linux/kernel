@@ -189,6 +189,7 @@ struct aptina_camera_module {
 	bool frm_intrvl_valid;
 	bool hflip;
 	bool vflip;
+	bool flip_flg;
 	u32 rotation;
 	void *pltfm_data;
 	bool inited;

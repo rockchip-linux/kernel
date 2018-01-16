@@ -49,8 +49,6 @@ static void xc9080_camera_module_reset(
 	cam_mod->exp_config.auto_exp = false;
 	cam_mod->exp_config.auto_gain = false;
 	cam_mod->wb_config.auto_wb = false;
-	cam_mod->hflip = false;
-	cam_mod->vflip = false;
 	cam_mod->auto_adjust_fps = true;
 	cam_mod->rotation = 0;
 	cam_mod->ctrl_updt = 0;
@@ -950,12 +948,14 @@ int xc9080_camera_module_s_ext_ctrls(
 				cam_mod->hflip = true;
 			else
 				cam_mod->hflip = false;
+			cam_mod->flip_flg = true;
 			break;
 		case V4L2_CID_VFLIP:
 			if (ctrl->value)
 				cam_mod->vflip = true;
 			else
 				cam_mod->vflip = false;
+			cam_mod->flip_flg = true;
 			break;
 		default:
 			pltfrm_camera_module_pr_warn(&cam_mod->sd,
@@ -1125,7 +1125,22 @@ long xc9080_camera_module_ioctl(struct v4l2_subdev *sd,
 int xc9080_camera_module_get_flip_mirror(
 	struct xc9080_camera_module *cam_mod)
 {
-	return pltfrm_camera_module_get_flip_mirror(&cam_mod->sd);
+	int mode = 0;
+
+	if (!cam_mod->flip_flg)
+		return -1;
+
+	if (cam_mod->hflip)
+		mode |= XC9080_MIRROR_BIT_MASK;
+	else
+		mode &= ~XC9080_MIRROR_BIT_MASK;
+
+	if (cam_mod->vflip)
+		mode |= XC9080_FLIP_BIT_MASK;
+	else
+		mode &= ~XC9080_FLIP_BIT_MASK;
+
+	return mode;
 }
 
 /* ======================================================================== */
@@ -1407,9 +1422,13 @@ int xc9080_camera_module_init(struct xc9080_camera_module *cam_mod,
 	struct xc9080_camera_module_custom_config *custom)
 {
 	int ret = 0;
+	int mode = 0;
 
 	pltfrm_camera_module_pr_debug(&cam_mod->sd, "\n");
 
+	cam_mod->hflip = false;
+	cam_mod->vflip = false;
+	cam_mod->flip_flg = false;
 	xc9080_camera_module_reset(cam_mod);
 
 	if (IS_ERR_OR_NULL(custom->start_streaming) ||
@@ -1435,6 +1454,13 @@ int xc9080_camera_module_init(struct xc9080_camera_module *cam_mod,
 	if (IS_ERR_VALUE(ret)) {
 		xc9080_camera_module_release(cam_mod);
 		goto err;
+	}
+
+	mode = pltfrm_camera_module_get_flip_mirror(&cam_mod->sd);
+	if (mode != -1) {
+		cam_mod->hflip = mode & XC9080_MIRROR_BIT_MASK ? true : false;
+		cam_mod->vflip = mode & XC9080_FLIP_BIT_MASK ? true : false;
+		cam_mod->flip_flg = true;
 	}
 
 	return 0;

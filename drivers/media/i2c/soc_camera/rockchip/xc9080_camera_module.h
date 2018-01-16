@@ -30,6 +30,8 @@
 #define XC9080_CAMERA_MODULE_REG_TYPE_DATA_SINGLE \
 	PLTFRM_CAMERA_MODULE_REG_TYPE_DATA_SINGLE
 #define xc9080_camera_module_reg pltfrm_camera_module_reg
+#define XC9080_FLIP_BIT_MASK (1 << PLTFRM_CAMERA_MODULE_FLIP_BIT)
+#define XC9080_MIRROR_BIT_MASK (1 << PLTFRM_CAMERA_MODULE_MIRROR_BIT)
 
 #define XC9080_CAMERA_MODULE_CTRL_UPDT_GAIN		0x01
 #define XC9080_CAMERA_MODULE_CTRL_UPDT_EXP_TIME		0x02
@@ -204,6 +206,7 @@ struct xc9080_camera_module {
 	bool frm_intrvl_valid;
 	bool hflip;
 	bool vflip;
+	bool flip_flg;
 	u32 rotation;
 	void *pltfm_data;
 	bool inited;
