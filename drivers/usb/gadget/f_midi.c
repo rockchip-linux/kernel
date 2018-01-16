@@ -97,7 +97,9 @@ static inline struct f_midi *func_to_midi(struct usb_function *f)
 
 static void f_midi_transmit(struct f_midi *midi, struct usb_request *req);
 
+#ifdef CONFIG_USB_MIDI_GADGET
 DECLARE_UAC_AC_HEADER_DESCRIPTOR(1);
+#endif
 DECLARE_USB_MIDI_OUT_JACK_DESCRIPTOR(1);
 DECLARE_USB_MS_ENDPOINT_DESCRIPTOR(16);
 
