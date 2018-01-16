@@ -235,7 +235,10 @@ struct audio_source_config {
 	int	device;
 };
 
+static struct class *audio_source_class;
+
 struct audio_dev {
+	struct device			*dev;
 	struct usb_function		func;
 	struct snd_card			*card;
 	struct snd_pcm			*pcm;
@@ -244,12 +247,16 @@ struct audio_dev {
 	struct list_head		idle_reqs;
 	struct usb_ep			*in_ep;
 
+	struct work_struct		work;
+
 	spinlock_t			lock;
 
 	/* beginning, end and current position in our buffer */
 	void				*buffer_start;
 	void				*buffer_end;
 	void				*buffer_pos;
+
+	unsigned int			alt;
 
 	/* byte size of a "period" */
 	unsigned int			period;
@@ -266,6 +273,83 @@ static inline struct audio_dev *func_to_audio(struct usb_function *f)
 	return container_of(f, struct audio_dev, func);
 }
 
+static void audio_source_work(struct work_struct *data)
+{
+	struct audio_dev *audio = container_of(data, struct audio_dev, work);
+	char *set_interface[2]	= { "USB_STATE=SET_INTERFACE", NULL };
+	char **uevent_envp = NULL;
+
+	if (audio->alt)
+		set_interface[1] = "1";
+	else
+		set_interface[1] = "0";
+	uevent_envp = set_interface;
+
+	if (uevent_envp) {
+		kobject_uevent_env(&audio->dev->kobj, KOBJ_CHANGE,
+				   uevent_envp);
+		pr_info("%s: sent uevent %s\n", __func__,
+			uevent_envp[0]);
+	} else {
+		pr_info("%s: did not send uevent set interface\n",
+			__func__);
+	}
+}
+
+static ssize_t
+alt_show(struct device *dev, struct device_attribute *attr,
+		char *buf)
+{
+	struct audio_dev *audio = dev_get_drvdata(dev);
+
+	return sprintf(buf, "%d\n", audio->alt);
+}
+
+static ssize_t
+alt_store(struct device *dev, struct device_attribute *attr,
+		const char *buf, size_t size)
+{
+	int value;
+	struct audio_dev *audio = dev_get_drvdata(dev);
+
+	if (sscanf(buf, "%d\n", &value) != 1)
+		return -1;
+
+	if (audio->alt != value) {
+		audio->alt = value;
+		schedule_work(&audio->work);
+	}
+	return size;
+}
+static DEVICE_ATTR(alt, 0644, alt_show, alt_store);
+
+static struct device_attribute *audio_source_attributes[] = {
+	&dev_attr_alt,
+	NULL
+};
+
+static int audio_source_create_device(struct audio_dev *audio)
+{
+	struct device_attribute **attrs = audio_source_attributes;
+	struct device_attribute *attr;
+	int err;
+
+	audio->dev = device_create(audio_source_class, NULL,
+				   MKDEV(0, 0), NULL, "audio_source0");
+	if (IS_ERR(audio->dev))
+		return PTR_ERR(audio->dev);
+
+	dev_set_drvdata(audio->dev, audio);
+
+	while ((attr = *attrs++)) {
+		err = device_create_file(audio->dev, attr);
+		if (err) {
+			device_destroy(audio_source_class, audio->dev->devt);
+			return err;
+		}
+	}
+	return 0;
+}
 /*-------------------------------------------------------------------------*/
 
 static struct usb_request *audio_request_new(struct usb_ep *ep, int buffer_size)
@@ -532,6 +616,11 @@ static int audio_set_alt(struct usb_function *f, unsigned intf, unsigned alt)
 	if (ret)
 		return ret;
 
+	if (audio->alt != alt) {
+		audio->alt = alt;
+		schedule_work(&audio->work);
+	}
+
 	usb_ep_enable(audio->in_ep);
 	return 0;
 }
@@ -631,11 +720,16 @@ audio_unbind(struct usb_configuration *c, struct usb_function *f)
 	while ((req = audio_req_get(audio)))
 		audio_request_free(req, audio->in_ep);
 
+	cancel_work_sync(&audio->work);
+	device_destroy(audio_source_class, audio->dev->devt);
+	class_destroy(audio_source_class);
+
 	snd_card_free_when_closed(audio->card);
 	audio->card = NULL;
 	audio->pcm = NULL;
 	audio->substream = NULL;
 	audio->in_ep = NULL;
+	audio->dev = NULL;
 }
 
 static void audio_pcm_playback_start(struct audio_dev *audio)
@@ -824,6 +918,14 @@ int audio_source_bind_config(struct usb_configuration *c,
 	config->card = pcm->card->number;
 	config->device = pcm->device;
 	audio->card = card;
+
+	audio_source_class = class_create(THIS_MODULE, "audio_source");
+	if (IS_ERR(audio_source_class))
+		return PTR_ERR(audio_source_class);
+
+	INIT_WORK(&audio->work, audio_source_work);
+	audio_source_create_device(audio);
+
 	return 0;
 
 add_fail:
