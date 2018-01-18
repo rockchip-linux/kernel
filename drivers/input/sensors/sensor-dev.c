@@ -2220,6 +2220,7 @@ static const struct i2c_device_id sensor_id[] = {
 	{"mpu6500_acc",ACCEL_ID_MPU6500},
 	{"bma2xx_acc",ACCEL_ID_BMA2XX},
 	{"da380_acc", ACCEL_ID_MIR3DA},
+	{"lsm6ds3_acc", ACCEL_ID_LSM6DS3},
 	/*compass*/
 	{"compass", COMPASS_ID_ALL},
 	{"ak8975", COMPASS_ID_AK8975},
@@ -2234,6 +2235,7 @@ static const struct i2c_device_id sensor_id[] = {
 	{"k3g", GYRO_ID_K3G},
 	{"mpu6880_gyro",GYRO_ID_MPU6880},
 	{"mpu6500_gyro", GYRO_ID_MPU6500},
+	{"lsm6ds3_gyro", GYRO_ID_LSM6DS3},
 	/*light sensor*/
 	{"lightsensor", LIGHT_ID_ALL},
 	{"light_cm3217", LIGHT_ID_CM3217},
@@ -2275,6 +2277,7 @@ static struct of_device_id sensor_dt_ids[] = {
 	{ .compatible = "bma2xx_acc" },
 	{ .compatible = "da380_acc"},
 	{ .compatible = "mpu6500_acc"},
+	{ .compatible = "lsm6ds3_acc" },
 	/*compass*/
 	{ .compatible = "ak8975" },
 	{ .compatible = "ak8963" },
@@ -2287,6 +2290,7 @@ static struct of_device_id sensor_dt_ids[] = {
 	{ .compatible = "l3g20d_gyro" },
 	{ .compatible = "ewtsa_gyro" },
 	{ .compatible = "k3g" },
+	{ .compatible = "lsm6ds3_gyro" },
 
 
 	/*light sensor*/

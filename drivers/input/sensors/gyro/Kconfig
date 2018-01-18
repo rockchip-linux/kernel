@@ -32,4 +32,8 @@ config GYRO_MPU6500
   bool "gyroscope mpu6500_gyro"
 	default y
 
+config GYRO_LSM6DS3
+	bool "gyroscope lsm6ds3_gyro"
+	default n
+
 endif

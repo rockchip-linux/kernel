@@ -96,6 +96,13 @@ config GS_BMA023
     To have support for your specific gsesnor you will have to
     select the proper drivers which depend on this option.
 
+config LSM6DS3_ACC
+	bool "Sensor lsm6ds3_acc"
+	default n
+	help
+	  To have support for your specific gsesnor you will have to
+	  select the proper drivers which depend on this option.
+
 source "drivers/input/sensors/accel/da380/Kconfig"
 
 endif

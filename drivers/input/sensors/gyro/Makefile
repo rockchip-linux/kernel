@@ -6,3 +6,4 @@ obj-$(CONFIG_GYRO_L3G20D) 	+= l3g20d.o
 #obj-$(CONFIG_GYRO_EWTSA) 	+= ewtsa.o
 obj-$(CONFIG_GYRO_MPU6880)    += mpu6880_gyro.o
 obj-$(CONFIG_GYRO_MPU6500)    += mpu6500/
+obj-$(CONFIG_GYRO_LSM6DS3)	+= lsm6ds3_gyro.o
