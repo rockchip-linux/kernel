@@ -48,6 +48,7 @@
 //#include "lcd-ili9807_mipi.dtsi" /* display board v30 */
 //#include "lcd_dummy_mipi.dtsi" /* dummy mipi for rv1108 */
 #include "dt-bindings/suspend/rockchip-pm.h"
+#include "dt-bindings/sensor-dev.h"
 
 / {
 	model = "Rockchip RV1108 IPC MAINBOARD V10";
@@ -303,17 +304,6 @@
 		status = "okay";
 	};
 
-	sensor: sensor@19 {
-		compatible = "bma2xx_acc";
-		reg = <0x19>;
-		type = <2>;
-		irq-gpio = <&gpio0 GPIO_B3 IRQ_TYPE_LEVEL_HIGH>;
-		irq_enable = <0>;
-		poll_delay_ms = <30>;
-		layout = <2>;
-		status = "okay";
-	};
-
 	nvp6124: nvp6124@30 {
 		status = "disabled";
 		compatible = "rockchip,nvp";
@@ -330,20 +320,6 @@
 		pinctrl-names = "default", "sleep";
 		pinctrl-0 = <&cif_dvp_d2d9 &cif_dvp_clk_in>;
 		pinctrl-1 = <&cif_dvp_d2d9_sleep &cif_dvp_clk_in_sleep>;
-	};
-
-	mpu6500: mpu6500@68 {
-		status = "disabled";
-		compatible = "invensense,mpu6500";
-		reg = <0x68>;
-		mpu-int_config = <0x10>;
-		mpu-level_shifter = <0>;
-		mpu-orientation = <1 0 0 0 1 0 0 0 1>;
-		orientation-x= <1>;
-		orientation-y= <1>;
-		orientation-z= <0>;
-		support-hw-poweroff = <1>;
-		mpu-debug = <1>;
 	};
 };
 
@@ -365,6 +341,17 @@
 		reg = <0x63>;
 		lm3648,hwen-gpio = <&gpio0 GPIO_C0 GPIO_ACTIVE_HIGH>;
 		lm3648,strobe-gpio = <&gpio1 GPIO_D7 GPIO_ACTIVE_LOW>;
+	};
+
+	lsm6ds3_gyro: lsm6ds3_gyro@6a {
+		compatible = "lsm6ds3_gyro";
+		reg = <0x6a>;
+		type = <SENSOR_TYPE_GYROSCOPE>;
+		irq-gpio = <&gpio0 GPIO_B3 IRQ_TYPE_LEVEL_HIGH>;
+		irq_enable = <1>;
+		poll_delay_ms = <30>;
+		layout = <1>;
+		status = "okay";
 	};
 };
 
