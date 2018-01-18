@@ -152,9 +152,13 @@
 *
 *v0.3.1:
 *1. Change method of setting vcm;
+*
+*v0.3.2:
+*1. Support config image buffer out mi interrupt;
+*2. Support only two buffer rotation in isp driver;
 */
 
-#define CONFIG_CIFISP11_DRIVER_VERSION KERNEL_VERSION(0, 3, 0x1)
+#define CONFIG_CIFISP11_DRIVER_VERSION KERNEL_VERSION(0, 3, 0x2)
 
 
 #endif

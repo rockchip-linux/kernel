@@ -4569,6 +4569,67 @@ static int cif_isp11_mi_frame_end(
 
 	return 0;
 }
+
+static int cif_isp11_update_mi_immediate(
+	struct cif_isp11_device *dev,
+	enum cif_isp11_stream_id stream_id)
+{
+	struct cif_isp11_stream *stream;
+	u32 *next_buff_addr;
+	CIF_ISP11_PLTFRM_MEM_IO_ADDR y_base_addr;
+	int (*update_mi)(
+		struct cif_isp11_device *dev);
+
+	if (stream_id == CIF_ISP11_STREAM_MP) {
+		stream = &dev->mp_stream;
+		y_base_addr =
+			dev->config.base_addr + CIF_MI_MP_Y_BASE_AD_SHD;
+		next_buff_addr = &dev->config.mi_config.mp.next_buff_addr;
+		update_mi = cif_isp11_update_mi_mp;
+	} else if (stream_id == CIF_ISP11_STREAM_SP) {
+		stream = &dev->sp_stream;
+		y_base_addr =
+			dev->config.base_addr + CIF_MI_SP_Y_BASE_AD_SHD;
+		next_buff_addr = &dev->config.mi_config.sp.next_buff_addr;
+		update_mi = cif_isp11_update_mi_sp;
+	} else if (stream_id == CIF_ISP11_STREAM_Y12) {
+		stream = &dev->y12_stream;
+		y_base_addr =
+			dev->config.base_addr + CIF_MI_MP_CR_BASE_AD_SHD;
+		next_buff_addr = &dev->config.mi_config.y12.next_buff_addr;
+		update_mi = cif_isp11_update_mi_y12;
+	} else {
+		BUG();
+	}
+
+	if (stream->state != CIF_ISP11_STATE_STREAMING)
+		return 0;
+
+	if (stream->next_buf)
+		return 0;
+
+	if (!list_empty(&stream->buf_queue)) {
+		stream->next_buf =
+			list_first_entry(&stream->buf_queue,
+				struct videobuf_buffer, queue);
+		list_del(&stream->next_buf->queue);
+		stream->next_buf->state = VIDEOBUF_ACTIVE;
+		*next_buff_addr = videobuf_to_dma_contig(
+			stream->next_buf);
+	}
+
+	update_mi(dev);
+
+	cif_isp11_pltfrm_pr_dbg(dev->dev,
+		"%s curr_buff: %d, 0x%08x next_buf: %d, 0x%08x\n",
+		cif_isp11_stream_id_string(stream_id),
+		(stream->curr_buf) ? stream->curr_buf->i : -1,
+		(stream->curr_buf) ? videobuf_to_dma_contig(stream->curr_buf) : -1,
+		(stream->next_buf) ? stream->next_buf->i : -1,
+		*next_buff_addr);
+	return 0;
+}
+
 static void cif_isp11_stream_metadata_reset(
 	struct cif_isp11_stream *stream_dev
 )
@@ -6507,12 +6568,15 @@ int cif_isp11_qbuf(
 	switch (stream) {
 	case CIF_ISP11_STREAM_SP:
 		list_add_tail(&buf->queue, &dev->sp_stream.buf_queue);
+		cif_isp11_update_mi_immediate(dev, CIF_ISP11_STREAM_SP);
 		break;
 	case CIF_ISP11_STREAM_MP:
 		list_add_tail(&buf->queue, &dev->mp_stream.buf_queue);
+		cif_isp11_update_mi_immediate(dev, CIF_ISP11_STREAM_MP);
 		break;
 	case CIF_ISP11_STREAM_Y12:
 		list_add_tail(&buf->queue, &dev->y12_stream.buf_queue);
+		cif_isp11_update_mi_immediate(dev, CIF_ISP11_STREAM_Y12);
 		break;
 	case CIF_ISP11_STREAM_DMA:
 		list_add_tail(&buf->queue, &dev->dma_stream.buf_queue);
