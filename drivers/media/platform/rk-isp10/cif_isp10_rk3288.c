@@ -428,6 +428,10 @@ static int mipi_dphy_cfg(struct pltfrm_cam_mipi_config *para)
 		write_csihost_reg(CSIHOST_PHY_TEST_CTRL1, 0x00000000);
 		write_csihost_reg(CSIHOST_PHY_SHUTDOWNZ, 0x00000001);
 		write_csihost_reg(CSIHOST_DPHY_RSTZ, 0x00000001);
+
+		write_cifisp_reg((MRV_MIPI_BASE + MRV_MIPI_CTRL),
+			read_cifisp_reg(MRV_MIPI_BASE + MRV_MIPI_CTRL) |
+			(0x0f << 8));
 	} else {
 		goto fail;
 	}
