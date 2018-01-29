@@ -366,8 +366,10 @@
 };
 
 &camera2 {
-	rockchip,camera-ls = <&light_sensor0>;
-	rockchip,camera-ls-range = <0 750 950 1024>;
+	rockchip,pwr-gpio = <&gpio1 GPIO_D0 GPIO_ACTIVE_HIGH>;
+	rockchip,camera-module-name = "LA6271";
+	rockchip,camera-module-flip = <1>;
+	rockchip,camera-module-mirror = <1>;
 };
 
 &cif1to4 {
@@ -539,17 +541,15 @@
 	status = "okay";
 };
 
+&codec {
+	spk_ctl_io = <&gpio0 GPIO_B0 GPIO_ACTIVE_HIGH>;
+	rockchip,single-ended = <1>;
+	status = "okay";
+};
 
 &hdmi {
 	status = "okay";
 	pinctrl-0 = <&hdmi_cec &i2c2m1_xfer &hdmi_hpd>;
-};
-
-&camera2 {
-	rockchip,pwr-gpio = <&gpio1 GPIO_D0 GPIO_ACTIVE_HIGH>;
-	rockchip,camera-module-name = "LA6271";
-	rockchip,camera-module-flip = <1>;
-	rockchip,camera-module-mirror = <1>;
 };
 
 &pinctrl {
