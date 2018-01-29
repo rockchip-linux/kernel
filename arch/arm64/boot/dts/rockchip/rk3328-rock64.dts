@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 Fuzhou Rockchip Electronics Co., Ltd
+ * Copyright (c) 2016 Fuzhou Rockchip Electronics Co., Ltd
  *
  * This file is dual-licensed: you can use it either under the terms
  * of the GPL or the X11 license, at your option. Note that this dual
@@ -52,6 +52,33 @@
 		stdout-path = "serial2:1500000n8";
 	};
 
+	leds {
+		compatible = "gpio-leds";
+
+		standby-led {
+			linux,default-trigger = "heartbeat";
+			gpios = <&rk805 1 GPIO_ACTIVE_LOW>;
+			default-state = "on";
+		};
+
+		power-led {
+			linux,default-trigger = "mmc0";
+			gpios = <&rk805 0 GPIO_ACTIVE_LOW>;
+			default-state = "on";
+		};
+	};
+
+	switches {
+		compatible = "gpio-leds";
+
+		usb-switch {
+			linux,default-trigger = "none";
+			gpios = <&gpio0 2 1>;
+			mode = <0x23>;
+			default-state = "on";
+		};
+	};
+
 	fiq-debugger {
 		compatible = "rockchip,fiq-debugger";
 		rockchip,serial-id = <2>;
@@ -69,6 +96,13 @@
 		clock-frequency = <125000000>;
 		clock-output-names = "gmac_clkin";
 		#clock-cells = <0>;
+	};
+
+	vcc_phy: vcc-phy-regulator {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc_phy";
+		regulator-always-on;
+		regulator-boot-on;
 	};
 
 	vcc_sd: sdmmc-regulator {
@@ -208,7 +242,14 @@
 	bus-width = <8>;
 	cap-mmc-highspeed;
 	non-removable;
-	supports-emmc;
+	supports-emmc;	
+	clocks = <&cru HCLK_EMMC>, <&cru SCLK_EMMC>,
+		<&cru SCLK_EMMC_DRV>, <&cru SCLK_EMMC_SAMPLE>;	
+	clock-names = "biu", "ciu", "ciu-drv", "ciu-sample";
+	disable-wp;
+	max-frequency = <200000000>;
+	mmc-hs200-1_8v;
+	num-slots = <1>;
 	pinctrl-names = "default";
 	pinctrl-0 = <&emmc_clk &emmc_cmd &emmc_bus8>;
 	vmmc-supply = <&vcc_io>;
@@ -222,13 +263,23 @@
 	assigned-clocks = <&cru SCLK_MAC2IO>, <&cru SCLK_MAC2IO_EXT>;
 	assigned-clock-parents = <&gmac_clkin>, <&gmac_clkin>;
 	clock_in_out = "input";
-	snps,reset-gpio = <&gpio1 18 GPIO_ACTIVE_LOW>;
+	snps,reset-gpio = <&gpio1 RK_PC2 GPIO_ACTIVE_LOW>;
 	snps,reset-active-low;
 	snps,reset-delays-us = <0 10000 50000>;
 	pinctrl-names = "default";
 	pinctrl-0 = <&rgmiim1_pins>;
 	tx_delay = <0x26>;
 	rx_delay = <0x11>;
+	status = "okay";
+};
+
+&gmac2phy {
+	phy-supply = <&vcc_phy>;
+	clock_in_out = "output";
+	assigned-clocks = <&cru SCLK_MAC2PHY_SRC>;
+	assigned-clock-rate = <50000000>;
+	assigned-clocks = <&cru SCLK_MAC2PHY>;
+	assigned-clock-parents = <&cru SCLK_MAC2PHY_SRC>;
 	status = "okay";
 };
 
@@ -247,6 +298,8 @@
 
 &hdmi {
 	#sound-dai-cells = <0>;
+	ddc-i2c-scl-high-time-ns = <9625>;
+	ddc-i2c-scl-low-time-ns = <10000>;
 	status = "okay";
 };
 
@@ -280,11 +333,11 @@
 		vcc6-supply = <&vcc_sys>;
 
 		rtc {
-			status = "disabled";
+			status = "okay";
 		};
 
 		pwrkey {
-			status = "disabled";
+			status = "okay";
 		};
 
 		gpio {
@@ -405,6 +458,16 @@
 };
 
 &i2s1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2s1_mclk
+		     &i2s1_sclk
+		     &i2s1_lrcktx
+		     &i2s1_lrckrx
+		     &i2s1_sdo
+		     &i2s1_sdi
+		     &i2s1_sdio1
+		     &i2s1_sdio2
+		     &i2s1_sdio3>;
 	#sound-dai-cells = <0>;
 	status = "okay";
 };
@@ -465,17 +528,25 @@
 	bus-width = <4>;
 	cap-mmc-highspeed;
 	cap-sd-highspeed;
+	cd-gpios = <&gpio1 RK_PA5 GPIO_ACTIVE_LOW>;
 	disable-wp;
 	max-frequency = <150000000>;
+	num-slots = <1>;
 	pinctrl-names = "default";
 	pinctrl-0 = <&sdmmc0_clk &sdmmc0_cmd &sdmmc0_dectn &sdmmc0_bus4>;
 	vmmc-supply = <&vcc_sd>;
+	vqmmc-supply = <&vcc_sd>;
 	supports-sd;
 	status = "okay";
 };
 
 &spi0 {
 	status = "okay";
+
+	/* SPI DMA does not work currently */
+	/delete-property/ dmas;
+	/delete-property/ #dma-cells;
+	/delete-property/ dma-names;
 
 	flash@0 {
 		compatible = "gigadevice,gd25q128", "jedec,spi-nor";
@@ -485,7 +556,31 @@
 		m25p,fast-read;
 		/* The max SCLK of the flash 104/80 MHZ  */
 		spi-max-frequency = <50000000>;
+		status = "okay";
+
+		partitions {
+			compatible = "fixed-partitions";
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			loader@8000 {
+				label = "loader";
+				reg = <0x8000 0x3F8000>;
+			};
+
+			vendor@7c0000 {
+				label = "vendor";
+				reg = <0x7C0000 0x40000>;
+			};
+		};
 	};
+};
+
+&spdif {
+	pinctrl-names = "default";
+	pinctrl-0 = <&spdifm0_tx>;
+	#sound-dai-cells = <0>;
+	status = "okay";
 };
 
 &tsadc {
@@ -500,7 +595,7 @@
 
 &u2phy {
 	status = "okay";
-
+	otg-vbus-gpios = <&gpio0 RK_PD3 GPIO_ACTIVE_HIGH>;
 };
 
 &u2phy_host {
