@@ -481,6 +481,14 @@
 	status = "okay";
 };
 
+&iep {
+	status = "okay";
+};
+
+&iep_mmu {
+	status = "okay";
+};
+
 &io_domains {
 	status = "okay";
 
@@ -525,12 +533,21 @@
 	};
 };
 
+&rga {
+	status = "okay";
+};
+
 &rkvdec {
 	status = "okay";
 };
 
 &rkvdec_mmu {
 	status = "okay";
+};
+
+&rockchip_suspend {
+	status = "okay";
+	rockchip,virtual-poweroff = <1>;
 };
 
 &sdmmc {
@@ -592,9 +609,25 @@
 	status = "okay";
 };
 
+&threshold {
+	temperature = <90000>; /* millicelsius */
+};
+
+&target {
+	temperature = <105000>; /* millicelsius */
+};
+
+&soc_crit {
+	temperature = <110000>; /* millicelsius */
+};
+
 &tsadc {
 	rockchip,hw-tshut-mode = <0>;
 	rockchip,hw-tshut-polarity = <0>;
+	status = "okay";
+};
+
+&tve {
 	status = "okay";
 };
 
