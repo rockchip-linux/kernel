@@ -49,7 +49,6 @@
 
 	chosen {
 		bootargs = "rockchip_jtag earlyprintk=uart8250-32bit,0xff130000";
-		stdout-path = "serial2:1500000n8";
 	};
 
 	leds {
@@ -628,10 +627,6 @@
 };
 
 &tve {
-	status = "okay";
-};
-
-&uart2 {
 	status = "okay";
 };
 
