@@ -984,7 +984,7 @@ void mpt_SetRFPath_8723B(PADAPTER pAdapter)
 	}
 
 	switch (pAdapter->mppriv.antenna_tx) {
-		u8 p = 0, i = 0;
+		u8 p, i;
 	case ANTENNA_A: /*/ Actually path S1  (Wi-Fi)*/
 			{
 			pMptCtx->MptRfPath = ODM_RF_PATH_A;			
