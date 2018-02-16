@@ -407,9 +407,9 @@ enum dwc2_ep0_state {
  *                      case.
  *                      0 - No (default)
  *                      1 - Yes
- * @hibernation:	Specifies whether the controller support hibernation.
- *			If hibernation is enabled, the controller will enter
- *			hibernation in both peripheral and host mode when
+ * @power_down:		Specifies whether the controller support power_down.
+ *			If power_down is enabled, the controller will enter
+ *			power_down in both peripheral and host mode when
  *			needed.
  *			0 - No (default)
  *			1 - Yes
@@ -452,7 +452,7 @@ struct dwc2_core_params {
 	int ahbcfg;
 	int uframe_sched;
 	int external_id_pin_ctl;
-	int hibernation;
+	int power_down;
 };
 
 /**
@@ -1033,8 +1033,8 @@ enum dwc2_halt_status {
  */
 extern int dwc2_core_reset(struct dwc2_hsotg *hsotg, bool skip_wait);
 extern int dwc2_core_reset_and_force_dr_mode(struct dwc2_hsotg *hsotg);
-extern int dwc2_enter_hibernation(struct dwc2_hsotg *hsotg);
-extern int dwc2_exit_hibernation(struct dwc2_hsotg *hsotg, bool restore);
+extern int dwc2_enter_partial_power_down(struct dwc2_hsotg *hsotg);
+extern int dwc2_exit_partial_power_down(struct dwc2_hsotg *hsotg, bool restore);
 
 void dwc2_force_dr_mode(struct dwc2_hsotg *hsotg);
 

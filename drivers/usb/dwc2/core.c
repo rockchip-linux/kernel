@@ -125,17 +125,17 @@ static int dwc2_restore_global_registers(struct dwc2_hsotg *hsotg)
 }
 
 /**
- * dwc2_exit_hibernation() - Exit controller from Partial Power Down.
+ * dwc2_exit_partial_power_down() - Exit controller from Partial Power Down.
  *
  * @hsotg: Programming view of the DWC_otg controller
  * @restore: Controller registers need to be restored
  */
-int dwc2_exit_hibernation(struct dwc2_hsotg *hsotg, bool restore)
+int dwc2_exit_partial_power_down(struct dwc2_hsotg *hsotg, bool restore)
 {
 	u32 pcgcctl;
 	int ret = 0;
 
-	if (!hsotg->core_params->hibernation)
+	if (!hsotg->core_params->power_down)
 		return -ENOTSUPP;
 
 	pcgcctl = dwc2_readl(hsotg->regs + PCGCTL);
@@ -179,16 +179,16 @@ int dwc2_exit_hibernation(struct dwc2_hsotg *hsotg, bool restore)
 }
 
 /**
- * dwc2_enter_hibernation() - Put controller in Partial Power Down.
+ * dwc2_enter_partial_power_down() - Put controller in Partial Power Down.
  *
  * @hsotg: Programming view of the DWC_otg controller
  */
-int dwc2_enter_hibernation(struct dwc2_hsotg *hsotg)
+int dwc2_enter_partial_power_down(struct dwc2_hsotg *hsotg)
 {
 	u32 pcgcctl;
 	int ret = 0;
 
-	if (!hsotg->core_params->hibernation)
+	if (!hsotg->core_params->power_down)
 		return -ENOTSUPP;
 
 	/* Backup all registers */
@@ -217,7 +217,7 @@ int dwc2_enter_hibernation(struct dwc2_hsotg *hsotg)
 
 	/*
 	 * Clear any pending interrupts since dwc2 will not be able to
-	 * clear them after entering hibernation.
+	 * clear them after entering partial_power_down.
 	 */
 	dwc2_writel(0xffffffff, hsotg->regs + GINTSTS);
 
@@ -1363,21 +1363,21 @@ static void dwc2_set_param_external_id_pin_ctl(struct dwc2_hsotg *hsotg,
 	hsotg->core_params->external_id_pin_ctl = val;
 }
 
-static void dwc2_set_param_hibernation(struct dwc2_hsotg *hsotg,
+static void dwc2_set_param_power_down(struct dwc2_hsotg *hsotg,
 		int val)
 {
 	if (DWC2_OUT_OF_BOUNDS(val, 0, 1)) {
 		if (val >= 0) {
 			dev_err(hsotg->dev,
-				"'%d' invalid for parameter hibernation\n",
+				"'%d' invalid for parameter power_down\n",
 				val);
-			dev_err(hsotg->dev, "hibernation must be 0 or 1\n");
+			dev_err(hsotg->dev, "power_down must be 0 or 1\n");
 		}
 		val = 0;
-		dev_dbg(hsotg->dev, "Setting hibernation to %d\n", val);
+		dev_dbg(hsotg->dev, "Setting power_down to %d\n", val);
 	}
 
-	hsotg->core_params->hibernation = val;
+	hsotg->core_params->power_down = val;
 }
 
 /*
@@ -1426,7 +1426,7 @@ void dwc2_set_parameters(struct dwc2_hsotg *hsotg,
 	dwc2_set_param_otg_ver(hsotg, params->otg_ver);
 	dwc2_set_param_uframe_sched(hsotg, params->uframe_sched);
 	dwc2_set_param_external_id_pin_ctl(hsotg, params->external_id_pin_ctl);
-	dwc2_set_param_hibernation(hsotg, params->hibernation);
+	dwc2_set_param_power_down(hsotg, params->power_down);
 }
 
 /*
