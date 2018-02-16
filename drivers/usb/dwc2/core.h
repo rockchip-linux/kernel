@@ -412,7 +412,8 @@ enum dwc2_ep0_state {
  *			power_down in both peripheral and host mode when
  *			needed.
  *			0 - No (default)
- *			1 - Yes
+ *			1 - Partial power down
+ *			2 - Hibernation
  *
  * The following parameters may be specified when starting the module. These
  * parameters define how the DWC_otg controller should be configured. A
@@ -453,6 +454,9 @@ struct dwc2_core_params {
 	int uframe_sched;
 	int external_id_pin_ctl;
 	int power_down;
+#define DWC2_POWER_DOWN_PARAM_NONE		0
+#define DWC2_POWER_DOWN_PARAM_PARTIAL		1
+#define DWC2_POWER_DOWN_PARAM_HIBERNATION	2
 };
 
 /**
@@ -501,6 +505,7 @@ struct dwc2_core_params {
  *                       2 - FS pins shared with UTMI+ pins
  *                       3 - FS pins shared with ULPI pins
  * @total_fifo_size:    Total internal RAM for FIFOs (bytes)
+ * @hibernation		Is hibernation enabled?
  * @utmi_phy_data_width UTMI+ PHY data width
  *                       0 - 8 bits
  *                       1 - 16 bits
@@ -532,6 +537,7 @@ struct dwc2_hw_params {
 	unsigned num_dev_perio_in_ep:4;
 	unsigned total_fifo_size:16;
 	unsigned power_optimized:1;
+	unsigned hibernation:1;
 	unsigned utmi_phy_data_width:2;
 	u32 snpsid;
 	u32 dev_ep_dirs;

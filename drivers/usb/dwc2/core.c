@@ -135,7 +135,7 @@ int dwc2_exit_partial_power_down(struct dwc2_hsotg *hsotg, bool restore)
 	u32 pcgcctl;
 	int ret = 0;
 
-	if (!hsotg->core_params->power_down)
+	if (hsotg->core_params->power_down != DWC2_POWER_DOWN_PARAM_PARTIAL)
 		return -ENOTSUPP;
 
 	pcgcctl = dwc2_readl(hsotg->regs + PCGCTL);
@@ -1595,6 +1595,7 @@ int dwc2_get_hwparams(struct dwc2_hsotg *hsotg)
 				  GHWCFG4_NUM_DEV_PERIO_IN_EP_SHIFT;
 	hw->dma_desc_enable = !!(hwcfg4 & GHWCFG4_DESC_DMA);
 	hw->power_optimized = !!(hwcfg4 & GHWCFG4_POWER_OPTIMIZ);
+	hw->hibernation = !!(hwcfg4 & GHWCFG4_HIBER);
 	hw->utmi_phy_data_width = (hwcfg4 & GHWCFG4_UTMI_PHY_DATA_WIDTH_MASK) >>
 				  GHWCFG4_UTMI_PHY_DATA_WIDTH_SHIFT;
 
