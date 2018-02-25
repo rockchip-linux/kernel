@@ -510,11 +510,16 @@ static int keys_resume(struct device *dev)
 			if (button->wakeup)
 				disable_irq_wake(gpio_to_irq(button->gpio));
 		}
+#ifdef CONFIG_PREEMPT_RT_BASE
+		local_bh_disable();
+		local_bh_enable();
+#else
 		preempt_disable();
 		/* for call resend_irqs, which may call keys_isr */
 		if (local_softirq_pending())
 			do_softirq();
 		preempt_enable_no_resched();
+#endif
 	}
 
 	ddata->in_suspend = false;
