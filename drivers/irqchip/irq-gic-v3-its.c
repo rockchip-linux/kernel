@@ -104,7 +104,7 @@ struct its_device {
 };
 
 static LIST_HEAD(its_nodes);
-static DEFINE_SPINLOCK(its_lock);
+static DEFINE_RAW_SPINLOCK(its_lock);
 static struct device_node *gic_root_node;
 static struct rdists *gic_rdists;
 
@@ -1000,6 +1000,20 @@ static int its_alloc_collections(struct its_node *its)
 	return 0;
 }
 
+#ifdef CONFIG_PREEMPT_RT_BASE
+static struct page *pend_pages[NR_CPUS];
+
+static void prealloc_pend_pages(void)
+{
+	int cpu;
+
+	for (cpu = 0; cpu < NR_CPUS; cpu++)
+		pend_pages[cpu] =
+			alloc_pages(GFP_NOWAIT | __GFP_ZERO,
+				    get_order(max(LPI_PENDBASE_SZ, SZ_64K)));
+}
+#endif
+
 static void its_cpu_init_lpis(void)
 {
 	void __iomem *rbase = gic_data_rdist_rd_base();
@@ -1014,8 +1028,12 @@ static void its_cpu_init_lpis(void)
 		 * The pending pages have to be at least 64kB aligned,
 		 * hence the 'max(LPI_PENDBASE_SZ, SZ_64K)' below.
 		 */
+#ifdef CONFIG_PREEMPT_RT_BASE
+		pend_page = pend_pages[smp_processor_id()];
+#else
 		pend_page = alloc_pages(GFP_NOWAIT | __GFP_ZERO,
 					get_order(max(LPI_PENDBASE_SZ, SZ_64K)));
+#endif
 		if (!pend_page) {
 			pr_err("Failed to allocate PENDBASE for CPU%d\n",
 			       smp_processor_id());
@@ -1099,7 +1117,7 @@ static void its_cpu_init_collection(void)
 	struct its_node *its;
 	int cpu;
 
-	spin_lock(&its_lock);
+	raw_spin_lock(&its_lock);
 	cpu = smp_processor_id();
 
 	list_for_each_entry(its, &its_nodes, entry) {
@@ -1141,7 +1159,7 @@ static void its_cpu_init_collection(void)
 		its_send_invall(its, &its->collections[cpu]);
 	}
 
-	spin_unlock(&its_lock);
+	raw_spin_unlock(&its_lock);
 }
 
 static struct its_device *its_find_device(struct its_node *its, u32 dev_id)
@@ -1593,9 +1611,9 @@ static int its_probe(struct device_node *node, struct irq_domain *parent)
 		inner_domain->host_data = info;
 	}
 
-	spin_lock(&its_lock);
+	raw_spin_lock(&its_lock);
 	list_add(&its->entry, &its_nodes);
-	spin_unlock(&its_lock);
+	raw_spin_unlock(&its_lock);
 
 	return 0;
 
@@ -1655,6 +1673,10 @@ int its_init(struct device_node *node, struct rdists *rdists,
 
 	its_alloc_lpi_tables();
 	its_lpi_init(rdists->id_bits);
+
+#ifdef CONFIG_PREEMPT_RT_BASE
+	prealloc_pend_pages();
+#endif
 
 	return 0;
 }
