@@ -3302,7 +3302,9 @@ static int _rockchip_pmx_gpio_set_direction(struct gpio_chip *chip,
 	if (ret < 0)
 		return ret;
 
+#ifndef CONFIG_PREEMPT_RT_BASE
 	clk_enable(bank->clk);
+#endif
 	raw_spin_lock_irqsave(&bank->slock, flags);
 
 	data = readl_relaxed(bank->reg_base + GPIO_SWPORT_DDR);
@@ -3314,7 +3316,9 @@ static int _rockchip_pmx_gpio_set_direction(struct gpio_chip *chip,
 	writel_relaxed(data, bank->reg_base + GPIO_SWPORT_DDR);
 
 	raw_spin_unlock_irqrestore(&bank->slock, flags);
+#ifndef CONFIG_PREEMPT_RT_BASE
 	clk_disable(bank->clk);
+#endif
 
 	return 0;
 }
@@ -3781,7 +3785,9 @@ static void rockchip_gpio_set(struct gpio_chip *gc, unsigned offset, int value)
 	unsigned long flags;
 	u32 data;
 
+#ifndef CONFIG_PREEMPT_RT_BASE
 	clk_enable(bank->clk);
+#endif
 	raw_spin_lock_irqsave(&bank->slock, flags);
 
 	data = readl(reg);
@@ -3791,7 +3797,9 @@ static void rockchip_gpio_set(struct gpio_chip *gc, unsigned offset, int value)
 	writel(data, reg);
 
 	raw_spin_unlock_irqrestore(&bank->slock, flags);
+#ifndef CONFIG_PREEMPT_RT_BASE
 	clk_disable(bank->clk);
+#endif
 }
 
 /*
@@ -3803,9 +3811,13 @@ static int rockchip_gpio_get(struct gpio_chip *gc, unsigned offset)
 	struct rockchip_pin_bank *bank = gpiochip_get_data(gc);
 	u32 data;
 
+#ifndef CONFIG_PREEMPT_RT_BASE
 	clk_enable(bank->clk);
+#endif
 	data = readl(bank->reg_base + GPIO_EXT_PORT);
+#ifndef CONFIG_PREEMPT_RT_BASE
 	clk_disable(bank->clk);
+#endif
 	data >>= offset;
 	data &= 1;
 	return data;
@@ -3944,7 +3956,9 @@ static int rockchip_irq_set_type(struct irq_data *d, unsigned int type)
 	if (ret < 0)
 		return ret;
 
+#ifndef CONFIG_PREEMPT_RT_BASE
 	clk_enable(bank->clk);
+#endif
 	raw_spin_lock_irqsave(&bank->slock, flags);
 
 	data = readl_relaxed(bank->reg_base + GPIO_SWPORT_DDR);
@@ -4002,7 +4016,9 @@ static int rockchip_irq_set_type(struct irq_data *d, unsigned int type)
 	default:
 		irq_gc_unlock(gc);
 		raw_spin_unlock_irqrestore(&bank->slock, flags);
+#ifndef CONFIG_PREEMPT_RT_BASE
 		clk_disable(bank->clk);
+#endif
 		return -EINVAL;
 	}
 
@@ -4022,7 +4038,9 @@ static int rockchip_irq_set_type(struct irq_data *d, unsigned int type)
 
 	irq_gc_unlock(gc);
 	raw_spin_unlock_irqrestore(&bank->slock, flags);
+#ifndef CONFIG_PREEMPT_RT_BASE
 	clk_disable(bank->clk);
+#endif
 
 	return 0;
 }
@@ -4032,10 +4050,14 @@ static void rockchip_irq_suspend(struct irq_data *d)
 	struct irq_chip_generic *gc = irq_data_get_irq_chip_data(d);
 	struct rockchip_pin_bank *bank = gc->private;
 
+#ifndef CONFIG_PREEMPT_RT_BASE
 	clk_enable(bank->clk);
+#endif
 	bank->saved_masks = irq_reg_readl(gc, GPIO_INTMASK);
 	irq_reg_writel(gc, ~gc->wake_active, GPIO_INTMASK);
+#ifndef CONFIG_PREEMPT_RT_BASE
 	clk_disable(bank->clk);
+#endif
 }
 
 static void rockchip_irq_resume(struct irq_data *d)
@@ -4043,27 +4065,37 @@ static void rockchip_irq_resume(struct irq_data *d)
 	struct irq_chip_generic *gc = irq_data_get_irq_chip_data(d);
 	struct rockchip_pin_bank *bank = gc->private;
 
+#ifndef CONFIG_PREEMPT_RT_BASE
 	clk_enable(bank->clk);
+#endif
 	irq_reg_writel(gc, bank->saved_masks, GPIO_INTMASK);
+#ifndef CONFIG_PREEMPT_RT_BASE
 	clk_disable(bank->clk);
+#endif
 }
 
 static void rockchip_irq_enable(struct irq_data *d)
 {
+#ifndef CONFIG_PREEMPT_RT_BASE
 	struct irq_chip_generic *gc = irq_data_get_irq_chip_data(d);
 	struct rockchip_pin_bank *bank = gc->private;
 
 	clk_enable(bank->clk);
+#endif
 	irq_gc_mask_clr_bit(d);
 }
 
 static void rockchip_irq_disable(struct irq_data *d)
 {
+#ifndef CONFIG_PREEMPT_RT_BASE
 	struct irq_chip_generic *gc = irq_data_get_irq_chip_data(d);
 	struct rockchip_pin_bank *bank = gc->private;
+#endif
 
 	irq_gc_mask_set_bit(d);
+#ifndef CONFIG_PREEMPT_RT_BASE
 	clk_disable(bank->clk);
+#endif
 }
 
 static int rockchip_interrupts_register(struct platform_device *pdev,
@@ -4141,7 +4173,9 @@ static int rockchip_interrupts_register(struct platform_device *pdev,
 		for (j = 0 ; j < 32 ; j++)
 			irq_create_mapping(bank->domain, j);
 
+#ifndef CONFIG_PREEMPT_RT_BASE
 		clk_disable(bank->clk);
+#endif
 	}
 
 	return 0;
