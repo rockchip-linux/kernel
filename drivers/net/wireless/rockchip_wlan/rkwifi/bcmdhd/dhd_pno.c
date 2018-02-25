@@ -3169,7 +3169,7 @@ exit:
 	}
 	mutex_unlock(&_pno_state->pno_mutex);
 exit_no_unlock:
-	if (waitqueue_active(&_pno_state->get_batch_done.wait))
+	if (swait_active(&_pno_state->get_batch_done.wait))
 		complete(&_pno_state->get_batch_done);
 	return err;
 }
@@ -3948,7 +3948,7 @@ dhd_pno_event_handler(dhd_pub_t *dhd, wl_event_msg_t *event, void *event_data)
 	{
 		struct dhd_pno_batch_params *params_batch;
 		params_batch = &_pno_state->pno_params_arr[INDEX_OF_BATCH_PARAMS].params_batch;
-		if (!waitqueue_active(&_pno_state->get_batch_done.wait)) {
+		if (!swait_active(&_pno_state->get_batch_done.wait)) {
 			DHD_PNO(("%s : WLC_E_PFN_BEST_BATCHING\n", __FUNCTION__));
 			params_batch->get_batch.buf = NULL;
 			params_batch->get_batch.bufsize = 0;
