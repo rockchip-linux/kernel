@@ -547,6 +547,7 @@
 
 &rkvdec {
 	status = "okay";
+	vcodec-supply = <&vdd_logic>;
 };
 
 &rkvdec_mmu {
