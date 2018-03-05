@@ -1505,7 +1505,11 @@ static int __init cpufreq_interactive_init(void)
 {
 	unsigned int i;
 	struct cpufreq_interactive_cpuinfo *pcpu;
+#ifdef CONFIG_PREEMPT_RT_BASE
+	struct sched_param param = { .sched_priority = 1 };
+#else
 	struct sched_param param = { .sched_priority = MAX_RT_PRIO-1 };
+#endif
 	int ret = 0;
 
 	/* Initalize per-cpu timers */
