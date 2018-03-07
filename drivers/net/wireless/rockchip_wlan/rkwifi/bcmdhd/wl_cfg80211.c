@@ -11203,14 +11203,22 @@ static s32 wl_inform_bss(struct bcm_cfg80211 *cfg)
 			&cfg->best_2g_ch, &cfg->best_5g_ch);
 #else
 	WL_SCAN(("scanned AP count (%d)\n", bss_list->count));
+#ifdef CONFIG_PREEMPT_RT_BASE
+	migrate_disable();
+#else
 	preempt_disable();
+#endif
 	bi = next_bss(bss_list, bi);
 	for_each_bss(bss_list, bi, i) {
 		if (cfg->p2p_disconnected > 0 && !memcmp(&bi->BSSID, &cfg->disconnected_bssid, ETHER_ADDR_LEN))
 			continue;
 		err = wl_inform_single_bss(cfg, bi, false);
 	}
+#ifdef CONFIG_PREEMPT_RT_BASE
+	migrate_enable();
+#else
 	preempt_enable();
+#endif
 	if (cfg->autochannel)
 		wl_ext_get_best_channel(ndev, bss_list, ioctl_version,
 			&cfg->best_2g_ch, &cfg->best_5g_ch);
