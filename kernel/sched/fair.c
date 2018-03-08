@@ -9974,7 +9974,7 @@ void check_for_migration(struct rq *rq, struct task_struct *p)
 
 	if (energy_aware() && rq->misfit_task) {
 		if (rq->curr->state != TASK_RUNNING ||
-		    rq->curr->nr_cpus_allowed == 1)
+		    tsk_nr_cpus_allowed(rq->curr) == 1)
 			return;
 
 		new_cpu = select_energy_cpu_brute(p, cpu, 0);
