@@ -3162,8 +3162,10 @@ void scheduler_tick(void)
 #endif
 	rq_last_tick_reset(rq);
 
+#ifndef CONFIG_PREEMPT_RT_FULL
 	if (curr->sched_class == &fair_sched_class)
 		check_for_migration(rq, curr);
+#endif
 }
 
 #ifdef CONFIG_NO_HZ_FULL
