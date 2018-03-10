@@ -41,6 +41,7 @@
 
 #define WDOG_CONTROL_REG_OFFSET		    0x00
 #define WDOG_CONTROL_REG_WDT_EN_MASK	    0x01
+#define WDOG_CONTROL_REG_RESP_MODE_MASK	    0x02
 #define WDOG_TIMEOUT_RANGE_REG_OFFSET	    0x04
 #define WDOG_TIMEOUT_RANGE_TOPINIT_SHIFT    4
 #define WDOG_CURRENT_COUNT_REG_OFFSET	    0x08
@@ -139,19 +140,26 @@ static int dw_wdt_set_top(unsigned top_s)
 	return dw_wdt_top_in_seconds(top_val);
 }
 
+static void dw_wdt_arm_system_reset(void)
+{
+	u32 val = readl(dw_wdt.regs + WDOG_CONTROL_REG_OFFSET);
+
+	/* Disable interrupt mode; always perform system reset. */
+	val &= ~WDOG_CONTROL_REG_RESP_MODE_MASK;
+	/* Enable watchdog. */
+	val |= WDOG_CONTROL_REG_WDT_EN_MASK;
+	writel(val, dw_wdt.regs + WDOG_CONTROL_REG_OFFSET);
+}
+
 static int dw_wdt_restart_handle(struct notifier_block *this,
 				unsigned long mode, void *cmd)
 {
-	u32 val;
-
 	writel(0, dw_wdt.regs + WDOG_TIMEOUT_RANGE_REG_OFFSET);
-	val = readl(dw_wdt.regs + WDOG_CONTROL_REG_OFFSET);
-	if (val & WDOG_CONTROL_REG_WDT_EN_MASK)
+	if (dw_wdt_is_enabled())
 		writel(WDOG_COUNTER_RESTART_KICK_VALUE, dw_wdt.regs +
 			WDOG_COUNTER_RESTART_REG_OFFSET);
 	else
-		writel(WDOG_CONTROL_REG_WDT_EN_MASK,
-		       dw_wdt.regs + WDOG_CONTROL_REG_OFFSET);
+		dw_wdt_arm_system_reset();
 
 	/* wait for reset to assert... */
 	mdelay(500);
@@ -183,8 +191,7 @@ static int dw_wdt_open(struct inode *inode, struct file *filp)
 		 * something reasonable and then start it.
 		 */
 		dw_wdt_set_top(DW_WDT_DEFAULT_SECONDS);
-		writel(WDOG_CONTROL_REG_WDT_EN_MASK,
-		       dw_wdt.regs + WDOG_CONTROL_REG_OFFSET);
+		dw_wdt_arm_system_reset();
 	}
 
 	dw_wdt_set_next_heartbeat();
