@@ -68,6 +68,9 @@ static struct {
 	struct timer_list	timer;
 	int			expect_close;
 	struct notifier_block	restart_handler;
+	/* Save/restore */
+	u32			control;
+	u32			timeout;
 } dw_wdt;
 
 static inline int dw_wdt_is_enabled(void)
@@ -301,6 +304,9 @@ static int dw_wdt_release(struct inode *inode, struct file *filp)
 #ifdef CONFIG_PM_SLEEP
 static int dw_wdt_suspend(struct device *dev)
 {
+	dw_wdt.control = readl(dw_wdt.regs + WDOG_CONTROL_REG_OFFSET);
+	dw_wdt.timeout = readl(dw_wdt.regs + WDOG_TIMEOUT_RANGE_REG_OFFSET);
+
 	clk_disable_unprepare(dw_wdt.clk);
 
 	return 0;
@@ -312,6 +318,9 @@ static int dw_wdt_resume(struct device *dev)
 
 	if (err)
 		return err;
+
+	writel(dw_wdt.timeout, dw_wdt.regs + WDOG_TIMEOUT_RANGE_REG_OFFSET);
+	writel(dw_wdt.control, dw_wdt.regs + WDOG_CONTROL_REG_OFFSET);
 
 	dw_wdt_keepalive();
 
