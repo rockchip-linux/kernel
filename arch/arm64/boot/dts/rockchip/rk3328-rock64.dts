@@ -49,7 +49,32 @@
 
 	chosen {
 		bootargs = "rockchip_jtag earlyprintk=uart8250-32bit,0xff130000";
-		stdout-path = "serial2:1500000n8";
+	};
+
+	leds {
+		compatible = "gpio-leds";
+
+		standby-led {
+			linux,default-trigger = "disk-activity";
+			gpios = <&rk805 0 GPIO_ACTIVE_LOW>;
+			default-state = "on";
+		};
+
+		power-led {
+			gpios = <&rk805 1 GPIO_ACTIVE_LOW>;
+			default-state = "on";
+		};
+	};
+
+	switches {
+		compatible = "gpio-leds";
+
+		usb-switch {
+			linux,default-trigger = "none";
+			gpios = <&gpio0 2 1>;
+			mode = <0x23>;
+			default-state = "on";
+		};
 	};
 
 	fiq-debugger {
@@ -69,6 +94,22 @@
 		clock-frequency = <125000000>;
 		clock-output-names = "gmac_clkin";
 		#clock-cells = <0>;
+	};
+
+	vcc_phy: vcc-phy-regulator {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc_phy";
+		regulator-always-on;
+		regulator-boot-on;
+	};
+
+	vcc_sys: vcc-sys {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc_sys";
+		regulator-always-on;
+		regulator-boot-on;
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
 	};
 
 	vcc_sd: sdmmc-regulator {
@@ -120,30 +161,62 @@
 		status = "okay";
 	};
 
-	sound {
-		compatible = "simple-audio-card";
-		simple-audio-card,format = "i2s";
-		simple-audio-card,mclk-fs = <256>;
-		simple-audio-card,name = "rockchip,rk3328";
-		simple-audio-card,cpu {
-			sound-dai = <&i2s1>;
-		};
-		simple-audio-card,codec {
-			sound-dai = <&codec>;
-		};
+	dummy_codec: dummy-codec {
+		compatible = "linux,snd-soc-dummy";
+		#sound-dai-cells = <0>;
 	};
 
 	hdmi-sound {
 		compatible = "simple-audio-card";
 		simple-audio-card,format = "i2s";
-		simple-audio-card,mclk-fs = <128>;
-		simple-audio-card,name = "rockchip,hdmi";
+		simple-audio-card,mclk-fs = <256>;
+		simple-audio-card,name = "HDMI";
 		simple-audio-card,cpu {
 			sound-dai = <&i2s0>;
 		};
 		simple-audio-card,codec {
 			sound-dai = <&hdmi>;
 		};
+	};
+
+	sound {
+		compatible = "simple-audio-card";
+		simple-audio-card,mclk-fs = <256>;
+		simple-audio-card,name = "I2S";
+		simple-audio-card,dai-link@0 {
+			format = "i2s";
+			cpu {
+				sound-dai = <&i2s1>;
+			};
+			codec {
+				sound-dai = <&codec>;
+			};
+		};
+		simple-audio-card,dai-link@1 {
+			format = "i2s";
+			cpu {
+				sound-dai = <&i2s1>;
+			};
+			codec {
+				sound-dai = <&dummy_codec>;
+			};
+		};
+	};
+
+	spdif-sound {
+		compatible = "simple-audio-card";
+		simple-audio-card,name = "SPDIF";
+		simple-audio-card,cpu {
+			sound-dai = <&spdif>;
+		};
+		simple-audio-card,codec {
+			sound-dai = <&spdif_out>;
+		};
+	};
+
+	spdif_out: spdif-out {
+		compatible = "linux,spdif-dit";
+		#sound-dai-cells = <0>;
 	};
 };
 
@@ -168,6 +241,15 @@
 	cpu-supply = <&vdd_arm>;
 };
 
+&dfi {
+	status = "okay";
+};
+
+&dmc {
+	center-supply = <&vdd_logic>;
+	status = "okay";
+};
+
 &display_subsystem {
 	status = "okay";
 };
@@ -177,6 +259,13 @@
 	cap-mmc-highspeed;
 	non-removable;
 	supports-emmc;
+	clocks = <&cru HCLK_EMMC>, <&cru SCLK_EMMC>,
+		<&cru SCLK_EMMC_DRV>, <&cru SCLK_EMMC_SAMPLE>;	
+	clock-names = "biu", "ciu", "ciu-drv", "ciu-sample";
+	disable-wp;
+	max-frequency = <200000000>;
+	mmc-hs200-1_8v;
+	num-slots = <1>;
 	pinctrl-names = "default";
 	pinctrl-0 = <&emmc_clk &emmc_cmd &emmc_bus8>;
 	vmmc-supply = <&vcc_io>;
@@ -185,18 +274,29 @@
 };
 
 &gmac2io {
-	phy-supply = <&vcc_io>;
+	phy-supply = <&vcc_phy>;
 	phy-mode = "rgmii";
 	assigned-clocks = <&cru SCLK_MAC2IO>, <&cru SCLK_MAC2IO_EXT>;
 	assigned-clock-parents = <&gmac_clkin>, <&gmac_clkin>;
 	clock_in_out = "input";
-	snps,reset-gpio = <&gpio1 18 GPIO_ACTIVE_LOW>;
+	snps,force_thresh_dma_mode;
+	snps,reset-gpio = <&gpio1 RK_PC2 GPIO_ACTIVE_LOW>;
 	snps,reset-active-low;
 	snps,reset-delays-us = <0 10000 50000>;
 	pinctrl-names = "default";
 	pinctrl-0 = <&rgmiim1_pins>;
-	tx_delay = <0x26>;
-	rx_delay = <0x11>;
+	tx_delay = <0x24>;
+	rx_delay = <0x18>;
+	status = "okay";
+};
+
+&gmac2phy {
+	phy-supply = <&vcc_phy>;
+	clock_in_out = "output";
+	assigned-clocks = <&cru SCLK_MAC2PHY_SRC>;
+	assigned-clock-rate = <50000000>;
+	assigned-clocks = <&cru SCLK_MAC2PHY>;
+	assigned-clock-parents = <&cru SCLK_MAC2PHY_SRC>;
 	status = "okay";
 };
 
@@ -215,6 +315,8 @@
 
 &hdmi {
 	#sound-dai-cells = <0>;
+	ddc-i2c-scl-high-time-ns = <9625>;
+	ddc-i2c-scl-low-time-ns = <10000>;
 	status = "okay";
 };
 
@@ -248,11 +350,11 @@
 		vcc6-supply = <&vcc_sys>;
 
 		rtc {
-			status = "disabled";
+			status = "okay";
 		};
 
 		pwrkey {
-			status = "disabled";
+			status = "okay";
 		};
 
 		gpio {
@@ -373,7 +475,25 @@
 };
 
 &i2s1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2s1_mclk
+		     &i2s1_sclk
+		     &i2s1_lrcktx
+		     &i2s1_lrckrx
+		     &i2s1_sdo
+		     &i2s1_sdi
+		     &i2s1_sdio1
+		     &i2s1_sdio2
+		     &i2s1_sdio3>;
 	#sound-dai-cells = <0>;
+	status = "okay";
+};
+
+&iep {
+	status = "okay";
+};
+
+&iep_mmu {
 	status = "okay";
 };
 
@@ -421,12 +541,22 @@
 	};
 };
 
+&rga {
+	status = "okay";
+};
+
 &rkvdec {
 	status = "okay";
+	vcodec-supply = <&vdd_logic>;
 };
 
 &rkvdec_mmu {
 	status = "okay";
+};
+
+&rockchip_suspend {
+	status = "okay";
+	rockchip,virtual-poweroff = <1>;
 };
 
 &sdmmc {
@@ -435,9 +565,11 @@
 	cap-sd-highspeed;
 	disable-wp;
 	max-frequency = <150000000>;
+	num-slots = <1>;
 	pinctrl-names = "default";
 	pinctrl-0 = <&sdmmc0_clk &sdmmc0_cmd &sdmmc0_dectn &sdmmc0_bus4>;
 	vmmc-supply = <&vcc_sd>;
+	vqmmc-supply = <&vcc_sd>;
 	supports-sd;
 	status = "okay";
 };
@@ -453,7 +585,42 @@
 		m25p,fast-read;
 		/* The max SCLK of the flash 104/80 MHZ  */
 		spi-max-frequency = <50000000>;
+
+		partitions {
+			compatible = "fixed-partitions";
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			loader@8000 {
+				label = "loader";
+				reg = <0x8000 0x3F8000>;
+			};
+
+			vendor@7c0000 {
+				label = "vendor";
+				reg = <0x7C0000 0x40000>;
+			};
+		};
 	};
+};
+
+&spdif {
+	pinctrl-names = "default";
+	pinctrl-0 = <&spdifm0_tx>;
+	#sound-dai-cells = <0>;
+	status = "okay";
+};
+
+&threshold {
+	temperature = <90000>; /* millicelsius */
+};
+
+&target {
+	temperature = <105000>; /* millicelsius */
+};
+
+&soc_crit {
+	temperature = <110000>; /* millicelsius */
 };
 
 &tsadc {
@@ -462,13 +629,8 @@
 	status = "okay";
 };
 
-&uart2 {
-	status = "okay";
-};
-
 &u2phy {
 	status = "okay";
-
 };
 
 &u2phy_host {
