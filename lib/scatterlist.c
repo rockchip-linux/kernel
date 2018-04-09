@@ -620,7 +620,7 @@ void sg_miter_stop(struct sg_mapping_iter *miter)
 			flush_kernel_dcache_page(miter->page);
 
 		if (miter->__flags & SG_MITER_ATOMIC) {
-			WARN_ON_ONCE(preemptible());
+			WARN_ON_ONCE(!pagefault_disabled());
 			kunmap_atomic(miter->addr);
 		} else
 			kunmap(miter->page);
@@ -664,7 +664,7 @@ size_t sg_copy_buffer(struct scatterlist *sgl, unsigned int nents, void *buf,
 	if (!sg_miter_skip(&miter, skip))
 		return false;
 
-	local_irq_save(flags);
+	local_irq_save_nort(flags);
 
 	while (sg_miter_next(&miter) && offset < buflen) {
 		unsigned int len;
@@ -681,7 +681,7 @@ size_t sg_copy_buffer(struct scatterlist *sgl, unsigned int nents, void *buf,
 
 	sg_miter_stop(&miter);
 
-	local_irq_restore(flags);
+	local_irq_restore_nort(flags);
 	return offset;
 }
 EXPORT_SYMBOL(sg_copy_buffer);

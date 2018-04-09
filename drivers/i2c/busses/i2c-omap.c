@@ -995,14 +995,11 @@ omap_i2c_isr(int irq, void *dev_id)
 	u16 mask;
 	u16 stat;
 
-	spin_lock(&omap->lock);
-	mask = omap_i2c_read_reg(omap, OMAP_I2C_IE_REG);
 	stat = omap_i2c_read_reg(omap, OMAP_I2C_STAT_REG);
+	mask = omap_i2c_read_reg(omap, OMAP_I2C_IE_REG);
 
 	if (stat & mask)
 		ret = IRQ_WAKE_THREAD;
-
-	spin_unlock(&omap->lock);
 
 	return ret;
 }

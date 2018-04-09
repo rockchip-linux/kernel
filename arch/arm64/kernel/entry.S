@@ -555,15 +555,24 @@ el1_irq:
 #else
 	ldr	w24, [tsk, #TI_PREEMPT]		// get preempt count
 #endif
-	cbnz	w24, 1f				// preempt count != 0
+	cbnz	w24, 2f				// preempt count != 0
 #ifdef CONFIG_THREAD_INFO_IN_TASK
 	ldr	x0, [tsk, #TSK_TI_FLAGS]	// get flags
 #else
 	ldr	x0, [tsk, #TI_FLAGS]		// get flags
 #endif
-	tbz	x0, #TIF_NEED_RESCHED, 1f	// needs rescheduling?
-	bl	el1_preempt
+	tbnz	x0, #TIF_NEED_RESCHED, 1f	// needs rescheduling?
+
+#ifdef CONFIG_THREAD_INFO_IN_TASK
+	ldr	w24, [tsk, #TSK_TI_PREEMPT_LAZY]// get preempt lazy count
+#else
+	ldr	w24, [tsk, #TI_PREEMPT_LAZY]	// get preempt lazy count
+#endif
+	cbnz	w24, 2f				// preempt lazy count != 0
+	tbz	x0, #TIF_NEED_RESCHED_LAZY, 2f	// needs rescheduling?
 1:
+	bl	el1_preempt
+2:
 #endif
 #ifdef CONFIG_TRACE_IRQFLAGS
 	bl	trace_hardirqs_on
@@ -581,6 +590,7 @@ el1_preempt:
 	ldr	x0, [tsk, #TI_FLAGS]		// get new tasks TI_FLAGS
 #endif
 	tbnz	x0, #TIF_NEED_RESCHED, 1b	// needs rescheduling?
+	tbnz	x0, #TIF_NEED_RESCHED_LAZY, 1b	// needs rescheduling?
 	ret	x24
 #endif
 
@@ -845,6 +855,7 @@ ret_fast_syscall_trace:
  */
 work_pending:
 	tbnz	x1, #TIF_NEED_RESCHED, work_resched
+	tbnz	x1, #TIF_NEED_RESCHED_LAZY, work_resched
 	/* TIF_SIGPENDING, TIF_NOTIFY_RESUME or TIF_FOREIGN_FPSTATE case */
 	mov	x0, sp				// 'regs'
 	enable_irq				// enable interrupts for do_notify_resume()

@@ -280,8 +280,24 @@ END(ret_from_exception)
 ENTRY(resume_kernel)
 	DISABLE_INTERRUPTS(CLBR_ANY)
 need_resched:
+	# preempt count == 0 + NEED_RS set?
 	cmpl	$0, PER_CPU_VAR(__preempt_count)
+#ifndef CONFIG_PREEMPT_LAZY
 	jnz	restore_all
+#else
+	jz test_int_off
+
+	# atleast preempt count == 0 ?
+	cmpl $_PREEMPT_ENABLED,PER_CPU_VAR(__preempt_count)
+	jne restore_all
+
+	cmpl $0,TI_preempt_lazy_count(%ebp)	# non-zero preempt_lazy_count ?
+	jnz restore_all
+
+	testl $_TIF_NEED_RESCHED_LAZY, TI_flags(%ebp)
+	jz restore_all
+test_int_off:
+#endif
 	testl	$X86_EFLAGS_IF, PT_EFLAGS(%esp)	# interrupts off (exception path) ?
 	jz	restore_all
 	call	preempt_schedule_irq

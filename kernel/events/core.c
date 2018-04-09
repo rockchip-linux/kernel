@@ -807,6 +807,7 @@ static void __perf_mux_hrtimer_init(struct perf_cpu_context *cpuctx, int cpu)
 	raw_spin_lock_init(&cpuctx->hrtimer_lock);
 	hrtimer_init(timer, CLOCK_MONOTONIC, HRTIMER_MODE_ABS_PINNED);
 	timer->function = perf_mux_hrtimer_handler;
+	timer->irqsafe = 1;
 }
 
 static int perf_mux_hrtimer_restart(struct perf_cpu_context *cpuctx)
@@ -7380,6 +7381,7 @@ static void perf_swevent_init_hrtimer(struct perf_event *event)
 
 	hrtimer_init(&hwc->hrtimer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 	hwc->hrtimer.function = perf_swevent_hrtimer;
+	hwc->hrtimer.irqsafe = 1;
 
 	/*
 	 * Since hrtimers have a fixed rate, we can do a static freq->period
