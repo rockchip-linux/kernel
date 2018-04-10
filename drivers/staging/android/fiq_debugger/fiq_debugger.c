@@ -594,20 +594,24 @@ static bool fiq_debugger_fiq_exec(struct fiq_debugger_state *state,
 	if (!strcmp(cmd, "help") || !strcmp(cmd, "?")) {
 		fiq_debugger_help(state);
 	} else if (!strcmp(cmd, "pc")) {
-		fiq_debugger_dump_pc(&state->output, regs);
+		if (regs)
+			fiq_debugger_dump_pc(&state->output, regs);
 	} else if (!strcmp(cmd, "regs")) {
-		fiq_debugger_dump_regs(&state->output, regs);
+		if (regs)
+			fiq_debugger_dump_regs(&state->output, regs);
 	} else if (!strcmp(cmd, "allregs")) {
-		fiq_debugger_dump_allregs(&state->output, regs);
+		if (regs)
+			fiq_debugger_dump_allregs(&state->output, regs);
 	} else if (!strcmp(cmd, "bt")) {
-		if (user_mode((struct pt_regs *)regs) ||
-		    ((unsigned long)svc_sp < va_start) ||
-		    ((unsigned long)svc_sp > -256UL))
-			fiq_debugger_printf(&state->output, "User mode\n");
-		else
-			fiq_debugger_dump_stacktrace(&state->output, regs,
-						     100, svc_sp);
-
+		if (regs) {
+			if (user_mode((struct pt_regs *)regs) ||
+			    ((unsigned long)svc_sp < va_start) ||
+			    ((unsigned long)svc_sp > -256UL))
+				fiq_debugger_printf(&state->output, "User mode\n");
+			else
+				fiq_debugger_dump_stacktrace(&state->output, regs,
+							     100, svc_sp);
+		}
 	} else if (!strncmp(cmd, "reset", 5)) {
 		cmd += 5;
 		while (*cmd == ' ')
