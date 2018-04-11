@@ -4500,6 +4500,49 @@ static int __maybe_unused rockchip_pinctrl_resume(struct device *dev)
 static SIMPLE_DEV_PM_OPS(rockchip_pinctrl_dev_pm_ops, rockchip_pinctrl_suspend,
 			 rockchip_pinctrl_resume);
 
+#ifdef CONFIG_PREEMPT_RT_BASE
+static void regmap_lock_unlock_empty(void *__map)
+{
+}
+
+static struct regmap_config nolock_regmap_config = {
+	.reg_bits = 32,
+	.val_bits = 32,
+	.reg_stride = 4,
+	// .disable_locking = true; v4.16
+	.lock = regmap_lock_unlock_empty,
+	.unlock = regmap_lock_unlock_empty,
+};
+
+struct regmap *device_node_to_nolock_regmap(struct device_node *np)
+{
+	struct regmap *regmap;
+	void __iomem *base;
+	int ret;
+	struct regmap_config nolock_config = nolock_regmap_config;
+
+	base = of_iomap(np, 0);
+	if (!base) {
+		ret = -ENOMEM;
+		goto err_map;
+	}
+
+	regmap = regmap_init_mmio(NULL, base, &nolock_config);
+	if (IS_ERR(regmap)) {
+		pr_err("regmap init failed\n");
+		ret = PTR_ERR(regmap);
+		goto err_regmap;
+	}
+
+	return regmap;
+
+err_regmap:
+	iounmap(base);
+err_map:
+	return ERR_PTR(ret);
+}
+#endif
+
 /* SoC data specially handle */
 
 /* rk3308b SoC data initialize */
@@ -4575,6 +4618,14 @@ static int rockchip_pinctrl_probe(struct platform_device *pdev)
 		info->regmap_base = syscon_node_to_regmap(node);
 		if (IS_ERR(info->regmap_base))
 			return PTR_ERR(info->regmap_base);
+#ifdef CONFIG_PREEMPT_RT_BASE
+		info->regmap_base = device_node_to_nolock_regmap(node);
+		if (IS_ERR(info->regmap_base)) {
+			dev_err(dev, "failed to get regmap_base %ld\n",
+				PTR_ERR(info->regmap_base));
+			return PTR_ERR(info->regmap_base);
+		}
+#endif
 	} else {
 		res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 		base = devm_ioremap_resource(&pdev->dev, res);
@@ -4611,6 +4662,14 @@ static int rockchip_pinctrl_probe(struct platform_device *pdev)
 		info->regmap_pmu = syscon_node_to_regmap(node);
 		if (IS_ERR(info->regmap_pmu))
 			return PTR_ERR(info->regmap_pmu);
+#ifdef CONFIG_PREEMPT_RT_BASE
+		info->regmap_pmu = device_node_to_nolock_regmap(node);
+		if (IS_ERR(info->regmap_pmu)) {
+			dev_err(dev, "failed to get regmap_pmu %ld\n",
+				PTR_ERR(info->regmap_pmu));
+			return PTR_ERR(info->regmap_pmu);
+		}
+#endif
 	}
 
 	/* Special handle for some Socs */
