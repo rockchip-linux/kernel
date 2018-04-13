@@ -65,11 +65,11 @@ struct clk;
 #define PX30_BOOST_SWITCH_THRESHOLD	0x8024
 #define PX30_BOOST_FSM_STATUS		0x8028
 #define PX30_BOOST_PLL_L_CON(x)		((x) * 0x4 + 0x802c)
-#define PX30_BOOST_RECOVERY_MASK	0x2
+#define PX30_BOOST_RECOVERY_MASK	0x1
 #define PX30_BOOST_RECOVERY_SHIFT	1
-#define PX30_BOOST_SW_CTRL_MASK		0x4
+#define PX30_BOOST_SW_CTRL_MASK		0x1
 #define PX30_BOOST_SW_CTRL_SHIFT	2
-#define PX30_BOOST_LOW_FREQ_EN_MASK	0x8
+#define PX30_BOOST_LOW_FREQ_EN_MASK	0x1
 #define PX30_BOOST_LOW_FREQ_EN_SHIFT	3
 #define PX30_BOOST_BUSY_STATE		BIT(8)
 
@@ -115,6 +115,19 @@ struct clk;
 #define RK3288_SDIO1_CON1		0x214
 #define RK3288_EMMC_CON0		0x218
 #define RK3288_EMMC_CON1		0x21c
+
+#define RK3308_PLL_CON(x)		RK2928_PLL_CON(x)
+#define RK3308_CLKSEL_CON(x)		((x) * 0x4 + 0x100)
+#define RK3308_CLKGATE_CON(x)		((x) * 0x4 + 0x300)
+#define RK3308_GLB_SRST_FST		0xb8
+#define RK3308_SOFTRST_CON(x)		((x) * 0x4 + 0x400)
+#define RK3308_MODE_CON			0xa0
+#define RK3308_SDMMC_CON0		0x480
+#define RK3308_SDMMC_CON1		0x484
+#define RK3308_SDIO_CON0		0x488
+#define RK3308_SDIO_CON1		0x48c
+#define RK3308_EMMC_CON0		0x490
+#define RK3308_EMMC_CON1		0x494
 
 #define RK3328_PLL_CON(x)		RK2928_PLL_CON(x)
 #define RK3328_CLKSEL_CON(x)		((x) * 0x4 + 0x100)
@@ -303,6 +316,10 @@ struct clk *rockchip_clk_register_pll(struct rockchip_clk_provider *ctx,
 		struct rockchip_pll_rate_table *rate_table,
 		unsigned long flags, u8 clk_pll_flags);
 
+void rockchip_boost_enable_recovery_sw_low(struct clk_hw *hw);
+
+void rockchip_boost_disable_recovery_sw(struct clk_hw *hw);
+
 struct rockchip_cpuclk_clksel {
 	int reg;
 	u32 val;
@@ -332,6 +349,7 @@ struct rockchip_cpuclk_reg_data {
 	u8		mux_core_main;
 	u8		mux_core_shift;
 	u32		mux_core_mask;
+	const char	*pll_name;
 };
 
 struct clk *rockchip_clk_register_cpuclk(const char *name,
@@ -408,6 +426,7 @@ struct rockchip_clk_branch {
 	u8				gate_shift;
 	u8				gate_flags;
 	struct rockchip_clk_branch	*child;
+	unsigned long			max_prate;
 };
 
 #define COMPOSITE(_id, cname, pnames, f, mo, ms, mw, mf, ds, dw,\
@@ -525,7 +544,7 @@ struct rockchip_clk_branch {
 		.gate_offset	= -1,				\
 	}
 
-#define COMPOSITE_FRAC(_id, cname, pname, f, mo, df, go, gs, gf)\
+#define COMPOSITE_FRAC(_id, cname, pname, f, mo, df, go, gs, gf, prate)\
 	{							\
 		.id		= _id,				\
 		.branch_type	= branch_fraction_divider,	\
@@ -540,9 +559,10 @@ struct rockchip_clk_branch {
 		.gate_offset	= go,				\
 		.gate_shift	= gs,				\
 		.gate_flags	= gf,				\
+		.max_prate	= prate,			\
 	}
 
-#define COMPOSITE_FRACMUX(_id, cname, pname, f, mo, df, go, gs, gf, ch) \
+#define COMPOSITE_FRACMUX(_id, cname, pname, f, mo, df, go, gs, gf, ch, prate) \
 	{							\
 		.id		= _id,				\
 		.branch_type	= branch_fraction_divider,	\
@@ -558,9 +578,10 @@ struct rockchip_clk_branch {
 		.gate_shift	= gs,				\
 		.gate_flags	= gf,				\
 		.child		= ch,				\
+		.max_prate	= prate,			\
 	}
 
-#define COMPOSITE_FRACMUX_NOGATE(_id, cname, pname, f, mo, df, ch) \
+#define COMPOSITE_FRACMUX_NOGATE(_id, cname, pname, f, mo, df, ch, prate) \
 	{							\
 		.id		= _id,				\
 		.branch_type	= branch_fraction_divider,	\
@@ -574,6 +595,7 @@ struct rockchip_clk_branch {
 		.div_flags	= df,				\
 		.gate_offset	= -1,				\
 		.child		= ch,				\
+		.max_prate	= prate,			\
 	}
 
 #define COMPOSITE_DDRCLK(_id, cname, pnames, f, mo, ms, mw,	\
@@ -738,6 +760,7 @@ void rockchip_clk_register_armclk(struct rockchip_clk_provider *ctx,
 			int nrates);
 void rockchip_clk_protect_critical(const char *const clocks[], int nclocks);
 int rockchip_pll_clk_adaptive_scaling(struct clk *clk, int sel);
+int rockchip_pll_clk_adaptive_rate(struct clk *clk, unsigned long rate);
 void rockchip_register_restart_notifier(struct rockchip_clk_provider *ctx,
 					unsigned int reg, void (*cb)(void));
 

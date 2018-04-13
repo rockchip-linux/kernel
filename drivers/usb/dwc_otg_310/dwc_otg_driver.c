@@ -169,7 +169,7 @@ static struct dwc_otg_driver_module_params dwc_otg_module_params = {
 	.host_rx_fifo_size = -1,
 	.host_nperio_tx_fifo_size = -1,
 	.host_perio_tx_fifo_size = -1,
-	.max_transfer_size = -1,
+	.max_transfer_size = 131072,
 	.max_packet_count = -1,
 	.host_channels = -1,
 	.dev_endpoints = -1,
@@ -551,9 +551,7 @@ int dwc_otg_usb_state(void)
 		/* op_state is A_HOST */
 		if (1 == otg_dev->core_if->op_state)
 			return 1;
-		/* op_state is B_PERIPHERAL */
-		else if (4 == otg_dev->core_if->op_state)
-			return 0;
+		/* op_state is B_PERIPHERAL or others */
 		else
 			return 0;
 	} else {

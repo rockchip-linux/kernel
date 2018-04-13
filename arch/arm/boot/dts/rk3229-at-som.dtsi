@@ -79,6 +79,16 @@
 		};
 	};
 
+	vcc_otg_vbus: otg-vbus-regulator {
+		compatible = "regulator-fixed";
+		gpio = <&gpio3 RK_PC6 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&otg_vbus_drv>;
+		regulator-name = "vcc_otg_vbus";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		enable-active-high;
+	};
 };
 
 &hdmi {
@@ -86,11 +96,6 @@
 	#sound-dai-cells = <0>;
 	ddc-i2c-scl-high-time-ns = <9625>;
 	ddc-i2c-scl-low-time-ns = <10000>;
-	rockchip,phy_table =
-		<165000000 0 0 4 4 4 4>,
-		<225000000 0 0 6 6 6 6>,
-		<340000000 1 0 6 10 10 10>,
-		<594000000 1 0 7 10 10 10>;
 };
 
 &hdmi_phy {
@@ -114,8 +119,9 @@
 		0xB5 0xC1 0x46 0xAE>;
 		monitor_sec = <5>;
 		virtual_power = <0>;
-		divider_res1 = <200>;
-		divider_res2 = <200>;
+		hw_id_check = <1>;
+		hw-id0-gpio = <&gpio2 22 GPIO_ACTIVE_HIGH>;
+		hw-id1-gpio = <&gpio2 23 GPIO_ACTIVE_HIGH>;
 	};
 };
 
@@ -196,6 +202,12 @@
 			rockchip,pins = <3 31 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
+
+	usb {
+		otg_vbus_drv: otg-vbus-drv {
+			rockchip,pins =	<3 RK_PC6 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
 };
 
 &rockchip_suspend {
@@ -241,10 +253,10 @@
 };
 
 &u2phy0 {
-	otg-vbus-gpios = <&gpio3 RK_PC6 GPIO_ACTIVE_HIGH>;
 	status = "okay";
 
 	u2phy0_otg: otg-port {
+		vbus-supply = <&vcc_otg_vbus>;
 		status = "okay";
 	};
 

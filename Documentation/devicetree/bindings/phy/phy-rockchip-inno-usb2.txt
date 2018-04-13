@@ -2,8 +2,10 @@ ROCKCHIP USB2.0 PHY WITH INNO IP BLOCK
 
 Required properties (phy (parent) node):
  - compatible : should be one of the listed compatibles:
+	* "rockchip,px30-usb2phy"
 	* "rockchip,rk3128-usb2phy"
 	* "rockchip,rk322x-usb2phy"
+	* "rockchip,rk3308-usb2phy"
 	* "rockchip,rk3328-usb2phy"
 	* "rockchip,rk3366-usb2phy"
 	* "rockchip,rk3368-usb2phy"
@@ -20,8 +22,8 @@ Optional properties:
 		 usb-phy output 480m and xin24m.
 		 Refer to clk/clock-bindings.txt for generic clock
 		 consumer properties.
- - rockchip,u2phy-tuning; when set, tuning u2phy to improve usb2 SI.
- - otg-vbus-gpios : assign the gpio to control vbus of otg port.
+ - rockchip,u2phy-tuning: when set, tuning u2phy to improve usb2 SI.
+ - vbus-supply: regulator phandle for vbus power source.
 
 Required nodes : a sub-node is required for each port the phy provides.
 		 The sub-node name is used to identify host or otg port,
@@ -48,6 +50,8 @@ Optional properties:
 		bvalid status bit to get vbus status by default.
  - rockchip,vbus-always-on: when set, indicates that the otg vbus
 		is always powered on.
+ - rockchip,low-power-mode: when set, the port will enter low power
+		state when suspend.
 
 Example:
 
@@ -84,6 +88,8 @@ grf: syscon@ff770000 {
 
 Required properties (usb2phy grf node):
  - compatible : should be one of the listed compatibles:
+		"rockchip,px30-usb2phy-grf", "syscon", "simple-mfd";
+		"rockchip,rk3308-usb2phy-grf", "syscon", "simple-mfd";
 		"rockchip,rk3328-usb2phy-grf", "syscon", "simple-mfd";
  - reg : the address offset of grf for usb-phy configuration.
  - #address-cells : should be 1.

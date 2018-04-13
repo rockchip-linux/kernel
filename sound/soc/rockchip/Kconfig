@@ -12,7 +12,16 @@ config SND_SOC_ROCKCHIP_I2S
 	select SND_SOC_GENERIC_DMAENGINE_PCM
 	help
 	  Say Y or M if you want to add support for I2S driver for
-	  Rockchip I2S device. The device supports upto maximum of
+	  Rockchip I2S device. The device supports up to maximum of
+	  8 channels each for play and record.
+
+config SND_SOC_ROCKCHIP_I2S_TDM
+	tristate "Rockchip I2S/TDM Device Driver"
+	depends on CLKDEV_LOOKUP && SND_SOC_ROCKCHIP
+	select SND_SOC_GENERIC_DMAENGINE_PCM
+	help
+	  Say Y or M if you want to add support for I2S/TDM driver for
+	  Rockchip I2S/TDM device. The device supports up to maximum of
 	  8 channels each for play and record.
 
 config SND_SOC_ROCKCHIP_PDM
@@ -68,6 +77,13 @@ config SND_SOC_ROCKCHIP_MAX98090
 	help
 	  Say Y or M here if you want to add support for SoC audio on Rockchip
 	  boards using the MAX98090 codec, such as Veyron.
+
+config SND_SOC_ROCKCHIP_MULTICODECS
+	tristate "ASoC support for Rockchip multicodecs"
+	depends on SND_SOC_ROCKCHIP && CLKDEV_LOOKUP
+	help
+	  Say Y or M here if you want to add support for SoC audio on Rockchip
+	  boards using multicodecs, such as RK3308 boards.
 
 config SND_SOC_ROCKCHIP_RT5645
 	tristate "ASoC support for Rockchip boards using a RT5645/RT5650 codec"

@@ -519,13 +519,17 @@ dtb-$(CONFIG_ARCH_ROCKCHIP) += \
 	rk3066a-marsboard.dtb \
 	rk3066a-rayeager.dtb \
 	rk3126-bnd-d708.dtb \
+	rk3126-bnd-m88-emmc.dtb \
 	rk3126-evb.dtb \
 	rk3128-fireprime.dtb \
 	rk3188-radxarock.dtb \
 	rk3228-evb.dtb \
+	rk3229-at-3nod.dtb \
+	rk3229-at-3nod-func.dtb \
 	rk3229-at-gva.dtb \
 	rk3229-echo-v10.dtb \
 	rk3229-evb.dtb \
+	rk3229-evb-android.dtb \
 	rk3229-gva-sdk.dtb \
 	rk3288-evb-act8846.dtb \
 	rk3288-evb-android-act8846-edp.dtb \
@@ -549,6 +553,7 @@ dtb-$(CONFIG_ARCH_ROCKCHIP) += \
 	rk3288-phycore-rdk.dtb \
 	rk3288-popmetal.dtb \
 	rk3288-popmetal-android.dtb \
+	rk3288-popmetal-android-vga.dtb \
 	rk3288-r89.dtb \
 	rk3288-rock2-square.dtb \
 	rk3288-veyron-jaq.dtb \

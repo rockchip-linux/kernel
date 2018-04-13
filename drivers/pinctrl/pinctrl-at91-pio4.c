@@ -290,7 +290,7 @@ static void atmel_gpio_irq_handler(struct irq_desc *desc)
 
 static int atmel_gpio_direction_input(struct gpio_chip *chip, unsigned offset)
 {
-	struct atmel_pioctrl *atmel_pioctrl = dev_get_drvdata(chip->dev);
+	struct atmel_pioctrl *atmel_pioctrl = dev_get_drvdata(chip->parent);
 	struct atmel_pin *pin = atmel_pioctrl->pins[offset];
 	unsigned reg;
 
@@ -305,7 +305,7 @@ static int atmel_gpio_direction_input(struct gpio_chip *chip, unsigned offset)
 
 static int atmel_gpio_get(struct gpio_chip *chip, unsigned offset)
 {
-	struct atmel_pioctrl *atmel_pioctrl = dev_get_drvdata(chip->dev);
+	struct atmel_pioctrl *atmel_pioctrl = dev_get_drvdata(chip->parent);
 	struct atmel_pin *pin = atmel_pioctrl->pins[offset];
 	unsigned reg;
 
@@ -317,7 +317,7 @@ static int atmel_gpio_get(struct gpio_chip *chip, unsigned offset)
 static int atmel_gpio_direction_output(struct gpio_chip *chip, unsigned offset,
 				       int value)
 {
-	struct atmel_pioctrl *atmel_pioctrl = dev_get_drvdata(chip->dev);
+	struct atmel_pioctrl *atmel_pioctrl = dev_get_drvdata(chip->parent);
 	struct atmel_pin *pin = atmel_pioctrl->pins[offset];
 	unsigned reg;
 
@@ -336,7 +336,7 @@ static int atmel_gpio_direction_output(struct gpio_chip *chip, unsigned offset,
 
 static void atmel_gpio_set(struct gpio_chip *chip, unsigned offset, int val)
 {
-	struct atmel_pioctrl *atmel_pioctrl = dev_get_drvdata(chip->dev);
+	struct atmel_pioctrl *atmel_pioctrl = dev_get_drvdata(chip->parent);
 	struct atmel_pin *pin = atmel_pioctrl->pins[offset];
 
 	atmel_gpio_write(atmel_pioctrl, pin->bank,
@@ -346,7 +346,7 @@ static void atmel_gpio_set(struct gpio_chip *chip, unsigned offset, int val)
 
 static int atmel_gpio_to_irq(struct gpio_chip *chip, unsigned offset)
 {
-	struct atmel_pioctrl *atmel_pioctrl = dev_get_drvdata(chip->dev);
+	struct atmel_pioctrl *atmel_pioctrl = dev_get_drvdata(chip->parent);
 
 	return irq_find_mapping(atmel_pioctrl->irq_domain, offset);
 }
@@ -574,7 +574,7 @@ static int atmel_pctl_dt_node_to_map(struct pinctrl_dev *pctldev,
 	}
 
 	if (ret < 0) {
-		pinctrl_utils_dt_free_map(pctldev, *map, *num_maps);
+		pinctrl_utils_free_map(pctldev, *map, *num_maps);
 		dev_err(pctldev->dev, "can't create maps for node %s\n",
 			np_config->full_name);
 	}
@@ -587,7 +587,7 @@ static const struct pinctrl_ops atmel_pctlops = {
 	.get_group_name		= atmel_pctl_get_group_name,
 	.get_group_pins		= atmel_pctl_get_group_pins,
 	.dt_node_to_map		= atmel_pctl_dt_node_to_map,
-	.dt_free_map		= pinctrl_utils_dt_free_map,
+	.dt_free_map		= pinctrl_utils_free_map,
 };
 
 static int atmel_pmx_get_functions_count(struct pinctrl_dev *pctldev)
@@ -971,7 +971,7 @@ static int atmel_pinctrl_probe(struct platform_device *pdev)
 	atmel_pioctrl->gpio_chip->of_node = dev->of_node;
 	atmel_pioctrl->gpio_chip->ngpio = atmel_pioctrl->npins;
 	atmel_pioctrl->gpio_chip->label = dev_name(dev);
-	atmel_pioctrl->gpio_chip->dev = dev;
+	atmel_pioctrl->gpio_chip->parent = dev;
 	atmel_pioctrl->gpio_chip->names = atmel_pioctrl->group_names;
 
 	atmel_pioctrl->pm_wakeup_sources = devm_kzalloc(dev,

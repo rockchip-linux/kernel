@@ -28,6 +28,21 @@ struct rockchip_grf_info {
 	int num_values;
 };
 
+#define PX30_GRF_SOC_CON5		0x414
+
+static const struct rockchip_grf_value px30_defaults[] __initconst = {
+	/*
+	 * Postponing auto jtag/sdmmc switching by 5 seconds.
+	 * The counter value is calculated based on 24MHz clock.
+	 */
+	{ "jtag switching delay", PX30_GRF_SOC_CON5, 0x7270E00},
+};
+
+static const struct rockchip_grf_info px30_grf __initconst = {
+	.values = px30_defaults,
+	.num_values = ARRAY_SIZE(px30_defaults),
+};
+
 #define RK3036_GRF_SOC_CON0		0x140
 
 static const struct rockchip_grf_value rk3036_defaults[] __initconst = {
@@ -41,6 +56,28 @@ static const struct rockchip_grf_value rk3036_defaults[] __initconst = {
 static const struct rockchip_grf_info rk3036_grf __initconst = {
 	.values = rk3036_defaults,
 	.num_values = ARRAY_SIZE(rk3036_defaults),
+};
+
+#define RK3128_GRF_SOC_CON0		0x140
+
+static const struct rockchip_grf_value rk3128_defaults[] __initconst = {
+	{ "jtag switching", RK3128_GRF_SOC_CON0, HIWORD_UPDATE(0, 1, 8) },
+};
+
+static const struct rockchip_grf_info rk3128_grf __initconst = {
+	.values = rk3128_defaults,
+	.num_values = ARRAY_SIZE(rk3128_defaults),
+};
+
+#define RK3228_GRF_SOC_CON6		0x418
+
+static const struct rockchip_grf_value rk3228_defaults[] __initconst = {
+	{ "jtag switching", RK3228_GRF_SOC_CON6, HIWORD_UPDATE(0, 1, 8) },
+};
+
+static const struct rockchip_grf_info rk3228_grf __initconst = {
+	.values = rk3228_defaults,
+	.num_values = ARRAY_SIZE(rk3228_defaults),
 };
 
 #define RK3288_GRF_SOC_CON0		0x244
@@ -63,6 +100,17 @@ static const struct rockchip_grf_value rk3328_defaults[] __initconst = {
 static const struct rockchip_grf_info rk3328_grf __initconst = {
 	.values = rk3328_defaults,
 	.num_values = ARRAY_SIZE(rk3328_defaults),
+};
+
+#define RK3308_GRF_SOC_CON3		0x30c
+
+static const struct rockchip_grf_value rk3308_defaults[] __initconst = {
+	{ "uart dma mask", RK3308_GRF_SOC_CON3, HIWORD_UPDATE(0, 0x1f, 10) },
+};
+
+static const struct rockchip_grf_info rk3308_grf __initconst = {
+	.values = rk3308_defaults,
+	.num_values = ARRAY_SIZE(rk3308_defaults),
 };
 
 #define RK3368_GRF_SOC_CON15		0x43c
@@ -89,11 +137,23 @@ static const struct rockchip_grf_info rk3399_grf __initconst = {
 
 static const struct of_device_id rockchip_grf_dt_match[] __initconst = {
 	{
+		.compatible = "rockchip,px30-grf",
+		.data = (void *)&px30_grf,
+	}, {
 		.compatible = "rockchip,rk3036-grf",
 		.data = (void *)&rk3036_grf,
 	}, {
+		.compatible = "rockchip,rk3128-grf",
+		.data = (void *)&rk3128_grf,
+	}, {
+		.compatible = "rockchip,rk3228-grf",
+		.data = (void *)&rk3228_grf,
+	}, {
 		.compatible = "rockchip,rk3288-grf",
 		.data = (void *)&rk3288_grf,
+	}, {
+		.compatible = "rockchip,rk3308-grf",
+		.data = (void *)&rk3308_grf,
 	}, {
 		.compatible = "rockchip,rk3328-grf",
 		.data = (void *)&rk3328_grf,

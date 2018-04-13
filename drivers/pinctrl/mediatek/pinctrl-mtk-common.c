@@ -95,7 +95,7 @@ static void mtk_gpio_set(struct gpio_chip *chip, unsigned offset, int value)
 {
 	unsigned int reg_addr;
 	unsigned int bit;
-	struct mtk_pinctrl *pctl = dev_get_drvdata(chip->dev);
+	struct mtk_pinctrl *pctl = dev_get_drvdata(chip->parent);
 
 	reg_addr = mtk_get_port(pctl, offset) + pctl->devdata->dout_offset;
 	bit = BIT(offset & 0xf);
@@ -590,7 +590,8 @@ static int mtk_pctrl_dt_node_to_map(struct pinctrl_dev *pctldev,
 		ret = mtk_pctrl_dt_subnode_to_map(pctldev, np, map,
 				&reserved_maps, num_maps);
 		if (ret < 0) {
-			pinctrl_utils_dt_free_map(pctldev, *map, *num_maps);
+			pinctrl_utils_free_map(pctldev, *map, *num_maps);
+			of_node_put(np);
 			return ret;
 		}
 	}
@@ -628,7 +629,7 @@ static int mtk_pctrl_get_group_pins(struct pinctrl_dev *pctldev,
 
 static const struct pinctrl_ops mtk_pctrl_ops = {
 	.dt_node_to_map		= mtk_pctrl_dt_node_to_map,
-	.dt_free_map		= pinctrl_utils_dt_free_map,
+	.dt_free_map		= pinctrl_utils_free_map,
 	.get_groups_count	= mtk_pctrl_get_groups_count,
 	.get_group_name		= mtk_pctrl_get_group_name,
 	.get_group_pins		= mtk_pctrl_get_group_pins,
@@ -742,7 +743,7 @@ static int mtk_gpio_get_direction(struct gpio_chip *chip, unsigned offset)
 	unsigned int bit;
 	unsigned int read_val = 0;
 
-	struct mtk_pinctrl *pctl = dev_get_drvdata(chip->dev);
+	struct mtk_pinctrl *pctl = dev_get_drvdata(chip->parent);
 
 	reg_addr =  mtk_get_port(pctl, offset) + pctl->devdata->dir_offset;
 	bit = BIT(offset & 0xf);
@@ -755,7 +756,7 @@ static int mtk_gpio_get(struct gpio_chip *chip, unsigned offset)
 	unsigned int reg_addr;
 	unsigned int bit;
 	unsigned int read_val = 0;
-	struct mtk_pinctrl *pctl = dev_get_drvdata(chip->dev);
+	struct mtk_pinctrl *pctl = dev_get_drvdata(chip->parent);
 
 	reg_addr = mtk_get_port(pctl, offset) +
 		pctl->devdata->din_offset;
@@ -768,7 +769,7 @@ static int mtk_gpio_get(struct gpio_chip *chip, unsigned offset)
 static int mtk_gpio_to_irq(struct gpio_chip *chip, unsigned offset)
 {
 	const struct mtk_desc_pin *pin;
-	struct mtk_pinctrl *pctl = dev_get_drvdata(chip->dev);
+	struct mtk_pinctrl *pctl = dev_get_drvdata(chip->parent);
 	int irq;
 
 	pin = pctl->devdata->pins + offset;
@@ -936,7 +937,7 @@ static void mtk_eint_unmask(struct irq_data *d)
 static int mtk_gpio_set_debounce(struct gpio_chip *chip, unsigned offset,
 	unsigned debounce)
 {
-	struct mtk_pinctrl *pctl = dev_get_drvdata(chip->dev);
+	struct mtk_pinctrl *pctl = dev_get_drvdata(chip->parent);
 	int eint_num, virq, eint_offset;
 	unsigned int set_offset, bit, clr_bit, clr_offset, rst, i, unmask, dbnc;
 	static const unsigned int debounce_time[] = {500, 1000, 16000, 32000, 64000,
@@ -1347,7 +1348,7 @@ int mtk_pctrl_init(struct platform_device *pdev,
 	*pctl->chip = mtk_gpio_chip;
 	pctl->chip->ngpio = pctl->devdata->npins;
 	pctl->chip->label = dev_name(&pdev->dev);
-	pctl->chip->dev = &pdev->dev;
+	pctl->chip->parent = &pdev->dev;
 	pctl->chip->base = -1;
 
 	ret = gpiochip_add(pctl->chip);

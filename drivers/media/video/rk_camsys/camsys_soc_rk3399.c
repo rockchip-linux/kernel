@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 #ifdef CONFIG_ARM64
 #include "camsys_soc_priv.h"
 #include "camsys_soc_rk3399.h"
@@ -386,8 +387,18 @@ int camsys_rk3399_cfg
 	}
 
 	case Mipi_Phy_Cfg: {
-		camsys_rk3399_mipihpy_cfg
-			((camsys_mipiphy_soc_para_t *)cfg_para);
+		camsys_mipiphy_soc_para_t *para
+			= (camsys_mipiphy_soc_para_t *)cfg_para;
+
+		if (para->phy->dir == CamSys_Mipiphy_Tx &&
+			para->phy->phy_index == 1) {
+			/* TX1/RX1 DPHY switch to RX status */
+			__raw_writel(0x300020,
+				(void *)(camsys_dev->rk_grf_base + 0x6260));
+		} else {
+			camsys_rk3399_mipihpy_cfg
+				((camsys_mipiphy_soc_para_t *)cfg_para);
+		}
 		break;
 	}
 

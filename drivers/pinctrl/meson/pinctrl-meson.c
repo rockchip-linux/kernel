@@ -174,7 +174,7 @@ static const struct pinctrl_ops meson_pctrl_ops = {
 	.get_group_name		= meson_get_group_name,
 	.get_group_pins		= meson_get_group_pins,
 	.dt_node_to_map		= pinconf_generic_dt_node_to_map_all,
-	.dt_free_map		= pinctrl_utils_dt_free_map,
+	.dt_free_map		= pinctrl_utils_free_map,
 	.pin_dbg_show		= meson_pin_dbg_show,
 };
 
@@ -562,7 +562,7 @@ static int meson_gpiolib_register(struct meson_pinctrl *pc)
 		domain = &pc->domains[i];
 
 		domain->chip.label = domain->data->name;
-		domain->chip.dev = pc->dev;
+		domain->chip.parent = pc->dev;
 		domain->chip.request = meson_gpio_request;
 		domain->chip.free = meson_gpio_free;
 		domain->chip.direction_input = meson_gpio_direction_input;

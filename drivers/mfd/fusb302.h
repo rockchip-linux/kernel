@@ -15,10 +15,6 @@
 #include <linux/i2c.h>
 #include <linux/hrtimer.h>
 
-#define FUSB_VCONN_SUPPORT
-/* TODO: more modes would be added here later on */
-#define FUSB_HAVE_DRP
-
 const char *FUSB_DT_INTERRUPT_INTN =	"fsc_interrupt_int_n";
 #define FUSB_DT_GPIO_INTN		"fairchild,int_n"
 #define FUSB_DT_GPIO_VBUS_5V		"fairchild,vbus5v"
@@ -90,6 +86,53 @@ enum connection_state {
 	policy_snk_send_hardrst,
 
 	policy_snk_transition_default,
+
+	/* PR SWAP */
+	policy_src_prs_evaluate,
+	policy_src_prs_accept,
+	policy_src_prs_transition_to_off,
+	policy_src_prs_source_off,
+	policy_src_prs_assert_rd,
+	policy_src_prs_reject,
+	policy_src_prs_send_swap,
+
+	policy_snk_prs_evaluate,
+	policy_snk_prs_accept,
+	policy_snk_prs_transition_to_off,
+	policy_snk_prs_source_on,
+	policy_snk_prs_assert_rp,
+	policy_snk_prs_reject,
+	policy_snk_prs_send_swap,
+
+	/* VC SWAP */
+	policy_vcs_dfp_send_swap,
+	policy_vcs_dfp_wait_for_ufp_vconn,
+	policy_vcs_dfp_turn_off_vconn,
+	policy_vcs_dfp_turn_on_vconn,
+	policy_vcs_dfp_send_ps_rdy,
+
+	policy_vcs_ufp_evaluate_swap,
+	policy_vcs_ufp_reject,
+	policy_vcs_ufp_accept,
+	policy_vcs_ufp_wait_for_dfp_vconn,
+	policy_vcs_ufp_turn_off_vconn,
+	policy_vcs_ufp_turn_on_vconn,
+	policy_vcs_ufp_send_ps_rdy,
+
+	policy_drs_ufp_evaluate,
+	policy_drs_ufp_accept,
+	policy_drs_ufp_reject,
+	policy_drs_ufp_change,
+	policy_drs_ufp_send_swap,
+
+	policy_drs_dfp_evaluate,
+	policy_drs_dfp_accept,
+	policy_drs_dfp_reject,
+	policy_drs_dfp_change,
+	policy_drs_dfp_send_swap,
+
+	attach_try_src,
+	attach_try_snk,
 };
 
 enum tcpm_rp_value {
@@ -97,6 +140,14 @@ enum tcpm_rp_value {
 	TYPEC_RP_1A5 = 1,
 	TYPEC_RP_3A0 = 2,
 	TYPEC_RP_RESERVED = 3,
+};
+
+enum role_mode {
+	ROLE_MODE_NONE,
+	ROLE_MODE_DRP,
+	ROLE_MODE_UFP,
+	ROLE_MODE_DFP,
+	ROLE_MODE_ASS,
 };
 
 #define SBF(s, v)		((s) << (v))
@@ -140,6 +191,10 @@ enum tcpm_rp_value {
 
 #define CONTROL2_TOGGLE		SBF(1, 0)
 #define CONTROL2_MODE		SBF(3, 1)
+#define CONTROL2_MODE_NONE	0
+#define CONTROL2_MODE_DFP	SBF(3, 1)
+#define CONTROL2_MODE_UFP	SBF(2, 1)
+#define CONTROL2_MODE_DRP	SBF(1, 1)
 #define CONTROL2_WAKE_EN	SBF(1, 3)
 #define CONTROL2_TOG_RD_ONLY	SBF(1, 5)
 #define CONTROL2_TOG_SAVE_PWR1	SBF(1, 6)
@@ -192,6 +247,9 @@ enum tcpm_rp_value {
 #define STATUS1A_RXSOP1DB	SBF(1, 1)
 #define STATUS1A_RXSOP2DB	SBF(1, 2)
 #define STATUS1A_TOGSS		SBF(7, 3)
+#define CC_STATE_TOGSS_CC1	SBF(1, 0)
+#define CC_STATE_TOGSS_CC2	SBF(1, 1)
+#define CC_STATE_TOGSS_IS_UFP	SBF(1, 2)
 
 #define INTERRUPTA_HARDRST	SBF(1, 0)
 #define INTERRUPTA_SOFTRST	SBF(1, 1)
@@ -280,7 +338,8 @@ enum tcpm_rp_value {
 #define VDM_TYPE_NACK		2
 #define VDM_TYPE_BUSY		3
 
-#define N_DEBOUNCE_CNT		(10 - 1)
+/* 200ms at least, 1 cycle about 6ms */
+#define N_DEBOUNCE_CNT		33
 #define N_CAPS_COUNT		50
 #define N_HARDRESET_COUNT	0
 
@@ -296,6 +355,11 @@ enum tcpm_rp_value {
 #define T_SAFE_0V		650
 #define T_SRC_TURN_ON		275
 #define T_SRC_RECOVER_MAX	1000
+#define T_PD_SOURCE_OFF		920
+#define T_PD_SOURCE_ON		480
+#define T_PD_SWAP_SOURCE_START	20
+#define T_PD_VCONN_SRC_ON	100
+#define T_PD_TRY_DRP		75
 
 #define T_NO_TRIGGER		500
 #define T_DISABLED		0xffff
@@ -337,11 +401,32 @@ enum CC_ORIENTATION {
 	CC2,
 };
 
+enum typec_cc_polarity {
+	TYPEC_POLARITY_CC1,
+	TYPEC_POLARITY_CC2,
+};
+
+enum CC_MODE {
+	CC_PULL_UP,
+	CC_PULL_DOWN,
+	CC_PULL_NONE,
+};
+
+enum typec_power_role {
+	POWER_ROLE_SINK = 0,
+	POWER_ROLE_SOURCE,
+};
+
+enum typec_data_role {
+	DATA_ROLE_UFP = 0,
+	DATA_ROLE_DFP,
+};
+
 struct notify_info {
 	enum CC_ORIENTATION orientation;
 	/* 0 UFP : 1 DFP */
-	bool power_role;
-	bool data_role;
+	enum typec_power_role power_role;
+	enum typec_data_role data_role;
 
 	bool is_cc_connected;
 	bool is_pd_connected;
@@ -391,7 +476,7 @@ struct fusb30x_chip {
 	int timer_state;
 	int timer_mux;
 	int port_num;
-	int work_continue;
+	u32 work_continue;
 	spinlock_t irq_lock;
 	int gpio_int_irq;
 	int enable_irq;
@@ -406,8 +491,7 @@ struct fusb30x_chip {
 	u8 cc_state;
 	int cc1;
 	int cc2;
-	/* 0 cc1 : 1 cc2 */
-	bool cc_polarity;
+	enum typec_cc_polarity cc_polarity;
 	u8 val_tmp;
 	u8 debounce_cnt;
 	int sub_state;
@@ -439,12 +523,16 @@ struct fusb30x_chip {
 	u8 chip_id;
 	bool vconn_enabled;
 	bool is_pd_support;
-	int togdone_pullup;
 	int pd_output_vol;
 	int pd_output_cur;
 	int cc_meas_high;
 	int cc_meas_low;
 	bool vbus_begin;
+
+	enum role_mode role;
+	bool vconn_supported;
+	bool try_role_complete;
+	enum role_mode try_role;
 };
 
 #endif /* FUSB302_H */

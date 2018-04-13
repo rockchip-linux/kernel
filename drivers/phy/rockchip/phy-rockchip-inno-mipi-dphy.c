@@ -39,6 +39,9 @@
 
 /* Innosilicon MIPI D-PHY registers */
 #define INNO_PHY_LANE_CTRL	0x00000
+#define MIPI_BGPD		BIT(7)
+#define PWROK_BP		BIT(1)
+#define PWROK			BIT(0)
 #define INNO_PHY_POWER_CTRL	0x00004
 #define ANALOG_RESET_MASK	BIT(2)
 #define ANALOG_RESET		BIT(2)
@@ -65,6 +68,8 @@
 #define TTL_MODE_ENABLE		BIT(2)
 #define LVDS_MODE_ENABLE	BIT(1)
 #define MIPI_MODE_ENABLE	BIT(0)
+#define INNO_PHY_LVDS_CTRL	0x003ac
+#define LVDS_BGPD		BIT(0)
 
 #define INNO_CLOCK_LANE_REG_BASE	0x00100
 #define INNO_DATA_LANE_0_REG_BASE	0x00180
@@ -173,6 +178,7 @@ struct inno_video_phy_socdata {
 struct inno_mipi_dphy {
 	struct device *dev;
 	struct clk *ref_clk;
+	struct clk *pclk;
 	struct clk *h2p_clk;
 	struct regmap *regmap;
 	struct reset_control *rst;
@@ -330,7 +336,7 @@ static const struct pinctrl_ops inno_video_phy_pinctrl_ops = {
 	.get_group_name = inno_video_phy_get_group_name,
 	.get_group_pins = inno_video_phy_get_group_pins,
 	.dt_node_to_map = pinconf_generic_dt_node_to_map_group,
-	.dt_free_map = pinctrl_utils_dt_free_map,
+	.dt_free_map = pinctrl_utils_free_map,
 };
 
 static int inno_video_phy_get_functions_count(struct pinctrl_dev *pinctrl)
@@ -392,6 +398,31 @@ static inline void inno_mipi_dphy_reset(struct inno_mipi_dphy *inno)
 	udelay(1);
 	regmap_update_bits(inno->regmap, INNO_PHY_DIG_CTRL,
 			   DIGITAL_RESET_MASK, DIGITAL_NORMAL);
+}
+
+static inline void inno_mipi_dphy_da_pwrok_enable(struct inno_mipi_dphy *inno)
+{
+	regmap_update_bits(inno->regmap, INNO_PHY_LANE_CTRL,
+			   PWROK_BP | PWROK, PWROK);
+}
+
+static inline void inno_mipi_dphy_da_pwrok_disable(struct inno_mipi_dphy *inno)
+{
+	regmap_update_bits(inno->regmap, INNO_PHY_LANE_CTRL,
+			   PWROK_BP | PWROK, PWROK_BP);
+}
+
+static inline void inno_mipi_dphy_bgpd_enable(struct inno_mipi_dphy *inno)
+{
+	regmap_update_bits(inno->regmap, INNO_PHY_LANE_CTRL, MIPI_BGPD, 0);
+}
+
+static inline void inno_mipi_dphy_bgpd_disable(struct inno_mipi_dphy *inno)
+{
+	regmap_update_bits(inno->regmap, INNO_PHY_LANE_CTRL,
+			   MIPI_BGPD, MIPI_BGPD);
+	regmap_update_bits(inno->regmap, INNO_PHY_LVDS_CTRL,
+			   LVDS_BGPD, LVDS_BGPD);
 }
 
 static inline void inno_mipi_dphy_lane_enable(struct inno_mipi_dphy *inno)
@@ -638,7 +669,10 @@ static int inno_mipi_dphy_power_on(struct phy *phy)
 	struct inno_mipi_dphy *inno = phy_get_drvdata(phy);
 
 	clk_prepare_enable(inno->h2p_clk);
+	clk_prepare_enable(inno->pclk);
 	pm_runtime_get_sync(inno->dev);
+	inno_mipi_dphy_bgpd_enable(inno);
+	inno_mipi_dphy_da_pwrok_enable(inno);
 	inno_mipi_dphy_pll_enable(inno);
 	inno_mipi_dphy_lane_enable(inno);
 	inno_mipi_dphy_reset(inno);
@@ -654,7 +688,10 @@ static int inno_mipi_dphy_power_off(struct phy *phy)
 
 	inno_mipi_dphy_lane_disable(inno);
 	inno_mipi_dphy_pll_disable(inno);
+	inno_mipi_dphy_da_pwrok_disable(inno);
+	inno_mipi_dphy_bgpd_disable(inno);
 	pm_runtime_put(inno->dev);
+	clk_disable_unprepare(inno->pclk);
 	clk_disable_unprepare(inno->h2p_clk);
 
 	return 0;
@@ -801,8 +838,8 @@ static int inno_mipi_dphy_probe(struct platform_device *pdev)
 	if (IS_ERR(regs))
 		return PTR_ERR(regs);
 
-	inno->regmap = devm_regmap_init_mmio_clk(dev, "pclk", regs,
-						 &inno_mipi_dphy_regmap_config);
+	inno->regmap = devm_regmap_init_mmio(dev, regs,
+					     &inno_mipi_dphy_regmap_config);
 	if (IS_ERR(inno->regmap)) {
 		ret = PTR_ERR(inno->regmap);
 		dev_err(dev, "failed to init regmap: %d\n", ret);
@@ -813,6 +850,12 @@ static int inno_mipi_dphy_probe(struct platform_device *pdev)
 	if (IS_ERR(inno->ref_clk)) {
 		dev_err(dev, "failed to get reference clock\n");
 		return PTR_ERR(inno->ref_clk);
+	}
+
+	inno->pclk = devm_clk_get(dev, "pclk");
+	if (IS_ERR(inno->pclk)) {
+		dev_err(dev, "failed to get pclk\n");
+		return PTR_ERR(inno->pclk);
 	}
 
 	if (inno->socdata->has_h2p_clk) {

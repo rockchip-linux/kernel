@@ -394,7 +394,8 @@ struct mmc_host {
 
 #ifdef CONFIG_BLOCK
 	int			latency_hist_enabled;
-	struct io_latency_state io_lat_s;
+	struct io_latency_state io_lat_read;
+	struct io_latency_state io_lat_write;
 #endif
 
 	unsigned long		private[0] ____cacheline_aligned;
@@ -501,7 +502,7 @@ static inline int mmc_host_uhs(struct mmc_host *host)
 	return host->caps &
 		(MMC_CAP_UHS_SDR12 | MMC_CAP_UHS_SDR25 |
 		 MMC_CAP_UHS_SDR50 | MMC_CAP_UHS_SDR104 |
-		 MMC_CAP_UHS_DDR50);
+		 MMC_CAP_UHS_DDR50) && host->caps & MMC_CAP_4_BIT_DATA;
 }
 
 static inline int mmc_host_hs400_enhanced_strobe(struct mmc_host *host)

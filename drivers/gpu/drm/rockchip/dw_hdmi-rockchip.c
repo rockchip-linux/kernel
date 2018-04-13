@@ -101,10 +101,19 @@ struct rockchip_hdmi {
 
 	unsigned int colordepth;
 	unsigned int colorimetry;
+	unsigned int phy_bus_width;
 	enum drm_hdmi_output_type hdmi_output;
 };
 
 #define to_rockchip_hdmi(x)	container_of(x, struct rockchip_hdmi, x)
+
+static void inno_dw_hdmi_phy_disable(struct dw_hdmi *dw_hdmi, void *data)
+{
+	struct rockchip_hdmi *hdmi = (struct rockchip_hdmi *)data;
+
+	while (hdmi->phy->power_count > 0)
+		phy_power_off(hdmi->phy);
+}
 
 static int
 inno_dw_hdmi_phy_init(struct dw_hdmi *dw_hdmi, void *data,
@@ -112,14 +121,9 @@ inno_dw_hdmi_phy_init(struct dw_hdmi *dw_hdmi, void *data,
 {
 	struct rockchip_hdmi *hdmi = (struct rockchip_hdmi *)data;
 
+	inno_dw_hdmi_phy_disable(dw_hdmi, data);
+	dw_hdmi_set_high_tmds_clock_ratio(dw_hdmi);
 	return phy_power_on(hdmi->phy);
-}
-
-static void inno_dw_hdmi_phy_disable(struct dw_hdmi *dw_hdmi, void *data)
-{
-	struct rockchip_hdmi *hdmi = (struct rockchip_hdmi *)data;
-
-	phy_power_off(hdmi->phy);
 }
 
 static enum drm_connector_status
@@ -539,6 +543,12 @@ static void dw_hdmi_rockchip_encoder_disable(struct drm_encoder *encoder)
 {
 	struct rockchip_hdmi *hdmi = to_rockchip_hdmi(encoder);
 
+	/*
+	 * when plug out hdmi it will be switch cvbs and then phy bus width
+	 * must be set as 8
+	 */
+	if (hdmi->phy)
+		phy_set_bus_width(hdmi->phy, 8);
 	clk_disable_unprepare(hdmi->dclk);
 }
 
@@ -553,6 +563,9 @@ static void dw_hdmi_rockchip_encoder_enable(struct drm_encoder *encoder)
 
 	if (WARN_ON(!crtc || !crtc->state))
 		return;
+
+	if (hdmi->phy)
+		phy_set_bus_width(hdmi->phy, hdmi->phy_bus_width);
 
 	clk_set_rate(hdmi->vpll_clk,
 		     crtc->state->adjusted_mode.crtc_clock * 1000);
@@ -797,6 +810,7 @@ dw_hdmi_rockchip_encoder_atomic_check(struct drm_encoder *encoder,
 			bus_width = colordepth;
 	}
 
+	hdmi->phy_bus_width = bus_width;
 	if (hdmi->phy)
 		phy_set_bus_width(hdmi->phy, bus_width);
 
@@ -933,7 +947,6 @@ dw_hdmi_rockchip_attatch_properties(struct drm_connector *connector,
 		if (prop) {
 			hdmi->color_depth_property = prop;
 			drm_object_attach_property(&connector->base, prop, 0);
-			hdmi->colordepth = 8;
 		}
 	}
 

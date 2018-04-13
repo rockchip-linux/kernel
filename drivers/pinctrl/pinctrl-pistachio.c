@@ -918,7 +918,7 @@ static const struct pinctrl_ops pistachio_pinctrl_ops = {
 	.get_group_name = pistachio_pinctrl_get_group_name,
 	.get_group_pins = pistachio_pinctrl_get_group_pins,
 	.dt_node_to_map = pinconf_generic_dt_node_to_map_pin,
-	.dt_free_map = pinctrl_utils_dt_free_map,
+	.dt_free_map = pinctrl_utils_free_map,
 };
 
 static int pistachio_pinmux_get_functions_count(struct pinctrl_dev *pctldev)
@@ -1388,7 +1388,7 @@ static int pistachio_gpio_register(struct pistachio_pinctrl *pctl)
 		bank->pctl = pctl;
 		bank->base = pctl->base + GPIO_BANK_BASE(i);
 
-		bank->gpio_chip.dev = pctl->dev;
+		bank->gpio_chip.parent = pctl->dev;
 		bank->gpio_chip.of_node = child;
 		ret = gpiochip_add(&bank->gpio_chip);
 		if (ret < 0) {

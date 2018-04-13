@@ -84,6 +84,19 @@
 		};
 	};
 
+	sound {
+		compatible = "simple-audio-card";
+		simple-audio-card,format = "i2s";
+		simple-audio-card,mclk-fs = <256>;
+		simple-audio-card,name = "rockchip,rk3229";
+		simple-audio-card,cpu {
+			sound-dai = <&i2s1>;
+		};
+		simple-audio-card,codec {
+			sound-dai = <&codec>;
+		};
+	};
+
 	hdmi_sound: hdmi-sound {
 		status = "okay";
 		compatible = "simple-audio-card";
@@ -165,6 +178,17 @@
 		regulator-boot-on;
 	};
 
+	vcc_otg_vbus: otg-vbus-regulator {
+		compatible = "regulator-fixed";
+		gpio = <&gpio3 RK_PC6 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&otg_vbus_drv>;
+		regulator-name = "vcc_otg_vbus";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		enable-active-high;
+	};
+
 	vcc_phy: vcc-phy-regulator {
 		compatible = "regulator-fixed";
 		enable-active-high;
@@ -233,11 +257,6 @@
 	#sound-dai-cells = <0>;
 	ddc-i2c-scl-high-time-ns = <9625>;
 	ddc-i2c-scl-low-time-ns = <10000>;
-	rockchip,phy_table =
-		<165000000 0 0 4 4 4 4>,
-		<225000000 0 0 6 6 6 6>,
-		<340000000 1 0 6 10 10 10>,
-		<594000000 1 0 7 10 10 10>;
 };
 
 &io_domains {
@@ -266,6 +285,16 @@
 	#sound-dai-cells = <0>;
 };
 
+&i2s1 {
+	#sound-dai-cells = <0>;
+	status = "okay";
+};
+
+&codec {
+	#sound-dai-cells = <0>;
+	status = "okay";
+};
+
 &pinctrl {
 	keys {
 		pwr_key: pwr-key {
@@ -288,6 +317,10 @@
 	usb {
 		host_vbus_drv: host-vbus-drv {
 			rockchip,pins = <3 20 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+
+		otg_vbus_drv: otg-vbus-drv {
+			rockchip,pins = <3 RK_PC6 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
 };
@@ -322,6 +355,10 @@
 
 &u2phy1_host {
 	phy-supply = <&vcc_host>;
+};
+
+&u2phy0_otg {
+	vbus-supply = <&vcc_otg_vbus>;
 };
 
 &usb_host0_ehci {

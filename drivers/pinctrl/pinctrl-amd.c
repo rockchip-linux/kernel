@@ -565,7 +565,7 @@ static const struct pinctrl_ops amd_pinctrl_ops = {
 	.get_group_pins		= amd_get_group_pins,
 #ifdef CONFIG_OF
 	.dt_node_to_map		= pinconf_generic_dt_node_to_map_group,
-	.dt_free_map		= pinctrl_utils_dt_free_map,
+	.dt_free_map		= pinctrl_utils_free_map,
 #endif
 };
 
@@ -758,7 +758,7 @@ static int amd_gpio_probe(struct platform_device *pdev)
 	gpio_dev->gc.base			= 0;
 	gpio_dev->gc.label			= pdev->name;
 	gpio_dev->gc.owner			= THIS_MODULE;
-	gpio_dev->gc.dev			= &pdev->dev;
+	gpio_dev->gc.parent			= &pdev->dev;
 	gpio_dev->gc.ngpio			= TOTAL_NUMBER_OF_PINS;
 #if defined(CONFIG_OF_GPIO)
 	gpio_dev->gc.of_node			= pdev->dev.of_node;

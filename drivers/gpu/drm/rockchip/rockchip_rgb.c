@@ -22,9 +22,17 @@
 
 #include <linux/component.h>
 #include <linux/of_graph.h>
+#include <linux/regmap.h>
+#include <linux/mfd/syscon.h>
 
 #include "rockchip_drm_drv.h"
 #include "rockchip_drm_vop.h"
+
+#define HIWORD_UPDATE(v, l, h)	(((v) << (l)) | (GENMASK(h, l) << 16))
+#define PX30_GRF_PD_VO_CON1	0x0438
+#define PX30_LCDC_DCLK_INV(v)	HIWORD_UPDATE(v, 4, 4)
+#define PX30_RGB_SYNC_BYPASS(v)	HIWORD_UPDATE(v, 3, 3)
+#define PX30_RGB_VOP_SEL(v)	HIWORD_UPDATE(v, 2, 2)
 
 #define connector_to_rgb(c) container_of(c, struct rockchip_rgb, connector)
 #define encoder_to_rgb(c) container_of(c, struct rockchip_rgb, encoder)
@@ -38,6 +46,7 @@ struct rockchip_rgb {
 	struct drm_encoder encoder;
 	struct dev_pin_info *pins;
 	int output_mode;
+	struct regmap *grf;
 };
 
 static inline int name_to_output_mode(const char *s)
@@ -103,6 +112,15 @@ static void rockchip_rgb_encoder_enable(struct drm_encoder *encoder)
 {
 	struct rockchip_rgb *rgb = encoder_to_rgb(encoder);
 
+	if (rgb->grf) {
+		int pipe = drm_of_encoder_active_endpoint_id(rgb->dev->of_node,
+							     encoder);
+		regmap_write(rgb->grf, PX30_GRF_PD_VO_CON1,
+			     PX30_RGB_VOP_SEL(pipe));
+		regmap_write(rgb->grf, PX30_GRF_PD_VO_CON1,
+			     PX30_RGB_SYNC_BYPASS(1));
+	}
+
 	drm_panel_prepare(rgb->panel);
 	/* iomux to LCD data/sync mode */
 	if (rgb->pins && !IS_ERR(rgb->pins->default_state))
@@ -126,9 +144,23 @@ rockchip_rgb_encoder_atomic_check(struct drm_encoder *encoder,
 {
 	struct rockchip_crtc_state *s = to_rockchip_crtc_state(crtc_state);
 	struct rockchip_rgb *rgb = encoder_to_rgb(encoder);
+	struct drm_connector *connector = conn_state->connector;
+	struct drm_display_info *info = &connector->display_info;
 
 	s->output_mode = rgb->output_mode;
 	s->output_type = DRM_MODE_CONNECTOR_LVDS;
+
+	if (info->num_bus_formats)
+		s->bus_format = info->bus_formats[0];
+	else
+		s->bus_format = MEDIA_BUS_FMT_RGB888_1X24;
+
+	if (s->bus_format == MEDIA_BUS_FMT_RGB666_1X18)
+		s->output_mode = ROCKCHIP_OUT_MODE_P666;
+	else if (s->bus_format == MEDIA_BUS_FMT_RGB565_1X16)
+		s->output_mode = ROCKCHIP_OUT_MODE_P565;
+	else
+		s->output_mode = ROCKCHIP_OUT_MODE_P888;
 
 	return 0;
 }
@@ -146,9 +178,13 @@ static const struct drm_encoder_funcs rockchip_rgb_encoder_funcs = {
 
 static const struct of_device_id rockchip_rgb_dt_ids[] = {
 	{
+		.compatible = "rockchip,px30-rgb",
+	}, {
 		.compatible = "rockchip,rv1108-rgb",
 	}, {
 		.compatible = "rockchip,rk3066-rgb",
+	}, {
+		.compatible = "rockchip,rk3308-rgb",
 	},
 	{}
 };
@@ -251,6 +287,7 @@ static int rockchip_rgb_bind(struct device *dev, struct device *master,
 				      "failed to attach panel: %d\n", ret);
 			goto err_free_connector;
 		}
+		connector->port = dev->of_node;
 	} else {
 		rgb->bridge->encoder = encoder;
 		ret = drm_bridge_attach(drm_dev, rgb->bridge);
@@ -318,6 +355,15 @@ static int rockchip_rgb_probe(struct platform_device *pdev)
 	if (!match) {
 		DRM_DEV_ERROR(dev, "match node failed\n");
 		return -ENODEV;
+	}
+
+	if (dev->parent && dev->parent->of_node) {
+		rgb->grf = syscon_node_to_regmap(dev->parent->of_node);
+		if (IS_ERR(rgb->grf)) {
+			ret = PTR_ERR(rgb->grf);
+			dev_err(dev, "Unable to get grf: %d\n", ret);
+			return ret;
+		}
 	}
 
 	rgb->pins = devm_kzalloc(rgb->dev, sizeof(*rgb->pins), GFP_KERNEL);

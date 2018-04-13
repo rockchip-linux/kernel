@@ -237,7 +237,7 @@ static const struct pinctrl_ops pmic_mpp_pinctrl_ops = {
 	.get_group_name		= pmic_mpp_get_group_name,
 	.get_group_pins		= pmic_mpp_get_group_pins,
 	.dt_node_to_map		= pinconf_generic_dt_node_to_map_group,
-	.dt_free_map		= pinctrl_utils_dt_free_map,
+	.dt_free_map		= pinctrl_utils_free_map,
 };
 
 static int pmic_mpp_get_functions_count(struct pinctrl_dev *pctldev)
@@ -862,7 +862,7 @@ static int pmic_mpp_probe(struct platform_device *pdev)
 	}
 
 	state->chip = pmic_mpp_gpio_template;
-	state->chip.dev = dev;
+	state->chip.parent = dev;
 	state->chip.base = -1;
 	state->chip.ngpio = npins;
 	state->chip.label = dev_name(dev);

@@ -88,6 +88,9 @@
 #define RK3288_LVDS_PLL_PREDIV_REGD(_pd) \
 		(_pd & RK3288_LVDS_CH0_REGD_PLL_PREDIV_MASK)
 
+#define RK3288_GRF_SOC_CON6		0x025c
+#define RK3288_GRF_SOC_CON7		0x0260
+
 #define RK3288_LVDS_SOC_CON6_SEL_VOP_LIT	BIT(3)
 
 #define RK3366_GRF_SOC_CON0	0x0400
@@ -101,6 +104,17 @@
 
 #define RK3126_GRF_LVDS_CON0	0x0150
 #define RK3126_GRF_CON1		0x0144
+
+#define PX30_GRF_PD_VO_CON0	0x0434
+#define PX30_GRF_PD_VO_CON1	0x0438
+#define PX30_LVDS_OUTPUT_FORMAT(x)	(BITS_MASK(x, 0x3, 13) | BITS_EN(0x3, 13))
+#define PX30_LVDS_PHY_MODE(x)		(BITS_MASK(x, 0x1, 12) | BITS_EN(0x1, 12))
+#define PX30_LVDS_MSBSEL(x)		(BITS_MASK(x, 0x1, 11) | BITS_EN(0x1, 11))
+#define PX30_DPHY_FORCERXMODE(x)	(BITS_MASK(x, 0x1,  6) | BITS_EN(0x1,  6))
+#define PX30_LCDC_DCLK_INV(v)		(BITS_MASK(x, 0x1,  4) | BITS_EN(0x1,  4))
+#define PX30_RGB_SYNC_BYPASS(x)		(BITS_MASK(x, 0x1,  3) | BITS_EN(0x1,  3))
+#define PX30_RGB_VOP_SEL(x)		(BITS_MASK(x, 0x1,  2) | BITS_EN(0x1,  2))
+#define PX30_LVDS_VOP_SEL(x)		(BITS_MASK(x, 0x1,  1) | BITS_EN(0x1,  1))
 
 #define LVDS_FMT_MASK				(0x07 << 16)
 #define LVDS_MSB				BIT(3)
@@ -212,12 +226,6 @@
 enum {
 	LVDS_MSB_D0 = 0,
 	LVDS_MSB_D7,
-};
-
-enum rockchip_lvds_sub_devtype {
-	RK3126_LVDS,
-	RK3288_LVDS,
-	RK336X_LVDS,
 };
 
 #endif /* _ROCKCHIP_LVDS_ */

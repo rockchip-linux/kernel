@@ -322,8 +322,8 @@ static ssize_t dwc3_rockchip_host_testmode_write(struct file *file,
 				    EXTCON_PROP_USB_TYPEC_POLARITY, property);
 		extcon_set_cable_state_(edev, EXTCON_USB_HOST, true);
 
-		/* Add a delay 1~1.5s to wait for XHCI HCD init */
-		usleep_range(1000000, 1500000);
+		/* Add a delay 1s to wait for XHCI HCD init */
+		msleep(1000);
 	}
 
 	dwc3_rockchip_set_test_mode(rockchip, testmode);
@@ -439,7 +439,7 @@ static void dwc3_rockchip_otg_extcon_evt_work(struct work_struct *work)
 		 */
 		if (!rockchip->skip_suspend) {
 			reset_control_assert(rockchip->otg_rst);
-			usleep_range(1000, 1200);
+			udelay(1);
 			reset_control_deassert(rockchip->otg_rst);
 
 			pm_runtime_get_sync(rockchip->dev);
@@ -457,8 +457,21 @@ static void dwc3_rockchip_otg_extcon_evt_work(struct work_struct *work)
 	} else if (rockchip->edev ?
 		   extcon_get_cable_state_(edev, EXTCON_USB_HOST) :
 		   (dwc->dr_mode == USB_DR_MODE_HOST)) {
-		if (rockchip->connected)
-			goto out;
+		if (rockchip->connected) {
+			reg = dwc3_readl(dwc->regs, DWC3_GCTL);
+
+			/*
+			 * If the connected flag is true, and the DWC3 is
+			 * is in device mode, it means that the Type-C Dongle
+			 * is doing data role swap (UFP -> DFP), so we need
+			 * to disconnect UFP first, and then swich DWC3 to
+			 * DFP depends on the next extcon notifier.
+			 */
+			if (DWC3_GCTL_PRTCAP(reg) == DWC3_GCTL_PRTCAP_DEVICE)
+				goto disconnect;
+			else
+				goto out;
+		}
 
 		if (rockchip->skip_suspend) {
 			pm_runtime_put(dwc->dev);
@@ -487,7 +500,7 @@ static void dwc3_rockchip_otg_extcon_evt_work(struct work_struct *work)
 		 * registers while the reset is asserted, with unknown impact.
 		 */
 		reset_control_assert(rockchip->otg_rst);
-		usleep_range(1000, 1200);
+		udelay(1);
 		reset_control_deassert(rockchip->otg_rst);
 
 		/*
@@ -538,6 +551,7 @@ static void dwc3_rockchip_otg_extcon_evt_work(struct work_struct *work)
 		if (!rockchip->connected)
 			goto out;
 
+disconnect:
 		reg = dwc3_readl(dwc->regs, DWC3_GCTL);
 
 		/*
@@ -914,7 +928,7 @@ static int dwc3_rockchip_runtime_resume(struct device *dev)
 	return 0;
 }
 
-static int dwc3_rockchip_suspend(struct device *dev)
+static int __maybe_unused dwc3_rockchip_suspend(struct device *dev)
 {
 	struct dwc3_rockchip *rockchip = dev_get_drvdata(dev);
 	struct dwc3 *dwc = rockchip->dwc;
@@ -940,10 +954,14 @@ static int dwc3_rockchip_suspend(struct device *dev)
 	return 0;
 }
 
-static int dwc3_rockchip_resume(struct device *dev)
+static int __maybe_unused dwc3_rockchip_resume(struct device *dev)
 {
 	struct dwc3_rockchip *rockchip = dev_get_drvdata(dev);
 	struct dwc3 *dwc = rockchip->dwc;
+
+	reset_control_assert(rockchip->otg_rst);
+	udelay(1);
+	reset_control_deassert(rockchip->otg_rst);
 
 	rockchip->suspended = false;
 

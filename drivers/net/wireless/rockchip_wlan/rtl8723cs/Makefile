@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0
 EXTRA_CFLAGS += $(USER_EXTRA_CFLAGS)
 EXTRA_CFLAGS += -O1
 #EXTRA_CFLAGS += -O3
@@ -24,7 +25,7 @@ EXTRA_CFLAGS += -I$(src)/include
 EXTRA_CFLAGS += -I$(src)/hal/phydm
 
 EXTRA_LDFLAGS += --strip-debug
-
+EXTRA_CFLAGS += -DLINK_LAYER_STATS_SUPPORT
 CONFIG_AUTOCFG_CP = n
 
 ########################## WIFI IC ############################

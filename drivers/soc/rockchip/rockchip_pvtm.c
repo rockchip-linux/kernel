@@ -45,6 +45,8 @@
 #define RK3399_PVTM_GPU		3
 #define RK3399_PVTM_PMU		4
 
+#define PVTM_START_EN		0x1
+
 #define wr_mask_bit(v, off, mask)	((v) << (off) | (mask) << (16 + off))
 
 #define PVTM(_ch, _name, _num_sub, _start, _en, _cal, _done, _freq)	\
@@ -217,6 +219,7 @@ u32 rockchip_get_pvtm_value(unsigned int ch, unsigned int sub_ch,
 
 	return pvtm->get_value(pvtm, sub_ch, time_us);
 }
+EXPORT_SYMBOL(rockchip_get_pvtm_value);
 
 static void rockchip_pvtm_delay(unsigned int delay)
 {
@@ -284,6 +287,12 @@ static u32 rockchip_pvtm_get_value(struct rockchip_pvtm *pvtm,
 		}
 	}
 
+	/* if last status is enabled, stop calculating cycles first*/
+	regmap_read(pvtm->grf, pvtm->con, &sta);
+	if (sta & PVTM_START_EN)
+		regmap_write(pvtm->grf, pvtm->con,
+			     wr_mask_bit(0, channel->bit_start, 0x1));
+
 	regmap_write(pvtm->grf, pvtm->con,
 		     wr_mask_bit(0x1, channel->bit_en, 0x1));
 
@@ -299,11 +308,12 @@ static u32 rockchip_pvtm_get_value(struct rockchip_pvtm *pvtm,
 
 	rockchip_pvtm_delay(time_us);
 
-	while (check_cnt--) {
+	while (check_cnt) {
 		regmap_read(pvtm->grf, pvtm->sta, &sta);
-		if (sta & channel->bit_freq_done)
+		if (sta & BIT(channel->bit_freq_done))
 			break;
 		udelay(4);
+		check_cnt--;
 	}
 
 	if (check_cnt) {
@@ -359,6 +369,14 @@ static const struct rockchip_pvtm_info rk3288_pvtm = {
 	.sta = 0x374,
 	.num_channels = ARRAY_SIZE(rk3288_pvtm_channels),
 	.channels = rk3288_pvtm_channels,
+	.get_value = rockchip_pvtm_get_value,
+};
+
+static const struct rockchip_pvtm_info rk3308_pmupvtm = {
+	.con = 0x440,
+	.sta = 0x448,
+	.num_channels = ARRAY_SIZE(px30_pmupvtm_channels),
+	.channels = px30_pmupvtm_channels,
 	.get_value = rockchip_pvtm_get_value,
 };
 
@@ -427,6 +445,14 @@ static const struct of_device_id rockchip_pvtm_match[] = {
 	{
 		.compatible = "rockchip,rk3288-pvtm",
 		.data = (void *)&rk3288_pvtm,
+	},
+	{
+		.compatible = "rockchip,rk3308-pvtm",
+		.data = (void *)&px30_pvtm,
+	},
+	{
+		.compatible = "rockchip,rk3308-pmu-pvtm",
+		.data = (void *)&rk3308_pmupvtm,
 	},
 	{
 		.compatible = "rockchip,rk3366-pvtm",

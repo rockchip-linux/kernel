@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 #include <media/camsys_head.h>
 
 #include "camsys_cif.h"
@@ -465,10 +466,7 @@ static int camsys_sysctl(camsys_sysctrl_t *devctl, camsys_dev_t *camsys_dev)
 
 	/* spin_lock(&camsys_dev->lock); */
 	mutex_lock(&camsys_dev->extdevs.mut);
-	if (devctl->ops == 0xaa) {
-		dump_stack();
-		return 0;
-	}
+
 	/* Internal */
 	if (camsys_dev->dev_id & devctl->dev_mask) {
 		switch (devctl->ops) {
@@ -643,7 +641,7 @@ static int camsys_irq_wait(camsys_irqsta_t *irqsta, camsys_dev_t *camsys_dev)
 	spin_lock_irqsave(&camsys_dev->irq.lock, flags);
 	if (!list_empty(&camsys_dev->irq.irq_pool)) {
 		list_for_each_entry(irqpool, &camsys_dev->irq.irq_pool, list) {
-			if (irqpool->pid == current->pid) {
+			if (irqpool->pid == irqsta->pid) {
 				find_pool = true;
 				break;
 			}
@@ -654,7 +652,7 @@ static int camsys_irq_wait(camsys_irqsta_t *irqsta, camsys_dev_t *camsys_dev)
 	if (find_pool == false) {
 		camsys_err(
 			"this thread(pid: %d) hasn't been connect irq, so wait irq failed!",
-			current->pid);
+			irqsta->pid);
 		err = -EINVAL;
 		goto end;
 	}
@@ -674,7 +672,7 @@ static int camsys_irq_wait(camsys_irqsta_t *irqsta, camsys_dev_t *camsys_dev)
 			active_list_isnot_empty(irqpool),
 			usecs_to_jiffies(irqpool->timeout));
 
-		if (irqpool->pid == current->pid) {
+		if (irqpool->pid == irqsta->pid) {
 			if (active_list_isnot_empty(irqpool)) {
 				spin_lock_irqsave(&irqpool->lock, flags);
 				irqstas = list_first_entry(
@@ -692,7 +690,7 @@ static int camsys_irq_wait(camsys_irqsta_t *irqsta, camsys_dev_t *camsys_dev)
 		} else {
 			camsys_warn(
 				"Thread(pid: %d) has been disconnect!",
-				current->pid);
+				irqsta->pid);
 			err = -EAGAIN;
 		}
 	}
@@ -700,7 +698,7 @@ static int camsys_irq_wait(camsys_irqsta_t *irqsta, camsys_dev_t *camsys_dev)
 	if (err == 0) {
 		camsys_trace(3,
 			"Thread(pid: %d) has been wake up for irq(mis: 0x%x ris:0x%x)!",
-			current->pid, irqsta->mis, irqsta->ris);
+			irqsta->pid, irqsta->mis, irqsta->ris);
 	}
 
 end:
@@ -850,6 +848,9 @@ static int camsys_release(struct inode *inode, struct file *file)
 {
 	camsys_dev_t *camsys_dev = (camsys_dev_t *)file->private_data;
 	unsigned int i, phycnt;
+	camsys_sysctrl_t devctl;
+	camsys_iommu_t *iommu_par;
+	int index;
 
 	camsys_irq_disconnect(NULL, camsys_dev, true);
 
@@ -862,6 +863,21 @@ static int camsys_release(struct inode *inode, struct file *file)
 			}
 		}
 	}
+	/*
+	 * iommu resource might not been released when mediaserver process
+	 * died unexpectly, so we force to release the iommu resource here
+	 */
+	devctl.dev_mask = camsys_dev->dev_id;
+	devctl.ops = CamSys_IOMMU;
+	devctl.on = 0;
+	iommu_par = (camsys_iommu_t *)(devctl.rev);
+	/* used as force release flag */
+	iommu_par->client_fd = -1;
+	for (index = 0; index < CAMSYS_DMA_BUF_MAX_NUM ; index++) {
+		if (camsys_dev->iommu_cb(camsys_dev, &devctl) != 0)
+			break;
+	}
+
 	atomic_dec(&camsys_dev->refcount);
 	camsys_trace(1,
 		"%s(%p) is closed",
@@ -1052,7 +1068,9 @@ static long camsys_ioctl_compat(struct file *filp, unsigned int cmd, unsigned
 
 	case CAMSYS_IRQWAIT: {
 		camsys_irqsta_t irqsta;
-
+		if (copy_from_user((void *)&irqsta, (void __user *)arg,
+			sizeof(camsys_irqsta_t)))
+			return -EFAULT;
 		err = camsys_irq_wait(&irqsta, camsys_dev);
 		if (err == 0) {
 			if (copy_to_user((void __user *)arg, (void *)&irqsta,
@@ -1263,7 +1281,9 @@ static long camsys_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	case CAMSYS_IRQWAIT:
 	{
 		camsys_irqsta_t irqsta;
-
+		if (copy_from_user((void *)&irqsta, (void __user *)arg,
+			sizeof(camsys_irqsta_t)))
+			return -EFAULT;
 		err = camsys_irq_wait(&irqsta, camsys_dev);
 		if (err == 0) {
 			if (copy_to_user((void __user *)arg, (void *)&irqsta,
@@ -1427,7 +1447,8 @@ static int camsys_platform_probe(struct platform_device *pdev)
 		CHIP_TYPE = 3366;
 	else if (strstr(compatible, "rk3399"))
 		CHIP_TYPE = 3399;
-
+	else if (strstr(compatible, "px30") || strstr(compatible, "rk3326"))
+		CHIP_TYPE = 3326;
 	camsys_soc_init(CHIP_TYPE);
 
 	err = of_address_to_resource(dev->of_node, 0, &register_res);
@@ -1493,6 +1514,7 @@ static int camsys_platform_probe(struct platform_device *pdev)
 			dev_name(&pdev->dev),
 			CAMSYS_REGISTER_MEM_NAME);
 		err = -ENXIO;
+		kfree(meminfo);
 		goto request_mem_fail;
 	}
 	camsys_dev->rk_isp_base = meminfo->vir_base;
@@ -1601,7 +1623,7 @@ request_mem_fail:
 			meminfo_fail = NULL;
 		}
 
-		kfree(camsys_dev);
+		devm_kfree(&pdev->dev, camsys_dev);
 		camsys_dev = NULL;
 	}
 fail_end:
