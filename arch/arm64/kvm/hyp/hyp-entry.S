@@ -92,6 +92,7 @@ el1_sync:				// Guest trapped into EL2
 	do_el2_call
 
 2:	eret
+	sb
 
 el1_trap:
 	/*
@@ -168,6 +169,7 @@ alternative_endif
 3:	restore_x0_to_x3
 
 	eret
+	sb
 
 el1_irq:
 	save_x0_to_x3
@@ -182,6 +184,7 @@ ENTRY(__hyp_do_panic)
 	ldr	lr, =panic
 	msr	elr_el2, lr
 	eret
+	sb
 ENDPROC(__hyp_do_panic)
 
 .macro invalid_vector	label, target = __hyp_panic
