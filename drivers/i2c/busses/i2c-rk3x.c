@@ -284,7 +284,7 @@ static void rk3x_i2c_start(struct rk3x_i2c *i2c)
  *
  * @error: Error code to return in rk3x_i2c_xfer
  */
-static void rk3x_i2c_stop(struct rk3x_i2c *i2c, int error)
+static void rk3x_i2c_stop(struct rk3x_i2c *i2c, int error, bool do_wake_up)
 {
 	unsigned int ctrl;
 
@@ -315,7 +315,8 @@ static void rk3x_i2c_stop(struct rk3x_i2c *i2c, int error)
 		i2c_writel(i2c, ctrl, REG_CON);
 
 		/* signal that we are finished with the current msg */
-		wake_up(&i2c->wait);
+		if (do_wake_up)
+			wake_up(&i2c->wait);
 	}
 }
 
@@ -387,10 +388,10 @@ static void rk3x_i2c_fill_transmit_buf(struct rk3x_i2c *i2c)
 
 /* IRQ handlers for individual states */
 
-static void rk3x_i2c_handle_start(struct rk3x_i2c *i2c, unsigned int ipd)
+static void rk3x_i2c_handle_start(struct rk3x_i2c *i2c, unsigned int ipd, bool do_wake_up)
 {
 	if (!(ipd & REG_INT_START)) {
-		rk3x_i2c_stop(i2c, -EIO);
+		rk3x_i2c_stop(i2c, -EIO, do_wake_up);
 		dev_warn(i2c->dev, "unexpected irq in START: 0x%x\n", ipd);
 		rk3x_i2c_clean_ipd(i2c);
 		return;
@@ -415,10 +416,10 @@ static void rk3x_i2c_handle_start(struct rk3x_i2c *i2c, unsigned int ipd)
 	}
 }
 
-static void rk3x_i2c_handle_write(struct rk3x_i2c *i2c, unsigned int ipd)
+static void rk3x_i2c_handle_write(struct rk3x_i2c *i2c, unsigned int ipd, bool do_wake_up)
 {
 	if (!(ipd & REG_INT_MBTF)) {
-		rk3x_i2c_stop(i2c, -EIO);
+		rk3x_i2c_stop(i2c, -EIO, do_wake_up);
 		dev_err(i2c->dev, "unexpected irq in WRITE: 0x%x\n", ipd);
 		rk3x_i2c_clean_ipd(i2c);
 		return;
@@ -429,12 +430,12 @@ static void rk3x_i2c_handle_write(struct rk3x_i2c *i2c, unsigned int ipd)
 
 	/* are we finished? */
 	if (i2c->processed == i2c->msg->len)
-		rk3x_i2c_stop(i2c, i2c->error);
+		rk3x_i2c_stop(i2c, i2c->error, do_wake_up);
 	else
 		rk3x_i2c_fill_transmit_buf(i2c);
 }
 
-static void rk3x_i2c_handle_read(struct rk3x_i2c *i2c, unsigned int ipd)
+static void rk3x_i2c_handle_read(struct rk3x_i2c *i2c, unsigned int ipd, bool do_wake_up)
 {
 	unsigned int i;
 	unsigned int len = i2c->msg->len - i2c->processed;
@@ -463,17 +464,17 @@ static void rk3x_i2c_handle_read(struct rk3x_i2c *i2c, unsigned int ipd)
 
 	/* are we finished? */
 	if (i2c->processed == i2c->msg->len)
-		rk3x_i2c_stop(i2c, i2c->error);
+		rk3x_i2c_stop(i2c, i2c->error, do_wake_up);
 	else
 		rk3x_i2c_prepare_read(i2c);
 }
 
-static void rk3x_i2c_handle_stop(struct rk3x_i2c *i2c, unsigned int ipd)
+static void rk3x_i2c_handle_stop(struct rk3x_i2c *i2c, unsigned int ipd, bool do_wake_up)
 {
 	unsigned int con;
 
 	if (!(ipd & REG_INT_STOP)) {
-		rk3x_i2c_stop(i2c, -EIO);
+		rk3x_i2c_stop(i2c, -EIO, do_wake_up);
 		dev_err(i2c->dev, "unexpected irq in STOP: 0x%x\n", ipd);
 		rk3x_i2c_clean_ipd(i2c);
 		return;
@@ -491,15 +492,13 @@ static void rk3x_i2c_handle_stop(struct rk3x_i2c *i2c, unsigned int ipd)
 	i2c->state = STATE_IDLE;
 
 	/* signal rk3x_i2c_xfer that we are finished */
-	wake_up(&i2c->wait);
+	if (do_wake_up)
+		wake_up(&i2c->wait);
 }
 
-static irqreturn_t rk3x_i2c_irq(int irqno, void *dev_id)
+static void rk3x_i2c_irq_nolock(struct rk3x_i2c *i2c, bool do_wake_up)
 {
-	struct rk3x_i2c *i2c = dev_id;
 	unsigned int ipd;
-
-	spin_lock(&i2c->lock);
 
 	ipd = i2c_readl(i2c, REG_IPD);
 	if (i2c->state == STATE_IDLE) {
@@ -526,7 +525,7 @@ static irqreturn_t rk3x_i2c_irq(int irqno, void *dev_id)
 		ipd &= ~REG_INT_NAKRCV;
 
 		if (!(i2c->msg->flags & I2C_M_IGNORE_NAK)) {
-			rk3x_i2c_stop(i2c, -ENXIO);
+			rk3x_i2c_stop(i2c, -ENXIO, do_wake_up);
 			goto out;
 		}
 	}
@@ -537,22 +536,33 @@ static irqreturn_t rk3x_i2c_irq(int irqno, void *dev_id)
 
 	switch (i2c->state) {
 	case STATE_START:
-		rk3x_i2c_handle_start(i2c, ipd);
+		rk3x_i2c_handle_start(i2c, ipd, do_wake_up);
 		break;
 	case STATE_WRITE:
-		rk3x_i2c_handle_write(i2c, ipd);
+		rk3x_i2c_handle_write(i2c, ipd, do_wake_up);
 		break;
 	case STATE_READ:
-		rk3x_i2c_handle_read(i2c, ipd);
+		rk3x_i2c_handle_read(i2c, ipd, do_wake_up);
 		break;
 	case STATE_STOP:
-		rk3x_i2c_handle_stop(i2c, ipd);
+		rk3x_i2c_handle_stop(i2c, ipd, do_wake_up);
 		break;
 	case STATE_IDLE:
 		break;
 	}
 
 out:
+	return;
+}
+
+static irqreturn_t rk3x_i2c_irq(int irqno, void *dev_id)
+{
+	struct rk3x_i2c *i2c = dev_id;
+
+	spin_lock(&i2c->lock);
+
+	rk3x_i2c_irq_nolock(i2c, true);
+
 	spin_unlock(&i2c->lock);
 	return IRQ_HANDLED;
 }
@@ -1155,7 +1165,7 @@ static int rk3x_i2c_restart_notify(struct notifier_block *this,
 		/* complete the unfinished job */
 		while (tmo-- && i2c->busy) {
 			udelay(1);
-			rk3x_i2c_irq(0, i2c);
+			rk3x_i2c_irq_nolock(i2c, false);
 		}
 	}
 
