@@ -2151,7 +2151,7 @@ static void dwc2_gadget_handle_out_token_ep_disabled(struct dwc2_hsotg_ep *ep)
 		u32 ctrl;
 
 		dsts = dwc2_readl(hsotg->regs + DSTS);
-		ep->target_frame = dwc2_hsotg_read_frameno(hsotg);
+		ep->target_frame = hsotg->frame_number;
 		dwc2_gadget_incr_frame_num(ep);
 
 		ctrl = dwc2_readl(hsotg->regs + DOEPCTL(ep->index));
@@ -2192,7 +2192,7 @@ static void dwc2_gadget_handle_nak(struct dwc2_hsotg_ep *hs_ep)
 		return;
 
 	if (hs_ep->target_frame == TARGET_FRAME_INITIAL) {
-		hs_ep->target_frame = dwc2_hsotg_read_frameno(hsotg);
+		hs_ep->target_frame = hsotg->frame_number;
 		if (hs_ep->interval > 1) {
 			u32 ctrl = dwc2_readl(hsotg->regs +
 					      DIEPCTL(hs_ep->index));
