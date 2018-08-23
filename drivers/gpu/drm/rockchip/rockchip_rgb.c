@@ -21,6 +21,7 @@
 #include <drm/drm_of.h>
 
 #include <linux/component.h>
+#include <linux/of_device.h>
 #include <linux/of_graph.h>
 #include <linux/regmap.h>
 #include <linux/mfd/syscon.h>
@@ -29,23 +30,37 @@
 #include "rockchip_drm_vop.h"
 
 #define HIWORD_UPDATE(v, l, h)	(((v) << (l)) | (GENMASK(h, l) << 16))
-#define PX30_GRF_PD_VO_CON1	0x0438
-#define PX30_LCDC_DCLK_INV(v)	HIWORD_UPDATE(v, 4, 4)
-#define PX30_RGB_SYNC_BYPASS(v)	HIWORD_UPDATE(v, 3, 3)
-#define PX30_RGB_VOP_SEL(v)	HIWORD_UPDATE(v, 2, 2)
 
-#define connector_to_rgb(c) container_of(c, struct rockchip_rgb, connector)
-#define encoder_to_rgb(c) container_of(c, struct rockchip_rgb, encoder)
+#define PX30_GRF_PD_VO_CON1		0x0438
+#define PX30_RGB_DATA_SYNC_BYPASS(v)	HIWORD_UPDATE(v, 3, 3)
+#define PX30_RGB_VOP_SEL(v)		HIWORD_UPDATE(v, 2, 2)
+
+struct rockchip_rgb;
+
+struct rockchip_rgb_funcs {
+	void (*enable)(struct rockchip_rgb *rgb);
+	void (*disable)(struct rockchip_rgb *rgb);
+};
 
 struct rockchip_rgb {
 	struct device *dev;
-	struct drm_device *drm_dev;
 	struct drm_panel *panel;
 	struct drm_bridge *bridge;
 	struct drm_connector connector;
 	struct drm_encoder encoder;
 	struct regmap *grf;
+	const struct rockchip_rgb_funcs *funcs;
 };
+
+static inline struct rockchip_rgb *connector_to_rgb(struct drm_connector *c)
+{
+	return container_of(c, struct rockchip_rgb, connector);
+}
+
+static inline struct rockchip_rgb *encoder_to_rgb(struct drm_encoder *e)
+{
+	return container_of(e, struct rockchip_rgb, encoder);
+}
 
 static enum drm_connector_status
 rockchip_rgb_connector_detect(struct drm_connector *connector, bool force)
@@ -91,25 +106,26 @@ static void rockchip_rgb_encoder_enable(struct drm_encoder *encoder)
 
 	pinctrl_pm_select_default_state(rgb->dev);
 
-	if (rgb->grf) {
-		int pipe = drm_of_encoder_active_endpoint_id(rgb->dev->of_node,
-							     encoder);
-		regmap_write(rgb->grf, PX30_GRF_PD_VO_CON1,
-			     PX30_RGB_VOP_SEL(pipe));
-		regmap_write(rgb->grf, PX30_GRF_PD_VO_CON1,
-			     PX30_RGB_SYNC_BYPASS(1));
-	}
+	if (rgb->funcs && rgb->funcs->enable)
+		rgb->funcs->enable(rgb);
 
-	drm_panel_prepare(rgb->panel);
-	drm_panel_enable(rgb->panel);
+	if (rgb->panel) {
+		drm_panel_prepare(rgb->panel);
+		drm_panel_enable(rgb->panel);
+	}
 }
 
 static void rockchip_rgb_encoder_disable(struct drm_encoder *encoder)
 {
 	struct rockchip_rgb *rgb = encoder_to_rgb(encoder);
 
-	drm_panel_disable(rgb->panel);
-	drm_panel_unprepare(rgb->panel);
+	if (rgb->panel) {
+		drm_panel_disable(rgb->panel);
+		drm_panel_unprepare(rgb->panel);
+	}
+
+	if (rgb->funcs && rgb->funcs->disable)
+		rgb->funcs->disable(rgb);
 
 	pinctrl_pm_select_sleep_state(rgb->dev);
 }
@@ -158,21 +174,6 @@ static const struct drm_encoder_funcs rockchip_rgb_encoder_funcs = {
 	.destroy = drm_encoder_cleanup,
 };
 
-static const struct of_device_id rockchip_rgb_dt_ids[] = {
-	{
-		.compatible = "rockchip,px30-rgb",
-	}, {
-		.compatible = "rockchip,rv1108-rgb",
-	}, {
-		.compatible = "rockchip,rk3066-rgb",
-	}, {
-		.compatible = "rockchip,rk3308-rgb",
-	},
-	{}
-};
-
-MODULE_DEVICE_TABLE(of, rockchip_rgb_dt_ids);
-
 static int rockchip_rgb_bind(struct device *dev, struct device *master,
 			     void *data)
 {
@@ -180,35 +181,13 @@ static int rockchip_rgb_bind(struct device *dev, struct device *master,
 	struct drm_device *drm_dev = data;
 	struct drm_encoder *encoder;
 	struct drm_connector *connector;
-	struct device_node *remote = NULL;
-	struct device_node  *port, *endpoint;
-	u32 endpoint_id;
-	int ret = 0, child_count = 0;
+	int ret;
 
-	rgb->drm_dev = drm_dev;
-	port = of_graph_get_port_by_id(dev->of_node, 1);
-	if (!port) {
-		DRM_DEV_ERROR(dev,
-			      "can't found port point, please init rgb panel port!\n");
-		return -EINVAL;
-	}
-	for_each_child_of_node(port, endpoint) {
-		child_count++;
-		if (of_property_read_u32(endpoint, "reg", &endpoint_id))
-			endpoint_id = 0;
-		ret = drm_of_find_panel_or_bridge(dev->of_node, 1, endpoint_id,
-						  &rgb->panel, &rgb->bridge);
-		if (!ret)
-			break;
-	}
-	if (!child_count) {
-		DRM_DEV_ERROR(dev, "rgb port does not have any children\n");
-		ret = -EINVAL;
-		goto err_put_port;
-	} else if (ret) {
-		DRM_DEV_ERROR(dev, "failed to find panel and bridge node\n");
-		ret = -EPROBE_DEFER;
-		goto err_put_port;
+	ret = drm_of_find_panel_or_bridge(dev->of_node, 1, -1,
+					  &rgb->panel, &rgb->bridge);
+	if (ret) {
+		DRM_DEV_ERROR(dev, "failed to find panel or bridge: %d\n", ret);
+		return ret;
 	}
 
 	encoder = &rgb->encoder;
@@ -218,21 +197,19 @@ static int rockchip_rgb_bind(struct device *dev, struct device *master,
 	ret = drm_encoder_init(drm_dev, encoder, &rockchip_rgb_encoder_funcs,
 			       DRM_MODE_ENCODER_NONE, NULL);
 	if (ret < 0) {
-		DRM_DEV_ERROR(drm_dev->dev,
-			      "failed to initialize encoder: %d\n", ret);
-		goto err_put_remote;
+		DRM_DEV_ERROR(dev, "failed to initialize encoder: %d\n", ret);
+		return ret;
 	}
 
 	drm_encoder_helper_add(encoder, &rockchip_rgb_encoder_helper_funcs);
 
 	if (rgb->panel) {
 		connector = &rgb->connector;
-		connector->dpms = DRM_MODE_DPMS_OFF;
 		ret = drm_connector_init(drm_dev, connector,
 					 &rockchip_rgb_connector_funcs,
 					 DRM_MODE_CONNECTOR_LVDS);
 		if (ret < 0) {
-			DRM_DEV_ERROR(drm_dev->dev,
+			DRM_DEV_ERROR(dev,
 				      "failed to initialize connector: %d\n",
 				      ret);
 			goto err_free_encoder;
@@ -243,15 +220,14 @@ static int rockchip_rgb_bind(struct device *dev, struct device *master,
 
 		ret = drm_mode_connector_attach_encoder(connector, encoder);
 		if (ret < 0) {
-			DRM_DEV_ERROR(drm_dev->dev,
+			DRM_DEV_ERROR(dev,
 				      "failed to attach encoder: %d\n", ret);
 			goto err_free_connector;
 		}
 
 		ret = drm_panel_attach(rgb->panel, connector);
 		if (ret < 0) {
-			DRM_DEV_ERROR(drm_dev->dev,
-				      "failed to attach panel: %d\n", ret);
+			DRM_DEV_ERROR(dev, "failed to attach panel: %d\n", ret);
 			goto err_free_connector;
 		}
 		connector->port = dev->of_node;
@@ -259,15 +235,12 @@ static int rockchip_rgb_bind(struct device *dev, struct device *master,
 		rgb->bridge->encoder = encoder;
 		ret = drm_bridge_attach(drm_dev, rgb->bridge);
 		if (ret) {
-			DRM_DEV_ERROR(drm_dev->dev,
+			DRM_DEV_ERROR(dev,
 				      "failed to attach bridge: %d\n", ret);
 			goto err_free_encoder;
 		}
 		encoder->bridge = rgb->bridge;
 	}
-
-	of_node_put(remote);
-	of_node_put(port);
 
 	return 0;
 
@@ -275,11 +248,6 @@ err_free_connector:
 	drm_connector_cleanup(connector);
 err_free_encoder:
 	drm_encoder_cleanup(encoder);
-err_put_remote:
-	of_node_put(remote);
-err_put_port:
-	of_node_put(port);
-
 	return ret;
 }
 
@@ -288,11 +256,11 @@ static void rockchip_rgb_unbind(struct device *dev, struct device *master,
 {
 	struct rockchip_rgb *rgb = dev_get_drvdata(dev);
 
-	rockchip_rgb_encoder_disable(&rgb->encoder);
 	if (rgb->panel) {
 		drm_panel_detach(rgb->panel);
 		drm_connector_cleanup(&rgb->connector);
 	}
+
 	drm_encoder_cleanup(&rgb->encoder);
 }
 
@@ -305,24 +273,15 @@ static int rockchip_rgb_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct rockchip_rgb *rgb;
-	const struct of_device_id *match;
 	int ret;
-
-	if (!dev->of_node) {
-		DRM_DEV_ERROR(dev, "dev->of_node is null\n");
-		return -ENODEV;
-	}
 
 	rgb = devm_kzalloc(&pdev->dev, sizeof(*rgb), GFP_KERNEL);
 	if (!rgb)
 		return -ENOMEM;
 
 	rgb->dev = dev;
-	match = of_match_node(rockchip_rgb_dt_ids, dev->of_node);
-	if (!match) {
-		DRM_DEV_ERROR(dev, "match node failed\n");
-		return -ENODEV;
-	}
+	rgb->funcs = of_device_get_match_data(dev);
+	platform_set_drvdata(pdev, rgb);
 
 	if (dev->parent && dev->parent->of_node) {
 		rgb->grf = syscon_node_to_regmap(dev->parent->of_node);
@@ -333,12 +292,7 @@ static int rockchip_rgb_probe(struct platform_device *pdev)
 		}
 	}
 
-	dev_set_drvdata(dev, rgb);
-	ret = component_add(&pdev->dev, &rockchip_rgb_component_ops);
-	if (ret < 0)
-		DRM_DEV_ERROR(dev, "failed to add component\n");
-
-	return ret;
+	return component_add(dev, &rockchip_rgb_component_ops);
 }
 
 static int rockchip_rgb_remove(struct platform_device *pdev)
@@ -348,12 +302,42 @@ static int rockchip_rgb_remove(struct platform_device *pdev)
 	return 0;
 }
 
-struct platform_driver rockchip_rgb_driver = {
+static void px30_rgb_enable(struct rockchip_rgb *rgb)
+{
+	int pipe = drm_of_encoder_active_endpoint_id(rgb->dev->of_node,
+						     &rgb->encoder);
+
+	regmap_write(rgb->grf, PX30_GRF_PD_VO_CON1, PX30_RGB_VOP_SEL(pipe));
+	regmap_write(rgb->grf, PX30_GRF_PD_VO_CON1,
+		     PX30_RGB_DATA_SYNC_BYPASS(1));
+}
+
+static void px30_rgb_disable(struct rockchip_rgb *rgb)
+{
+	regmap_write(rgb->grf, PX30_GRF_PD_VO_CON1,
+		     PX30_RGB_DATA_SYNC_BYPASS(0));
+}
+
+static const struct rockchip_rgb_funcs px30_rgb_funcs = {
+	.enable = px30_rgb_enable,
+	.disable = px30_rgb_disable,
+};
+
+static const struct of_device_id rockchip_rgb_dt_ids[] = {
+	{ .compatible = "rockchip,px30-rgb", .data = &px30_rgb_funcs },
+	{ .compatible = "rockchip,rk3066-rgb", },
+	{ .compatible = "rockchip,rk3308-rgb", },
+	{ .compatible = "rockchip,rv1108-rgb", },
+	{}
+};
+MODULE_DEVICE_TABLE(of, rockchip_rgb_dt_ids);
+
+static struct platform_driver rockchip_rgb_driver = {
 	.probe = rockchip_rgb_probe,
 	.remove = rockchip_rgb_remove,
 	.driver = {
-		   .name = "rockchip-rgb",
-		   .of_match_table = of_match_ptr(rockchip_rgb_dt_ids),
+		.name = "rockchip-rgb",
+		.of_match_table = of_match_ptr(rockchip_rgb_dt_ids),
 	},
 };
 
