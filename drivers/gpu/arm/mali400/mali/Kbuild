@@ -26,7 +26,7 @@ MALI_PLATFORM ?= rk
 # For customer releases the Linux Device Drivers will be provided as ARM proprietary and GPL releases:
 # The ARM proprietary product will only include the license/proprietary directory
 # The GPL product will only include the license/gpl directory
-ccflags-y += -I$(src)/linux/license/gpl
+ccflags-y += -I$(srctree)/$(src)/linux/license/gpl
 
 
 ifeq ($(USING_GPU_UTILIZATION), 1)
@@ -46,7 +46,7 @@ ifeq ($(MALI_PLATFORM_FILES),)
 ifeq ($(CONFIG_ARCH_EXYNOS4),y)
 EXTRA_DEFINES += -DMALI_FAKE_PLATFORM_DEVICE=1
 export MALI_PLATFORM=exynos4
-export MALI_PLATFORM_FILES_BUILDIN = $(notdir $(wildcard $(src)/platform/$(MALI_PLATFORM)/*.c))
+export MALI_PLATFORM_FILES_BUILDIN = $(notdir $(wildcard $(srctree)/$(src)/platform/$(MALI_PLATFORM)/*.c))
 export MALI_PLATFORM_FILES_ADD_PREFIX = $(addprefix platform/$(MALI_PLATFORM)/,$(MALI_PLATFORM_FILES_BUILDIN)) 
 endif
 endif
@@ -219,7 +219,7 @@ endif
 ccflags-y += -DSVN_REV_STRING=\"$(DRIVER_REV)\"
 
 VERSION_STRINGS :=
-VERSION_STRINGS += API_VERSION=$(shell cd $(src); grep "\#define _MALI_API_VERSION" $(FILES_PREFIX)include/linux/mali/mali_utgard_uk_types.h | cut -d' ' -f 3 )
+VERSION_STRINGS += API_VERSION=$(shell cd $(srctree)/$(src); grep "\#define _MALI_API_VERSION" $(FILES_PREFIX)include/linux/mali/mali_utgard_uk_types.h | cut -d' ' -f 3 )
 VERSION_STRINGS += REPO_URL=$(REPO_URL)
 VERSION_STRINGS += REVISION=$(DRIVER_REV)
 VERSION_STRINGS += CHANGED_REVISION=$(CHANGED_REVISION)

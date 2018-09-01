@@ -13,9 +13,9 @@
 CONFIG ?= default
 
 # Link arch to the selected arch-config directory
-$(shell [ -L $(src)/arch ] && rm $(src)/arch)
-$(shell ln -sf arch-$(CONFIG) $(src)/arch)
-$(shell touch $(src)/arch/config.h)
+$(shell [ -L $(srctree)/$(src)/arch ] && rm $(srctree)/$(src)/arch)
+$(shell ln -sf arch-$(CONFIG) $(srctree)/$(src)/arch)
+$(shell touch $(srctree)/$(src)/arch/config.h)
 
 UDD_FILE_PREFIX = ../mali/
 
