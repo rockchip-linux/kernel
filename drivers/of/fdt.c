@@ -669,7 +669,7 @@ int __init of_get_flat_dt_size(void)
  * This function can be used within scan_flattened_dt callback to get
  * access to properties
  */
-const void *__init of_get_flat_dt_prop(unsigned long node, const char *name,
+const void * of_get_flat_dt_prop(unsigned long node, const char *name,
 				       int *size)
 {
 	return fdt_getprop(initial_boot_params, node, name, size);
@@ -702,7 +702,7 @@ struct fdt_scan_status {
 	void *data;
 };
 
-const char * __init of_flat_dt_get_machine_name(void)
+const char * of_flat_dt_get_machine_name(void)
 {
 	const char *name;
 	unsigned long dt_root = of_get_flat_dt_root();
