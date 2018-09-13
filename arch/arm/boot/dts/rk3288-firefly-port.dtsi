@@ -1,0 +1,702 @@
+/*
+ * Copyright (c) 2015~2017 Fuzhou Rockchip Electronics Co., Ltd
+ *
+ * This file is dual-licensed: you can use it either under the terms
+ * of the GPL or the X11 license, at your option. Note that this dual
+ * licensing only applies to this file, and not this project as a
+ * whole.
+ *
+ *  a) This file is free software; you can redistribute it and/or
+ *     modify it under the terms of the GNU General Public License as
+ *     published by the Free Software Foundation; either version 2 of the
+ *     License, or (at your option) any later version.
+ *
+ *     This file is distributed in the hope that it will be useful,
+ *     but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *     GNU General Public License for more details.
+ *
+ * Or, alternatively,
+ *
+ *  b) Permission is hereby granted, free of charge, to any person
+ *     obtaining a copy of this software and associated documentation
+ *     files (the "Software"), to deal in the Software without
+ *     restriction, including without limitation the rights to use,
+ *     copy, modify, merge, publish, distribute, sublicense, and/or
+ *     sell copies of the Software, and to permit persons to whom the
+ *     Software is furnished to do so, subject to the following
+ *     conditions:
+ *
+ *     The above copyright notice and this permission notice shall be
+ *     included in all copies or substantial portions of the Software.
+ *
+ *     THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ *     EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ *     OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ *     NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ *     HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ *     WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ *     FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ *     OTHER DEALINGS IN THE SOFTWARE.
+ */
+
+#include "rk3288.dtsi"
+#include <dt-bindings/pwm/pwm.h>
+#include <dt-bindings/input/input.h>
+
+/ {
+	edp_panel: edp-panel {
+		status = "disabled";
+
+		ports {
+			panel_in_edp: endpoint {
+				remote-endpoint = <&edp_out_panel>;
+			};
+		};
+	};
+
+	lvds_panel: lvds-panel {
+		status = "disabled";
+
+		ports {
+			panel_in_lvds: endpoint {
+				remote-endpoint = <&lvds_out_panel>;
+			};
+		};
+	};
+
+	sound: sound {
+		status = "disabled";
+		compatible = "simple-audio-card";
+		simple-audio-card,format = "i2s";
+		simple-audio-card,name = "rockchip,firefly-codec";
+		simple-audio-card,mclk-fs = <512>;
+		simple-audio-card,widgets =
+			"Microphone", "Microphone Jack",
+			"Headphone", "Headphone Jack";
+		simple-audio-card,routing =
+			"MIC1", "Microphone Jack",
+			"MIC2", "Microphone Jack",
+			"Microphone Jack", "micbias1",
+			"Headphone Jack", "HPOL",
+			"Headphone Jack", "HPOR";
+
+		simple-audio-card,dai-link@0 {
+			format = "i2s";
+			cpu {
+				sound-dai = <&i2s>;
+			};
+
+			codec {
+				sound-dai = <&es8323>;
+			};
+		};
+
+		simple-audio-card,dai-link@1 {
+			format = "i2s";
+			cpu {
+				sound-dai = <&i2s>;
+			};
+
+			codec {
+				sound-dai = <&hdmi>;
+			};
+		};
+	};
+
+	ext_gmac: external-gmac-clock {
+		compatible = "fixed-clock";
+		clock-frequency = <125000000>;
+		clock-output-names = "ext_gmac";
+		#clock-cells = <0>;
+	};
+
+	vccadc_ref: vccadc-ref {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc1v8_sys";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		regulator-always-on;
+		regulator-boot-on;
+	};
+
+	/* This turns on USB vbus for both host0 (ehci) and host1 (dwc2) */
+	vcc_host_5v: usb-host-regulator {
+		compatible = "regulator-fixed";
+		enable-active-high;
+		gpio = <&gpio0 14 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&host_vbus_drv>;
+		regulator-name = "vcc_host_5v";
+		regulator-always-on;
+	};
+
+	vcc_otg_5v: usb-otg-regulator {
+		compatible = "regulator-fixed";
+		enable-active-high;
+		gpio = <&gpio0 12 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&otg_vbus_drv>;
+		regulator-name = "vcc_otg_5v";
+		regulator-always-on;
+	};
+
+	vcc_sys: vsys-regulator {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc_sys";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		regulator-always-on;
+		regulator-boot-on;
+	};
+
+	vcc_flash: flash-regulator {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc_flash";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		regulator-always-on;
+		regulator-boot-on;
+		vin-supply = <&vcc_io>;
+	};
+
+	vcc_sd: sdmmc-regulator {
+		compatible = "regulator-fixed";
+		gpio = <&gpio7 11 GPIO_ACTIVE_LOW>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&sdmmc_pwr>;
+		regulator-name = "vcc_sd";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		startup-delay-us = <100000>;
+		vin-supply = <&vcc_io>;
+	};
+
+	/*
+	 * A TT8142 creates both dovdd_1v8 and vcc28_dvp, controlled
+	 * by the dvp_pwr pin.
+	 */
+	vcc28_dvp: vcc28-dvp-regulator {
+		compatible = "regulator-fixed";
+		enable-active-high;
+		gpio = <&gpio0 11 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&dvp_pwr>;
+		regulator-name = "vcc28_dvp";
+		regulator-min-microvolt = <2800000>;
+		regulator-max-microvolt = <2800000>;
+		regulator-always-on;
+		vin-supply = <&vcc_io>;
+	};
+
+	dovdd_1v8: dovdd-1v8-regulator {
+		compatible = "regulator-fixed";
+		regulator-name = "dovdd_1v8";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		regulator-always-on;
+		regulator-boot-on;
+		vin-supply = <&vcc28_dvp>;
+	};
+
+	spdif_out: spdif-out {
+		status = "okay";
+		compatible = "linux,spdif-dit";
+		#sound-dai-cells = <0>;
+	};
+
+	spdif-sound {
+		status = "okay";
+		compatible = "simple-audio-card";
+		simple-audio-card,name = "ROCKCHIP,SPDIF";
+		simple-audio-card,cpu {
+			sound-dai = <&spdif>;
+		};
+
+		simple-audio-card,codec {
+			sound-dai = <&spdif_out>;
+		};
+	};
+
+	gpio-keys {
+		compatible = "gpio-keys";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		autorepeat;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&pwrbtn>;
+
+		button@0 {
+			gpios = <&gpio0 5 GPIO_ACTIVE_LOW>;
+			linux,code = <KEY_POWER>;
+			label = "GPIO Key Power";
+			linux,input-type = <1>;
+			gpio-key,wakeup = <1>;
+			debounce-interval = <100>;
+		};
+	};
+
+	leds {
+		compatible = "gpio-leds";
+
+		work {
+			label = "firefly:blue:power";
+			linux,default-trigger = "ir-power-click";
+			gpios = <&gpio8 1 GPIO_ACTIVE_LOW>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&led_power>;
+			default-state = "on";
+		};
+
+		user {
+			label = "firefly:yellow:user";
+			linux,default-trigger = "ir-user-click";
+			gpios = <&gpio8 2 GPIO_ACTIVE_LOW>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&led_user>;
+			default-state = "off";
+		};
+	};
+
+	wireless-bluetooth {
+		compatible = "bluetooth-platdata";
+		uart_rts_gpios = <&gpio4 19 GPIO_ACTIVE_LOW>;
+		pinctrl-names = "default", "rts_gpio";
+		pinctrl-0 = <&uart0_rts>;
+		pinctrl-1 = <&uart0_gpios>;
+		BT,reset_gpio    = <&gpio4 29 GPIO_ACTIVE_HIGH>;
+		BT,wake_gpio     = <&gpio4 26 GPIO_ACTIVE_HIGH>;
+		BT,wake_host_irq = <&gpio4 31 GPIO_ACTIVE_HIGH>;
+		status = "okay";
+	};
+
+	wireless-wlan {
+		compatible = "wlan-platdata";
+		rockchip,grf = <&grf>;
+		wifi_chip_type = "ap6212";
+		sdio_vref = <1800>;
+		WIFI,host_wake_irq = <&gpio4 30 GPIO_ACTIVE_HIGH>;
+		status = "okay";
+	};
+};
+
+&emmc {
+	bus-width = <8>;
+	cap-mmc-highspeed;
+	disable-wp;
+	non-removable;
+	num-slots = <1>;
+	max-frequency = <100000000>;
+	mmc-hs200-1_8v;
+	mmc-ddr-1_8v;
+	pinctrl-names = "default";
+	pinctrl-0 = <&emmc_clk &emmc_cmd &emmc_pwr &emmc_bus8>;
+	status = "okay";
+};
+
+&gmac {
+	phy-supply = <&vcc_lan>;
+	phy-mode = "rgmii";
+	clock_in_out = "input";
+	snps,reset-gpio = <&gpio4 7 0>;
+	snps,reset-active-low;
+	snps,force_thresh_dma_mode;
+	snps,reset-delays-us = <0 10000 1000000>;
+	assigned-clocks = <&cru SCLK_MAC>;
+	assigned-clock-parents = <&ext_gmac>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&rgmii_pins &phy_rst &phy_pmeb &phy_int>;
+	tx_delay = <0x1d>;
+	rx_delay = <0x16>;
+	max-speed = <100>;
+	status = "ok";
+};
+
+&hdmi {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	#sound-dai-cells = <0>;
+	status = "okay";
+};
+
+&saradc {
+	vref-supply = <&vccadc_ref>;
+	status = "okay";
+};
+
+&sdmmc {
+	bus-width = <4>;
+	cap-mmc-highspeed;
+	sd-uhs-sdr12;
+	sd-uhs-sdr25;
+	sd-uhs-sdr50;
+	sd-uhs-sdr104;
+	cap-sd-highspeed;
+	card-detect-delay = <200>;
+	disable-wp;			/* wp not hooked up */
+	supports-sd;
+	num-slots = <1>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&sdmmc_clk &sdmmc_cmd &sdmmc_cd &sdmmc_bus4>;
+	vmmc-supply = <&vcc_sd>;
+	vqmmc-supply = <&vccio_sd>;
+	status = "okay";
+};
+
+&edp {
+	force-hpd;
+	status = "disabled";
+
+	ports {
+		edp_out: port@1 {
+			reg = <1>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			edp_out_panel: endpoint {
+				reg = <0>;
+				remote-endpoint = <&panel_in_edp>;
+			};
+		};
+	};
+};
+
+&hevc_service {
+	status = "okay";
+};
+
+&i2c0 {
+	status = "okay";
+};
+
+&i2c2 {
+	status = "okay";
+
+	es8323: es8323@10 {
+		compatible = "everest,es8323";
+		reg = <0x10>;
+		hp-det-gpio = <&gpio7 15 GPIO_ACTIVE_HIGH>;
+		hp-ctl-gpio = <&gpio0 10 GPIO_ACTIVE_HIGH>;
+		clock-names = "mclk";
+		clocks = <&cru SCLK_I2S0_OUT>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&i2s0_mclk>;
+		#sound-dai-cells = <0>;
+	};
+};
+
+&i2c3 {
+	status = "okay";
+};
+
+&i2c4 {
+	status = "okay";
+};
+
+&i2s {
+	#sound-dai-cells = <0>;
+	status = "okay";
+};
+
+&io_domains {
+	status = "okay";
+
+	audio-supply = <&vcca_33>;
+	dvp-supply = <&dovdd_1v8>;
+	flash0-supply = <&vcc_flash>;
+	flash1-supply = <&vcc_lan>;
+	sdcard-supply = <&vccio_sd>;
+	wifi-supply = <&vcc_18>;
+};
+
+&wdt {
+	status = "okay";
+};
+
+&pwm0 {
+	interrupts = <GIC_SPI 78 IRQ_TYPE_LEVEL_HIGH>;
+	compatible = "rockchip,remotectl-pwm";
+	pinctrl-names = "default";
+	remote_pwm_id = <0>;
+	handle_cpu_id = <1>;
+	remote_support_psci = <0>;
+	status = "okay";
+
+	ir_key1 {
+        rockchip,usercode = <0xff00>;
+        rockchip,key_table =
+            <0xeb   KEY_POWER>,
+            <0xec   KEY_COMPOSE>,
+            <0xfe   KEY_BACK>,
+            <0xb7   KEY_HOME>,
+            <0xa3   KEY_WWW>,
+            <0xf4   KEY_VOLUMEUP>,
+            <0xa7   KEY_VOLUMEDOWN>,
+            <0xf8   KEY_ENTER>,
+            <0xfc   KEY_UP>,
+            <0xfd   KEY_DOWN>,
+            <0xf1   KEY_LEFT>,
+            <0xe5   KEY_RIGHT>;
+    };
+};
+
+&pwm1 {
+	status = "okay";
+};
+
+&isp {
+	status = "okay";
+};
+
+&isp_mmu {
+	status = "okay";
+};
+
+&rga {
+	status = "okay";
+};
+
+&sdio0 {
+	clock-frequency = <50000000>;
+	clock-freq-min-max = <200000 50000000>;
+	bus-width = <4>;
+	cap-sd-highspeed;
+	cap-sdio-irq;
+	disable-wp;
+	keep-power-in-suspend;
+	mmc-pwrseq = <&sdio_pwrseq>;
+	non-removable;
+	num-slots = <1>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&sdio0_bus4 &sdio0_cmd &sdio0_clk &sdio0_int>;
+	sd-uhs-sdr104;
+	supports-sdio;
+	status = "okay";
+};
+
+&rockchip_suspend {
+	status = "okay";
+};
+
+&uart0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&uart0_xfer &uart0_cts>;
+	status = "okay";
+};
+
+&uart2 {
+	status = "disabled";
+};
+
+&vpu_service {
+	status = "okay";
+};
+
+&tsadc {
+	rockchip,hw-tshut-polarity = <0>; /* tshut polarity 0:LOW 1:HIGH */
+	status = "okay";
+};
+
+&usbphy {
+	status = "okay";
+};
+
+&usb_host0_ehci {
+	rockchip-relinquish-port;
+	status = "okay";
+};
+
+&usb_host0_ohci {
+	status = "okay";
+};
+
+&usb_host1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&usbhub_rst>;
+	status = "okay";
+};
+
+&usb_otg {
+	status = "okay";
+};
+
+&lvds {
+	status = "disabled";
+
+	ports {
+		lvds_out: port@1 {
+			reg = <1>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			lvds_out_panel: endpoint@0 {
+				reg = <0>;
+				remote-endpoint = <&panel_in_lvds>;
+			};
+		};
+	};
+};
+
+&spdif {
+	status = "okay";
+};
+
+&spi0 {
+	status = "okay";
+	max-freq = <48000000>;
+
+	spi_wk2xxx: spi-wk2xxx@00 {
+		status = "disabled";
+		compatible = "firefly,spi-wk2xxx";
+		reg = <0x00>;
+		spi-max-frequency = <10000000>;
+		power-gpio = <&gpio3 14 GPIO_ACTIVE_HIGH>;
+		reset-gpio = <&gpio0 18 GPIO_ACTIVE_HIGH>;
+		irq-gpio = <&gpio0 7 IRQ_TYPE_EDGE_FALLING>;
+		cs-gpio = <&gpio5 13 GPIO_ACTIVE_HIGH>;
+		/* spi-wk2xxx driver support SPI_CPOL | SPI_CPHA | SPI_CS_HIGH */
+		//spi-cpha;     /* SPI mode: CPHA=1 */
+		//spi-cpol;     /* SPI mode: CPOL=1 */
+		//spi-cs-high;
+	};
+};
+
+&vopb {
+	status = "okay";
+};
+
+&vopb_mmu {
+	status = "okay";
+};
+
+&vopl {
+	status = "okay";
+};
+
+&vopl_mmu {
+	status = "okay";
+};
+
+&pinctrl {
+	pcfg_output_high: pcfg-output-high {
+		output-high;
+	};
+
+	pcfg_output_low: pcfg-output-low {
+		output-low;
+	};
+
+	pcfg_pull_none_drv_8ma: pcfg-pull-none-drv-8ma {
+		drive-strength = <8>;
+	};
+
+	pcfg_pull_up_drv_8ma: pcfg-pull-up-drv-8ma {
+		bias-pull-up;
+		drive-strength = <8>;
+	};
+
+	act8846 {
+		pmic_vsel: pmic-vsel {
+			rockchip,pins = <7 14 RK_FUNC_GPIO &pcfg_output_low>;
+		};
+
+		pwr_hold: pwr-hold {
+			rockchip,pins = <0 6 RK_FUNC_GPIO &pcfg_output_high>;
+		};
+	};
+
+	dvp {
+		dvp_pwr: dvp-pwr {
+			rockchip,pins = <0 11 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	gmac {
+		phy_int: phy-int {
+			rockchip,pins = <0 9 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+
+		phy_pmeb: phy-pmeb {
+			rockchip,pins = <0 8 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+
+		phy_rst: phy-rst {
+			rockchip,pins = <4 8 RK_FUNC_GPIO &pcfg_output_high>;
+		};
+	};
+
+	hym8563 {
+		rtc_int: rtc-int {
+			rockchip,pins = <7 4 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+	};
+
+	buttons {
+		pwrbtn: pwrbtn {
+			rockchip,pins = <0 5 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+	};
+
+	leds {
+		led_power: led-power {
+			rockchip,pins = <8 1 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+
+		led_user: led-work {
+			rockchip,pins = <8 2 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	sdio-pwrseq {
+		wifi_enable_h: wifi-enable-h {
+			rockchip,pins = <4 28 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	sdmmc {
+		/*
+		 * Default drive strength isn't enough to achieve even
+		 * high-speed mode on firefly board so bump up to 8ma.
+		 */
+		sdmmc_bus4: sdmmc-bus4 {
+			rockchip,pins = <6 16 RK_FUNC_1 &pcfg_pull_up_drv_8ma>,
+					<6 17 RK_FUNC_1 &pcfg_pull_up_drv_8ma>,
+					<6 18 RK_FUNC_1 &pcfg_pull_up_drv_8ma>,
+					<6 19 RK_FUNC_1 &pcfg_pull_up_drv_8ma>;
+		};
+
+		sdmmc_clk: sdmmc-clk {
+			rockchip,pins = <6 20 RK_FUNC_1 &pcfg_pull_none_drv_8ma>;
+		};
+
+		sdmmc_cmd: sdmmc-cmd {
+			rockchip,pins = <6 21 RK_FUNC_1 &pcfg_pull_up_drv_8ma>;
+		};
+
+		sdmmc_pwr: sdmmc-pwr {
+			rockchip,pins = <7 11 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	usb_host {
+		host_vbus_drv: host-vbus-drv {
+			rockchip,pins = <0 14 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+
+		usbhub_rst: usbhub-rst {
+			rockchip,pins = <8 3 RK_FUNC_GPIO &pcfg_output_high>;
+		};
+	};
+
+	usb_otg {
+		otg_vbus_drv: otg-vbus-drv {
+			rockchip,pins = <0 12 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	wireless-bluetooth {
+		uart0_gpios: uart0-gpios {
+			rockchip,pins = <4 19 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+};

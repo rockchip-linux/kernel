@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014, 2015 FUKAUMI Naoki <naobsd@gmail.com>
+ * Copyright (c) 2015~2017 Fuzhou Rockchip Electronics Co., Ltd
  *
  * This file is dual-licensed: you can use it either under the terms
  * of the GPL or the X11 license, at your option. Note that this dual
@@ -41,16 +41,213 @@
  */
 
 /dts-v1/;
-#include "rk3288-firefly.dtsi"
+#include "rk3288-firefly-port.dtsi"
 #include "rk3288-linux.dtsi"
 
 / {
-	model = "Firefly-RK3288";
-	compatible = "firefly,firefly-rk3288", "rockchip,rk3288";
+	model = "Firefly-RK3288 Board (Linux Opensource)";
+	compatible = "rockchip,rk3288-firefly", "rockchip,rk3288";
+
+	sdio_pwrseq: sdio-pwrseq {
+		compatible = "mmc-pwrseq-simple";
+		clocks = <&hym8563>;
+		clock-names = "ext_clock";
+		pinctrl-names = "default";
+		pinctrl-0 = <&wifi_enable_h>;
+
+		/*
+		 * On the module itself this is one of these (depending
+		 * on the actual card populated):
+		 * - SDIO_RESET_L_WL_REG_ON
+		 * - PDN (power down when low)
+		 */
+		reset-gpios = <&gpio4 28 GPIO_ACTIVE_LOW>;
+	};
 };
 
-&ir {
-	gpios = <&gpio7 0 GPIO_ACTIVE_LOW>;
+&cpu0 {
+	cpu0-supply = <&vdd_cpu>;
+};
+
+&dfi {
+	status = "okay";
+};
+
+&dmc {
+	center-supply = <&vdd_log>;
+	status = "okay";
+};
+
+&gpu {
+	status = "okay";
+	mali-supply = <&vdd_gpu>;
+};
+
+&i2c0 {
+	clock-frequency = <400000>;
+
+	vdd_cpu: syr827@40 {
+		compatible = "silergy,syr827";
+		fcs,suspend-voltage-selector = <1>;
+		reg = <0x40>;
+		regulator-name = "vdd_cpu";
+		regulator-min-microvolt = <850000>;
+		regulator-max-microvolt = <1350000>;
+		regulator-always-on;
+		regulator-boot-on;
+		regulator-enable-ramp-delay = <300>;
+		regulator-ramp-delay = <8000>;
+		vin-supply = <&vcc_sys>;
+		regulator-state-mem {
+			regulator-off-in-suspend;
+		};
+	};
+
+	vdd_gpu: syr828@41 {
+		compatible = "silergy,syr828";
+		fcs,suspend-voltage-selector = <1>;
+		reg = <0x41>;
+		regulator-name = "vdd_gpu";
+		regulator-min-microvolt = <850000>;
+		regulator-max-microvolt = <1350000>;
+		regulator-always-on;
+		regulator-ramp-delay = <6000>;
+		vin-supply = <&vcc_sys>;
+		regulator-state-mem {
+			regulator-off-in-suspend;
+		};
+	};
+
+	hym8563: hym8563@51 {
+		compatible = "haoyu,hym8563";
+		reg = <0x51>;
+		interrupt-parent = <&gpio7>;
+		interrupts = <4 IRQ_TYPE_EDGE_FALLING>;
+		#clock-cells = <0>;
+		clock-frequency = <32768>;
+		clock-output-names = "xin32k";
+		pinctrl-names = "default";
+		pinctrl-0 = <&rtc_int>;
+	};
+
+	act8846: act8846@5a {
+		compatible = "active-semi,act8846";
+		reg = <0x5a>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pmic_vsel>, <&pwr_hold>;
+		system-power-controller;
+
+		vp1-supply = <&vcc_sys>;
+		vp2-supply = <&vcc_sys>;
+		vp3-supply = <&vcc_sys>;
+		vp4-supply = <&vcc_sys>;
+		inl1-supply = <&vcc_sys>;
+		inl2-supply = <&vcc_sys>;
+		inl3-supply = <&vcc_20>;
+
+		regulators {
+			vcc_ddr: REG1 {
+				regulator-name = "vcc_ddr";
+				regulator-min-microvolt = <1200000>;
+				regulator-max-microvolt = <1200000>;
+				regulator-always-on;
+			};
+
+			vcc_io: REG2 {
+				regulator-name = "vcc_io";
+				regulator-min-microvolt = <3300000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-always-on;
+			};
+
+			vdd_log: REG3 {
+				regulator-name = "vdd_log";
+				regulator-min-microvolt = <700000>;
+				regulator-max-microvolt = <1500000>;
+				regulator-always-on;
+			};
+
+			vcc_20: REG4 {
+				regulator-name = "vcc_20";
+				regulator-min-microvolt = <2000000>;
+				regulator-max-microvolt = <2000000>;
+				regulator-always-on;
+			};
+
+			vccio_sd: REG5 {
+				regulator-name = "vccio_sd";
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-always-on;
+			};
+
+			vdd10_lcd: REG6 {
+				regulator-name = "vdd10_lcd";
+				regulator-min-microvolt = <1050000>;
+				regulator-max-microvolt = <1050000>;
+				regulator-always-on;
+			};
+
+			vcca_18: REG7 {
+				regulator-name = "vcca_18";
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <1800000>;
+				regulator-always-on;
+			};
+
+			vcca_33: REG8 {
+				regulator-name = "vcca_33";
+				regulator-min-microvolt = <3300000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-always-on;
+			};
+
+			vcc_lan: REG9 {
+				regulator-name = "vcc_lan";
+				regulator-min-microvolt = <3300000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-always-on;
+				regulator-boot-on;
+			};
+
+			vdd_10: REG10 {
+				regulator-name = "vdd_10";
+				regulator-min-microvolt = <1100000>;
+				regulator-max-microvolt = <1100000>;
+				regulator-always-on;
+			};
+
+			vcc_18: REG11 {
+				regulator-name = "vcc_18";
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <1800000>;
+				regulator-always-on;
+			};
+
+			vcc18_lcd: REG12 {
+				regulator-name = "vcc18_lcd";
+				regulator-min-microvolt = <1850000>;
+				regulator-max-microvolt = <1850000>;
+				regulator-always-on;
+			};
+		};
+	};
+};
+
+&rga {
+	status = "okay";
+};
+
+&sound {
+	status = "okay";
+};
+
+&uart2 {
+	status = "okay";
+};
+
+&hdmi_in_vopl {
+	status = "disabled";
 };
 
 &pinctrl {
@@ -58,15 +255,9 @@
 		pmic_vsel: pmic-vsel {
 			rockchip,pins = <7 14 RK_FUNC_GPIO &pcfg_output_low>;
 		};
-	};
 
-	ir {
-		ir_int: ir-int {
-			rockchip,pins = <7 0 RK_FUNC_GPIO &pcfg_pull_up>;
+		pwr_hold: pwr-hold {
+			rockchip,pins = <0 6 RK_FUNC_GPIO &pcfg_output_high>;
 		};
 	};
-};
-
-&pwm1 {
-	status = "okay";
 };
