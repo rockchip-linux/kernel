@@ -698,6 +698,12 @@ config SPI_TLE62X0
 	  sysfs interface, with each line presented as a kind of GPIO
 	  exposing both switch control and diagnostic feedback.
 
+config SPI_WK2XXX
+	tristate "wk2xxx Spi Switch Uart"
+	depends on SPI
+	help
+	  Say Y to get the third party encryption service.
+
 #
 # Add new SPI protocol masters in alphabetical order above this line
 #
