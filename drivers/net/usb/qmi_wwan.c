@@ -114,6 +114,24 @@ fix_dest:
 	return 1;
 }
 
+#if 1 /* Added by Quectel */
+#include <linux/etherdevice.h>
+struct sk_buff *qmi_wwan_tx_fixup(struct usbnet *dev, struct sk_buff *skb, gfp_t flags)
+{
+	if (dev->udev->descriptor.idVendor != cpu_to_le16(0x2C7C))
+		return skb;
+	/* Skip Ethernet header from message */
+	if (skb_pull(skb, ETH_HLEN)) {
+		return skb;
+	} else {
+		dev_err(&dev->intf->dev, "Packet Dropped");
+	}
+	/* Filter the packet out, release it */
+	dev_kfree_skb_any(skb);
+	return NULL;
+}
+#endif
+
 /* very simplistic detection of IPv4 or IPv6 headers */
 static bool possibly_iphdr(const char *data)
 {
@@ -288,6 +306,20 @@ static int qmi_wwan_bind(struct usbnet *dev, struct usb_interface *intf)
 	    ether_addr_equal(dev->net->dev_addr, buggy_fw_addr))
 		eth_hw_addr_random(dev->net);
 
+	if (dev->udev->descriptor.idVendor == cpu_to_le16(0x2C7C)) {
+		dev_info(&intf->dev, "Quectel EC25&EC21&EC20R2.0&EG91&EG95&EG06&EP06&EM06&BG96 work on RawIP mode\n");
+
+		dev->net->flags |= IFF_NOARP;
+		usb_control_msg(
+		interface_to_usbdev(intf),
+		usb_sndctrlpipe(interface_to_usbdev(intf), 0),
+		0x22,	/* USB_CDC_REQ_SET_CONTROL_LINE_STATE */
+		0x21,	/* USB_DIR_OUT | USB_TYPE_CLASS | USB_RECIP_INTERFACE */
+		1,		/* active CDC DTR */
+		intf->cur_altsetting->desc.bInterfaceNumber,
+		NULL, 0, 100);
+	}
+
 	/* make MAC addr easily distinguishable from an IP header */
 	if (possibly_iphdr(dev->net->dev_addr)) {
 		dev->net->dev_addr[0] |= 0x02;	/* set local assignment bit */
@@ -379,6 +411,7 @@ static const struct driver_info	qmi_wwan_info = {
 	.unbind		= qmi_wwan_unbind,
 	.manage_power	= qmi_wwan_manage_power,
 	.rx_fixup       = qmi_wwan_rx_fixup,
+	.tx_fixup       = qmi_wwan_tx_fixup,
 };
 
 #define HUAWEI_VENDOR_ID	0x12D1
@@ -799,8 +832,8 @@ static const struct usb_device_id products[] = {
 	{QMI_GOBI_DEVICE(0x05c6, 0x9225)},	/* Sony Gobi 2000 Modem device (N0279, VU730) */
 	{QMI_GOBI_DEVICE(0x05c6, 0x9245)},	/* Samsung Gobi 2000 Modem device (VL176) */
 	{QMI_GOBI_DEVICE(0x03f0, 0x251d)},	/* HP Gobi 2000 Modem device (VP412) */
-	{QMI_GOBI_DEVICE(0x05c6, 0x9215)},	/* Acer Gobi 2000 Modem device (VP413) */
 	{QMI_FIXED_INTF(0x05c6, 0x9215, 4)},	/* Quectel EC20 Mini PCIe */
+	{QMI_FIXED_INTF(0x2c7c, 0x0125, 4)},	/* Quectel EC20 2.0 Mini PCIe */
 	{QMI_GOBI_DEVICE(0x05c6, 0x9265)},	/* Asus Gobi 2000 Modem device (VR305) */
 	{QMI_GOBI_DEVICE(0x05c6, 0x9235)},	/* Top Global Gobi 2000 Modem device (VR306) */
 	{QMI_GOBI_DEVICE(0x05c6, 0x9275)},	/* iRex Technologies Gobi 2000 Modem device (VR307) */
@@ -836,12 +869,20 @@ static bool quectel_ec20_detected(struct usb_interface *intf)
 {
 	struct usb_device *dev = interface_to_usbdev(intf);
 
+	printk("idVendor %d idP %d bnum %d ", le16_to_cpu(dev->descriptor.idVendor),
+				le16_to_cpu(dev->descriptor.idProduct),
+				dev->actconfig->desc.bNumInterfaces);
+
 	if (dev->actconfig &&
 	    le16_to_cpu(dev->descriptor.idVendor) == 0x05c6 &&
 	    le16_to_cpu(dev->descriptor.idProduct) == 0x9215 &&
 	    dev->actconfig->desc.bNumInterfaces == 5)
+	{
+		printk("ec20 det true");
 		return true;
+	}
 
+	printk("ec20 det false");
 	return false;
 }
 
@@ -872,6 +913,8 @@ static int qmi_wwan_probe(struct usb_interface *intf,
 			desc->bInterfaceClass);
 		return -ENODEV;
 	}
+
+	dev_dbg(&intf->dev, "enter qmi probe\n");
 
 	/* Quectel EC20 quirk where we've QMI on interface 4 instead of 0 */
 	if (quectel_ec20_detected(intf) && desc->bInterfaceNumber == 0) {
