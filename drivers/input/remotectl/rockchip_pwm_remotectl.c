@@ -16,15 +16,16 @@
 #include <linux/wakelock.h>
 #include <linux/slab.h>
 #include <linux/rockchip/rockchip_sip.h>
+#include <linux/leds.h>
+#include <linux/fb.h>
 
 #include "rockchip_pwm_remotectl.h"
-
-
 
 /*sys/module/rk_pwm_remotectl/parameters,
 modify code_print to change the value*/
 
 static int rk_remote_print_code;
+static bool remote_suspend = false;
 module_param_named(code_print, rk_remote_print_code, int, 0644);
 #define DBG_CODE(args...) \
 	do { \
@@ -42,7 +43,19 @@ module_param_named(dbg_level, rk_remote_pwm_dbg_level, int, 0644);
 		} \
 	} while (0)
 
+#define BLINK_DELAY 50
+DEFINE_LED_TRIGGER(ledtrig_ir_click);
+static unsigned long ir_blink_delay = BLINK_DELAY;
 
+bool get_state_remotectl(void)
+{
+	return remote_suspend;
+}
+
+void ledtrig_ir_activity(void)
+{
+	led_trigger_blink_oneshot(ledtrig_ir_click, &ir_blink_delay, &ir_blink_delay,1);
+}
 struct rkxx_remote_key_table {
 	int scancode;
 	int keycode;
@@ -227,6 +240,12 @@ static void rk_pwm_remotectl_do_something(unsigned long  data)
 	}
 	break;
 	case RMC_GETDATA: {
+		if (!get_state_remotectl() && (ddata->keycode != KEY_POWER)) {
+			ledtrig_ir_activity();
+		}
+		if (ddata->keycode != KEY_POWER)
+			led_trigger_blink_oneshot(ledtrig_ir_click, &ir_blink_delay, &ir_blink_delay,1);
+
 		if ((RK_PWM_TIME_BIT1_MIN < ddata->period) &&
 		    (ddata->period < RK_PWM_TIME_BIT1_MAX))
 			ddata->scandata |= (0x01<<ddata->count);
@@ -238,6 +257,9 @@ static void rk_pwm_remotectl_do_something(unsigned long  data)
 		    ((~ddata->scandata >> 8) & 0x0ff)) {
 			if (remotectl_keycode_lookup(ddata)) {
 				ddata->press = 1;
+				if (ddata->keycode== KEY_POWER && !get_state_remotectl()) {
+					led_trigger_event(ledtrig_ir_click,LED_OFF);
+                }
 				input_event(ddata->input, EV_KEY,
 					    ddata->keycode, 1);
 				input_sync(ddata->input);
@@ -329,8 +351,10 @@ static irqreturn_t rockchip_pwm_irq(int irq, void *dev_id)
 		}
 	}
 	writel_relaxed(PWM_CH_INT(id), ddata->base + PWM_REG_INTSTS(id));
+#if ! defined(CONFIG_RK_IR_NO_DEEP_SLEEP)
 	if (ddata->state == RMC_PRELOAD)
 		wake_lock_timeout(&ddata->remotectl_wake_lock, HZ);
+#endif
 	return IRQ_HANDLED;
 }
 
@@ -383,6 +407,35 @@ static int rk_pwm_remotectl_hw_init(struct rkxx_remotectl_drvdata *ddata)
 	return 0;
 }
 
+static int remotectl_fb_event_notify(struct notifier_block *self, unsigned long action, void *data)
+{
+	struct fb_event *event = data;
+
+	if (action == FB_EARLY_EVENT_BLANK) {
+		switch (*((int *)event->data)) {
+			case FB_BLANK_UNBLANK:
+				break;
+			default:
+				led_trigger_event(ledtrig_ir_click,LED_OFF);
+				remote_suspend = true;
+				break;
+		}
+	}
+	else if (action == FB_EVENT_BLANK) {
+		switch (*((int *)event->data)) {
+			case FB_BLANK_UNBLANK:
+				remote_suspend = false;
+				led_trigger_event(ledtrig_ir_click,LED_FULL);
+				break;
+			default:
+				break;
+		}
+	}
+	return NOTIFY_OK;
+}
+static struct notifier_block remotectl_fb_notifier = {
+         .notifier_call = remotectl_fb_event_notify,
+};
 
 static int rk_pwm_probe(struct platform_device *pdev)
 {
@@ -482,6 +535,7 @@ static int rk_pwm_probe(struct platform_device *pdev)
 	input->id.version = 0x0100;
 	ddata->input = input;
 	ddata->input = input;
+	fb_register_client(&remotectl_fb_notifier);
 	irq = platform_get_irq(pdev, 0);
 	if (ret < 0) {
 		dev_err(&pdev->dev, "cannot find IRQ\n");
@@ -517,6 +571,9 @@ static int rk_pwm_probe(struct platform_device *pdev)
 		    (unsigned long)ddata);
 	wake_lock_init(&ddata->remotectl_wake_lock,
 		       WAKE_LOCK_SUSPEND, "rockchip_pwm_remote");
+#if defined(CONFIG_RK_IR_NO_DEEP_SLEEP)
+    wake_lock(&ddata->remotectl_wake_lock);
+#endif
 	cpumask_clear(&cpumask);
 	cpumask_set_cpu(cpu_id, &cpumask);
 	irq_set_affinity(irq, &cpumask);
@@ -529,6 +586,7 @@ static int rk_pwm_probe(struct platform_device *pdev)
 	rk_pwm_remotectl_hw_init(ddata);
 	pwm_freq = clk_get_rate(clk) / 64;
 	ddata->pwm_freq_nstime = 1000000000 / pwm_freq;
+	led_trigger_register_simple("ir-power-click", &ledtrig_ir_click);
 	if (of_property_read_u32(np, "remote_support_psci",
 				 &ddata->support_psci)) {
 		dev_err(&pdev->dev, "Missing psci property in the DT.\n");
@@ -583,6 +641,13 @@ error_clk:
 
 static int rk_pwm_remove(struct platform_device *pdev)
 {
+#if defined(CONFIG_RK_IR_NO_DEEP_SLEEP)
+    struct rkxx_remotectl_drvdata *ddata = platform_get_drvdata(pdev);
+#endif
+	led_trigger_unregister_simple(ledtrig_ir_click);
+#if defined(CONFIG_RK_IR_NO_DEEP_SLEEP)
+    wake_unlock(&ddata->remotectl_wake_lock);
+#endif
 	return 0;
 }
 
@@ -608,6 +673,7 @@ static int remotectl_resume(struct device *dev)
 	struct rkxx_remotectl_drvdata *ddata = platform_get_drvdata(pdev);
 	int state;
 
+	led_trigger_event(ledtrig_ir_click,LED_FULL);
 	cpumask_clear(&cpumask);
 	cpumask_set_cpu(ddata->handle_cpu_id, &cpumask);
 	irq_set_affinity(ddata->irq, &cpumask);
