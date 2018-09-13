@@ -552,11 +552,13 @@ dtb-$(CONFIG_ARCH_ROCKCHIP) += \
 	rk3288-evb-rk808-linux.dtb \
 	rk3288-fennec.dtb \
 	rk3288-firefly-aio.dtb \
+	rk3288-firefly-aioc-vga.dtb \
 	rk3288-firefly-aioc.dtb \
 	rk3288-firefly-beta.dtb \
 	rk3288-firefly-reload.dtb \
 	rk3288-firefly-reload-linux.dtb \
 	rk3288-firefly-rk808.dtb \
+	rk3288-firefly-vga.dtb \
 	rk3288-firefly.dtb \
 	rk3288-miniarm.dtb \
 	rk3288-miqi.dtb \
