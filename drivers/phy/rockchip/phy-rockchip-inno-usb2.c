@@ -37,6 +37,8 @@
 #include <linux/usb/of.h>
 #include <linux/usb/otg.h>
 #include <linux/wakelock.h>
+#include <linux/gpio.h>
+#include <linux/of_gpio.h>
 
 #define BIT_WRITEABLE_SHIFT	16
 #define SCHEDULE_DELAY		(60 * HZ)
@@ -1542,6 +1544,7 @@ static int rockchip_usb2phy_otg_port_init(struct rockchip_usb2phy *rphy,
 {
 	int ret;
 	int iddig;
+	int gpio_vbus_5v;
 
 	rport->port_id = USB2PHY_PORT_OTG;
 	rport->port_cfg = &rphy->phy_cfg->port_cfgs[USB2PHY_PORT_OTG];
@@ -1591,6 +1594,23 @@ static int rockchip_usb2phy_otg_port_init(struct rockchip_usb2phy *rphy,
 		rport->vbus = NULL;
 	}
 
+	if (rport->vbus_always_on) {
+		ret = of_get_named_gpio_flags(child_np, "vbus-5v-gpios", 0, NULL);
+		if (ret < 0) {
+			printk("%s() Can not read property vbus-5v-gpio\n", __FUNCTION__);
+		} else {
+			gpio_vbus_5v = ret;
+			ret = devm_gpio_request(rphy->dev, gpio_vbus_5v, "vbus-gpio");
+			if(ret < 0)
+				printk("%s() devm_gpio_request vbus-gpio request ERROR\n", __FUNCTION__);
+			ret = gpio_direction_output(gpio_vbus_5v, 1);
+			if(ret < 0)
+				printk("%s() gpio_direction_output vbus-gpio set ERROR\n", __FUNCTION__);
+		}
+
+		goto out;
+	}
+
 	rport->mode = of_usb_get_dr_mode_by_phy(child_np, -1);
 	if (rport->mode == USB_DR_MODE_HOST ||
 	    rport->mode == USB_DR_MODE_UNKNOWN) {
@@ -1605,9 +1625,6 @@ static int rockchip_usb2phy_otg_port_init(struct rockchip_usb2phy *rphy,
 		}
 		goto out;
 	}
-
-	if (rport->vbus_always_on)
-		goto out;
 
 	wake_lock_init(&rport->wakelock, WAKE_LOCK_SUSPEND, "rockchip_otg");
 	INIT_DELAYED_WORK(&rport->bypass_uart_work,
