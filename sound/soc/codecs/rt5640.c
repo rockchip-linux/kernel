@@ -30,9 +30,20 @@
 #include <sound/soc-dapm.h>
 #include <sound/initval.h>
 #include <sound/tlv.h>
+#include <sound/jack.h>
 
 #include "rl6231.h"
 #include "rt5640.h"
+
+#include <linux/iio/iio.h>
+#include <linux/iio/machine.h>
+#include <linux/iio/driver.h>
+#include <linux/iio/consumer.h>
+
+#define RT5640_ADC_EMPTY_ADVALUE			950
+#define RT5640_ADC_DRIFT_ADVALUE			70
+#define RT5640_ADC_INVALID_ADVALUE			-1
+#define RT5640_ADC_SAMPLE_JIFFIES	(100 / (MSEC_PER_SEC / HZ))	/* 100ms */
 
 #define RT5640_DEVICE_ID 0x6231
 
@@ -41,6 +52,9 @@
 
 #define RT5640_PR_BASE (RT5640_PR_RANGE_BASE + (0 * RT5640_PR_SPACING))
 
+#define LINE_IN_OKAY 1
+#define LINE_IN_NO   0
+static int line_in_status = 0;
 static const struct regmap_range_cfg rt5640_ranges[] = {
 	{ .name = "PR", .range_min = RT5640_PR_BASE,
 	  .range_max = RT5640_PR_BASE + 0xb4,
@@ -165,6 +179,106 @@ static const struct reg_default rt5640_reg[] = {
 	{ 0xfe, 0x10ec },
 	{ 0xff, 0x6231 },
 };
+
+static void rt5640_hp_gpio_ctrl(struct rt5640_priv *rt5640, bool enable)
+{
+	dev_dbg(rt5640->codec->dev, "hp-con-gpio enable=%d\n", enable);
+	if ( line_in_status && (false == enable) )
+        return;
+
+	if (enable)
+		gpio_set_value(rt5640->hp_con_gpio, rt5640->hp_con_gpio_active_high? 1 : 0);
+	else
+		gpio_set_value(rt5640->hp_con_gpio, rt5640->hp_con_gpio_active_high? 0 : 1);
+}
+
+static void rt5640_set_linein(struct rt5640_priv *rt5640)//struct snd_soc_codec *code/)
+{
+	printk("%s enter\n",__func__);
+	//regmap_write(rt5640->regmap, RT5640_RESET, 0);
+	//-----------------------in-----------------------/
+	regmap_write(rt5640->regmap, RT5640_PWR_ANLG1, 0xfdfc);     //63
+	//regmap_write(rt5640->regmap, RT5640_REC_L2_MIXER, 0x005f); //3c
+	//regmap_write(rt5640->regmap, RT5640_REC_R2_MIXER, 0x005f); //3e
+	regmap_update_bits(rt5640->regmap, RT5640_REC_L2_MIXER,    //3c
+		                1<<5 | 1<<4,
+                        0<<5 | 1<<4);
+	regmap_update_bits(rt5640->regmap, RT5640_REC_R2_MIXER,    //3e
+		                1<<5 | 1<<4,
+                        0<<5 | 1<<4);
+
+	//regmap_write(rt5640->regmap, RT5640_OUT_L3_MIXER, 0x01f7); //4f
+	//regmap_write(rt5640->regmap, RT5640_OUT_R3_MIXER, 0x01f7); //52
+	regmap_update_bits(rt5640->regmap, RT5640_OUT_L3_MIXER,    //4f
+		                1<<3 , 0<<3);
+	regmap_update_bits(rt5640->regmap, RT5640_OUT_R3_MIXER,    //52
+		                1<<3 , 0<<3);
+
+	regmap_write(rt5640->regmap, RT5640_HP_VOL, 0x0808);        //02
+	//regmap_write(rt5640->regmap, RT5640_HPO_MIXER, 0xd000);   //45
+	regmap_update_bits(rt5640->regmap, RT5640_HPO_MIXER,        //45
+		                1<<13 | 1<<12,
+		                0<<13 | 1<<12);
+
+	//regmap_write(rt5640->regmap, RT5640_PWR_MIXER, 0xcc00);   //65
+	//regmap_write(rt5640->regmap, RT5640_PWR_VOL, 0x0f00);     //66
+	regmap_update_bits(rt5640->regmap, RT5640_PWR_MIXER,    //65
+		                1<<10 | 1<<11 | 1<<14 | 1<<15,
+                        1<<10 | 1<<11 | 1<<14 | 1<<15);
+	regmap_update_bits(rt5640->regmap, RT5640_PWR_VOL,    //66
+		                1<<8 | 1<<9 | 1<<10 | 1<<11,
+                        1<<8 | 1<<9 | 1<<10 | 1<<11);
+
+	regmap_write(rt5640->regmap, RT5640_DEPOP_M1, 0x8019);     //8e
+	regmap_write(rt5640->regmap, RT5640_DEPOP_M2, 0x3100);     //8f
+
+	regmap_write(rt5640->regmap, RT5640_DUMMY1, 0x3401);     //fa
+
+	rt5640_hp_gpio_ctrl(rt5640, 1);
+}
+
+static int rt5640_aux_adc_iio_read(struct rt5640_priv *rt5640)
+{
+	struct iio_channel *channel = rt5640->aux_chan;
+	int val, ret;
+
+	if (!channel)
+		return RT5640_ADC_INVALID_ADVALUE;
+	ret = iio_read_channel_raw(channel, &val);
+	if (ret < 0) {
+		dev_err(rt5640->codec->dev, "read aux_det channel() error: %d\n", ret);
+		return ret;
+	}
+	return val;
+}
+
+static void rt5640_aux_adc_poll(struct work_struct *work)
+{
+	struct rt5640_priv *rt5640;
+	int result = -1;
+	rt5640 = container_of(work, struct rt5640_priv, adc_aux_work.work);
+
+	if (1/*!rt5640->in_suspend*/) {
+		result = rt5640_aux_adc_iio_read(rt5640);
+		if (result > RT5640_ADC_INVALID_ADVALUE && result < 1023)
+		{
+            //dev_dbg(rt5640->codec->dev, "scan: headphone insert=%d, adc=%d\n", rt5640->hp_insert, result);
+			if (result < rt5640->aux_det_adc_value + RT5640_ADC_DRIFT_ADVALUE &&
+				result > rt5640->aux_det_adc_value - RT5640_ADC_DRIFT_ADVALUE)
+            {
+                dev_dbg(rt5640->codec->dev, "line_in insert, adc=%d\n", result);
+                if(line_in_status == LINE_IN_NO)
+		            rt5640_set_linein(rt5640);
+                line_in_status = LINE_IN_OKAY;
+            } else {
+                line_in_status = LINE_IN_NO;
+                dev_dbg(rt5640->codec->dev, "line_in not insert, adc=%d\n", result);
+            }
+        }
+	}
+
+	schedule_delayed_work(&rt5640->adc_aux_work, RT5640_ADC_SAMPLE_JIFFIES);
+}
 
 static int rt5640_reset(struct snd_soc_codec *codec)
 {
@@ -430,6 +544,7 @@ static const struct snd_kcontrol_new rt5640_snd_controls[] = {
 	SOC_DOUBLE_TLV("ADC Boost Gain", RT5640_ADC_BST_VOL,
 			RT5640_ADC_L_BST_SFT, RT5640_ADC_R_BST_SFT,
 			3, 0, adc_bst_tlv),
+
 	/* Class D speaker gain ratio */
 	SOC_ENUM("Class D SPK Ratio Control", rt5640_clsd_spk_ratio_enum),
 
@@ -981,9 +1096,9 @@ static int rt5640_hp_event(struct snd_soc_dapm_widget *w,
 
 	case SND_SOC_DAPM_PRE_PMD:
 		rt5640->hp_mute = 1;
+		rt5640_hp_gpio_ctrl(rt5640, false);
 		usleep_range(70000, 75000);
 		break;
-
 	default:
 		return 0;
 	}
@@ -1044,11 +1159,12 @@ static int rt5640_hp_post_event(struct snd_soc_dapm_widget *w,
 
 	switch (event) {
 	case SND_SOC_DAPM_POST_PMU:
-		if (!rt5640->hp_mute)
-			usleep_range(80000, 85000);
+		if (!rt5640->hp_mute && rt5640->hp_insert == true) {
+			usleep_range(120000, 125000);
+			rt5640_hp_gpio_ctrl(rt5640, true);
+		}
 
 		break;
-
 	default:
 		return 0;
 	}
@@ -2011,6 +2127,7 @@ static int rt5640_set_bias_level(struct snd_soc_codec *codec,
 						0x0301, 0x0301);
 			snd_soc_update_bits(codec, RT5640_MICBIAS,
 						0x0030, 0x0030);
+			snd_soc_write(codec, RT5640_PWR_ANLG2, 0x0800); //micbas1
 		}
 		break;
 
@@ -2058,6 +2175,80 @@ int rt5640_dmic_enable(struct snd_soc_codec *codec,
 	return 0;
 }
 EXPORT_SYMBOL_GPL(rt5640_dmic_enable);
+
+
+static int rt5640_hp_jack_change(struct notifier_block *nb,
+	unsigned long flags, void *data)
+{
+	//printk("%s-%d: \n", __FUNCTION__, __LINE__);
+
+	return NOTIFY_OK;
+}
+
+static struct notifier_block rt5640_hp_jack_nb = {
+	.notifier_call = rt5640_hp_jack_change,
+};
+static void rt5640_jack_init(struct rt5640_priv *rt5640)
+{
+	snd_soc_card_jack_new(rt5640->codec->component.card, "Headphone Jack", SND_JACK_HEADPHONE,
+			&rt5640->hp_jack, NULL, 0);
+	snd_soc_jack_notifier_register(&rt5640->hp_jack, &rt5640_hp_jack_nb);
+}
+
+static int rt5640_hp_adc_iio_read(struct rt5640_priv *rt5640)
+{
+	struct iio_channel *channel = rt5640->chan;
+	int val, ret;
+
+	if (!channel)
+		return RT5640_ADC_INVALID_ADVALUE;
+	ret = iio_read_channel_raw(channel, &val);
+	if (ret < 0) {
+		dev_err(rt5640->codec->dev, "read hp_det channel() error: %d\n", ret);
+		return ret;
+	}
+	return val;
+}
+
+static void rt5640_hp_adc_poll(struct work_struct *work)
+{
+	struct rt5640_priv *rt5640;
+	int result = -1;
+	rt5640 = container_of(work, struct rt5640_priv, adc_poll_work.work);
+
+	if (1/*!rt5640->in_suspend*/) {
+		result = rt5640_hp_adc_iio_read(rt5640);
+		if (result > RT5640_ADC_INVALID_ADVALUE && result < RT5640_ADC_EMPTY_ADVALUE)
+		{
+            //dev_dbg(rt5640->codec->dev, "scan: headphone insert=%d, adc=%d\n", rt5640->hp_insert, result);
+			if (result < rt5640->hp_det_adc_value + RT5640_ADC_DRIFT_ADVALUE &&
+			    result > rt5640->hp_det_adc_value - RT5640_ADC_DRIFT_ADVALUE)
+			{
+                if (!rt5640->hp_insert)
+				{
+                    dev_dbg(rt5640->codec->dev, "headphone insert, adc=%d\n", result);
+                    rt5640->hp_insert = true;
+					snd_soc_jack_report(&rt5640->hp_jack, SND_JACK_HEADPHONE, SND_JACK_HEADPHONE);
+					if (!rt5640->hp_mute) {
+						rt5640_hp_gpio_ctrl(rt5640, true);
+					}
+                }
+            }
+			else
+			{
+                if(rt5640->hp_insert)
+                {
+                    dev_dbg(rt5640->codec->dev, "headphone not insert, adc=%d\n", result);
+                    rt5640->hp_insert = false;
+					rt5640_hp_gpio_ctrl(rt5640, false);
+					snd_soc_jack_report(&rt5640->hp_jack, 0, SND_JACK_HEADPHONE);
+                }
+            }
+        }
+	}
+
+	schedule_delayed_work(&rt5640->adc_poll_work, RT5640_ADC_SAMPLE_JIFFIES);
+}
 
 static int rt5640_probe(struct snd_soc_codec *codec)
 {
@@ -2107,6 +2298,22 @@ static int rt5640_probe(struct snd_soc_codec *codec)
 	if (rt5640->pdata.dmic_en)
 		rt5640_dmic_enable(codec, rt5640->pdata.dmic1_data_pin,
 					  rt5640->pdata.dmic2_data_pin);
+
+	rt5640->hp_mute = 1;
+	rt5640->hp_insert = false;
+	/* adc polling work */
+	if (rt5640->chan) {
+		rt5640_jack_init(rt5640);
+		INIT_DELAYED_WORK(&rt5640->adc_poll_work, rt5640_hp_adc_poll);
+		schedule_delayed_work(&rt5640->adc_poll_work,
+				      1000);
+	}
+
+	if (rt5640->aux_chan) {
+		INIT_DELAYED_WORK(&rt5640->adc_aux_work, rt5640_aux_adc_poll);
+		schedule_delayed_work(&rt5640->adc_aux_work,
+				      msecs_to_jiffies(20000));
+	}
 
 	return 0;
 }
@@ -2217,6 +2424,8 @@ static struct snd_soc_codec_driver soc_codec_dev_rt5640 = {
 	.num_dapm_widgets = ARRAY_SIZE(rt5640_dapm_widgets),
 	.dapm_routes = rt5640_dapm_routes,
 	.num_dapm_routes = ARRAY_SIZE(rt5640_dapm_routes),
+	.reg_cache_size = ARRAY_SIZE(rt5640_reg),
+	.reg_word_size = sizeof(struct reg_default) - 6,
 };
 
 static const struct regmap_config rt5640_regmap = {
@@ -2263,8 +2472,59 @@ static const struct acpi_device_id rt5640_acpi_match[] = {
 MODULE_DEVICE_TABLE(acpi, rt5640_acpi_match);
 #endif
 
-static int rt5640_parse_dt(struct rt5640_priv *rt5640, struct device_node *np)
+static int rt5640_parse_dt(struct rt5640_priv *rt5640, struct device *dev)
 {
+	struct device_node *np = dev->of_node;
+	struct iio_channel *chan;
+	struct iio_channel *aux_chan;
+	u32 adc_value;
+	enum of_gpio_flags flags;
+	int gpio, ret;
+
+	chan = iio_channel_get(dev, NULL);
+	if (IS_ERR(chan)) {
+		dev_warn(dev, "rt5640 have no io-channels defined\n");
+		chan = NULL;
+	} else {
+        if (!of_property_read_u32(np, "hp-det-adc-value", &adc_value)) {
+            rt5640->hp_det_adc_value = adc_value;
+        } else {
+            chan = NULL;
+            dev_err(dev, "rt5640 have no hp_det_adc_value defined\n");
+        }
+	}
+	rt5640->chan = chan;
+
+    aux_chan = iio_channel_get(dev, "aux-det");
+	if (IS_ERR(chan)) {
+		dev_warn(dev, "rt5640 have no io-channels-aux defined\n");
+		aux_chan = NULL;
+	} else {
+        if (!of_property_read_u32(np, "aux-det-adc-value", &adc_value)) {
+            rt5640->aux_det_adc_value = adc_value;
+        } else {
+            aux_chan = NULL;
+            dev_err(dev, "rt5640 have no aux_det_adc_value defined\n");
+        }
+    }
+	rt5640->aux_chan = aux_chan;
+
+	gpio = of_get_named_gpio_flags(np, "hp-con-gpio", 0, &flags);
+	if (gpio < 0) {
+		dev_err(dev, "Can not read property hp-con-gpio\n");
+	} else {
+		rt5640->hp_con_gpio_active_high = (flags & OF_GPIO_ACTIVE_LOW) ? false: true;
+		ret = devm_gpio_request(dev, gpio, "hp-con-gpio");
+		if(ret < 0){
+			dev_err(dev, "hp-con-gpio request ERROR\n");
+		}
+		else {
+			//mute default
+			gpio_direction_output(gpio, rt5640->hp_con_gpio_active_high ? 0 : 1);
+		}
+	}
+	rt5640->hp_con_gpio = gpio;
+
 	rt5640->pdata.in1_diff = of_property_read_bool(np,
 					"realtek,in1-differential");
 	rt5640->pdata.in2_diff = of_property_read_bool(np,
@@ -2311,7 +2571,7 @@ static int rt5640_i2c_probe(struct i2c_client *i2c,
 		if (!rt5640->pdata.ldo1_en)
 			rt5640->pdata.ldo1_en = -EINVAL;
 	} else if (i2c->dev.of_node) {
-		ret = rt5640_parse_dt(rt5640, i2c->dev.of_node);
+		ret = rt5640_parse_dt(rt5640, &(i2c->dev));
 		if (ret)
 			return ret;
 	} else
@@ -2366,8 +2626,6 @@ static int rt5640_i2c_probe(struct i2c_client *i2c,
 		regmap_update_bits(rt5640->regmap, RT5640_IN1_IN2,
 					RT5640_IN_DF2, RT5640_IN_DF2);
 
-	rt5640->hp_mute = 1;
-
 	return snd_soc_register_codec(&i2c->dev, &soc_codec_dev_rt5640,
 				      rt5640_dai, ARRAY_SIZE(rt5640_dai));
 }
@@ -2378,6 +2636,13 @@ static int rt5640_i2c_remove(struct i2c_client *i2c)
 
 	return 0;
 }
+static void rt5640_i2c_shutdown(struct i2c_client *i2c)
+{
+	struct rt5640_priv *rt5640;
+
+	rt5640 = (struct rt5640_priv *)i2c_get_clientdata(i2c);
+	rt5640_hp_gpio_ctrl(rt5640, false);
+}
 
 static struct i2c_driver rt5640_i2c_driver = {
 	.driver = {
@@ -2387,6 +2652,7 @@ static struct i2c_driver rt5640_i2c_driver = {
 	},
 	.probe = rt5640_i2c_probe,
 	.remove   = rt5640_i2c_remove,
+	.shutdown = rt5640_i2c_shutdown,
 	.id_table = rt5640_i2c_id,
 };
 module_i2c_driver(rt5640_i2c_driver);
