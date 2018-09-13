@@ -984,6 +984,8 @@ struct rk808 {
 	struct regmap *regmap;
 	long variant;
 	struct rk808_pin_info *pins;
+	int hold_gpio;
+	int stby_gpio;
 };
 
 enum {
