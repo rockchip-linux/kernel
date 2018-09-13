@@ -82,6 +82,7 @@ dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3399-evb-rev3-android-lp4.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3399-evb-rev3-android-mipi-edp.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3399-evb-rev3-cros.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3399-firefly-android.dtb
+dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3399-firefly-edp.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3399-firefly-linux.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3399-firefly.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3399-fpga.dtb
