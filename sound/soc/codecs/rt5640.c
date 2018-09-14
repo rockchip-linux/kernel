@@ -40,6 +40,8 @@
 #include <linux/iio/driver.h>
 #include <linux/iio/consumer.h>
 
+#define DBG(fmt, ...)  printk("%s-%d:" fmt, __FUNCTION__, __LINE__, ##__VA_ARGS__)
+
 #define RT5640_ADC_EMPTY_ADVALUE			950
 #define RT5640_ADC_DRIFT_ADVALUE			70
 #define RT5640_ADC_INVALID_ADVALUE			-1
@@ -55,6 +57,8 @@
 #define LINE_IN_OKAY 1
 #define LINE_IN_NO   0
 static int line_in_status = 0;
+static struct rt5640_priv *rt5640_private;
+
 static const struct regmap_range_cfg rt5640_ranges[] = {
 	{ .name = "PR", .range_min = RT5640_PR_BASE,
 	  .range_max = RT5640_PR_BASE + 0xb4,
@@ -278,6 +282,23 @@ static void rt5640_aux_adc_poll(struct work_struct *work)
 	}
 
 	schedule_delayed_work(&rt5640->adc_aux_work, RT5640_ADC_SAMPLE_JIFFIES);
+}
+
+static irqreturn_t hp_det_irq_handler(int irq, void *dev_id)
+{
+	struct rt5640_priv *rt5640 = rt5640_private;
+
+	if (!gpio_get_value(rt5640->hp_det_gpio)) {
+		rt5640->hp_insert = 0;
+		rt5640_hp_gpio_ctrl(rt5640, false);
+		snd_soc_jack_report(&rt5640->hp_jack, 0, SND_JACK_HEADPHONE);
+	} else {
+		rt5640->hp_insert = 1;
+		rt5640_hp_gpio_ctrl(rt5640, true);
+		snd_soc_jack_report(&rt5640->hp_jack, SND_JACK_HEADPHONE, SND_JACK_HEADPHONE);
+	}
+
+	return IRQ_HANDLED;
 }
 
 static int rt5640_reset(struct snd_soc_codec *codec)
@@ -2301,9 +2322,10 @@ static int rt5640_probe(struct snd_soc_codec *codec)
 
 	rt5640->hp_mute = 1;
 	rt5640->hp_insert = false;
+	rt5640_jack_init(rt5640);
+
 	/* adc polling work */
 	if (rt5640->chan) {
-		rt5640_jack_init(rt5640);
 		INIT_DELAYED_WORK(&rt5640->adc_poll_work, rt5640_hp_adc_poll);
 		schedule_delayed_work(&rt5640->adc_poll_work,
 				      1000);
@@ -2480,6 +2502,7 @@ static int rt5640_parse_dt(struct rt5640_priv *rt5640, struct device *dev)
 	u32 adc_value;
 	enum of_gpio_flags flags;
 	int gpio, ret;
+	int hp_irq;
 
 	chan = iio_channel_get(dev, NULL);
 	if (IS_ERR(chan)) {
@@ -2525,6 +2548,28 @@ static int rt5640_parse_dt(struct rt5640_priv *rt5640, struct device *dev)
 	}
 	rt5640->hp_con_gpio = gpio;
 
+	gpio = of_get_named_gpio_flags(np, "hp-det-gpio", 0, &flags);
+	if (gpio < 0) {
+		dev_info(dev, "Can not read property hp_det_gpio\n");
+	} else {
+		ret = devm_gpio_request_one(dev, gpio, GPIOF_IN, NULL);
+		if (ret != 0) {
+			dev_err(dev, "Failed to request hp_det_gpio\n");
+			return ret;
+		}
+		hp_irq = gpio_to_irq(gpio);
+
+		if (hp_irq) {
+			ret = devm_request_threaded_irq(dev, hp_irq, NULL, hp_det_irq_handler,
+					IRQ_TYPE_EDGE_BOTH | IRQF_ONESHOT, "RT5640", NULL);
+			if (ret < 0) {
+				dev_err(dev, "request_irq failed: %d\n", ret);
+				return ret;
+			}
+		}
+	}
+	rt5640->hp_det_gpio = gpio;
+
 	rt5640->pdata.in1_diff = of_property_read_bool(np,
 					"realtek,in1-differential");
 	rt5640->pdata.in2_diff = of_property_read_bool(np,
@@ -2558,6 +2603,8 @@ static int rt5640_i2c_probe(struct i2c_client *i2c,
 				GFP_KERNEL);
 	if (NULL == rt5640)
 		return -ENOMEM;
+
+	rt5640_private = rt5640;
 	i2c_set_clientdata(i2c, rt5640);
 
 	if (pdata) {
