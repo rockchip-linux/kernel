@@ -293,6 +293,7 @@
 #define RX_SLC_EEN1_OVRD		(0x815d << 2)
 #define RX_REE_CTRL_DATA_MASK(n)	((0x81bb | ((n) << 9)) << 2)
 #define RX_DIAG_SIGDET_TUNE(n)		((0x81dc | ((n) << 9)) << 2)
+#define RX_DIAG_RXFE_TM2(n)         ((0x81f7 | ((n) << 9)) << 2)
 #define RX_DIAG_SC2C_DELAY		(0x81e1 << 2)
 
 #define PHY_PMA_LANE_CFG		(0xc000 << 2)
@@ -854,6 +855,8 @@ static void tcphy_tx_usb3_cfg_lane(struct rockchip_typec_phy *tcphy, u32 lane)
 	writel(0x5098, tcphy->base + TX_PSC_A3(lane));
 	writel(0, tcphy->base + TX_TXCC_MGNFS_MULT_000(lane));
 	writel(0xbf, tcphy->base + XCVR_DIAG_BIDI_CTRL(lane));
+	writel(0x700, tcphy->base + TX_DIAG_TX_DRV(lane));
+	writel(0x13c, tcphy->base + TX_TXCC_CAL_SCLR_MULT(lane));
 }
 
 static void tcphy_rx_usb3_cfg_lane(struct rockchip_typec_phy *tcphy, u32 lane)
@@ -868,6 +871,12 @@ static void tcphy_rx_usb3_cfg_lane(struct rockchip_typec_phy *tcphy, u32 lane)
 	writel(0x1004, tcphy->base + RX_DIAG_SIGDET_TUNE(lane));
 	writel(0x2010, tcphy->base + RX_PSC_RDY(lane));
 	writel(0xfb, tcphy->base + XCVR_DIAG_BIDI_CTRL(lane));
+
+	if (tcphy->flip) {
+		writel(0x040, tcphy->base + RX_DIAG_RXFE_TM2(lane));
+		writel(0x700, tcphy->base + TX_DIAG_TX_DRV(lane));
+		writel(0x13c, tcphy->base + TX_TXCC_CAL_SCLR_MULT(lane));
+	}
 }
 
 static void tcphy_dp_cfg_lane(struct rockchip_typec_phy *tcphy, int link_rate,
@@ -1615,9 +1624,13 @@ static int rockchip_typec_phy_probe(struct platform_device *pdev)
 	if (device_property_read_bool(dev, "extcon")) {
 		tcphy->extcon = extcon_get_edev_by_phandle(dev, 0);
 		if (IS_ERR(tcphy->extcon)) {
-			if (PTR_ERR(tcphy->extcon) != -EPROBE_DEFER)
-				dev_err(dev, "Invalid or missing extcon\n");
-			return PTR_ERR(tcphy->extcon);
+			if (PTR_ERR(tcphy->extcon) == -ENODEV) {
+				tcphy->extcon = NULL;
+			} else {
+				if (PTR_ERR(tcphy->extcon) != -EPROBE_DEFER)
+					dev_err(dev, "Invalid or missing extcon\n");
+				return PTR_ERR(tcphy->extcon);
+			}
 		}
 	}
 

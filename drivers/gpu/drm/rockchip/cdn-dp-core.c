@@ -667,7 +667,6 @@ static int cdn_dp_disable(struct cdn_dp_device *dp)
 		return ret;
 	}
 
-	cdn_dp_set_firmware_active(dp, false);
 	cdn_dp_clk_disable(dp);
 	dp->active = false;
 	dp->link.rate = 0;
@@ -787,6 +786,7 @@ static void cdn_dp_encoder_enable(struct drm_encoder *encoder)
 {
 	struct cdn_dp_device *dp = encoder_to_dp(encoder);
 	int ret, val;
+	struct rockchip_crtc_state *state;
 
 	ret = drm_of_encoder_active_endpoint_id(dp->dev->of_node, encoder);
 	if (ret < 0) {
@@ -800,6 +800,17 @@ static void cdn_dp_encoder_enable(struct drm_encoder *encoder)
 		val = DP_SEL_VOP_LIT | (DP_SEL_VOP_LIT << 16);
 	else
 		val = DP_SEL_VOP_LIT << 16;
+
+	state = to_rockchip_crtc_state(encoder->crtc->state);
+	if (ret) {
+		DRM_DEV_DEBUG_KMS(dp->dev, "vop LIT output to cdn-dp\n");
+		val = DP_SEL_VOP_LIT | (DP_SEL_VOP_LIT << 16);
+		state->output_mode = ROCKCHIP_OUT_MODE_P888;
+	} else {
+		DRM_DEV_DEBUG_KMS(dp->dev, "vop BIG output to cdn-dp\n");
+		val = DP_SEL_VOP_LIT << 16;
+		state->output_mode = ROCKCHIP_OUT_MODE_AAAA;
+	}
 
 	ret = cdn_dp_grf_write(dp, GRF_SOC_CON9, val);
 	if (ret)
@@ -1249,6 +1260,247 @@ out:
 	return ret;
 }
 
+#define D10_2		1
+#define PRBS7		3
+#define PLTPAT		4
+#define HBR2CPAT	5
+static void cdn_dp_afe_prepare(struct cdn_dp_device *dp, u8 training_type)
+{
+	u32 val;
+
+	cdn_dp_clk_disable(dp);
+	cdn_dp_clk_enable(dp);
+
+	val = LANE_VID_REF_CYC(1 << 15) | NMVID_MEAS_TOLERANCE(5);
+	writel(val, dp->regs + CM_VID_CTRL);
+
+	/* than call the following part to generate the pattern */
+	writel(0xB6812E4C, dp->regs + DP_TX_PHY_TRAINING_01_04);
+
+	writel(1, dp->regs + DP_SW_RESET);
+	writel(0, dp->regs + DP_SW_RESET);
+
+	switch (training_type) {
+	case D10_2:
+		val = DP_TX_PHY_TRAINING_ENABLE(1) |
+		      DP_TX_PHY_TRAINING_PATTERN(6) |
+		      DP_TX_PHY_SCRAMBLER_BYPASS(1) |
+		      DP_TX_PHY_ENCODER_BYPASS(0) |
+		      DP_TX_PHY_SKEW_BYPASS(0) |
+		      DP_TX_PHY_DISPARITY_RST(0) |
+		      DP_TX_PHY_LANE0_SKEW(0) |
+		      DP_TX_PHY_LANE1_SKEW(1) |
+		      DP_TX_PHY_LANE2_SKEW(2) |
+		      DP_TX_PHY_LANE3_SKEW(3) |
+		      DP_TX_PHY_10BIT_ENABLE(0);
+		break;
+	case PRBS7:
+		val = DP_TX_PHY_TRAINING_ENABLE(1) |
+		      DP_TX_PHY_TRAINING_PATTERN(0) |
+		      DP_TX_PHY_SCRAMBLER_BYPASS(1) |
+		      DP_TX_PHY_ENCODER_BYPASS(0) |
+		      DP_TX_PHY_SKEW_BYPASS(0) |
+		      DP_TX_PHY_DISPARITY_RST(0) |
+		      DP_TX_PHY_LANE0_SKEW(0) |
+		      DP_TX_PHY_LANE1_SKEW(1) |
+		      DP_TX_PHY_LANE2_SKEW(2) |
+		      DP_TX_PHY_LANE3_SKEW(3) |
+		      DP_TX_PHY_10BIT_ENABLE(0);
+		break;
+	case PLTPAT:
+		writel(0xc1f07c1f, dp->regs + DP_TX_PHY_TRAINING_01_04);
+		writel(0xf07c1f07, dp->regs + DP_TX_PHY_TRAINING_05_08);
+		writel(0x7c1, dp->regs + DP_TX_PHY_TRAINING_09_10);
+		val = DP_TX_PHY_TRAINING_ENABLE(1) |
+		      DP_TX_PHY_TRAINING_PATTERN(5) |
+		      DP_TX_PHY_SCRAMBLER_BYPASS(1) |
+		      DP_TX_PHY_ENCODER_BYPASS(1) |
+		      DP_TX_PHY_SKEW_BYPASS(0) |
+		      DP_TX_PHY_DISPARITY_RST(0) |
+		      DP_TX_PHY_LANE0_SKEW(0) |
+		      DP_TX_PHY_LANE1_SKEW(0) |
+		      DP_TX_PHY_LANE2_SKEW(0) |
+		      DP_TX_PHY_LANE3_SKEW(0) |
+		      DP_TX_PHY_10BIT_ENABLE(0);
+		break;
+	case HBR2CPAT:
+		writel(1, dp->regs + DPTX_ENHNCD);
+		val = DP_TX_PHY_TRAINING_ENABLE(1) |
+		      DP_TX_PHY_TRAINING_PATTERN(8) |
+		      DP_TX_PHY_SCRAMBLER_BYPASS(0) |
+		      DP_TX_PHY_ENCODER_BYPASS(0) |
+		      DP_TX_PHY_SKEW_BYPASS(0) |
+		      DP_TX_PHY_DISPARITY_RST(0) |
+		      DP_TX_PHY_LANE0_SKEW(0) |
+		      DP_TX_PHY_LANE1_SKEW(1) |
+		      DP_TX_PHY_LANE2_SKEW(2) |
+		      DP_TX_PHY_LANE3_SKEW(3) |
+		      DP_TX_PHY_10BIT_ENABLE(0);
+		break;
+	}
+
+	writel(val, dp->regs + DP_TX_PHY_CONFIG_REG);
+
+	val = NUM_LANES(3) | SST_MODE |
+	      GLOBAL_EN | RG_EN |
+	      NO_VIDEO |  ENC_RST_DIS | WR_VHSYNC_FALL;
+	writel(val, dp->regs + DP_FRAMER_GLOBAL_CONFIG);
+
+	writel(BIT(4) - 1, dp->regs + DPTX_LANE_EN);
+}
+
+extern void tcphy_afe_config(struct phy *phy, u8 rate, u8 voltage_swing,
+			     u8 pre_emphasis, bool ssc);
+extern void phy_parameter_init(struct kobject *kobj);
+static u8 cdn_dp_autotest_phy(struct cdn_dp_device *dp)
+{
+	struct cdn_dp_port *port;
+	u8 val, link_rate, pattern, swing, pre_emphasis, rxdata;
+	int ret;
+	bool ssc;
+
+retry:
+	port = cdn_dp_connected_port(dp);
+	if (!port) {
+		DRM_DEV_ERROR(dp->dev, "Can't enable without connection\n");
+		return DP_TEST_NAK;
+	}
+
+	ret = drm_dp_dpcd_read(&dp->aux, DP_TEST_LINK_RATE, &val, 1);
+	if (ret < 0) {
+		DRM_DEV_INFO(dp->dev, "Could not read link_rate from sink\n");
+		goto retry;
+	}
+	link_rate = val ? val : 6;
+	DRM_DEV_INFO(dp->dev, "read rate=%d, use rate=%d\n", val, link_rate);
+
+	/* DP_PHY_TEST_PATTERN */
+	ret = drm_dp_dpcd_read(&dp->aux, 0x248, &val, 1);
+	if (ret < 0) {
+		DRM_DEV_INFO(dp->dev, "Could not read pattern from sink\n");
+		goto retry;
+	}
+	pattern = val ? val : PRBS7;
+	DRM_DEV_INFO(dp->dev, "read pattern=%d, use %d\n", val, pattern);
+
+	ret = drm_dp_dpcd_read(&dp->aux, DP_MAX_DOWNSPREAD, &rxdata, 1);
+	if (ret < 0) {
+		DRM_DEV_INFO(dp->dev, "Could not read ssc from sink\n");
+		goto retry;
+	}
+	ssc = rxdata & BIT(0);
+	DRM_DEV_INFO(dp->dev, "ssc=%d\n", ssc);
+
+	ret = drm_dp_dpcd_read(&dp->aux, DP_ADJUST_REQUEST_LANE0_1, &rxdata, 1);
+	if (ret < 0) {
+		DRM_DEV_INFO(dp->dev, "Could not read swing/pre-emphasis\n");
+		goto retry;
+	}
+	swing = rxdata & 0x3;
+	pre_emphasis = (rxdata & 0xc) >> 2;
+	DRM_DEV_INFO(dp->dev, "swing=%d, pre emphasis=%d\n",
+		     swing, pre_emphasis);
+
+	val = DP_TEST_ACK;
+	ret = drm_dp_dpcd_writeb(&dp->aux, DP_TEST_RESPONSE, val);
+	if (ret < 0) {
+		DRM_DEV_INFO(dp->dev, "Could not write response to sink\n");
+		return DP_TEST_NAK;
+	}
+
+	DRM_DEV_INFO(dp->dev, "rate=%d, swing=%d, pre emphasis=%d, ssc=%d\n",
+		     link_rate, swing, pre_emphasis, ssc);
+
+	dp->auto_test_mode = true;
+	dp->connected = false;
+	cdn_dp_afe_prepare(dp, pattern);
+
+	return 0;
+}
+
+static u8 cdn_dp_autotest_edid(struct cdn_dp_device *dp)
+{
+	struct drm_connector *connector = &dp->connector;
+	u8 response = DP_TEST_NAK;
+	struct edid *block;
+	struct edid *edid = dp->edid;
+	int ret = 0;
+
+	if (edid && !connector->edid_corrupt) {
+		/* We have to write the checksum
+		 * of the last block read
+		 */
+		block = edid + edid->extensions;
+
+		ret = drm_dp_dpcd_writeb(&dp->aux,
+					DP_TEST_EDID_CHECKSUM,
+					block->checksum);
+		if (ret < 0)
+			return ret;
+
+		response = DP_TEST_ACK | DP_TEST_EDID_CHECKSUM_WRITE;
+	}
+
+	return response;
+}
+
+static int cdn_dp_auto_test(struct cdn_dp_device *dp)
+{
+	int ret = 0;
+	u8 rxdata = 0;
+	u8 response = DP_TEST_NAK;
+	u8 irq;
+
+	ret = drm_dp_dpcd_read(&dp->aux, DP_DEVICE_SERVICE_IRQ_VECTOR, &irq, 1);
+	if (ret < 0) {
+		DRM_DEV_INFO(dp->dev, "Could not read irq vector\n");
+		return ret;
+	}
+
+	if (!(irq & DP_AUTOMATED_TEST_REQUEST))
+		return -1;
+
+	ret = drm_dp_dpcd_read(&dp->aux, DP_TEST_REQUEST, &rxdata, 1);
+	if (ret < 0) {
+		DRM_DEV_INFO(dp->dev, "Could not read test request\n");
+		return -1;
+	}
+
+	DRM_DEV_INFO(dp->dev, "%s DP_TEST_REQUEST: %x\n", __func__, rxdata);
+	switch (rxdata) {
+	case DP_TEST_LINK_TRAINING:
+		DRM_DEV_INFO(dp->dev, "LINK_TRAINING test requested\n");
+	/*	ret = cdn_dp_dpcd_read(dp, DP_TEST_LINK_RATE, &link_rate, 1);
+	 *	ret = cdn_dp_dpcd_read(dp, DP_TEST_LANE_COUNT, &lane_count, 1);
+	 *	ret = cdn_dp_set_host_cap(dp, link_rate, lane_count, dp->flip);
+	 */
+		response = DP_TEST_ACK;
+		break;
+	case DP_TEST_LINK_VIDEO_PATTERN:
+		DRM_DEV_INFO(dp->dev, "TEST_PATTERN test requested\n");
+		response = DP_TEST_NAK;
+		break;
+	case DP_TEST_LINK_EDID_READ:
+		DRM_DEV_INFO(dp->dev, "EDID test requested\n");
+		response = cdn_dp_autotest_edid(dp);
+		break;
+	case DP_TEST_LINK_PHY_TEST_PATTERN:
+		DRM_DEV_INFO(dp->dev, "PHY_PATTERN test requested\n");
+		response = cdn_dp_autotest_phy(dp);
+		break;
+	default:
+		DRM_DEV_INFO(dp->dev, "Invalid test request '%02x'\n", rxdata);
+		break;
+	}
+
+	if (response) {
+		ret = drm_dp_dpcd_writeb(&dp->aux, DP_TEST_RESPONSE, response);
+		if (ret < 0)
+			DRM_DEV_INFO(dp->dev, "Can not write test response\n");
+	}
+	return 0;
+}
+
 static void cdn_dp_pd_event_work(struct work_struct *work)
 {
 	struct cdn_dp_device *dp = container_of(work, struct cdn_dp_device,
@@ -1269,6 +1521,19 @@ static void cdn_dp_pd_event_work(struct work_struct *work)
 
 	dp->connected = true;
 
+	/* reset the dp if phy is running auto test */
+	if (dp->auto_test_mode) {
+		DRM_DEV_INFO(dp->dev, "auto test end\n");
+		cdn_dp_disable(dp);
+		dp->auto_test_mode = false;
+	} else if (dp->active) {
+		/* check auto test */
+		if (!cdn_dp_auto_test(dp)) {
+			mutex_unlock(&dp->lock);
+			return;
+		}
+	}
+
 	/* Not connected, notify userspace to disable the block */
 	if (!cdn_dp_connected_port(dp)) {
 		DRM_DEV_INFO(dp->dev, "Not connected. Disabling cdn\n");
@@ -1285,6 +1550,12 @@ static void cdn_dp_pd_event_work(struct work_struct *work)
 			dp->connected = false;
 			if (dp->hdcp_desired)
 				cdn_dp_stop_hdcp1x_auth(dp);
+		}
+
+		/* check auto test */
+		if (!cdn_dp_auto_test(dp)) {
+			mutex_unlock(&dp->lock);
+			return;
 		}
 
 	/* Enabled and connected to a dongle without a sink, notify userspace */
@@ -1698,7 +1969,7 @@ err:
 }
 static DEVICE_ATTR(hdcp_key, S_IWUSR, NULL, hdcp_key_store);
 
-static int cdn_dp_suspend(struct device *dev)
+int cdn_dp_suspend(struct device *dev)
 {
 	struct cdn_dp_device *dp = dev_get_drvdata(dev);
 	int ret = 0;
@@ -1712,7 +1983,7 @@ static int cdn_dp_suspend(struct device *dev)
 	return ret;
 }
 
-static int cdn_dp_resume(struct device *dev)
+int cdn_dp_resume(struct device *dev)
 {
 	struct cdn_dp_device *dp = dev_get_drvdata(dev);
 

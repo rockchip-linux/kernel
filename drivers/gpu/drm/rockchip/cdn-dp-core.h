@@ -142,5 +142,6 @@ struct cdn_dp_device {
 	struct cdn_dp_hdcp_key_1x key;
 	struct delayed_work hdcp_event_work;
 	struct work_struct hdcp_prop_work;
+	bool auto_test_mode;
 };
 #endif  /* _CDN_DP_CORE_H */
