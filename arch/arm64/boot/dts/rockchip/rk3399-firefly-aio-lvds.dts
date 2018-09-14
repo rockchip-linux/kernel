@@ -43,7 +43,7 @@
 #include <dt-bindings/display/media-bus-format.h>
 
 / {
-	model = "AIO-3399C Board LVDS HSX101H40C (Linux Opensource)";
+	model = "AIO-3399J Board LVDS HSX101H40C (Linux Opensource)";
 	compatible = "rockchip,rk3399-firefly", "rockchip,rk3399";
 
 	test-power {
@@ -63,18 +63,21 @@
 		* - SDIO_RESET_L_WL_REG_ON
 		* - PDN (power down when low)
 		*/
-		reset-gpios = <&gpio4 30 GPIO_ACTIVE_LOW>; /* GPIO4_D6 */
+		reset-gpios = <&gpio1 20 GPIO_ACTIVE_LOW>; /* GPIO1_C4 */
 	};
 
-	vcc_lcd: vcc-lcd {
-		compatible = "regulator-fixed";
-		enable-active-high;
-		regulator-boot-on;
-		gpio = <&gpio4 24 GPIO_ACTIVE_HIGH>;
-		pinctrl-names = "default";
-		pinctrl-0 = <&lcd_en>;
-		regulator-name = "vcc_lcd";
-		vin-supply = <&vcc3v3_sys>;
+	leds {
+		compatible = "gpio-leds";
+
+		work {
+			gpios = <&gpio2 7 GPIO_ACTIVE_HIGH>;
+			default-state = "on";
+		};
+
+		user {
+			gpios = <&gpio2 2 GPIO_ACTIVE_HIGH>;
+			default-state = "off";
+		};
 	};
 };
 
@@ -124,9 +127,8 @@
 		compatible ="simple-panel-dsi";
 		reg = <0>;
 		backlight = <&backlight>;
-		power-supply = <&vcc_lcd>;
-		enable-gpios = <&gpio2 5 GPIO_ACTIVE_HIGH>;
-		reset-gpios = <&gpio4 25 GPIO_ACTIVE_LOW>;
+		enable-gpios = <&gpio3 16 GPIO_ACTIVE_HIGH>;
+		reset-gpios = <&gpio2 27 GPIO_ACTIVE_LOW>;
 		dsi,flags = <(MIPI_DSI_MODE_VIDEO | MIPI_DSI_MODE_VIDEO_BURST | MIPI_DSI_MODE_LPM | MIPI_DSI_MODE_EOT_PACKET)>;
 		dsi,format = <MIPI_DSI_FMT_RGB888>;
 		bus-format = <MEDIA_BUS_FMT_RGB666_1X18>;
@@ -216,29 +218,12 @@
 	status = "disabled";
 };
 
-&gmac {
-	tx_delay = <0x2F>;
-	rx_delay = <0x1E>;
+&cdn_dp {
+	status = "disabled";
 };
 
 &hdmi_dp_sound {
 	status = "okay";
-};
-
-&i2c2 {
-	status = "okay";
-	i2c-scl-rising-time-ns = <300>;
-	i2c-scl-falling-time-ns = <15>;
-
-	sensor@4c {
-		status = "okay";
-		compatible = "gs_mc3230";
-		reg = <0x4c>;
-		type = <SENSOR_TYPE_ACCEL>;
-		irq_enable = <0>;
-		poll_delay_ms = <30>;
-		layout = <1>;
-	};
 };
 
 &i2c4 {
@@ -249,20 +234,28 @@
 		reg = <0x41>;
 		screen_max_x = <800>;
 		screen_max_y = <1280>;
-		touch-gpio = <&gpio4 28 IRQ_TYPE_LEVEL_LOW>;
-		reset-gpio = <&gpio4 21 GPIO_ACTIVE_HIGH>;
+		touch-gpio = <&gpio4 27 IRQ_TYPE_LEVEL_LOW>;
+		reset-gpio = <&gpio0 12 GPIO_ACTIVE_HIGH>;
 		gsl,fw = <1>;
 		flip-x = <1>;
 		flip-y = <0>;
 		swap-xy = <0>;
 	};
+
+	sensor@4c {
+		compatible = "gs_mc3230";
+		reg = <0x4c>;
+		type = <SENSOR_TYPE_ACCEL>;
+		irq_enable = <0>;
+		poll_delay_ms = <30>;
+		layout = <1>;
+	};
 };
 
 &rt5640 {
-	hp-con-gpio = <&gpio1 22 GPIO_ACTIVE_HIGH>;
-	hp-det-gpio = <&gpio2 2 GPIO_ACTIVE_HIGH>;
-	io-channels = <0>;
-	linein-mute = <1>;
+    aux-det-adc-value = <1000>;
+    io-channels = <&saradc 4>, <&saradc 2>;
+    io-channel-names = "hp-det", "aux-det";
 };
 
 &sdmmc {
@@ -276,17 +269,39 @@
 
 &spi_wk2xxx {
     status = "okay";
-	reset-gpio = <&gpio4 27 GPIO_ACTIVE_HIGH>;
-	irq-gpio = <&gpio4 26 IRQ_TYPE_EDGE_FALLING>;
-	cs-gpio = <&gpio1 10 GPIO_ACTIVE_HIGH>;
 };
 
-&vcc3v3_3g {
-	gpio = <&gpio2 6 GPIO_ACTIVE_HIGH>;
+&fusb0 {
+    status = "disabled";
+};
+
+&tcphy0 {
+    status = "okay";
+    /delete-property/ extcon;
+};
+
+&u2phy0 {
+    status = "okay";
+    /delete-property/ extcon;
+
+    u2phy0_otg: otg-port {
+        rockchip,vbus-always-on;
+        vbus-5v-gpios = <&gpio1 3 GPIO_ACTIVE_HIGH>;
+        status = "okay";
+    };
+};
+
+&usbdrd3_0 {
+    status = "okay";
+    /delete-property/ extcon;
 };
 
 &vcc3v3_pcie {
-    status = "disabled";
+    gpio = <&gpio0 13 GPIO_ACTIVE_HIGH>;
+};
+
+&vcc3v3_3g {
+    gpio = <&gpio2 6 GPIO_ACTIVE_HIGH>;
 };
 
 &uart4 {
@@ -305,39 +320,25 @@
 	status = "disabled";
 };
 
-&io_domains {
-	bt656-supply = <&vcc_3v0>;
-};
-
-&vcc2v8_dvp {
-	regulator-min-microvolt = <1800000>;
-	regulator-max-microvolt = <1800000>;
-};
-
-&vcca1v8_codec {
-	regulator-min-microvolt = <900000>;
-	regulator-max-microvolt = <900000>;
-};
-
 &pinctrl {
-	pinctrl-names = "default";
-	pinctrl-0 = <&host_hub_vcc>;
-
-	host-hub-vcc {
-		host_hub_vcc: host-hub-vcc {
-			rockchip,pins = <1 23 RK_FUNC_GPIO &pcfg_output_high>,
-				<2 4 RK_FUNC_GPIO &pcfg_output_high>,
-				<4 29 RK_FUNC_GPIO &pcfg_output_high>;
+	leds {
+		led_power: led-power {
+			rockchip,pins =
+				<2 7 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
-	};
 
-	lcd {
-		lcd_en: lcd-en  {
-			rockchip,pins = <4 24 RK_FUNC_GPIO &pcfg_pull_none>;
+		led_user: led-user {
+			rockchip,pins =
+				<2 2 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
 
 	pcie {
+		pcie_drv: pcie-drv {
+			rockchip,pins =
+				<0 13 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+
 		pcie_3g_drv: pcie-3g-drv {
 			rockchip,pins =
 				<2 6 RK_FUNC_GPIO &pcfg_pull_up>;
@@ -347,7 +348,7 @@
 	sdmmc-pwrseq {
 		sdcard_enable_h: sdcard-enable-h {
 			rockchip,pins =
-				<4 30 RK_FUNC_GPIO &pcfg_pull_none>;
+				<1 20 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
 };
