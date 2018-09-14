@@ -176,6 +176,7 @@ struct mipi_dsi_device {
 	char name[DSI_DEV_NAME_SIZE];
 	unsigned int channel;
 	unsigned int lanes;
+	unsigned int lvds_force_clk;
 	enum mipi_dsi_pixel_format format;
 	unsigned long mode_flags;
 };
