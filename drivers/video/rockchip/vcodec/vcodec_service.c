@@ -1239,10 +1239,14 @@ static struct vpu_reg *reg_init(struct vpu_subdev_data *data,
 		return NULL;
 	}
 
-	if (copy_from_user(&extra_info, (u8 *)src + size, extra_size)) {
-		vpu_err("error: copy_from_user failed\n");
-		kfree(reg);
-		return NULL;
+	if (extra_size > 0) {
+		if (copy_from_user(&extra_info, (u8 *)src + size, extra_size)) {
+			vpu_err("error: copy_from_user failed\n");
+			kfree(reg);
+			return NULL;
+		}
+	} else {
+		memset(&extra_info, 0, sizeof(extra_info));
 	}
 
 	mutex_lock(&pservice->reset_lock);
