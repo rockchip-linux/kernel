@@ -41,6 +41,9 @@ static struct configfs_attribute prefix##attr_##cname = { \
 	.show		= prefix##cname##_show,				\
 }
 
+#define le8_to_cpu(x)	(x)
+#define cpu_to_le8(x)	(x)
+
 static int uvcg_config_compare_u32(const void *l, const void *r)
 {
 	u32 li = *(const u32 *)l;
@@ -138,9 +141,9 @@ static struct uvcg_control_header *to_uvcg_control_header(struct config_item *it
 	return container_of(item, struct uvcg_control_header, item);
 }
 
-#define UVCG_CTRL_HDR_ATTR(cname, aname, conv, str2u, uxx, vnoc, limit)	\
+#define UVCG_CTRL_HDR_ATTR(cname, aname, bits, limit)			\
 static ssize_t uvcg_control_header_##cname##_show(			\
-	struct config_item *item, char *page)			\
+	struct config_item *item, char *page)				\
 {									\
 	struct uvcg_control_header *ch = to_uvcg_control_header(item);	\
 	struct f_uvc_opts *opts;					\
@@ -154,7 +157,7 @@ static ssize_t uvcg_control_header_##cname##_show(			\
 	opts = to_f_uvc_opts(opts_item);				\
 									\
 	mutex_lock(&opts->lock);					\
-	result = sprintf(page, "%d\n", conv(ch->desc.aname));		\
+	result = sprintf(page, "%d\n", le##bits##_to_cpu(ch->desc.aname));\
 	mutex_unlock(&opts->lock);					\
 									\
 	mutex_unlock(su_mutex);						\
@@ -170,7 +173,7 @@ uvcg_control_header_##cname##_store(struct config_item *item,		\
 	struct config_item *opts_item;					\
 	struct mutex *su_mutex = &ch->item.ci_group->cg_subsys->su_mutex;\
 	int ret;							\
-	uxx num;							\
+	u##bits num;							\
 									\
 	mutex_lock(su_mutex); /* for navigating configfs hierarchy */	\
 									\
@@ -183,7 +186,7 @@ uvcg_control_header_##cname##_store(struct config_item *item,		\
 		goto end;						\
 	}								\
 									\
-	ret = str2u(page, 0, &num);					\
+	ret = kstrtou##bits(page, 0, &num);				\
 	if (ret)							\
 		goto end;						\
 									\
@@ -191,7 +194,7 @@ uvcg_control_header_##cname##_store(struct config_item *item,		\
 		ret = -EINVAL;						\
 		goto end;						\
 	}								\
-	ch->desc.aname = vnoc(num);					\
+	ch->desc.aname = cpu_to_le##bits(num);				\
 	ret = len;							\
 end:									\
 	mutex_unlock(&opts->lock);					\
@@ -201,11 +204,9 @@ end:									\
 									\
 UVC_ATTR(uvcg_control_header_, cname, aname)
 
-UVCG_CTRL_HDR_ATTR(bcd_uvc, bcdUVC, le16_to_cpu, kstrtou16, u16, cpu_to_le16,
-		   0xffff);
+UVCG_CTRL_HDR_ATTR(bcd_uvc, bcdUVC, 16, 0xffff);
 
-UVCG_CTRL_HDR_ATTR(dw_clock_frequency, dwClockFrequency, le32_to_cpu, kstrtou32,
-		   u32, cpu_to_le32, 0x7fffffff);
+UVCG_CTRL_HDR_ATTR(dw_clock_frequency, dwClockFrequency, 32, 0x7fffffff);
 
 #undef UVCG_CTRL_HDR_ATTR
 
@@ -258,7 +259,7 @@ static const struct uvcg_config_group_type uvcg_control_header_grp_type = {
  * control/processing/default
  */
 
-#define UVCG_DEFAULT_PROCESSING_ATTR(cname, aname, conv)		\
+#define UVCG_DEFAULT_PROCESSING_ATTR(cname, aname, bits)		\
 static ssize_t uvcg_default_processing_##cname##_show(			\
 	struct config_item *item, char *page)				\
 {									\
@@ -276,7 +277,7 @@ static ssize_t uvcg_default_processing_##cname##_show(			\
 	pd = &opts->uvc_processing;					\
 									\
 	mutex_lock(&opts->lock);					\
-	result = sprintf(page, "%d\n", conv(pd->aname));		\
+	result = sprintf(page, "%d\n", le##bits##_to_cpu(pd->aname));	\
 	mutex_unlock(&opts->lock);					\
 									\
 	mutex_unlock(su_mutex);						\
@@ -285,14 +286,10 @@ static ssize_t uvcg_default_processing_##cname##_show(			\
 									\
 UVC_ATTR_RO(uvcg_default_processing_, cname, aname)
 
-#define identity_conv(x) (x)
-
-UVCG_DEFAULT_PROCESSING_ATTR(b_unit_id, bUnitID, identity_conv);
-UVCG_DEFAULT_PROCESSING_ATTR(b_source_id, bSourceID, identity_conv);
-UVCG_DEFAULT_PROCESSING_ATTR(w_max_multiplier, wMaxMultiplier, le16_to_cpu);
-UVCG_DEFAULT_PROCESSING_ATTR(i_processing, iProcessing, identity_conv);
-
-#undef identity_conv
+UVCG_DEFAULT_PROCESSING_ATTR(b_unit_id, bUnitID, 8);
+UVCG_DEFAULT_PROCESSING_ATTR(b_source_id, bSourceID, 8);
+UVCG_DEFAULT_PROCESSING_ATTR(w_max_multiplier, wMaxMultiplier, 16);
+UVCG_DEFAULT_PROCESSING_ATTR(i_processing, iProcessing, 8);
 
 #undef UVCG_DEFAULT_PROCESSING_ATTR
 
@@ -365,7 +362,7 @@ static const struct uvcg_config_group_type uvcg_processing_grp_type = {
  * control/terminal/camera/default
  */
 
-#define UVCG_DEFAULT_CAMERA_ATTR(cname, aname, conv)			\
+#define UVCG_DEFAULT_CAMERA_ATTR(cname, aname, bits)			\
 static ssize_t uvcg_default_camera_##cname##_show(			\
 	struct config_item *item, char *page)				\
 {									\
@@ -384,7 +381,7 @@ static ssize_t uvcg_default_camera_##cname##_show(			\
 	cd = &opts->uvc_camera_terminal;				\
 									\
 	mutex_lock(&opts->lock);					\
-	result = sprintf(page, "%d\n", conv(cd->aname));		\
+	result = sprintf(page, "%d\n", le##bits##_to_cpu(cd->aname));	\
 	mutex_unlock(&opts->lock);					\
 									\
 	mutex_unlock(su_mutex);						\
@@ -394,20 +391,16 @@ static ssize_t uvcg_default_camera_##cname##_show(			\
 									\
 UVC_ATTR_RO(uvcg_default_camera_, cname, aname)
 
-#define identity_conv(x) (x)
-
-UVCG_DEFAULT_CAMERA_ATTR(b_terminal_id, bTerminalID, identity_conv);
-UVCG_DEFAULT_CAMERA_ATTR(w_terminal_type, wTerminalType, le16_to_cpu);
-UVCG_DEFAULT_CAMERA_ATTR(b_assoc_terminal, bAssocTerminal, identity_conv);
-UVCG_DEFAULT_CAMERA_ATTR(i_terminal, iTerminal, identity_conv);
+UVCG_DEFAULT_CAMERA_ATTR(b_terminal_id, bTerminalID, 8);
+UVCG_DEFAULT_CAMERA_ATTR(w_terminal_type, wTerminalType, 16);
+UVCG_DEFAULT_CAMERA_ATTR(b_assoc_terminal, bAssocTerminal, 8);
+UVCG_DEFAULT_CAMERA_ATTR(i_terminal, iTerminal, 8);
 UVCG_DEFAULT_CAMERA_ATTR(w_objective_focal_length_min, wObjectiveFocalLengthMin,
-			 le16_to_cpu);
+			 16);
 UVCG_DEFAULT_CAMERA_ATTR(w_objective_focal_length_max, wObjectiveFocalLengthMax,
-			 le16_to_cpu);
+			 16);
 UVCG_DEFAULT_CAMERA_ATTR(w_ocular_focal_length, wOcularFocalLength,
-			 le16_to_cpu);
-
-#undef identity_conv
+			 16);
 
 #undef UVCG_DEFAULT_CAMERA_ATTR
 
@@ -483,7 +476,7 @@ static const struct uvcg_config_group_type uvcg_camera_grp_type = {
  * control/terminal/output/default
  */
 
-#define UVCG_DEFAULT_OUTPUT_ATTR(cname, aname, conv)			\
+#define UVCG_DEFAULT_OUTPUT_ATTR(cname, aname, bits)			\
 static ssize_t uvcg_default_output_##cname##_show(			\
 	struct config_item *item, char *page)				\
 {									\
@@ -502,7 +495,7 @@ static ssize_t uvcg_default_output_##cname##_show(			\
 	cd = &opts->uvc_output_terminal;				\
 									\
 	mutex_lock(&opts->lock);					\
-	result = sprintf(page, "%d\n", conv(cd->aname));		\
+	result = sprintf(page, "%d\n", le##bits##_to_cpu(cd->aname));	\
 	mutex_unlock(&opts->lock);					\
 									\
 	mutex_unlock(su_mutex);						\
@@ -512,15 +505,11 @@ static ssize_t uvcg_default_output_##cname##_show(			\
 									\
 UVC_ATTR_RO(uvcg_default_output_, cname, aname)
 
-#define identity_conv(x) (x)
-
-UVCG_DEFAULT_OUTPUT_ATTR(b_terminal_id, bTerminalID, identity_conv);
-UVCG_DEFAULT_OUTPUT_ATTR(w_terminal_type, wTerminalType, le16_to_cpu);
-UVCG_DEFAULT_OUTPUT_ATTR(b_assoc_terminal, bAssocTerminal, identity_conv);
-UVCG_DEFAULT_OUTPUT_ATTR(b_source_id, bSourceID, identity_conv);
-UVCG_DEFAULT_OUTPUT_ATTR(i_terminal, iTerminal, identity_conv);
-
-#undef identity_conv
+UVCG_DEFAULT_OUTPUT_ATTR(b_terminal_id, bTerminalID, 8);
+UVCG_DEFAULT_OUTPUT_ATTR(w_terminal_type, wTerminalType, 16);
+UVCG_DEFAULT_OUTPUT_ATTR(b_assoc_terminal, bAssocTerminal, 8);
+UVCG_DEFAULT_OUTPUT_ATTR(b_source_id, bSourceID, 8);
+UVCG_DEFAULT_OUTPUT_ATTR(i_terminal, iTerminal, 8);
 
 #undef UVCG_DEFAULT_OUTPUT_ATTR
 
@@ -993,9 +982,9 @@ static struct configfs_item_operations uvcg_streaming_header_item_ops = {
 	.drop_link	= uvcg_streaming_header_drop_link,
 };
 
-#define UVCG_STREAMING_HEADER_ATTR(cname, aname, conv)			\
+#define UVCG_STREAMING_HEADER_ATTR(cname, aname, bits)			\
 static ssize_t uvcg_streaming_header_##cname##_show(			\
-	struct config_item *item, char *page)			\
+	struct config_item *item, char *page)				\
 {									\
 	struct uvcg_streaming_header *sh = to_uvcg_streaming_header(item); \
 	struct f_uvc_opts *opts;					\
@@ -1009,7 +998,7 @@ static ssize_t uvcg_streaming_header_##cname##_show(			\
 	opts = to_f_uvc_opts(opts_item);				\
 									\
 	mutex_lock(&opts->lock);					\
-	result = sprintf(page, "%d\n", conv(sh->desc.aname));		\
+	result = sprintf(page, "%d\n", le##bits##_to_cpu(sh->desc.aname));\
 	mutex_unlock(&opts->lock);					\
 									\
 	mutex_unlock(su_mutex);						\
@@ -1018,16 +1007,11 @@ static ssize_t uvcg_streaming_header_##cname##_show(			\
 									\
 UVC_ATTR_RO(uvcg_streaming_header_, cname, aname)
 
-#define identity_conv(x) (x)
-
-UVCG_STREAMING_HEADER_ATTR(bm_info, bmInfo, identity_conv);
-UVCG_STREAMING_HEADER_ATTR(b_terminal_link, bTerminalLink, identity_conv);
-UVCG_STREAMING_HEADER_ATTR(b_still_capture_method, bStillCaptureMethod,
-			   identity_conv);
-UVCG_STREAMING_HEADER_ATTR(b_trigger_support, bTriggerSupport, identity_conv);
-UVCG_STREAMING_HEADER_ATTR(b_trigger_usage, bTriggerUsage, identity_conv);
-
-#undef identity_conv
+UVCG_STREAMING_HEADER_ATTR(bm_info, bmInfo, 8);
+UVCG_STREAMING_HEADER_ATTR(b_terminal_link, bTerminalLink, 8);
+UVCG_STREAMING_HEADER_ATTR(b_still_capture_method, bStillCaptureMethod, 8);
+UVCG_STREAMING_HEADER_ATTR(b_trigger_support, bTriggerSupport, 8);
+UVCG_STREAMING_HEADER_ATTR(b_trigger_usage, bTriggerUsage, 8);
 
 #undef UVCG_STREAMING_HEADER_ATTR
 
@@ -1138,8 +1122,8 @@ static ssize_t  uvcg_frame_##cname##_store(struct config_item *item,	\
 	struct config_item *opts_item;					\
 	struct uvcg_format *fmt;					\
 	struct mutex *su_mutex = &f->item.ci_group->cg_subsys->su_mutex;\
+	typeof(f->frame.cname) num;					\
 	int ret;							\
-	u##bits num;							\
 									\
 	ret = kstrtou##bits(page, 0, &num);				\
 	if (ret)							\
@@ -1515,7 +1499,7 @@ end:
 
 UVC_ATTR(uvcg_uncompressed_, guid_format, guidFormat);
 
-#define UVCG_UNCOMPRESSED_ATTR_RO(cname, aname, conv)			\
+#define UVCG_UNCOMPRESSED_ATTR_RO(cname, aname, bits)			\
 static ssize_t uvcg_uncompressed_##cname##_show(			\
 	struct config_item *item, char *page)				\
 {									\
@@ -1531,7 +1515,7 @@ static ssize_t uvcg_uncompressed_##cname##_show(			\
 	opts = to_f_uvc_opts(opts_item);				\
 									\
 	mutex_lock(&opts->lock);					\
-	result = sprintf(page, "%d\n", conv(u->desc.aname));		\
+	result = sprintf(page, "%d\n", le##bits##_to_cpu(u->desc.aname));\
 	mutex_unlock(&opts->lock);					\
 									\
 	mutex_unlock(su_mutex);						\
@@ -1540,7 +1524,7 @@ static ssize_t uvcg_uncompressed_##cname##_show(			\
 									\
 UVC_ATTR_RO(uvcg_uncompressed_, cname, aname);
 
-#define UVCG_UNCOMPRESSED_ATTR(cname, aname, conv)			\
+#define UVCG_UNCOMPRESSED_ATTR(cname, aname, bits)			\
 static ssize_t uvcg_uncompressed_##cname##_show(			\
 	struct config_item *item, char *page)				\
 {									\
@@ -1556,7 +1540,7 @@ static ssize_t uvcg_uncompressed_##cname##_show(			\
 	opts = to_f_uvc_opts(opts_item);				\
 									\
 	mutex_lock(&opts->lock);					\
-	result = sprintf(page, "%d\n", conv(u->desc.aname));		\
+	result = sprintf(page, "%d\n", le##bits##_to_cpu(u->desc.aname));\
 	mutex_unlock(&opts->lock);					\
 									\
 	mutex_unlock(su_mutex);						\
@@ -1603,17 +1587,12 @@ end:									\
 									\
 UVC_ATTR(uvcg_uncompressed_, cname, aname);
 
-#define identity_conv(x) (x)
-
-UVCG_UNCOMPRESSED_ATTR_RO(b_format_index, bFormatIndex, identity_conv);
-UVCG_UNCOMPRESSED_ATTR(b_bits_per_pixel, bBitsPerPixel, identity_conv);
-UVCG_UNCOMPRESSED_ATTR(b_default_frame_index, bDefaultFrameIndex,
-		       identity_conv);
-UVCG_UNCOMPRESSED_ATTR_RO(b_aspect_ratio_x, bAspectRatioX, identity_conv);
-UVCG_UNCOMPRESSED_ATTR_RO(b_aspect_ratio_y, bAspectRatioY, identity_conv);
-UVCG_UNCOMPRESSED_ATTR_RO(bm_interface_flags, bmInterfaceFlags, identity_conv);
-
-#undef identity_conv
+UVCG_UNCOMPRESSED_ATTR_RO(b_format_index, bFormatIndex, 8);
+UVCG_UNCOMPRESSED_ATTR(b_bits_per_pixel, bBitsPerPixel, 8);
+UVCG_UNCOMPRESSED_ATTR(b_default_frame_index, bDefaultFrameIndex, 8);
+UVCG_UNCOMPRESSED_ATTR_RO(b_aspect_ratio_x, bAspectRatioX, 8);
+UVCG_UNCOMPRESSED_ATTR_RO(b_aspect_ratio_y, bAspectRatioY, 8);
+UVCG_UNCOMPRESSED_ATTR_RO(bm_interface_flags, bmInterfaceFlags, 8);
 
 #undef UVCG_UNCOMPRESSED_ATTR
 #undef UVCG_UNCOMPRESSED_ATTR_RO
@@ -1719,7 +1698,7 @@ static struct configfs_group_operations uvcg_mjpeg_group_ops = {
 	.drop_item		= uvcg_frame_drop,
 };
 
-#define UVCG_MJPEG_ATTR_RO(cname, aname, conv)				\
+#define UVCG_MJPEG_ATTR_RO(cname, aname, bits)				\
 static ssize_t uvcg_mjpeg_##cname##_show(struct config_item *item, char *page)\
 {									\
 	struct uvcg_mjpeg *u = to_uvcg_mjpeg(item);			\
@@ -1734,7 +1713,7 @@ static ssize_t uvcg_mjpeg_##cname##_show(struct config_item *item, char *page)\
 	opts = to_f_uvc_opts(opts_item);				\
 									\
 	mutex_lock(&opts->lock);					\
-	result = sprintf(page, "%d\n", conv(u->desc.aname));		\
+	result = sprintf(page, "%d\n", le##bits##_to_cpu(u->desc.aname));\
 	mutex_unlock(&opts->lock);					\
 									\
 	mutex_unlock(su_mutex);						\
@@ -1743,7 +1722,7 @@ static ssize_t uvcg_mjpeg_##cname##_show(struct config_item *item, char *page)\
 									\
 UVC_ATTR_RO(uvcg_mjpeg_, cname, aname)
 
-#define UVCG_MJPEG_ATTR(cname, aname, conv)				\
+#define UVCG_MJPEG_ATTR(cname, aname, bits)				\
 static ssize_t uvcg_mjpeg_##cname##_show(struct config_item *item, char *page)\
 {									\
 	struct uvcg_mjpeg *u = to_uvcg_mjpeg(item);			\
@@ -1758,7 +1737,7 @@ static ssize_t uvcg_mjpeg_##cname##_show(struct config_item *item, char *page)\
 	opts = to_f_uvc_opts(opts_item);				\
 									\
 	mutex_lock(&opts->lock);					\
-	result = sprintf(page, "%d\n", conv(u->desc.aname));		\
+	result = sprintf(page, "%d\n", le##bits##_to_cpu(u->desc.aname));\
 	mutex_unlock(&opts->lock);					\
 									\
 	mutex_unlock(su_mutex);						\
@@ -1805,17 +1784,12 @@ end:									\
 									\
 UVC_ATTR(uvcg_mjpeg_, cname, aname)
 
-#define identity_conv(x) (x)
-
-UVCG_MJPEG_ATTR_RO(b_format_index, bFormatIndex, identity_conv);
-UVCG_MJPEG_ATTR(b_default_frame_index, bDefaultFrameIndex,
-		       identity_conv);
-UVCG_MJPEG_ATTR_RO(bm_flags, bmFlags, identity_conv);
-UVCG_MJPEG_ATTR_RO(b_aspect_ratio_x, bAspectRatioX, identity_conv);
-UVCG_MJPEG_ATTR_RO(b_aspect_ratio_y, bAspectRatioY, identity_conv);
-UVCG_MJPEG_ATTR_RO(bm_interface_flags, bmInterfaceFlags, identity_conv);
-
-#undef identity_conv
+UVCG_MJPEG_ATTR_RO(b_format_index, bFormatIndex, 8);
+UVCG_MJPEG_ATTR(b_default_frame_index, bDefaultFrameIndex, 8);
+UVCG_MJPEG_ATTR_RO(bm_flags, bmFlags, 8);
+UVCG_MJPEG_ATTR_RO(b_aspect_ratio_x, bAspectRatioX, 8);
+UVCG_MJPEG_ATTR_RO(b_aspect_ratio_y, bAspectRatioY, 8);
+UVCG_MJPEG_ATTR_RO(bm_interface_flags, bmInterfaceFlags, 8);
 
 #undef UVCG_MJPEG_ATTR
 #undef UVCG_MJPEG_ATTR_RO
@@ -1897,9 +1871,9 @@ static const struct uvcg_config_group_type uvcg_mjpeg_grp_type = {
  * streaming/color_matching/default
  */
 
-#define UVCG_DEFAULT_COLOR_MATCHING_ATTR(cname, aname, conv)		\
+#define UVCG_DEFAULT_COLOR_MATCHING_ATTR(cname, aname, bits)		\
 static ssize_t uvcg_default_color_matching_##cname##_show(		\
-	struct config_item *item, char *page)			\
+	struct config_item *item, char *page)				\
 {									\
 	struct config_group *group = to_config_group(item);		\
 	struct f_uvc_opts *opts;					\
@@ -1915,7 +1889,7 @@ static ssize_t uvcg_default_color_matching_##cname##_show(		\
 	cd = &opts->uvc_color_matching;					\
 									\
 	mutex_lock(&opts->lock);					\
-	result = sprintf(page, "%d\n", conv(cd->aname));		\
+	result = sprintf(page, "%d\n", le##bits##_to_cpu(cd->aname));	\
 	mutex_unlock(&opts->lock);					\
 									\
 	mutex_unlock(su_mutex);						\
@@ -1924,16 +1898,10 @@ static ssize_t uvcg_default_color_matching_##cname##_show(		\
 									\
 UVC_ATTR_RO(uvcg_default_color_matching_, cname, aname)
 
-#define identity_conv(x) (x)
-
-UVCG_DEFAULT_COLOR_MATCHING_ATTR(b_color_primaries, bColorPrimaries,
-				 identity_conv);
+UVCG_DEFAULT_COLOR_MATCHING_ATTR(b_color_primaries, bColorPrimaries, 8);
 UVCG_DEFAULT_COLOR_MATCHING_ATTR(b_transfer_characteristics,
-				 bTransferCharacteristics, identity_conv);
-UVCG_DEFAULT_COLOR_MATCHING_ATTR(b_matrix_coefficients, bMatrixCoefficients,
-				 identity_conv);
-
-#undef identity_conv
+				 bTransferCharacteristics, 8);
+UVCG_DEFAULT_COLOR_MATCHING_ATTR(b_matrix_coefficients, bMatrixCoefficients, 8);
 
 #undef UVCG_DEFAULT_COLOR_MATCHING_ATTR
 
@@ -2422,7 +2390,7 @@ static struct configfs_item_operations uvc_func_item_ops = {
 	.release	= uvc_func_item_release,
 };
 
-#define UVCG_OPTS_ATTR(cname, aname, str2u, uxx, limit)			\
+#define UVCG_OPTS_ATTR(cname, aname, limit)				\
 static ssize_t f_uvc_opts_##cname##_show(				\
 	struct config_item *item, char *page)				\
 {									\
@@ -2441,8 +2409,8 @@ f_uvc_opts_##cname##_store(struct config_item *item,			\
 			   const char *page, size_t len)		\
 {									\
 	struct f_uvc_opts *opts = to_f_uvc_opts(item);			\
+	unsigned int num;						\
 	int ret;							\
-	uxx num;							\
 									\
 	mutex_lock(&opts->lock);					\
 	if (opts->refcnt) {						\
@@ -2450,7 +2418,7 @@ f_uvc_opts_##cname##_store(struct config_item *item,			\
 		goto end;						\
 	}								\
 									\
-	ret = str2u(page, 0, &num);					\
+	ret = kstrtouint(page, 0, &num);				\
 	if (ret)							\
 		goto end;						\
 									\
@@ -2467,14 +2435,10 @@ end:									\
 									\
 UVC_ATTR(f_uvc_opts_, cname, cname)
 
-#define identity_conv(x) (x)
-
-UVCG_OPTS_ATTR(streaming_bulk, streaming_bulk, kstrtou8, u8, 1);
-UVCG_OPTS_ATTR(streaming_interval, streaming_interval, kstrtou8, u8, 16);
-UVCG_OPTS_ATTR(streaming_maxpacket, streaming_maxpacket, kstrtou16, u16, 3072);
-UVCG_OPTS_ATTR(streaming_maxburst, streaming_maxburst, kstrtou8, u8, 15);
-
-#undef identity_conv
+UVCG_OPTS_ATTR(streaming_bulk, streaming_bulk, 1);
+UVCG_OPTS_ATTR(streaming_interval, streaming_interval, 16);
+UVCG_OPTS_ATTR(streaming_maxpacket, streaming_maxpacket, 3072);
+UVCG_OPTS_ATTR(streaming_maxburst, streaming_maxburst, 15);
 
 #undef UVCG_OPTS_ATTR
 
