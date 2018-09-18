@@ -267,11 +267,6 @@ static const struct usb_descriptor_header * const uvc_ss_bulk_streaming[] = {
 	(struct usb_descriptor_header *)&uvc_ss_bulk_streaming_comp,
 	NULL,
 };
-void uvc_set_trace_param(unsigned int trace)
-{
-	uvc_gadget_trace_param = trace;
-}
-EXPORT_SYMBOL(uvc_set_trace_param);
 
 /* --------------------------------------------------------------------------
  * Control requests
