@@ -331,6 +331,10 @@ static void platform_fusb_notify(struct fusb30x_chip *chip)
 					    property);
 			extcon_sync(chip->extcon, EXTCON_CHG_USB_FAST);
 		}
+		else {
+			extcon_set_state(chip->extcon, EXTCON_CHG_USB_FAST, false);
+			extcon_sync(chip->extcon, EXTCON_CHG_USB_FAST);
+		}
 	}
 }
 
