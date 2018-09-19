@@ -459,6 +459,13 @@ config REGULATOR_MP8865
 	help
 	  This driver supports MP8865 voltage regulator chip.
 
+config REGULATOR_MP8859
+	tristate "MPS MP8859 Power Regulator"
+	depends on I2C
+	select REGMAP_I2C
+	help
+	  This driver supports MP8859 voltage regulator chip.
+
 config REGULATOR_MT6311
 	tristate "MediaTek MT6311 PMIC"
 	depends on I2C

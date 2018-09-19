@@ -108,5 +108,7 @@ obj-$(CONFIG_REGULATOR_WM8350) += wm8350-regulator.o
 obj-$(CONFIG_REGULATOR_WM8400) += wm8400-regulator.o
 obj-$(CONFIG_REGULATOR_WM8994) += wm8994-regulator.o
 obj-$(CONFIG_REGULATOR_XZ3216) += xz3216.o
+obj-$(CONFIG_REGULATOR_MP8859) += mp8859-regulator.o
+
 
 ccflags-$(CONFIG_REGULATOR_DEBUG) += -DDEBUG
