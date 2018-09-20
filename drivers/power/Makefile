@@ -82,3 +82,4 @@ obj-$(CONFIG_CHARGER_UNIVERSAL)	+= universal_charger.o
 obj-$(CONFIG_POWER_RESET)	+= reset/
 obj-$(CONFIG_AXP288_FUEL_GAUGE) += axp288_fuel_gauge.o
 obj-$(CONFIG_AXP288_CHARGER)	+= axp288_charger.o
+obj-y += usb_extcon_charge.o
