@@ -79,6 +79,9 @@ dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3399-tve1030g.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3399-tve1205g.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3399-videostrong-linux.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3399-vr-android.dtb
+dtb-$(CONFIG_ARCH_ROCKCHIP) += ficus-linux.dtb
+dtb-$(CONFIG_ARCH_ROCKCHIP) += rock960-model-ab-linux.dtb
+dtb-$(CONFIG_ARCH_ROCKCHIP) += rock960-model-c-linux.dtb
 
 always		:= $(dtb-y)
 subdir-y	:= $(dts-dirs)
