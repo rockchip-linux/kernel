@@ -103,7 +103,9 @@ static void es8316_enable_spk(struct es8316_priv *es8316, bool enable)
 	bool level;
 
 	level = enable ? es8316->spk_active_level : !es8316->spk_active_level;
-	gpio_set_value(es8316->spk_ctl_gpio, level);
+
+	if (INVALID_GPIO != es8316->spk_ctl_gpio)
+		gpio_set_value(es8316->spk_ctl_gpio, level);
 }
 
 static const DECLARE_TLV_DB_SCALE(dac_vol_tlv, -9600, 50, 1);
