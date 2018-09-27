@@ -137,14 +137,14 @@ const char * const *kbase_gator_hwcnt_init_names(uint32_t *total_counters)
 
 	return hardware_counters;
 }
-KBASE_EXPORT_SYMBOL(kbase_gator_hwcnt_init_names);
+//KBASE_EXPORT_SYMBOL(kbase_gator_hwcnt_init_names);
 
 void kbase_gator_hwcnt_term_names(void)
 {
 	/* Release the module reference. */
 	module_put(THIS_MODULE);
 }
-KBASE_EXPORT_SYMBOL(kbase_gator_hwcnt_term_names);
+//KBASE_EXPORT_SYMBOL(kbase_gator_hwcnt_term_names);
 
 struct kbase_gator_hwcnt_handles *kbase_gator_hwcnt_init(struct kbase_gator_hwcnt_info *in_out_info)
 {
@@ -279,7 +279,7 @@ free_hand:
 	kfree(hand);
 	return NULL;
 }
-KBASE_EXPORT_SYMBOL(kbase_gator_hwcnt_init);
+//KBASE_EXPORT_SYMBOL(kbase_gator_hwcnt_init);
 
 void kbase_gator_hwcnt_term(struct kbase_gator_hwcnt_info *in_out_info, struct kbase_gator_hwcnt_handles *opaque_handles)
 {
@@ -294,7 +294,7 @@ void kbase_gator_hwcnt_term(struct kbase_gator_hwcnt_info *in_out_info, struct k
 		kfree(opaque_handles);
 	}
 }
-KBASE_EXPORT_SYMBOL(kbase_gator_hwcnt_term);
+//KBASE_EXPORT_SYMBOL(kbase_gator_hwcnt_term);
 
 static void dump_worker(struct work_struct *work)
 {
@@ -323,7 +323,7 @@ uint32_t kbase_gator_instr_hwcnt_dump_complete(
 	}
 	return 0;
 }
-KBASE_EXPORT_SYMBOL(kbase_gator_instr_hwcnt_dump_complete);
+//KBASE_EXPORT_SYMBOL(kbase_gator_instr_hwcnt_dump_complete);
 
 uint32_t kbase_gator_instr_hwcnt_dump_irq(struct kbase_gator_hwcnt_handles *opaque_handles)
 {
@@ -331,4 +331,4 @@ uint32_t kbase_gator_instr_hwcnt_dump_irq(struct kbase_gator_hwcnt_handles *opaq
 		schedule_work(&opaque_handles->dump_work);
 	return 0;
 }
-KBASE_EXPORT_SYMBOL(kbase_gator_instr_hwcnt_dump_irq);
+//KBASE_EXPORT_SYMBOL(kbase_gator_instr_hwcnt_dump_irq);

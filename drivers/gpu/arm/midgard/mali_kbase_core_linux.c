@@ -1068,13 +1068,13 @@ struct kbase_device *kbase_find_device(int minor)
 
 	return kbdev;
 }
-EXPORT_SYMBOL(kbase_find_device);
+//EXPORT_SYMBOL(kbase_find_device);
 
 void kbase_release_device(struct kbase_device *kbdev)
 {
 	put_device(kbdev->dev);
 }
-EXPORT_SYMBOL(kbase_release_device);
+//EXPORT_SYMBOL(kbase_release_device);
 
 #if KERNEL_VERSION(4, 4, 0) > LINUX_VERSION_CODE
 /*

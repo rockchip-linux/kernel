@@ -670,5 +670,4 @@ void _mali_profiling_control(u32 action, u32 value)
 	if (NULL != kbdev)
 		kbase_set_profiling_control(kbdev, action, value);
 }
-KBASE_EXPORT_SYMBOL(_mali_profiling_control);
-
+//KBASE_EXPORT_SYMBOL(_mali_profiling_control);

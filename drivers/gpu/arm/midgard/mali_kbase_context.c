@@ -191,7 +191,7 @@ free_kctx:
 out:
 	return NULL;
 }
-KBASE_EXPORT_SYMBOL(kbase_create_context);
+//KBASE_EXPORT_SYMBOL(kbase_create_context);
 
 static void kbase_reg_pending_dtor(struct kbase_va_region *reg)
 {
@@ -299,7 +299,7 @@ void kbase_destroy_context(struct kbase_context *kctx)
 
 	vfree(kctx);
 }
-KBASE_EXPORT_SYMBOL(kbase_destroy_context);
+//KBASE_EXPORT_SYMBOL(kbase_destroy_context);
 
 /**
  * kbase_context_set_create_flags - Set creation flags on a context
@@ -339,4 +339,4 @@ int kbase_context_set_create_flags(struct kbase_context *kctx, u32 flags)
  out:
 	return err;
 }
-KBASE_EXPORT_SYMBOL(kbase_context_set_create_flags);
+//KBASE_EXPORT_SYMBOL(kbase_context_set_create_flags);

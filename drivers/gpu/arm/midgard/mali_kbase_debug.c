@@ -35,5 +35,5 @@ void kbasep_debug_assert_call_hook(void)
 	if (kbasep_debug_assert_registered_cb.func != NULL)
 		kbasep_debug_assert_registered_cb.func(kbasep_debug_assert_registered_cb.param);
 }
-KBASE_EXPORT_SYMBOL(kbasep_debug_assert_call_hook);
+//KBASE_EXPORT_SYMBOL(kbasep_debug_assert_call_hook);
 
