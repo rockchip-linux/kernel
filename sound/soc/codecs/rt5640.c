@@ -56,8 +56,10 @@
 
 #define LINE_IN_OKAY 1
 #define LINE_IN_NO   0
-static int line_in_status = 0;
+
 static struct rt5640_priv *rt5640_private;
+static int line_in_status = 0;
+static int gval;
 
 static const struct regmap_range_cfg rt5640_ranges[] = {
 	{ .name = "PR", .range_min = RT5640_PR_BASE,
@@ -219,6 +221,7 @@ static void rt5640_set_linein(struct rt5640_priv *rt5640)//struct snd_soc_codec 
 		                1<<3 , 0<<3);
 
 	regmap_write(rt5640->regmap, RT5640_HP_VOL, 0x0808);        //02
+	regmap_write(rt5640->regmap, RT5640_OUTPUT, 0x0808);        //03
 	//regmap_write(rt5640->regmap, RT5640_HPO_MIXER, 0xd000);   //45
 	regmap_update_bits(rt5640->regmap, RT5640_HPO_MIXER,        //45
 		                1<<13 | 1<<12,
@@ -2494,6 +2497,32 @@ static const struct acpi_device_id rt5640_acpi_match[] = {
 MODULE_DEVICE_TABLE(acpi, rt5640_acpi_match);
 #endif
 
+static ssize_t linein_store(struct device *dev,
+                struct device_attribute *attr, const char *buf,size_t count)
+{
+	unsigned long state;
+	int ret;
+	ret = kstrtoul(buf, 10, &state);
+	if (state == 1){
+		rt5640_set_linein(rt5640_private);
+		line_in_status = LINE_IN_OKAY;
+		gval = 1;
+	} else {
+		gpio_set_value(rt5640_private->hp_con_gpio, 0);
+		line_in_status = LINE_IN_NO;
+		gval = 0;
+	}
+	return count;
+}
+static ssize_t linein_show(struct device *dev,
+                struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%u\n", gval);
+}
+
+static struct kobject *linein_kobj;
+static DEVICE_ATTR(linein, (S_IWUSR|S_IRUSR|S_IWGRP|S_IRGRP), linein_show, linein_store);
+
 static int rt5640_parse_dt(struct rt5640_priv *rt5640, struct device *dev)
 {
 	struct device_node *np = dev->of_node;
@@ -2501,7 +2530,7 @@ static int rt5640_parse_dt(struct rt5640_priv *rt5640, struct device *dev)
 	struct iio_channel *aux_chan;
 	u32 adc_value;
 	enum of_gpio_flags flags;
-	int gpio, ret;
+	int gpio, ret, value;
 	int hp_irq;
 
 	chan = iio_channel_get(dev, NULL);
@@ -2569,6 +2598,14 @@ static int rt5640_parse_dt(struct rt5640_priv *rt5640, struct device *dev)
 		}
 	}
 	rt5640->hp_det_gpio = gpio;
+
+	ret = of_property_read_u32(np, "linein-mute", &value);
+	if (ret) {
+		rt5640->linein_mute = 0;
+		dev_err(dev, "Can not read property: linein-mute.\n");
+	} else {
+		rt5640->linein_mute = value;
+	}
 
 	rt5640->pdata.in1_diff = of_property_read_bool(np,
 					"realtek,in1-differential");
@@ -2673,6 +2710,20 @@ static int rt5640_i2c_probe(struct i2c_client *i2c,
 		regmap_update_bits(rt5640->regmap, RT5640_IN1_IN2,
 					RT5640_IN_DF2, RT5640_IN_DF2);
 
+	if (rt5640->linein_mute) {
+		linein_kobj = kobject_create_and_add("linein", NULL);
+		if (linein_kobj == NULL) {
+			dev_err(&i2c->dev,"create kobject fail \n");
+			ret = -ENOMEM;
+		}
+
+		ret = sysfs_create_file(linein_kobj, &dev_attr_linein.attr);
+		if (ret) {
+			dev_err(&i2c->dev,"linein_sysfs_init: sysfs_create_group failed\n");
+			kobject_del(linein_kobj);
+		}
+	}
+
 	return snd_soc_register_codec(&i2c->dev, &soc_codec_dev_rt5640,
 				      rt5640_dai, ARRAY_SIZE(rt5640_dai));
 }
@@ -2680,6 +2731,7 @@ static int rt5640_i2c_probe(struct i2c_client *i2c,
 static int rt5640_i2c_remove(struct i2c_client *i2c)
 {
 	snd_soc_unregister_codec(&i2c->dev);
+	kobject_del(linein_kobj);
 
 	return 0;
 }

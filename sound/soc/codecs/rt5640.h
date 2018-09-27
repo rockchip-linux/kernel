@@ -2112,6 +2112,7 @@ struct rt5640_priv {
 	struct iio_channel *aux_chan;
 	int aux_det_adc_value;
 	bool hp_insert;
+	bool linein_mute;
 	int hp_con_gpio;
 	int hp_det_gpio;
 	bool hp_con_gpio_active_high;
