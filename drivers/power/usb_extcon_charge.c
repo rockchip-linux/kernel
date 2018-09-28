@@ -144,8 +144,8 @@ static void uec_update_battery_charge(struct usb_ext_charge *uec)
 {
 	bool enable_charge = false;
 	bool high_current_charge = false;
-	bool power_off = false;
-	bool enable_led = false;
+	//bool power_off = false;
+	//bool enable_led = false;
 
 	if (uec->battery_online)
 	{
@@ -165,6 +165,7 @@ static void uec_update_battery_charge(struct usb_ext_charge *uec)
 			}
 
 		} else {
+			/*
 			if (uec->battery_low == true)
 			{
 				enable_led = true;
@@ -178,6 +179,7 @@ static void uec_update_battery_charge(struct usb_ext_charge *uec)
 				enable_led = false;
 				power_off = false;
 			}
+			*/
 			enable_charge = false;
 			high_current_charge = false;
 		}
@@ -186,8 +188,8 @@ static void uec_update_battery_charge(struct usb_ext_charge *uec)
 		high_current_charge = false;
 	}
 
-	uec_printk(" usb status %d battery_online %d poe_online %d enable_led %d power_off %d\n ",
-				uec->usb_status, uec->battery_online, uec->poe_online, enable_led, power_off);
+	uec_printk(" usb status %d battery_online %d poe_online %d",
+				uec->usb_status, uec->battery_online, uec->poe_online);
 
 	if (enable_charge) {
 		if (high_current_charge) {
@@ -207,6 +209,7 @@ static void uec_update_battery_charge(struct usb_ext_charge *uec)
 		if (uec->gpio_charge_current_ctl != NULL)
 			gpiod_set_value(uec->gpio_charge_current_ctl, 0);
 	}
+	/*
 	if(enable_led == true)
 	{
 		if (uec->gpio_led != NULL)
@@ -221,6 +224,7 @@ static void uec_update_battery_charge(struct usb_ext_charge *uec)
 	{
 			kernel_power_off();
 	}
+	*/
 }
 
 static void uec_get_extcon_status(struct usb_ext_charge *uec)
@@ -253,18 +257,18 @@ static void uec_work(struct work_struct *work)
 	struct usb_ext_charge *uec;
 	bool battery_online = false;
 	bool poe_online = false;
-	bool battery_off =false;
-	bool battery_low = false;
+	//bool battery_off =false;
+	//bool battery_low = false;
 	int adc_val = 0;
 
 	delay_work = container_of(work, struct delayed_work, work);
 	uec = container_of(delay_work, struct usb_ext_charge, battery_delay_work);
 
 	adc_val = uec_adc_iio_read(uec);
-	printk("adc_val,%d\r\n",adc_val);
+	//printk("adc_val,%d\r\n",adc_val);
 	if (unlikely(adc_val < 0)) {
 		dev_err(uec->dev, "get battery adc value fail\n");
-	} else if (adc_val > 100) {
+	} else if (adc_val > 300) {
 		if (!uec->battery_online) {
 			if ( ++uec->bat_det_count > 1) {
 				battery_online = true;
@@ -272,7 +276,7 @@ static void uec_work(struct work_struct *work)
 			}
 		} else
 			battery_online = true;
-
+			/*
 			if (adc_val < 600){
 				battery_off = true;
 			}
@@ -283,6 +287,7 @@ static void uec_work(struct work_struct *work)
 				battery_low = false;
 				battery_off = false;
 			}
+			*/
 	} else {
 		battery_online = false;
 		uec->bat_det_count = 0;
@@ -297,21 +302,21 @@ static void uec_work(struct work_struct *work)
 		{
 			battery_online = true;
 		}
-		else if( uec->bat_one_min >= 10 )
+		else if( uec->bat_one_min >= 20 )
 		{
 			uec->bat_one_min_status = 1;
 		}
 	}
 
 	if ((battery_online != uec->battery_online) ||
-		(poe_online != uec->poe_online) ||
-		(battery_off != uec->battery_off) ||
-		(battery_low != uec->battery_low)) {
+		(poe_online != uec->poe_online)) {
 		uec_printk("adc value = %d\n", adc_val);
 		uec->battery_online = battery_online;
 		uec->poe_online = poe_online;
+		/*
 		uec->battery_off = battery_off;
 		uec->battery_low = battery_low;
+		*/
 		uec_update_battery_charge(uec);
 	}
 

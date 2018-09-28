@@ -344,12 +344,12 @@
 		io-channels = <&saradc 0>;
 		extcon = <&fusb0>;
 		pinctrl-names = "default";
-		pinctrl-0 = <&vcc_chargen_h &bat_int_h &cur_ctl_h &cap_led>;
+		pinctrl-0 = <&vcc_chargen_h &bat_int_h &cur_ctl_h>;
 		bat-int = <&gpio2 28 IRQ_TYPE_EDGE_RISING>;
 		charge-en-gpios = <&gpio0 1 GPIO_ACTIVE_HIGH>;
 		cur-ctl-gpios = <&gpio3 26 GPIO_ACTIVE_HIGH>;
 		poe-state-gpios = <&gpio0 12 GPIO_ACTIVE_HIGH>;
-		cap-led-gpios = <&gpio0 13 GPIO_ACTIVE_HIGH>;
+		//cap-led-gpios = <&gpio0 13 GPIO_ACTIVE_HIGH>;
 	};
 
 
@@ -995,9 +995,11 @@
 		cur_ctl_h: cur-ctl-h {
 			rockchip,pins = <3 26 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
+		/*
 		cap_led: cap-led {
 			rockchip,pins = <0 13 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
+		*/
 	};
 
 	vcc_dis {
