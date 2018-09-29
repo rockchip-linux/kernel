@@ -143,6 +143,17 @@
 		regulator-max-microvolt = <3300000>;
 	};
 
+	vcc3v3_pcie: vcc3v3-pcie-regulator {
+		compatible = "regulator-fixed";
+		enable-active-high;
+		regulator-boot-on;
+		regulator-always-on;
+		gpio = <&gpio1 17 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pcie_drv>;
+		regulator-name = "vcc3v3_pcie";
+	};
+
 	vcc5v0_host: vcc5v0-host-regulator {
 		compatible = "regulator-fixed";
 		enable-active-high;
@@ -174,7 +185,7 @@
 	};
 
 	vcc_wifi: vcc-wifi {
-		status = "disabled";
+		status = "okay";
 		compatible = "regulator-fixed";
 		regulator-name = "vcc_wifi";
 		enable-active-high;
@@ -188,13 +199,27 @@
 	};
 
 	vcc_pcie: vcc-pcie {
-		status = "disabled";
+		status = "okay";
 		compatible = "regulator-fixed";
 		regulator-name = "vcc_pcie";
 		enable-active-high;
 		gpio = <&gpio1 17 GPIO_ACTIVE_HIGH>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&vcc_pcie_h>;
+		regulator-always-on;
+		regulator-boot-on;
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+	};
+
+	vcc_chargen: vcc-chargen {
+		status = "disabled";
+		compatible = "regulator-fixed";
+		regulator-name = "vcc_chargen";
+		enable-active-high;
+		gpio = <&gpio2 28 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&vcc_chargen_h>;
 		regulator-always-on;
 		regulator-boot-on;
 		regulator-min-microvolt = <5000000>;
@@ -275,7 +300,7 @@
 		wifi_chip_type = "ap6354";
 		sdio_vref = <1800>;
 		WIFI,host_wake_irq = <&gpio0 3 GPIO_ACTIVE_HIGH>; /* GPIO0_a3 */
-		status = "disabled";
+		status = "okay";
 	};
 
 	wireless-bluetooth {
@@ -291,7 +316,7 @@
 		BT,reset_gpio    = <&gpio0 9 GPIO_ACTIVE_HIGH>; /* GPIO0_B1 */
 		BT,wake_gpio     = <&gpio2 26 GPIO_ACTIVE_HIGH>; /* GPIO2_D2 */
 		BT,wake_host_irq = <&gpio0 4 GPIO_ACTIVE_HIGH>; /* GPIO0_A4 */
-		status = "disabled";
+		status = "okay";
 	};
 
 	leds {
@@ -315,7 +340,7 @@
 
 	usb-charge {
 		compatible = "usb-ext-charge";
-		status = "disabled";
+		status = "okay";
 		io-channels = <&saradc 0>;
 		extcon = <&fusb0>;
 		pinctrl-names = "default";
@@ -707,7 +732,7 @@
 &i2c2 {
 	status = "okay";
 	cw2015@62 {
-		status = "disabled";
+		status = "okay";
 		compatible = "cw201x";
 		reg = <0x62>;
 		bat_config_info = <0x15 0x42 0x60 0x59 0x52 0x58 0x4D 0x48
@@ -857,6 +882,12 @@
 
 		lcd_en: lcd-en {
 			rockchip,pins = <1 24 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+	};
+
+	pcie {
+		pcie_drv: pcie-drv {
+			rockchip,pins = <1 17 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
 
