@@ -185,9 +185,6 @@ static void debug_putc(struct platform_device *pdev, unsigned int c)
 
 	while (!(rk_fiq_read(t, UART_USR) & UART_USR_TX_FIFO_NOT_FULL) && count--)
 		udelay(10);
-	/* If uart is always busy, maybe it is abnormal, reinit it */
-	if ((count == 0) && (rk_fiq_read(t, UART_USR) & UART_USR_BUSY))
-		debug_port_init(pdev);
 
 	rk_fiq_write(t, c, UART_TX);
 }
@@ -200,33 +197,93 @@ static void debug_flush(struct platform_device *pdev)
 
 	while (!(rk_fiq_read_lsr(t) & UART_LSR_TEMT) && count--)
 		udelay(10);
-	/* If uart is always busy, maybe it is abnormal, reinit it */
-	if ((count == 0) && (rk_fiq_read(t, UART_USR) & UART_USR_BUSY))
-		debug_port_init(pdev);
 }
 
 #ifdef CONFIG_RK_CONSOLE_THREAD
 #define FIFO_SIZE SZ_64K
+#define LINE_MAX 1024
 static DEFINE_KFIFO(fifo, unsigned char, FIFO_SIZE);
+static char console_buf[LINE_MAX]; /* avoid FRAME WARN */
 static bool console_thread_stop;
+static unsigned int console_dropped_messages;
+
+static void console_putc(struct platform_device *pdev, unsigned int c)
+{
+	struct rk_fiq_debugger *t;
+	unsigned int count = 500;
+
+	t = container_of(dev_get_platdata(&pdev->dev), typeof(*t), pdata);
+
+	while (!(rk_fiq_read(t, UART_USR) & UART_USR_TX_FIFO_NOT_FULL) &&
+	       count--)
+		usleep_range(200, 210);
+
+	rk_fiq_write(t, c, UART_TX);
+}
+
+static void console_flush(struct platform_device *pdev)
+{
+	struct rk_fiq_debugger *t;
+	unsigned int count = 500;
+
+	t = container_of(dev_get_platdata(&pdev->dev), typeof(*t), pdata);
+
+	while (!(rk_fiq_read_lsr(t) & UART_LSR_TEMT) && count--)
+		usleep_range(200, 210);
+}
+
+static void console_put(struct platform_device *pdev,
+			const char *s, unsigned int count)
+{
+	while (count--) {
+		if (*s == '\n')
+			console_putc(pdev, '\r');
+		console_putc(pdev, *s++);
+	}
+}
+
+static void debug_put(struct platform_device *pdev,
+		      const char *s, unsigned int count)
+{
+	while (count--) {
+		if (*s == '\n')
+			debug_putc(pdev, '\r');
+		debug_putc(pdev, *s++);
+	}
+}
 
 static int console_thread(void *data)
 {
 	struct platform_device *pdev = data;
-	struct rk_fiq_debugger *t;
-	unsigned char c;
-	t = container_of(dev_get_platdata(&pdev->dev), typeof(*t), pdata);
+	char *buf = console_buf;
+	unsigned int len;
 
 	while (1) {
+		unsigned int dropped;
+
 		set_current_state(TASK_INTERRUPTIBLE);
-		schedule();
+		if (kfifo_is_empty(&fifo))
+			schedule();
 		if (kthread_should_stop())
 			break;
 		set_current_state(TASK_RUNNING);
-		while (!console_thread_stop && kfifo_get(&fifo, &c))
-			debug_putc(pdev, c);
+		while (!console_thread_stop) {
+			len = kfifo_out(&fifo, buf, LINE_MAX);
+			if (!len)
+				break;
+			console_put(pdev, buf, len);
+		}
+		dropped = console_dropped_messages;
+		if (dropped && !console_thread_stop) {
+			console_dropped_messages = 0;
+			smp_wmb();
+			len = snprintf(buf, LINE_MAX,
+				       "** %u console messages dropped **\n",
+				       dropped);
+			console_put(pdev, buf, len);
+		}
 		if (!console_thread_stop)
-			debug_flush(pdev);
+			console_flush(pdev);
 	}
 
 	return 0;
@@ -235,8 +292,9 @@ static int console_thread(void *data)
 static void console_write(struct platform_device *pdev, const char *s, unsigned int count)
 {
 	unsigned int fifo_count = FIFO_SIZE;
-	unsigned char c, r = '\r';
+	unsigned char c;
 	struct rk_fiq_debugger *t;
+
 	t = container_of(dev_get_platdata(&pdev->dev), typeof(*t), pdata);
 
 	if (console_thread_stop ||
@@ -249,23 +307,21 @@ static void console_write(struct platform_device *pdev, const char *s, unsigned 
 			smp_wmb();
 			debug_flush(pdev);
 			while (fifo_count-- && kfifo_get(&fifo, &c))
-				debug_putc(pdev, c);
+				debug_put(pdev, &c, 1);
 		}
-		while (count--) {
-			if (*s == '\n') {
-				debug_putc(pdev, r);
-			}
-			debug_putc(pdev, *s++);
-		}
+		debug_put(pdev, s, count);
 		debug_flush(pdev);
-	} else {
-		while (count--) {
-			if (*s == '\n') {
-				kfifo_put(&fifo, r);
-			}
-			kfifo_put(&fifo, *s++);
+	} else if (count) {
+		unsigned int ret = 0;
+
+		if (kfifo_len(&fifo) + count < FIFO_SIZE)
+			ret = kfifo_in(&fifo, s, count);
+		if (!ret) {
+			console_dropped_messages++;
+			smp_wmb();
+		} else {
+			wake_up_process(t->console_task);
 		}
-		wake_up_process(t->console_task);
 	}
 }
 #endif
@@ -310,8 +366,14 @@ static int rk_fiq_debugger_uart_dev_resume(struct platform_device *pdev)
 	return 0;
 }
 
-static int fiq_debugger_cpu_resume_fiq(struct notifier_block *nb,
-				       unsigned long action, void *hcpu)
+/*
+ * We don't need to migrate fiq before cpuidle, because EL3 can promise to
+ * resume all fiq configure. We don't want fiq to break kernel cpu_resume(),
+ * so that fiq would be disabled in EL3 on purpose when cpu resume. We enable
+ * it here since everything is okay.
+ */
+static int fiq_debugger_cpuidle_resume_fiq(struct notifier_block *nb,
+					   unsigned long action, void *hcpu)
 {
 	switch (action) {
 	case CPU_PM_EXIT:
@@ -326,8 +388,13 @@ static int fiq_debugger_cpu_resume_fiq(struct notifier_block *nb,
 	return NOTIFY_OK;
 }
 
-static int fiq_debugger_cpu_migrate_fiq(struct notifier_block *nb,
-					unsigned long action, void *hcpu)
+/*
+ * We must migrate fiq before cpu offline, because EL3 doesn't promise to
+ * resume all fiq configure at this sisutation. Here, we migrate fiq to any
+ * online cpu.
+ */
+static int fiq_debugger_cpu_offine_migrate_fiq(struct notifier_block *nb,
+					       unsigned long action, void *hcpu)
 {
 	int target_cpu, cpu = (long)hcpu;
 
@@ -347,12 +414,12 @@ static int fiq_debugger_cpu_migrate_fiq(struct notifier_block *nb,
 }
 
 static struct notifier_block fiq_debugger_pm_notifier = {
-	.notifier_call = fiq_debugger_cpu_resume_fiq,
+	.notifier_call = fiq_debugger_cpuidle_resume_fiq,
 	.priority = 100,
 };
 
 static struct notifier_block fiq_debugger_cpu_notifier = {
-	.notifier_call = fiq_debugger_cpu_migrate_fiq,
+	.notifier_call = fiq_debugger_cpu_offine_migrate_fiq,
 	.priority = 100,
 };
 

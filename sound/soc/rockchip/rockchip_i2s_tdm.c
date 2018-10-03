@@ -17,6 +17,7 @@
 #include <linux/of_device.h>
 #include <linux/of_address.h>
 #include <linux/clk.h>
+#include <linux/clk-provider.h>
 #include <linux/pm_runtime.h>
 #include <linux/regmap.h>
 #include <linux/reset.h>
@@ -27,6 +28,8 @@
 #include "rockchip_i2s_tdm.h"
 
 #define DRV_NAME "rockchip-i2s-tdm"
+
+#define DEFAULT_MCLK_FS				256
 
 struct rk_i2s_soc_data {
 	u32 softrst_offset;
@@ -39,6 +42,20 @@ struct rk_i2s_tdm_dev {
 	struct clk *hclk;
 	struct clk *mclk_tx;
 	struct clk *mclk_rx;
+	/* The mclk_tx_src is parent of mclk_tx */
+	struct clk *mclk_tx_src;
+	/* The mclk_rx_src is parent of mclk_rx */
+	struct clk *mclk_rx_src;
+	/*
+	 * The mclk_root0 and mclk_root1 are root parent and supplies for
+	 * the different FS.
+	 *
+	 * e.g:
+	 * mclk_root0 is VPLL0, used for FS=48000Hz
+	 * mclk_root0 is VPLL1, used for FS=44100Hz
+	 */
+	struct clk *mclk_root0;
+	struct clk *mclk_root1;
 	struct regmap *regmap;
 	struct snd_dmaengine_dai_dma_data capture_dma_data;
 	struct snd_dmaengine_dai_dma_data playback_dma_data;
@@ -47,6 +64,10 @@ struct rk_i2s_tdm_dev {
 	struct rk_i2s_soc_data *soc_data;
 	void __iomem *cru_base;
 	bool is_master_mode;
+	bool mclk_calibrate;
+	bool tdm_mode;
+	unsigned int mclk_rx_freq;
+	unsigned int mclk_tx_freq;
 	unsigned int bclk_fs;
 	unsigned int clk_trcm;
 	atomic_t refcount;
@@ -95,6 +116,14 @@ static inline struct rk_i2s_tdm_dev *to_info(struct snd_soc_dai *dai)
 	return snd_soc_dai_get_drvdata(dai);
 }
 
+#if defined(CONFIG_ARM) && !defined(writeq)
+static inline void __raw_writeq(u64 val, volatile void __iomem *addr)
+{
+	asm volatile("strd %0, %H0, [%1]" : : "r" (val), "r" (addr));
+}
+#define writeq(v,c) ({ __iowmb(); __raw_writeq((__force u64) cpu_to_le64(v), c); })
+#endif
+
 static void rockchip_snd_xfer_reset_assert(struct rk_i2s_tdm_dev *i2s_tdm,
 					   int tx_bank, int tx_offset,
 					   int rx_bank, int rx_offset)
@@ -124,7 +153,7 @@ static void rockchip_snd_xfer_reset_assert(struct rk_i2s_tdm_dev *i2s_tdm,
 			addr = cru_reset + (rx_bank * 4);
 		}
 
-		if (IS_ALIGNED((u64)addr, 8)) {
+		if (IS_ALIGNED((uintptr_t)addr, 8)) {
 			writeq(val, addr);
 			break;
 		}
@@ -168,7 +197,7 @@ static void rockchip_snd_xfer_reset_deassert(struct rk_i2s_tdm_dev *i2s_tdm,
 			addr = cru_reset + (rx_bank * 4);
 		}
 
-		if (IS_ALIGNED((u64)addr, 8)) {
+		if (IS_ALIGNED((uintptr_t)addr, 8)) {
 			writeq(val, addr);
 			break;
 		}
@@ -367,8 +396,9 @@ static int rockchip_i2s_tdm_set_fmt(struct snd_soc_dai *cpu_dai,
 				    unsigned int fmt)
 {
 	struct rk_i2s_tdm_dev *i2s_tdm = to_info(cpu_dai);
-	unsigned int mask = 0, val = 0;
+	unsigned int mask = 0, val = 0, tdm_val = 0;
 	int ret = 0;
+	bool is_tdm = i2s_tdm->tdm_mode;
 
 	pm_runtime_get_sync(cpu_dai->dev);
 	mask = I2S_CKR_MSS_MASK;
@@ -452,6 +482,48 @@ static int rockchip_i2s_tdm_set_fmt(struct snd_soc_dai *cpu_dai,
 
 	regmap_update_bits(i2s_tdm->regmap, I2S_RXCR, mask, val);
 
+	if (is_tdm) {
+		switch (fmt & SND_SOC_DAIFMT_FORMAT_MASK) {
+		case SND_SOC_DAIFMT_RIGHT_J:
+			val = I2S_TXCR_TFS_TDM_I2S;
+			tdm_val = TDM_SHIFT_CTRL(2);
+			break;
+		case SND_SOC_DAIFMT_LEFT_J:
+			val = I2S_TXCR_TFS_TDM_I2S;
+			tdm_val = TDM_SHIFT_CTRL(1);
+			break;
+		case SND_SOC_DAIFMT_I2S:
+			val = I2S_TXCR_TFS_TDM_I2S;
+			tdm_val = TDM_SHIFT_CTRL(0);
+			break;
+		case SND_SOC_DAIFMT_DSP_A:
+			val = I2S_TXCR_TFS_TDM_PCM;
+			tdm_val = TDM_SHIFT_CTRL(0);
+			break;
+		case SND_SOC_DAIFMT_DSP_B:
+			val = I2S_TXCR_TFS_TDM_PCM;
+			tdm_val = TDM_SHIFT_CTRL(2);
+			break;
+		default:
+			ret = -EINVAL;
+			goto err_pm_put;
+		}
+
+		tdm_val |= TDM_FSYNC_WIDTH_SEL1(1);
+		tdm_val |= TDM_FSYNC_WIDTH_ONE_FRAME;
+
+		mask = I2S_TXCR_TFS_MASK;
+		regmap_update_bits(i2s_tdm->regmap, I2S_TXCR, mask, val);
+		regmap_update_bits(i2s_tdm->regmap, I2S_RXCR, mask, val);
+
+		mask = TDM_FSYNC_WIDTH_SEL1_MSK | TDM_FSYNC_WIDTH_SEL0_MSK |
+		       TDM_SHIFT_CTRL_MSK;
+		regmap_update_bits(i2s_tdm->regmap, I2S_TDM_TXCR,
+				   mask, tdm_val);
+		regmap_update_bits(i2s_tdm->regmap, I2S_TDM_RXCR,
+				   mask, tdm_val);
+	}
+
 err_pm_put:
 	pm_runtime_put(cpu_dai->dev);
 
@@ -521,6 +593,130 @@ static void rockchip_i2s_tdm_xfer_resume(struct snd_pcm_substream *substream,
 			   I2S_XFER_RXS_START);
 }
 
+static int rockchip_i2s_tdm_calibrate_mclk(struct rk_i2s_tdm_dev *i2s_tdm,
+					   struct snd_pcm_substream *substream,
+					   unsigned int lrck_freq)
+{
+	struct clk *mclk_root;
+	struct clk *mclk_parent;
+	/* It's 256 times higher than a high sample rate */
+	unsigned int mclk_parent_freq;
+	int ret;
+
+	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
+		mclk_parent = i2s_tdm->mclk_tx_src;
+	else
+		mclk_parent = i2s_tdm->mclk_rx_src;
+
+	switch (lrck_freq) {
+	case 8000:
+	case 16000:
+	case 24000:
+	case 32000:
+	case 48000:
+	case 64000:
+	case 96000:
+	case 192000:
+		mclk_root = i2s_tdm->mclk_root0;
+		mclk_parent_freq = DEFAULT_MCLK_FS * 192000;
+		break;
+	case 11025:
+	case 22050:
+	case 44100:
+	case 88200:
+	case 176400:
+		mclk_root = i2s_tdm->mclk_root1;
+		mclk_parent_freq = DEFAULT_MCLK_FS * 176400;
+		break;
+	default:
+		dev_err(i2s_tdm->dev, "Invalid LRCK freq: %u Hz\n",
+			lrck_freq);
+		return -EINVAL;
+	}
+
+	ret = clk_set_parent(mclk_parent, mclk_root);
+	if (ret < 0) {
+		dev_err(i2s_tdm->dev, "parent: %s set root: %s failed: %d\n",
+			__clk_get_name(mclk_parent),
+			__clk_get_name(mclk_root),
+			ret);
+		goto out;
+	}
+
+	ret = clk_set_rate(mclk_parent, mclk_parent_freq);
+	if (ret < 0) {
+		dev_err(i2s_tdm->dev, "parent: %s set freq: %d failed: %d\n",
+			__clk_get_name(mclk_parent),
+			mclk_parent_freq,
+			ret);
+		goto out;
+	}
+
+out:
+	return ret;
+}
+
+static int rockchip_i2s_tdm_set_mclk(struct rk_i2s_tdm_dev *i2s_tdm,
+				     struct snd_pcm_substream *substream,
+				     struct clk **mclk)
+{
+	unsigned int mclk_freq;
+	int ret;
+
+	if (i2s_tdm->clk_trcm) {
+		if (i2s_tdm->mclk_tx_freq != i2s_tdm->mclk_rx_freq) {
+			dev_err(i2s_tdm->dev,
+				"clk_trcm, tx: %d and rx: %d should be same\n",
+				i2s_tdm->mclk_tx_freq,
+				i2s_tdm->mclk_rx_freq);
+			ret = -EINVAL;
+			goto err;
+		}
+
+		ret = clk_set_rate(i2s_tdm->mclk_tx, i2s_tdm->mclk_tx_freq);
+		if (ret < 0) {
+			dev_err(i2s_tdm->dev,
+				"Set mclk_tx: %s freq: %d failed: %d\n",
+				__clk_get_name(i2s_tdm->mclk_tx),
+				i2s_tdm->mclk_tx_freq, ret);
+			goto err;
+		}
+
+		ret = clk_set_rate(i2s_tdm->mclk_rx, i2s_tdm->mclk_rx_freq);
+		if (ret < 0) {
+			dev_err(i2s_tdm->dev,
+				"Set mclk_rx: %s freq: %d failed: %d\n",
+				__clk_get_name(i2s_tdm->mclk_rx),
+				i2s_tdm->mclk_rx_freq, ret);
+			goto err;
+		}
+
+		/* Using mclk_rx is ok. */
+		*mclk = i2s_tdm->mclk_tx;
+	} else {
+		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+			*mclk = i2s_tdm->mclk_tx;
+			mclk_freq = i2s_tdm->mclk_tx_freq;
+		} else {
+			*mclk = i2s_tdm->mclk_rx;
+			mclk_freq = i2s_tdm->mclk_rx_freq;
+		}
+
+		ret = clk_set_rate(*mclk, mclk_freq);
+		if (ret < 0) {
+			dev_err(i2s_tdm->dev, "Set mclk_%s: %s freq: %d failed: %d\n",
+				substream->stream ? "rx" : "tx",
+				__clk_get_name(*mclk), mclk_freq, ret);
+			goto err;
+		}
+	}
+
+	return 0;
+
+err:
+	return ret;
+}
+
 static int rockchip_i2s_tdm_hw_params(struct snd_pcm_substream *substream,
 				      struct snd_pcm_hw_params *params,
 				      struct snd_soc_dai *dai)
@@ -531,16 +727,19 @@ static int rockchip_i2s_tdm_hw_params(struct snd_pcm_substream *substream,
 	unsigned int val = 0;
 	unsigned int mclk_rate, bclk_rate, div_bclk, div_lrck;
 
+	if (i2s_tdm->mclk_calibrate)
+		rockchip_i2s_tdm_calibrate_mclk(i2s_tdm, substream,
+						params_rate(params));
+
+	ret = rockchip_i2s_tdm_set_mclk(i2s_tdm, substream, &mclk);
+	if (ret)
+		return ret;
+
 	if (i2s_tdm->clk_trcm) {
 		spin_lock(&i2s_tdm->lock);
 		if (atomic_read(&i2s_tdm->refcount))
 			rockchip_i2s_tdm_xfer_pause(substream, i2s_tdm);
 	}
-
-	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
-		mclk = i2s_tdm->mclk_tx;
-	else
-		mclk = i2s_tdm->mclk_rx;
 
 	if (i2s_tdm->is_master_mode) {
 		mclk_rate = clk_get_rate(mclk);
@@ -679,19 +878,26 @@ static int rockchip_i2s_tdm_trigger(struct snd_pcm_substream *substream,
 	return ret;
 }
 
-static int rockchip_i2s_tdm_set_sysclk(struct snd_soc_dai *cpu_dai, int clk_id,
+static int rockchip_i2s_tdm_set_sysclk(struct snd_soc_dai *cpu_dai, int stream,
 				       unsigned int freq, int dir)
 {
 	struct rk_i2s_tdm_dev *i2s_tdm = to_info(cpu_dai);
-	int ret;
 
-	ret = clk_set_rate(i2s_tdm->mclk_tx, freq);
-	if (ret)
-		dev_err(i2s_tdm->dev, "Fail to set mclk_tx %d\n", ret);
+	/* Put set mclk rate into rockchip_i2s_tdm_set_mclk() */
+	if (i2s_tdm->clk_trcm) {
+		i2s_tdm->mclk_tx_freq = freq;
+		i2s_tdm->mclk_rx_freq = freq;
+	} else {
+		if (stream == SNDRV_PCM_STREAM_PLAYBACK)
+			i2s_tdm->mclk_tx_freq = freq;
+		else
+			i2s_tdm->mclk_rx_freq = freq;
+	}
 
-	if (!IS_ERR(i2s_tdm->mclk_rx))
-		ret = clk_set_rate(i2s_tdm->mclk_rx, freq);
-	return ret;
+	dev_dbg(i2s_tdm->dev, "The target mclk_%s freq is: %d\n",
+		stream ? "rx" : "tx", freq);
+
+	return 0;
 }
 
 static int rockchip_i2s_tdm_dai_probe(struct snd_soc_dai *dai)
@@ -704,39 +910,32 @@ static int rockchip_i2s_tdm_dai_probe(struct snd_soc_dai *dai)
 	return 0;
 }
 
+static int rockchip_dai_tdm_slot(struct snd_soc_dai *dai,
+				 unsigned int tx_mask, unsigned int rx_mask,
+				 int slots, int slot_width)
+{
+	struct rk_i2s_tdm_dev *i2s_tdm = snd_soc_dai_get_drvdata(dai);
+	unsigned int mask, val;
+
+	i2s_tdm->tdm_mode = true;
+	i2s_tdm->bclk_fs = slots * slot_width;
+	mask = TDM_SLOT_BIT_WIDTH_MSK | TDM_FRAME_WIDTH_MSK;
+	val = TDM_SLOT_BIT_WIDTH(slot_width) |
+	      TDM_FRAME_WIDTH(slots * slot_width);
+	regmap_update_bits(i2s_tdm->regmap, I2S_TDM_TXCR,
+			   mask, val);
+	regmap_update_bits(i2s_tdm->regmap, I2S_TDM_RXCR,
+			   mask, val);
+
+	return 0;
+}
+
 static const struct snd_soc_dai_ops rockchip_i2s_tdm_dai_ops = {
 	.hw_params = rockchip_i2s_tdm_hw_params,
 	.set_sysclk = rockchip_i2s_tdm_set_sysclk,
 	.set_fmt = rockchip_i2s_tdm_set_fmt,
+	.set_tdm_slot = rockchip_dai_tdm_slot,
 	.trigger = rockchip_i2s_tdm_trigger,
-};
-
-static struct snd_soc_dai_driver rockchip_i2s_tdm_dai = {
-	.probe = rockchip_i2s_tdm_dai_probe,
-	.playback = {
-		.stream_name = "Playback",
-		.channels_min = 2,
-		.channels_max = 8,
-		.rates = SNDRV_PCM_RATE_8000_192000,
-		.formats = (SNDRV_PCM_FMTBIT_S8 |
-			    SNDRV_PCM_FMTBIT_S16_LE |
-			    SNDRV_PCM_FMTBIT_S20_3LE |
-			    SNDRV_PCM_FMTBIT_S24_LE |
-			    SNDRV_PCM_FMTBIT_S32_LE),
-	},
-	.capture = {
-		.stream_name = "Capture",
-		.channels_min = 2,
-		.channels_max = 8,
-		.rates = SNDRV_PCM_RATE_8000_192000,
-		.formats = (SNDRV_PCM_FMTBIT_S8 |
-			    SNDRV_PCM_FMTBIT_S16_LE |
-			    SNDRV_PCM_FMTBIT_S20_3LE |
-			    SNDRV_PCM_FMTBIT_S24_LE |
-			    SNDRV_PCM_FMTBIT_S32_LE),
-	},
-	.ops = &rockchip_i2s_tdm_dai_ops,
-	.symmetric_rates = 1,
 };
 
 static const struct snd_soc_component_driver rockchip_i2s_tdm_component = {
@@ -856,16 +1055,61 @@ static int of_i2s_resetid_get(struct device_node *node,
 	return args.args[0];
 }
 
+static int rockchip_i2s_tdm_dai_prepare(struct platform_device *pdev,
+					struct snd_soc_dai_driver **soc_dai)
+{
+	struct snd_soc_dai_driver rockchip_i2s_tdm_dai = {
+		.probe = rockchip_i2s_tdm_dai_probe,
+		.playback = {
+			.stream_name = "Playback",
+			.channels_min = 2,
+			.channels_max = 8,
+			.rates = SNDRV_PCM_RATE_8000_192000,
+			.formats = (SNDRV_PCM_FMTBIT_S8 |
+				    SNDRV_PCM_FMTBIT_S16_LE |
+				    SNDRV_PCM_FMTBIT_S20_3LE |
+				    SNDRV_PCM_FMTBIT_S24_LE |
+				    SNDRV_PCM_FMTBIT_S32_LE),
+		},
+		.capture = {
+			.stream_name = "Capture",
+			.channels_min = 2,
+			.channels_max = 8,
+			.rates = SNDRV_PCM_RATE_8000_192000,
+			.formats = (SNDRV_PCM_FMTBIT_S8 |
+				    SNDRV_PCM_FMTBIT_S16_LE |
+				    SNDRV_PCM_FMTBIT_S20_3LE |
+				    SNDRV_PCM_FMTBIT_S24_LE |
+				    SNDRV_PCM_FMTBIT_S32_LE),
+		},
+		.ops = &rockchip_i2s_tdm_dai_ops,
+	};
+
+	*soc_dai = devm_kmemdup(&pdev->dev, &rockchip_i2s_tdm_dai,
+				sizeof(rockchip_i2s_tdm_dai), GFP_KERNEL);
+	if (!(*soc_dai)) {
+		dev_err(&pdev->dev, "Failed to duplicate i2s_tdm_dai\n");
+		return -ENOMEM;
+	}
+
+	return 0;
+}
+
 static int rockchip_i2s_tdm_probe(struct platform_device *pdev)
 {
 	struct device_node *node = pdev->dev.of_node;
 	struct device_node *cru_node;
 	const struct of_device_id *of_id;
 	struct rk_i2s_tdm_dev *i2s_tdm;
+	struct snd_soc_dai_driver *soc_dai;
 	struct resource *res;
 	void __iomem *regs;
 	int ret;
 	int val;
+
+	ret = rockchip_i2s_tdm_dai_prepare(pdev, &soc_dai);
+	if (ret < 0)
+		return ret;
 
 	i2s_tdm = devm_kzalloc(&pdev->dev, sizeof(*i2s_tdm), GFP_KERNEL);
 	if (!i2s_tdm)
@@ -882,8 +1126,11 @@ static int rockchip_i2s_tdm_probe(struct platform_device *pdev)
 
 	i2s_tdm->clk_trcm = I2S_CKR_TRCM_TXRX;
 	if (!of_property_read_u32(node, "rockchip,clk-trcm", &val)) {
-		if (val >= 0 && val <= 2)
+		if (val >= 0 && val <= 2) {
 			i2s_tdm->clk_trcm = val << I2S_CKR_TRCM_SHIFT;
+			if (i2s_tdm->clk_trcm)
+				soc_dai->symmetric_rates = 1;
+		}
 	}
 
 	if (i2s_tdm->clk_trcm) {
@@ -934,6 +1181,26 @@ static int rockchip_i2s_tdm_probe(struct platform_device *pdev)
 	if (IS_ERR(i2s_tdm->mclk_rx))
 		return PTR_ERR(i2s_tdm->mclk_rx);
 
+	i2s_tdm->mclk_calibrate =
+		of_property_read_bool(node, "rockchip,mclk-calibrate");
+	if (i2s_tdm->mclk_calibrate) {
+		i2s_tdm->mclk_tx_src = devm_clk_get(&pdev->dev, "mclk_tx_src");
+		if (IS_ERR(i2s_tdm->mclk_tx_src))
+			return PTR_ERR(i2s_tdm->mclk_tx_src);
+
+		i2s_tdm->mclk_rx_src = devm_clk_get(&pdev->dev, "mclk_rx_src");
+		if (IS_ERR(i2s_tdm->mclk_rx_src))
+			return PTR_ERR(i2s_tdm->mclk_rx_src);
+
+		i2s_tdm->mclk_root0 = devm_clk_get(&pdev->dev, "mclk_root0");
+		if (IS_ERR(i2s_tdm->mclk_root0))
+			return PTR_ERR(i2s_tdm->mclk_root0);
+
+		i2s_tdm->mclk_root1 = devm_clk_get(&pdev->dev, "mclk_root1");
+		if (IS_ERR(i2s_tdm->mclk_root1))
+			return PTR_ERR(i2s_tdm->mclk_root1);
+	}
+
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	regs = devm_ioremap_resource(&pdev->dev, res);
 	if (IS_ERR(regs))
@@ -967,13 +1234,15 @@ static int rockchip_i2s_tdm_probe(struct platform_device *pdev)
 
 	ret = devm_snd_soc_register_component(&pdev->dev,
 					      &rockchip_i2s_tdm_component,
-					      &rockchip_i2s_tdm_dai, 1);
+					      soc_dai, 1);
 
 	if (ret) {
 		dev_err(&pdev->dev, "Could not register DAI\n");
 		goto err_suspend;
 	}
 
+	if (of_property_read_bool(node, "rockchip,no-dmaengine"))
+		return ret;
 	ret = devm_snd_dmaengine_pcm_register(&pdev->dev, NULL, 0);
 	if (ret) {
 		dev_err(&pdev->dev, "Could not register PCM\n");

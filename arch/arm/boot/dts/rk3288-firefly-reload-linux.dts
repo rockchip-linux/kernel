@@ -10,6 +10,7 @@
 #include <dt-bindings/display/media-bus-format.h>
 #include"rk3288-firefly.dtsi"
 #include"rk3288-rkisp1.dtsi"
+#include "rk3288-linux.dtsi"
 
 / {
 	model = "Firefly-RK3288";
@@ -426,9 +427,7 @@
 };
 
 &tsadc {
-	rockchip,hw-tshut-mode = <0>; /* tshut mode 0:CRU 1:GPIO */
 	rockchip,hw-tshut-polarity = <1>; /* tshut polarity 0:LOW 1:HIGH */
-	pinctrl-1 = <&otp_gpio>;
 };
 
 &pinctrl {

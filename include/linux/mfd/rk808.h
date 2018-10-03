@@ -472,14 +472,22 @@ enum rk805_reg {
 #define DISCHG_ILIM_ENABLE	BIT(7)
 
 /* IRQ Definitions */
-#define RK805_IRQ_PWRON_RISE		0
 #define RK805_IRQ_VB_LOW		1
 #define RK805_IRQ_PWRON			2
 #define RK805_IRQ_PWRON_LP		3
 #define RK805_IRQ_HOTDIE		4
 #define RK805_IRQ_RTC_ALARM		5
 #define RK805_IRQ_RTC_PERIOD		6
-#define RK805_IRQ_PWRON_FALL		7
+
+/*
+ * When PMIC irq occurs, regmap-irq.c will traverse all PMIC child
+ * interrupts from low index 0 to high index, we give fall interrupt
+ * high priority to be called earlier than rise, so that it can be
+ * override by late rise event. This can helps to solve key release
+ * glitch which make a wrongly fall event immediately after rise.
+ */
+#define RK805_IRQ_PWRON_FALL		0
+#define RK805_IRQ_PWRON_RISE		7
 
 #define RK805_IRQ_PWRON_RISE_MSK	BIT(0)
 #define RK805_IRQ_VB_LOW_MSK		BIT(1)
@@ -754,6 +762,9 @@ enum rk805_reg {
 #define BUCK3_4_IMAX_MAX			(0x3 << 3)
 #define BOOST_DISABLE				((0x1 << 5) | (0x0 << 1))
 #define BUCK4_VRP_3PERCENT			0xc0
+#define RK816_BUCK_DVS_CONFIRM			(0x1 << 7)
+#define RK816_TYPE_ES2				0x05
+#define RK816_CHIP_VERSION_MASK			0x0f
 
 #define TEMP105C			0x08
 #define TEMP115C			0x0c
@@ -765,6 +776,7 @@ enum rk805_reg {
 #define PWM_MODE_MSK			BIT(7)
 #define FPWM_MODE			BIT(7)
 #define AUTO_PWM_MODE			0
+#define REGS_WMSK			0xf0
 
 enum rk817_reg_id {
 	RK817_ID_DCDC1 = 0,

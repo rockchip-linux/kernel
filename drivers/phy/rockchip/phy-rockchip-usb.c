@@ -17,7 +17,6 @@
 #include <linux/clk.h>
 #include <linux/clk-provider.h>
 #include <linux/io.h>
-#include <linux/gpio/consumer.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/mutex.h>
@@ -32,38 +31,28 @@
 #include <linux/mfd/syscon.h>
 #include <linux/delay.h>
 
-/*
- * The higher 16-bit of this register is used for write protection
- * only if BIT(13 + 16) set to 1 the BIT(13) can be written.
- */
-#define SIDDQ_WRITE_ENA	BIT(29)
-#define SIDDQ_ON		BIT(13)
-#define SIDDQ_OFF		(0 << 13)
+static int enable_usb_uart;
 
-#define USB2_PHY_WRITE_ENA	(0xffff << 16)
-#define USB2_PHY_SUSPEND	(0x5 << 0 | 0xd << 4 | 0x1 << 8)
-#define USB2_PHY_RESUME	(0)
+#define HIWORD_UPDATE(val, mask) \
+		((val) | (mask) << 16)
 
-#define UTMI_SEL_GRF_WR_ENA	(0x3 << 16)
-#define UTMI_SEL_GRF_SUSPEND	(0x1 << 0)
-#define UTMI_SEL_GRF_RESUME	(0x2 << 0)
+#define UOC_CON0_SIDDQ BIT(13)
 
 struct rockchip_usb_phys {
 	int reg;
 	const char *pll_name;
 };
 
+struct rockchip_usb_phy_base;
 struct rockchip_usb_phy_pdata {
 	struct rockchip_usb_phys *phys;
-	unsigned int phy_pw_on;
-	unsigned int phy_pw_off;
-	bool siddq_ctl;
+	int (*init_usb_uart)(struct regmap *grf);
+	int usb_uart_phy;
 };
 
 struct rockchip_usb_phy_base {
 	struct device *dev;
 	struct regmap *reg_base;
-	struct gpio_desc *vbus_drv_gpio;
 	const struct rockchip_usb_phy_pdata *pdata;
 };
 
@@ -75,15 +64,16 @@ struct rockchip_usb_phy {
 	struct clk      *clk480m;
 	struct clk_hw	clk480m_hw;
 	struct phy	*phy;
+	bool		uart_enabled;
 	struct reset_control *reset;
+	struct regulator *vbus;
 };
 
 static int rockchip_usb_phy_power(struct rockchip_usb_phy *phy,
-					   bool off)
+				  bool siddq)
 {
-	unsigned int val;
+	u32 val = HIWORD_UPDATE(siddq ? UOC_CON0_SIDDQ : 0, UOC_CON0_SIDDQ);
 
-	val = !off ? phy->base->pdata->phy_pw_on : phy->base->pdata->phy_pw_off;
 	return regmap_write(phy->base->reg_base, phy->reg_offset, val);
 }
 
@@ -99,23 +89,21 @@ static void rockchip_usb_phy480m_disable(struct clk_hw *hw)
 						    struct rockchip_usb_phy,
 						    clk480m_hw);
 
+	if (phy->vbus)
+		regulator_disable(phy->vbus);
+
 	/* Power down usb phy analog blocks by set siddq 1 */
-	if (phy->base->pdata->siddq_ctl)
-		rockchip_usb_phy_power(phy, 1);
+	rockchip_usb_phy_power(phy, 1);
 }
 
 static int rockchip_usb_phy480m_enable(struct clk_hw *hw)
 {
-	int ret = 0;
 	struct rockchip_usb_phy *phy = container_of(hw,
 						    struct rockchip_usb_phy,
 						    clk480m_hw);
 
 	/* Power up usb phy analog blocks by set siddq 0 */
-	if (phy->base->pdata->siddq_ctl)
-		ret = rockchip_usb_phy_power(phy, 0);
-
-	return ret;
+	return rockchip_usb_phy_power(phy, 0);
 }
 
 static int rockchip_usb_phy480m_is_enabled(struct clk_hw *hw)
@@ -123,18 +111,14 @@ static int rockchip_usb_phy480m_is_enabled(struct clk_hw *hw)
 	struct rockchip_usb_phy *phy = container_of(hw,
 						    struct rockchip_usb_phy,
 						    clk480m_hw);
-	int ret = 1;
+	int ret;
 	u32 val;
 
-	if (phy->base->pdata->siddq_ctl) {
-		ret = regmap_read(phy->base->reg_base, phy->reg_offset, &val);
-		if (ret < 0)
-			return ret;
+	ret = regmap_read(phy->base->reg_base, phy->reg_offset, &val);
+	if (ret < 0)
+		return ret;
 
-		ret = (val & SIDDQ_ON) ? 0 : 1;
-	}
-
-	return ret;
+	return (val & UOC_CON0_SIDDQ) ? 0 : 1;
 }
 
 static const struct clk_ops rockchip_usb_phy480m_ops = {
@@ -146,32 +130,32 @@ static const struct clk_ops rockchip_usb_phy480m_ops = {
 
 static int rockchip_usb_phy_power_off(struct phy *_phy)
 {
-	int ret = 0;
 	struct rockchip_usb_phy *phy = phy_get_drvdata(_phy);
 
-	if (!phy->base->pdata->siddq_ctl) {
-		ret = rockchip_usb_phy_power(phy, 1);
-		if (ret)
-			return ret;
-	}
+	if (phy->uart_enabled)
+		return -EBUSY;
 
 	clk_disable_unprepare(phy->clk480m);
+
 	return 0;
 }
 
 static int rockchip_usb_phy_power_on(struct phy *_phy)
 {
-	int ret = 0;
 	struct rockchip_usb_phy *phy = phy_get_drvdata(_phy);
 
-	ret = clk_prepare_enable(phy->clk480m);
-	if (ret)
-		return ret;
+	if (phy->uart_enabled)
+		return -EBUSY;
 
-	if (!phy->base->pdata->siddq_ctl)
-		ret = rockchip_usb_phy_power(phy, 0);
+	if (phy->vbus) {
+		int ret;
 
-	return ret;
+		ret = regulator_enable(phy->vbus);
+		if (ret)
+			return ret;
+	}
+
+	return clk_prepare_enable(phy->clk480m);
 }
 
 static int rockchip_usb_phy_reset(struct phy *_phy)
@@ -198,8 +182,10 @@ static void rockchip_usb_phy_action(void *data)
 {
 	struct rockchip_usb_phy *rk_phy = data;
 
-	of_clk_del_provider(rk_phy->np);
-	clk_unregister(rk_phy->clk480m);
+	if (!rk_phy->uart_enabled) {
+		of_clk_del_provider(rk_phy->np);
+		clk_unregister(rk_phy->clk480m);
+	}
 
 	if (rk_phy->clk)
 		clk_put(rk_phy->clk);
@@ -253,30 +239,35 @@ static int rockchip_usb_phy_init(struct rockchip_usb_phy_base *base,
 		return -EINVAL;
 	}
 
-	if (rk_phy->clk) {
-		clk_name = __clk_get_name(rk_phy->clk);
-		init.flags = 0;
-		init.parent_names = &clk_name;
-		init.num_parents = 1;
+	if (enable_usb_uart && base->pdata->usb_uart_phy == i) {
+		dev_dbg(base->dev, "phy%d used as uart output\n", i);
+		rk_phy->uart_enabled = true;
 	} else {
-		init.flags = CLK_IS_ROOT;
-		init.parent_names = NULL;
-		init.num_parents = 0;
+		if (rk_phy->clk) {
+			clk_name = __clk_get_name(rk_phy->clk);
+			init.flags = 0;
+			init.parent_names = &clk_name;
+			init.num_parents = 1;
+		} else {
+			init.flags = CLK_IS_ROOT;
+			init.parent_names = NULL;
+			init.num_parents = 0;
+		}
+
+		init.ops = &rockchip_usb_phy480m_ops;
+		rk_phy->clk480m_hw.init = &init;
+
+		rk_phy->clk480m = clk_register(base->dev, &rk_phy->clk480m_hw);
+		if (IS_ERR(rk_phy->clk480m)) {
+			err = PTR_ERR(rk_phy->clk480m);
+			goto err_clk;
+		}
+
+		err = of_clk_add_provider(child, of_clk_src_simple_get,
+					  rk_phy->clk480m);
+		if (err < 0)
+			goto err_clk_prov;
 	}
-
-	init.ops = &rockchip_usb_phy480m_ops;
-	rk_phy->clk480m_hw.init = &init;
-
-	rk_phy->clk480m = clk_register(base->dev, &rk_phy->clk480m_hw);
-	if (IS_ERR(rk_phy->clk480m)) {
-		err = PTR_ERR(rk_phy->clk480m);
-		goto err_clk;
-	}
-
-	err = of_clk_add_provider(child, of_clk_src_simple_get,
-				  rk_phy->clk480m);
-	if (err < 0)
-		goto err_clk_prov;
 
 	err = devm_add_action(base->dev, rockchip_usb_phy_action, rk_phy);
 	if (err)
@@ -288,6 +279,13 @@ static int rockchip_usb_phy_init(struct rockchip_usb_phy_base *base,
 		return PTR_ERR(rk_phy->phy);
 	}
 	phy_set_drvdata(rk_phy->phy, rk_phy);
+
+	rk_phy->vbus = devm_regulator_get_optional(&rk_phy->phy->dev, "vbus");
+	if (IS_ERR(rk_phy->vbus)) {
+		if (PTR_ERR(rk_phy->vbus) == -EPROBE_DEFER)
+			return PTR_ERR(rk_phy->vbus);
+		rk_phy->vbus = NULL;
+	}
 
 	/*
 	 * Setting the COMMONONN to 1'b0 for EHCI PHY on RK3288 SoC.
@@ -304,13 +302,21 @@ static int rockchip_usb_phy_init(struct rockchip_usb_phy_base *base,
 	    reg_offset == 0x334)
 		regmap_write(base->reg_base, reg_offset, BIT(16));
 
-	/* only power up usb phy when it use, so disable it when init*/
-	return rockchip_usb_phy_power(rk_phy, 1);
+	/*
+	 * When acting as uart-pipe, just keep clock on otherwise
+	 * only power up usb phy when it use, so disable it when init
+	 */
+	if (rk_phy->uart_enabled)
+		return clk_prepare_enable(rk_phy->clk);
+	else
+		return rockchip_usb_phy_power(rk_phy, 1);
 
 err_devm_action:
-	of_clk_del_provider(child);
+	if (!rk_phy->uart_enabled)
+		of_clk_del_provider(child);
 err_clk_prov:
-	clk_unregister(rk_phy->clk480m);
+	if (!rk_phy->uart_enabled)
+		clk_unregister(rk_phy->clk480m);
 err_clk:
 	if (rk_phy->clk)
 		clk_put(rk_phy->clk);
@@ -323,9 +329,6 @@ static const struct rockchip_usb_phy_pdata rk3066a_pdata = {
 		{ .reg = 0x188, .pll_name = "sclk_otgphy1_480m" },
 		{ /* sentinel */ }
 	},
-	.phy_pw_on  = SIDDQ_WRITE_ENA | SIDDQ_OFF,
-	.phy_pw_off = SIDDQ_WRITE_ENA | SIDDQ_ON,
-	.siddq_ctl  = true,
 };
 
 static const struct rockchip_usb_phy_pdata rk3188_pdata = {
@@ -334,10 +337,87 @@ static const struct rockchip_usb_phy_pdata rk3188_pdata = {
 		{ .reg = 0x11c, .pll_name = "sclk_otgphy1_480m" },
 		{ /* sentinel */ }
 	},
-	.phy_pw_on  = SIDDQ_WRITE_ENA | SIDDQ_OFF,
-	.phy_pw_off = SIDDQ_WRITE_ENA | SIDDQ_ON,
-	.siddq_ctl  = true,
 };
+
+#define RK3288_UOC0_CON0				0x320
+#define RK3288_UOC0_CON0_COMMON_ON_N			BIT(0)
+#define RK3288_UOC0_CON0_DISABLE			BIT(4)
+
+#define RK3288_UOC0_CON2				0x328
+#define RK3288_UOC0_CON2_SOFT_CON_SEL			BIT(2)
+
+#define RK3288_UOC0_CON3				0x32c
+#define RK3288_UOC0_CON3_UTMI_SUSPENDN			BIT(0)
+#define RK3288_UOC0_CON3_UTMI_OPMODE_NODRIVING		BIT(1)
+#define RK3288_UOC0_CON3_UTMI_OPMODE_MASK		(3 << 1)
+#define RK3288_UOC0_CON3_UTMI_XCVRSEELCT_FSTRANSC	BIT(3)
+#define RK3288_UOC0_CON3_UTMI_XCVRSEELCT_MASK		(3 << 3)
+#define RK3288_UOC0_CON3_UTMI_TERMSEL_FULLSPEED		BIT(5)
+#define RK3288_UOC0_CON3_BYPASSDMEN			BIT(6)
+#define RK3288_UOC0_CON3_BYPASSSEL			BIT(7)
+
+/*
+ * Enable the bypass of uart2 data through the otg usb phy.
+ * Original description in the TRM.
+ * 1. Disable the OTG block by setting OTGDISABLE0 to 1’b1.
+ * 2. Disable the pull-up resistance on the D+ line by setting
+ *    OPMODE0[1:0] to 2’b01.
+ * 3. To ensure that the XO, Bias, and PLL blocks are powered down in Suspend
+ *    mode, set COMMONONN to 1’b1.
+ * 4. Place the USB PHY in Suspend mode by setting SUSPENDM0 to 1’b0.
+ * 5. Set BYPASSSEL0 to 1’b1.
+ * 6. To transmit data, controls BYPASSDMEN0, and BYPASSDMDATA0.
+ * To receive data, monitor FSVPLUS0.
+ *
+ * The actual code in the vendor kernel does some things differently.
+ */
+static int __init rk3288_init_usb_uart(struct regmap *grf)
+{
+	u32 val;
+	int ret;
+
+	/*
+	 * COMMON_ON and DISABLE settings are described in the TRM,
+	 * but were not present in the original code.
+	 * Also disable the analog phy components to save power.
+	 */
+	val = HIWORD_UPDATE(RK3288_UOC0_CON0_COMMON_ON_N
+				| RK3288_UOC0_CON0_DISABLE
+				| UOC_CON0_SIDDQ,
+			    RK3288_UOC0_CON0_COMMON_ON_N
+				| RK3288_UOC0_CON0_DISABLE
+				| UOC_CON0_SIDDQ);
+	ret = regmap_write(grf, RK3288_UOC0_CON0, val);
+	if (ret)
+		return ret;
+
+	val = HIWORD_UPDATE(RK3288_UOC0_CON2_SOFT_CON_SEL,
+			    RK3288_UOC0_CON2_SOFT_CON_SEL);
+	ret = regmap_write(grf, RK3288_UOC0_CON2, val);
+	if (ret)
+		return ret;
+
+	val = HIWORD_UPDATE(RK3288_UOC0_CON3_UTMI_OPMODE_NODRIVING
+				| RK3288_UOC0_CON3_UTMI_XCVRSEELCT_FSTRANSC
+				| RK3288_UOC0_CON3_UTMI_TERMSEL_FULLSPEED,
+			    RK3288_UOC0_CON3_UTMI_SUSPENDN
+				| RK3288_UOC0_CON3_UTMI_OPMODE_MASK
+				| RK3288_UOC0_CON3_UTMI_XCVRSEELCT_MASK
+				| RK3288_UOC0_CON3_UTMI_TERMSEL_FULLSPEED);
+	ret = regmap_write(grf, RK3288_UOC0_CON3, val);
+	if (ret)
+		return ret;
+
+	val = HIWORD_UPDATE(RK3288_UOC0_CON3_BYPASSSEL
+				| RK3288_UOC0_CON3_BYPASSDMEN,
+			    RK3288_UOC0_CON3_BYPASSSEL
+				| RK3288_UOC0_CON3_BYPASSDMEN);
+	ret = regmap_write(grf, RK3288_UOC0_CON3, val);
+	if (ret)
+		return ret;
+
+	return 0;
+}
 
 static const struct rockchip_usb_phy_pdata rk3288_pdata = {
 	.phys = (struct rockchip_usb_phys[]){
@@ -346,31 +426,8 @@ static const struct rockchip_usb_phy_pdata rk3288_pdata = {
 		{ .reg = 0x348, .pll_name = "sclk_otgphy2_480m" },
 		{ /* sentinel */ }
 	},
-	.phy_pw_on  = SIDDQ_WRITE_ENA | SIDDQ_OFF,
-	.phy_pw_off = SIDDQ_WRITE_ENA | SIDDQ_ON,
-	.siddq_ctl  = true,
-};
-
-static const struct rockchip_usb_phy_pdata rk336x_pdata = {
-	.phys = (struct rockchip_usb_phys[]){
-		{ .reg = 0x700, .pll_name = "sclk_otgphy0_480m" },
-		{ .reg = 0x728, .pll_name = "sclk_otgphy1_480m" },
-		{ /* sentinel */ }
-	},
-	.phy_pw_on  = USB2_PHY_WRITE_ENA | USB2_PHY_RESUME,
-	.phy_pw_off = USB2_PHY_WRITE_ENA | USB2_PHY_SUSPEND,
-	.siddq_ctl  = false,
-};
-
-static const struct rockchip_usb_phy_pdata rk3399_pdata = {
-	.phys = (struct rockchip_usb_phys[]){
-		{ .reg = 0xe458, .pll_name = "sclk_otgphy0_480m" },
-		{ .reg = 0xe468, .pll_name = "sclk_otgphy1_480m" },
-		{ /* sentinel */ }
-	},
-	.phy_pw_on  = UTMI_SEL_GRF_WR_ENA | UTMI_SEL_GRF_RESUME,
-	.phy_pw_off = UTMI_SEL_GRF_WR_ENA | UTMI_SEL_GRF_SUSPEND,
-	.siddq_ctl  = false,
+	.init_usb_uart = rk3288_init_usb_uart,
+	.usb_uart_phy = 0,
 };
 
 static int rockchip_usb_phy_probe(struct platform_device *pdev)
@@ -407,14 +464,6 @@ static int rockchip_usb_phy_probe(struct platform_device *pdev)
 		return PTR_ERR(phy_base->reg_base);
 	}
 
-	/* Request the vbus_drv GPIO asserted */
-	phy_base->vbus_drv_gpio =
-		devm_gpiod_get_optional(dev, "vbus_drv", GPIOD_OUT_HIGH);
-	if (!phy_base->vbus_drv_gpio)
-		dev_info(&pdev->dev, "vbus_drv is not assigned!\n");
-	else if (IS_ERR(phy_base->vbus_drv_gpio))
-		return PTR_ERR(phy_base->vbus_drv_gpio);
-
 	for_each_available_child_of_node(dev->of_node, child) {
 		err = rockchip_usb_phy_init(phy_base, child);
 		if (err) {
@@ -445,6 +494,65 @@ static struct platform_driver rockchip_usb_driver = {
 };
 
 module_platform_driver(rockchip_usb_driver);
+
+#ifndef MODULE
+static int __init rockchip_init_usb_uart(void)
+{
+	const struct of_device_id *match;
+	const struct rockchip_usb_phy_pdata *data;
+	struct device_node *np;
+	struct regmap *grf;
+	int ret;
+
+	if (!enable_usb_uart)
+		return 0;
+
+	np = of_find_matching_node_and_match(NULL, rockchip_usb_phy_dt_ids,
+					     &match);
+	if (!np) {
+		pr_err("%s: failed to find usbphy node\n", __func__);
+		return -ENOTSUPP;
+	}
+
+	pr_debug("%s: using settings for %s\n", __func__, match->compatible);
+	data = match->data;
+
+	if (!data->init_usb_uart) {
+		pr_err("%s: usb-uart not available on %s\n",
+		       __func__, match->compatible);
+		return -ENOTSUPP;
+	}
+
+	grf = ERR_PTR(-ENODEV);
+	if (np->parent)
+		grf = syscon_node_to_regmap(np->parent);
+	if (IS_ERR(grf))
+		grf = syscon_regmap_lookup_by_phandle(np, "rockchip,grf");
+	if (IS_ERR(grf)) {
+		pr_err("%s: Missing rockchip,grf property, %lu\n",
+		       __func__, PTR_ERR(grf));
+		return PTR_ERR(grf);
+	}
+
+	ret = data->init_usb_uart(grf);
+	if (ret) {
+		pr_err("%s: could not init usb_uart, %d\n", __func__, ret);
+		enable_usb_uart = 0;
+		return ret;
+	}
+
+	return 0;
+}
+early_initcall(rockchip_init_usb_uart);
+
+static int __init rockchip_usb_uart(char *buf)
+{
+	enable_usb_uart = true;
+	return 0;
+}
+
+early_param("rockchip.usb_uart", rockchip_usb_uart);
+#endif
 
 MODULE_AUTHOR("Yunzhi Li <lyz@rock-chips.com>");
 MODULE_DESCRIPTION("Rockchip USB 2.0 PHY driver");

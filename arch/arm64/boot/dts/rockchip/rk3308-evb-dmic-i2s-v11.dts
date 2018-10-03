@@ -1,0 +1,78 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright (c) 2018 Fuzhou Rockchip Electronics Co., Ltd
+ */
+
+/dts-v1/;
+
+#include "rk3308-evb-v11.dtsi"
+
+/ {
+	model = "Rockchip RK3308 evb digital-i2s mic v11 board";
+	compatible = "rockchip,rk3308-evb-dmic-i2s-v11", "rockchip,rk3308";
+
+	i2s_8ch_0_2_dais: i2s-8ch-0-2-dais {
+		status = "okay";
+		compatible = "rockchip,rk3308-multi-dais", "rockchip,multi-dais";
+		dais = <&i2s_8ch_0>, <&i2s_8ch_2>;
+		capture,channel-mapping = <6 2>;
+		playback,channel-mapping = <0 2>;
+	};
+
+	i2s-dmic-array {
+		status = "disabled";
+		compatible = "simple-audio-card";
+		simple-audio-card,format = "i2s";
+		simple-audio-card,name = "rockchip,i2s-dmic-array";
+		simple-audio-card,mclk-fs = <256>;
+		simple-audio-card,cpu {
+			sound-dai = <&i2s_8ch_0>;
+		};
+		simple-audio-card,codec {
+			sound-dai = <&dummy_codec>;
+		};
+	};
+
+	vad-sound {
+		status = "okay";
+		compatible = "rockchip,multicodecs-card";
+		rockchip,card-name = "rockchip,rk3308-vad";
+		rockchip,cpu = <&i2s_8ch_0_2_dais>;
+		rockchip,codec = <&acodec>, <&vad>;
+	};
+};
+
+&acodec_sound {
+	status = "disabled";
+};
+
+&bluetooth_sound {
+	status = "okay";
+};
+
+&i2s_2ch_0 {
+	status = "okay";
+	#sound-dai-cells = <0>;
+	rockchip,clk-trcm = <1>;
+};
+
+&i2s_8ch_0 {
+	status = "okay";
+	rockchip,no-dmaengine;
+	#sound-dai-cells = <0>;
+};
+
+&i2s_8ch_2 {
+	status = "okay";
+	rockchip,no-dmaengine;
+	#sound-dai-cells = <0>;
+};
+
+&vad {
+	status = "okay";
+	rockchip,audio-src = <&i2s_8ch_0>;
+	rockchip,buffer-time-ms = <200>;
+	rockchip,det-channel = <0>;
+	rockchip,mode = <1>;
+	#sound-dai-cells = <0>;
+};

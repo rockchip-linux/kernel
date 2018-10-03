@@ -19,6 +19,11 @@
 
 #define CAMERA_STRLEN         32
 #define CAMERA_METADATA_LEN   (2 * PAGE_SIZE)
+#define VALID_FR_EXP_T_INDEX   0
+#define VALID_FR_EXP_G_INDEX   1
+#define SENSOR_CONFIG_NUM      4
+#define SENSOR_READ_MODE       0
+#define SENSOR_WRITE_MODE      1
 
 /* Sensor resolution specific data for AE calculation.*/
 struct isp_supplemental_sensor_mode_data {
@@ -43,11 +48,16 @@ struct isp_supplemental_sensor_mode_data {
 	unsigned int isp_output_height;
 	unsigned char binning_factor_x; /* horizontal binning factor used */
 	unsigned char binning_factor_y; /* vertical binning factor used */
+	/*
+	*0: Exposure time valid fileds;
+	*1: Exposure gain valid fileds;
+	*(2 fileds == 1 frames)
+	*/
 	unsigned char exposure_valid_frame[2];
 	int exp_time;
 	unsigned short gain;
-	unsigned short af_onoff;
-	unsigned int vcm_max_step;
+	unsigned char max_exp_gain_h;
+	unsigned char max_exp_gain_l;
 };
 
 struct camera_module_info_s {
@@ -64,6 +74,26 @@ struct camera_module_info_s {
 	bool iq_flip;
 	int flash_support;
 	int flash_exp_percent;
+	int af_support;
+};
+
+struct sensor_resolution_s {
+	unsigned short width;
+	unsigned short height;
+};
+
+struct sensor_config_info_s {
+	unsigned char config_num;
+	unsigned char sensor_fmt[SENSOR_CONFIG_NUM];
+	struct sensor_resolution_s reso[SENSOR_CONFIG_NUM];
+};
+
+struct sensor_reg_rw_s {
+	unsigned char reg_access_mode;
+	unsigned char reg_addr_len;
+	unsigned char reg_data_len;
+	unsigned short addr;
+	unsigned short data;
 };
 
 struct flash_timeinfo_s {

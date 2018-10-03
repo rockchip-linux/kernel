@@ -53,7 +53,7 @@
 
 	cpuinfo {
 		compatible = "rockchip,cpuinfo";
-		nvmem-cells = <&efuse_id>;
+		nvmem-cells = <&cpu_id>;
 		nvmem-cell-names = "id";
 	};
 
@@ -187,9 +187,9 @@
 			"isp_mipi_fl_prefl", "isp_flash_as_gpio",
 			"isp_flash_as_trigger_out";
 		pinctrl-0 = <&cif_clkout>;
-		pinctrl-1 = <&isp_dvp_d0d7>;
+		pinctrl-1 = <&cif_clkout &isp_dvp_d0d7>;
 		pinctrl-2 = <&cif_clkout>;
-		pinctrl-3 = <&isp_prelight>;
+		pinctrl-3 = <&cif_clkout &isp_prelight>;
 		pinctrl-4 = <&isp_flash_trigger_as_gpio>;
 		pinctrl-5 = <&isp_flash_trigger>;
 		rockchip,isp,mipiphy = <2>;
@@ -266,14 +266,14 @@
 				compatible = "android,fstab";
 				system {
 					compatible = "android,system";
-					dev = "/dev/block/platform/fe330000.sdhci/by-name/system";
+					dev = "/dev/block/by-name/system";
 					type = "ext4";
 					mnt_flags = "ro,barrier=1,inode_readahead_blks=8";
 					fsmgr_flags = "wait,verify";
 				};
 				vendor {
 					compatible = "android,vendor";
-					dev = "/dev/block/platform/fe330000.sdhci/by-name/vendor";
+					dev = "/dev/block/by-name/vendor";
 					type = "ext4";
 					mnt_flags = "ro,barrier=1,inode_readahead_blks=8";
 					fsmgr_flags = "wait,verify";
@@ -281,6 +281,10 @@
 			};
 		};
 	};
+};
+
+&uart2 {
+	status = "disabled";
 };
 
 &vopb {

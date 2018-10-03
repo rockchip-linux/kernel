@@ -292,15 +292,12 @@ exit_eint:
 #ifdef GTP_CONFIG_OF
 
 static struct regulator *vdd_ana;
-static struct regulator *vcc_i2c;
-
 /**
  * gt1x_parse_dt - parse platform infomation form devices tree.
  */
 static int gt1x_parse_dt(struct device *dev)
 {
 	struct device_node *np;
-	int ret;
 
 	if (!dev)
 		return -ENODEV;
@@ -315,26 +312,20 @@ static int gt1x_parse_dt(struct device *dev)
 		return -EINVAL;
 	}
 
-	vdd_ana = regulator_get(dev, "vdd_ana");
+	vdd_ana = devm_regulator_get_optional(dev, "vdd_ana");
+	if (PTR_ERR(vdd_ana) == -ENODEV) {
+		GTP_ERROR("vdd_ana not specified, fallback to power-supply");
+		vdd_ana = devm_regulator_get_optional(dev, "power");
+		if (PTR_ERR(vdd_ana) == -ENODEV) {
+			GTP_ERROR("power not specified, ignore power ctrl");
+			vdd_ana = NULL;
+		}
+	}
 	if (IS_ERR(vdd_ana)) {
-		GTP_ERROR("regulator get of vdd_ana failed");
-		ret = PTR_ERR(vdd_ana);
-		vdd_ana = NULL;
-		return ret;
+		GTP_ERROR("regulator get of vdd_ana/power-supply failed");
+		return PTR_ERR(vdd_ana);
 	}
 
-	vcc_i2c = regulator_get(dev, "vcc_i2c");
-	if (IS_ERR(vcc_i2c)) {
-		GTP_ERROR("regulator get of vcc_i2c failed");
-		ret = PTR_ERR(vcc_i2c);
-		vcc_i2c = NULL;
-		goto ERR_GET_VCC;
-	}
-	return 0;
-ERR_GET_VCC:
-	regulator_put(vdd_ana);
-	vdd_ana = NULL;
-	return ret;
 	return 0;
 }
 
@@ -348,18 +339,14 @@ int gt1x_power_switch(int on)
 	int ret;
 	struct i2c_client *client = gt1x_i2c_client;
 
-	if (!client || !vdd_ana || !vcc_i2c)
+	if (!client || !vdd_ana)
 		return -1;
 
 	if (on) {
 		GTP_DEBUG("GTP power on.");
 		ret = regulator_enable(vdd_ana);
-		udelay(2);
-		ret = regulator_enable(vcc_i2c);
 	} else {
 		GTP_DEBUG("GTP power off.");
-		ret = regulator_disable(vcc_i2c);
-		udelay(2);
 		ret = regulator_disable(vdd_ana);
 	}
 	return ret;
@@ -373,14 +360,6 @@ static void gt1x_remove_gpio_and_power(void)
 
 	if (gpio_is_valid(gt1x_rst_gpio))
 		gpio_free(gt1x_rst_gpio);
-
-#ifdef GTP_CONFIG_OF
-	if (vcc_i2c)
-		regulator_put(vcc_i2c);
-
-	if (vdd_ana)
-		regulator_put(vdd_ana);
-#endif
 
 	if (gt1x_i2c_client && gt1x_i2c_client->irq)
 		free_irq(gt1x_i2c_client->irq, gt1x_i2c_client);
@@ -398,25 +377,21 @@ static s32 gt1x_request_io_port(void)
 	ret = gpio_request(GTP_INT_PORT, "GTP_INT_IRQ");
 	if (ret < 0) {
 		GTP_ERROR("Failed to request GPIO:%d, ERRNO:%d", (s32) GTP_INT_PORT, ret);
-		ret = -ENODEV;
-	} else {
-		GTP_GPIO_AS_INT(GTP_INT_PORT);
-		gt1x_i2c_client->irq = GTP_INT_IRQ;
+		return ret;
 	}
+
+	GTP_GPIO_AS_INT(GTP_INT_PORT);
+	gt1x_i2c_client->irq = GTP_INT_IRQ;
 
 	ret = gpio_request(GTP_RST_PORT, "GTP_RST_PORT");
 	if (ret < 0) {
 		GTP_ERROR("Failed to request GPIO:%d, ERRNO:%d", (s32) GTP_RST_PORT, ret);
-		ret = -ENODEV;
+		gpio_free(GTP_INT_PORT);
+		return ret;
 	}
 
 	GTP_GPIO_AS_INPUT(GTP_RST_PORT);
-	if (ret < 0) {
-		gpio_free(GTP_RST_PORT);
-		gpio_free(GTP_INT_PORT);
-	}
-
-	return ret;
+	return 0;
 }
 
 /**
@@ -499,6 +474,9 @@ static s8 gt1x_request_input_dev(void)
 	input_set_abs_params(input_dev, ABS_MT_TOUCH_MAJOR, 0, 255, 0, 0);
 	input_set_abs_params(input_dev, ABS_MT_TRACKING_ID, 0, 255, 0, 0);
 
+	input_set_abs_params(input_dev, ABS_X, 0, 255, 0, 0);
+	input_set_abs_params(input_dev, ABS_Y, 0, 255, 0, 0);
+
 	input_dev->name = gt1x_ts_name;
 	input_dev->phys = input_dev_phys;
 	input_dev->id.bustype = BUS_I2C;
@@ -541,7 +519,9 @@ static int gt1x_ts_probe(struct i2c_client *client, const struct i2c_device_id *
 
 #ifdef GTP_CONFIG_OF	/* device tree support */
 	if (client->dev.of_node) {
-		gt1x_parse_dt(&client->dev);
+		ret = gt1x_parse_dt(&client->dev);
+		if (ret)
+			return ret;
 	}
 #endif
 

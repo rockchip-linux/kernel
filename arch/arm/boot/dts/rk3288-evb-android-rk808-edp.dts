@@ -79,6 +79,13 @@
 		regulator-always-on;
 		regulator-boot-on;
 	};
+
+	xin32k: xin32k {
+		compatible = "fixed-clock";
+		clock-frequency = <32768>;
+		clock-output-names = "xin32k";
+		#clock-cells = <0>;
+	};
 };
 
 &cpu0 {
@@ -104,6 +111,7 @@
 
 &edp_panel {
 	compatible ="lg,lp079qx1-sp0v", "simple-panel";
+	backlight = <&backlight>;
 	enable-gpios = <&gpio7 4 GPIO_ACTIVE_HIGH>;
 	enable-delay-ms = <120>;
 	pinctrl-0 = <&lcd_cs>;
@@ -165,7 +173,7 @@
 		rockchip,system-power-controller;
 		wakeup-source;
 		#clock-cells = <1>;
-		clock-output-names = "xin32k", "rk808-clkout2";
+		clock-output-names = "rk808-clkout1", "rk808-clkout2";
 
 		vcc1-supply = <&vcc_sys>;
 		vcc2-supply = <&vcc_sys>;
@@ -240,7 +248,8 @@
 				regulator-max-microvolt = <3300000>;
 				regulator-name = "vcca_codec";
 				regulator-state-mem {
-					regulator-off-in-suspend;
+					regulator-on-in-suspend;
+					regulator-suspend-microvolt = <3300000>;
 				};
 			};
 
@@ -274,8 +283,7 @@
 				regulator-max-microvolt = <3300000>;
 				regulator-name = "vccio_sd";
 				regulator-state-mem {
-					regulator-on-in-suspend;
-					regulator-suspend-microvolt = <3300000>;
+					regulator-off-in-suspend;
 				};
 			};
 
@@ -320,7 +328,7 @@
 				regulator-max-microvolt = <3300000>;
 				regulator-name = "vcc_sd";
 				regulator-state-mem {
-					regulator-on-in-suspend;
+					regulator-off-in-suspend;
 				};
 			};
 
@@ -420,6 +428,8 @@
 
 &pwm1 {
 	status = "okay";
+	pinctrl-names = "active";
+	pinctrl-0 = <&pwm1_pin_pull_down>;
 };
 
 &pinctrl {

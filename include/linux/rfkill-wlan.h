@@ -5,6 +5,7 @@
 #include <linux/types.h>
 #include <linux/init.h>
 #include <linux/device.h>
+#include <linux/clk.h>
 
 struct rksdmmc_iomux {
     char    *name;  //set the MACRO of gpio
@@ -42,6 +43,7 @@ struct rksdmmc_gpio_wifi_moudle {
     struct rksdmmc_gpio   ANTSEL3;  //pin6--ANTSEL3 
     struct rksdmmc_gpio   GPS_LAN;  //pin33--GPS_LAN
     struct regmap *grf;
+	struct clk *ext_clk;
 };
 
 enum {
@@ -73,6 +75,8 @@ enum {
     WIFI_RTL8812AU,
     WIFI_RTL_SERIES,
     WIFI_ESP8089,
+    WIFI_MVL88W8977,
+    WIFI_SSV6051,
     TYPE_MAX,
 };
 
@@ -82,6 +86,7 @@ int rockchip_wifi_ref_voltage(int on);
 int rockchip_wifi_power(int on);
 int rockchip_wifi_set_carddetect(int val);
 int rockchip_wifi_get_oob_irq(void);
+int rockchip_wifi_get_oob_irq_flag(void);
 int rockchip_wifi_reset(int on);
 int rockchip_wifi_mac_addr(unsigned char *buf);
 void *rockchip_wifi_country_code(char *ccode);

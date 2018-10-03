@@ -216,40 +216,18 @@ void disable_rsz(struct rkisp1_stream *stream, bool async)
 		update_rsz_shadow(stream, async);
 }
 
-void config_mi_ctrl(struct rkisp1_stream *stream)
+void config_mi_ctrl(struct rkisp1_stream *stream, u32 burst)
 {
 	void __iomem *base = stream->ispdev->base_addr;
 	void __iomem *addr = base + CIF_MI_CTRL;
 	u32 reg;
 
-	reg = readl(addr) & ~GENMASK(17, 16);
-	writel(reg | CIF_MI_CTRL_BURST_LEN_LUM_64, addr);
-	reg = readl(addr) & ~GENMASK(19, 18);
-	writel(reg | CIF_MI_CTRL_BURST_LEN_CHROM_64, addr);
+	reg = readl(addr) & ~GENMASK(19, 16);
+	writel(reg | burst, addr);
 	reg = readl(addr);
 	writel(reg | CIF_MI_CTRL_INIT_BASE_EN, addr);
 	reg = readl(addr);
 	writel(reg | CIF_MI_CTRL_INIT_OFFSET_EN, addr);
-}
-
-void mp_clr_frame_end_int(void __iomem *base)
-{
-	writel(CIF_MI_MP_FRAME, base + CIF_MI_ICR);
-}
-
-void sp_clr_frame_end_int(void __iomem *base)
-{
-	writel(CIF_MI_SP_FRAME, base + CIF_MI_ICR);
-}
-
-bool mp_is_frame_end_int_masked(void __iomem *base)
-{
-	return (mi_get_masked_int_status(base) & CIF_MI_MP_FRAME);
-}
-
-bool sp_is_frame_end_int_masked(void __iomem *base)
-{
-	return (mi_get_masked_int_status(base) & CIF_MI_SP_FRAME);
 }
 
 bool mp_is_stream_stopped(void __iomem *base)

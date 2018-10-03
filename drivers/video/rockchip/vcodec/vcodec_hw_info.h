@@ -175,6 +175,13 @@ struct vpu_task_info {
 	int reg_pps;
 
 	/*
+	 * soft reset register
+	 * special register for soft reset
+	 * valid on vpu & vpu2 & rkv
+	 */
+	int reg_reset;
+
+	/*
 	 * decoder pipeline mode register
 	 *
 	 * valid on vpu & vpu2
@@ -200,11 +207,14 @@ struct vpu_task_info {
 	/* task error bit mask for irq register */
 	u32 error_mask;
 
+	/* task reset bit mask for reset register */
+	u32 reset_mask;
+
 	enum FORMAT_TYPE (*get_fmt)(u32 *regs);
 };
 
 struct vpu_trans_info {
-	const int count;
+	const size_t count;
 	const char * const table;
 };
 
@@ -216,8 +226,8 @@ struct vcodec_info {
 };
 
 struct vcodec_device_info {
-	int32_t device_type;
-	int8_t *name;
+	s32 device_type;
+	s8 *name;
 };
 
 #define DEF_FMT_TRANS_TBL(fmt, args...) \

@@ -20,10 +20,10 @@
 #
 
 
-obj-$(CONFIG_MALI_MIDGARD_FOR_LINUX) += midgard_for_linux/
-
-obj-$(CONFIG_MALI_MIDGARD_FOR_ANDROID) += midgard/
+obj-$(CONFIG_MALI_MIDGARD) += midgard/
 
 obj-$(CONFIG_MALI400)      += mali400/
 
-obj-$(CONFIG_MALI_BIFROST) += bifrost/
+obj-$(CONFIG_MALI_BIFROST_FOR_ANDROID) += bifrost/
+
+obj-$(CONFIG_MALI_BIFROST_FOR_LINUX) += bifrost_for_linux/

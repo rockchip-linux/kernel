@@ -56,6 +56,7 @@ static DEFINE_MUTEX(regulator_list_mutex);
 static LIST_HEAD(regulator_map_list);
 static LIST_HEAD(regulator_ena_gpio_list);
 static LIST_HEAD(regulator_supply_alias_list);
+static LIST_HEAD(regulator_early_min_volt_list);
 static bool has_full_constraints;
 
 static struct dentry *debugfs_root;
@@ -4224,6 +4225,26 @@ static inline void rdev_init_debugfs(struct regulator_dev *rdev)
 
 #endif
 
+static void rdev_init_early_min_volt(struct regulator_dev *rdev)
+{
+	struct regulator *regulator;
+
+	if (!rdev->constraints->early_min_uV)
+		return;
+
+	regulator = regulator_get(NULL, rdev_get_name(rdev));
+	if (IS_ERR(regulator)) {
+		rdev_err(rdev, "regulator get failed, ret=%ld\n",
+			 PTR_ERR(regulator));
+		return;
+	}
+
+	regulator->min_uV = rdev->constraints->early_min_uV;
+	regulator->max_uV = rdev->constraints->max_uV;
+
+	list_add(&regulator->early_min_list, &regulator_early_min_volt_list);
+}
+
 static int regulator_register_resolve_supply(struct device *dev, void *data)
 {
 	struct regulator_dev *rdev = dev_to_rdev(dev);
@@ -4391,6 +4412,7 @@ regulator_register(const struct regulator_desc *regulator_desc,
 
 	dev_set_drvdata(&rdev->dev, rdev);
 	rdev_init_debugfs(rdev);
+	rdev_init_early_min_volt(rdev);
 
 	/* try to resolve regulators supply since a new one was registered */
 	class_for_each_device(&regulator_class, NULL, NULL,
@@ -4830,6 +4852,44 @@ unlock:
 	return 0;
 }
 
+static void __init regulator_release_early_min_volt(void)
+{
+	struct regulator *regulator, *n, *reg;
+	struct regulator_dev *rdev;
+	int min_uV = 0, max_uV = 0, ret = 0;
+
+	if (list_empty(&regulator_early_min_volt_list))
+		return;
+
+	list_for_each_entry_safe(regulator, n, &regulator_early_min_volt_list,
+				 early_min_list) {
+		rdev = regulator->rdev;
+
+		regulator_lock_supply(rdev);
+
+		regulator->min_uV = 0;
+		regulator->max_uV = 0;
+		min_uV = rdev->constraints->min_uV;
+		max_uV = rdev->constraints->max_uV;
+
+		list_for_each_entry(reg, &rdev->consumer_list, list) {
+			if (!reg->min_uV && !reg->max_uV)
+				continue;
+			ret = regulator_set_voltage_unlocked(regulator, min_uV,
+							     max_uV);
+			if (ret)
+				rdev_err(rdev, "set voltage(%d, %d) failed\n",
+					 min_uV, max_uV);
+			break;
+		}
+
+		regulator_unlock_supply(rdev);
+
+		list_del(&regulator->early_min_list);
+		regulator_put(regulator);
+	}
+}
+
 static int __init regulator_init_complete(void)
 {
 	/*
@@ -4848,6 +4908,8 @@ static int __init regulator_init_complete(void)
 	 */
 	class_for_each_device(&regulator_class, NULL, NULL,
 			      regulator_late_cleanup);
+
+	regulator_release_early_min_volt();
 
 	return 0;
 }

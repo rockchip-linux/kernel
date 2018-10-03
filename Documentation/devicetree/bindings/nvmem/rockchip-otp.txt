@@ -1,13 +1,18 @@
 Rockchip internal OTP (One Time Programmable) memory device tree bindings
 
 Required properties:
-  - compatible: Should be "rockchip,px30-otp"
+- compatible: Should be one of the following.
+  - "rockchip,px30-otp" - for PX30 SoCs.
+  - "rockchip,rk3308-otp" - for RK3308 SoCs.
   - reg: Must contain an entry with the physical base address and length
     for each entry in reg-names.
   - address-cells: must be set to 1.
   - size-cells: must be set to 1.
   - clocks: Must contain an entry for each entry in clock-names.
   - clock-names: Should be "clk_opt", "pclk_otp" and "pclk_otp_phy".
+  - resets: Must contain an entry for each entry in reset-names.
+    See ../../reset/reset.txt for details.
+  - reset-names: Should be "otp_phy".
 
 See nvmem.txt for more information.
 

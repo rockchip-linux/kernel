@@ -439,6 +439,9 @@ static int rockchip_spi_prepare_dma(struct rockchip_spi *rs)
 	struct dma_slave_config rxconf, txconf;
 	struct dma_async_tx_descriptor *rxdesc, *txdesc;
 
+	memset(&rxconf, 0, sizeof(struct dma_slave_config));
+	memset(&txconf, 0, sizeof(struct dma_slave_config));
+
 	spin_lock_irqsave(&rs->lock, flags);
 	rs->state &= ~RXBUSY;
 	rs->state &= ~TXBUSY;
@@ -777,10 +780,10 @@ static int rockchip_spi_probe(struct platform_device *pdev)
 
 	rs->high_speed_state = pinctrl_lookup_state(rs->dev->pins->p,
 						     "high_speed");
-	if (IS_ERR_OR_NULL(rs->high_speed_state))
+	if (IS_ERR_OR_NULL(rs->high_speed_state)) {
 		dev_warn(&pdev->dev, "no high_speed pinctrl state\n");
-	else
 		rs->high_speed_state = NULL;
+	}
 
 	ret = devm_spi_register_master(&pdev->dev, master);
 	if (ret) {

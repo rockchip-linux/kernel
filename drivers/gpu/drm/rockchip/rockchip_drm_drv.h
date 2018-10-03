@@ -53,6 +53,7 @@ struct rockchip_crtc_funcs {
 					   const struct drm_display_mode *mode,
 					   int output_type);
 	void (*crtc_close)(struct drm_crtc *crtc);
+	void (*crtc_send_mcu_cmd)(struct drm_crtc *crtc, u32 type, u32 value);
 };
 
 struct drm_rockchip_subdrv {
@@ -132,6 +133,7 @@ struct rockchip_crtc_state {
 	int color_space;
 	int eotf;
 	struct rockchip_hdr_state hdr;
+	struct drm_framebuffer *crtc_primary_fb;
 };
 
 #define to_rockchip_crtc_state(s) \
@@ -151,6 +153,7 @@ struct rockchip_logo {
 	struct sg_table *sgt;
 	struct drm_mm_node mm;
 	dma_addr_t dma_addr;
+	void *kvaddr;
 	phys_addr_t start;
 	phys_addr_t size;
 	size_t iommu_map_size;

@@ -16,6 +16,7 @@
 #include <linux/clk-provider.h>
 #include <linux/delay.h>
 #include <linux/init.h>
+#include <linux/interrupt.h>
 #include <linux/io.h>
 #include <linux/iopoll.h>
 #include <linux/kernel.h>
@@ -155,14 +156,22 @@ enum inno_hdmi_phy_type {
 	INNO_HDMI_PHY_RK3328
 };
 
+struct phy_config {
+	unsigned long	tmdsclock;
+	u8		regs[14];
+};
+
 struct inno_hdmi_phy_drv_data;
 
 struct inno_hdmi_phy {
 	struct device *dev;
 	struct regmap *regmap;
 
+	int irq;
+
 	struct phy *phy;
 	struct clk *sysclk;
+	struct phy_config *phy_cfg;
 
 	/* platform data */
 	struct inno_hdmi_phy_drv_data *plat_data;
@@ -201,11 +210,6 @@ struct post_pll_config {
 	u8 version;
 };
 
-struct phy_config {
-	unsigned long	tmdsclock;
-	u8		regs[14];
-};
-
 struct inno_hdmi_phy_ops {
 	void (*init)(struct inno_hdmi_phy *inno);
 	int (*power_on)(struct inno_hdmi_phy *inno,
@@ -224,33 +228,57 @@ struct inno_hdmi_phy_drv_data {
 	const struct phy_config		*phy_cfg_table;
 };
 
+/*
+ * If only using integer freq div can't get frequency we want, frac
+ * freq div is needed. For example, pclk 88.75 Mhz and tmdsclk
+ * 110.9375 Mhz must use frac div 0xF00000. The actual frequency is different
+ * from the target frequency. Such as the tmds clock 110.9375 Mhz,
+ * the actual tmds clock we get is 110.93719 Mhz. It is important
+ * to note that RK322X platforms do not support frac div.
+ */
 static const struct pre_pll_config pre_pll_cfg_table[] = {
-	{ 27000000,  27000000, 1,  90, 3, 2, 2, 10, 3, 3, 4, 0, 0},
-	{ 27000000,  33750000, 1,  90, 1, 3, 3, 10, 3, 3, 4, 0, 0},
-	{ 40000000,  40000000, 1,  80, 2, 2, 2, 12, 2, 2, 2, 0, 0},
-	{ 59341000,  59341000, 1,  98, 3, 1, 2,  1, 3, 3, 4, 0, 0xE6AE6B},
-	{ 59400000,  59400000, 1,  99, 3, 1, 1,  1, 3, 3, 4, 0, 0},
-	{ 59341000,  74176250, 1,  98, 0, 3, 3,  1, 3, 3, 4, 0, 0xE6AE6B},
-	{ 59400000,  74250000, 1,  99, 1, 2, 2,  1, 3, 3, 4, 0, 0},
-	{ 74176000,  74176000, 1,  98, 1, 2, 2,  1, 2, 3, 4, 0, 0xE6AE6B},
-	{ 74250000,  74250000, 1,  99, 1, 2, 2,  1, 2, 3, 4, 0, 0},
-	{ 74176000,  92720000, 4, 494, 1, 2, 2,  1, 3, 3, 4, 0, 0x816817},
-	{ 74250000,  92812500, 4, 495, 1, 2, 2,  1, 3, 3, 4, 0, 0},
-	{148352000, 148352000, 1,  98, 1, 1, 1,  1, 2, 2, 2, 0, 0xE6AE6B},
-	{148500000, 148500000, 1,  99, 1, 1, 1,  1, 2, 2, 2, 0, 0},
-	{148352000, 185440000, 4, 494, 0, 2, 2,  1, 3, 2, 2, 0, 0x816817},
-	{148500000, 185625000, 4, 495, 0, 2, 2,  1, 3, 2, 2, 0, 0},
-	{296703000, 296703000, 1,  98, 0, 1, 1,  1, 0, 2, 2, 0, 0xE6AE6B},
-	{297000000, 297000000, 1,  99, 0, 1, 1,  1, 0, 2, 2, 0, 0},
-	{296703000, 370878750, 4, 494, 1, 2, 0,  1, 3, 1, 1, 0, 0x816817},
-	{297000000, 371250000, 4, 495, 1, 2, 0,  1, 3, 1, 1, 0, 0},
-	{593407000, 296703500, 1,  98, 0, 1, 1,  1, 0, 2, 1, 0, 0xE6AE6B},
-	{594000000, 297000000, 1,  99, 0, 1, 1,  1, 0, 2, 1, 0, 0},
-	{593407000, 370879375, 4, 494, 1, 2, 0,  1, 3, 1, 1, 1, 0x816817},
-	{594000000, 371250000, 4, 495, 1, 2, 0,  1, 3, 1, 1, 1, 0},
-	{593407000, 593407000, 1,  98, 0, 2, 0,  1, 0, 1, 1, 0, 0xE6AE6B},
-	{594000000, 594000000, 1,  99, 0, 2, 0,  1, 0, 1, 1, 0, 0},
-	{     ~0UL,	    0, 0,   0, 0, 0, 0,  0, 0, 0, 0, 0, 0}
+	{ 27000000,  27000000, 1,  90, 3, 2, 2, 10, 3, 3,  4, 0, 0},
+	{ 27000000,  33750000, 1,  90, 1, 3, 3, 10, 3, 3,  4, 0, 0},
+	{ 40000000,  40000000, 1,  80, 2, 2, 2, 12, 2, 2,  2, 0, 0},
+	{ 40000000,  50000000, 1, 100, 2, 2, 2,  1, 0, 0, 15, 0, 0},
+	{ 59341000,  59341000, 1,  98, 3, 1, 2,  1, 3, 3,  4, 0, 0xE6AE6B},
+	{ 59400000,  59400000, 1,  99, 3, 1, 1,  1, 3, 3,  4, 0, 0},
+	{ 59341000,  74176250, 1,  98, 0, 3, 3,  1, 3, 3,  4, 0, 0xE6AE6B},
+	{ 59400000,  74250000, 1,  99, 1, 2, 2,  1, 3, 3,  4, 0, 0},
+	{ 65000000,  65000000, 1, 130, 2, 2, 2,  1, 0, 0, 12, 0, 0},
+	{ 65000000,  81250000, 3, 325, 0, 3, 3,  1, 0, 0, 10, 0, 0},
+	{ 71000000,  71000000, 3, 284, 0, 3, 3,  1, 0, 0,  8, 0, 0},
+	{ 71000000,  88750000, 3, 355, 0, 3, 3,  1, 0, 0, 10, 0, 0},
+	{ 74176000,  74176000, 1,  98, 1, 2, 2,  1, 2, 3,  4, 0, 0xE6AE6B},
+	{ 74250000,  74250000, 1,  99, 1, 2, 2,  1, 2, 3,  4, 0, 0},
+	{ 74176000,  92720000, 4, 494, 1, 2, 2,  1, 3, 3,  4, 0, 0x816817},
+	{ 74250000,  92812500, 4, 495, 1, 2, 2,  1, 3, 3,  4, 0, 0},
+	{ 83500000,  83500000, 2, 167, 2, 1, 1,  1, 0, 0,  6, 0, 0},
+	{ 83500000, 104375000, 1, 104, 2, 1, 1,  1, 1, 0,  5, 0, 0x600000},
+	{ 85750000,  85750000, 3, 343, 0, 3, 3,  1, 0, 0,  8, 0, 0},
+	{ 88750000,  88750000, 3, 355, 0, 3, 3,  1, 0, 0,  8, 0, 0},
+	{ 88750000, 110937500, 1, 110, 2, 1, 1,  1, 1, 0,  5, 0, 0xF00000},
+	{108000000, 108000000, 1,  90, 3, 0, 0,  1, 0, 0,  5, 0, 0},
+	{108000000, 135000000, 1,  90, 0, 2, 2,  1, 0, 0,  5, 0, 0},
+	{119000000, 119000000, 1, 119, 2, 1, 1,  1, 0, 0,  6, 0, 0},
+	{119000000, 148750000, 1,  99, 0, 2, 2,  1, 0, 0,  5, 0, 0x2AAAAA},
+	{148352000, 148352000, 1,  98, 1, 1, 1,  1, 2, 2,  2, 0, 0xE6AE6B},
+	{148500000, 148500000, 1,  99, 1, 1, 1,  1, 2, 2,  2, 0, 0},
+	{148352000, 185440000, 4, 494, 0, 2, 2,  1, 3, 2,  2, 0, 0x816817},
+	{148500000, 185625000, 4, 495, 0, 2, 2,  1, 3, 2,  2, 0, 0},
+	{162000000, 162000000, 1, 108, 0, 2, 2,  1, 0, 0,  4, 0, 0},
+	{162000000, 202500000, 1, 135, 0, 2, 2,  1, 0, 0,  5, 0, 0},
+	{296703000, 296703000, 1,  98, 0, 1, 1,  1, 0, 2,  2, 0, 0xE6AE6B},
+	{297000000, 297000000, 1,  99, 0, 1, 1,  1, 0, 2,  2, 0, 0},
+	{296703000, 370878750, 4, 494, 1, 2, 0,  1, 3, 1,  1, 0, 0x816817},
+	{297000000, 371250000, 4, 495, 1, 2, 0,  1, 3, 1,  1, 0, 0},
+	{593407000, 296703500, 1,  98, 0, 1, 1,  1, 0, 2,  1, 0, 0xE6AE6B},
+	{594000000, 297000000, 1,  99, 0, 1, 1,  1, 0, 2,  1, 0, 0},
+	{593407000, 370879375, 4, 494, 1, 2, 0,  1, 3, 1,  1, 1, 0x816817},
+	{594000000, 371250000, 4, 495, 1, 2, 0,  1, 3, 1,  1, 1, 0},
+	{593407000, 593407000, 1,  98, 0, 2, 0,  1, 0, 1,  1, 0, 0xE6AE6B},
+	{594000000, 594000000, 1,  99, 0, 2, 0,  1, 0, 1,  1, 0, 0},
+	{     ~0UL,	    0, 0,   0, 0, 0, 0,  0, 0, 0,  0, 0, 0}
 };
 
 static const struct post_pll_config post_pll_cfg_table[] = {
@@ -367,6 +395,48 @@ static u32 inno_hdmi_phy_get_tmdsclk(struct inno_hdmi_phy *inno, int rate)
 	return tmdsclk;
 }
 
+static irqreturn_t inno_hdmi_phy_hardirq(int irq, void *dev_id)
+{
+	struct inno_hdmi_phy *inno = dev_id;
+	int intr_stat1, intr_stat2, intr_stat3;
+
+	if (inno->plat_data->dev_type == INNO_HDMI_PHY_RK3228)
+		return IRQ_NONE;
+
+	intr_stat1 = inno_read(inno, 0x04);
+	intr_stat2 = inno_read(inno, 0x06);
+	intr_stat3 = inno_read(inno, 0x08);
+
+	if (intr_stat1)
+		inno_write(inno, 0x04, intr_stat1);
+	if (intr_stat2)
+		inno_write(inno, 0x06, intr_stat2);
+	if (intr_stat3)
+		inno_write(inno, 0x08, intr_stat3);
+
+	if (intr_stat1 || intr_stat2 || intr_stat3)
+		return IRQ_WAKE_THREAD;
+
+	return IRQ_HANDLED;
+}
+
+static irqreturn_t inno_hdmi_phy_irq(int irq, void *dev_id)
+{
+	struct inno_hdmi_phy *inno = dev_id;
+
+	if (inno->plat_data->dev_type == INNO_HDMI_PHY_RK3228)
+		return IRQ_NONE;
+	/* set pdata_en to 0 */
+	inno_update_bits(inno, 0x02, 1, 0);
+
+	udelay(10);
+
+	/* set pdata_en to 1 */
+	inno_update_bits(inno, 0x02, 1, 1);
+
+	return IRQ_HANDLED;
+}
+
 static int inno_hdmi_phy_clk_set_rate(struct clk_hw *hw, unsigned long rate,
 				      unsigned long parent_rate);
 
@@ -377,6 +447,9 @@ static int inno_hdmi_phy_power_on(struct phy *phy)
 	const struct phy_config *phy_cfg = inno->plat_data->phy_cfg_table;
 	u32 tmdsclock = inno_hdmi_phy_get_tmdsclk(inno, inno->pixclock);
 	u32 chipversion = 1;
+
+	if (inno->phy_cfg)
+		phy_cfg = inno->phy_cfg;
 
 	if (!tmdsclock) {
 		dev_err(inno->dev, "TMDS clock is zero!\n");
@@ -481,8 +554,10 @@ static unsigned long inno_hdmi_phy_clk_recalc_rate(struct clk_hw *hw,
 static long inno_hdmi_phy_clk_round_rate(struct clk_hw *hw, unsigned long rate,
 					 unsigned long *parent_rate)
 {
-	struct inno_hdmi_phy *inno = to_inno_hdmi_phy(hw);
+	int i;
 	const struct pre_pll_config *cfg = pre_pll_cfg_table;
+	struct inno_hdmi_phy *inno = to_inno_hdmi_phy(hw);
+	u32 tmdsclock = inno_hdmi_phy_get_tmdsclk(inno, rate);
 
 	for (; cfg->pixclock != ~0UL; cfg++)
 		if (cfg->pixclock == rate)
@@ -492,7 +567,22 @@ static long inno_hdmi_phy_clk_round_rate(struct clk_hw *hw, unsigned long rate,
 	if (cfg->pixclock > 600000000)
 		return -EINVAL;
 
-	dev_dbg(inno->dev, "%s: rate=%ld\n", __func__, cfg->pixclock);
+	/*
+	 * If there is no dts phy cfg table, use default phy cfg table.
+	 * The tmds clock maximum is 594MHz. So there is no need to check
+	 * whether tmds clock is out of range.
+	 */
+	if (!inno->phy_cfg)
+		return cfg->pixclock;
+
+	/* Check if tmds clock is out of dts phy config's range. */
+	for (i = 0; inno->phy_cfg[i].tmdsclock != ~0UL; i++) {
+		if (inno->phy_cfg[i].tmdsclock >= tmdsclock)
+			break;
+	}
+
+	if (inno->phy_cfg[i].tmdsclock == ~0UL)
+		return -EINVAL;
 
 	return cfg->pixclock;
 }
@@ -850,6 +940,9 @@ inno_hdmi_phy_rk3328_power_on(struct inno_hdmi_phy *inno,
 	/* set pdata_en to 1 */
 	inno_update_bits(inno, 0x02, 1, 1);
 
+	/* Enable PHY IRQ */
+	inno_write(inno, 0x05, 0x22);
+	inno_write(inno, 0x07, 0x22);
 	return 0;
 }
 
@@ -861,6 +954,10 @@ static void inno_hdmi_phy_rk3328_power_off(struct inno_hdmi_phy *inno)
 	inno_update_bits(inno, 0xb0, 4, 0);
 	/* Power off post pll */
 	inno_update_bits(inno, 0xaa, 1, 1);
+
+	/* Disable PHY IRQ */
+	inno_write(inno, 0x05, 0);
+	inno_write(inno, 0x07, 0);
 }
 
 static void inno_hdmi_phy_rk3328_init(struct inno_hdmi_phy *inno)
@@ -948,7 +1045,7 @@ inno_hdmi_rk3328_phy_pll_recalc_rate(struct inno_hdmi_phy *inno,
 				     unsigned long parent_rate)
 {
 	unsigned long frac;
-	u8 nd, no_a, no_b, no_c, no_d;
+	u8 nd, no_a, no_b, no_d;
 	u16 nf;
 	u64 vco = parent_rate;
 
@@ -966,7 +1063,6 @@ inno_hdmi_rk3328_phy_pll_recalc_rate(struct inno_hdmi_phy *inno,
 	} else {
 		no_a = inno_read(inno, 0xa5) & 0x1f;
 		no_b = ((inno_read(inno, 0xa5) >> 5) & 7) + 2;
-		no_c = (1 << ((inno_read(inno, 0xa6) >> 5) & 7));
 		no_d = inno_read(inno, 0xa6) & 0x1f;
 		if (no_a == 1)
 			do_div(vco, nd * no_b * no_d * 2);
@@ -974,11 +1070,12 @@ inno_hdmi_rk3328_phy_pll_recalc_rate(struct inno_hdmi_phy *inno,
 			do_div(vco, nd * no_a * no_d * 2);
 	}
 
-	inno->pixclock = vco;
+	frac = vco;
+	inno->pixclock = DIV_ROUND_CLOSEST(frac, 1000) * 1000;
 
 	dev_dbg(inno->dev, "%s rate %lu\n", __func__, inno->pixclock);
 
-	return inno->pixclock;
+	return frac;
 }
 
 static unsigned long
@@ -997,6 +1094,8 @@ inno_hdmi_rk3228_phy_pll_recalc_rate(struct inno_hdmi_phy *inno,
 		do_div(vco, nd * 5);
 	} else {
 		no_a = inno_read(inno, 0xe4) & 0x1f;
+		if (!no_a)
+			no_a = 1;
 		no_b = ((inno_read(inno, 0xe4) >> 5) & 0x3) + 2;
 		no_d = inno_read(inno, 0xe5) & 0x1f;
 
@@ -1059,15 +1158,45 @@ static const struct regmap_config inno_hdmi_phy_regmap_config = {
 	.max_register = 0x400,
 };
 
+static
+int inno_hdmi_update_phy_table(struct inno_hdmi_phy *inno, u32 *config,
+			       struct phy_config *phy_cfg,
+			       int phy_table_size)
+{
+	int i, j;
+
+	for (i = 0; i < phy_table_size; i++) {
+		phy_cfg[i].tmdsclock =
+			(unsigned long)config[i * 15];
+
+		for (j = 0; j < 14; j++)
+			phy_cfg[i].regs[j] = (u8)config[i * 15 + 1 + j];
+	}
+
+	/*
+	 * The last set of phy cfg is used to indicate whether
+	 * there is no more phy cfg data.
+	 */
+	phy_cfg[i].tmdsclock = ~0UL;
+	for (j = 0; j < 14; j++)
+		phy_cfg[i].regs[j] = 0;
+
+	return 0;
+}
+
+#define PHY_TAB_LEN 60
+
 static int inno_hdmi_phy_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
+	struct device_node *np = dev->of_node;
 	struct inno_hdmi_phy *inno;
 	const struct of_device_id *match;
 	struct phy_provider *phy_provider;
 	struct resource *res;
 	void __iomem *regs;
-	int ret;
+	u32 *phy_config;
+	int ret, val, phy_table_size;
 
 	inno = devm_kzalloc(dev, sizeof(*inno), GFP_KERNEL);
 	if (!inno)
@@ -1109,7 +1238,41 @@ static int inno_hdmi_phy_probe(struct platform_device *pdev)
 	if (IS_ERR(inno->phy)) {
 		dev_err(dev, "failed to create HDMI PHY\n");
 		ret = PTR_ERR(inno->phy);
-		goto err_phy;
+		goto err_regsmap;
+	}
+
+	if (of_get_property(np, "rockchip,phy-table", &val)) {
+		if (val % PHY_TAB_LEN || !val) {
+			dev_err(dev, "Invalid phy cfg table format!\n");
+			return -EINVAL;
+		}
+
+		phy_config = kmalloc(val, GFP_KERNEL);
+		if (!phy_config) {
+			dev_err(dev, "kmalloc phy table failed\n");
+			return -ENOMEM;
+		}
+
+		phy_table_size = val / PHY_TAB_LEN;
+		/* Effective phy cfg data and the end of phy cfg table */
+		inno->phy_cfg = devm_kzalloc(dev, val + PHY_TAB_LEN,
+					     GFP_KERNEL);
+		if (!inno->phy_cfg) {
+			kfree(phy_config);
+			return -ENOMEM;
+		}
+		of_property_read_u32_array(np, "rockchip,phy-table",
+					   phy_config, val / sizeof(u32));
+		ret = inno_hdmi_update_phy_table(inno, phy_config,
+						 inno->phy_cfg,
+						 phy_table_size);
+		if (ret) {
+			kfree(phy_config);
+			return ret;
+		}
+		kfree(phy_config);
+	} else {
+		dev_dbg(dev, "use default hdmi phy table\n");
 	}
 
 	phy_set_drvdata(inno->phy, inno);
@@ -1119,7 +1282,7 @@ static int inno_hdmi_phy_probe(struct platform_device *pdev)
 	if (IS_ERR(phy_provider)) {
 		dev_err(dev, "failed to register PHY provider\n");
 		ret = PTR_ERR(phy_provider);
-		goto err_provider;
+		goto err_regsmap;
 	}
 
 	if (inno->plat_data->ops->init)
@@ -1127,16 +1290,22 @@ static int inno_hdmi_phy_probe(struct platform_device *pdev)
 
 	ret = inno_hdmi_phy_clk_register(inno);
 	if (ret)
-		goto err_register;
+		goto err_regsmap;
 
+	inno->irq = platform_get_irq(pdev, 0);
+	if (inno->irq > 0) {
+		ret = devm_request_threaded_irq(inno->dev, inno->irq,
+						inno_hdmi_phy_hardirq,
+						inno_hdmi_phy_irq, IRQF_SHARED,
+						dev_name(inno->dev), inno);
+		if (ret)
+			goto err_irq;
+	}
+	platform_set_drvdata(pdev, inno);
 	return 0;
 
-err_register:
-	devm_of_phy_provider_unregister(dev, phy_provider);
-err_provider:
-	devm_phy_destroy(dev, inno->phy);
-err_phy:
-	regmap_exit(inno->regmap);
+err_irq:
+	of_clk_del_provider(pdev->dev.of_node);
 err_regsmap:
 	clk_disable_unprepare(inno->sysclk);
 	return ret;
@@ -1144,8 +1313,10 @@ err_regsmap:
 
 static int inno_hdmi_phy_remove(struct platform_device *pdev)
 {
-	of_clk_del_provider(pdev->dev.of_node);
+	struct inno_hdmi_phy *inno = platform_get_drvdata(pdev);
 
+	of_clk_del_provider(pdev->dev.of_node);
+	clk_disable_unprepare(inno->sysclk);
 	return 0;
 }
 

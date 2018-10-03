@@ -293,7 +293,7 @@
 
 		/* for rockchip boot on */
 		rockchip,pwm_id= <2>;
-		rockchip,pwm_voltage = <1000000>;
+		rockchip,pwm_voltage = <900000>;
 	};
 
 	vccadc_ref: vccadc-ref {
@@ -314,6 +314,13 @@
 		pinctrl-names = "default";
 		pinctrl-0 = <&lcd_en>;
 		regulator-name = "vcc_lcd";
+	};
+
+	xin32k: xin32k {
+		compatible = "fixed-clock";
+		clock-frequency = <32768>;
+		clock-output-names = "xin32k";
+		#clock-cells = <0>;
 	};
 
 	wireless-wlan {
@@ -470,7 +477,7 @@
 		rockchip,system-power-controller;
 		wakeup-source;
 		#clock-cells = <1>;
-		clock-output-names = "xin32k", "rk808-clkout2";
+		clock-output-names = "rk808-clkout1", "rk808-clkout2";
 
 		vcc1-supply = <&vcc3v3_sys>;
 		vcc2-supply = <&vcc3v3_sys>;
@@ -663,6 +670,43 @@
 		io-channels = <&saradc 4>;
 		hp-det-adc-value = <500>;
 	};
+
+	camera0: ov13850@10 {
+		status = "okay";
+		compatible = "omnivision,ov13850-v4l2-i2c-subdev";
+		reg = < 0x10 >;
+		device_type = "v4l2-i2c-subdev";
+
+		clocks = <&cru SCLK_CIF_OUT>;
+		clock-names = "clk_cif_out";
+
+		pinctrl-names = "rockchip,camera_default", "rockchip,camera_sleep";
+		pinctrl-0 = <&cam0_default_pins>;
+		pinctrl-1 = <&cam0_sleep_pins>;
+
+		rockchip,pd-gpio = <&gpio2 12 GPIO_ACTIVE_LOW>;
+		rockchip,pwr-gpio = <&gpio1 23 GPIO_ACTIVE_HIGH>;
+		rockchip,pwr-2nd-gpio = <&gpio1 22 GPIO_ACTIVE_HIGH>;
+		rockchip,rst-gpio = <&gpio0 8 GPIO_ACTIVE_LOW>;
+
+		rockchip,camera-module-mclk-name = "clk_cif_out";
+		rockchip,camera-module-facing = "back";
+		rockchip,camera-module-name = "cmk-cb0695-fv1";
+		rockchip,camera-module-len-name = "lg9569a2";
+		rockchip,camera-module-fov-h = "66.0";
+		rockchip,camera-module-fov-v = "50.1";
+		rockchip,camera-module-orientation = <0>;
+		rockchip,camera-module-iq-flip = <0>;
+		rockchip,camera-module-iq-mirror = <0>;
+		rockchip,camera-module-flip = <1>;
+		rockchip,camera-module-mirror = <0>;
+
+		rockchip,camera-module-defrect0 = <2112 1568 0 0 2112 1568>;
+		rockchip,camera-module-defrect1 = <4224 3136 0 0 4224 3136>;
+		rockchip,camera-module-defrect3 = <3264 2448 0 0 3264 2448>;
+		rockchip,camera-module-flash-support = <0>;
+		rockchip,camera-module-mipi-dphy-index = <0>;
+	};
 };
 
 &i2c3 {
@@ -850,6 +894,8 @@
 
 &pwm2 {
 	status = "okay";
+	pinctrl-names = "active";
+	pinctrl-0 = <&pwm2_pin_pull_down>;
 };
 
 &rkvdec {
@@ -1004,6 +1050,15 @@
 };
 
 &usb_host1_ohci {
+	status = "okay";
+};
+
+&cif_isp0 {
+	rockchip,camera-modules-attached = <&camera0>;
+	status = "okay";
+};
+
+&isp0_mmu {
 	status = "okay";
 };
 

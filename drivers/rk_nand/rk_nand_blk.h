@@ -48,11 +48,15 @@ struct nand_blk_ops {
 	struct module *owner;
 };
 
+extern struct device *g_nand_device;
 void rknand_dev_suspend(void);
 void rknand_dev_resume(void);
 void rknand_dev_shutdown(void);
 void rknand_dev_flush(void);
 int __init rknand_dev_init(void);
 int rknand_dev_exit(void);
-
+void rknand_device_lock(void);
+int rknand_device_trylock(void);
+void rknand_device_unlock(void);
+int nand_blk_add_whole_disk(void);
 #endif

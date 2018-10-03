@@ -46,8 +46,8 @@
 #define RKISP1_DEFAULT_HEIGHT		600
 
 #define RKISP1_MAX_STREAM		2
-#define RKISP1_STREAM_SP		0
-#define RKISP1_STREAM_MP		1
+#define RKISP1_STREAM_MP		0
+#define RKISP1_STREAM_SP		1
 
 #define RKISP1_PLANE_Y			0
 #define RKISP1_PLANE_CB			1
@@ -83,15 +83,6 @@ enum rkisp1_fmt_raw_pat_type {
 	RAW_GRBG,
 	RAW_GBRG,
 	RAW_BGGR,
-};
-
-enum rkisp1_state {
-	/* path not yet opened: */
-	RKISP1_STATE_DISABLED,
-	/* path opened and configured, ready for streaming: */
-	RKISP1_STATE_READY,
-	/* path is streaming: */
-	RKISP1_STATE_STREAMING
 };
 
 struct rkisp1_buffer {

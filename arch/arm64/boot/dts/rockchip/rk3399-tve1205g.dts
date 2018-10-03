@@ -57,6 +57,7 @@
 		power-supply = <&vcc3v3_s0>;
 		enable-gpios = <&gpio3 RK_PA0 GPIO_ACTIVE_HIGH>;
 		bus-format = <MEDIA_BUS_FMT_RGB666_1X18>;
+		bpc = <6>;
 		prepare-delay-ms = <50>;
 		ports {
 			panel_in_edp: endpoint {
@@ -106,12 +107,19 @@
 		compatible = "pwm-regulator";
 		pwms = <&pwm2 0 25000 1>;
 		rockchip,pwm_id= <2>;
-		rockchip,pwm_voltage = <1000000>;
+		rockchip,pwm_voltage = <900000>;
 		regulator-name = "vdd_log";
 		regulator-min-microvolt = <750000>;
 		regulator-max-microvolt = <1350000>;
 		regulator-always-on;
 		regulator-boot-on;
+	};
+
+	xin32k: xin32k {
+		compatible = "fixed-clock";
+		clock-frequency = <32768>;
+		clock-output-names = "xin32k";
+		#clock-cells = <0>;
 	};
 
 	backlight: backlight {
@@ -505,6 +513,7 @@
 		regulator-max-microvolt = <1400000>;
 		regulator-ramp-delay = <1000>;
 		fcs,suspend-voltage-selector = <1>;
+		regulator-always-on;
 		regulator-boot-on;
 		regulator-state-mem {
 			regulator-off-in-suspend;
@@ -520,7 +529,7 @@
 		rockchip,system-power-controller;
 		wakeup-source;
 		#clock-cells = <1>;
-		clock-output-names = "xin32k", "rk808-clkout2";
+		clock-output-names = "rk808-clkout1", "rk808-clkout2";
 
 		vcc1-supply = <&vcc3v3_sys>;
 		vcc2-supply = <&vcc3v3_sys>;

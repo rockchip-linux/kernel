@@ -116,6 +116,13 @@
 		vin-supply = <&vcc_io>;
 	};
 
+	xin32k: xin32k {
+		compatible = "fixed-clock";
+		clock-frequency = <32768>;
+		clock-output-names = "xin32k";
+		#clock-cells = <0>;
+	};
+
 	wireless-bluetooth {
 		compatible = "bluetooth-platdata";
 		clocks = <&rk805 1>;
@@ -209,6 +216,13 @@
 };
 
 &hdmiphy {
+	rockchip,phy-table =
+		<165000000 0x07 0x0a 0x0a 0x0a 0x00 0x00 0x08
+			   0x08 0x08 0x00 0xac 0xcc 0xcc 0xcc>,
+		<340000000 0x0b 0x0d 0x0d 0x0d 0x07 0x15 0x08
+			   0x08 0x08 0x3f 0xac 0xcc 0xcd 0xdd>,
+		<594000000 0x10 0x1a 0x1a 0x1a 0x07 0x15 0x08
+			   0x08 0x08 0x00 0xac 0xcc 0xcc 0xcc>;
 	status = "okay";
 };
 
@@ -227,7 +241,7 @@
 		gpio-controller;
 		#gpio-cells = <2>;
 		#clock-cells = <1>;
-		clock-output-names = "xin32k", "rk805-clkout2";
+		clock-output-names = "rk805-clkout1", "rk805-clkout2";
 
 		rtc {
 			status = "okay";
@@ -556,7 +570,7 @@
 	cap-sdio-irq;
 	disable-wp;
 	keep-power-in-suspend;
-	max-frequency = <150000000>;
+	max-frequency = <125000000>;
 	mmc-pwrseq = <&sdio_pwrseq>;
 	non-removable;
 	num-slots = <1>;
@@ -597,7 +611,7 @@
 };
 
 &soc_crit {
-	temperature = <110000>; /* millicelsius */
+	temperature = <115000>; /* millicelsius */
 };
 
 &tsadc {

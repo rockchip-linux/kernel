@@ -115,17 +115,33 @@ Rockchip platforms device tree bindings
     Required root node properties:
       - compatible = "rockchip,rk3399-evb", "rockchip,rk3399";
 
+- Rockchip RK3399 Rock960 version ab board:
+    Required root node properties:
+      - compatible = "rockchip,rock960", "rockchip,rk3399";
+
 - Rockchip RK3326 f863 board:
     Required root node properties:
       - compatible = "rockchip,rk3326-863-lp3-v10", "rockchip,rk3326";
 
+- Rockchip RK3326 f863 avb board:
+    Required root node properties:
+      - compatible = "rockchip,rk3326-863-lp3-v10-avb", "rockchip,rk3326";
+
+- Rockchip RK3326 86v board:
+    Required root node properties:
+      - compatible = "rockchip,rk3326-86v-v10", "rockchip,rk3326";
+
 - Rockchip RK3326 evb board:
     Required root node properties:
       - compatible = "rockchip,rk3326-evb-lp3-v10", "rockchip,rk3326";
+    Or
+      - compatible = "rockchip,rk3326-evb-lp3-v10-linux", "rockchip,rk3326";
 
 - Rockchip PX30 evb ddr3 board:
     Required root node properties:
       - compatible = "rockchip,px30-evb-ddr3-v10", "rockchip,px30";
+    Or
+      - compatible = "rockchip,px30-evb-ddr3-v10-linux", "rockchip,px30";
 
 - Rockchip PX30 evb ddr4 board:
     Required root node properties:

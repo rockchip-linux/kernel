@@ -427,6 +427,10 @@ struct vop_win_data {
 	u64 feature;
 };
 
+struct vop_grf_ctrl {
+	struct vop_reg grf_dclk_inv;
+};
+
 #define VOP_FEATURE_OUTPUT_10BIT	BIT(0)
 #define VOP_FEATURE_AFBDC		BIT(1)
 #define VOP_FEATURE_ALPHA_SCALE		BIT(2)
@@ -449,6 +453,7 @@ struct vop_data {
 	const struct vop_win_data *win;
 	const struct vop_csc_table *csc_table;
 	const struct vop_hdr_table *hdr_table;
+	const struct vop_grf_ctrl *grf_ctrl;
 	unsigned int win_size;
 	uint32_t version;
 	struct vop_rect max_input;
@@ -459,21 +464,22 @@ struct vop_data {
 #define CVBS_PAL_VDISPLAY		288
 
 /* interrupt define */
-#define DSP_HOLD_VALID_INTR		(1 << 0)
-#define FS_INTR				(1 << 1)
-#define LINE_FLAG_INTR			(1 << 2)
-#define BUS_ERROR_INTR			(1 << 3)
-#define FS_NEW_INTR			(1 << 4)
-#define ADDR_SAME_INTR 			(1 << 5)
-#define LINE_FLAG1_INTR			(1 << 6)
-#define WIN0_EMPTY_INTR			(1 << 7)
-#define WIN1_EMPTY_INTR			(1 << 8)
-#define WIN2_EMPTY_INTR			(1 << 9)
-#define WIN3_EMPTY_INTR			(1 << 10)
-#define HWC_EMPTY_INTR			(1 << 11)
-#define POST_BUF_EMPTY_INTR		(1 << 12)
-#define PWM_GEN_INTR			(1 << 13)
-#define DMA_FINISH_INTR			(1 << 14)
+#define DSP_HOLD_VALID_INTR		BIT(0)
+#define FS_INTR				BIT(1)
+#define LINE_FLAG_INTR			BIT(2)
+#define BUS_ERROR_INTR			BIT(3)
+#define FS_NEW_INTR			BIT(4)
+#define ADDR_SAME_INTR			BIT(5)
+#define LINE_FLAG1_INTR			BIT(6)
+#define WIN0_EMPTY_INTR			BIT(7)
+#define WIN1_EMPTY_INTR			BIT(8)
+#define WIN2_EMPTY_INTR			BIT(9)
+#define WIN3_EMPTY_INTR			BIT(10)
+#define HWC_EMPTY_INTR			BIT(11)
+#define POST_BUF_EMPTY_INTR		BIT(12)
+#define PWM_GEN_INTR			BIT(13)
+#define DMA_FINISH_INTR			BIT(14)
+#define FS_FIELD_INTR			BIT(15)
 
 #define INTR_MASK			(DSP_HOLD_VALID_INTR | FS_INTR | \
 					 LINE_FLAG_INTR | BUS_ERROR_INTR | \
@@ -482,22 +488,7 @@ struct vop_data {
 					 WIN2_EMPTY_INTR | WIN3_EMPTY_INTR | \
 					 HWC_EMPTY_INTR | \
 					 POST_BUF_EMPTY_INTR | \
-					 DMA_FINISH_INTR)
-
-#define DSP_HOLD_VALID_INTR_EN(x)	((x) << 4)
-#define FS_INTR_EN(x)			((x) << 5)
-#define LINE_FLAG_INTR_EN(x)		((x) << 6)
-#define BUS_ERROR_INTR_EN(x)		((x) << 7)
-#define DSP_HOLD_VALID_INTR_MASK	(1 << 4)
-#define FS_INTR_MASK			(1 << 5)
-#define LINE_FLAG_INTR_MASK		(1 << 6)
-#define BUS_ERROR_INTR_MASK		(1 << 7)
-
-#define INTR_CLR_SHIFT			8
-#define DSP_HOLD_VALID_INTR_CLR		(1 << (INTR_CLR_SHIFT + 0))
-#define FS_INTR_CLR			(1 << (INTR_CLR_SHIFT + 1))
-#define LINE_FLAG_INTR_CLR		(1 << (INTR_CLR_SHIFT + 2))
-#define BUS_ERROR_INTR_CLR		(1 << (INTR_CLR_SHIFT + 3))
+					 DMA_FINISH_INTR | FS_FIELD_INTR)
 
 #define DSP_LINE_NUM(x)			(((x) & 0x1fff) << 12)
 #define DSP_LINE_NUM_MASK		(0x1fff << 12)
@@ -684,4 +675,10 @@ static inline int interpolate(int x1, int y1, int x2, int y2, int x)
 }
 
 extern const struct component_ops vop_component_ops;
+
+#if defined(CONFIG_ROCKCHIP_DRM_DEBUG)
+int drm_debugfs_vop_add(struct drm_crtc *crtc, struct dentry *root);
+int vop_plane_dump(struct vop_dump_info *dump_info, int frame_count);
+#endif
+
 #endif /* _ROCKCHIP_DRM_VOP_H */

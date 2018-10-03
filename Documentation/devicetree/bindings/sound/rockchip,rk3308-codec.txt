@@ -11,7 +11,49 @@ Required properties:
 - clock-names: It should be "acodec".
 - resets : Must contain an entry for each entry in reset-names.
 - reset-names : Must include the following entries: "acodec-reset".
-- spk_ctl-gpios: The gpio of speak controller.
+
+Optional properties:
+- rockchip,enable-all-adcs: This is a boolean type property, that shows whether
+  force enable all of ADCs. The following shows the relationship between grps
+  and ADC:
+  * grp 0 -- select ADC1 / ADC2
+  * grp 1 -- select ADC3 / ADC4
+  * grp 2 -- select ADC5 / ADC6
+  * grp 3 -- select ADC7 / ADC8
+  If the property is not used, the enabled ADC groups refer to needed channels
+  via configure hw_params.
+
+- rockchip,adc-grps-route: This is a variable length array, that shows the
+  mapping route of ACODEC sdo to I2S sdi. By default, they are one-to-one
+  mapping:
+  * sdi_0 <-- sdo_0
+  * sdi_1 <-- sdo_1
+  * sdi_2 <-- sdo_2
+  * sdi_3 <-- sdo_3
+  If you would like to change the route mapping like this:
+  * sdi_0 <-- sdo_3
+  * sdi_1 <-- sdo_0
+  * sdi_2 <-- sdo_2
+  * sdi_3 <-- sdo_1
+  You need to add the property on dts:
+  - rockchip,adc-grps-route = <3 0 2 1>;
+
+- rockchip,delay-loopback-handle-ms: This property points out that the delay for
+  handling ADC after enable PAs during loopback.
+- rockchip,delay-start-play-ms: This property points out the delay ms of start
+  playback according to different amplifier performance.
+- rockchip,en-always-grps: This property will keep the needed ADCs enabled
+  always after enabling once.
+- rockchip,loopback-grp: It points out the ADC group which is the loopback used.
+- rockchip,no-deep-low-power: The codec will not enter deep low power mode
+  during suspend.
+- rockchip,no-hp-det: If there is no headphone on boards, we don't need to
+  enable headphone detection.
+- hp-ctl-gpios: The gpio of head phone controller.
+- pa-drv-gpios: The gpio of poweramplifier controller
+- rockchip,delay-pa-drv-ms: This property points out that the delay for
+  power on amplifier
+- spk-ctl-gpios: The gpio of speak controller.
 
 Example for rk3308 internal codec:
 
@@ -23,6 +65,9 @@ acodec: acodec@ff560000 {
 	clock-names = "acodec";
 	resets = <&cru SRST_ACODEC_P>;
 	reset-names = "acodec-reset";
-	spk_ctl-gpios = <&gpio0 5 GPIO_ACTIVE_HIGH>;
+	rockchip,loopback-grp = <0>;
+	hp-ctl-gpios = <&gpio0 1 GPIO_ACTIVE_HIGH>;
+	pa-drv-gpios = <&gpio0 RK_PC0 GPIO_ACTIVE_HIGH>;
+	spk-ctl-gpios = <&gpio0 5 GPIO_ACTIVE_HIGH>;
 	status = "okay";
 };

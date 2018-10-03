@@ -166,6 +166,7 @@ static int rockchip_cpuclk_pre_rate_change(struct rockchip_cpuclk *cpuclk,
 				     reg_data->div_core_shift),
 		       cpuclk->reg_base + reg_data->core_reg);
 	}
+	rockchip_boost_add_core_div(cpuclk->pll_hw, alt_prate);
 
 	/* select alternate parent */
 	writel(HIWORD_UPDATE(reg_data->mux_core_alt,
@@ -286,6 +287,7 @@ struct clk *rockchip_clk_register_cpuclk(const char *name,
 			goto free_cpuclk;
 		}
 		cpuclk->pll_hw = __clk_get_hw(pll_clk);
+		rockchip_boost_init(cpuclk->pll_hw);
 	}
 
 	cpuclk->alt_parent = __clk_lookup(parent_names[reg_data->mux_core_alt]);

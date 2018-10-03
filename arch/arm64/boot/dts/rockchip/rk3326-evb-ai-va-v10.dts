@@ -169,6 +169,26 @@
 		};
 	};
 
+	bt-sound {
+		compatible = "simple-audio-card";
+		simple-audio-card,format = "dsp_b";
+		simple-audio-card,bitclock-inversion = <1>;
+		simple-audio-card,mclk-fs = <256>;
+		simple-audio-card,name = "rockchip,bt";
+		simple-audio-card,cpu {
+			sound-dai = <&i2s2_2ch>;
+		};
+		simple-audio-card,codec {
+			sound-dai = <&bt_sco>;
+		};
+	};
+
+	bt_sco: bt-sco {
+		compatible = "delta,dfbmcs320";
+		#sound-dai-cells = <0>;
+		status = "okay";
+	};
+
 	rk_headset {
 		compatible = "rockchip_headset";
 		headset_gpio = <&gpio3 RK_PA4 GPIO_ACTIVE_HIGH>;
@@ -224,11 +244,25 @@
 	};
 };
 
+&bus_apll {
+	bus-supply = <&vdd_logic>;
+	status = "okay";
+};
+
 &cpu0 {
 	cpu-supply = <&vdd_arm>;
 };
 
+&dfi {
+	status = "okay";
+};
+
 &display_subsystem {
+	status = "okay";
+};
+
+&dmc {
+	center-supply = <&vdd_logic>;
 	status = "okay";
 };
 
@@ -245,7 +279,7 @@
 		init-delay-ms = <20>;
 		enable-delay-ms = <120>;
 		disable-delay-ms = <50>;
-		unprepare-delay-ms = <20>;
+		unprepare-delay-ms = <40>;
 
 		width-mm = <68>;
 		height-mm = <121>;
@@ -356,12 +390,19 @@
 		reg = <0x20>;
 		interrupt-parent = <&gpio0>;
 		interrupts = <7 IRQ_TYPE_LEVEL_LOW>;
-		pinctrl-names = "default";
+		pinctrl-names = "default", "pmic-sleep",
+				"pmic-power-off", "pmic-reset";
 		pinctrl-0 = <&pmic_int>;
+		pinctrl-1 = <&soc_slppin_slp>, <&rk817_slppin_slp>;
+		pinctrl-2 = <&soc_slppin_gpio>, <&rk817_slppin_pwrdn>;
+		pinctrl-3 = <&soc_slppin_rst>, <&rk817_slppin_rst>;
 		rockchip,system-power-controller;
 		wakeup-source;
 		#clock-cells = <1>;
 		clock-output-names = "rk808-clkout1", "rk808-clkout2";
+		//fb-inner-reg-idxs = <2>;
+		/* 1: rst regs (default in codes), 0: rst the pmic */
+		pmic-reset-func = <1>;
 
 		vcc1-supply = <&vcc5v0_sys>;
 		vcc2-supply = <&vcc5v0_sys>;
@@ -375,6 +416,31 @@
 
 		pwrkey {
 			status = "okay";
+		};
+
+		pinctrl_rk8xx: pinctrl_rk8xx {
+			gpio-controller;
+			#gpio-cells = <2>;
+
+			rk817_slppin_null: rk817_slppin_null {
+				pins = "gpio_slp";
+				function = "pin_fun0";
+			};
+
+			rk817_slppin_slp: rk817_slppin_slp {
+				pins = "gpio_slp";
+				function = "pin_fun1";
+			};
+
+			rk817_slppin_pwrdn: rk817_slppin_pwrdn {
+				pins = "gpio_slp";
+				function = "pin_fun2";
+			};
+
+			rk817_slppin_rst: rk817_slppin_rst {
+				pins = "gpio_slp";
+				function = "pin_fun3";
+			};
 		};
 
 		regulators {
@@ -429,15 +495,15 @@
 				};
 			};
 
-			vcc2v5_ddr: LDO_REG1 {
+			vcc_1v0: LDO_REG1 {
 				regulator-always-on;
 				regulator-boot-on;
-				regulator-min-microvolt = <2500000>;
-				regulator-max-microvolt = <2500000>;
-				regulator-name = "vcc2v5_ddr";
+				regulator-min-microvolt = <1000000>;
+				regulator-max-microvolt = <1000000>;
+				regulator-name = "vcc_1v0";
 				regulator-state-mem {
 					regulator-on-in-suspend;
-					regulator-suspend-microvolt = <2500000>;
+					regulator-suspend-microvolt = <1000000>;
 				};
 			};
 
@@ -557,15 +623,14 @@
 				};
 			};
 
-			vcc3v3_lcd: SWITCH_REG1 {
-				regulator-boot-on;
-				regulator-name = "vcc3v3_lcd";
+
+			vcc5v0_host: SWITCH_REG1 {
+				regulator-name = "vcc5v0_host";
 			};
 
-			vcc5v0_host: SWITCH_REG2 {
-				regulator-always-on;
+			vcc3v3_lcd: SWITCH_REG2 {
 				regulator-boot-on;
-				regulator-name = "vcc5v0_host";
+				regulator-name = "vcc3v3_lcd";
 			};
 		};
 
@@ -592,34 +657,11 @@
 	i2c-scl-rising-time-ns = <275>;
 	i2c-scl-falling-time-ns = <16>;
 
-	sensor@0f {
-		status = "okay";
-		compatible = "ak8963";
-		reg = <0x0f>;
-		type = <SENSOR_TYPE_COMPASS>;
-		irq_enable = <0>;
-		poll_delay_ms = <30>;
-		layout = <1>;
-		reprobe_en = <1>;
-	};
-
 	gt1x: gt1x@14 {
 	      compatible = "goodix,gt1x";
 	      reg = <0x14>;
 	      goodix,rst-gpio = <&gpio0 RK_PB4 GPIO_ACTIVE_HIGH>;
 	      goodix,irq-gpio = <&gpio0 RK_PA5 IRQ_TYPE_LEVEL_LOW>;
-	};
-
-	sensor@4c {
-		status = "okay";
-		compatible = "gs_mma7660";
-		reg = <0x4c>;
-		type = <SENSOR_TYPE_ACCEL>;
-		irq-gpio = <&gpio0 RK_PB7 IRQ_TYPE_LEVEL_LOW>;
-		irq_enable = <0>;
-		poll_delay_ms = <30>;
-		layout = <1>;
-		reprobe_en = <1>;
 	};
 
 	is31fl3236: led-controller@3c {
@@ -954,6 +996,35 @@
 			linux,default-trigger = "default-on";
 		};
 	};
+
+	ls_stk3410: light@48 {
+		compatible = "ls_stk3410";
+		status = "okay";
+		reg = <0x48>;
+		type = <SENSOR_TYPE_LIGHT>;
+		irq_enable = <0>;
+		als_threshold_high = <100>;
+		als_threshold_low = <10>;
+		als_ctrl_gain = <2>; /* 0:x1 1:x4 2:x16 3:x64 */
+		poll_delay_ms = <100>;
+	};
+
+	ps_stk3410: proximity@48 {
+		compatible = "ps_stk3410";
+		status = "okay";
+		reg = <0x48>;
+		type = <SENSOR_TYPE_PROXIMITY>;
+		//pinctrl-names = "default";
+		//pinctrl-0 = <&gpio2_c3>;
+		//irq-gpio = <&gpio0 RK_PB7 IRQ_TYPE_LEVEL_LOW>;
+		//irq_enable = <1>;
+		ps_threshold_high = <0x200>;
+		ps_threshold_low = <0x100>;
+		ps_ctrl_gain = <3>; /* 0:x1 1:x4 2:x16 3:x64 */
+		ps_led_current = <3>; /* 0:12.5mA 1:25mA 2:50mA 3:100mA */
+		poll_delay_ms = <100>;
+	};
+
 };
 
 &i2c2 {
@@ -966,6 +1037,12 @@
 	pinctrl-0 = <&i2s1_2ch_sclk
 		     &i2s1_2ch_lrck
 		     &i2s1_2ch_sdo>;
+};
+
+&i2s2_2ch {
+	status = "okay";
+	rockchip,bclk-fs = <64>;
+	#sound-dai-cells = <0>;
 };
 
 &io_domains {
@@ -1031,6 +1108,21 @@
 		pmic_int: pmic_int {
 			rockchip,pins =
 				<0 RK_PA7 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+
+		soc_slppin_gpio: soc_slppin_gpio {
+			rockchip,pins =
+				<0 RK_PA4 RK_FUNC_GPIO &pcfg_output_low>;
+		};
+
+		soc_slppin_slp: soc_slppin_slp {
+			rockchip,pins =
+				<0 RK_PA4 RK_FUNC_1 &pcfg_pull_none>;
+		};
+
+		soc_slppin_rst: soc_slppin_rst {
+			rockchip,pins =
+				<0 RK_PA4 RK_FUNC_2 &pcfg_pull_none>;
 		};
 	};
 
@@ -1108,6 +1200,9 @@
 };
 
 &tsadc {
+	pinctrl-names = "init", "default";
+	pinctrl-0 = <&tsadc_otp_gpio>;
+	pinctrl-1 = <&tsadc_otp_out>;
 	status = "okay";
 };
 
@@ -1151,4 +1246,25 @@
 
 &vpu_combo {
 	status = "okay";
+};
+
+&firmware_android {
+	compatible = "android,firmware";
+	fstab {
+		compatible = "android,fstab";
+		system {
+			compatible = "android,system";
+			dev = "/dev/block/by-name/system";
+			type = "ext4";
+			mnt_flags = "ro,barrier=1,inode_readahead_blks=8";
+			fsmgr_flags = "wait";
+		};
+		vendor {
+			compatible = "android,vendor";
+			dev = "/dev/block/by-name/vendor";
+			type = "ext4";
+			mnt_flags = "ro,barrier=1,inode_readahead_blks=8";
+			fsmgr_flags = "wait";
+		};
+	};
 };

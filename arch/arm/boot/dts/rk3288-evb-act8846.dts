@@ -40,7 +40,7 @@
 
 /dts-v1/;
 #include "rk3288-evb.dtsi"
-
+#include "rk3288-linux.dtsi"
 / {
 	compatible = "rockchip,rk3288-evb-act8846", "rockchip,rk3288";
 
@@ -96,7 +96,7 @@
 		button-up {
 			label = "Volume Up";
 			linux,code = <KEY_VOLUMEUP>;
-			press-threshold-microvolt = <100000>;
+			press-threshold-microvolt = <18000>;
 		};
 
 		button-down {
@@ -187,6 +187,15 @@
 
 &cpu0 {
 	cpu0-supply = <&vdd_cpu>;
+};
+
+&dfi {
+	status = "okay";
+};
+
+&dmc {
+	center-supply = <&vdd_log>;
+	status = "okay";
 };
 
 &edp {

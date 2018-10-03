@@ -6,8 +6,9 @@ which contains image processing, scaling, and compression funcitons.
 
 Required properties:
 - compatible: value should be one of the following
-	"rockchip,rk3288-cif-isp";
-	"rockchip,rk3399-cif-isp";
+	"rockchip,rk3288-rkisp1";
+	"rockchip,rk3326-rkisp1";
+	"rockchip,rk3399-rkisp1";
 - reg : offset and length of the register set for the device.
 - interrupts: should contain ISP interrupt.
 - clocks: phandle to the required clocks.
@@ -37,7 +38,7 @@ Device node example
 -------------------
 
 	isp0: isp0@ff910000 {
-		compatible = "rockchip,rk3399-cif-isp";
+		compatible = "rockchip,rk3399-rkisp1";
 		reg = <0x0 0xff910000 0x0 0x4000>;
 		interrupts = <GIC_SPI 43 IRQ_TYPE_LEVEL_HIGH 0>;
 		clocks = <&cru SCLK_ISP0>,

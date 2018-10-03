@@ -228,6 +228,10 @@ static struct rockchip_clk_branch rk3228_clk_branches[] __initdata = {
 	FACTOR(0, "clk_ddrphy", "clk_ddrc", 0, 1, 4),
 	GATE(0, "ddrphy4x", "clk_ddrc", CLK_IGNORE_UNUSED,
 			RK2928_CLKGATE_CON(7), 1, GFLAGS),
+	GATE(0, "ddrc", "ddrphy_pre", CLK_IGNORE_UNUSED,
+			RK2928_CLKGATE_CON(8), 5, GFLAGS),
+	FACTOR_GATE(0, "ddrphy", "ddrphy4x", CLK_IGNORE_UNUSED, 1, 4,
+			RK2928_CLKGATE_CON(7), 0, GFLAGS),
 
 	/* PD_CORE */
 	GATE(0, "apll_core", "apll", CLK_IGNORE_UNUSED,
@@ -661,8 +665,10 @@ static const char *const rk3228_critical_clocks[] __initconst = {
 	"pclk_phy_noc",
 	"aclk_vpu_noc",
 	"aclk_rkvdec_noc",
+	"aclk_rkvdec",
 	"hclk_vpu_noc",
 	"hclk_rkvdec_noc",
+	"hclk_rkvdec",
 };
 
 static void __init rk3228_clk_init(struct device_node *np)

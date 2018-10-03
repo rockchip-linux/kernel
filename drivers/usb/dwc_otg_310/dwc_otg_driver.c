@@ -183,8 +183,8 @@ static struct dwc_otg_driver_module_params dwc_otg_module_params = {
 	.en_multiple_tx_fifo = -1,
 	.dev_tx_fifo_size = {
 			     /* dev_tx_fifo_size */
-			     0x100,
 			     0x80,
+			     0x100,
 			     0x80,
 			     0x60,
 			     0x10,
@@ -201,7 +201,7 @@ static struct dwc_otg_driver_module_params dwc_otg_module_params = {
 			     /* 15 */
 			     },
 	.thr_ctl = -1,
-	.tx_thr_length = -1,
+	.tx_thr_length = 16,
 	.rx_thr_length = -1,
 	.pti_enable = -1,
 	.mpi_enable = -1,
@@ -1134,6 +1134,9 @@ static int host20_driver_probe(struct platform_device *_dev)
 		goto fail;
 	}
 
+	/* Initialize last_id */
+	dwc_otg_device->last_id = -1;
+
 	clk_set_rate(pldata->phyclk_480m, 480000000);
 	/*
 	 * Enable the global interrupt after all the interrupt
@@ -1474,6 +1477,16 @@ static int otg20_driver_probe(struct platform_device *_dev)
 		goto fail;
 	}
 
+	dwc_otg_device->core_if->high_bandwidth_en = of_property_read_bool(node,
+						"rockchip,high-bandwidth");
+
+	/*
+	 * If support high bandwidth endpoint, use 'Dedicated FIFO Mode
+	 * with Thresholding', and enable thresholding for isochronous IN
+	 * endpoints. Note: Thresholding is supported only in device mode.
+	 */
+	if (dwc_otg_device->core_if->high_bandwidth_en)
+		dwc_otg_module_params.thr_ctl = 2;
 	/*
 	 * Validate parameter values.
 	 */
@@ -1532,6 +1545,10 @@ static int otg20_driver_probe(struct platform_device *_dev)
 	dwc_otg_device->core_if->hc_halt_quirk =
 		of_property_read_bool(node, "rockchip,hc-halt-quirk");
 
+	/* usb pd off support */
+	dwc_otg_device->core_if->usb_pd_off =
+		of_property_read_bool(node, "rockchip,usb-pd-off");
+
 #ifndef DWC_HOST_ONLY
 	/*
 	 * Initialize the PCD
@@ -1554,6 +1571,9 @@ static int otg20_driver_probe(struct platform_device *_dev)
 		goto fail;
 	}
 #endif
+	/* Initialize last_id */
+	dwc_otg_device->last_id = -1;
+
 	/*
 	 * Enable the global interrupt after all the interrupt
 	 * handlers are installed if there is no ADP support else
@@ -1594,6 +1614,9 @@ static int dwc_otg_pm_suspend(struct device *dev)
 
 	dev_dbg(dev, "dwc_otg PM suspend\n");
 
+	if (dwc_otg_device->core_if->usb_pd_off)
+		cancel_delayed_work(&dwc_otg_device->pcd->check_id_work);
+
 	if (dwc_otg_device->core_if->op_state == B_PERIPHERAL)
 		return 0;
 
@@ -1611,6 +1634,11 @@ static int dwc_otg_pm_resume(struct device *dev)
 	dwc_otg_device = dev_get_platdata(dev);
 
 	dev_dbg(dev, "dwc_otg PM resume\n");
+
+	if (dwc_otg_device->core_if->usb_pd_off) {
+		dwc_otg_device->last_id = -1;
+		schedule_delayed_work(&dwc_otg_device->pcd->check_id_work, HZ);
+	}
 
 	if (dwc_otg_device->core_if->op_state == B_PERIPHERAL)
 		return 0;

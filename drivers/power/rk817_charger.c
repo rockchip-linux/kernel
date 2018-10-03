@@ -206,12 +206,14 @@ enum rk817_charge_fields {
 	USB_EXS, USB_EFF,
 	BAT_DIS_ILIM_STS, BAT_SYS_CMP_DLY, BAT_DIS_ILIM_EN,
 	BAT_DISCHRG_ILIM,
-	PLUG_IN_STS, SOC_REG,
+	PLUG_IN_STS, SOC_REG0, SOC_REG1, SOC_REG2,
 	F_MAX_FIELDS
 };
 
 static const struct reg_field rk817_charge_reg_fields[] = {
-	[SOC_REG] = REG_FIELD(0xA5, 0, 6),
+	[SOC_REG0] = REG_FIELD(0x9A, 0, 7),
+	[SOC_REG1] = REG_FIELD(0x9B, 0, 7),
+	[SOC_REG2] = REG_FIELD(0x9C, 0, 7),
 	[BOOST_EN] = REG_FIELD(0xB4, 1, 5),
 	[OTG_EN] = REG_FIELD(0xB4, 2, 6),
 	[OTG_SLP_EN] = REG_FIELD(0xB5, 5, 6),
@@ -323,36 +325,6 @@ struct rk817_charger {
 	u8 plugout_trigger;
 	int plugin_irq;
 	int plugout_irq;
-};
-
-static const struct regmap_range rk817_charge_readonly_reg_ranges[] = {
-	regmap_reg_range(0xEB, 0xEB),
-};
-
-static const struct regmap_access_table rk817_charge_writeable_regs = {
-	.no_ranges = rk817_charge_readonly_reg_ranges,
-	.n_no_ranges = ARRAY_SIZE(rk817_charge_readonly_reg_ranges),
-};
-
-static const struct regmap_range rk817_charge_volatile_reg_ranges[] = {
-	regmap_reg_range(0xB4, 0xB4),
-	regmap_reg_range(0xE4, 0xEA),
-	regmap_reg_range(0xEC, 0xEC),
-};
-
-static const struct regmap_access_table rk817_charge_volatile_regs = {
-	.yes_ranges = rk817_charge_volatile_reg_ranges,
-	.n_yes_ranges = ARRAY_SIZE(rk817_charge_volatile_reg_ranges),
-};
-
-static const struct regmap_config rk817_charge_regmap_config = {
-	.reg_bits = 8,
-	.val_bits = 8,
-
-	.max_register = 0xFF,
-	.cache_type = REGCACHE_RBTREE,
-	.wr_table = &rk817_charge_writeable_regs,
-	.volatile_table = &rk817_charge_volatile_regs,
 };
 
 static enum power_supply_property rk817_ac_props[] = {
@@ -561,6 +533,11 @@ static void rk817_charge_usb_to_sys_enable(struct rk817_charger *charge)
 	rk817_charge_field_write(charge, USB_SYS_EN, ENABLE);
 }
 
+static void rk817_charge_sys_can_sd_disable(struct rk817_charger *charge)
+{
+	rk817_charge_field_write(charge, SYS_CAN_SD, DISABLE);
+}
+
 static int rk817_charge_get_charge_status(struct rk817_charger *charge)
 {
 	int status;
@@ -721,15 +698,18 @@ static void rk817_charge_set_term_current_analog(struct rk817_charger *charge,
 {
 	int value;
 
-	if (chrg_current < 150)
-		chrg_current = 150;
-	if (chrg_current > 400)
-		chrg_current = 400;
+	if (chrg_current < 200)
+		value = CHRG_TERM_150MA;
+	else if (chrg_current < 300)
+		value = CHRG_TERM_200MA;
+	else if (chrg_current < 400)
+		value = CHRG_TERM_300MA;
+	else
+		value = CHRG_TERM_400MA;
 
-	value = (chrg_current - 150) / 50;
 	rk817_charge_field_write(charge,
 				 CHRG_TERM_ANA_SEL,
-				 CHRG_TERM_150MA + value);
+				 value);
 }
 
 static void rk817_charge_set_term_current_digital(struct rk817_charger *charge,
@@ -764,7 +744,13 @@ static int rk817_charge_online(struct rk817_charger *charge)
 
 static int rk817_charge_get_dsoc(struct rk817_charger *charge)
 {
-	return rk817_charge_field_read(charge, SOC_REG);
+	int soc_save;
+
+	soc_save = rk817_charge_field_read(charge, SOC_REG0);
+	soc_save |= (rk817_charge_field_read(charge, SOC_REG1) << 8);
+	soc_save |= (rk817_charge_field_read(charge, SOC_REG2) << 16);
+
+	return soc_save / 1000;
 }
 
 static void rk817_charge_set_chrg_param(struct rk817_charger *charge,
@@ -1279,7 +1265,7 @@ static void rk817_charge_pre_init(struct rk817_charger *charge)
 	rk817_charge_set_chrg_finish_condition(charge);
 
 	rk817_charge_otg_disable(charge);
-
+	rk817_charge_sys_can_sd_disable(charge);
 	rk817_charge_usb_to_sys_enable(charge);
 	rk817_charge_enable_charge(charge);
 
@@ -1544,8 +1530,7 @@ static int rk817_charge_probe(struct platform_device *pdev)
 	charge->client = client;
 	platform_set_drvdata(pdev, charge);
 
-	charge->regmap = devm_regmap_init_i2c(client,
-					      &rk817_charge_regmap_config);
+	charge->regmap = rk817->regmap;
 	if (IS_ERR(charge->regmap)) {
 		dev_err(charge->dev, "Failed to initialize regmap\n");
 		return -EINVAL;
@@ -1572,6 +1557,12 @@ static int rk817_charge_probe(struct platform_device *pdev)
 
 	rk817_charge_pre_init(charge);
 
+	ret = rk817_charge_init_power_supply(charge);
+	if (ret) {
+		dev_err(charge->dev, "init power supply fail!\n");
+		return ret;
+	}
+
 	ret = rk817_charge_init_dc(charge);
 	if (ret) {
 		dev_err(charge->dev, "init dc failed!\n");
@@ -1581,11 +1572,6 @@ static int rk817_charge_probe(struct platform_device *pdev)
 	ret = rk817_charge_usb_init(charge);
 	if (ret) {
 		dev_err(charge->dev, "init usb failed!\n");
-		return ret;
-	}
-	ret = rk817_charge_init_power_supply(charge);
-	if (ret) {
-		dev_err(charge->dev, "init power supply fail!\n");
 		return ret;
 	}
 

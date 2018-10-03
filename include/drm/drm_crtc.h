@@ -525,6 +525,31 @@ struct drm_crtc_funcs {
 	void (*early_unregister)(struct drm_crtc *crtc);
 };
 
+#if defined(CONFIG_ROCKCHIP_DRM_DEBUG)
+struct vop_dump_info {
+	int win_id;
+	int area_id;
+	unsigned int pitches;
+	unsigned int height;
+	u32 pixel_format;
+	bool AFBC_flag;
+	bool yuv_format;
+	unsigned long offset;
+	unsigned long num_pages;
+	struct page **pages;
+};
+
+struct vop_dump_list {
+	struct list_head entry;
+	struct vop_dump_info dump_info;
+};
+
+enum vop_dump_status {
+	DUMP_DISABLE = 0,
+	DUMP_KEEP
+};
+#endif
+
 /**
  * struct drm_crtc - central CRTC control structure
  * @dev: parent DRM device
@@ -629,6 +654,21 @@ struct drm_crtc {
 	 * context.
 	 */
 	struct drm_modeset_acquire_ctx *acquire_ctx;
+
+#if defined(CONFIG_ROCKCHIP_DRM_DEBUG)
+	/**
+	 * @vop_dump_status the status of vop dump control
+	 * @vop_dump_list_head the list head of vop dump list
+	 * @vop_dump_list_init_flag init once
+	 * @vop_dump_times control the dump times
+	 * @frme_count the frame of dump buf
+	 */
+	enum vop_dump_status vop_dump_status;
+	struct list_head vop_dump_list_head;
+	bool vop_dump_list_init_flag;
+	int vop_dump_times;
+	int frame_count;
+#endif
 };
 
 /**
@@ -675,6 +715,12 @@ struct drm_connector_state {
 	struct drm_encoder *best_encoder;
 
 	struct drm_atomic_state *state;
+
+	/**
+	 * @content_protection: Connector property to request content
+	 * protection. This is most commonly used for HDCP.
+	 */
+	unsigned int content_protection;
 
 	struct drm_tv_connector_state tv;
 
@@ -906,6 +952,7 @@ struct drm_encoder {
  * @tile_v_loc: vertical location of this tile
  * @tile_h_size: horizontal size of this tile.
  * @tile_v_size: vertical size of this tile.
+ * @content_protection_property: Optional property to control content protection
  *
  * Each connector may be connected to one or more CRTCs, or may be clonable by
  * another connector if they can share a CRTC.  Each connector also has a specific
@@ -948,6 +995,12 @@ struct drm_connector {
 
 	struct drm_property_blob *edid_blob_ptr;
 	struct drm_object_properties properties;
+
+	/**
+	 * @content_protection_property: DRM ENUM property for content
+	 * protection
+	 */
+	struct drm_property *content_protection_property;
 
 	struct drm_property_blob *path_blob_ptr;
 
@@ -1599,6 +1652,7 @@ struct drm_mode_config {
 	struct drm_property *prop_crtc_id;
 	struct drm_property *prop_active;
 	struct drm_property *prop_mode_id;
+	struct drm_property *content_protection_property;
 
 	/* DVI-I properties */
 	struct drm_property *dvi_i_subconnector_property;
@@ -1794,10 +1848,12 @@ extern void drm_encoder_cleanup(struct drm_encoder *encoder);
 extern const char *drm_get_connector_status_name(enum drm_connector_status status);
 extern const char *drm_get_subpixel_order_name(enum subpixel_order order);
 extern const char *drm_get_dpms_name(int val);
+extern const char *drm_get_content_protection_name(int val);
 extern const char *drm_get_dvi_i_subconnector_name(int val);
 extern const char *drm_get_dvi_i_select_name(int val);
 extern const char *drm_get_tv_subconnector_name(int val);
 extern const char *drm_get_tv_select_name(int val);
+extern const char *drm_get_content_protection_name(int val);
 extern const char *drm_get_connector_name(int val);
 extern void drm_fb_release(struct drm_file *file_priv);
 extern void drm_property_destroy_user_blobs(struct drm_device *dev,
@@ -1895,6 +1951,8 @@ extern int drm_mode_create_tv_properties(struct drm_device *dev,
 					 unsigned int num_modes,
 					 const char * const modes[]);
 extern int drm_mode_create_scaling_mode_property(struct drm_device *dev);
+extern int drm_connector_attach_content_protection_property(
+			struct drm_connector *connector);
 extern int drm_mode_create_aspect_ratio_property(struct drm_device *dev);
 extern int drm_mode_create_dirty_info_property(struct drm_device *dev);
 extern int drm_mode_create_suggested_offset_properties(struct drm_device *dev);

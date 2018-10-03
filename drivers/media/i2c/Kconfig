@@ -184,6 +184,15 @@ config VIDEO_ADV7180
 	  To compile this driver as a module, choose M here: the
 	  module will be called adv7180.
 
+config VIDEO_ADV7181D
+	tristate "Analog Devices ADV7181 decoder"
+	depends on VIDEO_V4L2 && I2C && VIDEO_V4L2_SUBDEV_API
+	---help---
+	  Support for the Analog Devices ADV7181 video decoder.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called adv7181.
+
 config VIDEO_ADV7183
 	tristate "Analog Devices ADV7183 decoder"
 	depends on VIDEO_V4L2 && I2C
@@ -516,6 +525,18 @@ config VIDEO_OV2685
 	  To compile this driver as a module, choose M here: the
 	  module will be called ov2685.
 
+config VIDEO_OV4689
+	tristate "OmniVision OV4689 sensor support"
+	depends on VIDEO_V4L2 && I2C && MEDIA_CONTROLLER
+	depends on MEDIA_CAMERA_SUPPORT
+	select V4L2_FWNODE
+	---help---
+	  This is a Video4Linux2 sensor-level driver for the OmniVision
+	  OV4689 camera.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called ov4689.
+
 config VIDEO_OV5647
 	tristate "OmniVision OV5647 sensor support"
 	depends on I2C && VIDEO_V4L2 && VIDEO_V4L2_SUBDEV_API
@@ -565,6 +586,18 @@ config VIDEO_OV9650
 	---help---
 	  This is a V4L2 sensor-level driver for the Omnivision
 	  OV9650 and OV9652 camera sensors.
+
+config VIDEO_OV13850
+	tristate "OmniVision OV13850 sensor support"
+	depends on VIDEO_V4L2 && I2C && MEDIA_CONTROLLER
+	depends on MEDIA_CAMERA_SUPPORT
+	select V4L2_FWNODE
+	---help---
+	  This is a Video4Linux2 sensor-level driver for the OmniVision
+	  OV13850 camera.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called ov13850.
 
 config VIDEO_VS6624
 	tristate "ST VS6624 sensor support"
@@ -680,6 +713,51 @@ config VIDEO_S5C73M3
 	  This is a V4L2 sensor-level driver for Samsung S5C73M3
 	  8 Mpixel camera.
 
+config VIDEO_GC2155
+	tristate "GalaxyCore GC2155 sensor support"
+	depends on VIDEO_V4L2 && I2C && VIDEO_V4L2_SUBDEV_API
+	help
+	  Support for the GalaxyCore GC2155 sensor.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called gc2155.
+
+config VIDEO_GC0312
+	tristate "GalaxyCore GC0312 sensor support"
+	depends on VIDEO_V4L2 && I2C && VIDEO_V4L2_SUBDEV_API
+	help
+	  Support for the GalaxyCore GC0312 sensor.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called gc0312.
+
+config VIDEO_GC2145
+	tristate "GalaxyCore GC2145 sensor support"
+	depends on VIDEO_V4L2 && I2C && VIDEO_V4L2_SUBDEV_API
+	help
+	  Support for the GalaxyCore GC2145 sensor.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called gc2145.
+
+config VIDEO_GC0329
+	tristate "GalaxyCore GC0329 sensor support"
+	depends on VIDEO_V4L2 && I2C && VIDEO_V4L2_SUBDEV_API
+	help
+	  Support for the GalaxyCore GC0329 sensor.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called gc0329.
+
+config VIDEO_GC2035
+	tristate "GalaxyCore GC2035 sensor support"
+	depends on VIDEO_V4L2 && I2C && VIDEO_V4L2_SUBDEV_API
+	help
+	  Support for the GalaxyCore GC2035 sensor.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called gc2035.
+
 comment "Flash devices"
 
 config VIDEO_ADP1653
@@ -740,6 +818,15 @@ config VIDEO_UPD64083
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called upd64083.
+
+comment "Camera lens devices"
+
+config VIDEO_VM149C
+	tristate "VM149C lens voice coil support"
+	depends on I2C && VIDEO_V4L2 && MEDIA_CONTROLLER
+	depends on VIDEO_V4L2_SUBDEV_API
+	---help---
+	  This is a driver for the VM149C camera lens voice coil.
 
 comment "Audio/Video compression chips"
 

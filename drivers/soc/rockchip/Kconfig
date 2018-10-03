@@ -15,7 +15,7 @@ config ANDROID_VERSION
 
 config ROCKCHIP_CPUINFO
 	bool "Rockchip cpuinfo support"
-	depends on ROCKCHIP_EFUSE && (ARM64 || ARM)
+	depends on (ROCKCHIP_EFUSE || ROCKCHIP_OTP) && (ARM64 || ARM)
 	default y
 	help
 	  Say y here to enable Rockchip cpuinfo support.
@@ -29,6 +29,13 @@ config ROCKCHIP_DEVICEINFO
 	default n
 	help
 	  Say y here if you have a deviceinfo partition.
+
+config ROCKCHIP_OPP
+	bool "Rockchip OPP select support"
+	depends on PM_DEVFREQ
+	default y
+	help
+	  Say y here to enable rockchip OPP support.
 
 config ROCKCHIP_PM_TEST
 	bool "Rockchip pm_test support"

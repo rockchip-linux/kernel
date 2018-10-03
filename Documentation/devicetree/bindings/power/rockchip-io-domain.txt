@@ -43,6 +43,8 @@ Required properties:
   - "rockchip,rk3368-pmu-io-voltage-domain" for rk3368 pmu-domains
   - "rockchip,rk3399-io-voltage-domain" for rk3399
   - "rockchip,rk3399-pmu-io-voltage-domain" for rk3399 pmu-domains
+  - "rockchip,rv1108-io-voltage-domain" for rv1108
+  - "rockchip,rv1108-pmu-io-voltage-domain" for rv1108 pmu-domains
 
 Deprecated properties:
 - rockchip,grf: phandle to the syscon managing the "general register files"
@@ -52,6 +54,19 @@ You specify supplies using the standard regulator bindings by including
 a phandle the relevant regulator.  All specified supplies must be able
 to report their voltage.  The IO Voltage Domain for any non-specified
 supplies will be not be touched.
+
+Possible supplies for PX30:
+- vccio6-supply: The supply connected to VCCIO6.
+- vccio1-supply: The supply connected to VCCIO1.
+- vccio2-supply: The supply connected to VCCIO2.
+- vccio3-supply: The supply connected to VCCIO3.
+- vccio4-supply: The supply connected to VCCIO4.
+- vccio5-supply: The supply connected to VCCIO5.
+- vccio-oscgpi-supply: The supply connected to VCCIO_OSCGPI.
+
+Possible supplies for PX30 pmu-domains:
+- pmuio1-supply: The supply connected to PMUIO1.
+- pmuio2-supply: The supply connected to PMUIO2.
 
 Possible supplies for rk3188:
 - ap0-supply:    The supply connected to AP0_VCC.

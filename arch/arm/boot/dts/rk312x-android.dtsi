@@ -1,50 +1,11 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
 /*
  * Copyright (c) 2017 Fuzhou Rockchip Electronics Co., Ltd
- *
- * This file is dual-licensed: you can use it either under the terms
- * of the GPL or the X11 license, at your option. Note that this dual
- * licensing only applies to this file, and not this project as a
- * whole.
- *
- *  a) This file is free software; you can redistribute it and/or
- *     modify it under the terms of the GNU General Public License as
- *     published by the Free Software Foundation; either version 2 of the
- *     License, or (at your option) any later version.
- *
- *     This file is distributed in the hope that it will be useful,
- *     but WITHOUT ANY WARRANTY; without even the implied warranty of
- *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *     GNU General Public License for more details.
- *
- * Or, alternatively,
- *
- *  b) Permission is hereby granted, free of charge, to any person
- *     obtaining a copy of this software and associated documentation
- *     files (the "Software"), to deal in the Software without
- *     restriction, including without limitation the rights to use,
- *     copy, modify, merge, publish, distribute, sublicense, and/or
- *     sell copies of the Software, and to permit persons to whom the
- *     Software is furnished to do so, subject to the following
- *     conditions:
- *
- *     The above copyright notice and this permission notice shall be
- *     included in all copies or substantial portions of the Software.
- *
- *     THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
- *     EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
- *     OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
- *     NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
- *     HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
- *     WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- *     FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
- *     OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include <dt-bindings/soc/rockchip-system-status.h>
 #include <dt-bindings/display/mipi_dsi.h>
 #include <dt-bindings/display/drm_mipi_dsi.h>
 #include <dt-bindings/display/media-bus-format.h>
-#include "rk3128-dram-default-timing.dtsi"
 
 / {
 	chosen {
@@ -57,55 +18,6 @@
 		nvmem-cell-names = "id";
 	};
 
-	dfi: dfi {
-		compatible = "rockchip,rk3128-dfi";
-		rockchip,pmu = <&pmu>;
-		rockchip,grf = <&grf>;
-		status = "okay";
-	};
-
-	dmc: dmc {
-		compatible = "rockchip,rk3128-dmc";
-		devfreq-events = <&dfi>;
-		clocks = <&cru SCLK_DDRC>;
-		clock-names = "dmc_clk";
-		upthreshold = <55>;
-		downdifferential = <10>;
-		operating-points-v2 = <&dmc_opp_table>;
-		vop-dclk-mode = <0>;
-		min-cpu-freq = <600000>;
-		rockchip,ddr_timing = <&ddr_timing>;
-		system-status-freq = <
-			/*system status		freq(KHz)*/
-			SYS_STATUS_NORMAL	456000
-			SYS_STATUS_SUSPEND	200000
-		>;
-		auto-min-freq = <300000>;
-		auto-freq-en = <0>;
-		status = "okay";
-	};
-
-	dmc_opp_table: opp_table2 {
-		compatible = "operating-points-v2";
-
-		opp-200000000 {
-			opp-hz = /bits/ 64 <200000000>;
-			opp-microvolt = <950000>;
-		};
-		opp-300000000 {
-			opp-hz = /bits/ 64 <300000000>;
-			opp-microvolt = <950000>;
-		};
-		opp-396000000 {
-			opp-hz = /bits/ 64 <396000000>;
-			opp-microvolt = <1100000>;
-		};
-		opp-456000000 {
-			opp-hz = /bits/ 64 <456000000>;
-			opp-microvolt = <1200000>;
-		};
-	};
-
 	fiq-debugger {
 		compatible = "rockchip,fiq-debugger";
 		rockchip,serial-id = <2>;
@@ -116,6 +28,10 @@
 		rockchip,baudrate = <115200>;  /* Only 115200 and 1500000 */
 		interrupts = <GIC_SPI 127 IRQ_TYPE_LEVEL_LOW>;
 		status = "okay";
+	};
+
+	firmware {
+		firmware_android: android {};
 	};
 
 	reserved-memory {
@@ -149,6 +65,14 @@
 	};
 };
 
+&cif_new {
+	memory-region = <&cma_region>;
+};
+
+&dfi {
+	status = "okay";
+};
+
 &display_subsystem {
 	memory-region = <&cma_region>;
 	logo-memory-region = <&drm_logo>;
@@ -173,4 +97,8 @@
 			connect = <&vop_out_lvds>;
 		};
 	};
+};
+
+&dmc {
+	status = "okay";
 };

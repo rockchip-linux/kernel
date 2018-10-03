@@ -1255,6 +1255,9 @@ static void purge_configs_funcs(struct gadget_info *gi)
 						" '%s'/%p\n", f->name, f);
 				f->unbind(c, f);
 			}
+
+			if (f->bind_deactivated)
+				usb_function_activate(f);
 		}
 		c->next_interface_id = 0;
 		memset(c->interface, 0, sizeof(c->interface));
@@ -1489,7 +1492,8 @@ static int android_setup(struct usb_gadget *gadget,
 	struct usb_function_instance *fi;
 
 	spin_lock_irqsave(&cdev->lock, flags);
-	if (!gi->connected) {
+	if (c->bRequest == USB_REQ_GET_DESCRIPTOR &&
+	    (c->wValue >> 8) == USB_DT_CONFIG && !gi->connected) {
 		gi->connected = 1;
 		schedule_work(&gi->work);
 	}

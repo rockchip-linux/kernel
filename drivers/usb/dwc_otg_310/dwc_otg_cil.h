@@ -852,8 +852,14 @@ struct dwc_otg_core_if {
 	/* Indicates need to force a host channel halt */
 	bool hc_halt_quirk;
 
+	/* True if support high bandwidth endpoints */
+	bool high_bandwidth_en;
+
 	/* Indicate USB get VBUS 5V from PMIC(e.g. rk81x) */
 	bool pmic_vbus;
+
+	/* True if support power down usb in suspend */
+	bool usb_pd_off;
 
 #ifdef DWC_DEV_SRPCAP
 	/* This timer is needed to power on the hibernated host core if SRP is not
@@ -1046,6 +1052,11 @@ extern void hc_xfer_timeout(void *ptr);
  * This function is called when transfer is timed out on endpoint.
  */
 extern void ep_xfer_timeout(void *ptr);
+
+/*
+ * This function is called when set register and wait for completion.
+ */
+int dwc_otg_wait_bit_set(volatile u32 *reg, u32 bit, u32 timeout);
 
 /*
  * The following functions are functions for works

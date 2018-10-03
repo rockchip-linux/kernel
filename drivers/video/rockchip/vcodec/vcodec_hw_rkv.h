@@ -38,10 +38,10 @@
 #define HEVC_DEC_BUFFER_EMPTY_BIT	BIT(16)
 #define HEVC_DEC_COLMV_ERROR_BIT	BIT(17)
 #define HEVC_DEC_ERR_MASK		(HEVC_DEC_BUS_ERROR_BIT \
-					|HEVC_DEC_STR_ERROR_BIT \
-					|HEVC_DEC_TIMEOUT_BIT \
-					|HEVC_DEC_BUFFER_EMPTY_BIT \
-					|HEVC_DEC_COLMV_ERROR_BIT)
+					| HEVC_DEC_STR_ERROR_BIT \
+					| HEVC_DEC_TIMEOUT_BIT \
+					| HEVC_DEC_BUFFER_EMPTY_BIT \
+					| HEVC_DEC_COLMV_ERROR_BIT)
 
 #define RKV_DEC_INTERRUPT_REGISTER	1
 #define RKV_DEC_INTERRUPT_BIT		BIT(8)
@@ -53,10 +53,14 @@
 #define RKV_DEC_BUFFER_EMPTY_BIT	BIT(16)
 #define RKV_DEC_COLMV_ERROR_BIT		BIT(17)
 #define RKV_DEC_ERR_MASK		(RKV_DEC_BUS_ERROR_BIT \
-					|RKV_DEC_STR_ERROR_BIT \
-					|RKV_DEC_TIMEOUT_BIT \
-					|RKV_DEC_BUFFER_EMPTY_BIT \
-					|RKV_DEC_COLMV_ERROR_BIT)
+					| RKV_DEC_STR_ERROR_BIT \
+					| RKV_DEC_TIMEOUT_BIT \
+					| RKV_DEC_BUFFER_EMPTY_BIT \
+					| RKV_DEC_COLMV_ERROR_BIT)
+
+/* enable and soft reset register */
+#define RKV_REG_DEC_RESET		1
+#define RKV_REG_DEC_RESET_BIT		BIT(20)
 
 static const enum FORMAT_TYPE rkv_dec_fmt_tbl[] = {
 	[0]  = FMT_H265D,
@@ -80,6 +84,7 @@ static struct vpu_task_info task_rkv[TASK_TYPE_BUTT] = {
 		.reg_len = 0,
 		.reg_dir_mv = 0,
 		.reg_pps = -1,
+		.reg_reset = -1,
 		.reg_pipe = 0,
 		.enable_mask = 0,
 		.gating_mask = 0,
@@ -87,6 +92,7 @@ static struct vpu_task_info task_rkv[TASK_TYPE_BUTT] = {
 		.irq_mask = 0,
 		.ready_mask = 0,
 		.error_mask = 0,
+		.reset_mask = 0,
 		.get_fmt = NULL,
 	},
 	{
@@ -97,6 +103,7 @@ static struct vpu_task_info task_rkv[TASK_TYPE_BUTT] = {
 		.reg_len = 4,
 		.reg_dir_mv = 52,
 		.reg_pps = 42,
+		.reg_reset = RKV_REG_DEC_RESET,
 		.reg_pipe = 0,
 		.enable_mask = 0,
 		.gating_mask = RKV_REG_DEC_GATING_BIT,
@@ -104,6 +111,7 @@ static struct vpu_task_info task_rkv[TASK_TYPE_BUTT] = {
 		.pipe_mask = 0,
 		.ready_mask = HEVC_READY_BIT,
 		.error_mask = HEVC_DEC_ERR_MASK,
+		.reset_mask = RKV_REG_DEC_RESET_BIT,
 		.get_fmt = rkv_dec_get_fmt,
 	},
 	{
@@ -113,6 +121,7 @@ static struct vpu_task_info task_rkv[TASK_TYPE_BUTT] = {
 		.reg_len = 0,
 		.reg_dir_mv = 0,
 		.reg_pps = -1,
+		.reg_reset = -1,
 		.reg_pipe = 0,
 		.enable_mask = 0,
 		.gating_mask = 0,
@@ -120,6 +129,7 @@ static struct vpu_task_info task_rkv[TASK_TYPE_BUTT] = {
 		.irq_mask = 0,
 		.ready_mask = 0,
 		.error_mask = 0,
+		.reset_mask = 0,
 		.get_fmt = NULL,
 	},
 	{
@@ -129,6 +139,7 @@ static struct vpu_task_info task_rkv[TASK_TYPE_BUTT] = {
 		.reg_len = 0,
 		.reg_dir_mv = 0,
 		.reg_pps = -1,
+		.reg_reset = -1,
 		.reg_pipe = 0,
 		.enable_mask = 0,
 		.gating_mask = 0,
@@ -136,6 +147,7 @@ static struct vpu_task_info task_rkv[TASK_TYPE_BUTT] = {
 		.irq_mask = 0,
 		.ready_mask = 0,
 		.error_mask = 0,
+		.reset_mask = 0,
 		.get_fmt = NULL,
 	},};
 
@@ -202,8 +214,8 @@ DEF_FMT_TRANS_TBL(rkv_vp9d,
 const struct vpu_trans_info trans_rkv[FMT_TYPE_BUTT] = {
 	EMPTY_FMT_TBL(FMT_JPEGD),
 	EMPTY_FMT_TBL(FMT_H263D),
-	SETUP_FMT_TBL(FMT_H264D , rkv_h264d),
-	SETUP_FMT_TBL(FMT_H265D , rkv_h265d),
+	SETUP_FMT_TBL(FMT_H264D, rkv_h264d),
+	SETUP_FMT_TBL(FMT_H265D, rkv_h265d),
 
 	EMPTY_FMT_TBL(FMT_MPEG1D),
 	EMPTY_FMT_TBL(FMT_MPEG2D),
@@ -212,7 +224,7 @@ const struct vpu_trans_info trans_rkv[FMT_TYPE_BUTT] = {
 	EMPTY_FMT_TBL(FMT_VP6D),
 	EMPTY_FMT_TBL(FMT_VP7D),
 	EMPTY_FMT_TBL(FMT_VP8D),
-	SETUP_FMT_TBL(FMT_VP9D  , rkv_vp9d),
+	SETUP_FMT_TBL(FMT_VP9D, rkv_vp9d),
 
 	EMPTY_FMT_TBL(FMT_PP),
 

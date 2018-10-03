@@ -12,10 +12,24 @@
 	compatible = "rockchip,rk3308-evb", "rockchip,rk3308";
 
 	chosen {
-		bootargs = "earlycon=uart8250,mmio32,0xff0c0000 swiotlb=1 console=ttyFIQ0 root=PARTUUID=614e0000-0000 rootfstype=squashfs rootwait";
+		bootargs = "earlycon=uart8250,mmio32,0xff0c0000 swiotlb=1 console=ttyFIQ0 root=PARTUUID=614e0000-0000 rootfstype=squashfs rootwait snd_aloop.index=7";
 	};
 
-	adc-keys {
+	adc-keys0 {
+		compatible = "adc-keys";
+		io-channels = <&saradc 0>;
+		io-channel-names = "buttons";
+		poll-interval = <100>;
+		keyup-threshold-microvolt = <1800000>;
+
+		func-key {
+			linux,code = <KEY_FN>;
+			label = "function";
+			press-threshold-microvolt = <18000>;
+		};
+	};
+
+	adc-keys1 {
 		compatible = "adc-keys";
 		io-channels = <&saradc 1>;
 		io-channel-names = "buttons";
@@ -23,8 +37,8 @@
 		keyup-threshold-microvolt = <1800000>;
 
 		esc-key {
-			linux,code = <KEY_MUTE>;
-			label = "mute";
+			linux,code = <KEY_MICMUTE>;
+			label = "micmute";
 			press-threshold-microvolt = <1130000>;
 		};
 
@@ -88,6 +102,39 @@
 		reset-gpios = <&gpio0 RK_PA2 GPIO_ACTIVE_LOW>;
 	};
 
+	acodec_sound: acodec-sound {
+		compatible = "rockchip,multicodecs-card";
+		rockchip,card-name = "rockchip,rk3308-acodec";
+		rockchip,codec-hp-det;
+		rockchip,mclk-fs = <256>;
+		rockchip,cpu = <&i2s_8ch_2>;
+		rockchip,codec = <&acodec>;
+	};
+
+	bluetooth_sound: bluetooth-sound {
+		status = "disabled";
+		compatible = "rockchip,multicodecs-card";
+		rockchip,card-name = "rockchip,rk3308-pcm";
+		rockchip,mclk-fs = <128>;
+		rockchip,cpu = <&i2s_2ch_0>;
+		rockchip,codec = <&dummy_codec>;
+		rockchip,format = "dsp_b";
+		rockchip,bitclock-inversion = <0>;
+		rockchip,wait-card-locked = <0>;
+	};
+
+	spdif_rx_sound: spdif-rx-sound {
+		status = "disabled";
+		compatible = "simple-audio-card";
+		simple-audio-card,name = "rockchip,spdif-rx-sound";
+		simple-audio-card,cpu {
+			sound-dai = <&spdif_rx>;
+		};
+		simple-audio-card,codec {
+			sound-dai = <&dummy_codec>;
+		};
+	};
+
 	spdif_tx_sound: spdif-tx-sound {
 		status = "disabled";
 		compatible = "simple-audio-card";
@@ -104,9 +151,10 @@
 		compatible = "pwm-regulator";
 		pwms = <&pwm0 0 5000 1>;
 		regulator-name = "vdd_core";
-		regulator-min-microvolt = <847000>;
-		regulator-max-microvolt = <1366000>;
-		regulator-init-microvolt = <1044000>;
+		regulator-min-microvolt = <827000>;
+		regulator-max-microvolt = <1340000>;
+		regulator-init-microvolt = <1015000>;
+		regulator-early-min-microvolt = <1015000>;
 		regulator-always-on;
 		regulator-boot-on;
 		regulator-settling-time-up-us = <250>;
@@ -177,6 +225,13 @@
 		regulator-max-microvolt = <1800000>;
 	};
 
+	vcc_phy: vcc-phy-regulator {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc_phy";
+		regulator-always-on;
+		regulator-boot-on;
+	};
+
 	vbus_host: vbus-host-regulator {
 		compatible = "regulator-fixed";
 		enable-active-high;
@@ -206,8 +261,22 @@
 	};
 };
 
+&acodec {
+	status = "okay";
+
+	rockchip,no-deep-low-power;
+	rockchip,loopback-grp = <3>;
+	hp-ctl-gpios = <&gpio0 RK_PA1 GPIO_ACTIVE_HIGH>;
+	spk-ctl-gpios = <&gpio0 RK_PA5 GPIO_ACTIVE_HIGH>;
+};
+
 &cpu0 {
 	cpu-supply = <&vdd_core>;
+};
+
+&dmc {
+	center-supply = <&vdd_core>;
+	status = "okay";
 };
 
 &emmc {
@@ -225,6 +294,19 @@
 	status = "okay";
 };
 
+&mac {
+	phy-supply = <&vcc_phy>;
+	assigned-clocks = <&cru SCLK_MAC>;
+	assigned-clock-parents = <&mac_clkin>;
+	clock_in_out = "input";
+	pinctrl-names = "default";
+	pinctrl-0 = <&rmii_pins &mac_refclk>;
+	snps,reset-gpio = <&gpio0 RK_PB2 GPIO_ACTIVE_LOW>;
+	snps,reset-active-low;
+	snps,reset-delays-us = <0 50000 50000>;
+	status = "disable";
+};
+
 &io_domains {
 	status = "okay";
 
@@ -237,6 +319,7 @@
 };
 
 &i2c1 {
+	clock-frequency = <400000>;
 	status = "okay";
 
 	is31fl3236: led-controller@3c {
@@ -573,7 +656,25 @@
 	};
 };
 
+&i2s_8ch_2 {
+	status = "okay";
+};
+
 &nandc {
+	status = "okay";
+};
+
+&rockchip_suspend {
+	rockchip,pwm-regulator-config = <
+		(0
+		| RKPM_PWM_REGULATOR
+		)
+	>;
+
+	status = "okay";
+};
+
+&rng {
 	status = "okay";
 };
 
@@ -602,6 +703,10 @@
 	card-detect-delay = <300>;
 	vmmc-supply = <&vcc_sd>;
 	status = "disabled";
+};
+
+&sfc {
+	status = "okay";
 };
 
 &tsadc {
@@ -636,6 +741,8 @@
 
 &pwm0 {
 	status = "okay";
+	pinctrl-names = "active";
+	pinctrl-0 = <&pwm0_pin_pull_down>;
 };
 
 &u2phy {

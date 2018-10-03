@@ -23,6 +23,7 @@
 #include <linux/of.h>
 #include <linux/rockchip/rockchip_sip.h>
 #include <linux/slab.h>
+#include <soc/rockchip/rockchip_dmc.h>
 #include <soc/rockchip/rockchip_sip.h>
 #include <soc/rockchip/scpi.h>
 #include <uapi/drm/drm_mode.h>
@@ -219,6 +220,7 @@ struct share_params {
 	 * 0: never wait flag1
 	 */
 	u32 wait_flag0;
+	u32 complt_hwirq;
 	 /* if need, add parameter after */
 };
 
@@ -260,6 +262,9 @@ static int rockchip_ddrclk_sip_set_rate_v2(struct clk_hw *hw,
 
 	res = sip_smc_dram(SHARE_PAGE_TYPE_DDR, 0,
 			   ROCKCHIP_SIP_CONFIG_DRAM_SET_RATE);
+
+	if ((int)res.a1 == SIP_RET_SET_RATE_TIMEOUT)
+		rockchip_dmcfreq_wait_complete();
 
 	return res.a0;
 }
@@ -361,11 +366,8 @@ rockchip_clk_register_ddrclk(const char *name, int flags,
 	ddrclk->ddr_flag = ddr_flag;
 
 	clk = clk_register(NULL, &ddrclk->hw);
-	if (IS_ERR(clk)) {
-		pr_err("%s: could not register ddrclk %s\n", __func__,	name);
+	if (IS_ERR(clk))
 		kfree(ddrclk);
-		return NULL;
-	}
 
 	return clk;
 }

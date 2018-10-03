@@ -48,7 +48,7 @@
 	compatible = "pine64,rock64", "rockchip,rk3328";
 
 	chosen {
-		bootargs = "rockchip_jtag earlyprintk=uart8250-32bit,0xff130000";
+		bootargs = "rockchip_jtag earlyprintk=uart8250-32bit,0xff130000 swiotlb=1 kpti=0";
 		stdout-path = "serial2:1500000n8";
 	};
 
@@ -111,6 +111,13 @@
 		regulator-boot-on;
 		regulator-min-microvolt = <5000000>;
 		regulator-max-microvolt = <5000000>;
+	};
+
+	xin32k: xin32k {
+		compatible = "fixed-clock";
+		clock-frequency = <32768>;
+		clock-output-names = "xin32k";
+		#clock-cells = <0>;
 	};
 
 	ir-receiver {
@@ -237,7 +244,7 @@
 		rockchip,system-power-controller;
 		wakeup-source;
 		gpio-controller;
-		clock-output-names = "xin32k", "rk805-clkout2";
+		clock-output-names = "rk805-clkout1", "rk805-clkout2";
 		#gpio-cells = <2>;
 		#clock-cells = <1>;
 

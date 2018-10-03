@@ -69,7 +69,7 @@
 #include <linux/uaccess.h>
 #include <linux/interrupt.h>
 #include <linux/mm.h>
-#include <linux/compat.h>	/* is_compat_task */
+#include <linux/compat.h>	/* is_compat_task/in_compat_syscall */
 #include <linux/mman.h>
 #include <linux/version.h>
 #include <mali_kbase_hw.h>
@@ -396,7 +396,11 @@ static int kbase_open(struct inode *inode, struct file *filp)
 	if (!kbdev)
 		return -ENODEV;
 
+#if (KERNEL_VERSION(4, 6, 0) <= LINUX_VERSION_CODE)
+	kctx = kbase_create_context(kbdev, in_compat_syscall());
+#else
 	kctx = kbase_create_context(kbdev, is_compat_task());
+#endif /* (KERNEL_VERSION(4, 6, 0) <= LINUX_VERSION_CODE) */
 	if (!kctx) {
 		ret = -ENOMEM;
 		goto out;
@@ -2408,6 +2412,10 @@ static ssize_t kbase_show_gpuinfo(struct device *dev,
 		  .name = "Mali-G51" },
 		{ .id = GPU_ID2_PRODUCT_TNOX >> GPU_ID_VERSION_PRODUCT_ID_SHIFT,
 		  .name = "Mali-TNOx" },
+		{ .id = GPU_ID2_PRODUCT_TDVX >> GPU_ID_VERSION_PRODUCT_ID_SHIFT,
+		  .name = "Mali-G31" },
+		{ .id = GPU_ID2_PRODUCT_TGOX >> GPU_ID_VERSION_PRODUCT_ID_SHIFT,
+		  .name = "Mali-G52" },
 	};
 	const char *product_name = "(Unknown Mali GPU)";
 	struct kbase_device *kbdev;
@@ -3246,20 +3254,9 @@ static int power_control_init(struct platform_device *pdev)
 		}
 	}
 
-#if defined(CONFIG_OF) && defined(CONFIG_PM_OPP)
-	/* Register the OPPs if they are available in device tree */
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0)) \
-	|| defined(LSK_OPPV2_BACKPORT)
-	err = dev_pm_opp_of_add_table(kbdev->dev);
-	rockchip_adjust_opp_by_irdrop(kbdev->dev);
-#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 7, 0))
-	err = of_init_opp_table(kbdev->dev);
-#else
-	err = 0;
-#endif /* LINUX_VERSION_CODE */
+	err = kbase_platform_rk_init_opp_table(kbdev);
 	if (err)
-		dev_dbg(kbdev->dev, "OPP table not found\n");
-#endif /* CONFIG_OF && CONFIG_PM_OPP */
+		dev_err(kbdev->dev, "Failed to init_opp_table (%d)\n", err);
 
 	return 0;
 
@@ -3936,6 +3933,7 @@ static int kbase_platform_device_probe(struct platform_device *pdev)
 	kbdev->mdev.name = kbdev->devname;
 	kbdev->mdev.fops = &kbase_fops;
 	kbdev->mdev.parent = get_device(kbdev->dev);
+	kbdev->mdev.mode = 0666;
 	kbdev->inited_subsys |= inited_get_device;
 
 	/* This needs to happen before registering the device with misc_register(),

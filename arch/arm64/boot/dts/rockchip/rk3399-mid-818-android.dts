@@ -54,6 +54,7 @@
 	edp_panel: edp-panel {
 		compatible = "lg,lp079qx1-sp0v", "panel-simple";
 		bus-format = <MEDIA_BUS_FMT_RGB666_1X18>;
+		bpc = <6>;
 		backlight = <&backlight>;
 		power-supply = <&vcc3v3_s0>;
 		enable-gpios = <&gpio3 8 GPIO_ACTIVE_HIGH>;
@@ -111,6 +112,13 @@
 		regulator-max-microvolt = <1350000>;
 		regulator-always-on;
 		regulator-boot-on;
+	};
+
+	xin32k: xin32k {
+		compatible = "fixed-clock";
+		clock-frequency = <32768>;
+		clock-output-names = "xin32k";
+		#clock-cells = <0>;
 	};
 
 	backlight: backlight {
@@ -402,6 +410,7 @@
 		regulator-max-microvolt = <1400000>;
 		regulator-ramp-delay = <1000>;
 		fcs,suspend-voltage-selector = <1>;
+		regulator-always-on;
 		regulator-boot-on;
 		regulator-state-mem {
 			regulator-off-in-suspend;
@@ -412,7 +421,7 @@
 		compatible = "rockchip,rk818";
 		status = "okay";
 		reg = <0x1c>;
-		clock-output-names = "xin32k", "wifibt_32kin";
+		clock-output-names = "rk818-clkout1", "wifibt_32kin";
 		interrupt-parent = <&gpio1>;
 		interrupts = <21 IRQ_TYPE_LEVEL_LOW>;
 		pinctrl-names = "default";

@@ -61,6 +61,9 @@
 #include "dwc_otg_attr.h"
 
 #include "usbdev_rk.h"
+
+#define MAX_RECONNECT	6
+
 static struct gadget_wrapper {
 	dwc_otg_pcd_t *pcd;
 
@@ -1532,6 +1535,7 @@ static void dwc_phy_reconnect(struct work_struct *work)
 		dctl.b.sftdiscon = 0;
 		DWC_WRITE_REG32(&core_if->dev_if->dev_global_regs->dctl,
 				dctl.d32);
+		usleep_range(3500, 4000);
 		printk
 		    ("*******************soft connect!!!*******************\n");
 	}
@@ -1614,11 +1618,11 @@ static void check_id(struct work_struct *work)
 	    container_of(work, dwc_otg_pcd_t, check_id_work.work);
 	struct dwc_otg_device *otg_dev = _pcd->otg_dev;
 	struct dwc_otg_platform_data *pldata = otg_dev->pldata;
-	static int last_id = -1;
 	int id = pldata->get_status(USB_STATUS_ID);
 
-	if (last_id != id) {
-		pr_info("[otg id chg] last id %d current id %d\n", last_id, id);
+	if (otg_dev->last_id != id) {
+		pr_info("[otg id chg] last id %d current id %d\n",
+			otg_dev->last_id, id);
 
 		if (pldata->phy_status == USB_PHY_SUSPEND) {
 			pldata->clock_enable(pldata, 1);
@@ -1628,7 +1632,7 @@ static void check_id(struct work_struct *work)
 		/* Force Device or Host by id */
 		id_status_change(otg_dev->core_if, id);
 	}
-	last_id = id;
+	otg_dev->last_id = id;
 	schedule_delayed_work(&_pcd->check_id_work, (HZ));
 }
 
@@ -1661,11 +1665,11 @@ static void dwc_otg_pcd_check_vbus_work(struct work_struct *work)
 				udelay(3);
 				pldata->clock_enable(pldata, 0);
 			}
-		} else if ((_pcd->conn_en) && (_pcd->conn_status >= 0)
-			   && (_pcd->conn_status < 2)) {
+		} else if ((_pcd->conn_en) && (_pcd->conn_status >= 0) &&
+			   (_pcd->conn_status < MAX_RECONNECT)) {
 			printk("**************soft reconnect**************\n");
 			goto connect;
-		} else if (_pcd->conn_status == 2) {
+		} else if (_pcd->conn_status == MAX_RECONNECT) {
 			_pcd->conn_status++;
 
 			if (pldata->bc_detect_cb && iddig) {

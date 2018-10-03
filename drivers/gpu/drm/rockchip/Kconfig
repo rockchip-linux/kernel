@@ -1,6 +1,6 @@
 config DRM_ROCKCHIP
 	tristate "DRM Support for Rockchip"
-	depends on DRM && ROCKCHIP_IOMMU
+	depends on DRM
 	depends on RESET_CONTROLLER
 	select DRM_KMS_HELPER
 	select DRM_KMS_FB_HELPER
@@ -15,6 +15,20 @@ config DRM_ROCKCHIP
 	  management to userspace. This driver does not provide
 	  2D or 3D acceleration; acceleration is performed by other
 	  IP found on the SoC.
+
+config ROCKCHIP_DRM_DEBUG
+	tristate "Rockchip DRM debug"
+	depends on DRM_ROCKCHIP
+	help
+	  This option add a debug nod to dump buf from application.
+	  dump path: /data/vop_buf
+	  debug nod: d/dri/0/ff900000.vop/vop_dump/dump
+	  echo dump    > dump to dump one frame
+	  echo dumpon  > dump to start vop keep dumping
+	  echo dumpoff > dump to stop keep dumping
+	  echo dumpn   > dump n is the number of dump times
+	  if fd err -3 try rm -r /data/vopbuf echo dump1 > dump can fix it
+	  if fd err -28 save needed data try rm -r /data/vopbuf
 
 config ROCKCHIP_CDN_DP
 	tristate "Rockchip cdn DP"
@@ -33,7 +47,7 @@ config ROCKCHIP_DW_HDMI
         help
 	  This selects support for Rockchip SoC specific extensions
 	  for the Synopsys DesignWare HDMI driver. If you want to
-	  enable HDMI on RK3288 based SoC, you should selet this
+	  enable HDMI on RK3288 based SoC, you should select this
 	  option.
 
 config ROCKCHIP_DW_MIPI_DSI
@@ -41,10 +55,10 @@ config ROCKCHIP_DW_MIPI_DSI
 	depends on DRM_ROCKCHIP
 	select DRM_MIPI_DSI
 	help
-	 This selects support for Rockchip SoC specific extensions
-	 for the Synopsys DesignWare HDMI driver. If you want to
-	 enable MIPI DSI on RK3288 based SoC, you should selet this
-	 option.
+	  This selects support for Rockchip SoC specific extensions
+	  for the Synopsys DesignWare HDMI driver. If you want to
+	  enable MIPI DSI on RK3288 based SoC, you should select this
+	  option.
 
 config ROCKCHIP_ANALOGIX_DP
 	tristate "Rockchip specific extensions for Analogix DP driver"
@@ -53,7 +67,7 @@ config ROCKCHIP_ANALOGIX_DP
 	help
 	  This selects support for Rockchip SoC specific extensions
 	  for the Analogix Core DP driver. If you want to enable DP
-	  on RK3288 based SoC, you should selet this option.
+	  on RK3288 based SoC, you should select this option.
 
 config ROCKCHIP_INNO_HDMI
 	tristate "Rockchip specific extensions for Innosilicon HDMI"

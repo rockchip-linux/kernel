@@ -454,7 +454,7 @@ static s32 gt1x_i2c_test(void)
 			return ret;
 		}
 
-		msleep(10);
+		usleep_range(10000, 11000);
 		GTP_ERROR("Hardware Info:%08X", hw_info);
 		GTP_ERROR("I2c failed%d.", retry);
 	}
@@ -487,7 +487,7 @@ s32 gt1x_i2c_read_dbl_check(u16 addr, u8 *buffer, s32 len)
 		return ret;
 	}
 
-	msleep(5);
+	usleep_range(5000, 6000);
 	memset(confirm_buf, 0, sizeof(confirm_buf));
 	ret = gt1x_i2c_read(addr, confirm_buf, len);
 	if (ret < 0) {
@@ -500,35 +500,6 @@ s32 gt1x_i2c_read_dbl_check(u16 addr, u8 *buffer, s32 len)
 	}
 	GTP_ERROR("i2c read 0x%04X, %d bytes, double check failed!", addr, len);
 	return 1;
-}
-
-/**
- * gt1x_get_info - Get information from ic, such as resolution and
- * int trigger type
- * Return    <0: i2c failed, 0: i2c ok
- */
-s32 gt1x_get_info(void)
-{
-	u8 opr_buf[4] = { 0 };
-	s32 ret = 0;
-
-	ret = gt1x_i2c_read(GTP_REG_CONFIG_DATA + 1, opr_buf, 4);
-	if (ret < 0) {
-		return ret;
-	}
-
-	gt1x_abs_x_max = (opr_buf[1] << 8) + opr_buf[0];
-	gt1x_abs_y_max = (opr_buf[3] << 8) + opr_buf[2];
-
-	ret = gt1x_i2c_read(GTP_REG_CONFIG_DATA + 6, opr_buf, 1);
-	if (ret < 0) {
-		return ret;
-	}
-	gt1x_int_type = opr_buf[0] & 0x03;
-
-	GTP_INFO("X_MAX = %d, Y_MAX = %d, TRIGGER = 0x%02x", gt1x_abs_x_max, gt1x_abs_y_max, gt1x_int_type);
-
-	return 0;
 }
 
 /**
@@ -687,9 +658,9 @@ void gt1x_select_addr(void)
 {
 	GTP_GPIO_OUTPUT(GTP_RST_PORT, 0);
 	GTP_GPIO_OUTPUT(GTP_INT_PORT, gt1x_i2c_client->addr == 0x14);
-	msleep(2);
+	usleep_range(2000, 3000);
 	GTP_GPIO_OUTPUT(GTP_RST_PORT, 1);
-	msleep(2);
+	usleep_range(2000, 3000);
 }
 
 static s32 gt1x_set_reset_status(void)
@@ -813,7 +784,7 @@ s32 gt1x_reset_guitar(void)
 		return ret;
 #else
 	gt1x_select_addr();
-	msleep(8);     /* must >= 6ms */
+	usleep_range(8000, 9000);     /* must >= 6ms */
 #endif
 
 	/* int synchronization */
@@ -841,7 +812,7 @@ s32 gt1x_read_version(struct gt1x_version_info *ver_info)
 	u8 product_id[5] = { 0 };
 	u8 sensor_id = 0;
 	u8 match_opt = 0;
-	int i, retry = 3;
+	unsigned int i, retry = 3;
 	u8 checksum = 0;
 
 	GTP_DEBUG_FUNC();
@@ -938,29 +909,30 @@ s32 gt1x_get_chip_type(void)
  */
 static s32 gt1x_enter_sleep(void)
 {
+	s32 retry = 0;
+
 #if GTP_POWER_CTRL_SLEEP
-	gt1x_power_switch(SWITCH_OFF);
-	return 0;
-#else
-	{
-		s32 retry = 0;
-		if (gt1x_wakeup_level == 1) {	/* high level wakeup */
-			GTP_GPIO_OUTPUT(GTP_INT_PORT, 0);
-		}
-		msleep(5);
-
-		while (retry++ < 3) {
-			if (!gt1x_send_cmd(GTP_CMD_SLEEP, 0)) {
-				GTP_INFO("Enter sleep mode!");
-				return 0;
-			}
-			msleep(10);
-		}
-
-		GTP_ERROR("Enter sleep mode failed.");
-		return -1;
+	if (!gt1x_power_switch(SWITCH_OFF)) {
+		GTP_INFO("Enter sleep mode by poweroff");
+		return 0;
 	}
 #endif
+
+	if (gt1x_wakeup_level == 1) {	/* high level wakeup */
+		GTP_GPIO_OUTPUT(GTP_INT_PORT, 0);
+	}
+	usleep_range(5000, 6000);
+
+	while (retry++ < 3) {
+		if (!gt1x_send_cmd(GTP_CMD_SLEEP, 0)) {
+			GTP_INFO("Enter sleep mode!");
+			return 0;
+		}
+		usleep_range(10000, 11000);
+	}
+
+	GTP_ERROR("Enter sleep mode failed.");
+	return -1;
 }
 
 /**
@@ -970,20 +942,22 @@ static s32 gt1x_enter_sleep(void)
  */
 static s32 gt1x_wakeup_sleep(void)
 {
-#if !GTP_POWER_CTRL_SLEEP
 	u8 retry = 0;
 	s32 ret = -1;
 	int flag = 0;
-#endif
 
 	GTP_DEBUG("Wake up begin.");
 	gt1x_irq_disable();
 
 #if GTP_POWER_CTRL_SLEEP	/* power manager unit control the procedure */
-	gt1x_power_reset();
-	GTP_INFO("Wakeup by poweron");
-	return 0;
-#else /* gesture wakeup & int port wakeup */
+	if (!gt1x_power_switch(SWITCH_ON)) {
+		gt1x_power_reset();
+		GTP_INFO("Wakeup by poweron");
+		return 0;
+	}
+#endif
+
+	/* gesture wakeup & int port wakeup */
 	while (retry++ < 2) {
 #if GTP_GESTURE_WAKEUP
 		if (gesture_enabled) {
@@ -997,7 +971,7 @@ static s32 gt1x_wakeup_sleep(void)
 		{
 			/* wake up through int port */
 			GTP_GPIO_OUTPUT(GTP_INT_PORT, gt1x_wakeup_level);
-			msleep(5);
+			usleep_range(5000, 6000);
 
 			/* Synchronize int IO */
 			GTP_GPIO_OUTPUT(GTP_INT_PORT, 0);
@@ -1030,7 +1004,6 @@ static s32 gt1x_wakeup_sleep(void)
 		GTP_INFO("Wake up end.");
 		return 0;
 	}
-#endif /* END GTP_POWER_CTRL_SLEEP */
 }
 
 /**
