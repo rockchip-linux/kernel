@@ -246,7 +246,7 @@
 	wireless-wlan {
 		compatible = "wlan-platdata";
 		rockchip,grf = <&grf>;
-		wifi_chip_type = "ap6255";
+		wifi_chip_type = "ap6256";
 		sdio_vref = <1800>;
 		WIFI,host_wake_irq = <&gpio0 3 GPIO_ACTIVE_HIGH>;
 		status = "okay";
@@ -1015,7 +1015,7 @@
 };
 
 &dsi {
-	status = "okay";
+	status = "disabled";
 };
 
 &vopb_out_dsi {
@@ -1028,12 +1028,12 @@
 
 &dsi1 {
 	rockchip,dual-channel = <&dsi>;
-	status = "okay";
+	status = "disabled";
 
 	panel: panel@0 {
 		compatible ="rockpi,tc358762";
 		reg = <0>;
-		status = "okay";
+		status = "disabled";
 	
 	};
 
@@ -1268,7 +1268,7 @@
 };
 
 &dsi1_in_vopl {
-	status = "okay";
+	status = "disabled";
 };
 
 &dsi1_in_vopb {
@@ -1279,7 +1279,7 @@
 	status = "disabled";
  };
 &route_dsi1{
-	status = "okay";
+	status = "disabled";
 	connect = <&vopl_out_dsi1>;
 };
 
