@@ -1165,4 +1165,12 @@ config TOUCHSCREEN_VTL_CT36X
 config TOUCHSCREEN_GT1X
 	tristate "GT1X touchscreens support"
 
+config TOUCHSCREEN_ROCKPI_FT5406   
+	tristate "rockpi ft5406"
+    default y
+    depends on I2C
+    help
+      Control ft5406 touch ic.
+
+
 endif
