@@ -53,6 +53,7 @@
 			operating-points-v2 = <&cpu0_opp_table>;
 			dynamic-power-coefficient = <74>;
 			#cooling-cells = <2>;
+			cpu-idle-states = <&CPU_SLEEP>;
 		};
 
 		cpu1: cpu@1 {
@@ -63,6 +64,29 @@
 			clocks = <&cru ARMCLK>;
 			operating-points-v2 = <&cpu0_opp_table>;
 			dynamic-power-coefficient = <74>;
+			cpu-idle-states = <&CPU_SLEEP>;
+		};
+
+		idle-states {
+			entry-method = "psci";
+
+			CPU_SLEEP: cpu-sleep {
+				compatible = "arm,idle-state";
+				local-timer-stop;
+				arm,psci-suspend-param = <0x0010000>;
+				entry-latency-us = <120>;
+				exit-latency-us = <250>;
+				min-residency-us = <900>;
+			};
+
+			CLUSTER_SLEEP: cluster-sleep {
+				compatible = "arm,idle-state";
+				local-timer-stop;
+				arm,psci-suspend-param = <0x1010000>;
+				entry-latency-us = <400>;
+				exit-latency-us = <500>;
+				min-residency-us = <2000>;
+			};
 		};
 	};
 
@@ -1113,6 +1137,14 @@
 	dcf: dcf@ff640000 {
 		compatible = "syscon";
 		reg = <0x0 0xff640000 0x0 0x1000>;
+	};
+
+	rktimer: rktimer@ff700000 {
+		compatible = "rockchip,rk3288-timer";
+		reg = <0x0 0xff700000 0x0 0x1000>;
+		interrupts = <GIC_SPI 26 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&cru PCLK_TIMER>, <&cru SCLK_TIMER0>;
+		clock-names = "pclk", "timer";
 	};
 
 	wdt: watchdog@ff720000 {
