@@ -336,6 +336,12 @@
 		#clock-cells = <0>;
 	};
 
+	cpuinfo {
+		compatible = "rockchip,cpuinfo";
+		nvmem-cells = <&efuse_id>;
+		nvmem-cell-names = "id";
+	};
+
 	timer {
 		compatible = "arm,armv7-timer";
 		arm,cpu-registers-not-fw-configured;
