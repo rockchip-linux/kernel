@@ -564,6 +564,13 @@ config GPIO_DET
 	help
 	  Enable this driver will support gpio detection.
 
+config ROCKPI_MCU
+	tristate "rockpi mcu"
+	default y
+	depends on I2C
+	help
+	  Control the power of touch screen for rockpi board.
+
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
 source "drivers/misc/cb710/Kconfig"
