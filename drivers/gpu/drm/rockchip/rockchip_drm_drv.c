@@ -1819,6 +1819,8 @@ static void rockchip_add_endpoints(struct device *dev,
 	struct device_node *ep, *remote;
 
 	for_each_child_of_node(port, ep) {
+		if (!of_device_is_available(ep))
+			continue;
 		remote = of_graph_get_remote_port_parent(ep);
 		if (!remote || !of_device_is_available(remote)) {
 			of_node_put(remote);

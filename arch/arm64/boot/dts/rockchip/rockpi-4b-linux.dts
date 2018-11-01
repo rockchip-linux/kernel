@@ -590,7 +590,7 @@
 	};
 
 	rockpi_mcu: rockpi_mcu@45 {
-	    compatible = "tinker_mcu";
+	    compatible = "rockpi_mcu";
 	    reg = <0x45>;
 	};
 
@@ -1015,7 +1015,7 @@
 };
 
 &dsi {
-	status = "disabled";
+	status = "okay";
 };
 
 &vopb_out_dsi {
@@ -1028,12 +1028,13 @@
 
 &dsi1 {
 	rockchip,dual-channel = <&dsi>;
-	status = "disabled";
+	status = "okay";
+
 
 	panel: panel@0 {
 		compatible ="rockpi,tc358762";
 		reg = <0>;
-		status = "disabled";
+		status = "okay";
 	
 	};
 
@@ -1268,7 +1269,7 @@
 };
 
 &dsi1_in_vopl {
-	status = "disabled";
+	status = "okay";
 };
 
 &dsi1_in_vopb {
