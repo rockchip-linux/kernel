@@ -377,8 +377,7 @@
 };
 
 &dsi {	
-	status = "disabled";
-	//status = "okay";
+	status = "okay";
 	dsi_panel: panel {
 		compatible ="simple-panel-dsi";
 		reg = <0>;
@@ -729,7 +728,7 @@
 	i2c-scl-falling-time-ns = <26>;
 
 	gsl3680: gsl3680@40 {
-		status = "disabled";
+		status = "okay";
 		compatible = "gslX680";
 		reg = <0x40>;
 		screen_max_x = <1536>;
