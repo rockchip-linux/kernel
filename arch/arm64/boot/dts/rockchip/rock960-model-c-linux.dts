@@ -536,6 +536,7 @@
 			};
 		};
 	};
+
 };
 
 &i2c1 {
@@ -544,38 +545,27 @@
 
 &i2c2 {
 	status = "okay";
-	camera0: camera-module@10 {
-		status = "disabled";
-		compatible = "omnivision,ov13850-v4l2-i2c-subdev";
-		reg = < 0x10 >;
-		device_type = "v4l2-i2c-subdev";
-		clocks = <&cru SCLK_CIF_OUT>;
-		clock-names = "clk_cif_out";
-		pinctrl-names = "rockchip,camera_default",
-				"rockchip,camera_sleep";
-		pinctrl-0 = <&cam0_default_pins>;
-		pinctrl-1 = <&cam0_sleep_pins>;
-		//rockchip,pd-gpio = <&gpio4 4 GPIO_ACTIVE_LOW>;
-		rockchip,pwr-gpio = <&gpio4 4 GPIO_ACTIVE_HIGH>;
-		rockchip,rst-gpio = <&gpio3 29 GPIO_ACTIVE_LOW>;
-		rockchip,camera-module-mclk-name = "clk_cif_out";
-		rockchip,camera-module-facing = "back";
-		rockchip,camera-module-name = "cmk-cb0695-fv1";
-		rockchip,camera-module-len-name = "lg9569a2";
-		rockchip,camera-module-fov-h = "66.0";
-		rockchip,camera-module-fov-v = "50.1";
-		rockchip,camera-module-orientation = <0>;
-		rockchip,camera-module-iq-flip = <0>;
-		rockchip,camera-module-iq-mirror = <0>;
-		rockchip,camera-module-flip = <1>;
-		rockchip,camera-module-mirror = <0>;
 
-		rockchip,camera-module-defrect0 = <2112 1568 0 0 2112 1568>;
-		rockchip,camera-module-defrect1 = <4224 3136 0 0 4224 3136>;
-		rockchip,camera-module-defrect3 = <3264 2448 0 0 3264 2448>;
-		rockchip,camera-module-flash-support = <1>;
-		rockchip,camera-module-mipi-dphy-index = <0>;
+	camera0: camera-module@10 {
+		compatible = "ovti,ov13850";
+		status = "disabled";
+		reg = <0x10>;
+		clocks = <&cru SCLK_CIF_OUT>;
+		clock-names = "xvclk";
+
+		reset-gpios = <&gpio3 29 GPIO_ACTIVE_HIGH>;
+		pwdn-gpios = <&gpio3 28 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "rockchip,camera_default";
+		pinctrl-0 = <&cif_clkout>;
+
+		port {
+			ucam_out0: endpoint {
+			remote-endpoint = <&mipi_in_ucam1>;
+			data-lanes = <1 2>;
+			};
+		};
 	};
+
 
 	camera1: camera-module@36 {
 		status = "disabled";
@@ -608,6 +598,26 @@
 		rockchip,camera-module-mipi-dphy-index = <0>;
 	};
 
+	camera2: camera-module@3C {
+		status = "okay";
+		compatible = "ovti,ov5645";
+		reg = <0x3c>;
+		clocks = <&cru SCLK_CIF_OUT>;
+		clock-names = "xvclk";
+		
+		pinctrl-names = "rockchip,camera_default";
+		pinctrl-0 = <&cif_clkout>;
+		reset-gpios = <&gpio3 29 GPIO_ACTIVE_HIGH>;
+		pwdn-gpios = <&gpio3 28 GPIO_ACTIVE_HIGH>;
+
+		port {
+			ucam_out2: endpoint {
+				remote-endpoint = <&mipi_in_ucam1>;
+				data-lanes = <1 2>;
+			};
+		};
+	};
+
 };
 
 &i2c4 {
@@ -616,10 +626,48 @@
 
 &i2c6 {
 	status = "okay";
+	camera3: camera-module@3C {
+		status = "okay";
+		compatible = "ovti,ov5645";
+		reg = <0x3c>;
+		clocks = <&cru SCLK_CIF_OUT>;
+		clock-names = "xvclk";
+		
+		pinctrl-names = "rockchip,camera_default";
+		pinctrl-0 = <&cif_clkout>;
+		reset-gpios = <&gpio1 18 GPIO_ACTIVE_HIGH>;
+		pwdn-gpios = <&gpio3 26 GPIO_ACTIVE_HIGH>;
+
+		port {
+			ucam_out3: endpoint {
+				remote-endpoint = <&mipi_in_ucam0>;
+				data-lanes = <1 2>;
+			};
+		};
+	};
+
+	camera4: camera-module@10 {
+		status = "disabled";
+		compatible = "sony,imx219";
+		reg = <0x10>;
+
+		clocks = <&cru SCLK_CIF_OUT>;
+		clock-names = "clk_cif_out";
+		pinctrl-names = "rockchip,camera_default";
+		pwdn-gpios = <&gpio0 6 GPIO_ACTIVE_HIGH>;
+		
+		port {
+			ucam_out4: endpoint {
+				remote-endpoint = <&mipi_in_ucam0>;
+				data-lanes = <1 2>;
+			};
+		};
+	};
 };
 
 &i2c7 {
 	status = "okay";
+
 };
 
 &cpu_l0 {
@@ -745,7 +793,7 @@
     dma-names = "tx", "rx";
     spidev@0 {
 	compatible = "linux,spidev";
-	reg = <0x00>;
+	/*reg = <0x00>;*/
 	spi-max-frequency = <48000000>;
     };
 };
@@ -1104,19 +1152,101 @@
 	status = "okay";
 };
 
-&cif_isp0 {
-	rockchip,camera-modules-attached = <&camera0>;
+&rkisp1_0 {
 	status = "okay";
+	port {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		isp0_mipi_in: endpoint@0 {
+			reg = <0>;
+			remote-endpoint = <&dphy_rx0_out>;
+		};
+	};
+};
+
+&mipi_dphy_rx0 {
+	status = "okay";
+
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		port@0 {
+			reg = <0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			mipi_in_ucam0: endpoint@1 {
+				reg = <1>;
+				remote-endpoint = <&ucam_out3>;
+				data-lanes = <1 2>;
+			};
+		};
+
+		port@1 {
+			reg = <1>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			dphy_rx0_out: endpoint@0 {
+				reg = <0>;
+				remote-endpoint = <&isp0_mipi_in>;
+			};
+		};
+	};
 };
 
 &isp0_mmu {
 	status = "okay";
 };
 
-&cif_isp1 {
-	rockchip,camera-modules-attached = <&camera1>;
-	status = "disabled";
+&rkisp1_1 {
+	status = "okay";
+	port {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		isp1_mipi_in: endpoint@0 {
+			reg = <0>;
+			remote-endpoint = <&dphy_tx1rx1_out>;
+		};
+	};
 };
+
+&mipi_dphy_tx1rx1 {
+	status = "okay";
+
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		port@0 {
+			reg = <0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			mipi_in_ucam1: endpoint@1 {
+				reg = <1>;
+				remote-endpoint = <&ucam_out2>;
+				data-lanes = <1 2>;
+			};
+		};
+
+		port@1 {
+			reg = <1>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			dphy_tx1rx1_out: endpoint@0 {
+				reg = <0>;
+				remote-endpoint = <&isp1_mipi_in>;
+			};
+		};
+	};
+};
+
+
 
 &isp1_mmu {
 	status = "okay";
