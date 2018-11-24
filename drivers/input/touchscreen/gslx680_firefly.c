@@ -1516,7 +1516,7 @@ static void __exit gsl_ts_exit(void)
 	return;
 }
 
-module_init(gsl_ts_init);
+late_initcall(gsl_ts_init);
 module_exit(gsl_ts_exit);
 
 MODULE_LICENSE("GPL");
