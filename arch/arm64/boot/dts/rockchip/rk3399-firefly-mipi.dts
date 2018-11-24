@@ -136,17 +136,15 @@
 	status = "okay";
 
 	gsl3680: gsl3680@40 {
-		status = "okay";
 		compatible = "gslX680";
 		reg = <0x40>;
 		screen_max_x = <1536>;
 		screen_max_y = <2048>;
-		touch-gpio = <&gpio1 20 IRQ_TYPE_LEVEL_LOW>;
+		touch-gpio = <&gpio4 28 IRQ_TYPE_LEVEL_LOW>;
 		reset-gpio = <&gpio0 12 GPIO_ACTIVE_HIGH>;
 	};
 
 	mpu6050: mpu@68 {
-		status = "okay";
 		compatible = "invensense,mpu6050";
 		reg = <0x68>;
 		irq-gpio = <&gpio1 4 IRQ_TYPE_LEVEL_LOW>;

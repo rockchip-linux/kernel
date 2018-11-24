@@ -231,7 +231,6 @@
 	i2c-scl-falling-time-ns = <15>;
 
 	sensor@4c {
-		status = "okay";
 		compatible = "gs_mc3230";
 		reg = <0x4c>;
 		type = <SENSOR_TYPE_ACCEL>;
@@ -244,7 +243,7 @@
 &i2c4 {
 	status = "okay";
 
-	gslx680: gslx680@41 {
+	gsl3680: gsl3680@41 {
 		compatible = "gslX680";
 		reg = <0x41>;
 		screen_max_x = <800>;
