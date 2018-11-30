@@ -29,6 +29,7 @@
 #include <linux/slab.h>
 #include <linux/thermal.h>
 #ifdef CONFIG_ARCH_ROCKCHIP
+#include <soc/rockchip/rockchip_ipa.h>
 #include <soc/rockchip/rockchip_opp_select.h>
 #endif
 
@@ -45,6 +46,7 @@ struct private_data {
 	struct thermal_cooling_device *cdev;
 #ifdef CONFIG_ARCH_ROCKCHIP
 	struct thermal_opp_info *opp_info;
+	struct ipa_power_model_data *model_data;
 #endif
 	const char *reg_name;
 };
@@ -377,10 +379,34 @@ static int cpufreq_exit(struct cpufreq_policy *policy)
 	return 0;
 }
 
+#ifdef CONFIG_ARCH_ROCKCHIP
+static int cpufreq_get_static_power(cpumask_t *cpumask, int interval,
+				    unsigned long voltage, u32 *power)
+{
+	int cpu = cpumask_first_and(cpumask, cpu_online_mask);
+	struct cpufreq_policy *policy;
+	struct private_data *priv;
+
+	policy = cpufreq_cpu_get(cpu);
+	if (!policy) {
+		*power = 0;
+		return 0;
+	}
+	priv = policy->driver_data;
+	/* Voltage in mV */
+	*power = rockchip_ipa_get_static_power(priv->model_data,
+					       voltage / 1000);
+	cpufreq_cpu_put(policy);
+
+	return 0;
+}
+#endif
+
 static void cpufreq_ready(struct cpufreq_policy *policy)
 {
 	struct private_data *priv = policy->driver_data;
 	struct device_node *np = of_node_get(priv->cpu_dev->of_node);
+	int ret;
 
 	if (WARN_ON(!np))
 		return;
@@ -395,8 +421,24 @@ static void cpufreq_ready(struct cpufreq_policy *policy)
 		of_property_read_u32(np, "dynamic-power-coefficient",
 				     &power_coefficient);
 
+#ifdef CONFIG_ARCH_ROCKCHIP
+		ret = rockchip_ipa_power_model_init(priv->cpu_dev,
+						    &priv->model_data);
+		if (!ret) {
+			rockchip_of_get_leakage(priv->cpu_dev, "cpu_leakage",
+						&priv->model_data->leakage);
+			priv->cdev = of_cpufreq_power_cooling_register(np,
+					policy->related_cpus, power_coefficient,
+					cpufreq_get_static_power);
+		} else {
+			priv->cdev = of_cpufreq_power_cooling_register(np,
+					policy->related_cpus, power_coefficient,
+					NULL);
+		}
+#else
 		priv->cdev = of_cpufreq_power_cooling_register(np,
 				policy->related_cpus, power_coefficient, NULL);
+#endif
 		if (IS_ERR(priv->cdev)) {
 			dev_err(priv->cpu_dev,
 				"running cpufreq without cooling device: %ld\n",
