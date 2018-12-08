@@ -50,16 +50,16 @@ set_debarch() {
 	mips*)
 		debarch=mips$(grep -q CPU_LITTLE_ENDIAN=y $KCONFIG_CONFIG && echo el || true) ;;
 	arm64)
-		debarch=arm64 ;;
+		debarch=all ;;
 	arm*)
 		if grep -q CONFIG_AEABI=y $KCONFIG_CONFIG; then
 		    if grep -q CONFIG_VFP=y $KCONFIG_CONFIG; then
-			debarch=armhf
+			debarch=all
 		    else
-			debarch=armel
+			debarch=all
 		    fi
 		else
-		    debarch=arm
+		    debarch=all
 		fi
 		;;
 	*)
