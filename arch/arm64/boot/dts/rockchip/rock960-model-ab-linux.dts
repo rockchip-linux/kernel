@@ -285,7 +285,7 @@
 };
 
 &i2s2 {
-	status = "disabled";
+	status = "okay";
 	#sound-dai-cells = <0>;
 };
 
