@@ -228,6 +228,28 @@
 	status = "okay";
 };
 
+&hdmi_in_vopb {
+	status = "okay";
+};
+
+&hdmi_in_vopl {
+	status = "disabled";
+};
+
+&cdn_dp {
+    status = "okay";
+	extcon = <&fusb0>;
+};
+
+&dp_in_vopb {
+	status = "disabled";
+};
+
+&dp_in_vopl {
+	status = "okay";
+};
+
+
 &sdmmc {
 	clock-frequency = <100000000>;
 	clock-freq-min-max = <100000 100000000>;
