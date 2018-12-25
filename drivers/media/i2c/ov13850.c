@@ -31,6 +31,8 @@
 
 #define CHIP_ID				0x00d850
 #define OV13850_REG_CHIP_ID		0x300a
+#define OV13850_REG_SCCB_ID		0x300c
+#define OV13850_VENDOR_I2C_ADDR		0x10
 
 #define OV13850_REG_CTRL_MODE		0x0100
 #define OV13850_MODE_SW_STANDBY		0x0
@@ -965,6 +967,8 @@ static int __ov13850_power_on(struct ov13850 *ov13850)
 	int ret;
 	u32 delay_us;
 	struct device *dev = &ov13850->client->dev;
+        struct i2c_client *client = ov13850->client;
+	unsigned short addr;
 
 	if (!IS_ERR_OR_NULL(ov13850->pins_default)) {
 		ret = pinctrl_select_state(ov13850->pinctrl,
@@ -998,6 +1002,18 @@ static int __ov13850_power_on(struct ov13850 *ov13850)
 	/* 8192 cycles prior to first SCCB transaction */
 	delay_us = ov13850_cal_delay(8192);
 	usleep_range(delay_us, delay_us * 2);
+
+        /* Change i2c address by programming SCCB_ID */
+	addr = client->addr;
+        client->addr = OV13850_VENDOR_I2C_ADDR;
+        ret = ov13850_write_reg(client, OV13850_REG_SCCB_ID,
+                                OV13850_REG_VALUE_08BIT,
+                                addr * 2);
+	if (ret) {
+		dev_err(dev, "write SCCB_ID failed\n");
+                return ret;
+	}
+        client->addr = addr;
 
 	return 0;
 
