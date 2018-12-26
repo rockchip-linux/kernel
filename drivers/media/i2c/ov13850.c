@@ -75,6 +75,9 @@
 #define OF_CAMERA_PINCTRL_STATE_DEFAULT	"rockchip,camera_default"
 #define OF_CAMERA_PINCTRL_STATE_SLEEP	"rockchip,camera_sleep"
 
+static DEFINE_MUTEX(ov13850_power_mutex);
+static int ov13850_power_count;
+
 static const struct regval *ov13850_global_regs;
 
 static const char * const ov13850_supply_names[] = {
@@ -124,6 +127,8 @@ struct ov13850 {
 	bool			streaming;
 	const struct ov13850_mode *cur_mode;
 };
+
+static struct ov13850 *ov13850_master;
 
 #define to_ov13850(sd) container_of(sd, struct ov13850, subdev)
 
@@ -962,25 +967,34 @@ static inline u32 ov13850_cal_delay(u32 cycles)
 	return DIV_ROUND_UP(cycles, OV13850_XVCLK_FREQ / 1000 / 1000);
 }
 
-static int __ov13850_power_on(struct ov13850 *ov13850)
-{
+static int __ov13850_master_power_on(struct device *dev) {
+	struct ov13850 *ov13850 = ov13850_master;
 	int ret;
-	u32 delay_us;
-	struct device *dev = &ov13850->client->dev;
-        struct i2c_client *client = ov13850->client;
-	unsigned short addr;
+
+	if (!ov13850) {
+		dev_err(dev, "no ov13850 master set\n");
+		return -EINVAL;
+	}
+
+	ov13850_power_count++;
+	if (ov13850_power_count > 1) {
+		ret = 0;
+		goto err_shortcut;
+	}
 
 	if (!IS_ERR_OR_NULL(ov13850->pins_default)) {
 		ret = pinctrl_select_state(ov13850->pinctrl,
 					   ov13850->pins_default);
-		if (ret < 0)
+		if (ret < 0) {
 			dev_err(dev, "could not set pins\n");
+			goto err_pins;
+		}
 	}
 
 	ret = clk_prepare_enable(ov13850->xvclk);
 	if (ret < 0) {
 		dev_err(dev, "Failed to enable xvclk\n");
-		return ret;
+		goto err_clk;
 	}
 
 	if (!IS_ERR(ov13850->reset_gpio))
@@ -989,11 +1003,73 @@ static int __ov13850_power_on(struct ov13850 *ov13850)
 	ret = regulator_bulk_enable(OV13850_NUM_SUPPLIES, ov13850->supplies);
 	if (ret < 0) {
 		dev_err(dev, "Failed to enable regulators\n");
-		goto disable_clk;
+		goto err_regulator;
 	}
 
 	if (!IS_ERR(ov13850->reset_gpio))
 		gpiod_set_value_cansleep(ov13850->reset_gpio, 1);
+
+	return 0;
+
+err_regulator:
+	clk_disable_unprepare(ov13850->xvclk);
+err_clk:
+	if (!IS_ERR_OR_NULL(ov13850->pins_sleep)) {
+		int _ret;
+		_ret = pinctrl_select_state(ov13850->pinctrl,
+					   ov13850->pins_sleep);
+		if (ret < 0)
+			dev_dbg(dev, "could not set sleep pins\n");
+	}
+err_pins:
+	ov13850_power_count--;
+err_shortcut:
+	return ret;
+}
+
+static void __ov13850_master_power_off(struct device *dev)
+{
+	struct ov13850 *ov13850 = ov13850_master;
+	int ret;
+
+	if (!ov13850) {
+		dev_err(dev, "no ov13850 master set\n");
+		return;
+	}
+
+	ov13850_power_count--;
+	if (ov13850_power_count > 0) {
+		return;
+	}
+
+	clk_disable_unprepare(ov13850->xvclk);
+	if (!IS_ERR(ov13850->reset_gpio))
+		gpiod_set_value_cansleep(ov13850->reset_gpio, 0);
+	if (!IS_ERR_OR_NULL(ov13850->pins_sleep)) {
+		ret = pinctrl_select_state(ov13850->pinctrl,
+					   ov13850->pins_sleep);
+		if (ret < 0)
+			dev_dbg(dev, "could not set pins\n");
+	}
+	regulator_bulk_disable(OV13850_NUM_SUPPLIES, ov13850->supplies);
+
+	return;
+}
+
+static int __ov13850_power_on(struct ov13850 *ov13850)
+{
+	int ret;
+	u32 delay_us;
+	struct device *dev = &ov13850->client->dev;
+	struct i2c_client *client = ov13850->client;
+	unsigned short addr;
+
+	mutex_lock(&ov13850_power_mutex);
+	ret = __ov13850_master_power_on(dev);
+	if (ret) {
+		dev_err(dev, "could not power on, error %d\n", ret);
+		goto err_power;
+	}
 
 	usleep_range(500, 1000);
 	if (!IS_ERR(ov13850->pwdn_gpio))
@@ -1005,41 +1081,41 @@ static int __ov13850_power_on(struct ov13850 *ov13850)
 
         /* Change i2c address by programming SCCB_ID */
 	addr = client->addr;
-        client->addr = OV13850_VENDOR_I2C_ADDR;
-        ret = ov13850_write_reg(client, OV13850_REG_SCCB_ID,
-                                OV13850_REG_VALUE_08BIT,
-                                addr * 2);
-	if (ret) {
-		dev_err(dev, "write SCCB_ID failed\n");
-                return ret;
+	if (addr != OV13850_VENDOR_I2C_ADDR) {
+		client->addr = OV13850_VENDOR_I2C_ADDR;
+		ret = ov13850_write_reg(client, OV13850_REG_SCCB_ID,
+					OV13850_REG_VALUE_08BIT,
+					addr * 2);
+		if (ret) {
+			dev_err(dev, "write SCCB_ID failed\n");
+			goto err_i2c_addr;
+		}
+		client->addr = addr;
 	}
-        client->addr = addr;
 
+	mutex_unlock(&ov13850_power_mutex);
 	return 0;
 
-disable_clk:
-	clk_disable_unprepare(ov13850->xvclk);
-
+err_i2c_addr:
+	if (!IS_ERR(ov13850->pwdn_gpio))
+		gpiod_set_value_cansleep(ov13850->pwdn_gpio, 0);
+	__ov13850_master_power_off(dev);
+err_power:
+	mutex_unlock(&ov13850_power_mutex);
 	return ret;
 }
 
 static void __ov13850_power_off(struct ov13850 *ov13850)
 {
-	int ret;
 	struct device *dev = &ov13850->client->dev;
+
+	mutex_lock(&ov13850_power_mutex);
 
 	if (!IS_ERR(ov13850->pwdn_gpio))
 		gpiod_set_value_cansleep(ov13850->pwdn_gpio, 0);
-	clk_disable_unprepare(ov13850->xvclk);
-	if (!IS_ERR(ov13850->reset_gpio))
-		gpiod_set_value_cansleep(ov13850->reset_gpio, 0);
-	if (!IS_ERR_OR_NULL(ov13850->pins_sleep)) {
-		ret = pinctrl_select_state(ov13850->pinctrl,
-					   ov13850->pins_sleep);
-		if (ret < 0)
-			dev_dbg(dev, "could not set pins\n");
-	}
-	regulator_bulk_disable(OV13850_NUM_SUPPLIES, ov13850->supplies);
+	__ov13850_master_power_off(dev);
+
+	mutex_unlock(&ov13850_power_mutex);
 }
 
 static int ov13850_runtime_resume(struct device *dev)
@@ -1277,16 +1353,27 @@ static int ov13850_check_sensor_id(struct ov13850 *ov13850,
 	return 0;
 }
 
-static int ov13850_configure_regulators(struct ov13850 *ov13850)
+static int ov13850_configure_regulators(struct device *dev)
 {
+	struct ov13850 *ov13850 = ov13850_master;
 	unsigned int i;
 
+	if (!ov13850) {
+		dev_err(dev, "no ov13850 master set\n");
+		return -EINVAL;
+	}
 	for (i = 0; i < OV13850_NUM_SUPPLIES; i++)
 		ov13850->supplies[i].supply = ov13850_supply_names[i];
 
-	return devm_regulator_bulk_get(&ov13850->client->dev,
+	return devm_regulator_bulk_get(dev,
 				       OV13850_NUM_SUPPLIES,
 				       ov13850->supplies);
+}
+
+static void ov13850_detach_master(void *data)
+{
+	if (ov13850_master == data)
+		ov13850_master = NULL;
 }
 
 static int ov13850_probe(struct i2c_client *client,
@@ -1304,47 +1391,55 @@ static int ov13850_probe(struct i2c_client *client,
 	ov13850->client = client;
 	ov13850->cur_mode = &supported_modes[0];
 
-	ov13850->xvclk = devm_clk_get(dev, "xvclk");
-	if (IS_ERR(ov13850->xvclk)) {
-		dev_err(dev, "Failed to get xvclk\n");
-		return -EINVAL;
+	if (!ov13850_master) {
+		ov13850_master = ov13850;
+		devm_add_action(dev, ov13850_detach_master, ov13850);
 	}
-	ret = clk_set_rate(ov13850->xvclk, OV13850_XVCLK_FREQ);
-	if (ret < 0) {
-		dev_err(dev, "Failed to set xvclk rate (24MHz)\n");
-		return ret;
-	}
-	if (clk_get_rate(ov13850->xvclk) != OV13850_XVCLK_FREQ)
-		dev_warn(dev, "xvclk mismatched, modes are based on 24MHz\n");
+	if (ov13850_master == ov13850) {
+		ov13850->xvclk = devm_clk_get(dev, "xvclk");
+		if (IS_ERR(ov13850->xvclk)) {
+			dev_err(dev, "Failed to get xvclk\n");
+			return -EINVAL;
+		}
+		ret = clk_set_rate(ov13850->xvclk, OV13850_XVCLK_FREQ);
+		if (ret < 0) {
+			dev_err(dev, "Failed to set xvclk rate (24MHz)\n");
+			return ret;
+		}
+		if (clk_get_rate(ov13850->xvclk) != OV13850_XVCLK_FREQ)
+			dev_warn(dev, "xvclk mismatched, modes are based on 24MHz\n");
 
-	ov13850->reset_gpio = devm_gpiod_get(dev, "reset", GPIOD_OUT_LOW);
-	if (IS_ERR(ov13850->reset_gpio))
-		dev_warn(dev, "Failed to get reset-gpios\n");
+		ov13850->reset_gpio = devm_gpiod_get(dev, "reset", GPIOD_OUT_LOW);
+		if (IS_ERR(ov13850->reset_gpio))
+			dev_warn(dev, "Failed to get reset-gpios\n");
+
+		ret = ov13850_configure_regulators(dev);
+		if (ret) {
+			dev_err(dev, "Failed to get power regulators\n");
+			return ret;
+		}
+
+		ov13850->pinctrl = devm_pinctrl_get(dev);
+		if (!IS_ERR(ov13850->pinctrl)) {
+			ov13850->pins_default =
+				pinctrl_lookup_state(ov13850->pinctrl,
+						     OF_CAMERA_PINCTRL_STATE_DEFAULT);
+			if (IS_ERR(ov13850->pins_default))
+				dev_err(dev, "could not get default pinstate\n");
+
+			ov13850->pins_sleep =
+				pinctrl_lookup_state(ov13850->pinctrl,
+						     OF_CAMERA_PINCTRL_STATE_SLEEP);
+			if (IS_ERR(ov13850->pins_sleep))
+				dev_err(dev, "could not get sleep pinstate\n");
+		}
+	}
 
 	ov13850->pwdn_gpio = devm_gpiod_get(dev, "pwdn", GPIOD_OUT_LOW);
 	if (IS_ERR(ov13850->pwdn_gpio))
 		dev_warn(dev, "Failed to get pwdn-gpios\n");
-
-	ret = ov13850_configure_regulators(ov13850);
-	if (ret) {
-		dev_err(dev, "Failed to get power regulators\n");
-		return ret;
-	}
-
-	ov13850->pinctrl = devm_pinctrl_get(dev);
-	if (!IS_ERR(ov13850->pinctrl)) {
-		ov13850->pins_default =
-			pinctrl_lookup_state(ov13850->pinctrl,
-					     OF_CAMERA_PINCTRL_STATE_DEFAULT);
-		if (IS_ERR(ov13850->pins_default))
-			dev_err(dev, "could not get default pinstate\n");
-
-		ov13850->pins_sleep =
-			pinctrl_lookup_state(ov13850->pinctrl,
-					     OF_CAMERA_PINCTRL_STATE_SLEEP);
-		if (IS_ERR(ov13850->pins_sleep))
-			dev_err(dev, "could not get sleep pinstate\n");
-	}
+	else
+		gpiod_set_value_cansleep(ov13850->pwdn_gpio, 0);
 
 	mutex_init(&ov13850->mutex);
 
