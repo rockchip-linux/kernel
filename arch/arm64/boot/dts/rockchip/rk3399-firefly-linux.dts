@@ -697,10 +697,10 @@
 		hp-det-adc-value = <500>;
 	};
 
-	ov13850: ov13850@10 {
+	ov13850: ov13850@36 {
 		compatible = "ovti,ov13850";
 		status = "okay";
-		reg = <0x10>;
+		reg = <0x36>;
 		clocks = <&cru SCLK_CIF_OUT>;
 		clock-names = "xvclk";
 
@@ -719,6 +719,33 @@
 		port {
 			ucam_out0: endpoint {
 				remote-endpoint = <&mipi_in_ucam0>;
+				data-lanes = <1 2>;
+			};
+		};
+	};
+
+	ov13850_1: ov13850@46 {
+		compatible = "ovti,ov13850";
+		status = "okay";
+		reg = <0x46>;
+		clocks = <&cru SCLK_CIF_OUT>;
+		clock-names = "xvclk";
+
+		/* conflict with csi-ctl-gpios */
+		reset-gpios = <&gpio0 8 GPIO_ACTIVE_HIGH>;
+		pwdn-gpios = <&gpio2 28 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "rockchip,camera_default", "rockchip,camera_sleep";
+		//pinctrl-0 = <&cif_clkout>;
+		pinctrl-0 = <&cam0_default_pins>;
+		pinctrl-1 = <&cam0_sleep_pins>;
+
+		avdd-supply = <&vcc_mipi>; /* VCC28_MIPI */
+		dovdd-supply = <&vcc_mipi>; /* VCC18_MIPI */
+		dvdd-supply = <&dvdd_1v2>; /* DVDD_1V2 */
+
+		port {
+			ucam_out1: endpoint {
+				remote-endpoint = <&mipi_in_ucam1>;
 				data-lanes = <1 2>;
 			};
 		};
@@ -1130,7 +1157,7 @@
 };
 
 &rkisp1_1 {
-	status = "disabled";
+	status = "okay";
 
 	port {
 		#address-cells = <1>;
@@ -1144,7 +1171,7 @@
 };
 
 &mipi_dphy_tx1rx1 {
-	status = "disabled";
+	status = "okay";
 
 	ports {
 		#address-cells = <1>;
@@ -1157,8 +1184,7 @@
 
 			mipi_in_ucam1: endpoint@1 {
 				reg = <1>;
-				/* Unlinked camera */
-				//remote-endpoint = <&ucam_out1>;
+				remote-endpoint = <&ucam_out1>;
 				data-lanes = <1 2>;
 			};
 		};
