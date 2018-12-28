@@ -323,7 +323,7 @@
 	pinctrl-0 = <&rgmii_pins &phy_rst &phy_pmeb &phy_int>;
 	tx_delay = <0x1d>;
 	rx_delay = <0x16>;
-	max-speed = <100>;
+	max-speed = <1000>;
 	status = "ok";
 };
 
