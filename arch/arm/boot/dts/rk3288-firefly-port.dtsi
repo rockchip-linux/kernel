@@ -218,6 +218,20 @@
 		};
 	};
 
+	adc-keys {
+		compatible = "adc-keys";
+		io-channels = <&saradc 1>;
+		io-channel-names = "buttons";
+		poll-interval = <100>;
+		keyup-threshold-microvolt = <1800000>;
+
+		button-up {
+			label = "Volume Up";
+			linux,code = <KEY_VOLUMEUP>;
+			press-threshold-microvolt = <18000>;
+		};
+	};
+
 	gpio-keys {
 		compatible = "gpio-keys";
 		#address-cells = <1>;
@@ -499,6 +513,18 @@
 
 &usbphy {
 	status = "okay";
+};
+
+&usbphy0 {
+	phy-supply = <&vcc_otg_5v>;
+};
+
+&usbphy1 {
+	phy-supply = <&vcc_host_5v>;
+};
+
+&usbphy2 {
+	phy-supply = <&vcc_host_5v>;
 };
 
 &usb_host0_ehci {

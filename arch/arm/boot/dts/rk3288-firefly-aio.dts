@@ -64,14 +64,13 @@
 		reset-gpios = <&gpio4 28 GPIO_ACTIVE_LOW>;
 	};
 
-	/delete-node/ vsys-regulator;
-	vcc_sys: vsys-regulator {
+	vcc_sys_5v: vcc-sys-5v{
 		compatible = "regulator-fixed";
 		enable-active-high;
 		gpio = <&gpio0 13 GPIO_ACTIVE_HIGH>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&pwr5v_en>;
-		regulator-name = "vcc_sys";
+		regulator-name = "vcc_sys_5v";
 		regulator-min-microvolt = <5000000>;
 		regulator-max-microvolt = <5000000>;
 		regulator-always-on;
@@ -270,6 +269,10 @@
 	status = "okay";
 };
 
+&route_hdmi {
+	status = "okay";
+};
+
 &es8323 {
 	aux-det-gpio = <&gpio2 15 GPIO_ACTIVE_HIGH>;
 	spk-ctl-gpio = <&gpio7 6 GPIO_ACTIVE_LOW>;
@@ -315,7 +318,7 @@
 		};
 	};
 
-	vcc-sys {
+	vcc-sys-5v {
 		pwr5v_en: pwr5v-en {
 			rockchip,pins = <0 13 RK_FUNC_GPIO &pcfg_output_high>;
 		};
