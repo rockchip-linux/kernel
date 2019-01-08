@@ -328,7 +328,24 @@
 		//cap-led-gpios = <&gpio0 13 GPIO_ACTIVE_HIGH>;
 	};
 
+	gpio-keys {
+		compatible = "gpio-keys";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		autorepeat;
 
+		pinctrl-names = "default";
+		pinctrl-0 = <&pwrbtn>;
+
+		button@0 {
+			gpios = <&gpio0 5 GPIO_ACTIVE_LOW>;
+			linux,code = <KEY_POWER>;
+			label = "GPIO Key Power";
+			linux,input-type = <1>;
+			gpio-key,wakeup = <1>;
+			debounce-interval = <100>;
+		};
+	};
 };
 
 &cpu_l0 {
@@ -946,7 +963,13 @@
 			rockchip,pins = <1 17 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
-
+	
+	buttons {
+		pwrbtn: pwrbtn {
+			rockchip,pins = <0 5 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+	};
+	
 	chargen {
 		vcc_chargen_h: vcc-chargen-h {
 			rockchip,pins = <0 1 RK_FUNC_GPIO &pcfg_pull_none>;
