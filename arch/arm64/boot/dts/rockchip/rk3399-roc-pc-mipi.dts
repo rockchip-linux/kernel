@@ -1019,17 +1019,8 @@
 		<&gpio1 14 GPIO_ACTIVE_HIGH>;
 };
 
-&route_hdmi {
-	status = "disabled";
-	logo,mode = "center";
-	video,hdisplay = <1024>;
-	video,vdisplay = <768>;
-	video,vrefresh = <60>;
-	video,flags = <(2 | 8)>;
-	//crtc_hsync_end = 1184 ,crtc_vsync_end = 777 ,vrefresh = 60
-	video,crtc_hsync_end = <1184>;
-	video,crtc_vsync_end = <777>;
-
+&route_dsi {
+	status = "okay";
 };
 
 &hdmi_dp_sound {
