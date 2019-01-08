@@ -17,6 +17,7 @@
 #include <linux/regulator/consumer.h>
 #include <linux/sysfs.h>
 #include <linux/pinctrl/consumer.h>
+#include <linux/rk-camera-module.h>
 
 #include <media/v4l2-async.h>
 #include <media/media-entity.h>
@@ -34,7 +35,7 @@
 #endif
 #define OV8858_PIXEL_RATE		(360000000LL * 2LL * 2LL / 10LL)
 
-#define MIPI_FREQ	360000000U
+#define MIPI_FREQ			360000000U
 #define OV8858_XVCLK_FREQ		24000000
 
 #define CHIP_ID				0x008858
@@ -54,12 +55,12 @@
 #define OV8858_GAIN_H_MASK		0x07
 #define OV8858_GAIN_H_SHIFT		8
 #define OV8858_GAIN_L_MASK		0xff
-#define OV8858_GAIN_MIN		0x80
-#define OV8858_GAIN_MAX		0x400
+#define OV8858_GAIN_MIN			0x80
+#define OV8858_GAIN_MAX			0x400
 #define OV8858_GAIN_STEP		1
 #define OV8858_GAIN_DEFAULT		0x80
 
-#define OV8858_REG_TEST_PATTERN	0x5e00
+#define OV8858_REG_TEST_PATTERN		0x5e00
 #define	OV8858_TEST_PATTERN_ENABLE	0x80
 #define	OV8858_TEST_PATTERN_DISABLE	0x0
 
@@ -81,7 +82,49 @@
 #define OF_CAMERA_PINCTRL_STATE_DEFAULT	"rockchip,camera_default"
 #define OF_CAMERA_PINCTRL_STATE_SLEEP	"rockchip,camera_sleep"
 
+#define OV8858_NAME			"ov8858"
+#define OV8858_MEDIA_BUS_FMT		MEDIA_BUS_FMT_SBGGR10_1X10
+
+#define ov8858_write_1byte(client, reg, val)	\
+	ov8858_write_reg((client), (reg), OV8858_REG_VALUE_08BIT, (val))
+
+#define ov8858_read_1byte(client, reg, val)	\
+	ov8858_read_reg((client), (reg), OV8858_REG_VALUE_08BIT, (val))
+
 static const struct regval *ov8858_global_regs;
+
+struct ov8858_otp_info_r1a {
+	int flag; // bit[7]: info, bit[6]:wb, bit[5]:vcm, bit[4]:lenc
+	int module_id;
+	int lens_id;
+	int year;
+	int month;
+	int day;
+	int rg_ratio;
+	int bg_ratio;
+	int light_rg;
+	int light_bg;
+	int lenc[110];
+	int vcm_start;
+	int vcm_end;
+	int vcm_dir;
+};
+
+struct ov8858_otp_info_r2a {
+	int flag; // bit[7]: info, bit[6]:wb, bit[5]:vcm, bit[4]:lenc
+	int module_id;
+	int lens_id;
+	int year;
+	int month;
+	int day;
+	int rg_ratio;
+	int bg_ratio;
+	int lenc[240];
+	int checksum;
+	int vcm_start;
+	int vcm_end;
+	int vcm_dir;
+};
 
 static const char * const ov8858_supply_names[] = {
 	"avdd",		/* Analog power */
@@ -130,12 +173,96 @@ struct ov8858 {
 	struct mutex		mutex;
 	bool			streaming;
 	const struct ov8858_mode *cur_mode;
-	unsigned int lane_num;
-	unsigned int cfg_num;
-	unsigned int pixel_rate;
+	bool			is_r2a;
+	unsigned int		lane_num;
+	unsigned int		cfg_num;
+	unsigned int		pixel_rate;
+
+	struct ov8858_otp_info_r1a *otp_r1a;
+	struct ov8858_otp_info_r2a *otp_r2a;
+	u32			module_index;
+	const char		*module_facing;
+	const char		*module_name;
+	const char		*len_name;
+	struct rkmodule_inf	module_inf;
+	struct rkmodule_awb_cfg	awb_cfg;
 };
 
 #define to_ov8858(sd) container_of(sd, struct ov8858, subdev)
+
+struct ov8858_id_name {
+	u32 id;
+	char name[RKMODULE_NAME_LEN];
+};
+
+static const struct ov8858_id_name ov8858_module_info[] = {
+	{0x01, "Sunny"},
+	{0x02, "Truly"},
+	{0x03, "A-kerr"},
+	{0x04, "LiteArray"},
+	{0x05, "Darling"},
+	{0x06, "Qtech"},
+	{0x07, "OFlim"},
+	{0x08, "Huaquan/Kingcom"},
+	{0x09, "Booyi"},
+	{0x0a, "Laimu"},
+	{0x0b, "WDSEN"},
+	{0x0c, "Sunrise"},
+	{0x0d, "CameraKing"},
+	{0x0e, "Sunniness/Riyong"},
+	{0x0f, "Tongju"},
+	{0x10, "Seasons/Sijichun"},
+	{0x11, "Foxconn"},
+	{0x12, "Importek"},
+	{0x13, "Altek"},
+	{0x14, "ABICO/Ability"},
+	{0x15, "Lite-on"},
+	{0x16, "Chicony"},
+	{0x17, "Primax"},
+	{0x18, "AVC"},
+	{0x19, "Suyin"},
+	{0x21, "Sharp"},
+	{0x31, "MCNEX"},
+	{0x32, "SEMCO"},
+	{0x33, "Partron"},
+	{0x41, "Reach/Zhongliancheng"},
+	{0x42, "BYD"},
+	{0x43, "OSTEC(AoShunChuang)"},
+	{0x44, "Chengli"},
+	{0x45, "Jiali"},
+	{0x46, "Chippack"},
+	{0x47, "RongSheng"},
+	{0x48, "ShineTech/ShenTai"},
+	{0x49, "Brodsands"},
+	{0x50, "Others"},
+	{0x51, "Method"},
+	{0x52, "Sunwin"},
+	{0x53, "LG"},
+	{0x54, "Goertek"},
+	{0x00, "Unknown"}
+};
+
+static const struct ov8858_id_name ov8858_lens_info[] = {
+	{0x10, "Largan 9565A1"},
+	{0x11, "Largan 9570A/A1"},
+	{0x12, "Largan 9569A2/A3"},
+	{0x13, "Largan 40108/A1"},
+	{0x14, "Largan 50030A1"},
+	{0x15, "Largan 40109A1"},
+	{0x16, "Largan 40100/A1"},
+	{0x17, "Largan 40112/A1"},
+	{0x30, "Sunny 3813A"},
+	{0x50, "Kantatsu R5AV08/BV"},
+	{0x51, "Kantatsu S5AE08"},
+	{0x52, "Kantatsu S5AE08"},
+	{0x78, "GSEO 8738"},
+	{0x79, "GSEO 8744"},
+	{0x7a, "GSEO 8742"},
+	{0x80, "Foxconn 8028"},
+	{0xd8, "XinXu DS-8335"},
+	{0xd9, "XinXu DS-8341"},
+	{0x00, "Unknown"}
+};
 
 /*
  * Xclk 24Mhz
@@ -1364,7 +1491,7 @@ static int ov8858_set_fmt(struct v4l2_subdev *sd,
 	mutex_lock(&ov8858->mutex);
 
 	mode = ov8858_find_best_fit(ov8858, fmt);
-	fmt->format.code = MEDIA_BUS_FMT_SBGGR10_1X10;
+	fmt->format.code = OV8858_MEDIA_BUS_FMT;
 	fmt->format.width = mode->width;
 	fmt->format.height = mode->height;
 	fmt->format.field = V4L2_FIELD_NONE;
@@ -1409,7 +1536,7 @@ static int ov8858_get_fmt(struct v4l2_subdev *sd,
 	} else {
 		fmt->format.width = mode->width;
 		fmt->format.height = mode->height;
-		fmt->format.code = MEDIA_BUS_FMT_SBGGR10_1X10;
+		fmt->format.code = OV8858_MEDIA_BUS_FMT;
 		fmt->format.field = V4L2_FIELD_NONE;
 	}
 	mutex_unlock(&ov8858->mutex);
@@ -1423,7 +1550,7 @@ static int ov8858_enum_mbus_code(struct v4l2_subdev *sd,
 {
 	if (code->index != 0)
 		return -EINVAL;
-	code->code = MEDIA_BUS_FMT_SBGGR10_1X10;
+	code->code = OV8858_MEDIA_BUS_FMT;
 
 	return 0;
 }
@@ -1437,7 +1564,7 @@ static int ov8858_enum_frame_sizes(struct v4l2_subdev *sd,
 	if (fse->index >= ov8858->cfg_num)
 		return -EINVAL;
 
-	if (fse->code != MEDIA_BUS_FMT_SBGGR10_1X10)
+	if (fse->code != OV8858_MEDIA_BUS_FMT)
 		return -EINVAL;
 
 	fse->min_width  = supported_modes[fse->index].width;
@@ -1476,6 +1603,420 @@ static int ov8858_g_frame_interval(struct v4l2_subdev *sd,
 	return 0;
 }
 
+static void ov8858_get_r1a_otp(struct ov8858_otp_info_r1a *otp_r1a,
+			       struct rkmodule_inf *inf)
+{
+	u32 i, j;
+	int rg, bg;
+
+	/* fac */
+	if (otp_r1a->flag & 0x80) {
+		inf->fac.flag = 1;
+		inf->fac.year = otp_r1a->year;
+		inf->fac.month = otp_r1a->month;
+		inf->fac.day = otp_r1a->day;
+
+		for (i = 0; i < ARRAY_SIZE(ov8858_module_info) - 1; i++) {
+			if (ov8858_module_info[i].id == otp_r1a->module_id)
+				break;
+		}
+		strlcpy(inf->fac.module, ov8858_module_info[i].name,
+			sizeof(inf->fac.module));
+
+		for (i = 0; i < ARRAY_SIZE(ov8858_lens_info) - 1; i++) {
+			if (ov8858_lens_info[i].id == otp_r1a->lens_id)
+				break;
+		}
+		strlcpy(inf->fac.lens, ov8858_lens_info[i].name,
+			sizeof(inf->fac.lens));
+	}
+
+	/* awb */
+	if (otp_r1a->flag & 0x40) {
+		if (otp_r1a->light_rg == 0)
+			/* no light source information in OTP ,light factor = 1 */
+			rg = otp_r1a->rg_ratio;
+		else
+			rg = otp_r1a->rg_ratio * (otp_r1a->light_rg + 512) / 1024;
+
+		if (otp_r1a->light_bg == 0)
+			/* no light source information in OTP ,light factor = 1 */
+			bg = otp_r1a->bg_ratio;
+		else
+			bg = otp_r1a->bg_ratio * (otp_r1a->light_bg + 512) / 1024;
+
+		inf->awb.flag = 1;
+		inf->awb.r_value = rg;
+		inf->awb.b_value = bg;
+		inf->awb.gr_value = 0x200;
+		inf->awb.gb_value = 0x200;
+
+		inf->awb.golden_r_value = 0;
+		inf->awb.golden_b_value = 0;
+		inf->awb.golden_gr_value = 0;
+		inf->awb.golden_gb_value = 0;
+	}
+
+	/* af */
+	if (otp_r1a->flag & 0x20) {
+		inf->af.flag = 1;
+		inf->af.vcm_start = otp_r1a->vcm_start;
+		inf->af.vcm_end = otp_r1a->vcm_end;
+		inf->af.vcm_dir = otp_r1a->vcm_dir;
+	}
+
+	/* lsc */
+	if (otp_r1a->flag & 0x10) {
+		inf->lsc.flag = 1;
+		inf->lsc.decimal_bits = 0;
+		inf->lsc.lsc_w = 6;
+		inf->lsc.lsc_h = 6;
+
+		j = 0;
+		for (i = 0; i < 36; i++) {
+			inf->lsc.lsc_gr[i] = otp_r1a->lenc[j++];
+			inf->lsc.lsc_gb[i] = inf->lsc.lsc_gr[i];
+		}
+		for (i = 0; i < 36; i++)
+			inf->lsc.lsc_b[i] = otp_r1a->lenc[j++] + otp_r1a->lenc[108];
+		for (i = 0; i < 36; i++)
+			inf->lsc.lsc_r[i] = otp_r1a->lenc[j++] + otp_r1a->lenc[109];
+	}
+}
+
+static void ov8858_get_r2a_otp(struct ov8858_otp_info_r2a *otp_r2a,
+			       struct rkmodule_inf *inf)
+{
+	unsigned int i, j;
+	int rg, bg;
+
+	/* fac / awb */
+	if (otp_r2a->flag & 0xC0) {
+		inf->fac.flag = 1;
+		inf->fac.year = otp_r2a->year;
+		inf->fac.month = otp_r2a->month;
+		inf->fac.day = otp_r2a->day;
+
+		for (i = 0; i < ARRAY_SIZE(ov8858_module_info) - 1; i++) {
+			if (ov8858_module_info[i].id == otp_r2a->module_id)
+				break;
+		}
+		strlcpy(inf->fac.module, ov8858_module_info[i].name,
+			sizeof(inf->fac.module));
+
+		for (i = 0; i < ARRAY_SIZE(ov8858_lens_info) - 1; i++) {
+			if (ov8858_lens_info[i].id == otp_r2a->lens_id)
+				break;
+		}
+		strlcpy(inf->fac.lens, ov8858_lens_info[i].name,
+			sizeof(inf->fac.lens));
+
+		rg = otp_r2a->rg_ratio;
+		bg = otp_r2a->bg_ratio;
+
+		inf->awb.flag = 1;
+		inf->awb.r_value = rg;
+		inf->awb.b_value = bg;
+		inf->awb.gr_value = 0x200;
+		inf->awb.gb_value = 0x200;
+
+		inf->awb.golden_r_value = 0;
+		inf->awb.golden_b_value = 0;
+		inf->awb.golden_gr_value = 0;
+		inf->awb.golden_gb_value = 0;
+	}
+
+	/* af */
+	if (otp_r2a->flag & 0x20) {
+		inf->af.flag = 1;
+		inf->af.vcm_start = otp_r2a->vcm_start;
+		inf->af.vcm_end = otp_r2a->vcm_end;
+		inf->af.vcm_dir = otp_r2a->vcm_dir;
+	}
+
+	/* lsc */
+	if (otp_r2a->flag & 0x10) {
+		inf->lsc.flag = 1;
+		inf->lsc.decimal_bits = 0;
+		inf->lsc.lsc_w = 8;
+		inf->lsc.lsc_h = 10;
+
+		j = 0;
+		for (i = 0; i < 80; i++) {
+			inf->lsc.lsc_gr[i] = otp_r2a->lenc[j++];
+			inf->lsc.lsc_gb[i] = inf->lsc.lsc_gr[i];
+		}
+		for (i = 0; i < 80; i++)
+			inf->lsc.lsc_b[i] = otp_r2a->lenc[j++];
+		for (i = 0; i < 80; i++)
+			inf->lsc.lsc_r[i] = otp_r2a->lenc[j++];
+	}
+}
+
+static void ov8858_get_module_inf(struct ov8858 *ov8858,
+				  struct rkmodule_inf *inf)
+{
+	struct ov8858_otp_info_r1a *otp_r1a = ov8858->otp_r1a;
+	struct ov8858_otp_info_r2a *otp_r2a = ov8858->otp_r2a;
+
+	strlcpy(inf->base.sensor, OV8858_NAME, sizeof(inf->base.sensor));
+	strlcpy(inf->base.module, ov8858->module_name, sizeof(inf->base.module));
+	strlcpy(inf->base.lens, ov8858->len_name, sizeof(inf->base.lens));
+
+	if (ov8858->is_r2a)
+		ov8858_get_r2a_otp(otp_r2a, inf);
+	else
+		ov8858_get_r1a_otp(otp_r1a, inf);
+}
+
+static void ov8858_set_module_inf(struct ov8858 *ov8858,
+				  struct rkmodule_awb_cfg *cfg)
+{
+	mutex_lock(&ov8858->mutex);
+	memcpy(&ov8858->awb_cfg, cfg, sizeof(*cfg));
+	mutex_unlock(&ov8858->mutex);
+}
+
+static long ov8858_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
+{
+	struct ov8858 *ov8858 = to_ov8858(sd);
+	long ret = 0;
+
+	switch (cmd) {
+	case RKMODULE_GET_MODULE_INFO:
+		ov8858_get_module_inf(ov8858, (struct rkmodule_inf *)arg);
+		break;
+	case RKMODULE_AWB_CFG:
+		ov8858_set_module_inf(ov8858, (struct rkmodule_awb_cfg *)arg);
+		break;
+	default:
+		ret = -ENOTTY;
+		break;
+	}
+
+	return ret;
+}
+
+#ifdef CONFIG_COMPAT
+static long ov8858_compat_ioctl32(struct v4l2_subdev *sd,
+				  unsigned int cmd, unsigned long arg)
+{
+	void __user *up = compat_ptr(arg);
+	struct rkmodule_inf *inf;
+	struct rkmodule_awb_cfg *cfg;
+	long ret = 0;
+
+	switch (cmd) {
+	case RKMODULE_GET_MODULE_INFO:
+		inf = kzalloc(sizeof(*inf), GFP_KERNEL);
+		if (!inf) {
+			ret = -ENOMEM;
+			return ret;
+		}
+
+		ret = ov8858_ioctl(sd, cmd, inf);
+		if (!ret)
+			ret = copy_to_user(up, inf, sizeof(*inf));
+		kfree(inf);
+		break;
+	case RKMODULE_AWB_CFG:
+		cfg = kzalloc(sizeof(*cfg), GFP_KERNEL);
+		if (!cfg) {
+			ret = -ENOMEM;
+			return ret;
+		}
+
+		ret = copy_from_user(cfg, up, sizeof(*cfg));
+		if (!ret)
+			ret = ov8858_ioctl(sd, cmd, cfg);
+		kfree(cfg);
+		break;
+	default:
+		ret = -ENOTTY;
+		break;
+	}
+
+	return ret;
+}
+#endif
+
+/*--------------------------------------------------------------------------*/
+static int ov8858_apply_otp_r1a(struct ov8858 *ov8858)
+{
+	int rg, bg, R_gain, G_gain, B_gain, base_gain, temp;
+	struct i2c_client *client = ov8858->client;
+	struct ov8858_otp_info_r1a *otp_ptr = ov8858->otp_r1a;
+	struct rkmodule_awb_cfg *awb_cfg = &ov8858->awb_cfg;
+	u32 golden_bg_ratio;
+	u32 golden_rg_ratio;
+	u32 golden_g_value;
+	u32 i;
+
+	if (!ov8858->awb_cfg.enable)
+		return 0;
+
+	golden_g_value = (awb_cfg->golden_gb_value +
+			  awb_cfg->golden_gr_value) / 2;
+	golden_bg_ratio = awb_cfg->golden_b_value * 0x200 / golden_g_value;
+	golden_rg_ratio = awb_cfg->golden_r_value * 0x200 / golden_g_value;
+
+	/* apply OTP WB Calibration */
+	if ((otp_ptr->flag & 0x40) && golden_bg_ratio && golden_rg_ratio) {
+		if (otp_ptr->light_rg == 0)
+			/*
+			 * no light source information in OTP,
+			 * light factor = 1
+			 */
+			rg = otp_ptr->rg_ratio;
+		else
+			rg = otp_ptr->rg_ratio *
+			     (otp_ptr->light_rg + 512) / 1024;
+
+		if (otp_ptr->light_bg == 0)
+			/*
+			 * no light source information in OTP,
+			 * light factor = 1
+			 */
+			bg = otp_ptr->bg_ratio;
+		else
+			bg = otp_ptr->bg_ratio *
+			     (otp_ptr->light_bg + 512) / 1024;
+
+		/* calculate G gain */
+		R_gain = (golden_rg_ratio * 1000) / rg;
+		B_gain = (golden_bg_ratio * 1000) / bg;
+		G_gain = 1000;
+		if (R_gain < 1000 || B_gain < 1000) {
+			if (R_gain < B_gain)
+				base_gain = R_gain;
+			else
+				base_gain = B_gain;
+		} else {
+			base_gain = G_gain;
+		}
+		R_gain = 0x400 * R_gain / (base_gain);
+		B_gain = 0x400 * B_gain / (base_gain);
+		G_gain = 0x400 * G_gain / (base_gain);
+
+		/* update sensor WB gain */
+		if (R_gain > 0x400) {
+			ov8858_write_1byte(client, 0x5032, R_gain >> 8);
+			ov8858_write_1byte(client, 0x5033, R_gain & 0x00ff);
+		}
+		if (G_gain > 0x400) {
+			ov8858_write_1byte(client, 0x5034, G_gain >> 8);
+			ov8858_write_1byte(client, 0x5035, G_gain & 0x00ff);
+		}
+		if (B_gain > 0x400) {
+			ov8858_write_1byte(client, 0x5036, B_gain >> 8);
+			ov8858_write_1byte(client, 0x5037, B_gain & 0x00ff);
+		}
+
+		dev_dbg(&client->dev, "apply awb gain: 0x%x, 0x%x, 0x%x\n",
+			R_gain, G_gain, B_gain);
+	}
+
+	/* apply OTP Lenc Calibration */
+	if (otp_ptr->flag & 0x10) {
+		ov8858_read_1byte(client, 0x5000, &temp);
+		temp = 0x80 | temp;
+		ov8858_write_1byte(client, 0x5000, temp);
+		for (i = 0; i < ARRAY_SIZE(otp_ptr->lenc); i++) {
+			ov8858_write_1byte(client, 0x5800 + i,
+					   otp_ptr->lenc[i]);
+			dev_dbg(&client->dev, "apply lenc[%d]: 0x%x\n",
+				i, otp_ptr->lenc[i]);
+		}
+	}
+
+	return 0;
+}
+
+static int ov8858_apply_otp_r2a(struct ov8858 *ov8858)
+{
+	int rg, bg, R_gain, G_gain, B_gain, base_gain, temp;
+	struct i2c_client *client = ov8858->client;
+	struct ov8858_otp_info_r2a *otp_ptr = ov8858->otp_r2a;
+	struct rkmodule_awb_cfg *awb_cfg = &ov8858->awb_cfg;
+	u32 golden_bg_ratio;
+	u32 golden_rg_ratio;
+	u32 golden_g_value;
+	u32 i;
+
+	if (!ov8858->awb_cfg.enable)
+		return 0;
+
+	golden_g_value = (awb_cfg->golden_gb_value +
+			  awb_cfg->golden_gr_value) / 2;
+	golden_bg_ratio = awb_cfg->golden_b_value * 0x200 / golden_g_value;
+	golden_rg_ratio = awb_cfg->golden_r_value * 0x200 / golden_g_value;
+
+	/* apply OTP WB Calibration */
+	if ((otp_ptr->flag & 0xC0) && golden_bg_ratio && golden_rg_ratio) {
+		rg = otp_ptr->rg_ratio;
+		bg = otp_ptr->bg_ratio;
+		/* calculate G gain */
+		R_gain = (golden_rg_ratio * 1000) / rg;
+		B_gain = (golden_bg_ratio * 1000) / bg;
+		G_gain = 1000;
+		if (R_gain < 1000 || B_gain < 1000) {
+			if (R_gain < B_gain)
+				base_gain = R_gain;
+			else
+				base_gain = B_gain;
+		} else {
+			base_gain = G_gain;
+		}
+		R_gain = 0x400 * R_gain / (base_gain);
+		B_gain = 0x400 * B_gain / (base_gain);
+		G_gain = 0x400 * G_gain / (base_gain);
+
+		/* update sensor WB gain */
+		if (R_gain > 0x400) {
+			ov8858_write_1byte(client, 0x5032, R_gain >> 8);
+			ov8858_write_1byte(client, 0x5033, R_gain & 0x00ff);
+		}
+		if (G_gain > 0x400) {
+			ov8858_write_1byte(client, 0x5034, G_gain >> 8);
+			ov8858_write_1byte(client, 0x5035, G_gain & 0x00ff);
+		}
+		if (B_gain > 0x400) {
+			ov8858_write_1byte(client, 0x5036, B_gain >> 8);
+			ov8858_write_1byte(client, 0x5037, B_gain & 0x00ff);
+		}
+
+		dev_dbg(&client->dev, "apply awb gain: 0x%x, 0x%x, 0x%x\n",
+			R_gain, G_gain, B_gain);
+	}
+
+	/* apply OTP Lenc Calibration */
+	if (otp_ptr->flag & 0x10) {
+		ov8858_read_1byte(client, 0x5000, &temp);
+		temp = 0x80 | temp;
+		ov8858_write_1byte(client, 0x5000, temp);
+		for (i = 0; i < ARRAY_SIZE(otp_ptr->lenc); i++) {
+			ov8858_write_1byte(client, 0x5800 + i,
+					   otp_ptr->lenc[i]);
+			dev_dbg(&client->dev, "apply lenc[%d]: 0x%x\n",
+				i, otp_ptr->lenc[i]);
+		}
+	}
+
+	return 0;
+}
+
+static int ov8858_apply_otp(struct ov8858 *ov8858)
+{
+	int ret = 0;
+
+	if (ov8858->is_r2a && ov8858->otp_r2a)
+		ret = ov8858_apply_otp_r2a(ov8858);
+	else if (ov8858->otp_r1a)
+		ret = ov8858_apply_otp_r1a(ov8858);
+
+	return ret;
+}
+
 static int __ov8858_start_stream(struct ov8858 *ov8858)
 {
 	int ret;
@@ -1492,6 +2033,10 @@ static int __ov8858_start_stream(struct ov8858 *ov8858)
 	mutex_unlock(&ov8858->mutex);
 	ret = v4l2_ctrl_handler_setup(&ov8858->ctrl_handler);
 	mutex_lock(&ov8858->mutex);
+	if (ret)
+		return ret;
+
+	ret = ov8858_apply_otp(ov8858);
 	if (ret)
 		return ret;
 
@@ -1659,7 +2204,7 @@ static int ov8858_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 	/* Initialize try_fmt */
 	try_fmt->width = def_mode->width;
 	try_fmt->height = def_mode->height;
-	try_fmt->code = MEDIA_BUS_FMT_SBGGR10_1X10;
+	try_fmt->code = OV8858_MEDIA_BUS_FMT;
 	try_fmt->field = V4L2_FIELD_NONE;
 
 	mutex_unlock(&ov8858->mutex);
@@ -1680,6 +2225,13 @@ static const struct v4l2_subdev_internal_ops ov8858_internal_ops = {
 };
 #endif
 
+static const struct v4l2_subdev_core_ops ov8858_core_ops = {
+	.ioctl = ov8858_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl32 = ov8858_compat_ioctl32,
+#endif
+};
+
 static const struct v4l2_subdev_video_ops ov8858_video_ops = {
 	.s_stream = ov8858_s_stream,
 	.g_frame_interval = ov8858_g_frame_interval,
@@ -1693,6 +2245,7 @@ static const struct v4l2_subdev_pad_ops ov8858_pad_ops = {
 };
 
 static const struct v4l2_subdev_ops ov8858_subdev_ops = {
+	.core	= &ov8858_core_ops,
 	.video	= &ov8858_video_ops,
 	.pad	= &ov8858_pad_ops,
 };
@@ -1832,6 +2385,279 @@ err_free_handler:
 	return ret;
 }
 
+static int ov8858_otp_read_r1a(struct ov8858 *ov8858)
+{
+	int otp_flag, addr, temp, i;
+	struct ov8858_otp_info_r1a *otp_ptr;
+	struct device *dev = &ov8858->client->dev;
+	struct i2c_client *client = ov8858->client;
+
+	otp_ptr = kzalloc(sizeof(*otp_ptr), GFP_KERNEL);
+	if (!otp_ptr)
+		return -ENOMEM;
+
+	otp_flag = 0;
+	ov8858_read_1byte(client, 0x7010, &otp_flag);
+	if ((otp_flag & 0xc0) == 0x40)
+		addr = 0x7011; /* base address of info group 1 */
+	else if ((otp_flag & 0x30) == 0x10)
+		addr = 0x7016; /* base address of info group 2 */
+	else if ((otp_flag & 0x0c) == 0x04)
+		addr = 0x701b; /* base address of info group 3 */
+	else
+		addr = 0;
+
+	if (addr != 0) {
+		otp_ptr->flag = 0x80; /* valid info in OTP */
+		ov8858_read_1byte(client, addr, &otp_ptr->module_id);
+		ov8858_read_1byte(client, addr + 1, &otp_ptr->lens_id);
+		ov8858_read_1byte(client, addr + 2, &otp_ptr->year);
+		ov8858_read_1byte(client, addr + 3, &otp_ptr->month);
+		ov8858_read_1byte(client, addr + 4, &otp_ptr->day);
+		dev_dbg(dev, "fac info: module(0x%x) lens(0x%x) time(%d_%d_%d)!\n",
+			otp_ptr->module_id,
+			otp_ptr->lens_id,
+			otp_ptr->year,
+			otp_ptr->month,
+			otp_ptr->day);
+	}
+
+	/* OTP base information and WB calibration data */
+	ov8858_read_1byte(client, 0x7020, &otp_flag);
+	if ((otp_flag & 0xc0) == 0x40)
+		addr = 0x7021; /* base address of info group 1 */
+	else if ((otp_flag & 0x30) == 0x10)
+		addr = 0x7026; /* base address of info group 2 */
+	else if ((otp_flag & 0x0c) == 0x04)
+		addr = 0x702b; /* base address of info group 3 */
+	else
+		addr = 0;
+
+	if (addr != 0) {
+		otp_ptr->flag |= 0x40; /* valid info and AWB in OTP */
+		ov8858_read_1byte(client, addr + 4, &temp);
+		ov8858_read_1byte(client, addr, &otp_ptr->rg_ratio);
+		otp_ptr->rg_ratio = (otp_ptr->rg_ratio << 2) +
+				    ((temp >> 6) & 0x03);
+		ov8858_read_1byte(client, addr + 1, &otp_ptr->bg_ratio);
+		otp_ptr->bg_ratio = (otp_ptr->bg_ratio << 2) +
+				    ((temp >> 4) & 0x03);
+		ov8858_read_1byte(client, addr + 2, &otp_ptr->light_rg);
+		otp_ptr->light_rg = (otp_ptr->light_rg << 2) +
+				    ((temp >> 2) & 0x03);
+		ov8858_read_1byte(client, addr + 3, &otp_ptr->light_bg);
+		otp_ptr->light_bg = (otp_ptr->light_bg << 2) +
+				    ((temp) & 0x03);
+		dev_dbg(dev, "awb info: (0x%x, 0x%x, 0x%x, 0x%x)!\n",
+			otp_ptr->rg_ratio, otp_ptr->bg_ratio,
+			otp_ptr->light_rg, otp_ptr->light_bg);
+	}
+
+	/* OTP VCM Calibration */
+	ov8858_read_1byte(client, 0x7030, &otp_flag);
+	if ((otp_flag & 0xc0) == 0x40)
+		addr = 0x7031; /* base address of VCM Calibration group 1 */
+	else if ((otp_flag & 0x30) == 0x10)
+		addr = 0x7034; /* base address of VCM Calibration group 2 */
+	else if ((otp_flag & 0x0c) == 0x04)
+		addr = 0x7037; /* base address of VCM Calibration group 3 */
+	else
+		addr = 0;
+	if (addr != 0) {
+		otp_ptr->flag |= 0x20;
+		ov8858_read_1byte(client, addr + 2, &temp);
+		ov8858_read_1byte(client, addr, &otp_ptr->vcm_start);
+		otp_ptr->vcm_start = (otp_ptr->vcm_start << 2) |
+				     ((temp >> 6) & 0x03);
+		ov8858_read_1byte(client, addr + 1, &otp_ptr->vcm_end);
+		otp_ptr->vcm_end = (otp_ptr->vcm_end << 2) |
+				   ((temp >> 4) & 0x03);
+		otp_ptr->vcm_dir = (temp >> 2) & 0x03;
+		dev_dbg(dev, "vcm_info: 0x%x, 0x%x, 0x%x!\n",
+			otp_ptr->vcm_start,
+			otp_ptr->vcm_end,
+			otp_ptr->vcm_dir);
+	}
+
+	/* OTP Lenc Calibration */
+	ov8858_read_1byte(client, 0x703a, &otp_flag);
+	if ((otp_flag & 0xc0) == 0x40)
+		addr = 0x703b; /* base address of Lenc Calibration group 1 */
+	else if ((otp_flag & 0x30) == 0x10)
+		addr = 0x70a9; /* base address of Lenc Calibration group 2 */
+	else if ((otp_flag & 0x0c) == 0x04)
+		addr = 0x7117; /* base address of Lenc Calibration group 3 */
+	else
+		addr = 0;
+	if (addr != 0) {
+		otp_ptr->flag |= 0x10;
+		for (i = 0; i < 110; i++) {
+			ov8858_read_1byte(client, addr + i, &otp_ptr->lenc[i]);
+			dev_dbg(dev, "lsc 0x%x!\n", otp_ptr->lenc[i]);
+		}
+	}
+
+	for (i = 0x7010; i <= 0x7184; i++)
+		ov8858_write_1byte(client, i, 0); /* clear OTP buffer */
+
+	if (otp_ptr->flag) {
+		ov8858->otp_r1a = otp_ptr;
+	} else {
+		ov8858->otp_r1a = NULL;
+		kfree(otp_ptr);
+	}
+
+	return 0;
+}
+
+static int ov8858_otp_read_r2a(struct ov8858 *ov8858)
+{
+	struct ov8858_otp_info_r2a *otp_ptr;
+	int otp_flag, addr, temp, checksum, i;
+	struct device *dev = &ov8858->client->dev;
+	struct i2c_client *client = ov8858->client;
+
+	otp_ptr = kzalloc(sizeof(*otp_ptr), GFP_KERNEL);
+	if (!otp_ptr)
+		return -ENOMEM;
+
+	/* OTP base information and WB calibration data */
+	otp_flag = 0;
+	ov8858_read_1byte(client, 0x7010, &otp_flag);
+	if ((otp_flag & 0xc0) == 0x40)
+		addr = 0x7011; /* base address of info group 1 */
+	else if ((otp_flag & 0x30) == 0x10)
+		addr = 0x7019; /* base address of info group 2 */
+	else
+		addr = 0;
+
+	if (addr != 0) {
+		otp_ptr->flag = 0xC0; /* valid info and AWB in OTP */
+		ov8858_read_1byte(client, addr, &otp_ptr->module_id);
+		ov8858_read_1byte(client, addr + 1, &otp_ptr->lens_id);
+		ov8858_read_1byte(client, addr + 2, &otp_ptr->year);
+		ov8858_read_1byte(client, addr + 3, &otp_ptr->month);
+		ov8858_read_1byte(client, addr + 4, &otp_ptr->day);
+		ov8858_read_1byte(client, addr + 7, &temp);
+		ov8858_read_1byte(client, addr + 5, &otp_ptr->rg_ratio);
+		otp_ptr->rg_ratio = (otp_ptr->rg_ratio << 2) +
+				    ((temp >> 6) & 0x03);
+		ov8858_read_1byte(client, addr + 6, &otp_ptr->bg_ratio);
+		otp_ptr->bg_ratio = (otp_ptr->bg_ratio << 2) +
+				    ((temp >> 4) & 0x03);
+
+		dev_dbg(dev, "fac info: module(0x%x) lens(0x%x) time(%d_%d_%d) !\n",
+			otp_ptr->module_id,
+			otp_ptr->lens_id,
+			otp_ptr->year,
+			otp_ptr->month,
+			otp_ptr->day);
+		dev_dbg(dev, "awb info: (0x%x, 0x%x)!\n",
+			otp_ptr->rg_ratio,
+			otp_ptr->bg_ratio);
+	}
+
+	/* OTP VCM Calibration */
+	ov8858_read_1byte(client, 0x7021, &otp_flag);
+	if ((otp_flag & 0xc0) == 0x40)
+		addr = 0x7022; /* base address of VCM Calibration group 1 */
+	else if ((otp_flag & 0x30) == 0x10)
+		addr = 0x7025; /* base address of VCM Calibration group 2 */
+	else
+		addr = 0;
+
+	if (addr != 0) {
+		otp_ptr->flag |= 0x20;
+		ov8858_read_1byte(client, addr + 2, &temp);
+		ov8858_read_1byte(client, addr, &otp_ptr->vcm_start);
+		otp_ptr->vcm_start = (otp_ptr->vcm_start << 2) |
+				     ((temp >> 6) & 0x03);
+		ov8858_read_1byte(client, addr + 1, &otp_ptr->vcm_end);
+		otp_ptr->vcm_end = (otp_ptr->vcm_end << 2) |
+				     ((temp >> 4) & 0x03);
+		otp_ptr->vcm_dir = (temp >> 2) & 0x03;
+	}
+
+	/* OTP Lenc Calibration */
+	ov8858_read_1byte(client, 0x7028, &otp_flag);
+	if ((otp_flag & 0xc0) == 0x40)
+		addr = 0x7029; /* base address of Lenc Calibration group 1 */
+	else if ((otp_flag & 0x30) == 0x10)
+		addr = 0x711a; /* base address of Lenc Calibration group 2 */
+	else
+		addr = 0;
+
+	if (addr != 0) {
+		checksum = 0;
+		for (i = 0; i < 240; i++) {
+			ov8858_read_1byte(client, addr + i, &otp_ptr->lenc[i]);
+			checksum += otp_ptr->lenc[i];
+			dev_dbg(dev, "lsc_info: 0x%x!\n", otp_ptr->lenc[i]);
+		}
+		checksum = (checksum) % 255 + 1;
+		ov8858_read_1byte(client, addr + 240, &otp_ptr->checksum);
+		if (otp_ptr->checksum == checksum)
+			otp_ptr->flag |= 0x10;
+	}
+
+	for (i = 0x7010; i <= 0x720a; i++)
+		ov8858_write_1byte(client, i, 0); /* clear OTP buffer */
+
+	if (otp_ptr->flag) {
+		ov8858->otp_r2a = otp_ptr;
+	} else {
+		ov8858->otp_r2a = NULL;
+		kfree(otp_ptr);
+	}
+
+	return 0;
+}
+
+static int ov8858_otp_read(struct ov8858 *ov8858)
+{
+	int temp = 0;
+	int ret = 0;
+	struct i2c_client *client = ov8858->client;
+
+	/* stream on  */
+	ov8858_write_1byte(client,
+			   OV8858_REG_CTRL_MODE,
+			   OV8858_MODE_STREAMING);
+
+	ov8858_read_1byte(client, 0x5002, &temp);
+	ov8858_write_1byte(client, 0x5002, (temp & (~0x08)));
+
+	/* read OTP into buffer */
+	ov8858_write_1byte(client, 0x3d84, 0xC0);
+	ov8858_write_1byte(client, 0x3d88, 0x70); /* OTP start address */
+	ov8858_write_1byte(client, 0x3d89, 0x10);
+	if (ov8858->is_r2a) {
+		ov8858_write_1byte(client, 0x3d8A, 0x72); /* OTP end address */
+		ov8858_write_1byte(client, 0x3d8B, 0x0a);
+	} else {
+		ov8858_write_1byte(client, 0x3d8A, 0x71); /* OTP end address */
+		ov8858_write_1byte(client, 0x3d8B, 0x84);
+	}
+	ov8858_write_1byte(client, 0x3d81, 0x01); /* load otp into buffer */
+	usleep_range(10000, 20000);
+
+	if (ov8858->is_r2a)
+		ret = ov8858_otp_read_r2a(ov8858);
+	else
+		ret = ov8858_otp_read_r1a(ov8858);
+
+	/* set 0x5002[3] to "1" */
+	ov8858_read_1byte(client, 0x5002, &temp);
+	ov8858_write_1byte(client, 0x5002, 0x08 | (temp & (~0x08)));
+
+	/* stream off */
+	ov8858_write_1byte(client,
+			   OV8858_REG_CTRL_MODE,
+			   OV8858_MODE_SW_STANDBY);
+
+	return ret;
+}
+
 static int ov8858_check_sensor_id(struct ov8858 *ov8858,
 				   struct i2c_client *client)
 {
@@ -1861,8 +2687,11 @@ static int ov8858_check_sensor_id(struct ov8858 *ov8858,
 		} else {
 			ov8858_global_regs = ov8858_global_regs_r2a_2lane;
 		}
+
+		ov8858->is_r2a = true;
 	} else {
 		ov8858_global_regs = ov8858_global_regs_r1a;
+		ov8858->is_r2a = false;
 		dev_warn(dev, "R1A may not work well current!\n");
 	}
 
@@ -1927,8 +2756,10 @@ static int ov8858_probe(struct i2c_client *client,
 			 const struct i2c_device_id *id)
 {
 	struct device *dev = &client->dev;
+	struct device_node *node = dev->of_node;
 	struct ov8858 *ov8858;
 	struct v4l2_subdev *sd;
+	char facing[2];
 	int ret;
 
 	ov8858 = devm_kzalloc(dev, sizeof(*ov8858), GFP_KERNEL);
@@ -1936,6 +2767,19 @@ static int ov8858_probe(struct i2c_client *client,
 		return -ENOMEM;
 
 	ov8858->client = client;
+	ret = of_property_read_u32(node, RKMODULE_CAMERA_MODULE_INDEX,
+				   &ov8858->module_index);
+	ret |= of_property_read_string(node, RKMODULE_CAMERA_MODULE_FACING,
+				       &ov8858->module_facing);
+	ret |= of_property_read_string(node, RKMODULE_CAMERA_MODULE_NAME,
+				       &ov8858->module_name);
+	ret |= of_property_read_string(node, RKMODULE_CAMERA_LENS_NAME,
+				       &ov8858->len_name);
+	if (ret) {
+		dev_err(dev,
+			"could not get module information!\n");
+		return -EINVAL;
+	}
 
 	ov8858->xvclk = devm_clk_get(dev, "xvclk");
 	if (IS_ERR(ov8858->xvclk)) {
@@ -2003,6 +2847,8 @@ static int ov8858_probe(struct i2c_client *client,
 	if (ret)
 		goto err_power_off;
 
+	ov8858_otp_read(ov8858);
+
 #ifdef CONFIG_VIDEO_V4L2_SUBDEV_API
 	sd->internal_ops = &ov8858_internal_ops;
 	sd->flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
@@ -2015,7 +2861,16 @@ static int ov8858_probe(struct i2c_client *client,
 		goto err_power_off;
 #endif
 
-	ret = v4l2_async_register_subdev(sd);
+	memset(facing, 0, sizeof(facing));
+	if (strcmp(ov8858->module_facing, "back") == 0)
+		facing[0] = 'b';
+	else
+		facing[0] = 'f';
+
+	snprintf(sd->name, sizeof(sd->name), "m%02d_%s_%s %s",
+		 ov8858->module_index, facing,
+		 OV8858_NAME, dev_name(sd->dev));
+	ret = v4l2_async_register_subdev_sensor_common(sd);
 	if (ret) {
 		dev_err(dev, "v4l2 async register subdev failed\n");
 		goto err_clean_entity;
@@ -2051,6 +2906,10 @@ static int ov8858_remove(struct i2c_client *client)
 	media_entity_cleanup(&sd->entity);
 #endif
 	v4l2_ctrl_handler_free(&ov8858->ctrl_handler);
+	if (ov8858->otp_r2a)
+		kfree(ov8858->otp_r2a);
+	if (ov8858->otp_r1a)
+		kfree(ov8858->otp_r1a);
 	mutex_destroy(&ov8858->mutex);
 
 	pm_runtime_disable(&client->dev);
@@ -2076,7 +2935,7 @@ static const struct i2c_device_id ov8858_match_id[] = {
 
 static struct i2c_driver ov8858_i2c_driver = {
 	.driver = {
-		.name = "ov8858",
+		.name = OV8858_NAME,
 		.pm = &ov8858_pm_ops,
 		.of_match_table = of_match_ptr(ov8858_of_match),
 	},
