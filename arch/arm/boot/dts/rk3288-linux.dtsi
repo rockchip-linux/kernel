@@ -8,7 +8,7 @@
 
 / {
 	chosen {
-		bootargs = "earlyprintk console=ttyFIQ0 rw root=PARTUUID=614e0000-0000 rootfstype=ext4 rootwait";
+		bootargs = "earlyprintk console=ttyFIQ0 rw root=PARTUUID=614e0000-0000 rootfstype=ext4 rootwait systemd.gpt_auto=0";
 	};
 
 	/delete-node/ dmc@ff610000;
