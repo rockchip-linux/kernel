@@ -1088,7 +1088,7 @@ dw_hdmi_rockchip_set_property(struct drm_connector *connector,
 		return 0;
 	}
 
-	DRM_ERROR("failed to set rockchip hdmi connector property\n");
+	DRM_DEBUG("failed to set rockchip hdmi connector property\n");
 	return -EINVAL;
 }
 
@@ -1149,7 +1149,7 @@ dw_hdmi_rockchip_get_property(struct drm_connector *connector,
 		return 0;
 	}
 
-	DRM_ERROR("failed to get rockchip hdmi connector property\n");
+	DRM_DEBUG("failed to get rockchip hdmi connector property\n");
 	return -EINVAL;
 }
 
