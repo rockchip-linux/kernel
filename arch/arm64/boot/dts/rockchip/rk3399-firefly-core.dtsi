@@ -189,14 +189,14 @@
 		compatible = "pwm-regulator";
 		pwms = <&pwm2 0 25000 1>;
 		regulator-name = "vdd_log";
-		regulator-min-microvolt = <800000>;
-		regulator-max-microvolt = <1100000>;
+		regulator-min-microvolt = <430000>;
+		regulator-max-microvolt = <1400000>;
 		regulator-always-on;
 		regulator-boot-on;
 
 		/* for rockchip boot on */
 		rockchip,pwm_id= <2>;
-		rockchip,pwm_voltage = <1000000>;
+		rockchip,pwm_voltage = <1100000>;
 	};
 
 	vcc3v3_pcie: vcc3v3-pcie-regulator {
@@ -706,7 +706,7 @@
 
 &usbdrd_dwc3_0 {
 	status = "okay";
-	dr_mode = "host";
+	dr_mode = "otg";
 };
 
 &usbdrd_dwc3_1 {
