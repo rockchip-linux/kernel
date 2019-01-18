@@ -268,6 +268,22 @@
 		status = "okay";
 	};
 
+	gpio-leds {
+		compatible = "gpio-leds";
+
+		user-led1 {
+			gpios=<&gpio3 28 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger="heartbeat";
+			default-state = "on";
+		};
+
+		user-led2 {
+			gpios=<&gpio3 29 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger="heartbeat";
+			default-state = "on";
+		};
+	};
+
 	test-power {
 		status = "okay";
 	};
@@ -1125,6 +1141,13 @@
 			rockchip,pins =
 				<1 12 RK_FUNC_1 &pcfg_pull_up>,
 				<1 11 RK_FUNC_1 &pcfg_pull_up>;
+		};
+	};
+	i2s0 {
+		i2s0_8ch_bus: i2s0-8ch-bus {
+			rockchip,pins =
+				<3 28 0 &pcfg_pull_none>,
+				<3 29 0 &pcfg_pull_none>;
 		};
 	};
 };
