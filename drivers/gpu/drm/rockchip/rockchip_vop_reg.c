@@ -583,12 +583,14 @@ static const struct vop_csc rk3399_win2_csc = {
 	.r2r_en = VOP_REG(RK3399_YUV2YUV_WIN, 0x1, 16),
 	.r2y_en = VOP_REG(RK3399_YUV2YUV_WIN, 0x1, 18),
 	.r2r_offset = RK3399_WIN2_YUV2YUV_3X3,
+	.csc_mode = VOP_REG(RK3399_YUV2YUV_WIN, 0x3, 22),
 };
 
 static const struct vop_csc rk3399_win3_csc = {
 	.r2r_en = VOP_REG(RK3399_YUV2YUV_WIN, 0x1, 24),
 	.r2y_en = VOP_REG(RK3399_YUV2YUV_WIN, 0x1, 26),
 	.r2r_offset = RK3399_WIN3_YUV2YUV_3X3,
+	.csc_mode = VOP_REG(RK3399_YUV2YUV_WIN, 0x3, 30),
 };
 
 static const struct vop_win_data rk3399_vop_win_data[] = {
