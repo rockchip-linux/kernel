@@ -30,6 +30,7 @@
 
 	.text
 
+#ifndef CONFIG_PREEMPT_RT_FULL
 _GLOBAL(call_do_softirq)
 	mflr	r0
 	std	r0,16(r1)
@@ -40,6 +41,7 @@ _GLOBAL(call_do_softirq)
 	ld	r0,16(r1)
 	mtlr	r0
 	blr
+#endif
 
 _GLOBAL(call_do_irq)
 	mflr	r0

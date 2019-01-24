@@ -46,6 +46,7 @@ struct pit_data {
 	u32		cycle;
 	u32		cnt;
 	unsigned int	irq;
+	bool		irq_requested;
 	struct clk	*mck;
 };
 
@@ -96,15 +97,29 @@ static int pit_clkevt_shutdown(struct clock_event_device *dev)
 
 	/* disable irq, leaving the clocksource active */
 	pit_write(data->base, AT91_PIT_MR, (data->cycle - 1) | AT91_PIT_PITEN);
+	if (data->irq_requested) {
+		free_irq(data->irq, data);
+		data->irq_requested = false;
+	}
 	return 0;
 }
 
+static irqreturn_t at91sam926x_pit_interrupt(int irq, void *dev_id);
 /*
  * Clockevent device:  interrupts every 1/HZ (== pit_cycles * MCK/16)
  */
 static int pit_clkevt_set_periodic(struct clock_event_device *dev)
 {
 	struct pit_data *data = clkevt_to_pit_data(dev);
+	int ret;
+
+	ret = request_irq(data->irq, at91sam926x_pit_interrupt,
+			  IRQF_SHARED | IRQF_TIMER | IRQF_IRQPOLL,
+			  "at91_tick", data);
+	if (ret)
+		panic(pr_fmt("Unable to setup IRQ\n"));
+
+	data->irq_requested = true;
 
 	/* update clocksource counter */
 	data->cnt += data->cycle * PIT_PICNT(pit_read(data->base, AT91_PIT_PIVR));
@@ -181,7 +196,6 @@ static void __init at91sam926x_pit_common_init(struct pit_data *data)
 {
 	unsigned long	pit_rate;
 	unsigned	bits;
-	int		ret;
 
 	/*
 	 * Use our actual MCK to figure out how many MCK/16 ticks per
@@ -205,13 +219,6 @@ static void __init at91sam926x_pit_common_init(struct pit_data *data)
 	data->clksrc.read = read_pit_clk;
 	data->clksrc.flags = CLOCK_SOURCE_IS_CONTINUOUS;
 	clocksource_register_hz(&data->clksrc, pit_rate);
-
-	/* Set up irq handler */
-	ret = request_irq(data->irq, at91sam926x_pit_interrupt,
-			  IRQF_SHARED | IRQF_TIMER | IRQF_IRQPOLL,
-			  "at91_tick", data);
-	if (ret)
-		panic(pr_fmt("Unable to setup IRQ\n"));
 
 	/* Set up and register clockevents */
 	data->clkevt.name = "pit";

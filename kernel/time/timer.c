@@ -80,6 +80,9 @@ struct tvec_root {
 struct tvec_base {
 	spinlock_t lock;
 	struct timer_list *running_timer;
+#ifdef CONFIG_PREEMPT_RT_FULL
+	wait_queue_head_t wait_for_running_timer;
+#endif
 	unsigned long timer_jiffies;
 	unsigned long next_timer;
 	unsigned long active_timers;
@@ -784,6 +787,39 @@ static struct tvec_base *lock_timer_base(struct timer_list *timer,
 		cpu_relax();
 	}
 }
+#ifdef CONFIG_PREEMPT_RT_FULL
+static inline struct tvec_base *switch_timer_base(struct timer_list *timer,
+						  struct tvec_base *old,
+						  struct tvec_base *new)
+{
+	/*
+	 * We cannot do the below because we might be preempted and
+	 * then the preempter would see NULL and loop forever.
+	 */
+	if (spin_trylock(&new->lock)) {
+		WRITE_ONCE(timer->flags,
+			   (timer->flags & ~TIMER_BASEMASK) | new->cpu);
+		spin_unlock(&old->lock);
+		return new;
+	}
+	return old;
+}
+
+#else
+static inline struct tvec_base *switch_timer_base(struct timer_list *timer,
+						  struct tvec_base *old,
+						  struct tvec_base *new)
+{
+	/* See the comment in lock_timer_base() */
+	timer->flags |= TIMER_MIGRATING;
+
+	spin_unlock(&old->lock);
+	spin_lock(&new->lock);
+	WRITE_ONCE(timer->flags,
+		   (timer->flags & ~TIMER_BASEMASK) | new->cpu);
+	return new;
+}
+#endif
 
 static inline int
 __mod_timer(struct timer_list *timer, unsigned long expires,
@@ -802,8 +838,6 @@ __mod_timer(struct timer_list *timer, unsigned long expires,
 	if (!ret && pending_only)
 		goto out_unlock;
 
-	debug_activate(timer, expires);
-
 	new_base = get_target_base(base, pinned);
 
 	if (base != new_base) {
@@ -814,17 +848,11 @@ __mod_timer(struct timer_list *timer, unsigned long expires,
 		 * handler yet has not finished. This also guarantees that
 		 * the timer is serialized wrt itself.
 		 */
-		if (likely(base->running_timer != timer)) {
-			/* See the comment in lock_timer_base() */
-			timer->flags |= TIMER_MIGRATING;
-
-			spin_unlock(&base->lock);
-			base = new_base;
-			spin_lock(&base->lock);
-			WRITE_ONCE(timer->flags,
-				   (timer->flags & ~TIMER_BASEMASK) | base->cpu);
-		}
+		if (likely(base->running_timer != timer))
+			base = switch_timer_base(timer, base, new_base);
 	}
+
+	debug_activate(timer, expires);
 
 	timer->expires = expires;
 	internal_add_timer(base, timer);
@@ -1013,6 +1041,33 @@ void add_timer_on(struct timer_list *timer, int cpu)
 }
 EXPORT_SYMBOL_GPL(add_timer_on);
 
+#ifdef CONFIG_PREEMPT_RT_FULL
+/*
+ * Wait for a running timer
+ */
+static void wait_for_running_timer(struct timer_list *timer)
+{
+	struct tvec_base *base;
+	u32 tf = timer->flags;
+
+	if (tf & TIMER_MIGRATING)
+		return;
+
+	base = per_cpu_ptr(&tvec_bases, tf & TIMER_CPUMASK);
+	wait_event(base->wait_for_running_timer,
+		   base->running_timer != timer);
+}
+
+# define wakeup_timer_waiters(b)	wake_up_all(&(b)->wait_for_running_timer)
+#else
+static inline void wait_for_running_timer(struct timer_list *timer)
+{
+	cpu_relax();
+}
+
+# define wakeup_timer_waiters(b)	do { } while (0)
+#endif
+
 /**
  * del_timer - deactive a timer.
  * @timer: the timer to be deactivated
@@ -1070,7 +1125,7 @@ int try_to_del_timer_sync(struct timer_list *timer)
 }
 EXPORT_SYMBOL(try_to_del_timer_sync);
 
-#ifdef CONFIG_SMP
+#if defined(CONFIG_SMP) || defined(CONFIG_PREEMPT_RT_FULL)
 /**
  * del_timer_sync - deactivate a timer and wait for the handler to finish.
  * @timer: the timer to be deactivated
@@ -1130,7 +1185,7 @@ int del_timer_sync(struct timer_list *timer)
 		int ret = try_to_del_timer_sync(timer);
 		if (ret >= 0)
 			return ret;
-		cpu_relax();
+		wait_for_running_timer(timer);
 	}
 }
 EXPORT_SYMBOL(del_timer_sync);
@@ -1255,16 +1310,18 @@ static inline void __run_timers(struct tvec_base *base)
 			if (irqsafe) {
 				spin_unlock(&base->lock);
 				call_timer_fn(timer, fn, data);
+				base->running_timer = NULL;
 				spin_lock(&base->lock);
 			} else {
 				spin_unlock_irq(&base->lock);
 				call_timer_fn(timer, fn, data);
+				base->running_timer = NULL;
 				spin_lock_irq(&base->lock);
 			}
 		}
 	}
-	base->running_timer = NULL;
 	spin_unlock_irq(&base->lock);
+	wakeup_timer_waiters(base);
 }
 
 #ifdef CONFIG_NO_HZ_COMMON
@@ -1397,6 +1454,14 @@ u64 get_next_timer_interrupt(unsigned long basej, u64 basem)
 	if (cpu_is_offline(smp_processor_id()))
 		return expires;
 
+#ifdef CONFIG_PREEMPT_RT_FULL
+	/*
+	 * On PREEMPT_RT we cannot sleep here. As a result we can't take
+	 * the base lock to check when the next timer is pending and so
+	 * we assume the next jiffy.
+	 */
+	return basem + TICK_NSEC;
+#endif
 	spin_lock(&base->lock);
 	if (base->active_timers) {
 		if (time_before_eq(base->next_timer, base->timer_jiffies))
@@ -1423,13 +1488,13 @@ void update_process_times(int user_tick)
 
 	/* Note: this timer irq context must be accounted for as well. */
 	account_process_tick(p, user_tick);
+	scheduler_tick();
 	run_local_timers();
 	rcu_check_callbacks(user_tick);
-#ifdef CONFIG_IRQ_WORK
+#if defined(CONFIG_IRQ_WORK)
 	if (in_irq())
 		irq_work_tick();
 #endif
-	scheduler_tick();
 	run_posix_cpu_timers(p);
 }
 
@@ -1439,6 +1504,8 @@ void update_process_times(int user_tick)
 static void run_timer_softirq(struct softirq_action *h)
 {
 	struct tvec_base *base = this_cpu_ptr(&tvec_bases);
+
+	irq_work_tick_soft();
 
 	if (time_after_eq(jiffies, base->timer_jiffies))
 		__run_timers(base);
@@ -1596,7 +1663,7 @@ static void migrate_timers(int cpu)
 
 	BUG_ON(cpu_online(cpu));
 	old_base = per_cpu_ptr(&tvec_bases, cpu);
-	new_base = get_cpu_ptr(&tvec_bases);
+	new_base = get_local_ptr(&tvec_bases);
 	/*
 	 * The caller is globally serialized and nobody else
 	 * takes two locks at once, deadlock is not possible.
@@ -1620,7 +1687,7 @@ static void migrate_timers(int cpu)
 
 	spin_unlock(&old_base->lock);
 	spin_unlock_irq(&new_base->lock);
-	put_cpu_ptr(&tvec_bases);
+	put_local_ptr(&tvec_bases);
 }
 
 static int timer_cpu_notify(struct notifier_block *self,
@@ -1652,6 +1719,9 @@ static void __init init_timer_cpu(int cpu)
 
 	base->cpu = cpu;
 	spin_lock_init(&base->lock);
+#ifdef CONFIG_PREEMPT_RT_FULL
+	init_waitqueue_head(&base->wait_for_running_timer);
+#endif
 
 	base->timer_jiffies = jiffies;
 	base->next_timer = base->timer_jiffies;
