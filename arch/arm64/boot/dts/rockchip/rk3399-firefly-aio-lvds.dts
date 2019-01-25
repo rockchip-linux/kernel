@@ -296,6 +296,11 @@
     /delete-property/ extcon;
 };
 
+&usbdrd_dwc3_0 {
+	status = "okay";
+	dr_mode = "host";
+};
+
 &vcc3v3_pcie {
     gpio = <&gpio0 13 GPIO_ACTIVE_HIGH>;
 };
