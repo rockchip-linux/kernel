@@ -1284,6 +1284,9 @@ static inline void __stop_tx(struct uart_8250_port *p)
 {
 	if (p->ier & UART_IER_THRI) {
 		p->ier &= ~UART_IER_THRI;
+#ifdef CONFIG_ARCH_ROCKCHIP
+		p->ier &= ~UART_IER_PTIME;
+#endif
 		serial_out(p, UART_IER, p->ier);
 		serial8250_rpm_put_tx(p);
 	}
@@ -1321,6 +1324,9 @@ static void serial8250_start_tx(struct uart_port *port)
 
 	if (!(up->ier & UART_IER_THRI)) {
 		up->ier |= UART_IER_THRI;
+#ifdef CONFIG_ARCH_ROCKCHIP
+		up->ier |= UART_IER_PTIME;
+#endif
 		serial_port_out(port, UART_IER, up->ier);
 
 		if (up->bugs & UART_BUG_TXEN) {
@@ -1585,7 +1591,7 @@ int serial8250_handle_irq(struct uart_port *port, unsigned int iir)
 	serial8250_modem_status(up);
 #ifdef CONFIG_ARCH_ROCKCHIP
 	if ((!up->dma || (up->dma && (!up->dma->txchan || up->dma->tx_err))) &&
-	    (status & UART_LSR_THRE))
+	    ((iir & 0xf) == UART_IIR_THRI))
 		serial8250_tx_chars(up);
 #else
 	if ((!up->dma || (up->dma && up->dma->tx_err)) &&
