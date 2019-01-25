@@ -653,6 +653,17 @@ config VIDEO_OV7750
 	  To compile this driver as a module, choose M here: the
 	  module will be called ov7750.
 
+config VIDEO_OV8858
+	tristate "OmniVision OV8858 sensor support"
+	depends on I2C && VIDEO_V4L2
+	depends on MEDIA_CAMERA_SUPPORT
+	help
+	  This is a Video4Linux2 sensor-level driver for the OmniVision
+	  OV8858 camera.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called ov8858.
+
 config VIDEO_OV9650
 	tristate "OmniVision OV9650/OV9652 sensor support"
 	depends on I2C && VIDEO_V4L2 && VIDEO_V4L2_SUBDEV_API
