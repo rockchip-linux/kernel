@@ -48,6 +48,7 @@ config CPU_FREQ_STAT_DETAILS
 
 config CPU_FREQ_TIMES
        bool "CPU frequency time-in-state statistics"
+       depends on !PREEMPT_RT_FULL
        default y
        help
          This driver exports CPU time-in-state information through procfs file
