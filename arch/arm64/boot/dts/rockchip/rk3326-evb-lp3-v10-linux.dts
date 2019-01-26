@@ -317,6 +317,7 @@
 };
 
 &dmc {
+	auto-freq-en = <0>;
 	center-supply = <&vdd_logic>;
 	status = "okay";
 };
