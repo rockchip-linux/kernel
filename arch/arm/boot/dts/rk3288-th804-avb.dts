@@ -34,6 +34,112 @@
 	};
 };
 
+&io_domains {
+	status = "okay";
+
+	dvp-supply = <&vcc_18>;
+	sdcard-supply = <&vccio_sd>;
+	wifi-supply = <&vccio_wl>;
+};
+
+&isp {
+	status = "disabled";
+};
+
+&i2c3 {
+	status = "okay";
+
+	gc2145@3c {
+		compatible = "galaxycore,gc2145";
+		reg = <0x3c>;
+		clocks = <&cru SCLK_VIP_OUT>;
+		clock-names = "xvclk";
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&isp_dvp_d2d9 &isp_dvp_d0d1 &isp_mipi>;
+		power-gpio = <&gpio0 RK_PC1 GPIO_ACTIVE_HIGH>;
+		pwdn-gpios = <&gpio2 RK_PB6 GPIO_ACTIVE_HIGH>;
+		port {
+			gc2145_out: endpoint {
+				remote-endpoint = <&isp_dvp_in>;
+			};
+		};
+	};
+
+	ov8858@36 {
+		compatible = "ovti,ov8858";
+		reg = <0x36>;
+		clocks = <&cru SCLK_VIP_OUT>;
+		clock-names = "xvclk";
+
+		pinctrl-names = "rockchip,camera_default";
+		pinctrl-0 = <&isp_mipi>;
+
+		rockchip,camera-module-name = "NC";
+		rockchip,camera-module-lens-name = "LG-9569A2";
+		power-gpio = <&gpio0 RK_PC1 GPIO_ACTIVE_HIGH>;
+		pwdn-gpios = <&gpio2 RK_PB7 GPIO_ACTIVE_HIGH>;
+		port {
+			ov8858_out: endpoint {
+				remote-endpoint = <&mipi_in>;
+				data-lanes = <1 2>;
+			};
+		};
+	};
+
+};
+
+&mipi_phy_rx0 {
+	status = "okay";
+
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		port@0 {
+			reg = <0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			mipi_in: endpoint@1 {
+				reg = <1>;
+				remote-endpoint = <&ov8858_out>;
+				data-lanes = <1 2>;
+			};
+		};
+
+		port@1 {
+			reg = <1>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			dphy_rx_out: endpoint@0 {
+				reg = <0>;
+				remote-endpoint = <&isp_mipi_in>;
+			};
+		};
+	};
+};
+
+&rkisp1 {
+	status = "okay";
+	port {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		isp_dvp_in: endpoint@1 {
+			reg = <1>;
+			remote-endpoint = <&gc2145_out>;
+		};
+
+		isp_mipi_in: endpoint@0 {
+			reg = <0>;
+			remote-endpoint = <&dphy_rx_out>;
+		};
+
+	};
+};
+
 &vopb {
 	assigned-clocks = <&cru DCLK_VOP0>;
 	assigned-clock-parents = <&cru PLL_CPLL>;
