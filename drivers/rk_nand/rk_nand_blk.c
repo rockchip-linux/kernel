@@ -676,6 +676,8 @@ static int nand_blk_register(struct nand_blk_ops *nandr)
 
 	queue_flag_set_unlocked(QUEUE_FLAG_DISCARD, nandr->rq);
 	blk_queue_max_discard_sectors(nandr->rq, UINT_MAX >> 9);
+	/* discard_granularity config to one nand page size 32KB*/
+	nandr->rq->limits.discard_granularity = 64 << 9;
 
 	nandr->rq->queuedata = nandr;
 	INIT_LIST_HEAD(&nandr->devs);
