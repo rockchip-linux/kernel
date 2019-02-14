@@ -870,6 +870,15 @@ config VIDEO_GC2035
 	  To compile this driver as a module, choose M here: the
 	  module will be called gc2035.
 
+config VIDEO_PREISP_DUMMY_SENSOR
+	tristate "Preisp dummy sensor support"
+	depends on VIDEO_V4L2 && I2C && VIDEO_V4L2_SUBDEV_API
+	help
+	  Support for the preisp dummy sensor.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called pisp_dmy.
+
 comment "Flash devices"
 
 config VIDEO_ADP1653
