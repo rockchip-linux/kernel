@@ -1311,6 +1311,11 @@ static int rockchip_cfg_atu(struct rockchip_pcie *rockchip)
 
 	rockchip->msg_bus_addr = rockchip->mem_bus_addr +
 					((reg_no + offset) << 20);
+
+	rockchip->msg_region = devm_ioremap(dev, rockchip->msg_bus_addr, SZ_1M);
+	if (!rockchip->msg_region)
+		err = -ENOMEM;
+
 	return err;
 }
 
@@ -1596,13 +1601,6 @@ static int rockchip_pcie_probe(struct platform_device *pdev)
 		default:
 			continue;
 		}
-	}
-
-	rockchip->msg_region = devm_ioremap(rockchip->dev,
-					    rockchip->msg_bus_addr, SZ_1M);
-	if (!rockchip->msg_region) {
-		err = -ENOMEM;
-		goto err_free_res;
 	}
 
 	if (rockchip->deferred) {
