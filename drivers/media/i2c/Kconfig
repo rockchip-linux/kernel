@@ -509,6 +509,14 @@ config VIDEO_IMX323
 	help
 	  This driver supports IMX323 cameras from Sony
 
+config VIDEO_IMX327
+	tristate "Sony imx327 sensor support"
+	depends on VIDEO_V4L2 && I2C
+	depends on MEDIA_CAMERA_SUPPORT
+	select V4L2_FWNODE
+	help
+	  This driver supports IMX327 cameras from Sony
+
 config VIDEO_VIRT_CAMERA
 	tristate "Rockchip virtual sensor support"
 	depends on VIDEO_V4L2 && I2C
