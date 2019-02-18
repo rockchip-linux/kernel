@@ -171,11 +171,14 @@ static void rockchip_lvds_encoder_mode_set(struct drm_encoder *encoder,
 		bus_format = info->bus_formats[0];
 
 	switch (bus_format) {
-	case MEDIA_BUS_FMT_RGB666_1X7X3_SPWG:	/* jeida-18 */
+	case MEDIA_BUS_FMT_RGB666_1X7X3_JEIDA:	/* jeida-18 */
 		lvds->format = LVDS_6BIT_MODE;
 		break;
 	case MEDIA_BUS_FMT_RGB888_1X7X4_JEIDA:	/* jeida-24 */
 		lvds->format = LVDS_8BIT_MODE_FORMAT_2;
+		break;
+	case MEDIA_BUS_FMT_RGB666_1X7X3_SPWG:	/* vesa-18 */
+		lvds->format = LVDS_8BIT_MODE_FORMAT_3;
 		break;
 	case MEDIA_BUS_FMT_RGB888_1X7X4_SPWG:	/* vesa-24 */
 	default:
