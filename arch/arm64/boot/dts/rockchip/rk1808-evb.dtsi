@@ -251,7 +251,6 @@
 	assigned-clock-parents = <&gmac_clkin>;
 	tx_delay = <0x50>;
 	rx_delay = <0x3a>;
-	status = "okay";
 };
 
 &i2c0 {
