@@ -16,6 +16,7 @@
 #include <linux/of_graph.h>
 #include <linux/slab.h>
 #include <linux/videodev2.h>
+#include <linux/rk-camera-module.h>
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-fwnode.h>
@@ -39,6 +40,8 @@
 #define IMX219_DIGITAL_EXPOSURE_DEFAULT	1575
 
 #define IMX219_EXP_LINES_MARGIN	4
+
+#define IMX219_NAME			"imx219"
 
 static const s64 link_freq_menu_items[] = {
 	456000000,
@@ -231,6 +234,10 @@ struct imx219 {
 	struct v4l2_ctrl *pixel_rate;
 	const struct imx219_mode *cur_mode;
 	u16 cur_vts;
+	u32 module_index;
+	const char *module_facing;
+	const char *module_name;
+	const char *len_name;
 };
 
 static const struct imx219_mode supported_modes[] = {
@@ -711,6 +718,77 @@ static int imx219_get_fmt(struct v4l2_subdev *sd,
 	return 0;
 }
 
+static void imx219_get_module_inf(struct imx219 *imx219,
+				  struct rkmodule_inf *inf)
+{
+	memset(inf, 0, sizeof(*inf));
+	strlcpy(inf->base.sensor, IMX219_NAME, sizeof(inf->base.sensor));
+	strlcpy(inf->base.module, imx219->module_name,
+		sizeof(inf->base.module));
+	strlcpy(inf->base.lens, imx219->len_name, sizeof(inf->base.lens));
+}
+
+static long imx219_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
+{
+	struct i2c_client *client = v4l2_get_subdevdata(sd);
+	struct imx219 *imx219 = to_imx219(client);
+	long ret = 0;
+
+	switch (cmd) {
+	case RKMODULE_GET_MODULE_INFO:
+		imx219_get_module_inf(imx219, (struct rkmodule_inf *)arg);
+		break;
+	default:
+		ret = -ENOIOCTLCMD;
+		break;
+	}
+
+	return ret;
+}
+
+#ifdef CONFIG_COMPAT
+static long imx219_compat_ioctl32(struct v4l2_subdev *sd,
+				  unsigned int cmd, unsigned long arg)
+{
+	void __user *up = compat_ptr(arg);
+	struct rkmodule_inf *inf;
+	struct rkmodule_awb_cfg *cfg;
+	long ret;
+
+	switch (cmd) {
+	case RKMODULE_GET_MODULE_INFO:
+		inf = kzalloc(sizeof(*inf), GFP_KERNEL);
+		if (!inf) {
+			ret = -ENOMEM;
+			return ret;
+		}
+
+		ret = imx219_ioctl(sd, cmd, inf);
+		if (!ret)
+			ret = copy_to_user(up, inf, sizeof(*inf));
+		kfree(inf);
+		break;
+	case RKMODULE_AWB_CFG:
+		cfg = kzalloc(sizeof(*cfg), GFP_KERNEL);
+		if (!cfg) {
+			ret = -ENOMEM;
+			return ret;
+		}
+
+		ret = copy_from_user(cfg, up, sizeof(*cfg));
+		if (!ret)
+			ret = imx219_ioctl(sd, cmd, cfg);
+		kfree(cfg);
+		break;
+	default:
+		ret = -ENOIOCTLCMD;
+		break;
+	}
+
+	return ret;
+}
+#endif
+
 /* Various V4L2 operations tables */
 static struct v4l2_subdev_video_ops imx219_subdev_video_ops = {
 	.s_stream = imx219_s_stream,
@@ -719,6 +797,10 @@ static struct v4l2_subdev_video_ops imx219_subdev_video_ops = {
 
 static struct v4l2_subdev_core_ops imx219_subdev_core_ops = {
 	.s_power = imx219_s_power,
+	.ioctl = imx219_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl32 = imx219_compat_ioctl32,
+#endif
 };
 
 static const struct v4l2_subdev_pad_ops imx219_subdev_pad_ops = {
@@ -889,6 +971,10 @@ static int imx219_probe(struct i2c_client *client,
 {
 	struct imx219 *priv;
 	struct i2c_adapter *adapter = to_i2c_adapter(client->dev.parent);
+	struct device *dev = &client->dev;
+	struct device_node *node = dev->of_node;
+	struct v4l2_subdev *sd;
+	char facing[2];
 	int ret;
 
 	if (!i2c_check_functionality(adapter, I2C_FUNC_SMBUS_BYTE_DATA)) {
@@ -899,6 +985,19 @@ static int imx219_probe(struct i2c_client *client,
 	priv = devm_kzalloc(&client->dev, sizeof(struct imx219), GFP_KERNEL);
 	if (!priv)
 		return -ENOMEM;
+
+	ret = of_property_read_u32(node, RKMODULE_CAMERA_MODULE_INDEX,
+				   &priv->module_index);
+	ret |= of_property_read_string(node, RKMODULE_CAMERA_MODULE_FACING,
+				       &priv->module_facing);
+	ret |= of_property_read_string(node, RKMODULE_CAMERA_MODULE_NAME,
+				       &priv->module_name);
+	ret |= of_property_read_string(node, RKMODULE_CAMERA_LENS_NAME,
+				       &priv->len_name);
+	if (ret) {
+		dev_err(dev, "could not get module information!\n");
+		return -EINVAL;
+	}
 
 	priv->clk = devm_clk_get(&client->dev, NULL);
 	if (IS_ERR(priv->clk)) {
@@ -930,7 +1029,17 @@ static int imx219_probe(struct i2c_client *client,
 	if (ret < 0)
 		return ret;
 
-	ret = v4l2_async_register_subdev(&priv->subdev);
+	sd = &priv->subdev;
+	memset(facing, 0, sizeof(facing));
+	if (strcmp(priv->module_facing, "back") == 0)
+		facing[0] = 'b';
+	else
+		facing[0] = 'f';
+
+	snprintf(sd->name, sizeof(sd->name), "m%02d_%s_%s %s",
+		 priv->module_index, facing,
+		 IMX219_NAME, dev_name(sd->dev));
+	ret = v4l2_async_register_subdev_sensor_common(sd);
 	if (ret < 0)
 		return ret;
 
@@ -963,7 +1072,7 @@ MODULE_DEVICE_TABLE(i2c, imx219_id);
 static struct i2c_driver imx219_i2c_driver = {
 	.driver = {
 		.of_match_table = of_match_ptr(imx219_of_match),
-		.name = "imx219",
+		.name = IMX219_NAME,
 	},
 	.probe = imx219_probe,
 	.remove = imx219_remove,

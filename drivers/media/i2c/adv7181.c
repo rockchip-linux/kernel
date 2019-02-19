@@ -13,6 +13,7 @@
 #include <linux/pm_runtime.h>
 #include <linux/regulator/consumer.h>
 #include <linux/sysfs.h>
+#include <linux/rk-camera-module.h>
 #include <media/media-entity.h>
 #include <media/v4l2-async.h>
 #include <media/v4l2-ctrls.h>
@@ -32,6 +33,8 @@
 #define ADV7181_BITS_PER_SAMPLE		10
 
 #define ADV7181_SKIP_TOP		24
+
+#define ADV7181_NAME			"adv7181"
 
 static const char * const adv7181_supply_names[] = {
 	"dvdd",
@@ -65,6 +68,10 @@ struct adv7181 {
 	int			skip_top;
 
 	const struct adv7181_mode *cur_mode;
+	u32			module_index;
+	const char		*module_facing;
+	const char		*module_name;
+	const char		*len_name;
 };
 
 #define to_adv7181(sd) container_of(sd, struct adv7181, subdev)
@@ -268,6 +275,76 @@ static void __adv7181_power_off(struct adv7181 *adv7181)
 	regulator_bulk_disable(ADV7181_NUM_SUPPLIES, adv7181->supplies);
 }
 
+static void adv7181_get_module_inf(struct adv7181 *adv7181,
+				  struct rkmodule_inf *inf)
+{
+	memset(inf, 0, sizeof(*inf));
+	strlcpy(inf->base.sensor, ADV7181_NAME, sizeof(inf->base.sensor));
+	strlcpy(inf->base.module, adv7181->module_name,
+		sizeof(inf->base.module));
+	strlcpy(inf->base.lens, adv7181->len_name, sizeof(inf->base.lens));
+}
+
+static long adv7181_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
+{
+	struct adv7181 *adv7181 = to_adv7181(sd);
+	long ret = 0;
+
+	switch (cmd) {
+	case RKMODULE_GET_MODULE_INFO:
+		adv7181_get_module_inf(adv7181, (struct rkmodule_inf *)arg);
+		break;
+	default:
+		ret = -ENOIOCTLCMD;
+		break;
+	}
+
+	return ret;
+}
+
+#ifdef CONFIG_COMPAT
+static long adv7181_compat_ioctl32(struct v4l2_subdev *sd,
+				  unsigned int cmd, unsigned long arg)
+{
+	void __user *up = compat_ptr(arg);
+	struct rkmodule_inf *inf;
+	struct rkmodule_awb_cfg *cfg;
+	long ret;
+
+	switch (cmd) {
+	case RKMODULE_GET_MODULE_INFO:
+		inf = kzalloc(sizeof(*inf), GFP_KERNEL);
+		if (!inf) {
+			ret = -ENOMEM;
+			return ret;
+		}
+
+		ret = adv7181_ioctl(sd, cmd, inf);
+		if (!ret)
+			ret = copy_to_user(up, inf, sizeof(*inf));
+		kfree(inf);
+		break;
+	case RKMODULE_AWB_CFG:
+		cfg = kzalloc(sizeof(*cfg), GFP_KERNEL);
+		if (!cfg) {
+			ret = -ENOMEM;
+			return ret;
+		}
+
+		ret = copy_from_user(cfg, up, sizeof(*cfg));
+		if (!ret)
+			ret = adv7181_ioctl(sd, cmd, cfg);
+		kfree(cfg);
+		break;
+	default:
+		ret = -ENOIOCTLCMD;
+		break;
+	}
+
+	return ret;
+}
+#endif
+
 static int adv7181_s_stream(struct v4l2_subdev *sd, int on)
 {
 	struct adv7181 *adv7181 = to_adv7181(sd);
@@ -357,6 +434,13 @@ static const struct dev_pm_ops adv7181_pm_ops = {
 			   adv7181_runtime_resume, NULL)
 };
 
+static const struct v4l2_subdev_core_ops adv7181_core_ops = {
+	.ioctl = adv7181_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl32 = adv7181_compat_ioctl32,
+#endif
+};
+
 static const struct v4l2_subdev_video_ops adv7181_video_ops = {
 	.s_stream = adv7181_s_stream,
 	.querystd = adv7181_querystd,
@@ -374,6 +458,7 @@ static struct v4l2_subdev_sensor_ops adv7181_sensor_ops = {
 };
 
 static const struct v4l2_subdev_ops adv7181_subdev_ops = {
+	.core	= &adv7181_core_ops,
 	.video	= &adv7181_video_ops,
 	.pad	= &adv7181_pad_ops,
 	.sensor = &adv7181_sensor_ops,
@@ -419,12 +504,28 @@ static int adv7181_probe(struct i2c_client *client,
 			 const struct i2c_device_id *id)
 {
 	struct device *dev = &client->dev;
+	struct device_node *node = dev->of_node;
+	struct v4l2_subdev *sd;
 	struct adv7181 *adv7181;
+	char facing[2];
 	int ret;
 
 	adv7181 = devm_kzalloc(dev, sizeof(*adv7181), GFP_KERNEL);
 	if (!adv7181)
 		return -ENOMEM;
+
+	ret = of_property_read_u32(node, RKMODULE_CAMERA_MODULE_INDEX,
+				   &adv7181->module_index);
+	ret |= of_property_read_string(node, RKMODULE_CAMERA_MODULE_FACING,
+				       &adv7181->module_facing);
+	ret |= of_property_read_string(node, RKMODULE_CAMERA_MODULE_NAME,
+				       &adv7181->module_name);
+	ret |= of_property_read_string(node, RKMODULE_CAMERA_LENS_NAME,
+				       &adv7181->len_name);
+	if (ret) {
+		dev_err(dev, "could not get module information!\n");
+		return -EINVAL;
+	}
 
 	adv7181->skip_top = ADV7181_SKIP_TOP;
 
@@ -477,7 +578,17 @@ static int adv7181_probe(struct i2c_client *client,
 		goto err_power_off;
 #endif
 
-	ret = v4l2_async_register_subdev(&adv7181->subdev);
+	memset(facing, 0, sizeof(facing));
+	if (strcmp(adv7181->module_facing, "back") == 0)
+		facing[0] = 'b';
+	else
+		facing[0] = 'f';
+
+	sd = &adv7181->subdev;
+	snprintf(sd->name, sizeof(sd->name), "m%02d_%s_%s %s",
+		 adv7181->module_index, facing,
+		 ADV7181_NAME, dev_name(sd->dev));
+	ret = v4l2_async_register_subdev(sd);
 	if (ret) {
 		dev_err(dev, "v4l2 async register subdev failed\n");
 		goto err_clean_entity;
@@ -535,7 +646,7 @@ MODULE_DEVICE_TABLE(of, adv7181_of_match);
 
 static struct i2c_driver adv7181_i2c_driver = {
 	.driver = {
-		.name = "adv7181",
+		.name = ADV7181_NAME,
 		.pm = &adv7181_pm_ops,
 		.of_match_table = adv7181_of_match
 	},

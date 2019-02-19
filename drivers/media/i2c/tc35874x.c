@@ -40,6 +40,7 @@
 #include <linux/workqueue.h>
 #include <linux/v4l2-dv-timings.h>
 #include <linux/hdmi.h>
+#include <linux/rk-camera-module.h>
 #include <media/v4l2-dv-timings.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-ctrls.h>
@@ -68,6 +69,9 @@ MODULE_LICENSE("GPL");
 
 #define TC35874X_LINK_FREQ_300MHZ	300000000
 #define TC35874X_PIXEL_RATE		(TC35874X_LINK_FREQ_300MHZ * 2 * 2 / 8)
+
+#define TC35874X_NAME			"tc35874x"
+
 static const s64 link_freq_menu_items[] = {
 	TC35874X_LINK_FREQ_300MHZ,
 };
@@ -151,6 +155,11 @@ struct tc35874x_state {
 	u8 csi_lanes_in_use;
 
 	struct gpio_desc *reset_gpio;
+
+	u32 module_index;
+	const char *module_facing;
+	const char *module_name;
+	const char *len_name;
 };
 
 static void tc35874x_enable_interrupts(struct v4l2_subdev *sd,
@@ -1703,6 +1712,76 @@ static int tc35874x_s_edid(struct v4l2_subdev *sd,
 	return 0;
 }
 
+static void tc35874x_get_module_inf(struct tc35874x_state *tc35874x,
+				  struct rkmodule_inf *inf)
+{
+	memset(inf, 0, sizeof(*inf));
+	strlcpy(inf->base.sensor, TC35874X_NAME, sizeof(inf->base.sensor));
+	strlcpy(inf->base.module, tc35874x->module_name,
+		sizeof(inf->base.module));
+	strlcpy(inf->base.lens, tc35874x->len_name, sizeof(inf->base.lens));
+}
+
+static long tc35874x_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
+{
+	struct tc35874x_state *tc35874x = to_state(sd);
+	long ret = 0;
+
+	switch (cmd) {
+	case RKMODULE_GET_MODULE_INFO:
+		tc35874x_get_module_inf(tc35874x, (struct rkmodule_inf *)arg);
+		break;
+	default:
+		ret = -ENOIOCTLCMD;
+		break;
+	}
+
+	return ret;
+}
+
+#ifdef CONFIG_COMPAT
+static long tc35874x_compat_ioctl32(struct v4l2_subdev *sd,
+				  unsigned int cmd, unsigned long arg)
+{
+	void __user *up = compat_ptr(arg);
+	struct rkmodule_inf *inf;
+	struct rkmodule_awb_cfg *cfg;
+	long ret;
+
+	switch (cmd) {
+	case RKMODULE_GET_MODULE_INFO:
+		inf = kzalloc(sizeof(*inf), GFP_KERNEL);
+		if (!inf) {
+			ret = -ENOMEM;
+			return ret;
+		}
+
+		ret = tc35874x_ioctl(sd, cmd, inf);
+		if (!ret)
+			ret = copy_to_user(up, inf, sizeof(*inf));
+		kfree(inf);
+		break;
+	case RKMODULE_AWB_CFG:
+		cfg = kzalloc(sizeof(*cfg), GFP_KERNEL);
+		if (!cfg) {
+			ret = -ENOMEM;
+			return ret;
+		}
+
+		ret = copy_from_user(cfg, up, sizeof(*cfg));
+		if (!ret)
+			ret = tc35874x_ioctl(sd, cmd, cfg);
+		kfree(cfg);
+		break;
+	default:
+		ret = -ENOIOCTLCMD;
+		break;
+	}
+
+	return ret;
+}
+#endif
+
 /* -------------------------------------------------------------------------- */
 
 static const struct v4l2_subdev_core_ops tc35874x_core_ops = {
@@ -1714,6 +1793,10 @@ static const struct v4l2_subdev_core_ops tc35874x_core_ops = {
 	.interrupt_service_routine = tc35874x_isr,
 	.subscribe_event = tc35874x_subscribe_event,
 	.unsubscribe_event = v4l2_event_subdev_unsubscribe,
+	.ioctl = tc35874x_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl32 = tc35874x_compat_ioctl32,
+#endif
 };
 
 static const struct v4l2_subdev_video_ops tc35874x_video_ops = {
@@ -1912,6 +1995,9 @@ static int tc35874x_probe(struct i2c_client *client,
 	struct tc35874x_platform_data *pdata = client->dev.platform_data;
 	struct v4l2_subdev *sd;
 	struct v4l2_subdev_edid def_edid;
+	struct device *dev = &client->dev;
+	struct device_node *node = dev->of_node;
+	char facing[2];
 	int err, data;
 
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_SMBUS_BYTE_DATA))
@@ -1923,6 +2009,19 @@ static int tc35874x_probe(struct i2c_client *client,
 			GFP_KERNEL);
 	if (!state)
 		return -ENOMEM;
+
+	err = of_property_read_u32(node, RKMODULE_CAMERA_MODULE_INDEX,
+				   &state->module_index);
+	err |= of_property_read_string(node, RKMODULE_CAMERA_MODULE_FACING,
+				       &state->module_facing);
+	err |= of_property_read_string(node, RKMODULE_CAMERA_MODULE_NAME,
+				       &state->module_name);
+	err |= of_property_read_string(node, RKMODULE_CAMERA_LENS_NAME,
+				       &state->len_name);
+	if (err) {
+		dev_err(dev, "could not get module information!\n");
+		return -EINVAL;
+	}
 
 	state->i2c_client = client;
 
@@ -1993,6 +2092,15 @@ static int tc35874x_probe(struct i2c_client *client,
 	state->mbus_fmt_code = MEDIA_BUS_FMT_UYVY8_2X8;
 
 	sd->dev = &client->dev;
+	memset(facing, 0, sizeof(facing));
+	if (strcmp(state->module_facing, "back") == 0)
+		facing[0] = 'b';
+	else
+		facing[0] = 'f';
+
+	snprintf(sd->name, sizeof(sd->name), "m%02d_%s_%s %s",
+		 state->module_index, facing,
+		 TC35874X_NAME, dev_name(sd->dev));
 	err = v4l2_async_register_subdev(sd);
 	if (err < 0)
 		goto err_hdl;
@@ -2096,7 +2204,7 @@ MODULE_DEVICE_TABLE(of, tc35874x_of_match);
 
 static struct i2c_driver tc35874x_driver = {
 	.driver = {
-		.name = "tc35874x",
+		.name = TC35874X_NAME,
 		.of_match_table = of_match_ptr(tc35874x_of_match),
 	},
 	.probe = tc35874x_probe,

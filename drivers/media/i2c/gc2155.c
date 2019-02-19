@@ -13,6 +13,7 @@
 #include <linux/pm_runtime.h>
 #include <linux/regulator/consumer.h>
 #include <linux/sysfs.h>
+#include <linux/rk-camera-module.h>
 #include <media/media-entity.h>
 #include <media/v4l2-async.h>
 #include <media/v4l2-ctrls.h>
@@ -26,6 +27,8 @@
 #define REG_NULL			0xFF
 
 #define GC2155_XVCLK_FREQ		24000000
+
+#define GC2155_NAME			"gc2155"
 
 static const char * const gc2155_supply_names[] = {
 	"avdd",
@@ -59,6 +62,10 @@ struct gc2155 {
 	struct media_pad	pad;
 
 	const struct gc2155_mode *cur_mode;
+	u32			module_index;
+	const char		*module_facing;
+	const char		*module_name;
+	const char		*len_name;
 };
 
 #define to_gc2155(sd) container_of(sd, struct gc2155, subdev)
@@ -1086,6 +1093,76 @@ static void __gc2155_power_off(struct gc2155 *gc2155)
 	regulator_bulk_disable(GC2155_NUM_SUPPLIES, gc2155->supplies);
 }
 
+static void gc2155_get_module_inf(struct gc2155 *gc2155,
+				  struct rkmodule_inf *inf)
+{
+	memset(inf, 0, sizeof(*inf));
+	strlcpy(inf->base.sensor, GC2155_NAME, sizeof(inf->base.sensor));
+	strlcpy(inf->base.module, gc2155->module_name,
+		sizeof(inf->base.module));
+	strlcpy(inf->base.lens, gc2155->len_name, sizeof(inf->base.lens));
+}
+
+static long gc2155_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
+{
+	struct gc2155 *gc2155 = to_gc2155(sd);
+	long ret = 0;
+
+	switch (cmd) {
+	case RKMODULE_GET_MODULE_INFO:
+		gc2155_get_module_inf(gc2155, (struct rkmodule_inf *)arg);
+		break;
+	default:
+		ret = -ENOIOCTLCMD;
+		break;
+	}
+
+	return ret;
+}
+
+#ifdef CONFIG_COMPAT
+static long gc2155_compat_ioctl32(struct v4l2_subdev *sd,
+				  unsigned int cmd, unsigned long arg)
+{
+	void __user *up = compat_ptr(arg);
+	struct rkmodule_inf *inf;
+	struct rkmodule_awb_cfg *cfg;
+	long ret;
+
+	switch (cmd) {
+	case RKMODULE_GET_MODULE_INFO:
+		inf = kzalloc(sizeof(*inf), GFP_KERNEL);
+		if (!inf) {
+			ret = -ENOMEM;
+			return ret;
+		}
+
+		ret = gc2155_ioctl(sd, cmd, inf);
+		if (!ret)
+			ret = copy_to_user(up, inf, sizeof(*inf));
+		kfree(inf);
+		break;
+	case RKMODULE_AWB_CFG:
+		cfg = kzalloc(sizeof(*cfg), GFP_KERNEL);
+		if (!cfg) {
+			ret = -ENOMEM;
+			return ret;
+		}
+
+		ret = copy_from_user(cfg, up, sizeof(*cfg));
+		if (!ret)
+			ret = gc2155_ioctl(sd, cmd, cfg);
+		kfree(cfg);
+		break;
+	default:
+		ret = -ENOIOCTLCMD;
+		break;
+	}
+
+	return ret;
+}
+#endif
+
 static int gc2155_s_stream(struct v4l2_subdev *sd, int on)
 {
 	struct gc2155 *gc2155 = to_gc2155(sd);
@@ -1177,6 +1254,13 @@ static const struct dev_pm_ops gc2155_pm_ops = {
 			   gc2155_runtime_resume, NULL)
 };
 
+static const struct v4l2_subdev_core_ops gc2155_core_ops = {
+	.ioctl = gc2155_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl32 = gc2155_compat_ioctl32,
+#endif
+};
+
 static const struct v4l2_subdev_video_ops gc2155_video_ops = {
 	.s_stream = gc2155_s_stream,
 };
@@ -1189,6 +1273,7 @@ static const struct v4l2_subdev_pad_ops gc2155_pad_ops = {
 };
 
 static const struct v4l2_subdev_ops gc2155_subdev_ops = {
+	.core	= &gc2155_core_ops,
 	.video	= &gc2155_video_ops,
 	.pad	= &gc2155_pad_ops,
 };
@@ -1235,12 +1320,28 @@ static int gc2155_probe(struct i2c_client *client,
 			 const struct i2c_device_id *id)
 {
 	struct device *dev = &client->dev;
+	struct device_node *node = dev->of_node;
 	struct gc2155 *gc2155;
+	struct v4l2_subdev *sd;
+	char facing[2];
 	int ret;
 
 	gc2155 = devm_kzalloc(dev, sizeof(*gc2155), GFP_KERNEL);
 	if (!gc2155)
 		return -ENOMEM;
+
+	ret = of_property_read_u32(node, RKMODULE_CAMERA_MODULE_INDEX,
+				   &gc2155->module_index);
+	ret |= of_property_read_string(node, RKMODULE_CAMERA_MODULE_FACING,
+				       &gc2155->module_facing);
+	ret |= of_property_read_string(node, RKMODULE_CAMERA_MODULE_NAME,
+				       &gc2155->module_name);
+	ret |= of_property_read_string(node, RKMODULE_CAMERA_LENS_NAME,
+				       &gc2155->len_name);
+	if (ret) {
+		dev_err(dev, "could not get module information!\n");
+		return -EINVAL;
+	}
 
 	gc2155->client = client;
 	gc2155->cur_mode = &supported_modes[0];
@@ -1295,7 +1396,17 @@ static int gc2155_probe(struct i2c_client *client,
 		goto err_power_off;
 #endif
 
-	ret = v4l2_async_register_subdev(&gc2155->subdev);
+	sd = &gc2155->subdev;
+	memset(facing, 0, sizeof(facing));
+	if (strcmp(gc2155->module_facing, "back") == 0)
+		facing[0] = 'b';
+	else
+		facing[0] = 'f';
+
+	snprintf(sd->name, sizeof(sd->name), "m%02d_%s_%s %s",
+		 gc2155->module_index, facing,
+		 GC2155_NAME, dev_name(sd->dev));
+	ret = v4l2_async_register_subdev_sensor_common(sd);
 	if (ret) {
 		dev_err(dev, "v4l2 async register subdev failed\n");
 		goto err_clean_entity;
@@ -1353,7 +1464,7 @@ static const struct i2c_device_id gc2155_match_id[] = {
 
 static struct i2c_driver gc2155_i2c_driver = {
 	.driver = {
-		.name = "gc2155",
+		.name = GC2155_NAME,
 		.pm = &gc2155_pm_ops,
 		.of_match_table = of_match_ptr(gc2155_of_match),
 	},

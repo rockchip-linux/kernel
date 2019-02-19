@@ -14,6 +14,7 @@
 #include <linux/pm_runtime.h>
 #include <linux/regulator/consumer.h>
 #include <linux/sysfs.h>
+#include <linux/rk-camera-module.h>
 #include <media/media-entity.h>
 #include <media/v4l2-async.h>
 #include <media/v4l2-ctrls.h>
@@ -73,6 +74,8 @@
 #define OF_CAMERA_PINCTRL_STATE_DEFAULT	"rockchip,camera_default"
 #define OF_CAMERA_PINCTRL_STATE_SLEEP	"rockchip,camera_sleep"
 
+#define OV13850_NAME			"ov13850"
+
 static const struct regval *ov13850_global_regs;
 
 static const char * const ov13850_supply_names[] = {
@@ -121,6 +124,10 @@ struct ov13850 {
 	struct mutex		mutex;
 	bool			streaming;
 	const struct ov13850_mode *cur_mode;
+	u32			module_index;
+	const char		*module_facing;
+	const char		*module_name;
+	const char		*len_name;
 };
 
 #define to_ov13850(sd) container_of(sd, struct ov13850, subdev)
@@ -884,6 +891,76 @@ static int ov13850_g_frame_interval(struct v4l2_subdev *sd,
 	return 0;
 }
 
+static void ov13850_get_module_inf(struct ov13850 *ov13850,
+				   struct rkmodule_inf *inf)
+{
+	memset(inf, 0, sizeof(*inf));
+	strlcpy(inf->base.sensor, OV13850_NAME, sizeof(inf->base.sensor));
+	strlcpy(inf->base.module, ov13850->module_name,
+		sizeof(inf->base.module));
+	strlcpy(inf->base.lens, ov13850->len_name, sizeof(inf->base.lens));
+}
+
+static long ov13850_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
+{
+	struct ov13850 *ov13850 = to_ov13850(sd);
+	long ret = 0;
+
+	switch (cmd) {
+	case RKMODULE_GET_MODULE_INFO:
+		ov13850_get_module_inf(ov13850, (struct rkmodule_inf *)arg);
+		break;
+	default:
+		ret = -ENOIOCTLCMD;
+		break;
+	}
+
+	return ret;
+}
+
+#ifdef CONFIG_COMPAT
+static long ov13850_compat_ioctl32(struct v4l2_subdev *sd,
+				   unsigned int cmd, unsigned long arg)
+{
+	void __user *up = compat_ptr(arg);
+	struct rkmodule_inf *inf;
+	struct rkmodule_awb_cfg *cfg;
+	long ret;
+
+	switch (cmd) {
+	case RKMODULE_GET_MODULE_INFO:
+		inf = kzalloc(sizeof(*inf), GFP_KERNEL);
+		if (!inf) {
+			ret = -ENOMEM;
+			return ret;
+		}
+
+		ret = ov13850_ioctl(sd, cmd, inf);
+		if (!ret)
+			ret = copy_to_user(up, inf, sizeof(*inf));
+		kfree(inf);
+		break;
+	case RKMODULE_AWB_CFG:
+		cfg = kzalloc(sizeof(*cfg), GFP_KERNEL);
+		if (!cfg) {
+			ret = -ENOMEM;
+			return ret;
+		}
+
+		ret = copy_from_user(cfg, up, sizeof(*cfg));
+		if (!ret)
+			ret = ov13850_ioctl(sd, cmd, cfg);
+		kfree(cfg);
+		break;
+	default:
+		ret = -ENOIOCTLCMD;
+		break;
+	}
+
+	return ret;
+}
+#endif
+
 static int __ov13850_start_stream(struct ov13850 *ov13850)
 {
 	int ret;
@@ -1079,6 +1156,13 @@ static const struct v4l2_subdev_internal_ops ov13850_internal_ops = {
 };
 #endif
 
+static const struct v4l2_subdev_core_ops ov13850_core_ops = {
+	.ioctl = ov13850_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl32 = ov13850_compat_ioctl32,
+#endif
+};
+
 static const struct v4l2_subdev_video_ops ov13850_video_ops = {
 	.s_stream = ov13850_s_stream,
 	.g_frame_interval = ov13850_g_frame_interval,
@@ -1092,6 +1176,7 @@ static const struct v4l2_subdev_pad_ops ov13850_pad_ops = {
 };
 
 static const struct v4l2_subdev_ops ov13850_subdev_ops = {
+	.core	= &ov13850_core_ops,
 	.video	= &ov13850_video_ops,
 	.pad	= &ov13850_pad_ops,
 };
@@ -1277,13 +1362,28 @@ static int ov13850_probe(struct i2c_client *client,
 			 const struct i2c_device_id *id)
 {
 	struct device *dev = &client->dev;
+	struct device_node *node = dev->of_node;
 	struct ov13850 *ov13850;
 	struct v4l2_subdev *sd;
+	char facing[2];
 	int ret;
 
 	ov13850 = devm_kzalloc(dev, sizeof(*ov13850), GFP_KERNEL);
 	if (!ov13850)
 		return -ENOMEM;
+
+	ret = of_property_read_u32(node, RKMODULE_CAMERA_MODULE_INDEX,
+				   &ov13850->module_index);
+	ret |= of_property_read_string(node, RKMODULE_CAMERA_MODULE_FACING,
+				       &ov13850->module_facing);
+	ret |= of_property_read_string(node, RKMODULE_CAMERA_MODULE_NAME,
+				       &ov13850->module_name);
+	ret |= of_property_read_string(node, RKMODULE_CAMERA_LENS_NAME,
+				       &ov13850->len_name);
+	if (ret) {
+		dev_err(dev, "could not get module information!\n");
+		return -EINVAL;
+	}
 
 	ov13850->client = client;
 	ov13850->cur_mode = &supported_modes[0];
@@ -1358,7 +1458,16 @@ static int ov13850_probe(struct i2c_client *client,
 		goto err_power_off;
 #endif
 
-	ret = v4l2_async_register_subdev(sd);
+	memset(facing, 0, sizeof(facing));
+	if (strcmp(ov13850->module_facing, "back") == 0)
+		facing[0] = 'b';
+	else
+		facing[0] = 'f';
+
+	snprintf(sd->name, sizeof(sd->name), "m%02d_%s_%s %s",
+		 ov13850->module_index, facing,
+		 OV13850_NAME, dev_name(sd->dev));
+	ret = v4l2_async_register_subdev_sensor_common(sd);
 	if (ret) {
 		dev_err(dev, "v4l2 async register subdev failed\n");
 		goto err_clean_entity;
@@ -1419,7 +1528,7 @@ static const struct i2c_device_id ov13850_match_id[] = {
 
 static struct i2c_driver ov13850_i2c_driver = {
 	.driver = {
-		.name = "ov13850",
+		.name = OV13850_NAME,
 		.pm = &ov13850_pm_ops,
 		.of_match_table = of_match_ptr(ov13850_of_match),
 	},

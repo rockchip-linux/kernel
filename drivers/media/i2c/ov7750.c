@@ -14,6 +14,7 @@
 #include <linux/pm_runtime.h>
 #include <linux/regulator/consumer.h>
 #include <linux/sysfs.h>
+#include <linux/rk-camera-module.h>
 #include <media/media-entity.h>
 #include <media/v4l2-async.h>
 #include <media/v4l2-ctrls.h>
@@ -72,6 +73,8 @@
 #define OF_CAMERA_PINCTRL_DEFAULT	"rockchip,camera_default"
 #define OF_CAMERA_PINCTRL_SLEEP	"rockchip,camera_sleep"
 
+#define OV7750_NAME			"ov7750"
+
 static const struct regval *ov7750_global_regs;
 
 static const char * const ov7750_supply_names[] = {
@@ -120,6 +123,10 @@ struct ov7750 {
 	struct mutex		mutex;
 	bool			streaming;
 	const struct ov7750_mode *cur_mode;
+	u32			module_index;
+	const char		*module_facing;
+	const char		*module_name;
+	const char		*len_name;
 };
 
 #define to_ov7750(sd) container_of(sd, struct ov7750, subdev)
@@ -597,6 +604,76 @@ static int ov7750_enable_test_pattern(struct ov7750 *ov7750, u32 pattern)
 				 val);
 }
 
+static void ov7750_get_module_inf(struct ov7750 *ov7750,
+				  struct rkmodule_inf *inf)
+{
+	memset(inf, 0, sizeof(*inf));
+	strlcpy(inf->base.sensor, OV7750_NAME, sizeof(inf->base.sensor));
+	strlcpy(inf->base.module, ov7750->module_name,
+		sizeof(inf->base.module));
+	strlcpy(inf->base.lens, ov7750->len_name, sizeof(inf->base.lens));
+}
+
+static long ov7750_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
+{
+	struct ov7750 *ov7750 = to_ov7750(sd);
+	long ret = 0;
+
+	switch (cmd) {
+	case RKMODULE_GET_MODULE_INFO:
+		ov7750_get_module_inf(ov7750, (struct rkmodule_inf *)arg);
+		break;
+	default:
+		ret = -ENOTTY;
+		break;
+	}
+
+	return ret;
+}
+
+#ifdef CONFIG_COMPAT
+static long ov7750_compat_ioctl32(struct v4l2_subdev *sd,
+				  unsigned int cmd, unsigned long arg)
+{
+	void __user *up = compat_ptr(arg);
+	struct rkmodule_inf *inf;
+	struct rkmodule_awb_cfg *cfg;
+	long ret;
+
+	switch (cmd) {
+	case RKMODULE_GET_MODULE_INFO:
+		inf = kzalloc(sizeof(*inf), GFP_KERNEL);
+		if (!inf) {
+			ret = -ENOMEM;
+			return ret;
+		}
+
+		ret = ov7750_ioctl(sd, cmd, inf);
+		if (!ret)
+			ret = copy_to_user(up, inf, sizeof(*inf));
+		kfree(inf);
+		break;
+	case RKMODULE_AWB_CFG:
+		cfg = kzalloc(sizeof(*cfg), GFP_KERNEL);
+		if (!cfg) {
+			ret = -ENOMEM;
+			return ret;
+		}
+
+		ret = copy_from_user(cfg, up, sizeof(*cfg));
+		if (!ret)
+			ret = ov7750_ioctl(sd, cmd, cfg);
+		kfree(cfg);
+		break;
+	default:
+		ret = -ENOIOCTLCMD;
+		break;
+	}
+
+	return ret;
+}
+#endif
+
 static int __ov7750_start_stream(struct ov7750 *ov7750)
 {
 	int ret;
@@ -792,6 +869,13 @@ static const struct v4l2_subdev_internal_ops ov7750_internal_ops = {
 };
 #endif
 
+static const struct v4l2_subdev_core_ops ov7750_core_ops = {
+	.ioctl = ov7750_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl32 = ov7750_compat_ioctl32,
+#endif
+};
+
 static const struct v4l2_subdev_video_ops ov7750_video_ops = {
 	.s_stream = ov7750_s_stream,
 };
@@ -804,6 +888,7 @@ static const struct v4l2_subdev_pad_ops ov7750_pad_ops = {
 };
 
 static const struct v4l2_subdev_ops ov7750_subdev_ops = {
+	.core	= &ov7750_core_ops,
 	.video	= &ov7750_video_ops,
 	.pad	= &ov7750_pad_ops,
 };
@@ -990,13 +1075,28 @@ static int ov7750_probe(struct i2c_client *client,
 			 const struct i2c_device_id *id)
 {
 	struct device *dev = &client->dev;
+	struct device_node *node = dev->of_node;
 	struct ov7750 *ov7750;
 	struct v4l2_subdev *sd;
+	char facing[2];
 	int ret;
 
 	ov7750 = devm_kzalloc(dev, sizeof(*ov7750), GFP_KERNEL);
 	if (!ov7750)
 		return -ENOMEM;
+
+	ret = of_property_read_u32(node, RKMODULE_CAMERA_MODULE_INDEX,
+				   &ov7750->module_index);
+	ret |= of_property_read_string(node, RKMODULE_CAMERA_MODULE_FACING,
+				       &ov7750->module_facing);
+	ret |= of_property_read_string(node, RKMODULE_CAMERA_MODULE_NAME,
+				       &ov7750->module_name);
+	ret |= of_property_read_string(node, RKMODULE_CAMERA_LENS_NAME,
+				       &ov7750->len_name);
+	if (ret) {
+		dev_err(dev, "could not get module information!\n");
+		return -EINVAL;
+	}
 
 	ov7750->client = client;
 	ov7750->cur_mode = &supported_modes[0];
@@ -1071,7 +1171,16 @@ static int ov7750_probe(struct i2c_client *client,
 		goto err_power_off;
 #endif
 
-	ret = v4l2_async_register_subdev(sd);
+	memset(facing, 0, sizeof(facing));
+	if (strcmp(ov7750->module_facing, "back") == 0)
+		facing[0] = 'b';
+	else
+		facing[0] = 'f';
+
+	snprintf(sd->name, sizeof(sd->name), "m%02d_%s_%s %s",
+		 ov7750->module_index, facing,
+		 OV7750_NAME, dev_name(sd->dev));
+	ret = v4l2_async_register_subdev_sensor_common(sd);
 	if (ret) {
 		dev_err(dev, "v4l2 async register subdev failed\n");
 		goto err_clean_entity;
@@ -1132,7 +1241,7 @@ static const struct i2c_device_id ov7750_match_id[] = {
 
 static struct i2c_driver ov7750_i2c_driver = {
 	.driver = {
-		.name = "ov7750",
+		.name = OV7750_NAME,
 		.pm = &ov7750_pm_ops,
 		.of_match_table = of_match_ptr(ov7750_of_match),
 	},

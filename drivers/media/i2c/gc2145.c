@@ -38,7 +38,7 @@
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 #include <linux/videodev2.h>
-
+#include <linux/rk-camera-module.h>
 #include <media/media-entity.h>
 #include <media/v4l2-common.h>
 #include <media/v4l2-ctrls.h>
@@ -120,6 +120,10 @@ struct gc2145 {
 	const struct gc2145_framesize *framesize_cfg;
 	unsigned int cfg_num;
 	int streaming;
+	u32 module_index;
+	const char *module_facing;
+	const char *module_name;
+	const char *len_name;
 };
 
 static const struct sensor_register gc2145_dvp_init_regs[] = {
@@ -2244,10 +2248,84 @@ unlock:
 	return ret;
 }
 
+static void gc2145_get_module_inf(struct gc2145 *gc2145,
+				  struct rkmodule_inf *inf)
+{
+	memset(inf, 0, sizeof(*inf));
+	strlcpy(inf->base.sensor, DRIVER_NAME, sizeof(inf->base.sensor));
+	strlcpy(inf->base.module, gc2145->module_name,
+		sizeof(inf->base.module));
+	strlcpy(inf->base.lens, gc2145->len_name, sizeof(inf->base.lens));
+}
+
+static long gc2145_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
+{
+	struct gc2145 *gc2145 = to_gc2145(sd);
+	long ret = 0;
+
+	switch (cmd) {
+	case RKMODULE_GET_MODULE_INFO:
+		gc2145_get_module_inf(gc2145, (struct rkmodule_inf *)arg);
+		break;
+	default:
+		ret = -ENOIOCTLCMD;
+		break;
+	}
+
+	return ret;
+}
+
+#ifdef CONFIG_COMPAT
+static long gc2145_compat_ioctl32(struct v4l2_subdev *sd,
+				  unsigned int cmd, unsigned long arg)
+{
+	void __user *up = compat_ptr(arg);
+	struct rkmodule_inf *inf;
+	struct rkmodule_awb_cfg *cfg;
+	long ret;
+
+	switch (cmd) {
+	case RKMODULE_GET_MODULE_INFO:
+		inf = kzalloc(sizeof(*inf), GFP_KERNEL);
+		if (!inf) {
+			ret = -ENOMEM;
+			return ret;
+		}
+
+		ret = gc2145_ioctl(sd, cmd, inf);
+		if (!ret)
+			ret = copy_to_user(up, inf, sizeof(*inf));
+		kfree(inf);
+		break;
+	case RKMODULE_AWB_CFG:
+		cfg = kzalloc(sizeof(*cfg), GFP_KERNEL);
+		if (!cfg) {
+			ret = -ENOMEM;
+			return ret;
+		}
+
+		ret = copy_from_user(cfg, up, sizeof(*cfg));
+		if (!ret)
+			ret = gc2145_ioctl(sd, cmd, cfg);
+		kfree(cfg);
+		break;
+	default:
+		ret = -ENOIOCTLCMD;
+		break;
+	}
+
+	return ret;
+}
+#endif
+
 static const struct v4l2_subdev_core_ops gc2145_subdev_core_ops = {
 	.log_status = v4l2_ctrl_subdev_log_status,
 	.subscribe_event = v4l2_ctrl_subdev_subscribe_event,
 	.unsubscribe_event = v4l2_event_subdev_unsubscribe,
+	.ioctl = gc2145_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl32 = gc2145_compat_ioctl32,
+#endif
 };
 
 static const struct v4l2_subdev_video_ops gc2145_subdev_video_ops = {
@@ -2423,13 +2501,29 @@ static int gc2145_parse_of(struct gc2145 *gc2145)
 static int gc2145_probe(struct i2c_client *client,
 			const struct i2c_device_id *id)
 {
+	struct device *dev = &client->dev;
+	struct device_node *node = dev->of_node;
 	struct v4l2_subdev *sd;
 	struct gc2145 *gc2145;
+	char facing[2];
 	int ret;
 
 	gc2145 = devm_kzalloc(&client->dev, sizeof(*gc2145), GFP_KERNEL);
 	if (!gc2145)
 		return -ENOMEM;
+
+	ret = of_property_read_u32(node, RKMODULE_CAMERA_MODULE_INDEX,
+				   &gc2145->module_index);
+	ret |= of_property_read_string(node, RKMODULE_CAMERA_MODULE_FACING,
+				       &gc2145->module_facing);
+	ret |= of_property_read_string(node, RKMODULE_CAMERA_MODULE_NAME,
+				       &gc2145->module_name);
+	ret |= of_property_read_string(node, RKMODULE_CAMERA_LENS_NAME,
+				       &gc2145->len_name);
+	if (ret) {
+		dev_err(dev, "could not get module information!\n");
+		return -EINVAL;
+	}
 
 	gc2145->client = client;
 	gc2145->xvclk = devm_clk_get(&client->dev, "xvclk");
@@ -2500,7 +2594,16 @@ static int gc2145_probe(struct i2c_client *client,
 	if (ret < 0)
 		goto error;
 
-	ret = v4l2_async_register_subdev(&gc2145->sd);
+	memset(facing, 0, sizeof(facing));
+	if (strcmp(gc2145->module_facing, "back") == 0)
+		facing[0] = 'b';
+	else
+		facing[0] = 'f';
+
+	snprintf(sd->name, sizeof(sd->name), "m%02d_%s_%s %s",
+		 gc2145->module_index, facing,
+		 DRIVER_NAME, dev_name(sd->dev));
+	ret = v4l2_async_register_subdev_sensor_common(sd);
 	if (ret)
 		goto error;
 

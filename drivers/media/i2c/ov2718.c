@@ -14,6 +14,7 @@
 #include <linux/pm_runtime.h>
 #include <linux/regulator/consumer.h>
 #include <linux/sysfs.h>
+#include <linux/rk-camera-module.h>
 #include <media/media-entity.h>
 #include <media/v4l2-async.h>
 #include <media/v4l2-ctrls.h>
@@ -89,6 +90,8 @@
 #define OF_CAMERA_MODULE_REGULATORS		"rockchip,regulator-names"
 #define OF_CAMERA_MODULE_REGULATOR_VOLTAGES	"rockchip,regulator-voltages"
 
+#define OV2718_NAME			"ov2718"
+
 struct ov2718_gpio {
 	int pltfrm_gpio;
 	const char *label;
@@ -149,6 +152,10 @@ struct ov2718 {
 	const struct ov2718_mode *support_modes;
 	u32 support_modes_num;
 	struct ov2718_regulators regulators;
+	u32			module_index;
+	const char		*module_facing;
+	const char		*module_name;
+	const char		*len_name;
 };
 
 #define to_ov2718(sd) container_of(sd, struct ov2718, subdev)
@@ -4275,6 +4282,16 @@ static void ov2718_get_hcg_reg(u32 gain, u32 *again_reg, u32 *dgain_reg)
 	}
 }
 
+static void ov2718_get_module_inf(struct ov2718 *ov2718,
+				  struct rkmodule_inf *inf)
+{
+	memset(inf, 0, sizeof(*inf));
+	strlcpy(inf->base.sensor, OV2718_NAME, sizeof(inf->base.sensor));
+	strlcpy(inf->base.module, ov2718->module_name,
+		sizeof(inf->base.module));
+	strlcpy(inf->base.lens, ov2718->len_name, sizeof(inf->base.lens));
+}
+
 static long ov2718_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 {
 	struct ov2718 *ov2718 = to_ov2718(sd);
@@ -4373,12 +4390,58 @@ static long ov2718_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 			l_dgain,
 			s_dgain);
 		break;
+	case RKMODULE_GET_MODULE_INFO:
+		ov2718_get_module_inf(ov2718, (struct rkmodule_inf *)arg);
+		break;
 	default:
-		return -ENOTTY;
+		return -ENOIOCTLCMD;
 	}
 
 	return ret;
 }
+
+#ifdef CONFIG_COMPAT
+static long ov2718_compat_ioctl32(struct v4l2_subdev *sd,
+				  unsigned int cmd, unsigned long arg)
+{
+	void __user *up = compat_ptr(arg);
+	struct rkmodule_inf *inf;
+	struct rkmodule_awb_cfg *cfg;
+	long ret;
+
+	switch (cmd) {
+	case RKMODULE_GET_MODULE_INFO:
+		inf = kzalloc(sizeof(*inf), GFP_KERNEL);
+		if (!inf) {
+			ret = -ENOMEM;
+			return ret;
+		}
+
+		ret = ov2718_ioctl(sd, cmd, inf);
+		if (!ret)
+			ret = copy_to_user(up, inf, sizeof(*inf));
+		kfree(inf);
+		break;
+	case RKMODULE_AWB_CFG:
+		cfg = kzalloc(sizeof(*cfg), GFP_KERNEL);
+		if (!cfg) {
+			ret = -ENOMEM;
+			return ret;
+		}
+
+		ret = copy_from_user(cfg, up, sizeof(*cfg));
+		if (!ret)
+			ret = ov2718_ioctl(sd, cmd, cfg);
+		kfree(cfg);
+		break;
+	default:
+		ret = -ENOIOCTLCMD;
+		break;
+	}
+
+	return ret;
+}
+#endif
 
 /* Calculate the delay in us by clock rate and clock cycles */
 static inline u32 ov2718_cal_delay(u32 cycles)
@@ -4555,6 +4618,9 @@ static const struct v4l2_subdev_pad_ops ov2718_pad_ops = {
 
 static const struct v4l2_subdev_core_ops ov2718_core_ops = {
 	.ioctl = ov2718_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl32 = ov2718_compat_ioctl32,
+#endif
 };
 
 static const struct v4l2_subdev_ops ov2718_subdev_ops = {
@@ -4918,13 +4984,28 @@ static int ov2718_probe(struct i2c_client *client,
 			const struct i2c_device_id *id)
 {
 	struct device *dev = &client->dev;
+	struct device_node *node = dev->of_node;
 	struct ov2718 *ov2718;
 	struct v4l2_subdev *sd;
+	char facing[2];
 	int ret;
 
 	ov2718 = devm_kzalloc(dev, sizeof(*ov2718), GFP_KERNEL);
 	if (!ov2718)
 		return -ENOMEM;
+
+	ret = of_property_read_u32(node, RKMODULE_CAMERA_MODULE_INDEX,
+				   &ov2718->module_index);
+	ret |= of_property_read_string(node, RKMODULE_CAMERA_MODULE_FACING,
+				       &ov2718->module_facing);
+	ret |= of_property_read_string(node, RKMODULE_CAMERA_MODULE_NAME,
+				       &ov2718->module_name);
+	ret |= of_property_read_string(node, RKMODULE_CAMERA_LENS_NAME,
+				       &ov2718->len_name);
+	if (ret) {
+		dev_err(dev, "could not get module information!\n");
+		return -EINVAL;
+	}
 
 	ov2718->client = client;
 
@@ -4974,7 +5055,16 @@ static int ov2718_probe(struct i2c_client *client,
 #endif
 
 	if (ov2718->has_devnode) {
-		ret = v4l2_async_register_subdev(sd);
+		memset(facing, 0, sizeof(facing));
+		if (strcmp(ov2718->module_facing, "back") == 0)
+			facing[0] = 'b';
+		else
+			facing[0] = 'f';
+
+		snprintf(sd->name, sizeof(sd->name), "m%02d_%s_%s %s",
+			 ov2718->module_index, facing,
+			 OV2718_NAME, dev_name(sd->dev));
+		ret = v4l2_async_register_subdev_sensor_common(sd);
 		if (ret) {
 			dev_err(dev, "v4l2 async register subdev failed\n");
 			goto err_clean_entity;
@@ -5037,7 +5127,7 @@ static const struct i2c_device_id ov2718_match_id[] = {
 
 static struct i2c_driver ov2718_i2c_driver = {
 	.driver = {
-		.name = "ov2718",
+		.name = OV2718_NAME,
 		.pm = &ov2718_pm_ops,
 		.of_match_table = of_match_ptr(ov2718_of_match),
 	},
