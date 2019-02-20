@@ -439,6 +439,11 @@
 		/* hw changed the pwdn to gpio2_b5 */
 		pwdn-gpios = <&gpio2 13 GPIO_ACTIVE_HIGH>;
 
+		rockchip,camera-module-index = <1>;
+		rockchip,camera-module-facing = "front";
+		rockchip,camera-module-name = "CMK-CW2392";
+		rockchip,camera-module-lens-name = "CMK-CW2392";
+
 		port {
 			gc2155_out: endpoint {
 				remote-endpoint = <&cif_in>;
@@ -459,6 +464,11 @@
 
 		/*reset-gpios = <&gpio2 14 GPIO_ACTIVE_HIGH>;*/
 		pwdn-gpios = <&gpio2 14 GPIO_ACTIVE_HIGH>;
+
+		rockchip,camera-module-index = <0>;
+		rockchip,camera-module-facing = "back";
+		rockchip,camera-module-name = "TongJu";
+		rockchip,camera-module-lens-name = "CHT842-MD";
 
 		port {
 			ucam_out: endpoint {

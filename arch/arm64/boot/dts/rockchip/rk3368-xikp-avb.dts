@@ -41,7 +41,7 @@
 &i2c3 {
 	status = "okay";
 
-	gc2145@3c {
+	gc2145: gc2145@3c {
 		compatible = "galaxycore,gc2145";
 		reg = <0x3c>;
 		clocks = <&cru SCLK_VIP_OUT>;
@@ -51,6 +51,10 @@
 		pinctrl-0 = <&isp_dvp_d2d9 &isp_dvp_d10d11 &cif_clkout>;
 		power-gpio = <&gpio0 RK_PD4 GPIO_ACTIVE_HIGH>;
 		pwdn-gpios = <&gpio1 RK_PB4 GPIO_ACTIVE_HIGH>;
+		rockchip,camera-module-index = <1>;
+		rockchip,camera-module-facing = "front";
+		rockchip,camera-module-name = "CameraKing";
+		rockchip,camera-module-lens-name = "Largan";
 		port {
 			gc2145_out: endpoint {
 				remote-endpoint = <&isp_dvp_in>;
@@ -58,7 +62,7 @@
 		};
 	};
 
-	ov8858@36 {
+	ov8858: ov8858@36 {
 		compatible = "ovti,ov8858";
 		reg = <0x36>;
 		clocks = <&cru SCLK_VIP_OUT>;
@@ -67,8 +71,10 @@
 		pinctrl-names = "rockchip,camera_default";
 		pinctrl-0 = <&cif_clkout>;
 
-		rockchip,camera-module-name = "NC";
-		rockchip,camera-module-lens-name = "LG-9569A2";
+		rockchip,camera-module-index = <0>;
+		rockchip,camera-module-facing = "back";
+		rockchip,camera-module-name = "CameraKing";
+		rockchip,camera-module-lens-name = "Largan-9569A2";
 		power-gpio = <&gpio0 RK_PD4 GPIO_ACTIVE_HIGH>;
 		pwdn-gpios = <&gpio1 RK_PB5 GPIO_ACTIVE_HIGH>;
 		port {

@@ -33,7 +33,7 @@
 &i2c2 {
 	status = "okay";
 
-	gc0312@21 {
+	gc0312: gc0312@21 {
 		status = "okay";
 		compatible = "galaxycore,gc0312";
 		reg = <0x21>;
@@ -48,6 +48,10 @@
 		dvdd-supply = <&vcc1v8_dvp>;
 
 		pwdn-gpios = <&gpio2 14 GPIO_ACTIVE_HIGH>;
+		rockchip,camera-module-index = <1>;
+		rockchip,camera-module-facing = "front";
+		rockchip,camera-module-name = "CameraKing";
+		rockchip,camera-module-lens-name = "Largan";
 
 		port {
 			gc0312_out: endpoint {
@@ -56,7 +60,7 @@
 		};
 	};
 
-	gc2145@3c {
+	gc2145: gc2145@3c {
 		status = "okay";
 		compatible = "galaxycore,gc2145";
 		reg = <0x3c>;
@@ -71,6 +75,10 @@
 		dvdd-supply = <&vcc1v8_dvp>;
 
 		pwdn-gpios = <&gpio2 13 GPIO_ACTIVE_HIGH>;
+		rockchip,camera-module-index = <0>;
+		rockchip,camera-module-facing = "back";
+		rockchip,camera-module-name = "CameraKing";
+		rockchip,camera-module-lens-name = "Largan";
 
 		port {
 			gc2145_out: endpoint {
