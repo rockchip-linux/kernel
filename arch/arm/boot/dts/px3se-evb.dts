@@ -569,6 +569,11 @@
 
 		status = "okay";
 
+		rockchip,camera-module-index = <0>;
+		rockchip,camera-module-facing = "back";
+		rockchip,camera-module-name = "adv7181";
+		rockchip,camera-module-lens-name = "adv7181";
+
 		port {
 			adv7181_out: endpoint {
 				remote-endpoint = <&cif_in>;

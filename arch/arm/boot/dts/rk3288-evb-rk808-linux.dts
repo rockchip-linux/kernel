@@ -504,6 +504,10 @@
 
 		reset-gpios = <&gpio7 21 GPIO_ACTIVE_HIGH>;
 		pwdn-gpios = <&gpio2 15 GPIO_ACTIVE_HIGH>;
+		rockchip,camera-module-index = <0>;
+		rockchip,camera-module-facing = "back";
+		rockchip,camera-module-name = "CMK-CT0116";
+		rockchip,camera-module-lens-name = "Largan-50013A1";
 
 		port {
 			cam_out: endpoint {

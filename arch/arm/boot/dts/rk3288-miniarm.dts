@@ -447,11 +447,16 @@
 		status = "okay";
 	};
 
-	camera1: imx219@10 {
+	imx219: imx219@10 {
 		compatible = "sony,imx219";
 		reg = <0x10>;
 		clocks = <&ext_cam_clk>;
 		status = "okay";
+
+		rockchip,camera-module-index = <0>;
+		rockchip,camera-module-facing = "back";
+		rockchip,camera-module-name = "LA6110PA";
+		rockchip,camera-module-lens-name = "YM6011P";
 
 		port {
 			imx219_out: endpoint {
