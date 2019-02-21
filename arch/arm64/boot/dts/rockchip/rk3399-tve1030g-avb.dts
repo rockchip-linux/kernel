@@ -36,6 +36,14 @@
 &i2c1 {
 	status = "okay";
 
+	vm149c: vm149c@0c {
+		compatible = "silicon touch,vm149c";
+		status = "okay";
+		reg = <0x0c>;
+		rockchip,camera-module-index = <0>;
+		rockchip,camera-module-facing = "back";
+	};
+
 	ov13850: ov13850@10 {
 		compatible = "ovti,ov13850";
 		status = "disabled";
@@ -54,6 +62,7 @@
 		rockchip,camera-module-facing = "back";
 		rockchip,camera-module-name = "CMK-CT0116";
 		rockchip,camera-module-lens-name = "Largan-50013A1";
+		lens-focus = <&vm149c>;
 		port {
 			ucam_out0: endpoint {
 				remote-endpoint = <&mipi_in_ucam0>;
