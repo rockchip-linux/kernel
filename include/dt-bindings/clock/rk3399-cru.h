@@ -31,6 +31,7 @@
 
 /* sclk gates (special clocks) */
 #define SCLK_I2SOUT_SRC			64
+#define SCLK_I2S_8CH		SCLK_I2SOUT_SRC
 #define SCLK_I2C1			65
 #define SCLK_I2C2			66
 #define SCLK_I2C3			67
