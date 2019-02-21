@@ -655,15 +655,6 @@ static int panel_simple_prepare(struct drm_panel *panel)
 	if (p->desc && p->desc->delay.init)
 		panel_simple_sleep(p->desc->delay.init);
 
-	if (p->on_cmds) {
-		if (p->dsi)
-			err = panel_simple_dsi_send_cmds(p, p->on_cmds);
-		else if (p->cmd_type == CMD_TYPE_SPI)
-			err = panel_simple_spi_send_cmds(p, p->on_cmds);
-		if (err)
-			dev_err(p->dev, "failed to send on cmds\n");
-	}
-
 	p->prepared = true;
 
 	return 0;
@@ -676,6 +667,15 @@ static int panel_simple_enable(struct drm_panel *panel)
 
 	if (p->enabled)
 		return 0;
+
+	if (p->on_cmds) {
+		if (p->dsi)
+			err = panel_simple_dsi_send_cmds(p, p->on_cmds);
+		else if (p->cmd_type == CMD_TYPE_SPI)
+			err = panel_simple_spi_send_cmds(p, p->on_cmds);
+		if (err)
+			dev_err(p->dev, "failed to send on cmds\n");
+	}
 
 	if (p->cmd_type == CMD_TYPE_MCU) {
 		err = panel_simple_mcu_send_cmds(p, p->on_cmds);
