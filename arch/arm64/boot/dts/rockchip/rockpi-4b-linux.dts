@@ -270,16 +270,17 @@
 
 	gpio-leds {
 		compatible = "gpio-leds";
+		status = "okay";
 
 		user-led1 {
-			gpios=<&gpio3 28 GPIO_ACTIVE_HIGH>;
-			linux,default-trigger="heartbeat";
+			gpios = <&gpio3 28 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "heartbeat";
 			default-state = "on";
 		};
 
 		user-led2 {
-			gpios=<&gpio3 29 GPIO_ACTIVE_HIGH>;
-			linux,default-trigger="heartbeat";
+			gpios = <&gpio3 29 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "heartbeat";
 			default-state = "on";
 		};
 	};
@@ -617,10 +618,6 @@
 
 };
 
-&i2c7 {
-	status = "okay";
-};
-
 &i2c4 {
 	status = "okay";
 
@@ -813,7 +810,7 @@
 };
 
 &uart4 {
-	status = "okay";
+	status = "disabled";
 };
 
 &usb_host0_ehci {
