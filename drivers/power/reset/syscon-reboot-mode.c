@@ -29,6 +29,15 @@ static int syscon_reboot_mode_write(int magic)
 	return 0;
 }
 
+static int syscon_reboot_mode_read(void)
+{
+	u32 val = 0;
+
+	regmap_read(map, offset, &val);
+
+	return val;
+}
+
 static int syscon_reboot_mode_probe(struct platform_device *pdev)
 {
 	int ret;
@@ -39,7 +48,8 @@ static int syscon_reboot_mode_probe(struct platform_device *pdev)
 	if (of_property_read_u32(pdev->dev.of_node, "offset", &offset))
 		return -EINVAL;
 	of_property_read_u32(pdev->dev.of_node, "mask", &mask);
-	ret = reboot_mode_register(&pdev->dev, syscon_reboot_mode_write);
+	ret = reboot_mode_register(&pdev->dev, syscon_reboot_mode_write,
+				   syscon_reboot_mode_read);
 	if (ret)
 		dev_err(&pdev->dev, "can't register reboot mode\n");
 
