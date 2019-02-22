@@ -84,6 +84,17 @@ dtb-$(CONFIG_ARCH_ROCKCHIP) += rock960-model-ab-linux.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += rock960-model-c-linux.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += rockpi-4b-linux.dtb
 
+targets += dtbs dtbs_instal
+targets += $(dtb-y)
+dtstree     := $(srctree)/$(src)
+dtb-$(CONFIG_OF_ALL_DTBS) := $(patsubst $(dtstree)/%.dts,%.dtb, $(wildcard $(dtstree)/*.dts))
+
 always		:= $(dtb-y)
-subdir-y	:= $(dts-dirs)
+subdir-y	:= $(dts-dirs) overlays
 clean-files	:= *.dtb
+
+# Enable fixups to support overlays on ROCK Pi platforms
+ifeq ($(CONFIG_ARCH_ROCKCHIP),y)
+	DTC_FLAGS ?= -@ -H epapr
+	dts-dirs += overlays
+endif
