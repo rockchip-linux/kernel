@@ -30,6 +30,7 @@ dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3308b-evb-amic-v10.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3326-evb-ai-va-v10.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3326-evb-ai-va-v11.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3326-evb-ai-va-v11-i2s-dmic.dtb
+dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3326-evb-ai-va-v11-linux.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3326-evb-lp3-v10.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3326-evb-lp3-v10-avb.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3326-evb-lp3-v10-linux.dtb
