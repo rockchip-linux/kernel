@@ -1160,6 +1160,7 @@ static const char *const rk1808_critical_clocks[] __initconst = {
 	"pclk_ddr_grf",
 	"aclk_gic",
 	"hsclk_imem",
+	"cpll",
 };
 
 static void __iomem *rk1808_cru_base;
