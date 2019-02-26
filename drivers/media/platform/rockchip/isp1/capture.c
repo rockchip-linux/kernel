@@ -1592,7 +1592,7 @@ static int rkisp_init_vb2_queue(struct vb2_queue *q,
 	return vb2_queue_init(q);
 }
 
-static void rkisp1_set_fmt(struct rkisp1_stream *stream,
+static int rkisp1_set_fmt(struct rkisp1_stream *stream,
 			   struct v4l2_pix_format_mplane *pixm,
 			   bool try)
 {
@@ -1605,8 +1605,15 @@ static void rkisp1_set_fmt(struct rkisp1_stream *stream,
 	unsigned int i;
 
 	fmt = find_fmt(stream, pixm->pixelformat);
-	if (!fmt)
-		fmt = config->fmts;
+	if (!fmt) {
+		v4l2_err(&stream->ispdev->v4l2_dev,
+			 "nonsupport pixelformat:%c%c%c%c\n",
+			 pixm->pixelformat,
+			 pixm->pixelformat >> 8,
+			 pixm->pixelformat >> 16,
+			 pixm->pixelformat >> 24);
+		return -EINVAL;
+	}
 
 	if (stream->id != RKISP1_STREAM_RAW) {
 		other_stream =
@@ -1686,6 +1693,8 @@ static void rkisp1_set_fmt(struct rkisp1_stream *stream,
 			 stream->id, pixm->width, pixm->height,
 			 stream->out_fmt.width, stream->out_fmt.height);
 	}
+
+	return 0;
 }
 
 static int rkisp1_dma_attach_device(struct rkisp1_device *rkisp1_dev)
@@ -1828,9 +1837,7 @@ static int rkisp1_try_fmt_vid_cap_mplane(struct file *file, void *fh,
 {
 	struct rkisp1_stream *stream = video_drvdata(file);
 
-	rkisp1_set_fmt(stream, &f->fmt.pix_mp, true);
-
-	return 0;
+	return rkisp1_set_fmt(stream, &f->fmt.pix_mp, true);
 }
 
 static int rkisp1_enum_fmt_vid_cap_mplane(struct file *file, void *priv,
@@ -1861,9 +1868,7 @@ static int rkisp1_s_fmt_vid_cap_mplane(struct file *file,
 		return -EBUSY;
 	}
 
-	rkisp1_set_fmt(stream, &f->fmt.pix_mp, false);
-
-	return 0;
+	return rkisp1_set_fmt(stream, &f->fmt.pix_mp, false);
 }
 
 static int rkisp1_g_fmt_vid_cap_mplane(struct file *file, void *fh,
