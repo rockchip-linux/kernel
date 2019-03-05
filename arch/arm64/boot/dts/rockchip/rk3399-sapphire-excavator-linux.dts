@@ -420,6 +420,10 @@
 	status = "okay";
 };
 
+&uart2 {
+	status = "disabled";
+};
+
 &vopb {
 	status = "okay";
 };

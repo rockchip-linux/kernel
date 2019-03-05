@@ -577,10 +577,6 @@
 	status = "okay";
 };
 
-&uart2 {
-	status = "okay";
-};
-
 &usbdrd3_0 {
 	extcon = <&fusb0>;
 	status = "okay";

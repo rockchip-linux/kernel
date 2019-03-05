@@ -473,6 +473,10 @@
 	};
 };
 
+&uart2 {
+	status = "disabled";
+};
+
 &vpu {
 	status = "okay";
 	/delete-property/ iommus;
