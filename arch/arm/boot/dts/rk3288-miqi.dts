@@ -439,13 +439,6 @@ I2C
 	status = "okay";
 };
 
-/*
- * Debug Serial Port
- */
-&uart2 {
-	status = "okay";
-};
-
 &uart3 {
 	status = "okay";
 };
