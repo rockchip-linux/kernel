@@ -917,10 +917,6 @@
 	status = "disabled";
 };
 
-&uart4 {
-	status = "okay";
-};
-
 &pinctrl {
 	pmic {
 		pmic_int: pmic-int {
