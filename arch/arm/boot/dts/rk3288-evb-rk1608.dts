@@ -774,10 +774,6 @@
 	status = "okay";
 };
 
-&uart2 {
-	status = "okay";
-};
-
 &usbphy {
 	status = "okay";
 };

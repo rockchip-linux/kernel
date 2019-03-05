@@ -191,6 +191,10 @@
 	status = "okay";
 };
 
+&uart2 {
+	status = "disabled";
+};
+
 &video_phy {
 	status = "okay";
 };
