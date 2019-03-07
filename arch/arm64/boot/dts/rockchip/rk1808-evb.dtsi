@@ -448,7 +448,7 @@
 
 				regulator-name = "vcc1v8_dvp";
 				regulator-state-mem {
-					regulator-on-in-suspend;
+					regulator-off-in-suspend;
 					regulator-suspend-microvolt = <1800000>;
 				};
 			};
@@ -459,7 +459,7 @@
 
 				regulator-name = "vdd1v5_dvp";
 				regulator-state-mem {
-					regulator-on-in-suspend;
+					regulator-off-in-suspend;
 					regulator-suspend-microvolt = <1500000>;
 
 				};
@@ -486,7 +486,7 @@
 
 				regulator-name = "vccio_sd";
 				regulator-state-mem {
-					regulator-on-in-suspend;
+					regulator-off-in-suspend;
 					regulator-suspend-microvolt = <3300000>;
 				};
 			};
@@ -497,7 +497,7 @@
 
 				regulator-name = "vcc3v3_sd";
 				regulator-state-mem {
-					regulator-on-in-suspend;
+					regulator-off-in-suspend;
 					regulator-suspend-microvolt = <3300000>;
 				};
 			};
