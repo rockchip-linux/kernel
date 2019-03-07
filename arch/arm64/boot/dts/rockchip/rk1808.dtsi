@@ -2021,7 +2021,7 @@
 			emmc_clk: emmc-clk {
 				rockchip,pins =
 					/* emmc_clkout */
-					<1 RK_PB1 1 &pcfg_pull_up_2ma>;
+					<1 RK_PB1 1 &pcfg_pull_up_4ma>;
 			};
 
 			emmc_rstnout: emmc-rstnout {
@@ -2033,21 +2033,21 @@
 			emmc_bus8: emmc-bus8 {
 				rockchip,pins =
 					/* emmc_d0 */
-					<1 RK_PA0 1 &pcfg_pull_up_2ma>,
+					<1 RK_PA0 1 &pcfg_pull_up_4ma>,
 					/* emmc_d1 */
-					<1 RK_PA1 1 &pcfg_pull_up_2ma>,
+					<1 RK_PA1 1 &pcfg_pull_up_4ma>,
 					/* emmc_d2 */
-					<1 RK_PA2 1 &pcfg_pull_up_2ma>,
+					<1 RK_PA2 1 &pcfg_pull_up_4ma>,
 					/* emmc_d3 */
-					<1 RK_PA3 1 &pcfg_pull_up_2ma>,
+					<1 RK_PA3 1 &pcfg_pull_up_4ma>,
 					/* emmc_d4 */
-					<1 RK_PA4 1 &pcfg_pull_up_2ma>,
+					<1 RK_PA4 1 &pcfg_pull_up_4ma>,
 					/* emmc_d5 */
-					<1 RK_PA5 1 &pcfg_pull_up_2ma>,
+					<1 RK_PA5 1 &pcfg_pull_up_4ma>,
 					/* emmc_d6 */
-					<1 RK_PA6 1 &pcfg_pull_up_2ma>,
+					<1 RK_PA6 1 &pcfg_pull_up_4ma>,
 					/* emmc_d7 */
-					<1 RK_PA7 1 &pcfg_pull_up_2ma>;
+					<1 RK_PA7 1 &pcfg_pull_up_4ma>;
 			};
 
 			emmc_pwren: emmc-pwren {
@@ -2057,7 +2057,7 @@
 
 			emmc_cmd: emmc-cmd {
 				rockchip,pins =
-					<1 RK_PB2 1 &pcfg_pull_up_2ma>;
+					<1 RK_PB2 1 &pcfg_pull_up_4ma>;
 			};
 		};
 
@@ -2531,23 +2531,23 @@
 			sdmmc0_bus4: sdmmc0-bus4 {
 				rockchip,pins =
 				/* sdmmc0_d0 */
-				<4 RK_PA2 1 &pcfg_pull_none>,
+				<4 RK_PA2 1 &pcfg_pull_up_8ma>,
 				/* sdmmc0_d1 */
-				<4 RK_PA3 1 &pcfg_pull_none>,
+				<4 RK_PA3 1 &pcfg_pull_up_8ma>,
 				/* sdmmc0_d2 */
-				<4 RK_PA4 1 &pcfg_pull_none>,
+				<4 RK_PA4 1 &pcfg_pull_up_8ma>,
 				/* sdmmc0_d3 */
-				<4 RK_PA5 1 &pcfg_pull_none>;
+				<4 RK_PA5 1 &pcfg_pull_up_8ma>;
 			};
 
 			sdmmc0_cmd: sdmmc0-cmd {
 				rockchip,pins =
-					<4 RK_PA0 1 &pcfg_pull_none>;
+					<4 RK_PA0 1 &pcfg_pull_up_8ma>;
 			};
 
 			sdmmc0_clk: sdmmc0-clk {
 				rockchip,pins =
-					<4 RK_PA1 1 &pcfg_pull_none_4ma>;
+					<4 RK_PA1 1 &pcfg_pull_up_8ma>;
 			};
 
 			sdmmc0_detn: sdmmc0-detn {
@@ -2560,23 +2560,23 @@
 			sdmmc1_bus4: sdmmc1-bus4 {
 				rockchip,pins =
 				/* sdmmc1_d0 */
-				<4 RK_PB0 1 &pcfg_pull_none>,
+				<4 RK_PB0 1 &pcfg_pull_up_4ma>,
 				/* sdmmc1_d1 */
-				<4 RK_PB1 1 &pcfg_pull_none>,
+				<4 RK_PB1 1 &pcfg_pull_up_4ma>,
 				/* sdmmc1_d2 */
-				<4 RK_PB2 1 &pcfg_pull_none>,
+				<4 RK_PB2 1 &pcfg_pull_up_4ma>,
 				/* sdmmc1_d3 */
-				<4 RK_PB3 1 &pcfg_pull_none>;
+				<4 RK_PB3 1 &pcfg_pull_up_4ma>;
 			};
 
 			sdmmc1_cmd: sdmmc1-cmd {
 				rockchip,pins =
-					<4 RK_PA6 1 &pcfg_pull_none>;
+					<4 RK_PA6 1 &pcfg_pull_up_4ma>;
 			};
 
 			sdmmc1_clk: sdmmc1-clk {
 				rockchip,pins =
-					<4 RK_PA7 1 &pcfg_pull_none_4ma>;
+					<4 RK_PA7 1 &pcfg_pull_up_4ma>;
 			};
 		};
 
