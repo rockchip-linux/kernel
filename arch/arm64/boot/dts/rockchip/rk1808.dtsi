@@ -632,16 +632,20 @@
 		compatible = "rockchip,rk1808-cru";
 		reg = <0x0 0xff350000 0x0 0x5000>;
 		rockchip,grf = <&grf>;
+		rockchip,pmugrf = <&pmugrf>;
 		#clock-cells = <1>;
 		#reset-cells = <1>;
 
 		assigned-clocks =
+			<&cru SCLK_32K_IOE>,
 			<&cru PLL_GPLL>, <&cru PLL_CPLL>,
 			<&cru PLL_PPLL>, <&cru ARMCLK>,
 			<&cru MSCLK_PERI>, <&cru LSCLK_PERI>,
 			<&cru HSCLK_BUS_PRE>, <&cru MSCLK_BUS_PRE>,
 			<&cru LSCLK_BUS_PRE>;
+		assigned-clock-parents = <&xin32k>;
 		assigned-clock-rates =
+			<32768>,
 			<1188000000>, <1000000000>,
 			<100000000>, <816000000>,
 			<200000000>, <100000000>,
@@ -2965,12 +2969,12 @@
 		xin32k {
 			clkin_32k: clkin-32k {
 				rockchip,pins =
-					<0 RK_PC2 1 &pcfg_input_smt>;
+					<0 RK_PC2 1 &pcfg_pull_none>;
 			};
 
 			clkout_32k: clkout-32k {
 				rockchip,pins =
-					<0 RK_PC2 1 &pcfg_output_high>;
+					<0 RK_PC2 1 &pcfg_pull_none>;
 			};
 		};
 	};
