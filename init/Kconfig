@@ -1380,6 +1380,11 @@ if BLK_DEV_INITRD
 
 source "usr/Kconfig"
 
+config INITRD_ASYNC
+	bool "Initrd async"
+	help
+	  Init ramdisk async, can reduce kernel init time.
+
 endif
 
 choice
