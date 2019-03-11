@@ -878,8 +878,7 @@
 };
 
 &sdio0 {
-	clock-frequency = <100000000>;
-	clock-freq-min-max = <200000 100000000>;
+	max-frequency = <100000000>;
 	supports-sdio;
 	bus-width = <4>;
 	disable-wp;
