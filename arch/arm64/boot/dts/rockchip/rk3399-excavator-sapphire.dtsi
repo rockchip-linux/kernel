@@ -45,6 +45,30 @@
 / {
 	compatible = "rockchip,rk3399-sapphire-excavator", "rockchip,rk3399";
 
+	dummy_codec: dummy-codec {
+		status = "disabled";
+		compatible = "rockchip,dummy-codec";
+		#sound-dai-cells = <0>;
+		clocks = <&cru SCLK_I2S_8CH_OUT>;
+		clock-names = "mclk";
+		pinctrl-names = "default";
+		pinctrl-0 = <&i2s_8ch_mclk>;
+	};
+
+	rockchip_i2s_sound: rockchip-i2s-sound {
+		status = "disabled";
+		compatible = "simple-audio-card";
+		simple-audio-card,name = "rockchip,rockchip-i2s-sound";
+		simple-audio-card,format = "i2s";
+		simple-audio-card,mclk-fs = <256>;
+		simple-audio-card,cpu {
+			sound-dai = <&i2s0>;
+		};
+		simple-audio-card,codec {
+			sound-dai = <&dummy_codec>;
+		};
+	};
+
 	rt5651-sound {
 		compatible = "simple-audio-card";
 		simple-audio-card,format = "i2s";
