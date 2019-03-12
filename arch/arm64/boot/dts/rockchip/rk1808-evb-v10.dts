@@ -19,7 +19,7 @@
 		status = "okay";
 		compatible = "rockchip,multicodecs-card";
 		rockchip,card-name = "rockchip,rk1808-vad";
-		rockchip,cpu = <&i2s0>;
+		rockchip,cpu = <&pdm>;
 		rockchip,codec = <&vad>;
 	};
 };
@@ -165,7 +165,7 @@
 	};
 };
 
-&i2s0 {
+&pdm {
 	status = "okay";
 	#sound-dai-cells = <0>;
 };
@@ -261,7 +261,7 @@
 
 &vad {
 	status = "okay";
-	rockchip,audio-src = <&i2s0>;
+	rockchip,audio-src = <&pdm>;
 	rockchip,buffer-time-ms = <200>;
 	rockchip,det-channel = <0>;
 	rockchip,mode = <1>;
