@@ -580,6 +580,7 @@ static const char *const rk3128_critical_clocks[] __initconst = {
 	"pclk_pmu",
 	"sclk_timer5",
 	"hclk_vio_niu",
+	"hclk_vio_h2p",
 };
 
 static void __iomem *rk312x_reg_base;
