@@ -725,6 +725,18 @@
 	status = "okay";
 };
 
+&pdm {
+	status = "okay";
+	#sound-dai-cells = <0>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pdm_clk0m1
+		     &pdm_sdi0m1
+		     &pdm_clk1
+		     &pdm_sdi1
+		     &pdm_sdi2
+		     &pdm_sdi3>;
+};
+
 &pmu_io_domains {
 	status = "okay";
 
