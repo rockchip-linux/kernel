@@ -18,7 +18,7 @@
 #define _V4L2_CONFIG_ROCKCHIP_H
 
 #define CAMERA_STRLEN         32
-#define CAMERA_METADATA_LEN   (2 * PAGE_SIZE)
+#define CAMERA_METADATA_LEN   (4 * PAGE_SIZE)
 #define VALID_FR_EXP_T_INDEX   0
 #define VALID_FR_EXP_G_INDEX   1
 #define SENSOR_CONFIG_NUM      4
@@ -58,6 +58,10 @@ struct isp_supplemental_sensor_mode_data {
 	unsigned short gain;
 	unsigned char max_exp_gain_h;
 	unsigned char max_exp_gain_l;
+	int exp_time_l;
+	unsigned short gain_l;
+	int exp_time_s;
+	unsigned short gain_s;
 };
 
 struct camera_module_info_s {
@@ -111,12 +115,17 @@ struct frame_timeinfo_s {
 };
 
 struct sensor_metadata_s {
+	unsigned int exp_time_l;
 	unsigned int exp_time;
+	unsigned int exp_time_s;
+	unsigned int gain_l;
 	unsigned int gain;
+	unsigned int gain_s;
 };
 
 struct v4l2_buffer_metadata_s {
 	unsigned int frame_id;
+	unsigned int lights_stat;
 	struct frame_timeinfo_s frame_t;
 	struct flash_timeinfo_s flash_t;
 	struct sensor_metadata_s sensor;
