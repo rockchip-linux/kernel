@@ -4,7 +4,8 @@ dtbo-$(CONFIG_ARCH_ROCKCHIP) += \
 	console-on-uart4.dtbo \
 	console-disabled.dtbo \
 	two-color-led.dtbo \
-	at24c02.dtbo
+	at24c02.dtbo \
+	devspi.dtbo
 
 targets += dtbs dtbs_install
 targets += $(dtbo-y)
