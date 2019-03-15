@@ -31,21 +31,15 @@
 #ifdef CONFIG_ARCH_ROCKCHIP
 #include <soc/rockchip/rockchip_ipa.h>
 #include <soc/rockchip/rockchip_opp_select.h>
-#endif
-
-#ifdef CONFIG_ARCH_ROCKCHIP
-static struct thermal_opp_device_data cpu_devdata = {
-	.type = THERMAL_OPP_TPYE_CPU,
-	.low_temp_adjust = rockchip_cpu_low_temp_adjust,
-	.high_temp_adjust = rockchip_cpu_high_temp_adjust,
-};
+#include <soc/rockchip/rockchip_system_monitor.h>
 #endif
 
 struct private_data {
 	struct device *cpu_dev;
 	struct thermal_cooling_device *cdev;
 #ifdef CONFIG_ARCH_ROCKCHIP
-	struct thermal_opp_info *opp_info;
+	struct monitor_dev_info *mdev_info;
+	struct monitor_dev_profile *mdevp;
 	struct ipa_power_model_data *model_data;
 #endif
 	const char *reg_name;
@@ -323,13 +317,23 @@ static int cpufreq_init(struct cpufreq_policy *policy)
 	policy->down_transition_delay_us = 50000; /* 50ms */
 
 #ifdef CONFIG_ARCH_ROCKCHIP
-	priv->opp_info = rockchip_register_thermal_notifier(cpu_dev,
-							    &cpu_devdata);
-	if (IS_ERR(priv->opp_info)) {
+	priv->mdevp = kzalloc(sizeof(*priv->mdevp), GFP_KERNEL);
+	if (!priv->mdevp)
+		goto check_rate_volt;
+	priv->mdevp->type = MONITOR_TPYE_CPU;
+	priv->mdevp->low_temp_adjust = rockchip_monitor_cpu_low_temp_adjust;
+	priv->mdevp->high_temp_adjust = rockchip_monitor_cpu_high_temp_adjust;
+	cpumask_copy(&priv->mdevp->allowed_cpus, policy->cpus);
+	priv->mdev_info = rockchip_system_monitor_register(cpu_dev,
+							   priv->mdevp);
+	if (IS_ERR(priv->mdev_info)) {
+		kfree(priv->mdevp);
+		priv->mdevp = NULL;
 		dev_dbg(priv->cpu_dev,
-			"running cpufreq without thermal notifier\n");
-		priv->opp_info = NULL;
+			"running cpufreq without system monitor\n");
+		priv->mdev_info = NULL;
 	}
+check_rate_volt:
 	rockchip_cpufreq_check_rate_volt(cpu_dev);
 #endif
 
@@ -361,8 +365,8 @@ static int cpufreq_exit(struct cpufreq_policy *policy)
 		pr_err("%s: Failed to suspend driver: %p\n", __func__, policy);
 	cpumask_clear_cpu(policy->cpu, policy->cpus);
 	rockchip_cpufreq_set_scale_rate(priv->cpu_dev, 0);
-	rockchip_cpufreq_set_temp_limit_rate(priv->cpu_dev, 0);
-	rockchip_unregister_thermal_notifier(priv->opp_info);
+	rockchip_system_monitor_unregister(priv->mdev_info);
+	kfree(priv->mdevp);
 #endif
 	cpufreq_cooling_unregister(priv->cdev);
 	dev_pm_opp_free_cpufreq_table(priv->cpu_dev, &policy->freq_table);
@@ -451,6 +455,7 @@ static void cpufreq_ready(struct cpufreq_policy *policy)
 	of_node_put(np);
 }
 
+#ifdef CONFIG_ARCH_ROCKCHIP
 static int rockchip_cpufreq_suspend(struct cpufreq_policy *policy)
 {
 	struct private_data *priv = policy->driver_data;
@@ -458,10 +463,11 @@ static int rockchip_cpufreq_suspend(struct cpufreq_policy *policy)
 
 	ret = cpufreq_generic_suspend(policy);
 	if (!ret)
-		rockchip_cpu_suspend_low_temp_adjust(priv->opp_info);
+		rockchip_monitor_suspend_low_temp_adjust(priv->mdev_info);
 
 	return ret;
 }
+#endif
 
 static struct cpufreq_driver dt_cpufreq_driver = {
 	.flags = CPUFREQ_STICKY | CPUFREQ_NEED_INITIAL_FREQ_CHECK |
