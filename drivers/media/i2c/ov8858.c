@@ -16,6 +16,7 @@
 #include <linux/of_graph.h>
 #include <linux/regulator/consumer.h>
 #include <linux/sysfs.h>
+#include <linux/slab.h>
 #include <linux/pinctrl/consumer.h>
 #include <linux/rk-camera-module.h>
 

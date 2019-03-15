@@ -13,6 +13,7 @@
 #include <linux/module.h>
 #include <linux/pm_runtime.h>
 #include <linux/regulator/consumer.h>
+#include <linux/slab.h>
 #include <linux/sysfs.h>
 #include <linux/rk-camera-module.h>
 #include <media/media-entity.h>

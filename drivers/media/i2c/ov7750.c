@@ -14,6 +14,7 @@
 #include <linux/pm_runtime.h>
 #include <linux/regulator/consumer.h>
 #include <linux/sysfs.h>
+#include <linux/slab.h>
 #include <linux/rk-camera-module.h>
 #include <media/media-entity.h>
 #include <media/v4l2-async.h>
@@ -1265,3 +1266,4 @@ module_exit(sensor_mod_exit);
 
 MODULE_DESCRIPTION("OmniVision ov7750 sensor driver");
 MODULE_LICENSE("GPL v2");
+
