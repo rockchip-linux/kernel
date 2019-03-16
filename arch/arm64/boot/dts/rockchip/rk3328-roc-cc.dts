@@ -50,7 +50,8 @@
 	compatible = "firefly,roc-rk3328-cc", "rockchip,rk3328";
 
 	chosen {
-		bootargs = "rockchip_jtag earlyprintk=uart8250-32bit,0xff130000";
+		bootargs = "rockchip_jtag earlyprintk=uart8250-32bit,0xff130000 swiotlb=1 kpti=0 console=ttyFIQ0 rw root=PARTUUID=614e0000-0000 rootfstype=ext4 rootwait";
+		stdout-path = "serial2:1500000n8";
 	};
 
 	fiq-debugger {
