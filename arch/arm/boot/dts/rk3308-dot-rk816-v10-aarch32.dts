@@ -117,7 +117,7 @@
 
 	sound_pcm {
 		compatible = "simple-audio-card";
-		simple-audio-card,format = "dsp_b";
+		simple-audio-card,format = "dsp_a";
 		simple-audio-card,name = "rockchip,rk3308-pcm";
 		simple-audio-card,mclk-fs = <256>;
 		simple-audio-card,cpu {
