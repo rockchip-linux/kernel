@@ -124,8 +124,8 @@ static int rk3328_set_dai_fmt(struct snd_soc_dai *codec_dai,
 
 static void rk3328_analog_output(struct rk3328_codec_priv *rk3328, int mute)
 {
-	regmap_write(rk3328->grf, RK3328_GRF_SOC_CON10,
-		     (BIT(1) << 16) | (mute << 1));
+	//regmap_write(rk3328->grf, RK3328_GRF_SOC_CON10,
+	//	     (BIT(1) << 16) | (mute << 1));
 }
 
 static int rk3328_digital_mute(struct snd_soc_dai *dai, int mute)

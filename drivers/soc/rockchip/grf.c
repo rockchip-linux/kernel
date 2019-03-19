@@ -29,6 +29,7 @@ struct rockchip_grf_info {
 };
 
 #define PX30_GRF_SOC_CON5		0x414
+#define RK3328_GRF_SOC_CON10    0x428
 
 static const struct rockchip_grf_value px30_defaults[] __initconst = {
 	/*
@@ -73,6 +74,7 @@ static const struct rockchip_grf_info rk3128_grf __initconst = {
 
 static const struct rockchip_grf_value rk3228_defaults[] __initconst = {
 	{ "jtag switching", RK3228_GRF_SOC_CON6, HIWORD_UPDATE(0, 1, 8) },
+	{ "gpio mute",      RK3328_GRF_SOC_CON10, HIWORD_UPDATE(0, 1, 1) },
 };
 
 static const struct rockchip_grf_info rk3228_grf __initconst = {

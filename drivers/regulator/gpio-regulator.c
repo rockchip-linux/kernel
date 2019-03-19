@@ -34,6 +34,9 @@
 #include <linux/slab.h>
 #include <linux/of.h>
 #include <linux/of_gpio.h>
+#include <linux/mfd/syscon.h>
+#include <linux/regmap.h>
+
 
 struct gpio_regulator_data {
 	struct regulator_desc desc;
@@ -47,6 +50,24 @@ struct gpio_regulator_data {
 
 	int state;
 };
+
+#define GPIOMUTE (ARCH_GPIO_BASE + 25)
+#define RK3328_GRF_SOC_CON10   (0x0428)
+static void rk3328_gpioMute_set(int value)
+{
+  struct regmap *regmap;
+       regmap = syscon_regmap_lookup_by_compatible("rockchip,rk3328-grf");                                                                  
+       if (IS_ERR(regmap)) {
+               printk("gpio-regulator: Unable to get rockchip,grf\n");                                                                      
+    return;
+       }
+  printk("gpio-regulator: set GRF_SOC_CON10 bit 1 to %d\n", value);
+  regmap_write(regmap,
+               RK3328_GRF_SOC_CON10,
+               (BIT(1) << 16) | (value << 1));
+}
+
+
 
 static int gpio_regulator_get_value(struct regulator_dev *dev)
 {
@@ -82,7 +103,12 @@ static int gpio_regulator_set_voltage(struct regulator_dev *dev,
 
 	for (ptr = 0; ptr < data->nr_gpios; ptr++) {
 		state = (target & (1 << ptr)) >> ptr;
-		gpio_set_value_cansleep(data->gpios[ptr].gpio, state);
+		//gpio_set_value_cansleep(data->gpios[ptr].gpio, state);
+               if(data->gpios[ptr].gpio == GPIOMUTE)
+		rk3328_gpioMute_set(state);
+               else
+		gpio_set_value_cansleep(data->gpios[ptr].gpio, state);                                                               
+               printk("enter %s line %d ,gpio=%d state=%d\n",__FUNCTION__,__LINE__,data->gpios[ptr].gpio, state);
 	}
 	data->state = target;
 
@@ -119,7 +145,12 @@ static int gpio_regulator_set_current_limit(struct regulator_dev *dev,
 
 	for (ptr = 0; ptr < data->nr_gpios; ptr++) {
 		state = (target & (1 << ptr)) >> ptr;
-		gpio_set_value_cansleep(data->gpios[ptr].gpio, state);
+		//gpio_set_value_cansleep(data->gpios[ptr].gpio, state);
+               if(data->gpios[ptr].gpio == GPIOMUTE)
+                       rk3328_gpioMute_set(state);
+               else
+                       gpio_set_value_cansleep(data->gpios[ptr].gpio, state);                                                               
+               printk("enter %s line %d ,gpio=%d state=%d\n",__FUNCTION__,__LINE__,data->gpios[ptr].gpio, state); 
 	}
 	data->state = target;
 
