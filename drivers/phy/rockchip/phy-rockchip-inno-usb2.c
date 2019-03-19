@@ -1949,7 +1949,7 @@ static int rk312x_usb2phy_tuning(struct rockchip_usb2phy *rphy)
 	return 0;
 }
 
-static int rk322x_usb2phy_tuning(struct rockchip_usb2phy *rphy)
+static int rk3228_usb2phy_tuning(struct rockchip_usb2phy *rphy)
 {
 	int ret = 0;
 
@@ -2313,11 +2313,11 @@ static const struct rockchip_usb2phy_cfg rk312x_phy_cfgs[] = {
 	{ /* sentinel */ }
 };
 
-static const struct rockchip_usb2phy_cfg rk322x_phy_cfgs[] = {
+static const struct rockchip_usb2phy_cfg rk3228_phy_cfgs[] = {
 	{
 		.reg = 0x760,
 		.num_ports	= 2,
-		.phy_tuning	= rk322x_usb2phy_tuning,
+		.phy_tuning	= rk3228_usb2phy_tuning,
 		.clkout_ctl	= { 0x0768, 4, 4, 1, 0 },
 		.port_cfgs	= {
 			[USB2PHY_PORT_OTG] = {
@@ -2711,7 +2711,7 @@ static const struct rockchip_usb2phy_cfg rv1108_phy_cfgs[] = {
 static const struct of_device_id rockchip_usb2phy_dt_match[] = {
 	{ .compatible = "rockchip,rk1808-usb2phy", .data = &rk1808_phy_cfgs },
 	{ .compatible = "rockchip,rk3128-usb2phy", .data = &rk312x_phy_cfgs },
-	{ .compatible = "rockchip,rk322x-usb2phy", .data = &rk322x_phy_cfgs },
+	{ .compatible = "rockchip,rk3228-usb2phy", .data = &rk3228_phy_cfgs },
 	{ .compatible = "rockchip,rk3308-usb2phy", .data = &rk3308_phy_cfgs },
 	{ .compatible = "rockchip,rk3328-usb2phy", .data = &rk3328_phy_cfgs },
 	{ .compatible = "rockchip,rk3366-usb2phy", .data = &rk3366_phy_cfgs },
