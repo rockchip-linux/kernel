@@ -46,12 +46,15 @@
 
 &cru {
 	assigned-clocks =
+		<&cru SCLK_32K_IOE>,
 		<&cru PLL_GPLL>, <&cru PLL_CPLL>,
 		<&cru PLL_PPLL>, <&cru ARMCLK>,
 		<&cru MSCLK_PERI>, <&cru LSCLK_PERI>,
 		<&cru HSCLK_BUS_PRE>, <&cru MSCLK_BUS_PRE>,
 		<&cru LSCLK_BUS_PRE>, <&cru DCLK_VOPRAW>;
+	assigned-clock-parents = <&xin32k>;
 	assigned-clock-rates =
+		<32768>,
 		<1188000000>, <1000000000>,
 		<100000000>, <816000000>,
 		<200000000>, <100000000>,
