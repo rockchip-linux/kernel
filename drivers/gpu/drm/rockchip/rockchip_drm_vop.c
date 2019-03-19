@@ -2564,6 +2564,8 @@ static void vop_update_csc(struct drm_crtc *crtc)
 		VOP_CTRL_SET(vop, dither_down_en, 0);
 		VOP_CTRL_SET(vop, pre_dither_down_en, 0);
 		break;
+	case MEDIA_BUS_FMT_SRGB888_3X8:
+	case MEDIA_BUS_FMT_SRGB888_DUMMY_4X8:
 	case MEDIA_BUS_FMT_RGB888_1X24:
 	case MEDIA_BUS_FMT_RGB888_1X7X4_SPWG:
 	case MEDIA_BUS_FMT_RGB888_1X7X4_JEIDA:
