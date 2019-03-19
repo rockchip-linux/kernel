@@ -55,6 +55,7 @@
 	compatible = "rockchip,rockpi","rockchip,rk3399";
 
 	fiq_debugger: fiq-debugger {
+		status = "disabled";
 		compatible = "rockchip,fiq-debugger";
 		rockchip,serial-id = <2>;
 		rockchip,signal-irq = <182>;

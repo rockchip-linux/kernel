@@ -120,20 +120,19 @@ Info:	Overlay for activation of two color led module.
 Load:	intfc:dtoverlay=two-color-led
 
 
-Name:	console-disabled
-Info:	Overlay for disabling fiq debugger console.
-		When this dtbo file is not loaded, Rock Pi enables fiq debugger console
-		by default. And UART2DBG Pins will output console information.
-		When this dtbo is loaded, Rock Pi disables fiq debugger console and
-		UART2DBG pins do not output console information. What's more,
-		UART2DBG pins can be used for serial communication if UART2 is enabled.
-Load:	intfc:dtoverlay=console-disabled
+Name:	console-on-ttyS2
+Info:	By default, fiq debugger console is disabled.
+		When this dtbo file is loaded, Rock Pi enables fiq debugger console.
+		ttyS2 Pins will output console information.
+		At the same time, it is recommended that you set UART2 to off in
+		file /boot/hw_intfc.conf and do not load console-on-ttyS4.dtbo file.
+Load:	intfc:dtoverlay=console-on-ttyS2
 
 
-Name:	console-on-uart4
-Info:	Overlay for setting uart4 pins as fiq debugger console pins. With this
-		dtbo loaded, UART4 pins output console information after kernel is
-		booted. Note that at the same time, Rock Pi cannot work with other
-		serial communication devices like UART Serial Bluetooth Module through
-		UART4 (even though set "on" for BUS UART4).
-Load:	intfc:dtoverlay=console-on-uart4
+Name:	console-on-ttyS4
+Info:	By default, fiq debugger console is disabled.
+		When this dtbo file is loaded, Rock Pi enables fiq debugger console.
+		ttyS4 Pins will output console information.
+		At the same time, it is recommended that you set UART4 to off in
+		file /boot/hw_intfc.conf and do not load console-on-ttyS2.dtbo file.
+Load:	intfc:dtoverlay=console-on-ttyS4
