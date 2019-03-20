@@ -807,8 +807,8 @@ static int rk1808_combphy_cfg(struct rockchip_combphy_priv *priv)
 		writel(0xbc, priv->mmio + 0x45d4);
 
 		/* Boost pre-emphasis */
-		writel(0x8b, priv->mmio + 0x21b8);
-		writel(0x8b, priv->mmio + 0x31b8);
+		writel(0xaa, priv->mmio + 0x21b8);
+		writel(0xaa, priv->mmio + 0x31b8);
 	} else if (priv->phy_type == PHY_TYPE_USB3) {
 		/*
 		 * Disable PHY Lane 1 which isn't needed
