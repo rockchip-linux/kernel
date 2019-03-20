@@ -1764,10 +1764,13 @@ static void ov8858_get_module_inf(struct ov8858 *ov8858,
 	strlcpy(inf->base.module, ov8858->module_name, sizeof(inf->base.module));
 	strlcpy(inf->base.lens, ov8858->len_name, sizeof(inf->base.lens));
 
-	if (ov8858->is_r2a)
-		ov8858_get_r2a_otp(otp_r2a, inf);
-	else
-		ov8858_get_r1a_otp(otp_r1a, inf);
+	if (ov8858->is_r2a) {
+		if (otp_r2a)
+			ov8858_get_r2a_otp(otp_r2a, inf);
+	} else {
+		if (otp_r1a)
+			ov8858_get_r1a_otp(otp_r1a, inf);
+	}
 }
 
 static void ov8858_set_module_inf(struct ov8858 *ov8858,
@@ -2505,6 +2508,7 @@ static int ov8858_otp_read_r1a(struct ov8858 *ov8858)
 		ov8858->otp_r1a = otp_ptr;
 	} else {
 		ov8858->otp_r1a = NULL;
+		dev_info(dev, "otp_r1a is null!\n");
 		kfree(otp_ptr);
 	}
 
@@ -2608,6 +2612,7 @@ static int ov8858_otp_read_r2a(struct ov8858 *ov8858)
 		ov8858->otp_r2a = otp_ptr;
 	} else {
 		ov8858->otp_r2a = NULL;
+		dev_info(dev, "otp_r2a is null!\n");
 		kfree(otp_ptr);
 	}
 
