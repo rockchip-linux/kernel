@@ -3034,8 +3034,7 @@ static time_t rk817_get_rtc_sec(void)
 	return sec;
 }
 
-#ifdef CONFIG_PM_SLEEP
-static int  rk817_bat_pm_suspend(struct device *dev)
+static int __maybe_unused rk817_bat_pm_suspend(struct device *dev)
 {
 	struct platform_device *pdev = to_platform_device(dev);
 	struct rk817_battery_device *battery = dev_get_drvdata(&pdev->dev);
@@ -3252,7 +3251,7 @@ static int rk817_bat_sleep_dischrg(struct rk817_battery_device *battery)
 	return sleep_soc;
 }
 
-static int rk817_bat_pm_resume(struct device *dev)
+static int __maybe_unused rk817_bat_pm_resume(struct device *dev)
 {
 	struct platform_device *pdev = to_platform_device(dev);
 	struct rk817_battery_device *battery = dev_get_drvdata(&pdev->dev);
@@ -3305,7 +3304,6 @@ static int rk817_bat_pm_resume(struct device *dev)
 
 	return 0;
 }
-#endif
 
 static SIMPLE_DEV_PM_OPS(rk817_bat_pm_ops,
 			 rk817_bat_pm_suspend,
