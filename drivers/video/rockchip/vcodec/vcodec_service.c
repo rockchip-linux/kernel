@@ -1725,11 +1725,10 @@ static long vpu_service_ioctl(struct file *filp, unsigned int cmd,
 	case VPU_IOC_SET_CLIENT_TYPE: {
 		int secure_mode;
 
-		secure_mode = (arg & 0xffff0000) >> 16;
-		session->type = (enum VPU_CLIENT_TYPE)(arg & 0xffff);
+		secure_mode = arg >> 16;
 		atomic_set(&pservice->secure_mode, secure_mode);
 
-		session->type = (enum VPU_CLIENT_TYPE)arg;
+		session->type = (enum VPU_CLIENT_TYPE)(arg & 0xffff);
 		vpu_debug(DEBUG_IOCTL, "pid %d set client type %d, secure mode = %d\n",
 			  session->pid, session->type, secure_mode);
 	} break;
@@ -1793,7 +1792,7 @@ static long vpu_service_ioctl(struct file *filp, unsigned int cmd,
 		vpu_debug(DEBUG_IOCTL, "pid %d get reg type %d\n",
 			  session->pid, session->type);
 
-		if (atomic_read(&pservice->secure_mode) == 1) {
+		if (atomic_read(&pservice->secure_mode)) {
 			ret = wait_event_timeout(session->wait,
 						 pservice->secure_isr,
 						 VPU_TIMEOUT_DELAY);
