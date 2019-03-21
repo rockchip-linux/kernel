@@ -4,7 +4,7 @@ Required properties (phy (parent) node):
  - compatible : should be one of the listed compatibles:
 	* "rockchip,px30-usb2phy"
 	* "rockchip,rk3128-usb2phy"
-	* "rockchip,rk322x-usb2phy"
+	* "rockchip,rk3228-usb2phy"
 	* "rockchip,rk3308-usb2phy"
 	* "rockchip,rk3328-usb2phy"
 	* "rockchip,rk3366-usb2phy"
