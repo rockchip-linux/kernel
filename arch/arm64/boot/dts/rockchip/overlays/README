@@ -136,3 +136,15 @@ Info:	By default, fiq debugger console is disabled.
 		At the same time, it is recommended that you set UART4 to off in
 		file /boot/hw_intfc.conf and do not load console-on-ttyS2.dtbo file.
 Load:	intfc:dtoverlay=console-on-ttyS4
+
+
+Name:	devspi1
+Info:	By default, spi1 is disabled.
+		when use spi1, uart4 must be disabled.
+Load:	intfc:dtoverlay=devspi1
+
+Name:	devspi2
+Info:	By default, spi2 is disabled.
+		When use spi2. i2c6 must be disabled.
+Load:	intfc:dtoverlay=devspi2
+
