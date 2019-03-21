@@ -1020,7 +1020,7 @@
 };
 
 &route_dsi {
-	status = "okay";
+	status = "disabled";
 };
 
 &hdmi_dp_sound {

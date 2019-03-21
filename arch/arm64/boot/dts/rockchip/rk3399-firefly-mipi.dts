@@ -120,7 +120,7 @@
 };
 
 &route_dsi{
-	status = "okay";
+	status = "diabled";
 	logo,mode = "center";
 };
 
