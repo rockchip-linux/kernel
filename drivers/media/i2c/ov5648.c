@@ -450,7 +450,7 @@ static const struct ov5648_mode supported_modes_2lane[] = {
 		},
 		.exp_def = 0x0450,
 		.hts_def = 0x0b00,
-		.vts_def = 0x07e8,
+		.vts_def = 0x07c0,
 		.reg_list = ov5648_2592x1944_regs,
 	},
 	{
@@ -460,9 +460,9 @@ static const struct ov5648_mode supported_modes_2lane[] = {
 			.numerator = 10000,
 			.denominator = 300000,
 		},
-		.exp_def = 0x03e0,
+		.exp_def = 0x03d0,
 		.hts_def = 0x0b00,
-		.vts_def = 0x03f4,
+		.vts_def = 0x03e0,
 		.reg_list = ov5648_1296x972_regs,
 	},
 };
