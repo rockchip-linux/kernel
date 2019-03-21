@@ -5,7 +5,7 @@ dtbo-$(CONFIG_ARCH_ROCKCHIP) += \
 	console-on-ttyS2.dtbo \
 	two-color-led.dtbo \
 	at24c02.dtbo \
-	devspi.dtbo \
+	devspi1.dtbo \
 	devspi2.dtbo
 
 targets += dtbs dtbs_install
