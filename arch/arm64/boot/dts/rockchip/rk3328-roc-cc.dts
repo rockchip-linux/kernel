@@ -5,5 +5,16 @@
 	model = "Firefly ROC-RK3328-CC";
 	compatible = "firefly,roc-rk3328-cc", "rockchip,rk3328";
 	
+	adc-keys {
+		u-boot,dm-pre-reloc;
+		compatible = "adc-keys";
+		io-channels = <&saradc 0>;
+	};
+
+
+};
+
+&saradc {
+	status = "okay";
 };
 
