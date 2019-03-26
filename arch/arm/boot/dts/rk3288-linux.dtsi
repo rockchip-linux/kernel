@@ -191,6 +191,10 @@
 	status = "okay";
 };
 
+&rockchip_suspend {
+	status = "okay";
+};
+
 &uart2 {
 	status = "disabled";
 };
