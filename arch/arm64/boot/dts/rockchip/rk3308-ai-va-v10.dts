@@ -176,15 +176,6 @@
 		regulator-max-microvolt = <3300000>;
 	};
 
-	vccio_flash: vccio-flash {
-		compatible = "regulator-fixed";
-		regulator-name = "vccio_flash";
-		regulator-always-on;
-		regulator-boot-on;
-		regulator-min-microvolt = <1800000>;
-		regulator-max-microvolt = <1800000>;
-	};
-
 	wireless-bluetooth {
 		compatible = "bluetooth-platdata";
 		uart_rts_gpios = <&gpio4 RK_PA7 GPIO_ACTIVE_LOW>;
@@ -235,7 +226,7 @@
 	vccio0-supply = <&vcc_io>;
 	vccio1-supply = <&vcc_io>;
 	vccio2-supply = <&vcc_1v8>;
-	vccio3-supply = <&vccio_flash>;
+	vccio3-supply = <&vcc_io>;
 	vccio4-supply = <&vccio_sdio>;
 	vccio5-supply = <&vcc_io>;
 };
