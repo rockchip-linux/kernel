@@ -6,7 +6,8 @@ dtbo-$(CONFIG_ARCH_ROCKCHIP) += \
 	two-color-led.dtbo \
 	at24c02.dtbo \
 	devspi1.dtbo \
-	devspi2.dtbo
+	devspi2.dtbo \
+	pcie-gen2.dtbo
 
 targets += dtbs dtbs_install
 targets += $(dtbo-y)
