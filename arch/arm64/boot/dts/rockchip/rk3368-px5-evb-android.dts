@@ -92,12 +92,10 @@
 	};
 
 	xin32k: xin32k {
-		status = "okay";
-		compatible = "pwm-clock";
-		#clock-cells = <0>;
+		compatible = "fixed-clock";
 		clock-frequency = <32768>;
 		clock-output-names = "xin32k";
-		pwms = <&pwm1 0 30518 0>; /* 1 / 30518 ns = 32.7675 KHz */
+		#clock-cells = <0>;
 	};
 
 	sdio_pwrseq: sdio-pwrseq {
