@@ -862,6 +862,17 @@ config VIDEO_GC2355
 	  To compile this driver as a module, choose M here: the
 	  module will be called gc2355.
 
+config VIDEO_GC2385
+	tristate "GalaxyCore GC2385 sensor support"
+	depends on VIDEO_V4L2 && I2C && MEDIA_CONTROLLER
+	depends on MEDIA_CAMERA_SUPPORT
+	select V4L2_FWNODE
+	help
+	  Support for the GalaxyCore GC2385 sensor.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called gc2385.
+
 config VIDEO_SC031GS
 	tristate "GalaxyCore SC031GS sensor support"
 	depends on VIDEO_V4L2 && I2C && VIDEO_V4L2_SUBDEV_API
