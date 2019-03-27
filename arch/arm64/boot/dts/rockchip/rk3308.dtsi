@@ -1466,6 +1466,13 @@
 			input-enable;
 		};
 
+		ext_micbias {
+			ext_micbias_en: ext-micbias-en {
+				rockchip,pins =
+					<0 RK_PC2 0 &pcfg_pull_none>;
+			};
+		};
+
 		i2c0 {
 			i2c0_xfer: i2c0-xfer {
 				rockchip,pins =
