@@ -56,6 +56,8 @@ Optional properties:
 - rockchip,delay-pa-drv-ms: This property points out that the delay for
   power on amplifier
 - spk-ctl-gpios: The gpio of speak controller.
+- micbias-en-gpios: The GPIO to enable external micbias.
+- vmicbias-supply: The phandle to the regulator to handle external micbias.
 
 Example for rk3308 internal codec:
 
