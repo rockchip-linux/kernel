@@ -198,7 +198,7 @@
 		compatible = "bluetooth-platdata";
 		uart_rts_gpios = <&gpio4 RK_PB7 GPIO_ACTIVE_LOW>;
 		pinctrl-names = "default", "rts_gpio";
-		pinctrl-0 = <&uart4_rts>;
+		pinctrl-0 = <&uart4_rts &bt_wake_host>;
 		pinctrl-1 = <&uart4_rts_gpio>;
 		BT,power_gpio    = <&gpio4 RK_PC3 GPIO_ACTIVE_HIGH>;
 		BT,wake_host_irq = <&gpio4 RK_PC2 GPIO_ACTIVE_HIGH>;
@@ -706,6 +706,11 @@
 		uart4_rts_gpio: uart4-rts-gpio {
 			rockchip,pins = <4 RK_PB7 0 &pcfg_pull_none>;
 		};
+
+		bt_wake_host: bt-wake-host {
+			rockchip,pins = <4 RK_PC2 0 &pcfg_pull_none>;
+		};
+
 	};
 
 	wireless-wlan {
