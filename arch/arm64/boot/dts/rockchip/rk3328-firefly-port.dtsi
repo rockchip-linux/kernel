@@ -2,8 +2,7 @@
 #include "rk3328-firefly-core.dtsi"
 
 / {
-	model = "Firefly ROC-RK3328-CC";
-	compatible = "firefly,roc-rk3328-cc", "rockchip,rk3328";
+	compatible = "firefly,rk3328-firefly-port", "rockchip,rk3328";
 	
 	gmac_clkin: external-gmac-clock {
 		compatible = "fixed-clock";
@@ -11,12 +10,12 @@
 		clock-output-names = "gmac_clkin";
 		#clock-cells = <0>;
 	};
-
+	
 	sdio_pwrseq: sdio-pwrseq {
 		compatible = "mmc-pwrseq-simple";
 		pinctrl-names = "default";
 		pinctrl-0 = <&wifi_enable_h>;
-
+						     
 		/*
 		 * On the module itself this is one of these (depending
 		 * on the actual card populated):
@@ -70,38 +69,20 @@
 		#sound-dai-cells = <0>;
 	};
 
-	vcc_host1_5v: vcc_otg_5v: vcc5v0-host-regulator {
-		compatible = "regulator-fixed";
-		enable-active-high;
-		gpio = <&gpio1 26 GPIO_ACTIVE_HIGH>;
-		pinctrl-names = "default";
-		pinctrl-0 = <&host_vbus_drv>;
-		regulator-name = "vcc_host1_5v";
-		regulator-always-on;
-	};
-
 	vcc_host_5v: vcc-host-5v-regulator {
 		compatible = "regulator-fixed";
 		enable-active-high;
 		gpio = <&gpio0 0 GPIO_ACTIVE_HIGH>;
 		pinctrl-names = "default";
-		pinctrl-0 = <&usb30_host_drv>;
+		pinctrl-0 = <&usb_host_drv>;
 		regulator-name = "vcc_host_5v";
 		regulator-always-on;
 		vin-supply = <&vcc_sys>;
 	};
 	
-	wireless-wlan {
-		compatible = "wlan-platdata";
-		rockchip,grf = <&grf>;
-		wifi_chip_type = "ap6354";
-		sdio_vref = <1800>;
-		WIFI,host_wake_irq = <&gpio1 19 GPIO_ACTIVE_HIGH>;
-		status = "disabled";
-	};
-
 	leds {
 		compatible = "gpio-leds";
+		
 		power {
 			label = "firefly:blue:power";
 			linux,default-trigger = "ir-power-click";
@@ -194,21 +175,15 @@
 
 	sdio-pwrseq {
 		wifi_enable_h: wifi-enable-h {
-		rockchip,pins =
-			<1 18 RK_FUNC_GPIO &pcfg_pull_none>;
+			rockchip,pins =
+				<1 18 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
 
-	usb_host {
-		host_vbus_drv: host-vbus-drv {
-		rockchip,pins =
-			<1 26 RK_FUNC_GPIO &pcfg_pull_none>;
-		};
-	};
-
-	usb3 {
-		usb30_host_drv: usb30-host-drv {
-			rockchip,pins = <0 0 RK_FUNC_GPIO &pcfg_pull_none>;
+	usb {
+		usb_host_drv: usb-host-drv {
+			rockchip,pins = 
+				<0 0 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
 
@@ -243,16 +218,15 @@
 
 &u2phy {
     status = "okay";
+};
 
-    u2phy_host: host-port {
-        phy-supply = <&vcc_otg_5v>;
-        status = "okay";
-    };
+&u2phy_host {
+	phy-supply = <&vcc_host_5v>;
+	status = "okay";
+};
 
-    u2phy_otg: otg-port {
-        phy-supply = <&vcc_host1_5v>;
-        status = "okay";
-    };
+&u2phy_otg {
+	status = "okay";
 };
 
 &u3phy {

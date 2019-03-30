@@ -47,8 +47,7 @@
 #include "rk3328-box-plus-dram-timing.dtsi"
 
 / {
-	model = "Firefly ROC-RK3328-CC";
-	compatible = "firefly,roc-rk3328-cc", "rockchip,rk3328";
+	compatible = "firefly,rk3328-firefly-core", "rockchip,rk3328";
 	
 	chosen {
 		bootargs = "rockchip_jtag earlyprintk=uart8250-32bit,0xff130000 swiotlb=1 kpti=0 console=ttyFIQ0 rw root=PARTUUID=614e0000-0000 rootfstype=ext4 rootwait systemd.gpt_auto=0";
@@ -256,6 +255,8 @@
 	num-slots = <1>;
 	pinctrl-names = "default";
 	pinctrl-0 = <&emmc_clk &emmc_cmd &emmc_bus8>;
+	vmmc-supply = <&vcc_io>;
+	vqmmc-supply = <&vcc_18emmc>;
 	status = "okay";
 };
 
@@ -420,16 +421,16 @@
 				};
 			};
 
-			vdd_10: RK805_LDO3@6 {
+			vdd_11: RK805_LDO3@6 {
 				regulator-compatible = "RK805_LDO3";
-				regulator-name = "vdd_10";
-				regulator-min-microvolt = <1000000>;
-				regulator-max-microvolt = <1000000>;
+				regulator-name = "vdd_11";
+				regulator-min-microvolt = <1100000>;
+				regulator-max-microvolt = <1100000>;
 				regulator-boot-on;
 				regulator-always-on;
 				regulator-state-mem {
 					regulator-on-in-suspend;
-					regulator-suspend-microvolt = <1000000>;
+					regulator-suspend-microvolt = <1100000>;
 				};
 			};
 		};

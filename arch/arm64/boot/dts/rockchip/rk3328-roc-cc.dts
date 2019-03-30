@@ -10,11 +10,39 @@
 		compatible = "adc-keys";
 		io-channels = <&saradc 0>;
 	};
+	
+	vcc_host1_5v: vcc_otg_5v: vcc5v0-host-regulator {
+		compatible = "regulator-fixed";
+		enable-active-high;
+		gpio = <&gpio1 26 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&host_vbus_drv>;
+		regulator-name = "vcc_host1_5v";
+		regulator-always-on;
+	};
 
+};
 
+&u2phy_host {
+	phy-supply = <&vcc_host1_5v>;
+	status = "okay";
+};
+
+&u2phy_otg {
+	phy-supply = <&vcc_otg_5v>;
+	status = "okay";
 };
 
 &saradc {
 	status = "okay";
+};
+
+&pinctrl {
+	usb_host {
+		host_vbus_drv: host-vbus-drv {
+			rockchip,pins =
+				<1 26 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
 };
 
