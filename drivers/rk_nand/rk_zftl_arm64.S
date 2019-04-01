@@ -5,7 +5,7 @@
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
- * date: 2018-11-28
+ * date: 2019-04-01
  * function: rk ftl v5 for rockchip soc base on arm v8 to support 3D/2D
  *	     TLC and MLC.
  */
@@ -23737,27 +23737,28 @@ write_idblock:
 	cmp	w2, w1
 	bne	.L3785
 	uxth	w22, w22
-	add	x3, x25, 253952
-	add	x3, x3, 2044
-	mov	w2, 63999
-	mul	w0, w22, w26
+	mov	w3, 0
+	mov	w2, 63871
 	mov	w4, 4097
+	mul	w0, w22, w26
 	uxth	w0, w0
 	sub	w1, w0, #1
 	add	w1, w1, w19
 	udiv	w0, w1, w0
 	str	w0, [x29,120]
-	mov	w0, 0
+	add	x0, x25, 253952
+	add	x0, x0, 1532
 .L3742:
-	ldr	w1, [x3]
+	ldr	w1, [x0]
 	cbnz	w1, .L3739
-	ldr	w1, [x25,w0,uxtw 2]
-	add	w0, w0, 1
-	cmp	w0, w4
+	ldr	w1, [x25,w3,uxtw 2]
+	add	w3, w3, 1
+	cmp	w3, w4
 	sub	w2, w2, #1
-	csel	w0, w0, wzr, cc
-	str	w1, [x3],-4
+	str	w1, [x0,512]
+	csel	w3, w3, wzr, cc
 	cmp	w2, 4096
+	sub	x0, x0, #4
 	bne	.L3742
 	b	.L3741
 .L3739:
@@ -24056,15 +24057,15 @@ CRC_32:
 	.global	write_loader_lba
 	.type	write_loader_lba, %function
 write_loader_lba:
-	stp	x29, x30, [sp, -96]!
+	stp	x29, x30, [sp, -112]!
 	cmp	w0, 64
 	add	x29, sp, 0
 	stp	x19, x20, [sp,16]
 	stp	x21, x22, [sp,32]
-	str	x23, [sp,48]
+	stp	x23, x24, [sp,48]
 	mov	w19, w0
 	mov	w21, w1
-	mov	x23, x2
+	mov	x24, x2
 	adrp	x20, .LANCHOR7
 	bne	.L3802
 	ldr	w1, [x2]
@@ -24085,11 +24086,18 @@ write_loader_lba:
 	bl	ftl_memset
 	str	w19, [x22,-40]
 .L3802:
-	add	x3, x20, :lo12:.LANCHOR7
-	ldrb	w0, [x3,-52]
+	add	x23, x20, :lo12:.LANCHOR7
+	adrp	x0, .LC300
+	ldr	w2, [x24]
+	add	x0, x0, :lo12:.LC300
+	mov	w3, w19
+	mov	w4, w21
+	ldr	x1, [x23,-48]
+	bl	printk
+	ldrb	w0, [x23,-52]
 	cbz	w0, .L3801
 	sub	w0, w19, #64
-	ldr	x22, [x3,-48]
+	ldr	x22, [x23,-48]
 	cmp	w0, 499
 	bhi	.L3804
 	mov	w3, 564
@@ -24097,7 +24105,7 @@ write_loader_lba:
 	sub	w3, w3, w19
 	add	x0, x22, x0
 	cmp	w3, w21
-	mov	x1, x23
+	mov	x1, x24
 	csel	w2, w3, w21, ls
 	lsl	w2, w2, 9
 	bl	ftl_memcpy
@@ -24123,7 +24131,7 @@ write_loader_lba:
 	str	w19, [x20,-40]
 	b	.L3801
 .L3815:
-	ldr	w2, [x3,-40]
+	ldr	w2, [x23,-40]
 	mov	w0, 500
 	sub	w2, w2, #64
 	cmp	w2, 500
@@ -24134,21 +24142,21 @@ write_loader_lba:
 	cmp	w0, 4
 	beq	.L3816
 	mov	w0, 2
-	str	w0, [x29,64]
-	mov	w0, 3
-	str	w0, [x29,68]
-	mov	w0, 4
 	str	w0, [x29,72]
-	mov	w0, 5
+	mov	w0, 3
 	str	w0, [x29,76]
-	mov	w0, 6
+	mov	w0, 4
 	str	w0, [x29,80]
+	mov	w0, 5
+	str	w0, [x29,84]
+	mov	w0, 6
+	str	w0, [x29,88]
 	b	.L3807
 .L3816:
 	mov	x3, 0
 .L3806:
 	cmp	w2, 256
-	add	x0, x29, 64
+	add	x0, x29, 72
 	bls	.L3808
 	lsl	w1, w3, 1
 	str	w1, [x0,x3,lsl 2]
@@ -24160,26 +24168,24 @@ write_loader_lba:
 	cmp	x3, 5
 	bne	.L3806
 .L3807:
-	add	x0, x20, :lo12:.LANCHOR7
-	mov	w4, 63999
-	ldr	x3, [x0,-32]
-	add	x3, x3, 61440
-	add	x3, x3, 2559
+	add	x0, x22, 253952
+	mov	w3, 63872
+	add	x0, x0, 1536
 .L3812:
-	ldrb	w0, [x3]
-	cbz	w0, .L3810
-	add	w2, w4, 1
-	lsl	w0, w2, 2
+	ldr	w1, [x0]
+	cbz	w1, .L3810
+	add	w3, w3, 128
+	lsl	w0, w3, 2
 	b	.L3811
 .L3810:
-	sub	w4, w4, #1
-	sub	x3, x3, #1
-	cmp	w4, 4096
+	sub	w3, w3, #1
+	sub	x0, x0, #4
+	cmp	w3, 4096
 	bne	.L3812
 	lsl	w0, w2, 9
 .L3811:
 	mov	x1, x22
-	add	x2, x29, 64
+	add	x2, x29, 72
 	add	x22, x20, :lo12:.LANCHOR7
 	bl	write_idblock
 	ldr	x0, [x22,-48]
@@ -24190,8 +24196,8 @@ write_loader_lba:
 .L3801:
 	ldp	x19, x20, [sp,16]
 	ldp	x21, x22, [sp,32]
-	ldr	x23, [sp,48]
-	ldp	x29, x30, [sp], 96
+	ldp	x23, x24, [sp,48]
+	ldp	x29, x30, [sp], 112
 	ret
 	.size	write_loader_lba, .-write_loader_lba
 	.align	2
@@ -24358,8 +24364,8 @@ rknand_sys_storage_ioctl:
 	beq	.L3853
 	b	.L3897
 .L3850:
-	adrp	x0, .LC300
-	add	x0, x0, :lo12:.LC300
+	adrp	x0, .LC301
+	add	x0, x0, :lo12:.LC301
 	bl	printk
 	mov	w0, 4096
 	bl	ftl_malloc
@@ -24373,10 +24379,10 @@ rknand_sys_storage_ioctl:
 	mov	x2, 512
 	bl	rk_copy_from_user
 	cbnz	x0, .L3938
-	adrp	x0, .LC302
+	adrp	x0, .LC303
 	ldr	w1, [x19]
 	ldr	w2, [x19,4]
-	add	x0, x0, :lo12:.LC302
+	add	x0, x0, :lo12:.LC303
 	bl	printk
 	ldr	w0, [x19,4]
 	str	w0, [x29,52]
@@ -24394,8 +24400,8 @@ rknand_sys_storage_ioctl:
 	ubfiz	x2, x2, 9, 23
 	bl	rk_copy_to_user
 	cbz	x0, .L3941
-	adrp	x0, .LC303
-	add	x0, x0, :lo12:.LC303
+	adrp	x0, .LC304
+	add	x0, x0, :lo12:.LC304
 .L3933:
 	bl	printk
 .L3935:
@@ -24406,8 +24412,8 @@ rknand_sys_storage_ioctl:
 	mov	x0, -14
 	b	.L3834
 .L3849:
-	adrp	x0, .LC304
-	add	x0, x0, :lo12:.LC304
+	adrp	x0, .LC305
+	add	x0, x0, :lo12:.LC305
 	bl	printk
 	mov	w0, 4096
 	bl	ftl_malloc
@@ -24417,10 +24423,10 @@ rknand_sys_storage_ioctl:
 	mov	x2, 4096
 	bl	rk_copy_from_user
 	cbnz	x0, .L3938
-	adrp	x0, .LC305
+	adrp	x0, .LC306
 	ldr	w1, [x19]
 	ldr	w2, [x19,4]
-	add	x0, x0, :lo12:.LC305
+	add	x0, x0, :lo12:.LC306
 	bl	printk
 	adrp	x0, .LANCHOR7
 	add	x22, x0, :lo12:.LANCHOR7
@@ -24454,8 +24460,8 @@ rknand_sys_storage_ioctl:
 	bl	ftl_free
 	b	.L3931
 .L3852:
-	adrp	x0, .LC306
-	add	x0, x0, :lo12:.LC306
+	adrp	x0, .LC307
+	add	x0, x0, :lo12:.LC307
 	bl	printk
 	mov	w0, 4096
 	bl	ftl_malloc
@@ -24466,14 +24472,14 @@ rknand_sys_storage_ioctl:
 	bl	rk_copy_from_user
 	cbz	x0, .L3867
 .L3938:
-	adrp	x0, .LC301
-	add	x0, x0, :lo12:.LC301
+	adrp	x0, .LC302
+	add	x0, x0, :lo12:.LC302
 	b	.L3933
 .L3867:
 	ldr	w1, [x19]
-	adrp	x0, .LC307
+	adrp	x0, .LC308
 	ldr	w2, [x19,4]
-	add	x0, x0, :lo12:.LC307
+	add	x0, x0, :lo12:.LC308
 	bl	printk
 	ldr	w1, [x19]
 	mov	w0, 59392
@@ -24504,8 +24510,8 @@ rknand_sys_storage_ioctl:
 	str	xzr, [x20,-32]
 	b	.L3941
 .L3851:
-	adrp	x0, .LC308
-	add	x0, x0, :lo12:.LC308
+	adrp	x0, .LC309
+	add	x0, x0, :lo12:.LC309
 	bl	printk
 	mov	w0, 4096
 	bl	ftl_malloc
@@ -24517,8 +24523,8 @@ rknand_sys_storage_ioctl:
 	mov	x2, 11
 	b	.L3943
 .L3835:
-	adrp	x0, .LC309
-	add	x0, x0, :lo12:.LC309
+	adrp	x0, .LC310
+	add	x0, x0, :lo12:.LC310
 	bl	printk
 	bl	nand_blk_add_whole_disk
 	mov	w0, 4096
@@ -24533,8 +24539,8 @@ rknand_sys_storage_ioctl:
 	mov	x2, 64
 	b	.L3943
 .L3847:
-	adrp	x0, .LC310
-	add	x0, x0, :lo12:.LC310
+	adrp	x0, .LC311
+	add	x0, x0, :lo12:.LC311
 	bl	printk
 	adrp	x0, .LANCHOR7-24
 	add	x1, x29, 52
@@ -24548,8 +24554,8 @@ rknand_sys_storage_ioctl:
 	cbnz	x0, .L3934
 	b	.L3931
 .L3855:
-	adrp	x0, .LC311
-	add	x0, x0, :lo12:.LC311
+	adrp	x0, .LC312
+	add	x0, x0, :lo12:.LC312
 	bl	printk
 	mov	w0, 4096
 	bl	ftl_malloc
@@ -24573,8 +24579,8 @@ rknand_sys_storage_ioctl:
 	bl	ftl_free
 	b	.L3861
 .L3839:
-	adrp	x0, .LC312
-	add	x0, x0, :lo12:.LC312
+	adrp	x0, .LC313
+	add	x0, x0, :lo12:.LC313
 	bl	printk
 	add	x0, x29, 56
 	mov	x1, x20
@@ -24583,8 +24589,8 @@ rknand_sys_storage_ioctl:
 	mov	x19, x0
 	cbz	x0, .L3875
 .L3880:
-	adrp	x0, .LC301
-	add	x0, x0, :lo12:.LC301
+	adrp	x0, .LC302
+	add	x0, x0, :lo12:.LC302
 	bl	printk
 	b	.L3934
 .L3875:
@@ -24625,8 +24631,8 @@ rknand_sys_storage_ioctl:
 	bl	memset
 	b	.L3940
 .L3842:
-	adrp	x0, .LC313
-	add	x0, x0, :lo12:.LC313
+	adrp	x0, .LC314
+	add	x0, x0, :lo12:.LC314
 	bl	printk
 	add	x0, x29, 56
 	mov	x1, x20
@@ -24664,8 +24670,8 @@ rknand_sys_storage_ioctl:
 	mov	x1, x19
 	b	.L3932
 .L3846:
-	adrp	x0, .LC314
-	add	x0, x0, :lo12:.LC314
+	adrp	x0, .LC315
+	add	x0, x0, :lo12:.LC315
 	bl	printk
 	add	x0, x29, 56
 	mov	x1, x20
@@ -24738,8 +24744,8 @@ rknand_sys_storage_ioctl:
 	str	wzr, [x19,-16]
 	b	.L3931
 .L3837:
-	adrp	x0, .LC315
-	add	x0, x0, :lo12:.LC315
+	adrp	x0, .LC316
+	add	x0, x0, :lo12:.LC316
 	bl	printk
 	add	x0, x29, 56
 	mov	x1, x20
@@ -24810,8 +24816,8 @@ rknand_sys_storage_ioctl:
 	str	w0, [x19,-12]
 	b	.L3931
 .L3843:
-	adrp	x0, .LC316
-	add	x0, x0, :lo12:.LC316
+	adrp	x0, .LC317
+	add	x0, x0, :lo12:.LC317
 	bl	printk
 	add	x0, x29, 56
 	mov	x1, x20
@@ -24836,20 +24842,20 @@ rknand_sys_storage_ioctl:
 	movk	w0, 0x4004, lsl 16
 	cmp	w19, w0
 	bne	.L3887
-	adrp	x0, .LC317
-	add	x0, x0, :lo12:.LC317
+	adrp	x0, .LC318
+	add	x0, x0, :lo12:.LC318
 	b	.L3929
 .L3887:
 	mov	w0, 27708
 	movk	w0, 0x4004, lsl 16
 	cmp	w19, w0
 	bne	.L3889
-	adrp	x0, .LC318
-	add	x0, x0, :lo12:.LC318
-	b	.L3929
-.L3889:
 	adrp	x0, .LC319
 	add	x0, x0, :lo12:.LC319
+	b	.L3929
+.L3889:
+	adrp	x0, .LC320
+	add	x0, x0, :lo12:.LC320
 .L3929:
 	bl	printk
 	add	x0, x29, 56
@@ -24889,9 +24895,9 @@ rknand_sys_storage_ioctl:
 	cmp	w3, w2
 	beq	.L3891
 	cbz	w3, .L3891
-	adrp	x0, .LC320
+	adrp	x0, .LC321
 	mov	w1, w2
-	add	x0, x0, :lo12:.LC320
+	add	x0, x0, :lo12:.LC321
 	bl	printk
 	ldr	w0, [x20,512]
 	add	w0, w0, 1
@@ -24919,8 +24925,8 @@ rknand_sys_storage_ioctl:
 	bne	.L3931
 	b	.L3861
 .L3856:
-	adrp	x0, .LC321
-	add	x0, x0, :lo12:.LC321
+	adrp	x0, .LC322
+	add	x0, x0, :lo12:.LC322
 	bl	printk
 	add	x0, x29, 56
 	mov	x1, x20
@@ -24957,8 +24963,8 @@ rknand_sys_storage_ioctl:
 	mov	x2, 520
 	b	.L3926
 .L3853:
-	adrp	x0, .LC322
-	add	x0, x0, :lo12:.LC322
+	adrp	x0, .LC323
+	add	x0, x0, :lo12:.LC323
 	bl	printk
 	add	x0, x29, 56
 	mov	x1, x20
@@ -24999,9 +25005,9 @@ rknand_sys_storage_ioctl:
 .L3931:
 	mov	x19, 0
 .L3861:
-	adrp	x0, .LC323
+	adrp	x0, .LC324
 	mov	x1, x19
-	add	x0, x0, :lo12:.LC323
+	add	x0, x0, :lo12:.LC324
 	bl	printk
 	mov	x0, x19
 	b	.L3834
@@ -25054,8 +25060,8 @@ rk_ftl_storage_sys_init:
 	ldr	x0, [x19,-8]
 	str	wzr, [x19,-12]
 	str	wzr, [x0,16]
-	adrp	x0, .LC324
-	add	x0, x0, :lo12:.LC324
+	adrp	x0, .LC325
+	add	x0, x0, :lo12:.LC325
 	bl	printk
 .L3947:
 	add	x0, x20, :lo12:.LANCHOR7
@@ -25102,10 +25108,10 @@ rk_ftl_vendor_storage_init:
 	str	x0, [x1,536]
 	cbz	x0, .L3955
 	mov	w23, 0
-	adrp	x24, .LC325
+	adrp	x24, .LC326
 	mov	w19, w23
 	mov	w22, w23
-	add	x24, x24, :lo12:.LC325
+	add	x24, x24, :lo12:.LC326
 .L3959:
 	add	x20, x21, :lo12:.LANCHOR7
 	lsl	w0, w22, 7
@@ -25632,24 +25638,24 @@ rk_ftl_vendor_storage_ioctl:
 	.section	.rodata
 	.align	3
 .LANCHOR1 = . + 0
-	.type	__func__.34106, %object
-	.size	__func__.34106, 18
-__func__.34106:
+	.type	__func__.34054, %object
+	.size	__func__.34054, 18
+__func__.34054:
 	.string	"_list_remove_node"
 	.zero	6
-	.type	__func__.34131, %object
-	.size	__func__.34131, 23
-__func__.34131:
+	.type	__func__.34079, %object
+	.size	__func__.34079, 23
+__func__.34079:
 	.string	"_list_update_data_list"
 	.zero	1
-	.type	__func__.19084, %object
-	.size	__func__.19084, 22
-__func__.19084:
+	.type	__func__.19007, %object
+	.size	__func__.19007, 22
+__func__.19007:
 	.string	"nand_flash_print_info"
 	.zero	2
-	.type	__func__.19170, %object
-	.size	__func__.19170, 11
-__func__.19170:
+	.type	__func__.19093, %object
+	.size	__func__.19093, 11
+__func__.19093:
 	.string	"nandc_init"
 	.zero	5
 	.type	toshiba_A19ref_value, %object
@@ -25811,14 +25817,14 @@ toshiba_ref_value:
 	.byte	8
 	.byte	12
 	.byte	112
-	.type	__func__.18640, %object
-	.size	__func__.18640, 28
-__func__.18640:
+	.type	__func__.18563, %object
+	.size	__func__.18563, 28
+__func__.18563:
 	.string	"flash_wait_device_ready_raw"
 	.zero	4
-	.type	__func__.18704, %object
-	.size	__func__.18704, 22
-__func__.18704:
+	.type	__func__.18627, %object
+	.size	__func__.18627, 22
+__func__.18627:
 	.string	"flash_start_page_read"
 	.zero	2
 	.type	toshiba_3D_tlc_value, %object
@@ -26239,19 +26245,19 @@ toshiba_3D_slc_value:
 	.byte	-56
 	.byte	56
 	.zero	5
-	.type	__func__.18729, %object
-	.size	__func__.18729, 23
-__func__.18729:
+	.type	__func__.18652, %object
+	.size	__func__.18652, 23
+__func__.18652:
 	.string	"flash_start_plane_read"
 	.zero	1
-	.type	__func__.18615, %object
-	.size	__func__.18615, 26
-__func__.18615:
+	.type	__func__.18538, %object
+	.size	__func__.18538, 26
+__func__.18538:
 	.string	"flash_erase_duplane_block"
 	.zero	6
-	.type	__func__.18626, %object
-	.size	__func__.18626, 21
-__func__.18626:
+	.type	__func__.18549, %object
+	.size	__func__.18549, 21
+__func__.18549:
 	.string	"flash_erase_block_en"
 	.zero	3
 	.type	random_seed, %object
@@ -26385,19 +26391,19 @@ random_seed:
 	.hword	28406
 	.hword	17598
 	.hword	28087
-	.type	__func__.19349, %object
-	.size	__func__.19349, 13
-__func__.19349:
+	.type	__func__.19272, %object
+	.size	__func__.19272, 13
+__func__.19272:
 	.string	"buf_add_tail"
 	.zero	3
-	.type	__func__.19362, %object
-	.size	__func__.19362, 10
-__func__.19362:
+	.type	__func__.19285, %object
+	.size	__func__.19285, 10
+__func__.19285:
 	.string	"buf_alloc"
 	.zero	6
-	.type	__func__.19376, %object
-	.size	__func__.19376, 16
-__func__.19376:
+	.type	__func__.19299, %object
+	.size	__func__.19299, 16
+__func__.19299:
 	.string	"buf_remove_free"
 	.type	zftl_debug_proc_fops, %object
 	.size	zftl_debug_proc_fops, 216
@@ -26411,254 +26417,254 @@ zftl_debug_proc_fops:
 	.zero	8
 	.xword	single_release
 	.zero	104
-	.type	__func__.33701, %object
-	.size	__func__.33701, 12
-__func__.33701:
+	.type	__func__.33649, %object
+	.size	__func__.33649, 12
+__func__.33649:
 	.string	"gc_add_sblk"
 	.zero	4
-	.type	__func__.33769, %object
-	.size	__func__.33769, 19
-__func__.33769:
+	.type	__func__.33717, %object
+	.size	__func__.33717, 19
+__func__.33717:
 	.string	"gc_write_completed"
 	.zero	5
-	.type	__func__.33820, %object
-	.size	__func__.33820, 16
-__func__.33820:
+	.type	__func__.33768, %object
+	.size	__func__.33768, 16
+__func__.33768:
 	.string	"gc_free_src_blk"
-	.type	__func__.34312, %object
-	.size	__func__.34312, 18
-__func__.34312:
+	.type	__func__.34260, %object
+	.size	__func__.34260, 18
+__func__.34260:
 	.string	"ftl_alloc_sys_blk"
 	.zero	6
-	.type	__func__.34322, %object
-	.size	__func__.34322, 17
-__func__.34322:
+	.type	__func__.34270, %object
+	.size	__func__.34270, 17
+__func__.34270:
 	.string	"ftl_free_sys_blk"
 	.zero	7
-	.type	__func__.34433, %object
-	.size	__func__.34433, 23
-__func__.34433:
+	.type	__func__.34381, %object
+	.size	__func__.34381, 23
+__func__.34381:
 	.string	"ftl_get_ppa_from_index"
 	.zero	1
-	.type	__func__.34472, %object
-	.size	__func__.34472, 22
-__func__.34472:
+	.type	__func__.34420, %object
+	.size	__func__.34420, 22
+__func__.34420:
 	.string	"ftl_get_new_free_page"
 	.zero	2
-	.type	__func__.34483, %object
-	.size	__func__.34483, 22
-__func__.34483:
+	.type	__func__.34431, %object
+	.size	__func__.34431, 22
+__func__.34431:
 	.string	"ftl_ext_alloc_new_blk"
 	.zero	2
-	.type	__func__.33455, %object
-	.size	__func__.33455, 14
-__func__.33455:
+	.type	__func__.33403, %object
+	.size	__func__.33403, 14
+__func__.33403:
 	.string	"ftl_write_buf"
 	.zero	2
-	.type	__func__.33499, %object
-	.size	__func__.33499, 18
-__func__.33499:
+	.type	__func__.33447, %object
+	.size	__func__.33447, 18
+__func__.33447:
 	.string	"zftl_add_read_buf"
 	.zero	6
-	.type	__func__.34271, %object
-	.size	__func__.34271, 15
-__func__.34271:
+	.type	__func__.34219, %object
+	.size	__func__.34219, 15
+__func__.34219:
 	.string	"ftl_alloc_sblk"
 	.align	3
 .LANCHOR3 = . + 0
-	.type	__func__.34857, %object
-	.size	__func__.34857, 17
-__func__.34857:
+	.type	__func__.34805, %object
+	.size	__func__.34805, 17
+__func__.34805:
 	.string	"pm_alloc_new_blk"
 	.zero	7
-	.type	__func__.34885, %object
-	.size	__func__.34885, 21
-__func__.34885:
+	.type	__func__.34833, %object
+	.size	__func__.34833, 21
+__func__.34833:
 	.string	"pm_select_ram_region"
 	.zero	3
-	.type	__func__.19074, %object
-	.size	__func__.19074, 20
-__func__.19074:
+	.type	__func__.18997, %object
+	.size	__func__.18997, 20
+__func__.18997:
 	.string	"flash_die_info_init"
 	.zero	4
-	.type	__func__.33390, %object
-	.size	__func__.33390, 17
-__func__.33390:
+	.type	__func__.33338, %object
+	.size	__func__.33338, 17
+__func__.33338:
 	.string	"lpa_rebuild_hash"
 	.zero	7
-	.type	__func__.34821, %object
-	.size	__func__.34821, 13
-__func__.34821:
+	.type	__func__.34769, %object
+	.size	__func__.34769, 13
+__func__.34769:
 	.string	"pm_free_sblk"
 	.zero	3
-	.type	__func__.19400, %object
-	.size	__func__.19400, 21
-__func__.19400:
+	.type	__func__.19323, %object
+	.size	__func__.19323, 21
+__func__.19323:
 	.string	"flash_info_data_init"
 	.zero	3
-	.type	__func__.18557, %object
-	.size	__func__.18557, 19
-__func__.18557:
+	.type	__func__.18480, %object
+	.size	__func__.18480, 19
+__func__.18480:
 	.string	"flash_read_page_en"
 	.zero	5
-	.type	__func__.18717, %object
-	.size	__func__.18717, 31
-__func__.18717:
+	.type	__func__.18640, %object
+	.size	__func__.18640, 31
+__func__.18640:
 	.string	"flash_complete_plane_page_read"
 	.zero	1
-	.type	__func__.18742, %object
-	.size	__func__.18742, 25
-__func__.18742:
+	.type	__func__.18665, %object
+	.size	__func__.18665, 25
+__func__.18665:
 	.string	"flash_complete_page_read"
 	.zero	7
-	.type	__func__.34666, %object
-	.size	__func__.34666, 31
-__func__.34666:
+	.type	__func__.34614, %object
+	.size	__func__.34614, 31
+__func__.34614:
 	.string	"queue_wait_first_req_completed"
 	.zero	1
-	.type	__func__.34747, %object
-	.size	__func__.34747, 15
-__func__.34747:
+	.type	__func__.34695, %object
+	.size	__func__.34695, 15
+__func__.34695:
 	.string	"sblk_read_page"
 	.zero	1
-	.type	__func__.18664, %object
-	.size	__func__.18664, 26
-__func__.18664:
+	.type	__func__.18587, %object
+	.size	__func__.18587, 26
+__func__.18587:
 	.string	"flash_start_tlc_page_prog"
 	.zero	6
-	.type	__func__.18675, %object
-	.size	__func__.18675, 29
-__func__.18675:
+	.type	__func__.18598, %object
+	.size	__func__.18598, 29
+__func__.18598:
 	.string	"flash_start_3d_mlc_page_prog"
 	.zero	3
-	.type	__func__.18693, %object
-	.size	__func__.18693, 22
-__func__.18693:
+	.type	__func__.18616, %object
+	.size	__func__.18616, 22
+__func__.18616:
 	.string	"flash_start_page_prog"
 	.zero	2
-	.type	__func__.34720, %object
-	.size	__func__.34720, 15
-__func__.34720:
+	.type	__func__.34668, %object
+	.size	__func__.34668, 15
+__func__.34668:
 	.string	"sblk_prog_page"
 	.zero	1
-	.type	__func__.18599, %object
-	.size	__func__.18599, 19
-__func__.18599:
+	.type	__func__.18522, %object
+	.size	__func__.18522, 19
+__func__.18522:
 	.string	"flash_prog_page_en"
 	.zero	5
-	.type	__func__.34544, %object
-	.size	__func__.34544, 14
-__func__.34544:
+	.type	__func__.34492, %object
+	.size	__func__.34492, 14
+__func__.34492:
 	.string	"ftl_prog_page"
 	.zero	2
-	.type	__func__.34239, %object
-	.size	__func__.34239, 15
-__func__.34239:
+	.type	__func__.34187, %object
+	.size	__func__.34187, 15
+__func__.34187:
 	.string	"ftl_info_flush"
 	.zero	1
-	.type	__func__.34508, %object
-	.size	__func__.34508, 19
-__func__.34508:
+	.type	__func__.34456, %object
+	.size	__func__.34456, 19
+__func__.34456:
 	.string	"ftl_ext_info_flush"
 	.zero	5
-	.type	__func__.34520, %object
-	.size	__func__.34520, 18
-__func__.34520:
+	.type	__func__.34468, %object
+	.size	__func__.34468, 18
+__func__.34468:
 	.string	"ftl_ext_info_init"
 	.zero	6
-	.type	__func__.34403, %object
-	.size	__func__.34403, 23
-__func__.34403:
+	.type	__func__.34351, %object
+	.size	__func__.34351, 23
+__func__.34351:
 	.string	"ftl_open_sblk_recovery"
 	.zero	1
-	.type	__func__.34867, %object
-	.size	__func__.34867, 14
-__func__.34867:
+	.type	__func__.34815, %object
+	.size	__func__.34815, 14
+__func__.34815:
 	.string	"pm_write_page"
 	.zero	2
-	.type	__func__.19422, %object
-	.size	__func__.19422, 17
-__func__.19422:
+	.type	__func__.19345, %object
+	.size	__func__.19345, 17
+__func__.19345:
 	.string	"flash_info_flush"
 	.zero	7
-	.type	__func__.19389, %object
-	.size	__func__.19389, 20
-__func__.19389:
+	.type	__func__.19312, %object
+	.size	__func__.19312, 20
+__func__.19312:
 	.string	"flash_info_blk_init"
 	.zero	4
-	.type	__func__.19129, %object
-	.size	__func__.19129, 16
-__func__.19129:
+	.type	__func__.19052, %object
+	.size	__func__.19052, 16
+__func__.19052:
 	.string	"nand_flash_init"
-	.type	__func__.34381, %object
-	.size	__func__.34381, 16
-__func__.34381:
+	.type	__func__.34329, %object
+	.size	__func__.34329, 16
+__func__.34329:
 	.string	"ftl_sysblk_dump"
-	.type	__func__.34807, %object
-	.size	__func__.34807, 16
-__func__.34807:
+	.type	__func__.34755, %object
+	.size	__func__.34755, 16
+__func__.34755:
 	.string	"load_l2p_region"
-	.type	__func__.34841, %object
-	.size	__func__.34841, 6
-__func__.34841:
+	.type	__func__.34789, %object
+	.size	__func__.34789, 6
+__func__.34789:
 	.string	"pm_gc"
 	.zero	2
-	.type	__func__.33756, %object
-	.size	__func__.33756, 22
-__func__.33756:
+	.type	__func__.33704, %object
+	.size	__func__.33704, 22
+__func__.33704:
 	.string	"gc_update_l2p_map_new"
 	.zero	2
-	.type	__func__.33864, %object
-	.size	__func__.33864, 16
-__func__.33864:
+	.type	__func__.33812, %object
+	.size	__func__.33812, 16
+__func__.33812:
 	.string	"gc_scan_src_blk"
-	.type	__func__.33922, %object
-	.size	__func__.33922, 20
-__func__.33922:
+	.type	__func__.33870, %object
+	.size	__func__.33870, 20
+__func__.33870:
 	.string	"gc_scan_static_data"
 	.zero	4
-	.type	__func__.33985, %object
-	.size	__func__.33985, 18
-__func__.33985:
+	.type	__func__.33933, %object
+	.size	__func__.33933, 18
+__func__.33933:
 	.string	"gc_block_vpn_scan"
 	.zero	6
-	.type	__func__.34357, %object
-	.size	__func__.34357, 14
-__func__.34357:
+	.type	__func__.34305, %object
+	.size	__func__.34305, 14
+__func__.34305:
 	.string	"ftl_sblk_dump"
 	.zero	2
-	.type	__func__.33532, %object
-	.size	__func__.33532, 10
-__func__.33532:
+	.type	__func__.33480, %object
+	.size	__func__.33480, 10
+__func__.33480:
 	.string	"zftl_read"
 	.zero	6
-	.type	__func__.33722, %object
-	.size	__func__.33722, 21
-__func__.33722:
+	.type	__func__.33670, %object
+	.size	__func__.33670, 21
+__func__.33670:
 	.string	"gc_check_data_one_wl"
 	.zero	3
-	.type	__func__.34454, %object
-	.size	__func__.34454, 19
-__func__.34454:
+	.type	__func__.34402, %object
+	.size	__func__.34402, 19
+__func__.34402:
 	.string	"ftl_update_l2p_map"
 	.zero	5
-	.type	__func__.33437, %object
-	.size	__func__.33437, 17
-__func__.33437:
+	.type	__func__.33385, %object
+	.size	__func__.33385, 17
+__func__.33385:
 	.string	"ftl_write_commit"
 	.zero	7
-	.type	__func__.33798, %object
-	.size	__func__.33798, 16
-__func__.33798:
+	.type	__func__.33746, %object
+	.size	__func__.33746, 16
+__func__.33746:
 	.string	"gc_do_copy_back"
-	.type	__func__.34013, %object
-	.size	__func__.34013, 11
-__func__.34013:
+	.type	__func__.33961, %object
+	.size	__func__.33961, 11
+__func__.33961:
 	.string	"zftl_do_gc"
 	.zero	5
-	.type	__func__.33563, %object
-	.size	__func__.33563, 13
-__func__.33563:
+	.type	__func__.33511, %object
+	.size	__func__.33511, 13
+__func__.33511:
 	.string	"_ftl_discard"
 	.section	.rodata.str1.1,"aMS",%progbits,1
 .LC0:
@@ -26666,7 +26672,7 @@ __func__.33563:
 .LC1:
 	.string	"%s\n"
 .LC2:
-	.string	"FTL version: 6.0.14 20181128"
+	.string	"FTL version: 6.0.14 20190401"
 .LC3:
 	.string	"zftl_debug:0x%x\n"
 .LC4:
@@ -27262,56 +27268,58 @@ __func__.33563:
 .LC299:
 	.string	"write_idblock totle_sec %x %x\n"
 .LC300:
-	.string	"READ_SECTOR_IO\n"
+	.string	"wl_lba %p %x %x %x\n"
 .LC301:
-	.string	"rk_copy_from_user error\n"
+	.string	"READ_SECTOR_IO\n"
 .LC302:
-	.string	"READ_SECTOR_IO %x %x\n"
+	.string	"rk_copy_from_user error\n"
 .LC303:
-	.string	"rk_copy_to_user error\n"
+	.string	"READ_SECTOR_IO %x %x\n"
 .LC304:
-	.string	"WRITE_SECTOR_IO\n"
+	.string	"rk_copy_to_user error\n"
 .LC305:
-	.string	"WRITE_SECTOR_IO %x %x\n"
+	.string	"WRITE_SECTOR_IO\n"
 .LC306:
-	.string	"END_WRITE_SECTOR_IO\n"
+	.string	"WRITE_SECTOR_IO %x %x\n"
 .LC307:
-	.string	"END_WRITE_SECTOR_IO %x %x\n"
+	.string	"END_WRITE_SECTOR_IO\n"
 .LC308:
-	.string	"GET_FLASH_INFO_IO\n"
+	.string	"END_WRITE_SECTOR_IO %x %x\n"
 .LC309:
-	.string	"GET_BAD_BLOCK_IO\n"
+	.string	"GET_FLASH_INFO_IO\n"
 .LC310:
-	.string	"GET_LOCK_FLAG_IO\n"
+	.string	"GET_BAD_BLOCK_IO\n"
 .LC311:
-	.string	"GET_PUBLIC_KEY_IO\n"
+	.string	"GET_LOCK_FLAG_IO\n"
 .LC312:
-	.string	"RKNAND_GET_DRM_KEY\n"
+	.string	"GET_PUBLIC_KEY_IO\n"
 .LC313:
-	.string	"RKNAND_STORE_DRM_KEY\n"
+	.string	"RKNAND_GET_DRM_KEY\n"
 .LC314:
-	.string	"RKNAND_DIASBLE_SECURE_BOOT\n"
+	.string	"RKNAND_STORE_DRM_KEY\n"
 .LC315:
-	.string	"RKNAND_ENASBLE_SECURE_BOOT\n"
+	.string	"RKNAND_DIASBLE_SECURE_BOOT\n"
 .LC316:
-	.string	"RKNAND_GET_SN_SECTOR\n"
+	.string	"RKNAND_ENASBLE_SECURE_BOOT\n"
 .LC317:
-	.string	"RKNAND_LOADER_UNLOCK\n"
+	.string	"RKNAND_GET_SN_SECTOR\n"
 .LC318:
-	.string	"RKNAND_LOADER_STATUS\n"
+	.string	"RKNAND_LOADER_UNLOCK\n"
 .LC319:
-	.string	"RKNAND_LOADER_LOCK\n"
+	.string	"RKNAND_LOADER_STATUS\n"
 .LC320:
-	.string	"LockKey not match %d\n"
+	.string	"RKNAND_LOADER_LOCK\n"
 .LC321:
-	.string	"RKNAND_GET_VENDOR_SECTOR\n"
+	.string	"LockKey not match %d\n"
 .LC322:
-	.string	"RKNAND_STORE_VENDOR_SECTOR\n"
+	.string	"RKNAND_GET_VENDOR_SECTOR\n"
 .LC323:
-	.string	"return ret = %lx\n"
+	.string	"RKNAND_STORE_VENDOR_SECTOR\n"
 .LC324:
-	.string	"secureBootEn check error\n"
+	.string	"return ret = %lx\n"
 .LC325:
+	.string	"secureBootEn check error\n"
+.LC326:
 	.string	"\0013vendor storage %x,%x,%x\n"
 	.data
 	.align	3
