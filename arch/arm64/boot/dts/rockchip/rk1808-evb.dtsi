@@ -359,7 +359,7 @@
 				regulator-initial-mode = <0x2>;
 				regulator-name = "vdd_log";
 				regulator-state-mem {
-					regulator-on-in-suspend;
+					regulator-off-in-suspend;
 					regulator-suspend-microvolt = <800000>;
 				};
 			};
@@ -407,7 +407,7 @@
 				regulator-max-microvolt = <800000>;
 				regulator-name = "vdda_0v8";
 				regulator-state-mem {
-					regulator-on-in-suspend;
+					regulator-off-in-suspend;
 					regulator-suspend-microvolt = <800000>;
 				};
 			};
@@ -446,7 +446,7 @@
 
 				regulator-name = "vcca_1v8";
 				regulator-state-mem {
-					regulator-on-in-suspend;
+					regulator-off-in-suspend;
 					regulator-suspend-microvolt = <1800000>;
 
 				};
@@ -536,6 +536,10 @@
 				regulator-always-on;
 				regulator-boot-on;
 				regulator-name = "vccio_3v3";
+				regulator-state-mem {
+					regulator-off-in-suspend;
+					regulator-suspend-microvolt = <3300000>;
+				};
 			};
 
 		};
@@ -610,6 +614,21 @@
 
 &pwm1 {
 	status = "okay";
+};
+
+&rockchip_suspend {
+	status = "okay";
+	rockchip,sleep-debug-en = <1>;
+
+	rockchip,sleep-mode-config = <
+		(0
+		| RKPM_SLP_ARMOFF_LOGOFF
+		| RKPM_SLP_PMU_PMUALIVE_32K
+		| RKPM_SLP_PMU_DIS_OSC
+		| RKPM_SLP_PMIC_LP
+		| RKPM_SLP_32K_EXT
+		)
+	>;
 };
 
 &saradc {
