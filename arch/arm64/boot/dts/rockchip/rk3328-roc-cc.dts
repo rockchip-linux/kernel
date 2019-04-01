@@ -5,12 +5,6 @@
 	model = "Firefly ROC-RK3328-CC";
 	compatible = "firefly,roc-rk3328-cc", "rockchip,rk3328";
 	
-	adc-keys {
-		u-boot,dm-pre-reloc;
-		compatible = "adc-keys";
-		io-channels = <&saradc 0>;
-	};
-	
 	vcc_host1_5v: vcc_otg_5v: vcc5v0-host-regulator {
 		compatible = "regulator-fixed";
 		enable-active-high;
@@ -30,10 +24,6 @@
 
 &u2phy_otg {
 	phy-supply = <&vcc_otg_5v>;
-	status = "okay";
-};
-
-&saradc {
 	status = "okay";
 };
 

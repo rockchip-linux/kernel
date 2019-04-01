@@ -107,6 +107,17 @@
 			mode = <0x00>;
 		};
 	};
+
+	adc-keys {
+		u-boot,dm-pre-reloc;
+		compatible = "adc-keys";
+		io-channels = <&saradc 0>;
+	};
+};
+
+&saradc {
+	vref-supply = <&vdd_18>;
+	status = "okay";
 };
 
 &codec {
