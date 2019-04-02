@@ -931,6 +931,15 @@ config VIDEO_GC2035
 	  To compile this driver as a module, choose M here: the
 	  module will be called gc2035.
 
+config VIDEO_BF3925
+	tristate "BYD BF3925 sensor support"
+	depends on VIDEO_V4L2 && I2C && VIDEO_V4L2_SUBDEV_API
+	help
+	  Support for the BYD BF3925 sensor.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called BF3925.
+
 config VIDEO_JX_H65
 	tristate "SOI JX_H65 sensor support"
 	depends on VIDEO_V4L2 && I2C && VIDEO_V4L2_SUBDEV_API
