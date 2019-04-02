@@ -393,6 +393,8 @@ LOGO := $(notdir $(wildcard $(srctree)/logo.bmp))
 LOGO_KERNEL := $(notdir $(wildcard $(srctree)/logo_kernel.bmp))
 endif
 %.img: %.dtb kernel.img $(LOGO) $(LOGO_KERNEL)
+	$(Q) if [ -f $(srctree)/$(LOGO) -a -e $(srctree)/scripts/bmpconvert ]; then $(srctree)/scripts/bmpconvert $(srctree)/$(LOGO); fi
+	$(Q) if [ -f $(srctree)/$(LOGO_KERNEL) -a -e $(srctree)/scripts/bmpconvert ]; then $(srctree)/scripts/bmpconvert $(srctree)/$(LOGO_KERNEL); fi
 	$(Q) if [ -f $(srctree)/$(LOGO) -a "$(srctree)" != "$(objtree)" ]; then cp -a $(srctree)/$(LOGO) $(objtree)/; fi
 	$(Q) if [ -f $(srctree)/$(LOGO_KERNEL) -a "$(srctree)" != "$(objtree)" ]; then cp -a $(srctree)/$(LOGO_KERNEL) $(objtree)/; fi
 	$(Q)scripts/resource_tool $(objtree)/arch/arm/boot/dts/$*.dtb $(LOGO) $(LOGO_KERNEL)
