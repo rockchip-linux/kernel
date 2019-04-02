@@ -75,7 +75,7 @@
 };
 
 &usb20_otg {
-	dr_mode = "otg";
+	dr_mode = "device";
 };
 
 &sdmmc_ext {
