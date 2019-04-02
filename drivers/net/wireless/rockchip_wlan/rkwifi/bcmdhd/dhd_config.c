@@ -2708,7 +2708,7 @@ dhd_conf_preinit(dhd_pub_t *dhd)
 	conf->txglom_ext = FALSE;
 	conf->tx_max_offset = 0;
 	conf->txglomsize = SDPCM_DEFGLOM_SIZE;
-	conf->txctl_tmo_fix = -1;
+	conf->txctl_tmo_fix = 300;
 	conf->txglom_mode = SDPCM_TXGLOM_CPY;
 	conf->deferred_tx_len = 0;
 	conf->dhd_txminmax = 1;
