@@ -17,7 +17,7 @@
 #include <linux/regulator/consumer.h>
 #include <linux/sysfs.h>
 #include <linux/pinctrl/consumer.h>
-
+#include <linux/version.h>
 #include <media/v4l2-async.h>
 #include <media/media-entity.h>
 #include <media/v4l2-common.h>
@@ -33,6 +33,8 @@
 
 /* verify default register values */
 //#define CHECK_REG_VALUE
+
+#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x0)
 
 #ifndef V4L2_CID_DIGITAL_GAIN
 #define V4L2_CID_DIGITAL_GAIN		V4L2_CID_GAIN
@@ -1261,6 +1263,11 @@ static int ov5648_probe(struct i2c_client *client,
 	char facing[2] = "b";
 	int ret;
 
+	dev_info(dev, "driver version: %02x.%02x.%02x",
+		DRIVER_VERSION >> 16,
+		(DRIVER_VERSION & 0xff00) >> 8,
+		DRIVER_VERSION & 0x00ff);
+
 	ov5648 = devm_kzalloc(dev, sizeof(*ov5648), GFP_KERNEL);
 	if (!ov5648)
 		return -ENOMEM;
@@ -1376,7 +1383,7 @@ static int ov5648_probe(struct i2c_client *client,
 		 ov5648->module_index, facing,
 		 OV5648_NAME, dev_name(sd->dev));
 
-	ret = v4l2_async_register_subdev(sd);
+	ret = v4l2_async_register_subdev_sensor_common(sd);
 	if (ret) {
 		dev_err(dev, "v4l2 async register subdev failed\n");
 		goto err_clean_entity;

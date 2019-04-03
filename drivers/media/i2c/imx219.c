@@ -16,12 +16,15 @@
 #include <linux/of_graph.h>
 #include <linux/slab.h>
 #include <linux/videodev2.h>
+#include <linux/version.h>
 #include <linux/rk-camera-module.h>
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-fwnode.h>
 #include <media/v4l2-image-sizes.h>
 #include <media/v4l2-mediabus.h>
+
+#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x0)
 
 /* IMX219 supported geometry */
 #define IMX219_TABLE_END		0xffff
@@ -976,6 +979,11 @@ static int imx219_probe(struct i2c_client *client,
 	struct v4l2_subdev *sd;
 	char facing[2];
 	int ret;
+
+	dev_info(dev, "driver version: %02x.%02x.%02x",
+		DRIVER_VERSION >> 16,
+		(DRIVER_VERSION & 0xff00) >> 8,
+		DRIVER_VERSION & 0x00ff);
 
 	if (!i2c_check_functionality(adapter, I2C_FUNC_SMBUS_BYTE_DATA)) {
 		dev_warn(&adapter->dev,

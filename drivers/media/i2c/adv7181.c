@@ -14,11 +14,14 @@
 #include <linux/regulator/consumer.h>
 #include <linux/sysfs.h>
 #include <linux/slab.h>
+#include <linux/version.h>
 #include <linux/rk-camera-module.h>
 #include <media/media-entity.h>
 #include <media/v4l2-async.h>
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-subdev.h>
+
+#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x0)
 
 #define REG_CHIP_ID			0x11
 #define CHIP_ID				0x20
@@ -510,6 +513,11 @@ static int adv7181_probe(struct i2c_client *client,
 	struct adv7181 *adv7181;
 	char facing[2];
 	int ret;
+
+	dev_info(dev, "driver version: %02x.%02x.%02x",
+		DRIVER_VERSION >> 16,
+		(DRIVER_VERSION & 0xff00) >> 8,
+		DRIVER_VERSION & 0x00ff);
 
 	adv7181 = devm_kzalloc(dev, sizeof(*adv7181), GFP_KERNEL);
 	if (!adv7181)

@@ -22,6 +22,7 @@
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 #include <linux/videodev2.h>
+#include <linux/version.h>
 #include <linux/rk-camera-module.h>
 #include <media/media-entity.h>
 #include <media/v4l2-common.h>
@@ -33,6 +34,7 @@
 #include <media/v4l2-mediabus.h>
 #include <media/v4l2-subdev.h>
 
+#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x0)
 #define DRIVER_NAME "gc2035"
 #define GC2035_PIXEL_RATE		(70 * 1000 * 1000)
 
@@ -1418,6 +1420,11 @@ static int gc2035_probe(struct i2c_client *client,
 	struct gc2035 *gc2035;
 	char facing[2];
 	int ret;
+
+	dev_info(dev, "driver version: %02x.%02x.%02x",
+		DRIVER_VERSION >> 16,
+		(DRIVER_VERSION & 0xff00) >> 8,
+		DRIVER_VERSION & 0x00ff);
 
 	gc2035 = devm_kzalloc(&client->dev, sizeof(*gc2035), GFP_KERNEL);
 	if (!gc2035)

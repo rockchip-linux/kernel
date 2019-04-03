@@ -40,6 +40,7 @@
 #include <linux/workqueue.h>
 #include <linux/v4l2-dv-timings.h>
 #include <linux/hdmi.h>
+#include <linux/version.h>
 #include <linux/rk-camera-module.h>
 #include <media/v4l2-dv-timings.h>
 #include <media/v4l2-device.h>
@@ -59,6 +60,8 @@ MODULE_AUTHOR("Ramakrishnan Muthukrishnan <ram@rkrishnan.org>");
 MODULE_AUTHOR("Mikhail Khelik <mkhelik@cisco.com>");
 MODULE_AUTHOR("Mats Randgaard <matrandg@cisco.com>");
 MODULE_LICENSE("GPL");
+
+#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x0)
 
 #define EDID_NUM_BLOCKS_MAX 8
 #define EDID_BLOCK_SIZE 128
@@ -1999,6 +2002,11 @@ static int tc35874x_probe(struct i2c_client *client,
 	struct device_node *node = dev->of_node;
 	char facing[2];
 	int err, data;
+
+	dev_info(dev, "driver version: %02x.%02x.%02x",
+		DRIVER_VERSION >> 16,
+		(DRIVER_VERSION & 0xff00) >> 8,
+		DRIVER_VERSION & 0x00ff);
 
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_SMBUS_BYTE_DATA))
 		return -EIO;
