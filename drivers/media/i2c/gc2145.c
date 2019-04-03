@@ -164,7 +164,7 @@ static const struct sensor_register gc2145_dvp_init_regs[] = {
 	{0x20, 0x03},
 	{0x21, 0x40},
 	{0x22, 0xa0},
-	{0x24, 0x16},
+	{0x24, 0x3f},
 	{0x25, 0x01},
 	{0x26, 0x10},
 	{0x2d, 0x60},
@@ -1821,6 +1821,8 @@ static int gc2145_write(struct i2c_client *client, u8 reg, u8 val)
 	u8 buf[2];
 	int ret;
 
+	dev_dbg(&client->dev, "write reg(0x%x val:0x%x)!\n", reg, val);
+
 	buf[0] = reg & 0xFF;
 	buf[1] = val;
 
@@ -2097,7 +2099,10 @@ static int gc2145_s_stream(struct v4l2_subdev *sd, int on)
 	struct gc2145 *gc2145 = to_gc2145(sd);
 	int ret = 0;
 
-	dev_dbg(&client->dev, "%s: on: %d\n", __func__, on);
+	dev_info(&client->dev, "%s: on: %d, %dx%d@%d\n", __func__, on,
+				gc2145->frame_size->width,
+				gc2145->frame_size->height,
+				gc2145->frame_size->fps);
 
 	mutex_lock(&gc2145->lock);
 
@@ -2110,23 +2115,8 @@ static int gc2145_s_stream(struct v4l2_subdev *sd, int on)
 		/* Stop Streaming Sequence */
 		gc2145_set_streaming(gc2145, on);
 		gc2145->streaming = on;
-		if (!IS_ERR(gc2145->pwdn_gpio)) {
-			gpiod_set_value_cansleep(gc2145->pwdn_gpio, 1);
-			usleep_range(2000, 5000);
-		}
 		goto unlock;
 	}
-	if (!IS_ERR(gc2145->pwdn_gpio)) {
-		gpiod_set_value_cansleep(gc2145->pwdn_gpio, 0);
-		usleep_range(2000, 5000);
-	}
-
-	if (gc2145->bus_cfg.bus_type == V4L2_MBUS_CSI2)
-		ret = gc2145_write_array(client, gc2145_mipi_init_regs);
-	else
-		ret = gc2145_write_array(client, gc2145_dvp_init_regs);
-	if (ret)
-		goto unlock;
 
 	ret = gc2145_write_array(client, gc2145->frame_size->regs);
 	if (ret)
@@ -2231,13 +2221,18 @@ static int gc2145_s_frame_interval(struct v4l2_subdev *sd,
 		 fi->interval.numerator, fi->interval.denominator);
 
 	mutex_lock(&gc2145->lock);
+
 	if (gc2145->format.width == 1600)
 		goto unlock;
+
 	fps = DIV_ROUND_CLOSEST(fi->interval.denominator,
 				fi->interval.numerator);
 	mf = gc2145->format;
 	__gc2145_try_frame_size_fps(gc2145, &mf, &size, fps);
+
 	if (gc2145->frame_size != size) {
+		dev_info(&client->dev, "%s match wxh@FPS is %dx%d@%d\n",
+			   __func__, size->width, size->height, size->fps);
 		ret = gc2145_write_array(client, size->regs);
 		if (ret)
 			goto unlock;
@@ -2320,6 +2315,50 @@ static long gc2145_compat_ioctl32(struct v4l2_subdev *sd,
 }
 #endif
 
+static int gc2145_init(struct v4l2_subdev *sd, u32 val)
+{
+	int ret;
+	struct gc2145 *gc2145 = to_gc2145(sd);
+	struct i2c_client *client = gc2145->client;
+
+	dev_info(&client->dev, "%s(%d)\n", __func__, __LINE__);
+
+	/* soft reset */
+	ret = gc2145_write(client, 0xfe, 0xf0);
+	if (gc2145->bus_cfg.bus_type == V4L2_MBUS_CSI2)
+		ret = gc2145_write_array(client, gc2145_mipi_init_regs);
+	else
+		ret = gc2145_write_array(client, gc2145_dvp_init_regs);
+
+	return ret;
+}
+
+static int gc2145_power(struct v4l2_subdev *sd, int on)
+{
+	int ret;
+	struct gc2145 *gc2145 = to_gc2145(sd);
+	struct i2c_client *client = gc2145->client;
+	struct device *dev = &gc2145->client->dev;
+
+	dev_info(&client->dev, "%s(%d) on(%d)\n", __func__, __LINE__, on);
+	if (on) {
+		if (!IS_ERR(gc2145->pwdn_gpio)) {
+			gpiod_set_value_cansleep(gc2145->pwdn_gpio, 0);
+			usleep_range(2000, 5000);
+		}
+		ret = gc2145_init(sd, 0);
+		usleep_range(10000, 20000);
+		if (ret)
+			dev_err(dev, "init error\n");
+	} else {
+		if (!IS_ERR(gc2145->pwdn_gpio)) {
+			gpiod_set_value_cansleep(gc2145->pwdn_gpio, 1);
+			usleep_range(2000, 5000);
+		}
+	}
+	return 0;
+}
+
 static const struct v4l2_subdev_core_ops gc2145_subdev_core_ops = {
 	.log_status = v4l2_ctrl_subdev_log_status,
 	.subscribe_event = v4l2_ctrl_subdev_subscribe_event,
@@ -2328,6 +2367,7 @@ static const struct v4l2_subdev_core_ops gc2145_subdev_core_ops = {
 #ifdef CONFIG_COMPAT
 	.compat_ioctl32 = gc2145_compat_ioctl32,
 #endif
+	.s_power = gc2145_power,
 };
 
 static const struct v4l2_subdev_video_ops gc2145_subdev_video_ops = {
@@ -2393,6 +2433,7 @@ static int __gc2145_power_on(struct gc2145 *gc2145)
 	int ret;
 	struct device *dev = &gc2145->client->dev;
 
+	dev_info(dev, "%s(%d)\n", __func__, __LINE__);
 	if (!IS_ERR(gc2145->reset_gpio)) {
 		gpiod_set_value_cansleep(gc2145->reset_gpio, 0);
 		usleep_range(2000, 5000);
@@ -2437,6 +2478,7 @@ static int __gc2145_power_on(struct gc2145 *gc2145)
 
 static void __gc2145_power_off(struct gc2145 *gc2145)
 {
+	dev_info(&gc2145->client->dev, "%s(%d)\n", __func__, __LINE__);
 	if (!IS_ERR(gc2145->xvclk))
 		clk_disable_unprepare(gc2145->xvclk);
 	if (!IS_ERR(gc2145->supplies))
