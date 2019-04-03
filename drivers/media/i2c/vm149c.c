@@ -6,10 +6,12 @@
 #include <linux/module.h>
 #include <linux/pm_runtime.h>
 #include <linux/rk-camera-module.h>
+#include <linux/version.h>
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-device.h>
 #include "rk_vcm_head.h"
 
+#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x0)
 #define VM149C_NAME			"vm149c"
 
 #define VM149C_MAX_CURRENT		100U
@@ -397,6 +399,11 @@ static int vm149c_probe(struct i2c_client *client,
 	char facing[2];
 
 	dev_info(&client->dev, "probing...\n");
+	dev_info(&client->dev, "driver version: %02x.%02x.%02x",
+		DRIVER_VERSION >> 16,
+		(DRIVER_VERSION & 0xff00) >> 8,
+		DRIVER_VERSION & 0x00ff);
+
 	if (of_property_read_u32(
 		np,
 		OF_CAMERA_VCMDRV_START_CURRENT,
