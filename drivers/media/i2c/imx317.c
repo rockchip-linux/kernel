@@ -14,6 +14,7 @@
 #include <linux/pm_runtime.h>
 #include <linux/regulator/consumer.h>
 #include <linux/sysfs.h>
+#include <linux/slab.h>
 #include <linux/rk-camera-module.h>
 #include <media/media-entity.h>
 #include <media/v4l2-async.h>
@@ -141,6 +142,8 @@ static const struct regval imx317_global_regs[] = {
  */
 static const struct regval imx317_1932x1094_regs[] = {
 	{0x3000, 0x12},
+	{0x3001, 0x10},
+	{REG_DELAY, 0x0a},//delay 10ms
 	{0x303E, 0x03},
 	{0x3120, 0xC0},
 	{0x3121, 0x00},
@@ -200,7 +203,7 @@ static const struct regval imx317_1932x1094_regs[] = {
 	{0x30E1, 0x00},
 	{0x30E2, 0x02},
 
-	{0x30F6, 0x70},
+	{0x30F6, 0x76},
 	{0x30F7, 0x02},
 	{0x30F8, 0x0A},
 	{0x30F9, 0x0F},
@@ -256,17 +259,17 @@ static const struct regval imx317_1932x1094_regs[] = {
 	{0x3A87, 0x00},
 	{REG_DELAY, 0x0f},//delay 10ms
 
-	{0x3000, 0x00},
 	{0x303e, 0x03},
 	{REG_DELAY, 0x0a},//delay 7ms
 
 	{0x30f4, 0x00},
 	{0x3018, 0xa2},
+	{0x300a, 0x9c},
+	{0x300b, 0x02},
 	{0x300c, 0x0c},
 	{0x300d, 0x00},
 	{0x312e, 0x01},//CSI_LANE_MODE//add
 	{0x3aa2, 0x01},//PHYSICAL_LANE_NUM//add
-	{0x3001, 0x16},
 	{REG_NULL, 0x00},
 };
 
