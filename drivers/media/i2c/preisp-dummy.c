@@ -26,7 +26,11 @@
 #include <linux/of_platform.h>
 #include <linux/of_gpio.h>
 #include <linux/mfd/syscon.h>
+#include <linux/version.h>
+#include <linux/rk-camera-module.h>
 #include <linux/rk-preisp.h>
+
+#define DRIVER_VERSION				KERNEL_VERSION(0, 0x01, 0x0)
 
 #ifndef V4L2_CID_DIGITAL_GAIN
 #define V4L2_CID_DIGITAL_GAIN			V4L2_CID_GAIN
@@ -39,6 +43,8 @@
 
 #define OF_CAMERA_MODULE_REGULATORS		"rockchip,regulator-names"
 #define OF_CAMERA_MODULE_REGULATOR_VOLTAGES	"rockchip,regulator-voltages"
+
+#define PISP_DMY_NAME				"pisp_dmy"
 
 struct pisp_dmy_gpio {
 	int pltfrm_gpio;
@@ -76,6 +82,11 @@ struct pisp_dmy {
 	struct mutex		mutex;
 	bool			power_on;
 	struct pisp_dmy_regulators regulators;
+
+	u32			module_index;
+	const char		*module_facing;
+	const char		*module_name;
+	const char		*len_name;
 };
 
 #define to_pisp_dmy(sd) container_of(sd, struct pisp_dmy, subdev)
@@ -230,6 +241,76 @@ exit:
 	return ret;
 }
 
+static void pisp_dmy_get_module_inf(struct pisp_dmy *pisp_dmy,
+				    struct rkmodule_inf *inf)
+{
+	memset(inf, 0, sizeof(*inf));
+	strlcpy(inf->base.sensor, PISP_DMY_NAME, sizeof(inf->base.sensor));
+	strlcpy(inf->base.module, pisp_dmy->module_name,
+		sizeof(inf->base.module));
+	strlcpy(inf->base.lens, pisp_dmy->len_name, sizeof(inf->base.lens));
+}
+
+static long pisp_dmy_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
+{
+	struct pisp_dmy *pisp_dmy = to_pisp_dmy(sd);
+	long ret = 0;
+
+	switch (cmd) {
+	case RKMODULE_GET_MODULE_INFO:
+		pisp_dmy_get_module_inf(pisp_dmy, (struct rkmodule_inf *)arg);
+		break;
+	default:
+		ret = -ENOTTY;
+		break;
+	}
+
+	return ret;
+}
+
+#ifdef CONFIG_COMPAT
+static long pisp_dmy_compat_ioctl32(struct v4l2_subdev *sd,
+				    unsigned int cmd, unsigned long arg)
+{
+	void __user *up = compat_ptr(arg);
+	struct rkmodule_inf *inf;
+	struct rkmodule_awb_cfg *cfg;
+	long ret;
+
+	switch (cmd) {
+	case RKMODULE_GET_MODULE_INFO:
+		inf = kzalloc(sizeof(*inf), GFP_KERNEL);
+		if (!inf) {
+			ret = -ENOMEM;
+			return ret;
+		}
+
+		ret = pisp_dmy_ioctl(sd, cmd, inf);
+		if (!ret)
+			ret = copy_to_user(up, inf, sizeof(*inf));
+		kfree(inf);
+		break;
+	case RKMODULE_AWB_CFG:
+		cfg = kzalloc(sizeof(*cfg), GFP_KERNEL);
+		if (!cfg) {
+			ret = -ENOMEM;
+			return ret;
+		}
+
+		ret = copy_from_user(cfg, up, sizeof(*cfg));
+		if (!ret)
+			ret = pisp_dmy_ioctl(sd, cmd, cfg);
+		kfree(cfg);
+		break;
+	default:
+		ret = -ENOIOCTLCMD;
+		break;
+	}
+
+	return ret;
+}
+#endif
+
 static int pisp_dmy_runtime_resume(struct device *dev)
 {
 	struct i2c_client *client = to_i2c_client(dev);
@@ -257,6 +338,10 @@ static const struct dev_pm_ops pisp_dmy_pm_ops = {
 
 static const struct v4l2_subdev_core_ops pisp_dmy_core_ops = {
 	.s_power = pisp_dmy_power,
+	.ioctl = pisp_dmy_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl32 = pisp_dmy_compat_ioctl32,
+#endif
 };
 
 static const struct v4l2_subdev_ops pisp_dmy_subdev_ops = {
@@ -384,13 +469,32 @@ static int pisp_dmy_probe(struct i2c_client *client,
 			const struct i2c_device_id *id)
 {
 	struct device *dev = &client->dev;
+	struct device_node *node = dev->of_node;
 	struct pisp_dmy *pisp_dmy;
 	struct v4l2_subdev *sd;
 	int ret;
 
+	dev_info(dev, "driver version: %02x.%02x.%02x",
+		 DRIVER_VERSION >> 16,
+		 (DRIVER_VERSION & 0xff00) >> 8,
+		 DRIVER_VERSION & 0x00ff);
+
 	pisp_dmy = devm_kzalloc(dev, sizeof(*pisp_dmy), GFP_KERNEL);
 	if (!pisp_dmy)
 		return -ENOMEM;
+
+	ret = of_property_read_u32(node, RKMODULE_CAMERA_MODULE_INDEX,
+				   &pisp_dmy->module_index);
+	ret |= of_property_read_string(node, RKMODULE_CAMERA_MODULE_FACING,
+				       &pisp_dmy->module_facing);
+	ret |= of_property_read_string(node, RKMODULE_CAMERA_MODULE_NAME,
+				       &pisp_dmy->module_name);
+	ret |= of_property_read_string(node, RKMODULE_CAMERA_LENS_NAME,
+				       &pisp_dmy->len_name);
+	if (ret) {
+		dev_err(dev, "could not get module information!\n");
+		return -EINVAL;
+	}
 
 	pisp_dmy->client = client;
 
@@ -444,7 +548,7 @@ static const struct i2c_device_id pisp_dmy_match_id[] = {
 
 static struct i2c_driver pisp_dmy_i2c_driver = {
 	.driver = {
-		.name = "pisp_dmy",
+		.name = PISP_DMY_NAME,
 		.pm = &pisp_dmy_pm_ops,
 		.of_match_table = of_match_ptr(pisp_dmy_of_match),
 	},
