@@ -2539,7 +2539,7 @@ static void rk817_bat_calc_zero_linek(struct rk817_battery_device *battery)
 			battery->zero_linek = 1200;
 			DBG("ZERO-new: zero_linek adjust step3...\n");
 		/* dsoc[5~15], dsoc < xsoc */
-		} else if ((battery->dsoc / 1000 <= 15 && battery->dsoc > 5) &&
+		} else if ((battery->dsoc / 1000 <= 15 && battery->dsoc / 1000 > 5) &&
 			   (battery->zero_linek <= 1200)) {
 			/* slow down */
 			if ((xsoc - battery->dsoc / 1000) >= min_gap_xsoc)
