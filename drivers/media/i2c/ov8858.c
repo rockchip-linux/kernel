@@ -190,6 +190,7 @@ struct ov8858 {
 	const char		*len_name;
 	struct rkmodule_inf	module_inf;
 	struct rkmodule_awb_cfg	awb_cfg;
+	struct rkmodule_lsc_cfg	lsc_cfg;
 };
 
 #define to_ov8858(sd) container_of(sd, struct ov8858, subdev)
@@ -1380,7 +1381,7 @@ static const char * const ov8858_test_pattern_menu[] = {
 
 /* Write registers up to 4 at a time */
 static int ov8858_write_reg(struct i2c_client *client, u16 reg,
-			     u32 len, u32 val)
+			    u32 len, u32 val)
 {
 	u32 buf_i, val_i;
 	u8 buf[6];
@@ -1408,7 +1409,7 @@ static int ov8858_write_reg(struct i2c_client *client, u16 reg,
 }
 
 static int ov8858_write_array(struct i2c_client *client,
-			       const struct regval *regs)
+			      const struct regval *regs)
 {
 	u32 i;
 	int ret = 0;
@@ -1423,7 +1424,7 @@ static int ov8858_write_array(struct i2c_client *client,
 
 /* Read registers up to 4 at a time */
 static int ov8858_read_reg(struct i2c_client *client, u16 reg,
-			    unsigned int len, u32 *val)
+			   unsigned int len, u32 *val)
 {
 	struct i2c_msg msgs[2];
 	u8 *data_be_p;
@@ -1457,7 +1458,7 @@ static int ov8858_read_reg(struct i2c_client *client, u16 reg,
 }
 
 static int ov8858_get_reso_dist(const struct ov8858_mode *mode,
-				 struct v4l2_mbus_framefmt *framefmt)
+				struct v4l2_mbus_framefmt *framefmt)
 {
 	return abs(mode->width - framefmt->width) +
 	       abs(mode->height - framefmt->height);
@@ -1465,7 +1466,7 @@ static int ov8858_get_reso_dist(const struct ov8858_mode *mode,
 
 static const struct ov8858_mode *
 ov8858_find_best_fit(struct ov8858 *ov8858,
-				 struct v4l2_subdev_format *fmt)
+		     struct v4l2_subdev_format *fmt)
 {
 	struct v4l2_mbus_framefmt *framefmt = &fmt->format;
 	int dist;
@@ -1485,7 +1486,7 @@ ov8858_find_best_fit(struct ov8858 *ov8858,
 }
 
 static int ov8858_set_fmt(struct v4l2_subdev *sd,
-			   struct v4l2_subdev_pad_config *cfg,
+			  struct v4l2_subdev_pad_config *cfg,
 			  struct v4l2_subdev_format *fmt)
 {
 	struct ov8858 *ov8858 = to_ov8858(sd);
@@ -1523,8 +1524,8 @@ static int ov8858_set_fmt(struct v4l2_subdev *sd,
 }
 
 static int ov8858_get_fmt(struct v4l2_subdev *sd,
-			   struct v4l2_subdev_pad_config *cfg,
-			   struct v4l2_subdev_format *fmt)
+			  struct v4l2_subdev_pad_config *cfg,
+			  struct v4l2_subdev_format *fmt)
 {
 	struct ov8858 *ov8858 = to_ov8858(sd);
 	const struct ov8858_mode *mode = ov8858->cur_mode;
@@ -1549,8 +1550,8 @@ static int ov8858_get_fmt(struct v4l2_subdev *sd,
 }
 
 static int ov8858_enum_mbus_code(struct v4l2_subdev *sd,
-				  struct v4l2_subdev_pad_config *cfg,
-				  struct v4l2_subdev_mbus_code_enum *code)
+				 struct v4l2_subdev_pad_config *cfg,
+				 struct v4l2_subdev_mbus_code_enum *code)
 {
 	if (code->index != 0)
 		return -EINVAL;
@@ -1560,7 +1561,7 @@ static int ov8858_enum_mbus_code(struct v4l2_subdev *sd,
 }
 
 static int ov8858_enum_frame_sizes(struct v4l2_subdev *sd,
-				    struct v4l2_subdev_pad_config *cfg,
+				   struct v4l2_subdev_pad_config *cfg,
 				   struct v4l2_subdev_frame_size_enum *fse)
 {
 	struct ov8858 *ov8858 = to_ov8858(sd);
@@ -1595,7 +1596,7 @@ static int ov8858_enable_test_pattern(struct ov8858 *ov8858, u32 pattern)
 }
 
 static int ov8858_g_frame_interval(struct v4l2_subdev *sd,
-				    struct v4l2_subdev_frame_interval *fi)
+				   struct v4l2_subdev_frame_interval *fi)
 {
 	struct ov8858 *ov8858 = to_ov8858(sd);
 	const struct ov8858_mode *mode = ov8858->cur_mode;
@@ -1776,11 +1777,19 @@ static void ov8858_get_module_inf(struct ov8858 *ov8858,
 	}
 }
 
-static void ov8858_set_module_inf(struct ov8858 *ov8858,
-				  struct rkmodule_awb_cfg *cfg)
+static void ov8858_set_awb_cfg(struct ov8858 *ov8858,
+			       struct rkmodule_awb_cfg *cfg)
 {
 	mutex_lock(&ov8858->mutex);
 	memcpy(&ov8858->awb_cfg, cfg, sizeof(*cfg));
+	mutex_unlock(&ov8858->mutex);
+}
+
+static void ov8858_set_lsc_cfg(struct ov8858 *ov8858,
+			       struct rkmodule_lsc_cfg *cfg)
+{
+	mutex_lock(&ov8858->mutex);
+	memcpy(&ov8858->lsc_cfg, cfg, sizeof(*cfg));
 	mutex_unlock(&ov8858->mutex);
 }
 
@@ -1794,7 +1803,10 @@ static long ov8858_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 		ov8858_get_module_inf(ov8858, (struct rkmodule_inf *)arg);
 		break;
 	case RKMODULE_AWB_CFG:
-		ov8858_set_module_inf(ov8858, (struct rkmodule_awb_cfg *)arg);
+		ov8858_set_awb_cfg(ov8858, (struct rkmodule_awb_cfg *)arg);
+		break;
+	case RKMODULE_LSC_CFG:
+		ov8858_set_lsc_cfg(ov8858, (struct rkmodule_lsc_cfg *)arg);
 		break;
 	default:
 		ret = -ENOTTY;
@@ -1810,7 +1822,8 @@ static long ov8858_compat_ioctl32(struct v4l2_subdev *sd,
 {
 	void __user *up = compat_ptr(arg);
 	struct rkmodule_inf *inf;
-	struct rkmodule_awb_cfg *cfg;
+	struct rkmodule_awb_cfg *awb_cfg;
+	struct rkmodule_lsc_cfg *lsc_cfg;
 	long ret = 0;
 
 	switch (cmd) {
@@ -1827,16 +1840,28 @@ static long ov8858_compat_ioctl32(struct v4l2_subdev *sd,
 		kfree(inf);
 		break;
 	case RKMODULE_AWB_CFG:
-		cfg = kzalloc(sizeof(*cfg), GFP_KERNEL);
-		if (!cfg) {
+		awb_cfg = kzalloc(sizeof(*awb_cfg), GFP_KERNEL);
+		if (!awb_cfg) {
 			ret = -ENOMEM;
 			return ret;
 		}
 
-		ret = copy_from_user(cfg, up, sizeof(*cfg));
+		ret = copy_from_user(awb_cfg, up, sizeof(*awb_cfg));
 		if (!ret)
-			ret = ov8858_ioctl(sd, cmd, cfg);
-		kfree(cfg);
+			ret = ov8858_ioctl(sd, cmd, awb_cfg);
+		kfree(awb_cfg);
+		break;
+	case RKMODULE_LSC_CFG:
+		lsc_cfg = kzalloc(sizeof(*lsc_cfg), GFP_KERNEL);
+		if (!lsc_cfg) {
+			ret = -ENOMEM;
+			return ret;
+		}
+
+		ret = copy_from_user(lsc_cfg, up, sizeof(*lsc_cfg));
+		if (!ret)
+			ret = ov8858_ioctl(sd, cmd, lsc_cfg);
+		kfree(lsc_cfg);
 		break;
 	default:
 		ret = -ENOTTY;
@@ -1854,18 +1879,18 @@ static int ov8858_apply_otp_r1a(struct ov8858 *ov8858)
 	struct i2c_client *client = ov8858->client;
 	struct ov8858_otp_info_r1a *otp_ptr = ov8858->otp_r1a;
 	struct rkmodule_awb_cfg *awb_cfg = &ov8858->awb_cfg;
-	u32 golden_bg_ratio;
-	u32 golden_rg_ratio;
-	u32 golden_g_value;
+	struct rkmodule_lsc_cfg *lsc_cfg = &ov8858->lsc_cfg;
+	u32 golden_bg_ratio = 0;
+	u32 golden_rg_ratio = 0;
+	u32 golden_g_value = 0;
 	u32 i;
 
-	if (!ov8858->awb_cfg.enable)
-		return 0;
-
-	golden_g_value = (awb_cfg->golden_gb_value +
-			  awb_cfg->golden_gr_value) / 2;
-	golden_bg_ratio = awb_cfg->golden_b_value * 0x200 / golden_g_value;
-	golden_rg_ratio = awb_cfg->golden_r_value * 0x200 / golden_g_value;
+	if (awb_cfg->enable) {
+		golden_g_value = (awb_cfg->golden_gb_value +
+				  awb_cfg->golden_gr_value) / 2;
+		golden_bg_ratio = awb_cfg->golden_b_value * 0x200 / golden_g_value;
+		golden_rg_ratio = awb_cfg->golden_r_value * 0x200 / golden_g_value;
+	}
 
 	/* apply OTP WB Calibration */
 	if ((otp_ptr->flag & 0x40) && golden_bg_ratio && golden_rg_ratio) {
@@ -1924,7 +1949,7 @@ static int ov8858_apply_otp_r1a(struct ov8858 *ov8858)
 	}
 
 	/* apply OTP Lenc Calibration */
-	if (otp_ptr->flag & 0x10) {
+	if ((otp_ptr->flag & 0x10) && lsc_cfg->enable) {
 		ov8858_read_1byte(client, 0x5000, &temp);
 		temp = 0x80 | temp;
 		ov8858_write_1byte(client, 0x5000, temp);
@@ -1945,18 +1970,18 @@ static int ov8858_apply_otp_r2a(struct ov8858 *ov8858)
 	struct i2c_client *client = ov8858->client;
 	struct ov8858_otp_info_r2a *otp_ptr = ov8858->otp_r2a;
 	struct rkmodule_awb_cfg *awb_cfg = &ov8858->awb_cfg;
-	u32 golden_bg_ratio;
-	u32 golden_rg_ratio;
-	u32 golden_g_value;
+	struct rkmodule_lsc_cfg *lsc_cfg = &ov8858->lsc_cfg;
+	u32 golden_bg_ratio = 0;
+	u32 golden_rg_ratio = 0;
+	u32 golden_g_value = 0;
 	u32 i;
 
-	if (!ov8858->awb_cfg.enable)
-		return 0;
-
-	golden_g_value = (awb_cfg->golden_gb_value +
-			  awb_cfg->golden_gr_value) / 2;
-	golden_bg_ratio = awb_cfg->golden_b_value * 0x200 / golden_g_value;
-	golden_rg_ratio = awb_cfg->golden_r_value * 0x200 / golden_g_value;
+	if (awb_cfg->enable) {
+		golden_g_value = (awb_cfg->golden_gb_value +
+				  awb_cfg->golden_gr_value) / 2;
+		golden_bg_ratio = awb_cfg->golden_b_value * 0x200 / golden_g_value;
+		golden_rg_ratio = awb_cfg->golden_r_value * 0x200 / golden_g_value;
+	}
 
 	/* apply OTP WB Calibration */
 	if ((otp_ptr->flag & 0xC0) && golden_bg_ratio && golden_rg_ratio) {
@@ -1997,7 +2022,7 @@ static int ov8858_apply_otp_r2a(struct ov8858 *ov8858)
 	}
 
 	/* apply OTP Lenc Calibration */
-	if (otp_ptr->flag & 0x10) {
+	if ((otp_ptr->flag & 0x10) && lsc_cfg->enable) {
 		ov8858_read_1byte(client, 0x5000, &temp);
 		temp = 0x80 | temp;
 		ov8858_write_1byte(client, 0x5000, temp);
@@ -2048,17 +2073,17 @@ static int __ov8858_start_stream(struct ov8858 *ov8858)
 		return ret;
 
 	return ov8858_write_reg(ov8858->client,
-				 OV8858_REG_CTRL_MODE,
-				 OV8858_REG_VALUE_08BIT,
-				 OV8858_MODE_STREAMING);
+				OV8858_REG_CTRL_MODE,
+				OV8858_REG_VALUE_08BIT,
+				OV8858_MODE_STREAMING);
 }
 
 static int __ov8858_stop_stream(struct ov8858 *ov8858)
 {
 	return ov8858_write_reg(ov8858->client,
-				 OV8858_REG_CTRL_MODE,
-				 OV8858_REG_VALUE_08BIT,
-				 OV8858_MODE_SW_STANDBY);
+				OV8858_REG_CTRL_MODE,
+				OV8858_REG_VALUE_08BIT,
+				OV8858_MODE_SW_STANDBY);
 }
 
 static int ov8858_s_stream(struct v4l2_subdev *sd, int on)
@@ -2295,9 +2320,9 @@ static int ov8858_set_ctrl(struct v4l2_ctrl *ctrl)
 					(ctrl->val >> OV8858_GAIN_H_SHIFT) &
 					OV8858_GAIN_H_MASK);
 		ret |= ov8858_write_reg(ov8858->client,
-					 OV8858_REG_GAIN_L,
-					 OV8858_REG_VALUE_08BIT,
-					 ctrl->val & OV8858_GAIN_L_MASK);
+					OV8858_REG_GAIN_L,
+					OV8858_REG_VALUE_08BIT,
+					ctrl->val & OV8858_GAIN_L_MASK);
 		break;
 	case V4L2_CID_VBLANK:
 		ret = ov8858_write_reg(ov8858->client,
@@ -2582,7 +2607,7 @@ static int ov8858_otp_read_r2a(struct ov8858 *ov8858)
 				     ((temp >> 6) & 0x03);
 		ov8858_read_1byte(client, addr + 1, &otp_ptr->vcm_end);
 		otp_ptr->vcm_end = (otp_ptr->vcm_end << 2) |
-				     ((temp >> 4) & 0x03);
+				   ((temp >> 4) & 0x03);
 		otp_ptr->vcm_dir = (temp >> 2) & 0x03;
 	}
 
@@ -2678,7 +2703,6 @@ static int ov8858_check_sensor_id(struct ov8858 *ov8858,
 			       OV8858_REG_VALUE_24BIT, &id);
 	if (id != CHIP_ID) {
 		dev_err(dev, "Unexpected sensor id(%06x), ret(%d)\n", id, ret);
-		//while(1);
 		return ret;
 	}
 

@@ -35,8 +35,12 @@
  *21. check for capture S_FMT;
  *22. raw patch with default sensor fmt&size;
  *
+ *v0.1.2:
+ *1. fix reset on too high isp_clk rate will result in bus dead;
+ *2. add RKMODULE_LSC_CFG ioctl;
+ *
  */
 
-#define RKISP1_DRIVER_VERSION KERNEL_VERSION(0, 1, 0x1)
+#define RKISP1_DRIVER_VERSION KERNEL_VERSION(0, 1, 0x2)
 
 #endif
