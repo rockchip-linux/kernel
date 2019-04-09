@@ -1469,7 +1469,7 @@
 		ext_micbias {
 			ext_micbias_en: ext-micbias-en {
 				rockchip,pins =
-					<0 RK_PC2 0 &pcfg_pull_none>;
+					<0 RK_PC2 0 &pcfg_pull_down>;
 			};
 		};
 
