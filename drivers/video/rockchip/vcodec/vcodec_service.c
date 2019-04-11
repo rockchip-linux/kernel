@@ -2277,7 +2277,8 @@ static void vcodec_get_reg_freq_rk3288(struct vpu_subdev_data *data,
 {
 	vcodec_get_reg_freq_default(data, reg);
 
-	if (reg->type == VPU_DEC || reg->type == VPU_DEC_PP) {
+	if ((reg->type == VPU_DEC || reg->type == VPU_DEC_PP) &&
+	    data->hw_id != HEVC_ID) {
 		if (reg_check_fmt(reg) == VPU_DEC_FMT_H264) {
 			if (reg_probe_width(reg) > 2560) {
 				/*
