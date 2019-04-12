@@ -110,41 +110,61 @@ N.B. It is recommended to only ebable those bus interfaces that are needed.
 Leaving all interfaces enabled can lead to unwanted behaviour.
 
 
-Name:	at24c02
-Info:	Overlay for activation of Atmel AT24C02 over I2C
-Load:	intfc:dtoverlay=at24c02
+Name:   at24c02
+Info:   Overlay for activation of Atmel AT24C02 over I2C
+Load:   intfc:dtoverlay=at24c02
 
 
-Name:	two-color-led
-Info:	Overlay for activation of two color led module.
-Load:	intfc:dtoverlay=two-color-led
+Name:   two-color-led
+Info:   Overlay for activation of two color led module.
+Load:   intfc:dtoverlay=two-color-led
 
 
-Name:	console-on-ttyS2
-Info:	By default, fiq debugger console is disabled.
-		When this dtbo file is loaded, Rock Pi enables fiq debugger console.
-		ttyS2 Pins will output console information.
-		At the same time, it is recommended that you set UART2 to off in
-		file /boot/hw_intfc.conf and do not load console-on-ttyS4.dtbo file.
-Load:	intfc:dtoverlay=console-on-ttyS2
+Name:   console-on-ttyS2
+Info:   By default, fiq debugger console is disabled.
+        When this dtbo file is loaded, Rock Pi enables fiq debugger console.
+        ttyS2 Pins will output console information.
+        At the same time, it is recommended that you set UART2 to off in
+        file /boot/hw_intfc.conf and do not load console-on-ttyS4.dtbo file.
+Load:   intfc:dtoverlay=console-on-ttyS2
 
 
-Name:	console-on-ttyS4
-Info:	By default, fiq debugger console is disabled.
-		When this dtbo file is loaded, Rock Pi enables fiq debugger console.
-		ttyS4 Pins will output console information.
-		At the same time, it is recommended that you set UART4 to off in
-		file /boot/hw_intfc.conf and do not load console-on-ttyS2.dtbo file.
-Load:	intfc:dtoverlay=console-on-ttyS4
+Name:   console-on-ttyS4
+Info:   By default, fiq debugger console is disabled.
+        When this dtbo file is loaded, Rock Pi enables fiq debugger console.
+        ttyS4 Pins will output console information.
+        At the same time, it is recommended that you set UART4 to off in
+        file /boot/hw_intfc.conf and do not load console-on-ttyS2.dtbo file.
+Load:   intfc:dtoverlay=console-on-ttyS4
 
 
-Name:	devspi1
-Info:	By default, spi1 is disabled.
-		when use spi1, uart4 must be disabled.
-Load:	intfc:dtoverlay=devspi1
+Name:   devspi1
+Info:   Overlay for activation of dummy spi device on SPI1 for test.
+        Need set: intfc:spi1=on
+        By default, spi1 is disabled.
+        when use spi1, uart4 must be disabled.
+Load:   intfc:dtoverlay=devspi1
+
 
 Name:	devspi2
-Info:	By default, spi2 is disabled.
-		When use spi2. i2c6 must be disabled.
-Load:	intfc:dtoverlay=devspi2
+Info:   Overlay for activation of dummy spi device on SPI2 for test.
+        Need set: intfc:spi2=on
+        When use spi2. i2c6 must be disabled.
+Load:   intfc:dtoverlay=devspi2
 
+
+Name:   pcie-gen2
+Info:   Overlay for activation of pcie running on GEN2 mode.
+Load:   intfc:dtoverlay=pcie-gen2
+
+
+Name:   spi1-waveshare35b-v2
+Info:   Overlay for activation of waveshare 3.5inch lcd(B v2).
+        Need set: intfc:uart4=off intfc:spi1=on
+Load:   intfc:dtoverlay=spi1-0waveshare35b-v2
+
+
+Name:   spi1-waveshare35c
+Info:   Overlay for activation of waveshare 3.5inch lcd(C).
+        Need set: intfc:uart4=off intfc:spi1=on
+Load:   intfc:dtoverlay=spi1-waveshare35c

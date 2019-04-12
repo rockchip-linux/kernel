@@ -44,7 +44,7 @@ module_param(debug, ulong, 0);
 MODULE_PARM_DESC(debug, "override device debug level");
 
 #ifdef CONFIG_HAS_DMA
-static bool dma = true;
+static bool dma = false;
 module_param(dma, bool, 0);
 MODULE_PARM_DESC(dma, "Use DMA buffer");
 #endif
@@ -666,12 +666,16 @@ struct fb_info *fbtft_framebuffer_alloc(struct fbtft_display *display,
 	char *gamma = display->gamma;
 	unsigned long *gamma_curves = NULL;
 
+	printk("#fbtft# start fbtft_framebuffer_alloc...\n");
+
 	/* sanity check */
 	if (display->gamma_num * display->gamma_len > FBTFT_GAMMA_MAX_VALUES_TOTAL) {
 		dev_err(dev, "FBTFT_GAMMA_MAX_VALUES_TOTAL=%d is exceeded\n",
 			FBTFT_GAMMA_MAX_VALUES_TOTAL);
 		return NULL;
 	}
+
+	printk("#fbtft# set fps or bpp...\n");
 
 	/* defaults */
 	if (!fps)
@@ -683,6 +687,8 @@ struct fb_info *fbtft_framebuffer_alloc(struct fbtft_display *display,
 		dev_err(dev, "platform data is missing\n");
 		return NULL;
 	}
+
+	printk("#fbtft# override driver values...\n");
 
 	/* override driver values? */
 	if (pdata->fps)
@@ -720,22 +726,32 @@ struct fb_info *fbtft_framebuffer_alloc(struct fbtft_display *display,
 		height = display->height;
 	}
 
+	printk("#fbtft# alloc 1...\n");
+
 	vmem_size = display->width * display->height * bpp / 8;
 	vmem = vzalloc(vmem_size);
 	if (!vmem)
 		goto alloc_fail;
 
+	printk("#fbtft# alloc 2...\n");
+
 	fbops = devm_kzalloc(dev, sizeof(struct fb_ops), GFP_KERNEL);
 	if (!fbops)
 		goto alloc_fail;
+
+	printk("#fbtft# alloc 3...\n");
 
 	fbdefio = devm_kzalloc(dev, sizeof(struct fb_deferred_io), GFP_KERNEL);
 	if (!fbdefio)
 		goto alloc_fail;
 
+	printk("#fbtft# alloc 4...\n");
+
 	buf = devm_kzalloc(dev, 128, GFP_KERNEL);
 	if (!buf)
 		goto alloc_fail;
+
+	printk("#fbtft# alloc 5...\n");
 
 	if (display->gamma_num && display->gamma_len) {
 		gamma_curves = devm_kzalloc(dev, display->gamma_num * display->gamma_len * sizeof(gamma_curves[0]),
@@ -743,6 +759,8 @@ struct fb_info *fbtft_framebuffer_alloc(struct fbtft_display *display,
 		if (!gamma_curves)
 			goto alloc_fail;
 	}
+
+	printk("#fbtft# alloc 6...\n");
 
 	info = framebuffer_alloc(sizeof(struct fbtft_par), dev);
 	if (!info)
@@ -810,6 +828,8 @@ struct fb_info *fbtft_framebuffer_alloc(struct fbtft_display *display,
 	mutex_init(&par->gamma.lock);
 	info->pseudo_palette = par->pseudo_palette;
 
+	printk("#fbtft# alloc 6...\n");
+
 	if (par->gamma.curves && gamma) {
 		if (fbtft_gamma_parse_str(par,
 			par->gamma.curves, gamma, strlen(gamma)))
@@ -825,14 +845,18 @@ struct fb_info *fbtft_framebuffer_alloc(struct fbtft_display *display,
 		txbuflen = PAGE_SIZE; /* need buffer for byteswapping */
 #endif
 
+	printk("#fbtft# alloc 7...\n");
+
 	if (txbuflen > 0) {
 #ifdef CONFIG_HAS_DMA
 		if (dma) {
+			printk("#fbtft# alloc 8...\n");
 			dev->coherent_dma_mask = ~0;
 			txbuf = dmam_alloc_coherent(dev, txbuflen, &par->txbuf.dma, GFP_DMA);
 		} else
 #endif
 		{
+			printk("#fbtft# alloc 9...\n");
 			txbuf = devm_kzalloc(par->info->device, txbuflen, GFP_KERNEL);
 		}
 		if (!txbuf)
@@ -840,6 +864,8 @@ struct fb_info *fbtft_framebuffer_alloc(struct fbtft_display *display,
 		par->txbuf.buf = txbuf;
 		par->txbuf.len = txbuflen;
 	}
+
+	printk("#fbtft# alloc 10...\n");
 
 	/* Initialize gpios to disabled */
 	par->gpio.reset = -1;
