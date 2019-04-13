@@ -50,6 +50,15 @@ static struct dma_buf *rockchip_fbdev_get_dma_buf(struct fb_info *info)
 	return buf;
 }
 
+static int rockchip_fbdev_blank(int blank, struct fb_info *info)
+{
+	struct drm_fb_helper *helper = info->par;
+
+	drm_fb_helper_restore_fbdev_mode_unlocked(helper);
+
+	return drm_fb_helper_blank(blank, info);
+}
+
 static struct fb_ops rockchip_drm_fbdev_ops = {
 	.owner		= THIS_MODULE,
 	.fb_mmap	= rockchip_fbdev_mmap,
@@ -58,7 +67,7 @@ static struct fb_ops rockchip_drm_fbdev_ops = {
 	.fb_imageblit	= drm_fb_helper_cfb_imageblit,
 	.fb_check_var	= drm_fb_helper_check_var,
 	.fb_set_par	= drm_fb_helper_set_par,
-	.fb_blank	= drm_fb_helper_blank,
+	.fb_blank	= rockchip_fbdev_blank,
 	.fb_pan_display	= drm_fb_helper_pan_display,
 	.fb_read	= drm_fb_helper_sys_read,
 	.fb_write	= drm_fb_helper_sys_write,
