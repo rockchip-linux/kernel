@@ -214,6 +214,17 @@
 		WIFI,host_wake_irq = <&gpio4 RK_PC1 GPIO_ACTIVE_HIGH>;
 		status = "okay";
 	};
+
+	lcd_pwr: lcd-pwr {
+		compatible = "regulator-fixed";
+		regulator-name = "lcd_pwr";
+		regulator-boot-on;
+		gpio = <&gpio0 RK_PC4 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+		regulator-state-mem {
+			regulator-off-in-suspend;
+		};
+	};
 };
 
 &cpu0 {
@@ -548,6 +559,7 @@
 	gt1x: gt1x@14 {
 		compatible = "goodix,gt1x";
 		reg = <0x14>;
+		power-supply = <&lcd_pwr>;
 		goodix,rst-gpio = <&gpio0 RK_PB4 GPIO_ACTIVE_HIGH>;
 		goodix,irq-gpio = <&gpio0 RK_PB5 IRQ_TYPE_LEVEL_LOW>;
 	};
