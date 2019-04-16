@@ -196,13 +196,15 @@
 
 &spi1 {
 	status = "okay";
-	max-freq = <32000000>;
+	assigned-clocks = <&cru SCLK_SPI1>;
+	assigned-clock-rates = <100000000>;
+	rx-sample-delay-ns = <10>;
 
 	spi_rk1608@00 {
 		compatible =  "rockchip,rk1608";
 		status = "okay";
 		reg = <0>;
-		spi-max-frequency = <16000000>;
+		spi-max-frequency = <50000000>;
 		spi-min-frequency = <16000000>;
 
 		clocks = <&cru SCLK_CIF_OUT>;
