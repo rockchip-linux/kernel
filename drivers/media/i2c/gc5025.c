@@ -336,7 +336,7 @@ static const struct gc5025_mode supported_modes[] = {
 			.denominator = 300000,
 		},
 		.exp_def = 0x07C0,
-		.hts_def = 0x04B0,
+		.hts_def = 0x12C0,
 		.vts_def = 0x07D0,
 		.reg_list = gc5025_1600x1200_regs,
 	},
@@ -465,10 +465,10 @@ static int gc5025_set_fmt(struct v4l2_subdev *sd,
 #endif
 	} else {
 		gc5025->cur_mode = mode;
-		h_blank = mode->hts_def / 2;
+		h_blank = mode->hts_def - mode->width;
 		__v4l2_ctrl_modify_range(gc5025->hblank, h_blank,
 			h_blank, 1, h_blank);
-		vblank_def = mode->vts_def - mode->height - 24;
+		vblank_def = mode->vts_def - mode->height;
 		__v4l2_ctrl_modify_range(gc5025->vblank, vblank_def,
 			GC5025_VTS_MAX - mode->height,
 			1, vblank_def);
@@ -1527,7 +1527,7 @@ static int gc5025_set_ctrl(struct v4l2_ctrl *ctrl)
 	switch (ctrl->id) {
 	case V4L2_CID_VBLANK:
 		/* Update max exposure while meeting expected vblanking */
-		max = gc5025->cur_mode->height + ctrl->val + 32 - 4;
+		max = gc5025->cur_mode->height + ctrl->val - 4;
 		__v4l2_ctrl_modify_range(gc5025->exposure,
 			gc5025->exposure->minimum, max,
 			gc5025->exposure->step,
@@ -1552,10 +1552,10 @@ static int gc5025_set_ctrl(struct v4l2_ctrl *ctrl)
 			GC5025_SET_PAGE_ONE);
 		ret |= gc5025_write_reg(gc5025->client,
 			GC5025_REG_VTS_H,
-			(ctrl->val >> 8) & 0xff);
+			((ctrl->val - 24) >> 8) & 0xff);
 		ret |= gc5025_write_reg(gc5025->client,
 			GC5025_REG_VTS_L,
-			ctrl->val & 0xff);
+			(ctrl->val - 24) & 0xff);
 		break;
 	default:
 		dev_warn(&client->dev, "%s Unhandled id:0x%x, val:0x%x\n",

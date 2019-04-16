@@ -228,10 +228,10 @@ static const struct gc2385_mode supported_modes[] = {
 		.height = 1200,
 		.max_fps = {
 			.numerator = 10000,
-			.denominator = 300000,
+			.denominator = 304472,
 		},
 		.exp_def = 0x0480,
-		.hts_def = 0x05E8,
+		.hts_def = 0x10DC,
 		.vts_def = 0x04E0,
 		.reg_list = gc2385_1600x1200_regs,
 	},
@@ -360,11 +360,10 @@ static int gc2385_set_fmt(struct v4l2_subdev *sd,
 #endif
 	} else {
 		gc2385->cur_mode = mode;
-		h_blank = mode->hts_def
-			- (((mode->width + 16) / 2 + 40) / 2 + 9);
+		h_blank = mode->hts_def - mode->width;
 		__v4l2_ctrl_modify_range(gc2385->hblank, h_blank,
 					 h_blank, 1, h_blank);
-		vblank_def = mode->vts_def - mode->height - 32;
+		vblank_def = mode->vts_def - mode->height;
 		__v4l2_ctrl_modify_range(gc2385->vblank, vblank_def,
 					 GC2385_VTS_MAX - mode->height,
 					 1, vblank_def);
@@ -643,8 +642,7 @@ disable_clk:
 
 static void __gc2385_power_off(struct gc2385 *gc2385)
 {
-	int ret;
-	struct device *dev = &gc2385->client->dev;
+	int ret = 0;
 
 	if (!IS_ERR(gc2385->pwdn_gpio))
 		gpiod_set_value_cansleep(gc2385->pwdn_gpio, 1);
@@ -655,7 +653,7 @@ static void __gc2385_power_off(struct gc2385 *gc2385)
 		ret = pinctrl_select_state(gc2385->pinctrl,
 					   gc2385->pins_sleep);
 		if (ret < 0)
-			dev_dbg(dev, "could not set pins\n");
+			dev_dbg(&gc2385->client->dev, "could not set pins\n");
 	}
 	regulator_bulk_disable(GC2385_NUM_SUPPLIES, gc2385->supplies);
 }
@@ -869,7 +867,7 @@ static int gc2385_set_ctrl(struct v4l2_ctrl *ctrl)
 	switch (ctrl->id) {
 	case V4L2_CID_VBLANK:
 		/* Update max exposure while meeting expected vblanking */
-		max = gc2385->cur_mode->height + ctrl->val + 32 - 4;
+		max = gc2385->cur_mode->height + ctrl->val - 4;
 		__v4l2_ctrl_modify_range(gc2385->exposure,
 					 gc2385->exposure->minimum, max,
 					 gc2385->exposure->step,
@@ -902,10 +900,10 @@ static int gc2385_set_ctrl(struct v4l2_ctrl *ctrl)
 					GC2385_SET_PAGE_ONE);
 		ret |= gc2385_write_reg(gc2385->client,
 					GC2385_REG_VTS_H,
-					(ctrl->val >> 8) & 0xff);
+					((ctrl->val - 32) >> 8) & 0xff);
 		ret |= gc2385_write_reg(gc2385->client,
 					GC2385_REG_VTS_L,
-					ctrl->val & 0xff);
+					(ctrl->val - 32) & 0xff);
 		break;
 	default:
 		dev_warn(&client->dev, "%s Unhandled id:0x%x, val:0x%x\n",
