@@ -219,6 +219,48 @@
 	test-power {
 		status = "okay";
 	};
+
+	leds {
+		compatible = "gpio-leds";
+		status = "okay";
+
+		yellow {
+			label = "rock960:yellow:wifi";
+			linux,default-trigger = "rfkill0";
+			default-state = "on";
+			gpios = <&gpio4 29 GPIO_ACTIVE_HIGH>;
+		};
+		blue {
+			label = "rock960:blue:bluetooth";
+			linux,default-trigger = "rfkill1";
+			default-state = "on";
+			gpios = <&gpio4 30 GPIO_ACTIVE_HIGH>;
+		};
+		green@0 {
+			label = "rock960:green:user0";
+			linux,default-trigger = "heartbeat";
+			default-state = "on";
+			gpios = <&gpio4 18 GPIO_ACTIVE_HIGH>;
+		};
+		green@1 {
+			label = "rock960:green:user1";
+			linux,default-trigger = "heartbeat";
+			default-state = "on";
+			gpios = <&gpio4 22 GPIO_ACTIVE_HIGH>;
+	        };
+		green@2 {
+			label = "rock960:green:user2";
+			linux,default-trigger = "heartbeat";
+			default-state = "on";
+			gpios = <&gpio4 24 GPIO_ACTIVE_HIGH>;
+		};
+		green@3 {
+			label = "rock960:green:user3";
+			linux,default-trigger = "heartbeat";
+			default-state = "on";
+			gpios = <&gpio4 28 GPIO_ACTIVE_HIGH>;
+		};
+	};
 };
 
 &hdmi {
