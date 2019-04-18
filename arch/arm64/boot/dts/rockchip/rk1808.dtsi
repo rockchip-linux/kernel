@@ -1434,18 +1434,14 @@
 
 	cif: cif@ffae0000 {
 		compatible = "rockchip,rk1808-cif";
-		reg = <0x0 0xffae0000 0x0 0x200>, <0x0 0xffb10000 0x0 0x100>;
-		reg-names = "cif_regs", "csihost_regs";
-		interrupts = <GIC_SPI 56 IRQ_TYPE_LEVEL_HIGH>,
-			     <GIC_SPI 105 IRQ_TYPE_LEVEL_HIGH>,
-			     <GIC_SPI 106 IRQ_TYPE_LEVEL_HIGH>;
-		interrupt-names = "cif-intr", "csi-intr1", "csi-intr2";
+		reg = <0x0 0xffae0000 0x0 0x200>;
+		reg-names = "cif_regs";
+		interrupts = <GIC_SPI 56 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "cif-intr";
 		clocks = <&cru ACLK_CIF>, <&cru DCLK_CIF>,
-			 <&cru HCLK_CIF>, <&cru SCLK_CIF_OUT>,
-			 <&cru PCLK_CSI2HOST>;
+			 <&cru HCLK_CIF>, <&cru SCLK_CIF_OUT>;
 		clock-names = "aclk_cif", "dclk_cif",
-			"hclk_cif", "sclk_cif_out",
-			"pclk_csi2host";
+			"hclk_cif", "sclk_cif_out";
 		resets = <&cru SRST_CIF_A>, <&cru SRST_CIF_H>,
 			 <&cru SRST_CIF_I>, <&cru SRST_CIF_D>,
 			 <&cru SRST_CIF_PCLKIN>;
@@ -1506,6 +1502,18 @@
 		clock-names = "aclk", "hclk";
 		power-domains = <&power RK1808_PD_VIO>;
 		#iommu-cells = <0>;
+		status = "disabled";
+	};
+
+	mipi_csi2: mipi-csi2@ffb10000 {
+		compatible = "rockchip,rk1808-mipi-csi2";
+		reg = <0x0 0xffb10000 0x0 0x100>;
+		reg-names = "csihost_regs";
+		interrupts = <GIC_SPI 106 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 105 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "csi-intr1", "csi-intr2";
+		clocks = <&cru PCLK_CSI2HOST>;
+		clock-names = "pclk_csi2host";
 		status = "disabled";
 	};
 
