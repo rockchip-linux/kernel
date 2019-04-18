@@ -938,37 +938,48 @@ static int analogix_dp_bridge_attach(struct drm_bridge *bridge)
 		return -ENODEV;
 	}
 
-	connector->polled = DRM_CONNECTOR_POLL_HPD;
-	connector->port = dp->dev->of_node;
+	if (dp->plat_data->bridge) {
+		dp->plat_data->bridge->encoder = encoder;
 
-	ret = drm_connector_init(dp->drm_dev, connector,
-				 &analogix_dp_connector_funcs,
-				 DRM_MODE_CONNECTOR_eDP);
-	if (ret) {
-		DRM_ERROR("Failed to initialize connector with drm\n");
-		return ret;
-	}
+		ret = drm_bridge_attach(bridge->dev, dp->plat_data->bridge);
+		if (ret) {
+			DRM_ERROR("failed to attach bridge: %d\n", ret);
+			return ret;
+		}
 
-	drm_connector_helper_add(connector,
-				 &analogix_dp_connector_helper_funcs);
-	drm_mode_connector_attach_encoder(connector, encoder);
+		bridge->next = dp->plat_data->bridge;
+	} else {
+		connector->polled = DRM_CONNECTOR_POLL_HPD;
+		connector->port = dp->dev->of_node;
 
-	/*
-	 * NOTE: the connector registration is implemented in analogix
-	 * platform driver, that to say connector would be exist after
-	 * plat_data->attch return, that's why we record the connector
-	 * point after plat attached.
-	 */
-	 if (dp->plat_data->attach) {
-		 ret = dp->plat_data->attach(dp->plat_data, bridge, connector);
-		 if (ret) {
-			 DRM_ERROR("Failed at platform attch func\n");
-			 return ret;
-		 }
-	}
+		ret = drm_connector_init(dp->drm_dev, connector,
+					 &analogix_dp_connector_funcs,
+					 DRM_MODE_CONNECTOR_eDP);
+		if (ret) {
+			DRM_ERROR("Failed to initialize connector with drm\n");
+			return ret;
+		}
 
-	if (dp->plat_data->panel) {
-		ret = drm_panel_attach(dp->plat_data->panel, &dp->connector);
+		drm_connector_helper_add(connector,
+					 &analogix_dp_connector_helper_funcs);
+		drm_mode_connector_attach_encoder(connector, encoder);
+
+		/*
+		 * NOTE: the connector registration is implemented in analogix
+		 * platform driver, that to say connector would be exist after
+		 * plat_data->attch return, that's why we record the connector
+		 * point after plat attached.
+		 */
+		if (dp->plat_data->attach) {
+			ret = dp->plat_data->attach(dp->plat_data, bridge,
+						    connector);
+			if (ret) {
+				DRM_ERROR("Failed at platform attch func\n");
+				return ret;
+			}
+		}
+
+		ret = drm_panel_attach(dp->plat_data->panel, connector);
 		if (ret) {
 			DRM_ERROR("Failed to attach panel\n");
 			return ret;
