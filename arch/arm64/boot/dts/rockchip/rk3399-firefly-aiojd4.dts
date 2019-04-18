@@ -1,0 +1,205 @@
+/dts-v1/;
+
+#include "rk3399-firefly-port.dtsi"
+#include <dt-bindings/sensor-dev.h>
+
+/ {
+	model = "AIO-3399-JD4 Board (Linux Opensource)";
+	compatible = "rockchip,rk3399-firefly", "rockchip,rk3399";
+
+	test-power {
+		status = "okay";
+	};
+	
+	rt5640-sound {
+		simple-audio-card,cpu {
+		        sound-dai = <&i2s1>;
+		};
+		simple-audio-card,codec {
+		        sound-dai = <&rt5640>;
+		};
+	};
+
+	fan_ctl: fan-ctl-regulator {
+		compatible = "regulator-fixed";
+        	enable-active-high;
+        	regulator-always-on;
+		regulator-boot-on;
+		gpio = <&gpio3 10 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		regulator-name = "fan_ctl";
+        	pinctrl-0 = <&fan_drv>;
+	};
+};
+
+&gmac {
+	tx_delay = <0x2F>;
+	rx_delay = <0x1E>;
+};
+
+&vcc_sd {
+	gpio = <&gpio1 22 GPIO_ACTIVE_HIGH>;
+};
+
+&hdmi_dp_sound {
+	status = "okay";
+};
+
+&i2c2 {
+	status = "disabled";
+	i2c-scl-rising-time-ns = <300>;
+	i2c-scl-falling-time-ns = <15>;
+
+	sensor@4c {
+		status = "disabled";
+		compatible = "gs_mc3230";
+		reg = <0x4c>;
+		type = <SENSOR_TYPE_ACCEL>;
+		irq_enable = <0>;
+		poll_delay_ms = <30>;
+		layout = <1>;
+	};
+};
+
+&rt5640 {
+    hp-det-adc-value = <900>;
+    aux-det-adc-value = <900>;
+    hp-con-gpio = <&gpio3 16 GPIO_ACTIVE_HIGH>;
+    io-channels = <&saradc 3>,<&saradc 2>;
+    io-channel-names = "hp-det","aux-det";
+};
+
+&rt5640_hpcon{
+    rockchip,pins = <3 16 RK_FUNC_GPIO &pcfg_pull_none>;
+};
+
+&vcca1v8_codec {
+	regulator-min-microvolt = <900000>;
+	regulator-max-microvolt = <900000>;
+};
+&uart4 {
+    status = "disabled";
+};
+
+&spi1 {
+	dev-port = <0>;
+    	status = "okay";
+};
+
+&spi_wk2xxx {
+    status = "okay";
+	//reset-gpio = <&gpio1 2 GPIO_ACTIVE_HIGH>;
+	irq-gpio = <&gpio2 8 IRQ_TYPE_EDGE_FALLING>;
+	cs-gpio = <&gpio1 10 GPIO_ACTIVE_HIGH>;
+};
+
+&vcc3v3_3g {
+	gpio = <&gpio2 28 GPIO_ACTIVE_HIGH>;
+};
+
+&vcc3v3_pcie {
+	/delete-property/ gpio;
+};
+
+&uart4 {
+    status = "disabled";
+};
+
+&dp_in_vopb {
+	status = "disabled";
+};
+
+&hdmi_in_vopl {
+	status = "disabled";
+};
+
+&wdt {
+	status = "disabled";
+};
+
+&io_domains {
+	bt656-supply = <&vcc_3v0>;
+};
+
+&vcc2v8_dvp {
+	regulator-min-microvolt = <1800000>;
+	regulator-max-microvolt = <1800000>;
+};
+
+&vcca1v8_codec {
+	regulator-min-microvolt = <900000>;
+	regulator-max-microvolt = <900000>;
+};
+
+&pinctrl {
+	pinctrl-names = "default";
+	pinctrl-0 = <&host_hub_vcc>;
+
+	host-hub-vcc {
+		host_hub_vcc: host-hub-vcc {
+			rockchip,pins =
+				<2 4 RK_FUNC_GPIO &pcfg_output_high>,
+				<4 29 RK_FUNC_GPIO &pcfg_output_high>;
+		};
+	};
+
+	pcie {
+		pcie_3g_drv: pcie-3g-drv {
+			rockchip,pins =
+				<2 6 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+	};
+
+	vcc_sd {
+		vcc_sd_h: vcc-sd-h {
+			rockchip,pins =
+				<1 22 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+	};
+
+	fan-ctl {
+        	fan_drv: fan-drv {
+             		rockchip,pins = <3 10 RK_FUNC_GPIO &pcfg_pull_none>;
+        };
+    };
+
+
+};
+
+&fusb0 {
+    status = "disabled";
+};
+
+&cdn_dp {
+    status = "disabled";
+};
+
+&tcphy0 {
+    /delete-property/ extcon;
+    status = "okay";
+};
+
+&u2phy0 {
+    status = "okay";
+    /delete-property/ extcon;
+
+    u2phy0_otg: otg-port {
+        rockchip,vbus-always-on;
+        vbus-5v-gpios = <&gpio1 3 GPIO_ACTIVE_HIGH>;
+        status = "okay";
+    };
+};
+
+&usbdrd3_0 {
+    status = "okay";
+    /delete-property/ extcon;
+};
+
+&usbdrd_dwc3_0 {
+    dr_mode = "host";
+};
+
+&route_hdmi {
+	status = "okay";
+};
+
