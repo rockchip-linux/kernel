@@ -49,6 +49,7 @@ struct rk3328_codec_priv {
 	struct clk *pclk;
 	unsigned int sclk;
 	int spk_depop_time; /* msec */
+	unsigned gpiomute;
 };
 
 static const struct reg_default rk3328_codec_reg_defaults[] = {
@@ -124,8 +125,10 @@ static int rk3328_set_dai_fmt(struct snd_soc_dai *codec_dai,
 
 static void rk3328_analog_output(struct rk3328_codec_priv *rk3328, int mute)
 {
-	regmap_write(rk3328->grf, RK3328_GRF_SOC_CON10,
-		     (BIT(1) << 16) | (mute << 1));
+	if (rk3328->gpiomute) {
+		regmap_write(rk3328->grf, RK3328_GRF_SOC_CON10,
+			(BIT(1) << 16) | (mute << 1));
+	}
 }
 
 static int rk3328_digital_mute(struct snd_soc_dai *dai, int mute)
@@ -478,6 +481,9 @@ static int rk3328_platform_probe(struct platform_device *pdev)
 		dev_info(&pdev->dev, "spk_depop_time use default value.\n");
 		rk3328->spk_depop_time = 100;
 	}
+	
+	rk3328->gpiomute = of_property_read_bool(rk3328_np, "rk3328-codec-gpiomute");
+	printk("gpio_mute:%d \n", rk3328->gpiomute);
 
 	rk3328_analog_output(rk3328, 0);
 

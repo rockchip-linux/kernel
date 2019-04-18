@@ -32,8 +32,26 @@
     };
 };
 
+&codec {
+	rk3328-codec-gpiomute;
+};
+
+&rk805 {
+
+	interrupt-parent = <&gpio0>;
+	interrupts = <2 IRQ_TYPE_LEVEL_LOW>;
+
+	pwrkey {
+		status = "okay";	
+	};
+};
+
 &sdio_pwrseq {
 	reset-gpios = <&gpio3 8 GPIO_ACTIVE_LOW>;
+};
+
+&vccio_sd {
+	gpios = <&gpio0 27 GPIO_ACTIVE_HIGH>;
 };
 
 &pinctrl {

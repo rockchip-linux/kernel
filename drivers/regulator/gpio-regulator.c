@@ -51,7 +51,7 @@ struct gpio_regulator_data {
 	int state;
 };
 
-#define GPIOMUTE (ARCH_GPIO_BASE + 25)
+#define GPIOMUTE 25
 #define RK3328_GRF_SOC_CON10   (0x0428)
 static void rk3328_gpioMute_set(int value)
 {

@@ -95,7 +95,7 @@
 		regulator-type = "voltage";
 		regulator-min-microvolt = <1800000>;
 		regulator-max-microvolt = <3300000>;
-		status="disabled";
+		status="okay";
 	};
 
 	vcc_sys: vcc-sys {
@@ -445,8 +445,7 @@
 
 	vccio1-supply = <&vcc_io>;
 	vccio2-supply = <&vcc_18emmc>;
-	//vccio3-supply = <&vccio_sd>;
-	vccio3-supply = <&vcc_io>;
+	vccio3-supply = <&vccio_sd>;
 	vccio4-supply = <&vdd_18>;
 	vccio5-supply = <&vcc_io>;
 	vccio6-supply = <&vcc_io>;
@@ -472,6 +471,7 @@
 	cap-mmc-highspeed;
 	cap-sd-highspeed;
 	disable-wp;
+	sd-uhs-sdr104;
 	clock-freq-min-max = <400000 80000000>;
 	clocks = <&cru HCLK_SDMMC>, <&cru SCLK_SDMMC>,
 			 <&cru SCLK_SDMMC_DRV>, <&cru SCLK_SDMMC_SAMPLE>;
@@ -482,6 +482,7 @@
 	supports-sd;
 	status = "okay";
 	vmmc-supply = <&vcc_sd>;
+	vqmmc-supply = <&vccio_sd>;
 };
 
 &tsadc {

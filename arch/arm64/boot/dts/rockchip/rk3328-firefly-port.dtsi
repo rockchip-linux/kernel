@@ -95,7 +95,7 @@
 			label = "firefly:yellow:user";
             linux,default-trigger = "ir-user-click";
 			gpios = <&rk805 0 GPIO_ACTIVE_LOW>;
-			default-state = "off";
+			default-state = "on";
 			mode = <0x05>;
 		};
 
