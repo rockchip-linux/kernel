@@ -11,21 +11,42 @@ Optional properties:
 	- use-external-pwm: backlight will be controlled by an external PWM
 	- video interfaces: Device node can contain video interface port
 			    nodes for panel according to [1].
+	- dual-channel: boolean. if it exists, enable dual channel mode
 
 [1]: Documentation/devicetree/bindings/media/video-interfaces.txt
 
 Example:
-	lvds-bridge@48 {
-		compatible = "parade,ps8622";
+
+&i2c4 {
+	status = "okay";
+
+	ps8625: ps8625@48 {
+		compatible = "parade,ps8625";
 		reg = <0x48>;
-		sleep-gpios = <&gpc3 6 1 0 0>;
-		reset-gpios = <&gpc3 1 1 0 0>;
-		lane-count = <1>;
+		sleep-gpios = <&gpio1 4 GPIO_ACTIVE_HIGH>;
+		reset-gpios = <&gpio2 4 GPIO_ACTIVE_HIGH>;
+		lane-count = <2>;
+		use-external-pwm;
+
 		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
 			port@0 {
-				bridge_out: endpoint {
-					remote-endpoint = <&panel_in>;
+				reg = <0>;
+
+				ps8625_in_edp: endpoint {
+					remote-endpoint = <&edp_out_ps8625>;
+				};
+			};
+
+			port@1 {
+				reg = <1>;
+
+				ps8625_out_panel: endpoint {
+					remote-endpoint = <&panel_in_ps8625>;
 				};
 			};
 		};
 	};
+};
