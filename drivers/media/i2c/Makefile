@@ -112,4 +112,5 @@ obj-$(CONFIG_VIDEO_SC031GS)	+= sc031gs.o
 
 obj-$(CONFIG_VIDEO_PREISP_DUMMY_SENSOR) += preisp-dummy.o
 obj-$(CONFIG_VIDEO_VM149C)	+= vm149c.o
+obj-$(CONFIG_VIDEO_DW9714)	+= dw9714.o
 obj-$(CONFIG_VIDEO_VIRT_CAMERA) += virtual-camera.o
