@@ -1248,7 +1248,8 @@ static int monitor_pm_notify(struct notifier_block *nb,
 	case PM_POST_HIBERNATION:
 	case PM_POST_RESTORE:
 	case PM_POST_SUSPEND:
-		rockchip_system_monitor_thermal_update();
+		if (system_monitor->tz)
+			rockchip_system_monitor_thermal_update();
 		atomic_set(&monitor_in_suspend, 0);
 		break;
 	default:
