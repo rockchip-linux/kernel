@@ -160,6 +160,7 @@ struct gc8034 {
 	struct v4l2_ctrl	*vblank;
 	struct mutex		mutex;
 	bool			streaming;
+	bool			power_on;
 	const struct gc8034_mode *cur_mode;
 	u32			module_index;
 	const char		*module_facing;
@@ -1444,10 +1445,6 @@ static int __gc8034_start_stream(struct gc8034 *gc8034)
 {
 	int ret;
 
-	ret = gc8034_write_array(gc8034->client, gc8034_global_regs);
-	if (ret)
-		return ret;
-
 	ret = gc8034_otp_enable(gc8034);
 	gc8034_check_prsel(gc8034);
 	ret |= gc8034_apply_otp(gc8034);
@@ -1502,6 +1499,44 @@ static int gc8034_s_stream(struct v4l2_subdev *sd, int on)
 	}
 
 	gc8034->streaming = on;
+
+unlock_and_return:
+	mutex_unlock(&gc8034->mutex);
+
+	return ret;
+}
+
+static int gc8034_s_power(struct v4l2_subdev *sd, int on)
+{
+	struct gc8034 *gc8034 = to_gc8034(sd);
+	struct i2c_client *client = gc8034->client;
+	int ret = 0;
+
+	mutex_lock(&gc8034->mutex);
+
+	/* If the power state is not modified - no work to do. */
+	if (gc8034->power_on == !!on)
+		goto unlock_and_return;
+
+	if (on) {
+		ret = pm_runtime_get_sync(&client->dev);
+		if (ret < 0) {
+			pm_runtime_put_noidle(&client->dev);
+			goto unlock_and_return;
+		}
+
+		ret = gc8034_write_array(gc8034->client, gc8034_global_regs);
+		if (ret) {
+			v4l2_err(sd, "could not set init registers\n");
+			pm_runtime_put_noidle(&client->dev);
+			goto unlock_and_return;
+		}
+
+		gc8034->power_on = true;
+	} else {
+		pm_runtime_put(&client->dev);
+		gc8034->power_on = false;
+	}
 
 unlock_and_return:
 	mutex_unlock(&gc8034->mutex);
@@ -1635,6 +1670,7 @@ static const struct v4l2_subdev_internal_ops gc8034_internal_ops = {
 #endif
 
 static const struct v4l2_subdev_core_ops gc8034_core_ops = {
+	.s_power = gc8034_s_power,
 	.ioctl = gc8034_ioctl,
 #ifdef CONFIG_COMPAT
 	.compat_ioctl32 = gc8034_compat_ioctl32,
@@ -1904,8 +1940,11 @@ static int gc8034_check_sensor_id(struct gc8034 *gc8034,
 	ret = gc8034_read_reg(client, GC8034_REG_CHIP_ID_H, &reg_H);
 	ret |= gc8034_read_reg(client, GC8034_REG_CHIP_ID_L, &reg_L);
 	id = ((reg_H << 8) & 0xff00) | (reg_L & 0xff);
-	if (id != CHIP_ID)
+	if (id != CHIP_ID) {
 		dev_err(dev, "Unexpected sensor id(%06x), ret(%d)\n", id, ret);
+		return -ENODEV;
+	}
+
 	return ret;
 }
 

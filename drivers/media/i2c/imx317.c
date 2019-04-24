@@ -121,6 +121,7 @@ struct imx317 {
 	struct v4l2_ctrl	*test_pattern;
 	struct mutex		mutex;
 	bool			streaming;
+	bool			power_on;
 	const struct imx317_mode *cur_mode;
 	u32			module_index;
 	const char		*module_facing;
@@ -729,10 +730,6 @@ static int __imx317_start_stream(struct imx317 *imx317)
 {
 	int ret;
 
-	ret = imx317_write_array(imx317->client, imx317_global_regs);
-	if (ret)
-		return ret;
-
 	ret = imx317_write_array(imx317->client, imx317->cur_mode->reg_list);
 	if (ret)
 		return ret;
@@ -784,6 +781,44 @@ static int imx317_s_stream(struct v4l2_subdev *sd, int on)
 	}
 
 	imx317->streaming = on;
+
+unlock_and_return:
+	mutex_unlock(&imx317->mutex);
+
+	return ret;
+}
+
+static int imx317_s_power(struct v4l2_subdev *sd, int on)
+{
+	struct imx317 *imx317 = to_imx317(sd);
+	struct i2c_client *client = imx317->client;
+	int ret = 0;
+
+	mutex_lock(&imx317->mutex);
+
+	/* If the power state is not modified - no work to do. */
+	if (imx317->power_on == !!on)
+		goto unlock_and_return;
+
+	if (on) {
+		ret = pm_runtime_get_sync(&client->dev);
+		if (ret < 0) {
+			pm_runtime_put_noidle(&client->dev);
+			goto unlock_and_return;
+		}
+
+		ret = imx317_write_array(imx317->client, imx317_global_regs);
+		if (ret) {
+			v4l2_err(sd, "could not set init registers\n");
+			pm_runtime_put_noidle(&client->dev);
+			goto unlock_and_return;
+		}
+
+		imx317->power_on = true;
+	} else {
+		pm_runtime_put(&client->dev);
+		imx317->power_on = false;
+	}
 
 unlock_and_return:
 	mutex_unlock(&imx317->mutex);
@@ -917,6 +952,7 @@ static const struct v4l2_subdev_internal_ops imx317_internal_ops = {
 #endif
 
 static const struct v4l2_subdev_core_ops imx317_core_ops = {
+	.s_power = imx317_s_power,
 	.ioctl = imx317_ioctl,
 #ifdef CONFIG_COMPAT
 	.compat_ioctl32 = imx317_compat_ioctl32,
@@ -1105,7 +1141,7 @@ static int imx317_check_sensor_id(struct imx317 *imx317,
 			      IMX317_REG_VALUE_08BIT, &id);
 	if (id != CHIP_ID) {
 		dev_err(dev, "Unexpected sensor id(%06x), ret(%d)\n", id, ret);
-		return ret;
+		return -ENODEV;
 	}
 
 	dev_info(dev, "Detected OV%06x sensor\n", CHIP_ID);

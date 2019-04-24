@@ -133,6 +133,7 @@ struct ov2735 {
 	struct v4l2_ctrl	*test_pattern;
 	struct mutex		mutex;
 	bool			streaming;
+	bool			power_on;
 	const struct ov2735_mode *cur_mode;
 	u32			module_index;
 	const char		*module_facing;
@@ -589,10 +590,6 @@ static int __ov2735_start_stream(struct ov2735 *ov2735)
 {
 	int ret;
 
-	ret = ov2735_write_array(ov2735->client, ov2735_global_regs);
-	if (ret)
-		return ret;
-	mdelay(3);
 	ret = ov2735_write_array(ov2735->client, ov2735->cur_mode->reg_list);
 	if (ret)
 		return ret;
@@ -651,6 +648,44 @@ static int ov2735_s_stream(struct v4l2_subdev *sd, int on)
 	}
 
 	ov2735->streaming = on;
+
+unlock_and_return:
+	mutex_unlock(&ov2735->mutex);
+
+	return ret;
+}
+
+static int ov2735_s_power(struct v4l2_subdev *sd, int on)
+{
+	struct ov2735 *ov2735 = to_ov2735(sd);
+	struct i2c_client *client = ov2735->client;
+	int ret = 0;
+
+	mutex_lock(&ov2735->mutex);
+
+	/* If the power state is not modified - no work to do. */
+	if (ov2735->power_on == !!on)
+		goto unlock_and_return;
+
+	if (on) {
+		ret = pm_runtime_get_sync(&client->dev);
+		if (ret < 0) {
+			pm_runtime_put_noidle(&client->dev);
+			goto unlock_and_return;
+		}
+
+		ret = ov2735_write_array(ov2735->client, ov2735_global_regs);
+		if (ret) {
+			v4l2_err(sd, "could not set init registers\n");
+			pm_runtime_put_noidle(&client->dev);
+			goto unlock_and_return;
+		}
+
+		ov2735->power_on = true;
+	} else {
+		pm_runtime_put(&client->dev);
+		ov2735->power_on = false;
+	}
 
 unlock_and_return:
 	mutex_unlock(&ov2735->mutex);
@@ -773,6 +808,7 @@ static const struct v4l2_subdev_internal_ops ov2735_internal_ops = {
 #endif
 
 static const struct v4l2_subdev_core_ops ov2735_core_ops = {
+	.s_power = ov2735_s_power,
 	.ioctl = ov2735_ioctl,
 #ifdef CONFIG_COMPAT
 	.compat_ioctl32 = ov2735_compat_ioctl32,

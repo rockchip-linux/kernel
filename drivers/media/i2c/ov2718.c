@@ -151,6 +151,7 @@ struct ov2718 {
 	struct v4l2_ctrl	*test_pattern;
 	struct mutex		mutex;
 	bool			streaming;
+	bool			power_on;
 	bool			has_devnode;
 	const struct ov2718_mode *cur_mode;
 	const struct ov2718_mode *support_modes;
@@ -4447,6 +4448,37 @@ static long ov2718_compat_ioctl32(struct v4l2_subdev *sd,
 }
 #endif
 
+static int ov2718_s_power(struct v4l2_subdev *sd, int on)
+{
+	struct ov2718 *ov2718 = to_ov2718(sd);
+	struct i2c_client *client = ov2718->client;
+	int ret = 0;
+
+	mutex_lock(&ov2718->mutex);
+
+	/* If the power state is not modified - no work to do. */
+	if (ov2718->power_on == !!on)
+		goto unlock_and_return;
+
+	if (on) {
+		ret = pm_runtime_get_sync(&client->dev);
+		if (ret < 0) {
+			pm_runtime_put_noidle(&client->dev);
+			goto unlock_and_return;
+		}
+
+		ov2718->power_on = true;
+	} else {
+		pm_runtime_put(&client->dev);
+		ov2718->power_on = false;
+	}
+
+unlock_and_return:
+	mutex_unlock(&ov2718->mutex);
+
+	return ret;
+}
+
 /* Calculate the delay in us by clock rate and clock cycles */
 static inline u32 ov2718_cal_delay(u32 cycles)
 {
@@ -4621,6 +4653,7 @@ static const struct v4l2_subdev_pad_ops ov2718_pad_ops = {
 };
 
 static const struct v4l2_subdev_core_ops ov2718_core_ops = {
+	.s_power = ov2718_s_power,
 	.ioctl = ov2718_ioctl,
 #ifdef CONFIG_COMPAT
 	.compat_ioctl32 = ov2718_compat_ioctl32,
@@ -4855,6 +4888,10 @@ static int ov2718_check_sensor_id(struct ov2718 *ov2718,
 		usleep_range(1000, 2000);
 		continue;
 	}
+
+	if (id != CHIP_ID)
+		return -ENODEV;
+
 	dev_info(dev, "Detected OV%06x sensor\n", CHIP_ID);
 
 	return 0;

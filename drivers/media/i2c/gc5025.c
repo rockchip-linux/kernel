@@ -163,6 +163,7 @@ struct gc5025 {
 	struct v4l2_ctrl	*vblank;
 	struct mutex		mutex;
 	bool			streaming;
+	bool			power_on;
 	const struct gc5025_mode *cur_mode;
 	u32			module_index;
 	const char		*module_facing;
@@ -1218,9 +1219,6 @@ static int __gc5025_start_stream(struct gc5025 *gc5025)
 {
 	int ret;
 
-	ret = gc5025_write_array(gc5025->client, gc5025_global_regs);
-	if (ret)
-		return ret;
 	ret = gc5025_write_array(gc5025->client, gc5025->cur_mode->reg_list);
 	if (ret)
 		return ret;
@@ -1299,6 +1297,44 @@ static int gc5025_s_stream(struct v4l2_subdev *sd, int on)
 	}
 
 	gc5025->streaming = on;
+
+unlock_and_return:
+	mutex_unlock(&gc5025->mutex);
+
+	return ret;
+}
+
+static int gc5025_s_power(struct v4l2_subdev *sd, int on)
+{
+	struct gc5025 *gc5025 = to_gc5025(sd);
+	struct i2c_client *client = gc5025->client;
+	int ret = 0;
+
+	mutex_lock(&gc5025->mutex);
+
+	/* If the power state is not modified - no work to do. */
+	if (gc5025->power_on == !!on)
+		goto unlock_and_return;
+
+	if (on) {
+		ret = pm_runtime_get_sync(&client->dev);
+		if (ret < 0) {
+			pm_runtime_put_noidle(&client->dev);
+			goto unlock_and_return;
+		}
+
+		ret = gc5025_write_array(gc5025->client, gc5025_global_regs);
+		if (ret) {
+			v4l2_err(sd, "could not set init registers\n");
+			pm_runtime_put_noidle(&client->dev);
+			goto unlock_and_return;
+		}
+
+		gc5025->power_on = true;
+	} else {
+		pm_runtime_put(&client->dev);
+		gc5025->power_on = false;
+	}
 
 unlock_and_return:
 	mutex_unlock(&gc5025->mutex);
@@ -1432,6 +1468,7 @@ static const struct v4l2_subdev_internal_ops gc5025_internal_ops = {
 #endif
 
 static const struct v4l2_subdev_core_ops gc5025_core_ops = {
+	.s_power = gc5025_s_power,
 	.ioctl = gc5025_ioctl,
 #ifdef CONFIG_COMPAT
 	.compat_ioctl32 = gc5025_compat_ioctl32,
@@ -1652,7 +1689,7 @@ static int gc5025_check_sensor_id(struct gc5025 *gc5025,
 	id = ((reg_H << 8) & 0xff00) | (reg_L & 0xff);
 	if (id != CHIP_ID) {
 		dev_err(dev, "Unexpected sensor id(%06x), ret(%d)\n", id, ret);
-		return ret;
+		return -ENODEV;
 	}
 	ret |= gc5025_read_reg(client, 0x26, &flag_doublereset);
 	ret |= gc5025_read_reg(client, 0x27, &flag_GC5025A);

@@ -126,6 +126,7 @@ struct ov7750 {
 	struct v4l2_ctrl	*test_pattern;
 	struct mutex		mutex;
 	bool			streaming;
+	bool			power_on;
 	const struct ov7750_mode *cur_mode;
 	u32			module_index;
 	const char		*module_facing;
@@ -682,10 +683,6 @@ static int __ov7750_start_stream(struct ov7750 *ov7750)
 {
 	int ret;
 
-	ret = ov7750_write_array(ov7750->client, ov7750_global_regs);
-	if (ret)
-		return ret;
-
 	ret = ov7750_write_array(ov7750->client, ov7750->cur_mode->reg_list);
 	if (ret)
 		return ret;
@@ -741,6 +738,44 @@ static int ov7750_s_stream(struct v4l2_subdev *sd, int on)
 	}
 
 	ov7750->streaming = on;
+
+unlock_and_return:
+	mutex_unlock(&ov7750->mutex);
+
+	return ret;
+}
+
+static int ov7750_s_power(struct v4l2_subdev *sd, int on)
+{
+	struct ov7750 *ov7750 = to_ov7750(sd);
+	struct i2c_client *client = ov7750->client;
+	int ret = 0;
+
+	mutex_lock(&ov7750->mutex);
+
+	/* If the power state is not modified - no work to do. */
+	if (ov7750->power_on == !!on)
+		goto unlock_and_return;
+
+	if (on) {
+		ret = pm_runtime_get_sync(&client->dev);
+		if (ret < 0) {
+			pm_runtime_put_noidle(&client->dev);
+			goto unlock_and_return;
+		}
+
+		ret = ov7750_write_array(ov7750->client, ov7750_global_regs);
+		if (ret) {
+			v4l2_err(sd, "could not set init registers\n");
+			pm_runtime_put_noidle(&client->dev);
+			goto unlock_and_return;
+		}
+
+		ov7750->power_on = true;
+	} else {
+		pm_runtime_put(&client->dev);
+		ov7750->power_on = false;
+	}
 
 unlock_and_return:
 	mutex_unlock(&ov7750->mutex);
@@ -874,6 +909,7 @@ static const struct v4l2_subdev_internal_ops ov7750_internal_ops = {
 #endif
 
 static const struct v4l2_subdev_core_ops ov7750_core_ops = {
+	.s_power = ov7750_s_power,
 	.ioctl = ov7750_ioctl,
 #ifdef CONFIG_COMPAT
 	.compat_ioctl32 = ov7750_compat_ioctl32,
@@ -1044,7 +1080,7 @@ static int ov7750_check_sensor_id(struct ov7750 *ov7750,
 				   OV7750_REG_VALUE_16BIT, &id);
 	if (id != CHIP_ID) {
 		dev_err(dev, "Unexpected sensor id(%04x), ret(%d)\n", id, ret);
-		return ret;
+		return -ENODEV;
 	}
 
 	ret = ov7750_read_reg(client, OV7750_CHIP_REVISION_REG,

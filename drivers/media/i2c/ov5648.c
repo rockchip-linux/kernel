@@ -139,6 +139,7 @@ struct ov5648 {
 	struct v4l2_ctrl	*test_pattern;
 	struct mutex		mutex;
 	bool			streaming;
+	bool			power_on;
 	const struct ov5648_mode *cur_mode;
 	unsigned int lane_num;
 	unsigned int cfg_num;
@@ -810,10 +811,6 @@ static int __ov5648_start_stream(struct ov5648 *ov5648)
 {
 	int ret;
 
-	ret = ov5648_write_array(ov5648->client, ov5648_global_regs);
-	if (ret)
-		return ret;
-
 	ret = ov5648_write_array(ov5648->client, ov5648->cur_mode->reg_list);
 	if (ret)
 		return ret;
@@ -883,6 +880,44 @@ static int ov5648_s_stream(struct v4l2_subdev *sd, int on)
 	}
 
 	ov5648->streaming = on;
+
+unlock_and_return:
+	mutex_unlock(&ov5648->mutex);
+
+	return ret;
+}
+
+static int ov5648_s_power(struct v4l2_subdev *sd, int on)
+{
+	struct ov5648 *ov5648 = to_ov5648(sd);
+	struct i2c_client *client = ov5648->client;
+	int ret = 0;
+
+	mutex_lock(&ov5648->mutex);
+
+	/* If the power state is not modified - no work to do. */
+	if (ov5648->power_on == !!on)
+		goto unlock_and_return;
+
+	if (on) {
+		ret = pm_runtime_get_sync(&client->dev);
+		if (ret < 0) {
+			pm_runtime_put_noidle(&client->dev);
+			goto unlock_and_return;
+		}
+
+		ret = ov5648_write_array(ov5648->client, ov5648_global_regs);
+		if (ret) {
+			v4l2_err(sd, "could not set init registers\n");
+			pm_runtime_put_noidle(&client->dev);
+			goto unlock_and_return;
+		}
+
+		ov5648->power_on = true;
+	} else {
+		pm_runtime_put(&client->dev);
+		ov5648->power_on = false;
+	}
 
 unlock_and_return:
 	mutex_unlock(&ov5648->mutex);
@@ -1023,6 +1058,7 @@ static const struct v4l2_subdev_internal_ops ov5648_internal_ops = {
 #endif
 
 static const struct v4l2_subdev_core_ops ov5648_core_ops = {
+	.s_power = ov5648_s_power,
 	.ioctl = ov5648_ioctl,
 #ifdef CONFIG_COMPAT
 	.compat_ioctl32 = ov5648_compat_ioctl32,
@@ -1197,7 +1233,7 @@ static int ov5648_check_sensor_id(struct ov5648 *ov5648,
 			      OV5648_REG_VALUE_16BIT, &id);
 	if (id != CHIP_ID) {
 		dev_err(dev, "Unexpected sensor id(%06x), ret(%d)\n", id, ret);
-		return ret;
+		return -ENODEV;
 	}
 
 	dev_info(dev, "Detected OV%06x sensor\n", CHIP_ID);

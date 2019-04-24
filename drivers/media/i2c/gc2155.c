@@ -61,6 +61,7 @@ struct gc2155 {
 	struct regulator_bulk_data supplies[GC2155_NUM_SUPPLIES];
 
 	bool			streaming;
+	bool			power_on;
 	struct mutex		mutex; /* lock to serialize v4l2 callback */
 	struct v4l2_subdev	subdev;
 	struct media_pad	pad;
@@ -1186,12 +1187,6 @@ static int gc2155_s_stream(struct v4l2_subdev *sd, int on)
 			goto unlock_and_return;
 		}
 
-		ret = gc2155_write_array(gc2155->client, gc2155_global_regs);
-		if (ret) {
-			pm_runtime_put(&client->dev);
-			goto unlock_and_return;
-		}
-
 		ret = gc2155_write_array(gc2155->client,
 					  gc2155->cur_mode->reg_list);
 		if (ret) {
@@ -1204,6 +1199,44 @@ static int gc2155_s_stream(struct v4l2_subdev *sd, int on)
 	}
 
 	gc2155->streaming = on;
+
+unlock_and_return:
+	mutex_unlock(&gc2155->mutex);
+
+	return ret;
+}
+
+static int gc2155_s_power(struct v4l2_subdev *sd, int on)
+{
+	struct gc2155 *gc2155 = to_gc2155(sd);
+	struct i2c_client *client = gc2155->client;
+	int ret = 0;
+
+	mutex_lock(&gc2155->mutex);
+
+	/* If the power state is not modified - no work to do. */
+	if (gc2155->power_on == !!on)
+		goto unlock_and_return;
+
+	if (on) {
+		ret = pm_runtime_get_sync(&client->dev);
+		if (ret < 0) {
+			pm_runtime_put_noidle(&client->dev);
+			goto unlock_and_return;
+		}
+
+		ret = gc2155_write_array(gc2155->client, gc2155_global_regs);
+		if (ret) {
+			v4l2_err(sd, "could not set init registers\n");
+			pm_runtime_put_noidle(&client->dev);
+			goto unlock_and_return;
+		}
+
+		gc2155->power_on = true;
+	} else {
+		pm_runtime_put(&client->dev);
+		gc2155->power_on = false;
+	}
 
 unlock_and_return:
 	mutex_unlock(&gc2155->mutex);
@@ -1259,6 +1292,7 @@ static const struct dev_pm_ops gc2155_pm_ops = {
 };
 
 static const struct v4l2_subdev_core_ops gc2155_core_ops = {
+	.s_power = gc2155_s_power,
 	.ioctl = gc2155_ioctl,
 #ifdef CONFIG_COMPAT
 	.compat_ioctl32 = gc2155_compat_ioctl32,

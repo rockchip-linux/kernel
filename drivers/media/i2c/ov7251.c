@@ -108,6 +108,7 @@ struct ov7251 {
 	struct v4l2_ctrl	*test_pattern;
 	struct mutex		mutex;
 	bool			streaming;
+	bool			power_on;
 	const struct ov7251_mode *cur_mode;
 	u32			module_index;
 	const char		*module_facing;
@@ -654,6 +655,37 @@ unlock_and_return:
 	return ret;
 }
 
+static int ov7251_s_power(struct v4l2_subdev *sd, int on)
+{
+	struct ov7251 *ov7251 = to_ov7251(sd);
+	struct i2c_client *client = ov7251->client;
+	int ret = 0;
+
+	mutex_lock(&ov7251->mutex);
+
+	/* If the power state is not modified - no work to do. */
+	if (ov7251->power_on == !!on)
+		goto unlock_and_return;
+
+	if (on) {
+		ret = pm_runtime_get_sync(&client->dev);
+		if (ret < 0) {
+			pm_runtime_put_noidle(&client->dev);
+			goto unlock_and_return;
+		}
+
+		ov7251->power_on = true;
+	} else {
+		pm_runtime_put(&client->dev);
+		ov7251->power_on = false;
+	}
+
+unlock_and_return:
+	mutex_unlock(&ov7251->mutex);
+
+	return ret;
+}
+
 /* Calculate the delay in us by clock rate and clock cycles */
 static inline u32 ov7251_cal_delay(u32 cycles)
 {
@@ -765,6 +797,7 @@ static const struct v4l2_subdev_internal_ops ov7251_internal_ops = {
 #endif
 
 static const struct v4l2_subdev_core_ops ov7251_core_ops = {
+	.s_power = ov7251_s_power,
 	.ioctl = ov7251_ioctl,
 #ifdef CONFIG_COMPAT
 	.compat_ioctl32 = ov7251_compat_ioctl32,
@@ -926,7 +959,7 @@ static int ov7251_check_sensor_id(struct ov7251 *ov7251,
 			      OV7251_REG_VALUE_16BIT, &id);
 	if (id != CHIP_ID) {
 		dev_err(dev, "Unexpected sensor id(%06x), ret(%d)\n", id, ret);
-		return ret;
+		return -ENODEV;
 	}
 
 	dev_info(dev, "Detected OV%06x sensor\n", CHIP_ID);

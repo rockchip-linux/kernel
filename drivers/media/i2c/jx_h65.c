@@ -110,6 +110,7 @@ struct jx_h65 {
 	struct v4l2_ctrl	*test_pattern;
 	struct mutex		mutex;
 	bool			streaming;
+	bool			power_on;
 	const struct jx_h65_mode *cur_mode;
 	u32			module_index;
 	const char		*module_facing;
@@ -718,6 +719,37 @@ unlock_and_return:
 	return ret;
 }
 
+static int jx_h65_s_power(struct v4l2_subdev *sd, int on)
+{
+	struct jx_h65 *jx_h65 = to_jx_h65(sd);
+	struct i2c_client *client = jx_h65->client;
+	int ret = 0;
+
+	mutex_lock(&jx_h65->mutex);
+
+	/* If the power state is not modified - no work to do. */
+	if (jx_h65->power_on == !!on)
+		goto unlock_and_return;
+
+	if (on) {
+		ret = pm_runtime_get_sync(&client->dev);
+		if (ret < 0) {
+			pm_runtime_put_noidle(&client->dev);
+			goto unlock_and_return;
+		}
+
+		jx_h65->power_on = true;
+	} else {
+		pm_runtime_put(&client->dev);
+		jx_h65->power_on = false;
+	}
+
+unlock_and_return:
+	mutex_unlock(&jx_h65->mutex);
+
+	return ret;
+}
+
 static int __jx_h65_power_on(struct jx_h65 *jx_h65)
 {
 	int ret;
@@ -828,6 +860,7 @@ static const struct v4l2_subdev_internal_ops jx_h65_internal_ops = {
 #endif
 
 static const struct v4l2_subdev_core_ops jx_h65_core_ops = {
+	.s_power = jx_h65_s_power,
 	.ioctl = jx_h65_ioctl,
 #ifdef CONFIG_COMPAT
 	.compat_ioctl32 = jx_h65_compat_ioctl32,

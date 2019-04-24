@@ -125,6 +125,7 @@ struct imx327 {
 	struct v4l2_ctrl	*test_pattern;
 	struct mutex		mutex;
 	bool			streaming;
+	bool			power_on;
 	const struct imx327_mode *cur_mode;
 	u32			module_index;
 	const char		*module_facing;
@@ -542,10 +543,6 @@ static int __imx327_start_stream(struct imx327 *imx327)
 {
 	int ret;
 
-	ret = imx327_write_array(imx327->client, imx327_global_regs);
-	if (ret)
-		return ret;
-
 	ret = imx327_write_array(imx327->client, imx327->cur_mode->reg_list);
 	if (ret)
 		return ret;
@@ -597,6 +594,44 @@ static int imx327_s_stream(struct v4l2_subdev *sd, int on)
 	}
 
 	imx327->streaming = on;
+
+unlock_and_return:
+	mutex_unlock(&imx327->mutex);
+
+	return ret;
+}
+
+static int imx327_s_power(struct v4l2_subdev *sd, int on)
+{
+	struct imx327 *imx327 = to_imx327(sd);
+	struct i2c_client *client = imx327->client;
+	int ret = 0;
+
+	mutex_lock(&imx327->mutex);
+
+	/* If the power state is not modified - no work to do. */
+	if (imx327->power_on == !!on)
+		goto unlock_and_return;
+
+	if (on) {
+		ret = pm_runtime_get_sync(&client->dev);
+		if (ret < 0) {
+			pm_runtime_put_noidle(&client->dev);
+			goto unlock_and_return;
+		}
+
+		ret = imx327_write_array(imx327->client, imx327_global_regs);
+		if (ret) {
+			v4l2_err(sd, "could not set init registers\n");
+			pm_runtime_put_noidle(&client->dev);
+			goto unlock_and_return;
+		}
+
+		imx327->power_on = true;
+	} else {
+		pm_runtime_put(&client->dev);
+		imx327->power_on = false;
+	}
 
 unlock_and_return:
 	mutex_unlock(&imx327->mutex);
@@ -721,6 +756,7 @@ static const struct v4l2_subdev_internal_ops imx327_internal_ops = {
 #endif
 
 static const struct v4l2_subdev_core_ops imx327_core_ops = {
+	.s_power = imx327_s_power,
 	.ioctl = imx327_ioctl,
 #ifdef CONFIG_COMPAT
 	.compat_ioctl32 = imx327_compat_ioctl32,
@@ -901,7 +937,7 @@ static int imx327_check_sensor_id(struct imx327 *imx327,
 			       IMX327_REG_VALUE_08BIT, &id);
 	if (id != CHIP_ID) {
 		dev_err(dev, "Unexpected sensor id(%06x), ret(%d)\n", id, ret);
-		return ret;
+		return -ENODEV;
 	}
 
 	dev_info(dev, "Detected imx327 id:%06x\n", CHIP_ID);

@@ -113,6 +113,7 @@ struct imx323 {
 	struct v4l2_ctrl	*test_pattern;
 	struct mutex		mutex;
 	bool			streaming;
+	bool			power_on;
 	const struct imx323_mode *cur_mode;
 	u32			module_index;
 	const char		*module_facing;
@@ -526,6 +527,37 @@ static int imx323_g_frame_interval(struct v4l2_subdev *sd,
 	return 0;
 }
 
+static int imx323_s_power(struct v4l2_subdev *sd, int on)
+{
+	struct imx323 *imx323 = to_imx323(sd);
+	struct i2c_client *client = imx323->client;
+	int ret = 0;
+
+	mutex_lock(&imx323->mutex);
+
+	/* If the power state is not modified - no work to do. */
+	if (imx323->power_on == !!on)
+		goto unlock_and_return;
+
+	if (on) {
+		ret = pm_runtime_get_sync(&client->dev);
+		if (ret < 0) {
+			pm_runtime_put_noidle(&client->dev);
+			goto unlock_and_return;
+		}
+
+		imx323->power_on = true;
+	} else {
+		pm_runtime_put(&client->dev);
+		imx323->power_on = false;
+	}
+
+unlock_and_return:
+	mutex_unlock(&imx323->mutex);
+
+	return ret;
+}
+
 /* Calculate the delay in us by clock rate and clock cycles */
 static inline u32 imx323_cal_delay(u32 cycles)
 {
@@ -658,6 +690,7 @@ static const struct v4l2_subdev_internal_ops imx323_internal_ops = {
 #endif
 
 static const struct v4l2_subdev_core_ops imx323_core_ops = {
+	.s_power = imx323_s_power,
 	.ioctl = imx323_ioctl,
 #ifdef CONFIG_COMPAT
 	.compat_ioctl32 = imx323_compat_ioctl32,
@@ -799,7 +832,7 @@ static int imx323_check_sensor_id(struct imx323 *imx323,
 			      IMX323_REG_VALUE_08BIT, &id);
 	if (id != CHIP_ID) {
 		dev_err(dev, "Unexpected sensor id(%x), ret(%d)\n", id, ret);
-		return ret;
+		return -ENODEV;
 	}
 
 	dev_info(dev, "Detected IMX323 sensor\n");
