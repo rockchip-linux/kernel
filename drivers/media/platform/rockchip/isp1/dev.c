@@ -127,47 +127,6 @@ static int __isp_pipeline_prepare(struct rkisp1_pipeline *p,
 	return 0;
 }
 
-static int __subdev_set_power(struct v4l2_subdev *sd, int on)
-{
-	int ret;
-
-	if (!sd)
-		return -ENXIO;
-
-	ret = v4l2_subdev_call(sd, core, s_power, on);
-
-	return ret != -ENOIOCTLCMD ? ret : 0;
-}
-
-static int __isp_pipeline_s_power(struct rkisp1_pipeline *p, bool on)
-{
-	struct rkisp1_device *dev = container_of(p, struct rkisp1_device, pipe);
-	int i, ret;
-
-	if (on) {
-		__subdev_set_power(&dev->isp_sdev.sd, true);
-
-		for (i = p->num_subdevs - 1; i >= 0; --i) {
-			ret = __subdev_set_power(p->subdevs[i], true);
-			if (ret < 0 && ret != -ENXIO)
-				goto err_power_off;
-		}
-	} else {
-		for (i = 0; i < p->num_subdevs; ++i)
-			__subdev_set_power(p->subdevs[i], false);
-
-		__subdev_set_power(&dev->isp_sdev.sd, false);
-	}
-
-	return 0;
-
-err_power_off:
-	for (++i; i < p->num_subdevs; ++i)
-		__subdev_set_power(p->subdevs[i], false);
-	__subdev_set_power(&dev->isp_sdev.sd, true);
-	return ret;
-}
-
 static int __isp_pipeline_s_isp_clk(struct rkisp1_pipeline *p)
 {
 	struct rkisp1_device *dev = container_of(p, struct rkisp1_device, pipe);
@@ -243,22 +202,14 @@ static int rkisp1_pipeline_open(struct rkisp1_pipeline *p,
 	if (ret < 0)
 		return ret;
 
-	ret = __isp_pipeline_s_power(p, 1);
-	if (ret < 0)
-		return ret;
-
 	return 0;
 }
 
 static int rkisp1_pipeline_close(struct rkisp1_pipeline *p)
 {
-	int ret;
+	atomic_dec(&p->power_cnt);
 
-	if (atomic_dec_return(&p->power_cnt) > 0)
-		return 0;
-	ret = __isp_pipeline_s_power(p, 0);
-
-	return ret == -ENXIO ? 0 : ret;
+	return 0;
 }
 
 /*
@@ -303,6 +254,125 @@ err_stream_off:
 	v4l2_subdev_call(&dev->isp_sdev.sd, video, s_stream, false);
 	rockchip_clear_system_status(SYS_STATUS_ISP);
 	return ret;
+}
+
+static int rkisp1_pipeline_pm_use_count(struct media_entity *entity)
+{
+	struct media_entity_graph graph;
+	int use = 0;
+
+	media_entity_graph_walk_start(&graph, entity);
+
+	while ((entity = media_entity_graph_walk_next(&graph))) {
+		if (media_entity_type(entity) == MEDIA_ENT_T_DEVNODE)
+			use += entity->use_count;
+	}
+
+	return use;
+}
+
+static int rkisp1_pipeline_pm_power_one(struct media_entity *entity, int change)
+{
+	struct v4l2_subdev *subdev;
+	int ret;
+
+	subdev = media_entity_type(entity) == MEDIA_ENT_T_V4L2_SUBDEV
+	       ? media_entity_to_v4l2_subdev(entity) : NULL;
+
+	if (entity->use_count == 0 && change > 0 && subdev) {
+		ret = v4l2_subdev_call(subdev, core, s_power, 1);
+		if (ret < 0 && ret != -ENOIOCTLCMD)
+			return ret;
+	}
+
+	entity->use_count += change;
+	WARN_ON(entity->use_count < 0);
+
+	if (entity->use_count == 0 && change < 0 && subdev)
+		v4l2_subdev_call(subdev, core, s_power, 0);
+
+	return 0;
+}
+
+static int rkisp1_pipeline_pm_power(struct media_entity *entity, int change)
+{
+	struct media_entity_graph graph;
+	struct media_entity *first = entity;
+	int ret = 0;
+
+	if (!change)
+		return 0;
+
+	media_entity_graph_walk_start(&graph, entity);
+
+	while (!ret && (entity = media_entity_graph_walk_next(&graph)))
+		if (media_entity_type(entity) != MEDIA_ENT_T_DEVNODE)
+			ret = rkisp1_pipeline_pm_power_one(entity, change);
+
+	if (!ret)
+		return 0;
+
+	media_entity_graph_walk_start(&graph, first);
+
+	while ((first = media_entity_graph_walk_next(&graph)) && first != entity)
+		if (media_entity_type(first) != MEDIA_ENT_T_DEVNODE)
+			rkisp1_pipeline_pm_power_one(first, -change);
+
+	return ret;
+}
+
+static int rkisp1_pipeline_pm_use(struct media_entity *entity, int use)
+{
+	int change = use ? 1 : -1;
+	int ret;
+
+	mutex_lock(&entity->parent->graph_mutex);
+
+	/* Apply use count to node. */
+	entity->use_count += change;
+	WARN_ON(entity->use_count < 0);
+
+	/* Apply power change to connected non-nodes. */
+	ret = rkisp1_pipeline_pm_power(entity, change);
+	if (ret < 0)
+		entity->use_count -= change;
+
+	mutex_unlock(&entity->parent->graph_mutex);
+
+	return ret;
+}
+
+static int rkisp1_pipeline_link_notify(struct media_link *link, u32 flags,
+				    unsigned int notification)
+{
+	struct media_entity *source = link->source->entity;
+	struct media_entity *sink = link->sink->entity;
+	int source_use = rkisp1_pipeline_pm_use_count(source);
+	int sink_use = rkisp1_pipeline_pm_use_count(sink);
+	int ret;
+
+	if (notification == MEDIA_DEV_NOTIFY_POST_LINK_CH &&
+	    !(flags & MEDIA_LNK_FL_ENABLED)) {
+		/* Powering off entities is assumed to never fail. */
+		rkisp1_pipeline_pm_power(source, -sink_use);
+		rkisp1_pipeline_pm_power(sink, -source_use);
+		return 0;
+	}
+
+	if (notification == MEDIA_DEV_NOTIFY_PRE_LINK_CH &&
+		(flags & MEDIA_LNK_FL_ENABLED)) {
+		ret = rkisp1_pipeline_pm_power(source, sink_use);
+		if (ret < 0)
+			return ret;
+
+		ret = rkisp1_pipeline_pm_power(sink, source_use);
+		if (ret < 0)
+			rkisp1_pipeline_pm_power(source, -sink_use);
+
+		return ret;
+	}
+
+	return 0;
 }
 
 /***************************** media controller *******************************/
@@ -1100,6 +1170,7 @@ static int rkisp1_plat_probe(struct platform_device *pdev)
 	isp_dev->pipe.open = rkisp1_pipeline_open;
 	isp_dev->pipe.close = rkisp1_pipeline_close;
 	isp_dev->pipe.set_stream = rkisp1_pipeline_set_stream;
+	isp_dev->pipe.pm_use = rkisp1_pipeline_pm_use;
 
 	rkisp1_stream_init(isp_dev, RKISP1_STREAM_SP);
 	rkisp1_stream_init(isp_dev, RKISP1_STREAM_MP);
@@ -1121,6 +1192,7 @@ static int rkisp1_plat_probe(struct platform_device *pdev)
 		return ret;
 	}
 
+	isp_dev->media_dev.link_notify = rkisp1_pipeline_link_notify;
 	ret = media_device_register(&isp_dev->media_dev);
 	if (ret < 0) {
 		v4l2_err(v4l2_dev, "Failed to register media device: %d\n",

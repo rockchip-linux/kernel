@@ -1715,12 +1715,18 @@ int rkisp1_fh_open(struct file *filp)
 {
 	struct rkisp1_stream *stream = video_drvdata(filp);
 	struct rkisp1_device *dev = stream->ispdev;
+	struct video_device *vdev = &stream->vnode.vdev;
 	int ret;
 
 	ret = v4l2_fh_open(filp);
 	if (!ret) {
 		if (atomic_inc_return(&dev->open_cnt) == 1)
 			rkisp1_dma_attach_device(dev);
+
+		ret = dev->pipe.pm_use(&vdev->entity, 1);
+		if (ret < 0)
+			v4l2_err(&dev->v4l2_dev,
+				"set pipeline power failed %d\n", ret);
 	}
 
 	return ret;
@@ -1730,12 +1736,19 @@ int rkisp1_fop_release(struct file *file)
 {
 	struct rkisp1_stream *stream = video_drvdata(file);
 	struct rkisp1_device *dev = stream->ispdev;
+	struct video_device *vdev = &stream->vnode.vdev;
 	int ret;
 
 	ret = vb2_fop_release(file);
+	if (!ret) {
+		ret = dev->pipe.pm_use(&vdev->entity, 0);
+		if (ret < 0)
+			v4l2_err(&dev->v4l2_dev,
+				"set pipeline power failed %d\n", ret);
 
-	if (atomic_dec_return(&dev->open_cnt) == 0)
-		rkisp1_dma_detach_device(dev);
+		if (atomic_dec_return(&dev->open_cnt) == 0)
+			rkisp1_dma_detach_device(dev);
+	}
 
 	return ret;
 }

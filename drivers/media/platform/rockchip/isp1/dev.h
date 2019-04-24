@@ -105,6 +105,7 @@ struct rkisp1_pipeline {
 		    struct media_entity *me, bool prepare);
 	int (*close)(struct rkisp1_pipeline *p);
 	int (*set_stream)(struct rkisp1_pipeline *p, bool on);
+	int (*pm_use)(struct media_entity *entity, int use);
 };
 
 /*
