@@ -990,7 +990,7 @@ rockchip_system_monitor_adjust_cdev_state(struct thermal_cooling_device *cdev,
 
 	down_read(&mdev_list_sem);
 	list_for_each_entry(info, &monitor_dev_list, node) {
-		if (info->cdev != cdev)
+		if (cdev->np != info->dev->of_node)
 			continue;
 		monitor_temp_to_state(info, temp, state);
 		break;
@@ -1059,7 +1059,6 @@ void rockchip_system_monitor_unregister(struct monitor_dev_info *info)
 		devm_devfreq_unregister_notifier(info->dev, devfreq,
 						 &info->devfreq_nb,
 						 DEVFREQ_TRANSITION_NOTIFIER);
-
 	kfree(info->devp);
 	kfree(info->low_temp_adjust_table);
 	kfree(info->opp_table);
