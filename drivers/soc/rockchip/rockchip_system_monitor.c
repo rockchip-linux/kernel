@@ -1059,7 +1059,6 @@ void rockchip_system_monitor_unregister(struct monitor_dev_info *info)
 		devm_devfreq_unregister_notifier(info->dev, devfreq,
 						 &info->devfreq_nb,
 						 DEVFREQ_TRANSITION_NOTIFIER);
-	kfree(info->devp);
 	kfree(info->low_temp_adjust_table);
 	kfree(info->opp_table);
 	kfree(info->freq_table);
