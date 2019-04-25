@@ -409,69 +409,135 @@ static const struct phy_reg usb3_pll_cfg[] = {
 };
 
 static const struct phy_reg dp_pll_rbr_cfg[] = {
-	{ 0xf0,		CMN_PLL1_VCOCAL_INIT },
-	{ 0x18,		CMN_PLL1_VCOCAL_ITER },
-	{ 0x30b9,	CMN_PLL1_VCOCAL_START },
-	{ 0x0086,	CMN_PLL1_INTDIV },
-	{ 0xf915,	CMN_PLL1_FRACDIV },
-	{ 0x0022,	CMN_PLL1_HIGH_THR },
-	{ 0x0140,	CMN_PLL1_SS_CTRL1 },
-	{ 0x7f03,	CMN_PLL1_SS_CTRL2 },
-	{ 0x20,		CMN_PLL1_DSM_DIAG },
-	{ 0,		CMN_PLLSM1_USER_DEF_CTRL },
-	{ 0,		CMN_DIAG_PLL1_OVRD },
-	{ 0,		CMN_DIAG_PLL1_FBH_OVRD },
-	{ 0,		CMN_DIAG_PLL1_FBL_OVRD },
-	{ 0x6,		CMN_DIAG_PLL1_V2I_TUNE },
-	{ 0x45,		CMN_DIAG_PLL1_CP_TUNE },
-	{ 0x8,		CMN_DIAG_PLL1_LF_PROG },
-	{ 0x100,	CMN_DIAG_PLL1_PTATIS_TUNE1 },
-	{ 0x7,		CMN_DIAG_PLL1_PTATIS_TUNE2 },
-	{ 0x1,		CMN_DIAG_PLL1_INCLK_CTRL },
+	{ 0x00f0, CMN_PLL1_VCOCAL_INIT },
+	{ 0x0018, CMN_PLL1_VCOCAL_ITER },
+	{ 0x30b9, CMN_PLL1_VCOCAL_START },
+	{ 0x0087, CMN_PLL1_INTDIV },
+	{ 0x0000, CMN_PLL1_FRACDIV },
+	{ 0x0022, CMN_PLL1_HIGH_THR },
+	{ 0x8000, CMN_PLL1_SS_CTRL1 },
+	{ 0x0000, CMN_PLL1_SS_CTRL2 },
+	{ 0x0020, CMN_PLL1_DSM_DIAG },
+	{ 0x0000, CMN_PLLSM1_USER_DEF_CTRL },
+	{ 0x0000, CMN_DIAG_PLL1_OVRD },
+	{ 0x0000, CMN_DIAG_PLL1_FBH_OVRD },
+	{ 0x0000, CMN_DIAG_PLL1_FBL_OVRD },
+	{ 0x0006, CMN_DIAG_PLL1_V2I_TUNE },
+	{ 0x0045, CMN_DIAG_PLL1_CP_TUNE },
+	{ 0x0008, CMN_DIAG_PLL1_LF_PROG },
+	{ 0x0100, CMN_DIAG_PLL1_PTATIS_TUNE1 },
+	{ 0x0007, CMN_DIAG_PLL1_PTATIS_TUNE2 },
+	{ 0x0001, CMN_DIAG_PLL1_INCLK_CTRL },
+};
+
+static const struct phy_reg dp_pll_rbr_ssc_cfg[] = {
+	{ 0x00f0, CMN_PLL1_VCOCAL_INIT },
+	{ 0x0018, CMN_PLL1_VCOCAL_ITER },
+	{ 0x30b9, CMN_PLL1_VCOCAL_START },
+	{ 0x0086, CMN_PLL1_INTDIV },
+	{ 0xf915, CMN_PLL1_FRACDIV },
+	{ 0x0022, CMN_PLL1_HIGH_THR },
+	{ 0x0140, CMN_PLL1_SS_CTRL1 },
+	{ 0x7f03, CMN_PLL1_SS_CTRL2 },
+	{ 0x0020, CMN_PLL1_DSM_DIAG },
+	{ 0x0000, CMN_PLLSM1_USER_DEF_CTRL },
+	{ 0x0000, CMN_DIAG_PLL1_OVRD },
+	{ 0x0000, CMN_DIAG_PLL1_FBH_OVRD },
+	{ 0x0000, CMN_DIAG_PLL1_FBL_OVRD },
+	{ 0x0006, CMN_DIAG_PLL1_V2I_TUNE },
+	{ 0x0045, CMN_DIAG_PLL1_CP_TUNE },
+	{ 0x0008, CMN_DIAG_PLL1_LF_PROG },
+	{ 0x0100, CMN_DIAG_PLL1_PTATIS_TUNE1 },
+	{ 0x0007, CMN_DIAG_PLL1_PTATIS_TUNE2 },
+	{ 0x0001, CMN_DIAG_PLL1_INCLK_CTRL },
 };
 
 static const struct phy_reg dp_pll_hbr_cfg[] = {
-	{ 0xf0,		CMN_PLL1_VCOCAL_INIT },
-	{ 0x18,		CMN_PLL1_VCOCAL_ITER },
-	{ 0x30b4,	CMN_PLL1_VCOCAL_START },
-	{ 0x00e0,	CMN_PLL1_INTDIV },
-	{ 0xf479,	CMN_PLL1_FRACDIV },
-	{ 0x0038,	CMN_PLL1_HIGH_THR },
-	{ 0x0204,	CMN_PLL1_SS_CTRL1 },
-	{ 0x7f03,	CMN_PLL1_SS_CTRL2 },
-	{ 0x20,		CMN_PLL1_DSM_DIAG },
-	{ 0x1000,	CMN_PLLSM1_USER_DEF_CTRL },
-	{ 0,		CMN_DIAG_PLL1_OVRD },
-	{ 0,		CMN_DIAG_PLL1_FBH_OVRD },
-	{ 0,		CMN_DIAG_PLL1_FBL_OVRD },
-	{ 0x7,		CMN_DIAG_PLL1_V2I_TUNE },
-	{ 0x45,		CMN_DIAG_PLL1_CP_TUNE },
-	{ 0x8,		CMN_DIAG_PLL1_LF_PROG },
-	{ 0x1,		CMN_DIAG_PLL1_PTATIS_TUNE1 },
-	{ 0x1,		CMN_DIAG_PLL1_PTATIS_TUNE2 },
-	{ 0x1,		CMN_DIAG_PLL1_INCLK_CTRL },
+	{ 0x00f0, CMN_PLL1_VCOCAL_INIT },
+	{ 0x0018, CMN_PLL1_VCOCAL_ITER },
+	{ 0x30b4, CMN_PLL1_VCOCAL_START },
+	{ 0x00e1, CMN_PLL1_INTDIV },
+	{ 0x0000, CMN_PLL1_FRACDIV },
+	{ 0x0005, CMN_PLL1_HIGH_THR },
+	{ 0x8000, CMN_PLL1_SS_CTRL1 },
+	{ 0x0000, CMN_PLL1_SS_CTRL2 },
+	{ 0x0020, CMN_PLL1_DSM_DIAG },
+	{ 0x1000, CMN_PLLSM1_USER_DEF_CTRL },
+	{ 0x0000, CMN_DIAG_PLL1_OVRD },
+	{ 0x0000, CMN_DIAG_PLL1_FBH_OVRD },
+	{ 0x0000, CMN_DIAG_PLL1_FBL_OVRD },
+	{ 0x0007, CMN_DIAG_PLL1_V2I_TUNE },
+	{ 0x0045, CMN_DIAG_PLL1_CP_TUNE },
+	{ 0x0008, CMN_DIAG_PLL1_LF_PROG },
+	{ 0x0001, CMN_DIAG_PLL1_PTATIS_TUNE1 },
+	{ 0x0001, CMN_DIAG_PLL1_PTATIS_TUNE2 },
+	{ 0x0001, CMN_DIAG_PLL1_INCLK_CTRL },
+};
+
+static const struct phy_reg dp_pll_hbr_ssc_cfg[] = {
+	{ 0x00f0, CMN_PLL1_VCOCAL_INIT },
+	{ 0x0018, CMN_PLL1_VCOCAL_ITER },
+	{ 0x30b4, CMN_PLL1_VCOCAL_START },
+	{ 0x00e0, CMN_PLL1_INTDIV },
+	{ 0xf479, CMN_PLL1_FRACDIV },
+	{ 0x0038, CMN_PLL1_HIGH_THR },
+	{ 0x0204, CMN_PLL1_SS_CTRL1 },
+	{ 0x7f03, CMN_PLL1_SS_CTRL2 },
+	{ 0x0020, CMN_PLL1_DSM_DIAG },
+	{ 0x1000, CMN_PLLSM1_USER_DEF_CTRL },
+	{ 0x0000, CMN_DIAG_PLL1_OVRD },
+	{ 0x0000, CMN_DIAG_PLL1_FBH_OVRD },
+	{ 0x0000, CMN_DIAG_PLL1_FBL_OVRD },
+	{ 0x0007, CMN_DIAG_PLL1_V2I_TUNE },
+	{ 0x0045, CMN_DIAG_PLL1_CP_TUNE },
+	{ 0x0008, CMN_DIAG_PLL1_LF_PROG },
+	{ 0x0001, CMN_DIAG_PLL1_PTATIS_TUNE1 },
+	{ 0x0001, CMN_DIAG_PLL1_PTATIS_TUNE2 },
+	{ 0x0001, CMN_DIAG_PLL1_INCLK_CTRL },
 };
 
 static const struct phy_reg dp_pll_hbr2_cfg[] = {
-	{ 0xf0,		CMN_PLL1_VCOCAL_INIT },
-	{ 0x18,		CMN_PLL1_VCOCAL_ITER },
-	{ 0x30b4,	CMN_PLL1_VCOCAL_START },
-	{ 0x00e0,	CMN_PLL1_INTDIV },
-	{ 0xf479,	CMN_PLL1_FRACDIV },
-	{ 0x0038,	CMN_PLL1_HIGH_THR },
-	{ 0x0204,	CMN_PLL1_SS_CTRL1 },
-	{ 0x7f03,	CMN_PLL1_SS_CTRL2 },
-	{ 0x20,		CMN_PLL1_DSM_DIAG },
-	{ 0x1000,	CMN_PLLSM1_USER_DEF_CTRL },
-	{ 0,		CMN_DIAG_PLL1_OVRD },
-	{ 0,		CMN_DIAG_PLL1_FBH_OVRD },
-	{ 0,		CMN_DIAG_PLL1_FBL_OVRD },
-	{ 0x7,		CMN_DIAG_PLL1_V2I_TUNE },
-	{ 0x45,		CMN_DIAG_PLL1_CP_TUNE },
-	{ 0x8,		CMN_DIAG_PLL1_LF_PROG },
-	{ 0x1,		CMN_DIAG_PLL1_PTATIS_TUNE1 },
-	{ 0x1,		CMN_DIAG_PLL1_PTATIS_TUNE2 },
-	{ 0x1,		CMN_DIAG_PLL1_INCLK_CTRL },
+	{ 0x00f0, CMN_PLL1_VCOCAL_INIT },
+	{ 0x0018, CMN_PLL1_VCOCAL_ITER },
+	{ 0x30b4, CMN_PLL1_VCOCAL_START },
+	{ 0x00e1, CMN_PLL1_INTDIV },
+	{ 0x0000, CMN_PLL1_FRACDIV },
+	{ 0x0005, CMN_PLL1_HIGH_THR },
+	{ 0x8000, CMN_PLL1_SS_CTRL1 },
+	{ 0x0000, CMN_PLL1_SS_CTRL2 },
+	{ 0x0020, CMN_PLL1_DSM_DIAG },
+	{ 0x1000, CMN_PLLSM1_USER_DEF_CTRL },
+	{ 0x0000, CMN_DIAG_PLL1_OVRD },
+	{ 0x0000, CMN_DIAG_PLL1_FBH_OVRD },
+	{ 0x0000, CMN_DIAG_PLL1_FBL_OVRD },
+	{ 0x0007, CMN_DIAG_PLL1_V2I_TUNE },
+	{ 0x0045, CMN_DIAG_PLL1_CP_TUNE },
+	{ 0x0008, CMN_DIAG_PLL1_LF_PROG },
+	{ 0x0001, CMN_DIAG_PLL1_PTATIS_TUNE1 },
+	{ 0x0001, CMN_DIAG_PLL1_PTATIS_TUNE2 },
+	{ 0x0001, CMN_DIAG_PLL1_INCLK_CTRL },
+};
+
+static const struct phy_reg dp_pll_hbr2_ssc_cfg[] = {
+	{ 0x00f0, CMN_PLL1_VCOCAL_INIT },
+	{ 0x0018, CMN_PLL1_VCOCAL_ITER },
+	{ 0x30b4, CMN_PLL1_VCOCAL_START },
+	{ 0x00e0, CMN_PLL1_INTDIV },
+	{ 0xf479, CMN_PLL1_FRACDIV },
+	{ 0x0038, CMN_PLL1_HIGH_THR },
+	{ 0x0204, CMN_PLL1_SS_CTRL1 },
+	{ 0x7f03, CMN_PLL1_SS_CTRL2 },
+	{ 0x0020, CMN_PLL1_DSM_DIAG },
+	{ 0x1000, CMN_PLLSM1_USER_DEF_CTRL },
+	{ 0x0000, CMN_DIAG_PLL1_OVRD },
+	{ 0x0000, CMN_DIAG_PLL1_FBH_OVRD },
+	{ 0x0000, CMN_DIAG_PLL1_FBL_OVRD },
+	{ 0x0007, CMN_DIAG_PLL1_V2I_TUNE },
+	{ 0x0045, CMN_DIAG_PLL1_CP_TUNE },
+	{ 0x0008, CMN_DIAG_PLL1_LF_PROG },
+	{ 0x0001, CMN_DIAG_PLL1_PTATIS_TUNE1 },
+	{ 0x0001, CMN_DIAG_PLL1_PTATIS_TUNE2 },
+	{ 0x0001, CMN_DIAG_PLL1_INCLK_CTRL },
 };
 
 /* default phy config */
@@ -602,10 +668,13 @@ static void tcphy_set_lane_mapping(struct rockchip_typec_phy *tcphy, u8 mode)
 	}
 }
 
-static int tcphy_dp_set_lane_count(struct rockchip_typec_phy *tcphy,
-				   u8 lane_count)
+int tcphy_dp_set_lane_count(struct phy *phy, u8 lane_count)
 {
+	struct rockchip_typec_phy *tcphy = phy_get_drvdata(phy);
 	u32 reg;
+
+	if (!phy->power_count)
+		return -EPERM;
 
 	/*
 	 * In cases where fewer than the configured number of DP lanes are
@@ -634,18 +703,20 @@ static int tcphy_dp_set_lane_count(struct rockchip_typec_phy *tcphy,
 
 	writel(reg, tcphy->base + PHY_DP_MODE_CTL);
 
-	tcphy->dp.lane_count = lane_count;
-
 	return 0;
 }
+EXPORT_SYMBOL(tcphy_dp_set_lane_count);
 
-static int tcphy_dp_set_link_rate(struct rockchip_typec_phy *tcphy,
-				  int link_rate)
+int tcphy_dp_set_link_rate(struct phy *phy, int link_rate, bool ssc_on)
 {
+	struct rockchip_typec_phy *tcphy = phy_get_drvdata(phy);
 	const struct phy_reg *phy_cfg;
 	u32 cmn_diag_hsclk_sel, phy_dp_clk_ctl, reg;
 	u32 i, cfg_size;
 	int ret;
+
+	if (!phy->power_count)
+		return -EPERM;
 
 	/* Place the PHY lanes in the A3 power state. */
 	ret = tcphy_dp_set_power_state(tcphy, PHY_DP_POWER_STATE_A3);
@@ -694,22 +765,25 @@ static int tcphy_dp_set_link_rate(struct rockchip_typec_phy *tcphy,
 		cmn_diag_hsclk_sel |= (3 << 4) | (0 << 0);
 		phy_dp_clk_ctl |= (2 << 12) | (4 << 8);
 
-		phy_cfg = dp_pll_rbr_cfg;
-		cfg_size = ARRAY_SIZE(dp_pll_rbr_cfg);
+		phy_cfg = ssc_on ? dp_pll_rbr_ssc_cfg : dp_pll_rbr_cfg;
+		cfg_size = ssc_on ? ARRAY_SIZE(dp_pll_rbr_ssc_cfg) :
+				    ARRAY_SIZE(dp_pll_rbr_cfg);
 		break;
 	case 270000:
 		cmn_diag_hsclk_sel |= (3 << 4) | (0 << 0);
 		phy_dp_clk_ctl |= (2 << 12) | (4 << 8);
 
-		phy_cfg = dp_pll_hbr_cfg;
-		cfg_size = ARRAY_SIZE(dp_pll_hbr_cfg);
+		phy_cfg = ssc_on ? dp_pll_hbr_ssc_cfg : dp_pll_hbr_cfg;
+		cfg_size = ssc_on ? ARRAY_SIZE(dp_pll_hbr_ssc_cfg) :
+				    ARRAY_SIZE(dp_pll_hbr_cfg);
 		break;
 	case 540000:
 		cmn_diag_hsclk_sel |= (2 << 4) | (0 << 0);
 		phy_dp_clk_ctl |= (1 << 12) | (2 << 8);
 
-		phy_cfg = dp_pll_hbr2_cfg;
-		cfg_size = ARRAY_SIZE(dp_pll_hbr2_cfg);
+		phy_cfg = ssc_on ? dp_pll_hbr2_ssc_cfg : dp_pll_hbr2_cfg;
+		cfg_size = ssc_on ? ARRAY_SIZE(dp_pll_hbr2_ssc_cfg) :
+				    ARRAY_SIZE(dp_pll_hbr2_cfg);
 		break;
 	default:
 		return -EINVAL;
@@ -764,10 +838,9 @@ static int tcphy_dp_set_link_rate(struct rockchip_typec_phy *tcphy,
 		return ret;
 	}
 
-	tcphy->dp.link_rate = link_rate;
-
 	return 0;
 }
+EXPORT_SYMBOL(tcphy_dp_set_link_rate);
 
 static void tcphy_cfg_24m(struct rockchip_typec_phy *tcphy)
 {
@@ -842,8 +915,6 @@ static void tcphy_cfg_dp_pll(struct rockchip_typec_phy *tcphy, int link_rate)
 	/* load the configuration of PLL1 */
 	for (i = 0; i < cfg_size; i++)
 		writel(phy_cfg[i].value, tcphy->base + phy_cfg[i].addr);
-
-	tcphy->dp.link_rate = link_rate;
 }
 
 static void tcphy_tx_usb3_cfg_lane(struct rockchip_typec_phy *tcphy, u32 lane)
@@ -1419,28 +1490,6 @@ static int typec_dp_phy_config(struct phy *phy, int link_rate,
 {
 	struct rockchip_typec_phy *tcphy = phy_get_drvdata(phy);
 	u8 i;
-	int ret;
-
-	dev_dbg(tcphy->dev, "link_rate=%d, lane_count=%d\n",
-		link_rate, lane_count);
-	dev_dbg(tcphy->dev, "voltage_swing=%d, pre_emphasis=%d\n",
-		swing, pre_emp);
-
-	if (lane_count != tcphy->dp.lane_count) {
-		ret = tcphy_dp_set_lane_count(tcphy, lane_count);
-		if (ret) {
-			dev_err(tcphy->dev, "failed to set lane count\n");
-			return ret;
-		}
-	}
-
-	if (link_rate != tcphy->dp.link_rate) {
-		ret = tcphy_dp_set_link_rate(tcphy, link_rate);
-		if (ret) {
-			dev_err(tcphy->dev, "failed to set lane rate\n");
-			return ret;
-		}
-	}
 
 	if (tcphy->mode == MODE_DFP_DP) {
 		for (i = 0; i < 4; i++)
