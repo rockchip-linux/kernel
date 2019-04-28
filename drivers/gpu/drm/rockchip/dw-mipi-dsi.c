@@ -596,6 +596,46 @@ static int dw_mipi_dsi_shutdown_peripheral(struct dw_mipi_dsi *dsi)
 	return 0;
 }
 
+static int dw_mipi_dsi_turn_around_request(struct dw_mipi_dsi *dsi)
+{
+	u32 val;
+	int ret;
+
+	/*
+	 * assign dphy_tx1_phyturnrequest = grf_dphy_tx1rx1_basedir ?
+	 * dphy_tx1_phyturnrequest_i : grf_dphy_tx1rx1_turnrequest[0]
+	 */
+	if (!IS_DSI1(dsi))
+		return 0;
+
+	/* Set TURNREQUEST_N = 1'b1 */
+	grf_field_write(dsi, TURNREQUEST, 1);
+
+	/* Wait until DIRECTION_N output is set to 1'b1 */
+	ret = regmap_read_poll_timeout(dsi->regmap, DSI_PHY_STATUS,
+				       val, val & PHY_DIRECTION, 0, 5000);
+	if (ret) {
+		dev_err(dsi->dev, "wait direction asserted timeout\n");
+		return ret;
+	}
+
+	/* Set TURNREQUEST_N = 1'b0 */
+	grf_field_write(dsi, TURNREQUEST, 0);
+
+	/*
+	 * Wait until STOPSTATEDATA_N is asserted
+	 * (turnaround procedure is completed)
+	 */
+	ret = regmap_read_poll_timeout(dsi->regmap, DSI_PHY_STATUS,
+				       val, val & PHY_STOPSTATE0LANE, 0, 5000);
+	if (ret) {
+		dev_err(dsi->dev, "wait stopstatedata0 asserted timeout\n");
+		return ret;
+	}
+
+	return 0;
+}
+
 static void dw_mipi_dsi_host_power_on(struct dw_mipi_dsi *dsi)
 {
 	regmap_write(dsi->regmap, DSI_PWR_UP, POWERUP);
@@ -994,6 +1034,13 @@ static ssize_t dw_mipi_dsi_transfer(struct dw_mipi_dsi *dsi,
 		return ret;
 
 	if (msg->rx_len) {
+		ret = dw_mipi_dsi_turn_around_request(dsi);
+		if (ret) {
+			dev_err(dsi->dev,
+				"failed to send turn around request\n");
+			return ret;
+		}
+
 		ret = dw_mipi_dsi_read_from_fifo(dsi, msg);
 		if (ret < 0)
 			return ret;
