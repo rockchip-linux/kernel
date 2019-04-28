@@ -1,0 +1,52 @@
+* BF3925 1/5-Inch 2Mp SOC Camera
+
+The BYD BF3925 is a 1/5-inch SOC camera, with an active array size of
+1616H x 1216V. It is programmable through a SCCB. The BF3925 sensor supports
+multiple resolutions output, such as UXGA, SVGA. It also can support
+YUV422 or raw RGB output formats.
+
+Required Properties:
+- compatible: Must be "byd,bf3925"
+- reg: I2C slave address
+- clocks: reference to the xvclk input clock.
+- clock-names: should be "xvclk".
+- dovdd-supply: Digital I/O voltage supply, 1.7~3.1 volts
+- avdd-supply: Analog voltage supply, 2.8 volts
+- dvdd-supply: Digital core voltage supply, 1.8 volts
+- reset-gpios: Low active reset gpio
+- powerdown-gpios: HIGH active powerdown gpio
+
+The device node must contain one 'port' child node for its digital output
+video port, in accordance with the video interface bindings defined in
+Documentation/devicetree/bindings/media/video-interfaces.txt.
+
+Example:
+&i2c2 {
+	status = "okay";
+
+	bf3925: bf3925@6e {
+		status = "okay";
+		compatible = "byd,bf3925";
+		reg = <0x6e>;
+		clocks = <&cru SCLK_CIF_OUT>;
+		clock-names = "xvclk";
+
+		avdd-supply = <&vcc2v8_dvp>;
+		dovdd-supply = <&vcc1v8_dvp>;
+		dvdd-supply = <&vdd1v8_dvp>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&cif_clkout_m0>;
+		reset-gpios = <&gpio2 5 GPIO_ACTIVE_LOW>;
+		pwdn-gpios = <&gpio2 13 GPIO_ACTIVE_HIGH>;
+		rockchip,camera-module-index = <0>;
+		rockchip,camera-module-facing = "back";
+		rockchip,camera-module-name = "default";
+		rockchip,camera-module-lens-name = "default";
+
+		port {
+			bf3925_out: endpoint {
+				remote-endpoint = <&dvp_in_bcam>;
+			};
+		};
+	};
+};
