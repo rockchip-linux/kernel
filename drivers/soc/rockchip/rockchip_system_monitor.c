@@ -1031,6 +1031,9 @@ rockchip_system_monitor_register(struct device *dev,
 	struct devfreq *devfreq;
 	int ret;
 
+	if (!system_monitor)
+		return ERR_PTR(-ENOMEM);
+
 	info = kzalloc(sizeof(*info), GFP_KERNEL);
 	if (!info)
 		return ERR_PTR(-ENOMEM);
@@ -1063,7 +1066,7 @@ free_info:
 	kfree(info);
 	return ERR_PTR(-EINVAL);
 }
-EXPORT_SYMBOL_GPL(rockchip_system_monitor_register);
+EXPORT_SYMBOL(rockchip_system_monitor_register);
 
 void rockchip_system_monitor_unregister(struct monitor_dev_info *info)
 {
@@ -1442,6 +1445,8 @@ static int rockchip_system_monitor_probe(struct platform_device *pdev)
 
 	if (fb_register_client(&rockchip_monitor_fb_nb))
 		dev_err(dev, "failed to register fb nb\n");
+
+	dev_info(dev, "system monitor probe\n");
 
 	return 0;
 }
