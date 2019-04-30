@@ -8,27 +8,25 @@
 #include "rk3399pro-evb-v11.dtsi"
 
 / {
-	model = "Rockchip RK3399pro evb v11 board";
-	compatible = "rockchip,rk3399pro-evb-v11", "rockchip,rk3399pro";
+	model = "Rockchip rk3399pro evb v11 avb board";
+	compatible = "rockchip,rk3399pro-evb-v11-avb", "rockchip,rk3399pro";
 };
 
 &firmware_android {
 	compatible = "android,firmware";
+	boot_devices = "fe330000.sdhci";
+	vbmeta {
+		compatible = "android,vbmeta";
+		parts = "vbmeta,boot,system,vendor,dtbo";
+	};
 	fstab {
 		compatible = "android,fstab";
-		system {
-			compatible = "android,system";
-			dev = "/dev/block/by-name/system";
-			type = "ext4";
-			mnt_flags = "ro,barrier=1,inode_readahead_blks=8";
-			fsmgr_flags = "wait,verify";
-		};
 		vendor {
 			compatible = "android,vendor";
 			dev = "/dev/block/by-name/vendor";
 			type = "ext4";
 			mnt_flags = "ro,barrier=1,inode_readahead_blks=8";
-			fsmgr_flags = "wait,verify";
+			fsmgr_flags = "wait,avb";
 		};
 	};
 };
