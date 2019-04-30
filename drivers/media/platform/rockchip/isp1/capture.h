@@ -216,4 +216,7 @@ void rkisp1_mipi_dmatx0_end(u32 status, struct rkisp1_device *dev);
 int fcc_xysubs(u32 fcc, u32 *xsubs, u32 *ysubs);
 int rkisp1_fh_open(struct file *filp);
 int rkisp1_fop_release(struct file *file);
+int rkisp1_dma_attach_device(struct rkisp1_device *rkisp1_dev);
+void rkisp1_dma_detach_device(struct rkisp1_device *rkisp1_dev);
+
 #endif /* _RKISP1_PATH_VIDEO_H */

@@ -1711,35 +1711,6 @@ static int rkisp1_set_fmt(struct rkisp1_stream *stream,
 	return 0;
 }
 
-static int rkisp1_dma_attach_device(struct rkisp1_device *rkisp1_dev)
-{
-	struct iommu_domain *domain = rkisp1_dev->domain;
-	struct device *dev = rkisp1_dev->dev;
-	int ret;
-
-	ret = iommu_attach_device(domain, dev);
-	if (ret) {
-		dev_err(dev, "Failed to attach iommu device\n");
-		return ret;
-	}
-
-	if (!common_iommu_setup_dma_ops(dev, 0x10000000, SZ_2G, domain->ops)) {
-		dev_err(dev, "Failed to set dma_ops\n");
-		iommu_detach_device(domain, dev);
-		ret = -ENODEV;
-	}
-
-	return ret;
-}
-
-static void rkisp1_dma_detach_device(struct rkisp1_device *rkisp1_dev)
-{
-	struct iommu_domain *domain = rkisp1_dev->domain;
-	struct device *dev = rkisp1_dev->dev;
-
-	iommu_detach_device(domain, dev);
-}
-
 int rkisp1_fh_open(struct file *filp)
 {
 	struct rkisp1_stream *stream = video_drvdata(filp);
@@ -2130,6 +2101,35 @@ err:
 	}
 
 	return ret;
+}
+
+int rkisp1_dma_attach_device(struct rkisp1_device *rkisp1_dev)
+{
+	struct iommu_domain *domain = rkisp1_dev->domain;
+	struct device *dev = rkisp1_dev->dev;
+	int ret;
+
+	ret = iommu_attach_device(domain, dev);
+	if (ret) {
+		dev_err(dev, "Failed to attach iommu device\n");
+		return ret;
+	}
+
+	if (!common_iommu_setup_dma_ops(dev, 0x10000000, SZ_2G, domain->ops)) {
+		dev_err(dev, "Failed to set dma_ops\n");
+		iommu_detach_device(domain, dev);
+		ret = -ENODEV;
+	}
+
+	return ret;
+}
+
+void rkisp1_dma_detach_device(struct rkisp1_device *rkisp1_dev)
+{
+	struct iommu_domain *domain = rkisp1_dev->domain;
+	struct device *dev = rkisp1_dev->dev;
+
+	iommu_detach_device(domain, dev);
 }
 
 /****************  Interrupter Handler ****************/

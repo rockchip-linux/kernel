@@ -46,6 +46,7 @@
 
 #include "common.h"
 #include "regs.h"
+#include "capture.h"
 
 /*
  * NOTE: MIPI controller and input MUX are also configured in this file,
@@ -693,6 +694,11 @@ static int rkisp1_isp_stop(struct rkisp1_device *dev)
 		writel(0, base + CIF_ISP_CSI0_MASK1);
 		writel(0, base + CIF_ISP_CSI0_MASK2);
 		writel(0, base + CIF_ISP_CSI0_MASK3);
+	}
+
+	if (!in_interrupt()) {
+		rkisp1_dma_detach_device(dev);
+		rkisp1_dma_attach_device(dev);
 	}
 	dev->isp_state = ISP_STOP;
 
