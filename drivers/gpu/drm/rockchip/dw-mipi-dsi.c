@@ -847,12 +847,14 @@ static int dw_mipi_dsi_read_from_fifo(struct dw_mipi_dsi *dsi,
 				      const struct mipi_dsi_msg *msg)
 {
 	u8 *payload = msg->rx_buf;
+	unsigned int vrefresh = drm_mode_vrefresh(&dsi->mode);
 	u16 length;
 	u32 val;
 	int ret;
 
 	ret = regmap_read_poll_timeout(dsi->regmap, DSI_CMD_PKT_STATUS,
-				       val, !(val & GEN_RD_CMD_BUSY), 50, 5000);
+				       val, !(val & GEN_RD_CMD_BUSY),
+				       0, DIV_ROUND_UP(1000000, vrefresh));
 	if (ret) {
 		dev_err(dsi->dev, "entire response isn't stored in the FIFO\n");
 		return ret;
