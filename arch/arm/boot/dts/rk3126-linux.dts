@@ -13,7 +13,7 @@
 #include "rk312x-android.dtsi"
 
 / {
-	model = "Rockchip RK3126 YK-86v Linux board";
+	model = "Rockchip RK3126 Linux board";
 	compatible = "rockchip,rk3126";
 
 	chosen {
