@@ -132,6 +132,7 @@ Rockchip platforms device tree bindings
 - Rockchip RK3399pro evb avb:
     Required root node properties:
       - compatible = "rockchip,rk3399pro-evb-v11-avb", "rockchip,rk3399pro";
+      - compatible = "rockchip,rk3399pro-evb-lp4-v11-avb", "rockchip,rk3399pro";
 
 - Rockchip RK3326 f863 board:
     Required root node properties:
