@@ -449,6 +449,7 @@ static inline int mipi_csi_pixel_format_to_bpp(int fmt)
 {
 	switch (fmt) {
 	case MIPI_CSI_FMT_RAW8:
+	case MIPI_CSI_FMT_YUV422_8BIT:
 		return 8;
 	case MIPI_CSI_FMT_RAW10:
 		return 10;
@@ -602,6 +603,10 @@ static void rockchip_mipi_csi_path_config(struct rockchip_mipi_csi *csi)
 	case MIPI_CSI_FMT_RAW10:
 		vop_wc = csi->mode.hdisplay * 5 / 4;
 		data_type = 0x2b;
+		break;
+	case MIPI_CSI_FMT_YUV422_8BIT:
+		vop_wc = csi->mode.hdisplay;
+		data_type = 0x1e;
 		break;
 	default:
 		vop_wc = csi->mode.hdisplay;
@@ -907,6 +912,7 @@ rockchip_mipi_csi_encoder_atomic_check(struct drm_encoder *encoder,
 
 	switch (csi->format) {
 	case MIPI_CSI_FMT_RAW8:
+	case MIPI_CSI_FMT_YUV422_8BIT:
 		s->output_mode = ROCKCHIP_OUT_MODE_P888;
 		break;
 	case MIPI_CSI_FMT_RAW10:
