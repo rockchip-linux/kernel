@@ -31,6 +31,7 @@ struct phy_config {
 struct rockchip_typec_phy {
 	struct device *dev;
 	void __iomem *base;
+	struct regmap *regmap;
 	struct extcon_dev *extcon;
 	struct regmap *grf_regs;
 	struct clk *clk_core;
