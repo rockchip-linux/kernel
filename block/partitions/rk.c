@@ -313,6 +313,11 @@ int rkpart_partition(struct parsed_partitions *state)
 	if (!state->bdev->bd_disk->is_rk_disk)
 		return 0;
 
+    if (strstr(saved_command_line,"sdfwupdate")!=NULL) {
+        if (state->bdev->bd_disk->is_rk_disk)
+            return 0;
+    }
+
         /* Fixme: parameter should be coherence with part table */
 	cmdline = strstr(saved_command_line, "mtdparts=");
 	if (!cmdline)
