@@ -1047,6 +1047,13 @@ config VIDEO_DW9714
 	---help---
 	  This is a driver for the DW9714 camera lens voice coil.
 
+config VIDEO_FP5510
+	tristate "FP5510 lens voice coil support"
+	depends on I2C && VIDEO_V4L2 && MEDIA_CONTROLLER
+	depends on VIDEO_V4L2_SUBDEV_API
+	---help---
+	  This is a driver for the FP5510 camera lens voice coil.
+
 comment "Audio/Video compression chips"
 
 config VIDEO_SAA6752HS
