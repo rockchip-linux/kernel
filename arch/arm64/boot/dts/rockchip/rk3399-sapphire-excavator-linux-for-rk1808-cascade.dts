@@ -371,11 +371,19 @@
 		clocks = <&ext_cam_clk>;
 		clock-names = "refclk";
 		reset-gpios = <&gpio2 7 GPIO_ACTIVE_LOW>;
-		interrupt-parent = <&gpio2>;
-		interrupts = <12 IRQ_TYPE_LEVEL_LOW>;
+		/* hardware irq-pin is dangling
+		 * connect it to other gpio then configurate follow interrupt
+		 * or del config just using software poll
+		 */
+		//interrupt-parent = <&gpio2>;
+		//interrupts = <12 IRQ_TYPE_LEVEL_LOW>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&hdmiin_gpios>;
 		status = "disabled";
+		rockchip,camera-module-index = <0>;
+		rockchip,camera-module-facing = "back";
+		rockchip,camera-module-name = "default";
+		rockchip,camera-module-lens-name = "default";
 		port {
 			hdmiin_out0: endpoint {
 				/* Unlinked mipi dphy rx0 */
