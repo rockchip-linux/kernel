@@ -14,6 +14,10 @@
 #define VOL_MAX_IDX			0x7ff
 #define MP8859_ENABLE_TIME		150
 
+
+
+
+
 /* Register definitions */
 #define MP8859_VOUT_L_REG		0    //低3位
 #define MP8859_VOUT_H_REG		1    //低8位
@@ -38,6 +42,7 @@
 #define MP8859_GO_BIT_MASK		0x01
 #define MP8859_VOUT_H_MASK		0xff
 #define MP8859_VOUT_L_MASK		0x07
+#define MP8859_EN_MASK		0x80
 
 /* mp8859 chip information */
 struct mp8859_chip {
@@ -50,7 +55,7 @@ struct mp8859_chip {
 	struct notifier_block		cable_pd_nb;
 	struct workqueue_struct		*pd_wq;
 	struct delayed_work		pd_work;
-	//struct gpio_desc *gpio_charge_en;
+	struct gpio_desc *gpio_charge_en;
 	u32 max_input_vol;
 	u32 max_input_current;
 };
@@ -70,20 +75,22 @@ static int mp8859_set_voltage(struct regulator_dev *rdev, unsigned sel)
 	int ret;
 	//sel <<= ffs(rdev->desc->vsel_mask) - 1;
 
-	ret = regmap_write(rdev->regmap,MP8859_VOUT_L_REG,sel & 0x7);
+	ret = regmap_write(rdev->regmap,MP8859_VOUT_L_REG,sel&0x7);
 
 	if (ret)
 		return ret;
 
-	ret = regmap_write(rdev->regmap,MP8859_VOUT_H_REG,sel >> 3);
+	ret = regmap_write(rdev->regmap,MP8859_VOUT_H_REG,sel>>3);
 
 	if (ret)
 		return ret;
-
+	
 	ret = regmap_update_bits(rdev->regmap, MP8859_VOUT_GO_REG,
 				 MP8859_GO_BIT, MP8859_GO_BIT);
 	if (ret)
 		return ret;
+	
+	printk("8859 set vol ok\n");
 
 	return ret;
 	//return regmap_write(rdev->regmap, MP8859_VOUT_REG, sel);
@@ -99,14 +106,14 @@ static int mp8859_get_voltage_sel(struct regulator_dev *rdev)
 	ret = regmap_read(rdev->regmap,MP8859_VOUT_H_REG, &val_tmp);
 	if (ret != 0)
 		return ret;
-
+	
 	val = val_tmp << 3 ;
 
 	ret = regmap_read(rdev->regmap,MP8859_VOUT_L_REG, &val_tmp);
 	if (ret != 0)
 		return ret;
-
-	val |= val_tmp & 0x07;
+	
+	val |= val_tmp&0x07;
 
 	return val;
 }
@@ -118,7 +125,8 @@ static bool is_write_reg(struct device *dev, unsigned int reg)
 
 static bool is_volatile_reg(struct device *dev, unsigned int reg)
 {
-	return (reg == MP8859_STATUS_REG) ? true : false;
+	//return (reg == MP8859_STATUS_REG) ? true : false;
+	return true;
 }
 
 static const struct regmap_config mp8859_regmap_config = {
@@ -167,6 +175,15 @@ static struct mp8859_platform_data *
 	if (!pdata)
 		return NULL;
 	np = of_node_get(client->dev.of_node);
+
+	mp8859->gpio_charge_en = devm_gpiod_get_optional(&client->dev, "charge-en",
+						       GPIOD_OUT_LOW);
+	if (IS_ERR(mp8859->gpio_charge_en)) {
+		dev_warn(&client->dev,
+			 "Could not get named GPIO for charge enable!\n");
+		mp8859->gpio_charge_en = NULL;
+	}
+
 	regulators = of_find_node_by_name(np, "regulators");
 	if (!regulators) {
 		dev_err(&client->dev, "regulator node not found\n");
@@ -181,13 +198,13 @@ static struct mp8859_platform_data *
 	*mp8859_reg_matches = &mp8859_matches;
 	of_node_put(regulators);
 
-	ret = of_property_read_u32(np, "mp,max-input-voltage",
+	ret = of_property_read_u32(np, "max-input-voltage",
 				   &mp8859->max_input_vol);
 	if (ret < 0) {
 		dev_info(&client->dev, "Error parsing max-input-voltage data\n");
 	}
 
-	ret = of_property_read_u32(np, "mp,max-input-current",
+	ret = of_property_read_u32(np, "max-input-current",
 				   &mp8859->max_input_current);
 	if (ret < 0) {
 		dev_info(&client->dev, "Error parsing max-input-current data\n");
@@ -274,15 +291,35 @@ static int mp8859_power_supply_init(struct mp8859_chip *charger)
 	return PTR_ERR_OR_ZERO(charger->supply_charger);
 }
 
+
+/*
+static void mp8859_shutdown(struct i2c_client *client)
+{
+	struct mp8859_chip *mp8859 = i2c_get_clientdata(client);
+
+	regmap_update_bits(mp8859->regmap, MP8859_CTL1_REG,
+						MP8859_EN_MASK, 0x00);
+}
+*/
+
 static int mp8859_init(struct mp8859_chip *mp8859)
 {
 	int ret;
+	/*
+	ret = regmap_update_bits(mp8859->regmap, MP8859_CTL1_REG,
+						MP8859_EN_MASK, 0x80);
+	//ret = regmap_write(mp8859->regmap, MP8859_CTL1_REG, 0xB0);
+	if (ret) {
+		dev_err(mp8859->dev, "failed to enable mp8859\n");
+		return ret;
+	}
+	*/
 
 	/* set slew_rate 300us */
 	ret = regmap_update_bits(mp8859->regmap, MP8859_CTL2_REG,
 				 MP8859_SLEW_RATE_MASK, 0x00);
 	//ret = regmap_write(mp8859->regmap, MP8859_CTL2_REG, 0x40);
-
+	
 	if (ret) {
 		dev_err(mp8859->dev, "failed to set slew_rate\n");
 		return ret;
@@ -295,6 +332,14 @@ static int mp8859_init(struct mp8859_chip *mp8859)
 		dev_err(mp8859->dev, "failed to set switch_frequency\n");
 		return ret;
 	}
+
+	/*
+	ret = regmap_write(mp8859->regmap, MP8859_VOUT_GO_REG, 0x00);
+	if (ret) {
+		dev_err(mp8859->dev, "failed to set VOUT_GO_REG\n");
+		return ret;
+	}
+	*/
 
 	/* set vout_reg 12v*/
 	ret = regmap_write(mp8859->regmap, MP8859_VOUT_H_REG, 0x99);
@@ -323,11 +368,12 @@ static int mp8859_pd_evt_notifier(struct notifier_block *nb,
 				   unsigned long event, void *ptr)
 {
 
-	struct mp8859_chip *mp8859 =
+	struct mp8859_chip *mp8859 = 
 		container_of(nb, struct mp8859_chip, cable_pd_nb);
 
 	queue_delayed_work(mp8859->pd_wq, &mp8859->pd_work,
 		   msecs_to_jiffies(100));
+	//mp8859_set_voltage(mp8859->rdev, 1230);
 
 	return NOTIFY_DONE;
 }
@@ -347,20 +393,25 @@ static void mp8859_pd_evt_worker(struct work_struct *work)
 
 	if (ufp) {
 		mp8859_init(mp8859);
+		if (mp8859->gpio_charge_en != NULL)
+			gpiod_set_value(mp8859->gpio_charge_en, 1);
+	} else {
+		if (mp8859->gpio_charge_en != NULL)
+			gpiod_set_value(mp8859->gpio_charge_en, 0);
 	}
-
 }
 
-static int mp8859_probe(struct i2c_client *client,const struct i2c_device_id *id)//探测
+static int mp8859_probe(struct i2c_client *client,
+			const struct i2c_device_id *id)//探测
 {
 	struct mp8859_chip *mp8859;
 	struct mp8859_platform_data *pdata;
 	struct of_regulator_match *mp8859_reg_matches = NULL;
-	//struct regulator_dev *sy_rdev;
+	struct regulator_dev *sy_rdev;
 	struct regulator_config config;
 	struct regulator_desc *rdesc;
-	struct extcon_dev *edev;
 	int ret;
+	struct extcon_dev *edev;
 
 	mp8859 = devm_kzalloc(&client->dev, sizeof(struct mp8859_chip),
 			      GFP_KERNEL);
@@ -408,12 +459,6 @@ static int mp8859_probe(struct i2c_client *client,const struct i2c_device_id *id
 	rdesc->type = REGULATOR_VOLTAGE,
 	rdesc->owner = THIS_MODULE;
 
-	ret = mp8859_power_supply_init(mp8859);
-	if (ret) {
-		dev_err(mp8859->dev, "failed to register power supply device\n");
-		return ret;
-	}
-
 /* type-C */
 	edev = extcon_get_edev_by_phandle(&client->dev, 0);
 	if (IS_ERR(edev)) {
@@ -445,11 +490,31 @@ static int mp8859_probe(struct i2c_client *client,const struct i2c_device_id *id
 					 EXTCON_CHG_USB_FAST,
 					 &mp8859->cable_pd_nb);
 */
+
 	}
 
-	dev_info(mp8859->dev, "mp8859 register successful\n");
+	if(of_property_read_bool(client->dev.of_node, "mp,register-power-supply")) {
 
-		return 0;
+		sy_rdev = devm_regulator_register(mp8859->dev, &mp8859->desc,
+						  &config);
+		if (IS_ERR(sy_rdev)) {
+			dev_err(mp8859->dev, "failed to register regulator\n");
+			return PTR_ERR(sy_rdev);
+		}
+
+		mp8859->rdev = sy_rdev;
+		dev_info(mp8859->dev, "mp8859 register successful\n");
+
+		ret = mp8859_power_supply_init(mp8859);
+		if (ret) {
+			dev_err(mp8859->dev, "failed to register power supply device\n");
+			return ret;
+		}
+	}
+
+	dev_info(mp8859->dev, "mp8859 probe successful\n");
+
+	return 0;
 }
 
 static const struct i2c_device_id mp8859_id[] = {
@@ -457,6 +522,7 @@ static const struct i2c_device_id mp8859_id[] = {
 	{  },
 };
 MODULE_DEVICE_TABLE(i2c, mp8859_id);
+
 static struct i2c_driver mp8859_driver = {
 	.driver = {
 		.name = "mp8859",
@@ -464,23 +530,11 @@ static struct i2c_driver mp8859_driver = {
 		.owner = THIS_MODULE,
 	},
 	.probe    = mp8859_probe,
+	//.shutdown = mp8859_shutdown,
 	.id_table = mp8859_id,
 };
 module_i2c_driver(mp8859_driver);
-/*
-static int __init mp8859_regulator_init(void)
-{
-	return i2c_add_driver(&mp8859_driver);
-}
-subsys_initcall(mp8859_regulator_init);
 
-
-static void __exit mp8859_regulator_exit(void)
-{
-	return i2c_del_driver(&mp8859_driver);
-}
-module_exit(mp8859_regulator_exit);
-*/
 MODULE_AUTHOR("daijh");
 MODULE_DESCRIPTION("mp8859 voltage regulator driver");
 MODULE_LICENSE("GPL v2");
