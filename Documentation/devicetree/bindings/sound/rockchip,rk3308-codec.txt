@@ -51,6 +51,7 @@ Optional properties:
   enable headphone detection.
 - rockchip,micbias1: Using internal micbias1 supply which are from codec.
 - rockchip,micbias2: Using internal micbias2 supply which are from codec.
+- rockchip,hp-jack-reversed;: To detect headphone via the reversed jack.
 - hp-ctl-gpios: The gpio of head phone controller.
 - pa-drv-gpios: The gpio of poweramplifier controller
 - rockchip,delay-pa-drv-ms: This property points out that the delay for
