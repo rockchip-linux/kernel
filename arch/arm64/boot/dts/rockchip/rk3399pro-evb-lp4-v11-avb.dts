@@ -10,6 +10,17 @@
 / {
 	model = "Rockchip rk3399pro evb lp4 v11 avb board";
 	compatible = "rockchip,rk3399pro-evb-lp4-v11-avb", "rockchip,rk3399pro";
+
+	/* first 64k(0xff8c0000~0xff8d0000) for ddr and suspend */
+	iram: sram@ff8d0000 {
+		compatible = "mmio-sram";
+		reg = <0x0 0xff8d0000 0x0 0x20000>; /* 128k */
+	};
+};
+
+&dmac_bus {
+	iram = <&iram>;
+	rockchip,force-iram;
 };
 
 &dmc {
