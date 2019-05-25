@@ -1759,7 +1759,7 @@
 		reg = <0x0 0xff8a0000 0x0 0x1000>;
 		interrupts = <GIC_SPI 41 IRQ_TYPE_LEVEL_HIGH 0>;
 		dmas = <&dmac_bus 4>, <&dmac_bus 5>;
-		dma-names = "tx", "rx";
+		dma-names = "tx";
 		clock-names = "i2s_clk", "i2s_hclk";
 		clocks = <&cru SCLK_I2S2_8CH>, <&cru HCLK_I2S2_8CH>;
 		resets = <&cru SRST_I2S2_8CH>, <&cru SRST_H_I2S2_8CH>;

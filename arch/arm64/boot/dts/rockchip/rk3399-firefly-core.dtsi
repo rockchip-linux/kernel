@@ -562,6 +562,8 @@
 
 &i2s2 {
 	#sound-dai-cells = <0>;
+	dmas = <&dmac_bus 4>;
+	dma-names = "tx";
 	status = "okay";
 };
 
