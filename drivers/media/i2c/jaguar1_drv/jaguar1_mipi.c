@@ -42,7 +42,7 @@ static void arb_scale_set(video_input_init *dev_ch_info, unsigned char val)
 	gpio_i2c_write(jaguar1_i2c_addr[devnum], 0x01, arb_scale);
 }
 
-static void arb_enable(int dev_num)
+void arb_enable(int dev_num)
 {
 	if((dev_num < 0) || (dev_num > 3))
 	{
@@ -55,8 +55,7 @@ static void arb_enable(int dev_num)
 	printk("VDEC_ARBITER_INIT done 0x%X\n", en_param);
 }
 
-
-static void arb_disable(int dev_num)
+void arb_disable(int dev_num)
 {
 	gpio_i2c_write(jaguar1_i2c_addr[dev_num], 0xff, 0x20);
 	gpio_i2c_write(jaguar1_i2c_addr[dev_num], 0x00, 0x00);

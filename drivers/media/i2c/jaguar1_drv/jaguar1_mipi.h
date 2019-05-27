@@ -31,8 +31,11 @@ extern unsigned int jaguar1_mclk;
 extern unsigned int jaguar1_lane;
 
 void arb_init(int dev_num);
+void arb_enable(int dev_num);
+void arb_disable(int dev_num);
 int mipi_datatype_set(unsigned char data_type);
 void mipi_tx_init(int dev_num);
 void mipi_video_format_set(video_input_init *dev_ch_info);
 void disable_parallel(int dev_num);
+
 #endif

@@ -55,6 +55,7 @@
 #include "jaguar1_ioctl.h"
 #include "jaguar1_video_eq.h"
 #include "jaguar1_mipi.h"
+#include "jaguar1_drv.h"
 #ifdef FOR_IMX6
 #include "imx_mipi.h"
 #endif
@@ -690,6 +691,29 @@ static long jaguar1_ioctl(struct file *file, unsigned int cmd, unsigned long arg
 	return 0;
 }
 
+void jaguar1_start(video_init_all *video_init)
+{
+	down(&jaguar1_lock);
+	vd_set_all(video_init);
+	up(&jaguar1_lock);
+}
+
+void jaguar1_stop(void)
+{
+	video_input_init  video_val;
+
+	down(&jaguar1_lock);
+	arb_disable(0);
+	gpio_i2c_write(0x60, 0xff, 0x20);
+
+	// ARB RESET High
+	gpio_i2c_write(0x60, 0x40, 0x11);
+	usleep_range(3000, 5000);
+	gpio_i2c_write(0x60, 0x40, 0x00);
+	vd_jaguar1_sw_reset(&video_val);
+	up(&jaguar1_lock);
+}
+
 /*******************************************************************************
  *	Description		: i2c client initial
  *	Argurments		: void
@@ -743,14 +767,15 @@ static struct miscdevice jaguar1_dev = {
  *******************************************************************************/
 static int __init jaguar1_module_init(void)
 {
-	video_init_all sVideoall;
 	int ret = 0;
-	int ch;
 #ifdef FMT_SETTING_SAMPLE
 	int dev_num = 0;
 #endif
 
 #ifdef STREAM_ON_DEFLAULT
+	video_init_all sVideoall;
+	int ch;
+
 	jaguar1_mclk= 3;
 	init = true;
 	fmt = 2;
@@ -779,6 +804,7 @@ static int __init jaguar1_module_init(void)
 	down(&jaguar1_lock);
 	video_decoder_init();
 
+#ifdef STREAM_ON_DEFLAULT
 	if(init)
 	{
 		for(ch=0;ch<jaguar1_cnt*4;ch++)
@@ -810,6 +836,7 @@ static int __init jaguar1_module_init(void)
 		}
 		vd_set_all(&sVideoall);
 	}
+#endif
 
 	up(&jaguar1_lock);
 
