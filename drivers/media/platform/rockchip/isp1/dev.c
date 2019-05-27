@@ -991,8 +991,10 @@ err:
 
 static int rkisp1_iommu_init(struct rkisp1_device *rkisp1_dev)
 {
+	struct device *dev = rkisp1_dev->dev;
+	struct iommu_domain *domain;
 	struct iommu_group *group;
-	int ret;
+	int ret = 0;
 
 	rkisp1_dev->domain = iommu_domain_alloc(&platform_bus_type);
 	if (!rkisp1_dev->domain) {
@@ -1000,6 +1002,7 @@ static int rkisp1_iommu_init(struct rkisp1_device *rkisp1_dev)
 		goto err;
 	}
 
+	domain = rkisp1_dev->domain;
 	ret = iommu_get_dma_cookie(rkisp1_dev->domain);
 	if (ret)
 		goto err;
@@ -1015,7 +1018,19 @@ static int rkisp1_iommu_init(struct rkisp1_device *rkisp1_dev)
 			goto err;
 	}
 
-	return 0;
+	ret = iommu_attach_device(domain, dev);
+	if (ret) {
+		dev_err(dev, "Failed to attach iommu device\n");
+		goto err;
+	}
+
+	if (!common_iommu_setup_dma_ops(dev, 0x10000000, SZ_2G, domain->ops)) {
+		dev_err(dev, "Failed to set dma_ops\n");
+		iommu_detach_device(domain, dev);
+		ret = -ENODEV;
+	}
+
+	return ret;
 
 err:
 	dev_err(rkisp1_dev->dev, "Failed to setup IOMMU\n");
@@ -1025,7 +1040,11 @@ err:
 
 static void rkisp1_iommu_cleanup(struct rkisp1_device *rkisp1_dev)
 {
-	iommu_domain_free(rkisp1_dev->domain);
+	struct iommu_domain *domain = rkisp1_dev->domain;
+	struct device *dev = rkisp1_dev->dev;
+
+	iommu_detach_device(domain, dev);
+	iommu_domain_free(domain);
 }
 
 static int rkisp1_vs_irq_parse(struct platform_device *pdev)
@@ -1164,6 +1183,7 @@ static int rkisp1_plat_probe(struct platform_device *pdev)
 	isp_dev->clk_rate_tbl = match_data->clk_rate_tbl;
 	isp_dev->num_clk_rate_tbl = match_data->num_clk_rate_tbl;
 
+	mutex_init(&isp_dev->apilock);
 	atomic_set(&isp_dev->pipe.power_cnt, 0);
 	atomic_set(&isp_dev->pipe.stream_cnt, 0);
 	atomic_set(&isp_dev->open_cnt, 0);
