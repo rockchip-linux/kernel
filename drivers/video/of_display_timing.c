@@ -91,6 +91,16 @@ static int of_parse_display_timing(const struct device_node *np,
 	if (!of_property_read_u32(np, "pixelclk-active", &val))
 		dt->flags |= val ? DISPLAY_FLAGS_PIXDATA_POSEDGE :
 				DISPLAY_FLAGS_PIXDATA_NEGEDGE;
+	if (!of_property_read_u32(np, "screen-rotate", &val)) {
+		if (val == DRM_MODE_FLAG_XMIRROR) {
+			dt->flags |= DISPLAY_FLAGS_MIRROR_X;
+		} else if (val ==  DRM_MODE_FLAG_YMIRROR) {
+			dt->flags |= DISPLAY_FLAGS_MIRROR_Y;
+		} else if (val == DRM_MODE_FLAG_XYMIRROR) {
+			dt->flags |= DISPLAY_FLAGS_MIRROR_X;
+			dt->flags |= DISPLAY_FLAGS_MIRROR_Y;
+		}
+	}
 
 	if (of_property_read_bool(np, "interlaced"))
 		dt->flags |= DISPLAY_FLAGS_INTERLACED;

@@ -150,4 +150,9 @@
 /* HSV - next is	0x6002 */
 #define MEDIA_BUS_FMT_AHSV8888_1X32		0x6001
 
+/* Panel Mirror control */
+#define DRM_MODE_FLAG_XMIRROR                  (1 << 28)
+#define DRM_MODE_FLAG_YMIRROR                  (1 << 29)
+#define DRM_MODE_FLAG_XYMIRROR                 (DRM_MODE_FLAG_XMIRROR | DRM_MODE_FLAG_YMIRROR)
+
 #endif /* __LINUX_MEDIA_BUS_FORMAT_H */
