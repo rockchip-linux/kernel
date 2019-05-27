@@ -21,6 +21,8 @@
 #include <linux/mmc/mmc.h>
 #include <linux/mmc/sd.h>
 
+#include <linux/regulator/consumer.h>
+
 #include "core.h"
 #include "bus.h"
 #include "mmc_ops.h"
@@ -1133,6 +1135,28 @@ static int mmc_sd_suspend(struct mmc_host *host)
 	return err;
 }
 
+static int mmc_sd_shutdown(struct mmc_host *host)
+{
+	int err;
+
+	err = _mmc_sd_suspend(host);
+	if (!err) {
+		pm_runtime_disable(&host->card->dev);
+		pm_runtime_set_suspended(&host->card->dev);
+	}
+
+	if (!IS_ERR(host->supply.vqmmc)) {
+		int result;
+		regulator_set_voltage(host->supply.vqmmc, 3000000, 3000000);
+		result = regulator_enable(host->supply.vqmmc);
+		if (result) {
+			pr_err("%s %d\n",__func__, __LINE__);
+		}
+	}
+
+	return err;
+}
+
 /*
  * This function tries to determine if the same card is still present
  * and, if so, restore all state to it.
@@ -1244,7 +1268,7 @@ static const struct mmc_bus_ops mmc_sd_ops = {
 	.suspend = mmc_sd_suspend,
 	.resume = mmc_sd_resume,
 	.alive = mmc_sd_alive,
-	.shutdown = mmc_sd_suspend,
+	.shutdown = mmc_sd_shutdown,
 	.reset = mmc_sd_reset,
 };
 
