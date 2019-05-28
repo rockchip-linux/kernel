@@ -1,0 +1,17 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright (c) 2018 Fuzhou Rockchip Electronics Co., Ltd
+ *
+ */
+
+/dts-v1/;
+#include "rk3399pro-evb-v11-avb.dts"
+
+/ {
+	model = "Rockchip RK3399pro evb v11 multi camera avb board";
+	compatible = "rockchip,rk3399pro-evb-v11-multi-cam-avb", "rockchip,rk3399pro";
+};
+
+&pcie0 {
+	/delete-property/ ep-gpios;
+};
