@@ -427,10 +427,9 @@ static void cpufreq_ready(struct cpufreq_policy *policy)
 
 #ifdef CONFIG_ARCH_ROCKCHIP
 		ret = rockchip_ipa_power_model_init(priv->cpu_dev,
+						    "cpu_leakage",
 						    &priv->model_data);
 		if (!ret) {
-			rockchip_of_get_leakage(priv->cpu_dev, "cpu_leakage",
-						&priv->model_data->leakage);
 			priv->cdev = of_cpufreq_power_cooling_register(np,
 					policy->related_cpus, power_coefficient,
 					cpufreq_get_static_power);
