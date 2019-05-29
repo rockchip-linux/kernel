@@ -34,7 +34,7 @@
 
 	port {
 		cif_in: endpoint@0 {
-			remote-endpoint = <&dphy_rx_out>;
+			remote-endpoint = <&csi2_out>;
 			data-lanes = <1 2 3 4>;
 		};
 	};
@@ -153,7 +153,7 @@
 	status = "disabled";
 };
 
-&i2c0 {
+&i2c3 {
 	status = "okay";
 
 	vcamera@30 {
@@ -210,7 +210,40 @@
 
 			dphy_rx_out: endpoint@0 {
 				reg = <0>;
+				remote-endpoint = <&csi2_in>;
+			};
+		};
+	};
+};
+
+&mipi_csi2 {
+	status = "okay";
+
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		port@0 {
+			reg = <0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			csi2_in: endpoint@1 {
+				reg = <1>;
+				remote-endpoint = <&dphy_rx_out>;
+				data-lanes = <1 2 3 4>;
+			};
+		};
+
+		port@1 {
+			reg = <1>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			csi2_out: endpoint@0 {
+				reg = <0>;
 				remote-endpoint = <&cif_in>;
+				data-lanes = <1 2 3 4>;
 			};
 		};
 	};
