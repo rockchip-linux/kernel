@@ -889,7 +889,7 @@ static int rk1808_combphy_cfg(struct rockchip_combphy_priv *priv)
 		 * largest swing and "0000" the smallest.
 		 */
 		reg = readl(priv->mmio + 0x21b8);
-		reg = (reg & ~0xf0) | 0xa0;
+		reg = (reg & ~0xf0) | 0xe0;
 		writel(reg, priv->mmio + 0x21b8);
 
 		/*
