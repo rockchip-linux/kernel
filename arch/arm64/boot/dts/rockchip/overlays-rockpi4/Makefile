@@ -1,4 +1,4 @@
-# Overlays for the ROCK Pi platform
+# Overlays for the ROCK Pi 4 platform
 
 dtbo-$(CONFIG_ARCH_ROCKCHIP) += \
 	console-on-ttyS4.dtbo \

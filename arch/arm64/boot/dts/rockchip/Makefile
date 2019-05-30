@@ -90,11 +90,11 @@ dtstree     := $(srctree)/$(src)
 dtb-$(CONFIG_OF_ALL_DTBS) := $(patsubst $(dtstree)/%.dts,%.dtb, $(wildcard $(dtstree)/*.dts))
 
 always		:= $(dtb-y)
-subdir-y	:= $(dts-dirs) overlays
+subdir-y	:= $(dts-dirs) overlays-rockpi4
 clean-files	:= *.dtb
 
 # Enable fixups to support overlays on ROCK Pi platforms
 ifeq ($(CONFIG_ARCH_ROCKCHIP),y)
 	DTC_FLAGS ?= -@ -H epapr
-	dts-dirs += overlays
+	dts-dirs += overlays-rockpi4
 endif
