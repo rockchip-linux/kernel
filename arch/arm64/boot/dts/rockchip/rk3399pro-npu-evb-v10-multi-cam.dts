@@ -17,6 +17,16 @@
 		bootargs = "earlycon=uart8250,mmio32,0xff550000 console=ttyFIQ0 init=/init swiotlb=1 kpti=0";
 	};
 
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		dma_trans: dma_trans@70000000 {
+			reg = <0x0 0x70000000 0x0 0x04000000>;
+		};
+	};
+
 	keys: gpio-keys {
 		compatible = "gpio-keys";
 		pinctrl-names = "default";
@@ -213,6 +223,13 @@
 	status = "okay";
 };
 
+&pcie0 {
+	/delete-property/ reset-gpios;
+	memory-region = <&dma_trans>;
+	busno = <1>;
+	status = "okay";
+};
+
 &rk_rga {
 	status =  "okay";
 };
@@ -238,10 +255,13 @@
 };
 
 &usbdrd3 {
+	extcon = <&u2phy>;
 	status = "okay";
 };
 
 &usbdrd_dwc3 {
+	phys = <&u2phy_otg>;
+	phy-names = "usb2-phy";
 	status = "okay";
 };
 
