@@ -54,6 +54,8 @@
 
 #define JAGUAR1_NAME				"jaguar1"
 
+#define FORCE_720P
+
 struct jaguar1_gpio {
 	int pltfrm_gpio;
 	const char *label;
@@ -114,6 +116,13 @@ struct jaguar1 {
 #define to_jaguar1(sd) container_of(sd, struct jaguar1, subdev)
 
 static const struct jaguar1_framesize jaguar1_framesizes[] = {
+#ifdef FORCE_720P
+	{
+		.width		= 1280,
+		.height		= 720,
+		.fmt_idx	= AHD20_720P_25P,
+	}
+#else
 	{
 		.width		= 1280,
 		.height		= 720,
@@ -124,6 +133,7 @@ static const struct jaguar1_framesize jaguar1_framesizes[] = {
 		.height		= 1080,
 		.fmt_idx	= AHD20_1080P_25P,
 	}
+#endif
 };
 
 static const struct jaguar1_pixfmt jaguar1_formats[] = {
@@ -256,9 +266,11 @@ static void __jaguar1_power_off(struct jaguar1 *jaguar1)
 
 static int jaguar1_power(struct v4l2_subdev *sd, int on)
 {
+	struct i2c_client *client = v4l2_get_subdevdata(sd);
 	struct jaguar1 *jaguar1 = to_jaguar1(sd);
 	int ret = 0;
 
+	dev_dbg(&client->dev, "%s: on %d\n", __func__, on);
 	mutex_lock(&jaguar1->mutex);
 
 	/* If the power state is not modified - no work to do. */
