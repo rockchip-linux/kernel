@@ -1710,6 +1710,9 @@ static void dw_mipi_dsi_unbind(struct device *dev, struct device *master,
 {
 	struct dw_mipi_dsi *dsi = dev_get_drvdata(dev);
 
+	if (dsi->panel)
+		drm_panel_detach(dsi->panel);
+
 	pm_runtime_disable(dev);
 	if (dsi->slave)
 		pm_runtime_disable(dsi->slave->dev);
