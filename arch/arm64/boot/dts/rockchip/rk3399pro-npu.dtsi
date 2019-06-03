@@ -19,6 +19,7 @@
 	aliases {
 		i2c0 = &i2c0;
 		i2c1 = &i2c1;
+		i2c3 = &i2c3;
 		serial2 = &uart2;
 	};
 
@@ -666,6 +667,19 @@
 		status = "disabled";
 	};
 
+	i2c3: i2c@ff508000 {
+		compatible = "rockchip,rk3399-i2c";
+		reg = <0x0 0xff508000 0x0 0x1000>;
+		clocks = <&cru SCLK_I2C3>, <&cru PCLK_I2C3>;
+		clock-names = "i2c", "pclk";
+		interrupts = <GIC_SPI 83 IRQ_TYPE_LEVEL_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&i2c3_xfer>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		status = "disabled";
+	};
+
 	uart2: serial@ff550000 {
 		compatible = "rockchip,rk1808-uart", "snps,dw-apb-uart";
 		reg = <0x0 0xff550000 0x0 0x100>;
@@ -774,6 +788,18 @@
 		clock-names = "aclk", "hclk";
 		power-domains = <&power RK1808_PD_VIO>;
 		#iommu-cells = <0>;
+		status = "disabled";
+	};
+
+	mipi_csi2: mipi-csi2@ffb10000 {
+		compatible = "rockchip,rk1808-mipi-csi2";
+		reg = <0x0 0xffb10000 0x0 0x100>;
+		reg-names = "csihost_regs";
+		interrupts = <GIC_SPI 106 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 105 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "csi-intr1", "csi-intr2";
+		clocks = <&cru PCLK_CSI2HOST>;
+		clock-names = "pclk_csi2host";
 		status = "disabled";
 	};
 
@@ -1159,6 +1185,16 @@
 					<0 RK_PC1 1 &pcfg_pull_none_2ma_smt>,
 					/* i2c1_scl */
 					<0 RK_PC0 1 &pcfg_pull_none_2ma_smt>;
+			};
+		};
+
+		i2c3 {
+			i2c3_xfer: i2c3-xfer {
+				rockchip,pins =
+					/* i2c3_sda */
+					<2 RK_PD1 1 &pcfg_pull_none_2ma_smt>,
+					/* i2c3_scl */
+					<2 RK_PD0 1 &pcfg_pull_none_2ma_smt>;
 			};
 		};
 
