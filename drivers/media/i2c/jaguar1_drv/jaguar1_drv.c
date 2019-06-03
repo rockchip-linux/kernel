@@ -61,7 +61,7 @@
 #endif
 //#include "video_eq.h" //To do
 
-#define STREAM_ON_DEFLAULT
+//#define STREAM_ON_DEFLAULT
 
 #define I2C_0       (0)
 #define I2C_1       (1)
@@ -94,6 +94,7 @@ module_param_named(jaguar1_fmt, fmt, uint, S_IRUGO);
 static unsigned int ntpal = 0;
 module_param_named(jaguar1_ntpal, ntpal, uint, S_IRUGO);
 
+static bool jaguar1_init_state;
 struct semaphore jaguar1_lock;
 struct i2c_client* jaguar1_client;
 static struct i2c_board_info hi_info =
@@ -721,12 +722,15 @@ void jaguar1_stop(void)
  *	Modify			:
  *	warning			:
  *******************************************************************************/
-static int i2c_client_init(void)
+static int i2c_client_init(int i2c_bus)
 {
 	struct i2c_adapter* i2c_adap;
 
 	printk("[DRV] I2C Client Init \n");
-	i2c_adap = i2c_get_adapter(I2C_3);
+	i2c_adap = i2c_get_adapter(i2c_bus);
+	if (!i2c_adap)
+		return -EINVAL;
+
 	jaguar1_client = i2c_new_device(i2c_adap, &hi_info);
 	i2c_put_adapter(i2c_adap);
 
@@ -758,6 +762,46 @@ static struct miscdevice jaguar1_dev = {
 	.fops  		= &jaguar1_fops,
 };
 
+int jaguar1_init(int i2c_bus)
+{
+	int ret = 0;
+#ifdef FMT_SETTING_SAMPLE
+	int dev_num = 0;
+#endif
+
+	if (jaguar1_init_state)
+		return 0;
+
+	ret = i2c_client_init(i2c_bus);
+	if (ret) {
+		printk(KERN_ERR "ERROR: could not find jaguar1\n");
+		return ret;
+	}
+
+	/* decoder count function */
+	ret = check_decoder_count();
+	if (ret <= 0) {
+		printk(KERN_ERR "ERROR: could not find jaguar1 devices:%#x\n", ret);
+		i2c_client_exit();
+		return -ENODEV;
+	}
+
+	/* initialize semaphore */
+	sema_init(&jaguar1_lock, 1);
+	down(&jaguar1_lock);
+	video_decoder_init();
+	up(&jaguar1_lock);
+	jaguar1_init_state = true;
+
+	return 0;
+}
+
+void jaguar1_exit(void)
+{
+	i2c_client_exit();
+	jaguar1_init_state = false;
+}
+
 /*******************************************************************************
  *	Description		: It is called when "insmod jaguar1.ko" command run
  *	Argurments		: void
@@ -768,10 +812,6 @@ static struct miscdevice jaguar1_dev = {
 static int __init jaguar1_module_init(void)
 {
 	int ret = 0;
-#ifdef FMT_SETTING_SAMPLE
-	int dev_num = 0;
-#endif
-
 #ifdef STREAM_ON_DEFLAULT
 	video_init_all sVideoall;
 	int ch;
@@ -782,29 +822,21 @@ static int __init jaguar1_module_init(void)
 #endif
 
 	ret = misc_register(&jaguar1_dev);
-
 	if (ret)
 	{
-		printk("ERROR: could not register jaguar1-i2c :%#x \n",ret);
+		printk(KERN_ERR "ERROR: could not register jaguar1-i2c :%#x\n", ret);
 		return -1;
 	}
 
-	i2c_client_init();
-
-	/* decoder count function */
-	ret = check_decoder_count();
-	if (ret <= 0)
+#ifdef STREAM_ON_DEFLAULT
+	ret = jaguar1_init(I2C_3);
+	if (ret)
 	{
-		printk("ERROR: could not find jaguar1 devices:%#x \n",ret);
-		return ret;
+		printk(KERN_ERR "ERROR: jaguar1 init failed\n");
+		return -1;
 	}
 
-	/* initialize semaphore */
-	sema_init(&jaguar1_lock, 1);
 	down(&jaguar1_lock);
-	video_decoder_init();
-
-#ifdef STREAM_ON_DEFLAULT
 	if(init)
 	{
 		for(ch=0;ch<jaguar1_cnt*4;ch++)
@@ -836,9 +868,9 @@ static int __init jaguar1_module_init(void)
 		}
 		vd_set_all(&sVideoall);
 	}
-#endif
 
 	up(&jaguar1_lock);
+#endif
 
 	return 0;
 }
@@ -856,7 +888,10 @@ static void __exit jaguar1_module_exit(void)
 	close_imx_mipi();
 #endif
 	misc_deregister(&jaguar1_dev);
-	i2c_client_exit();
+
+#ifdef STREAM_ON_DEFLAULT
+	jaguar1_exit();
+#endif
 
 	printk("JAGUAR1 DEVICE DRIVER UNLOAD SUCCESS\n");
 }

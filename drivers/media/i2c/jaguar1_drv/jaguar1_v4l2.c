@@ -776,6 +776,14 @@ static int jaguar1_probe(struct i2c_client *client,
 	v4l2_i2c_subdev_init(sd, client, &jaguar1_subdev_ops);
 
 	__jaguar1_power_on(jaguar1);
+	ret = jaguar1_init(i2c_adapter_id(client->adapter));
+	if (ret) {
+		dev_err(dev, "Failed to init jaguar1\n");
+		__jaguar1_power_off(jaguar1);
+		mutex_destroy(&jaguar1->mutex);
+
+		return ret;
+	}
 
 	pm_runtime_set_active(dev);
 	pm_runtime_enable(dev);
@@ -789,6 +797,7 @@ static int jaguar1_remove(struct i2c_client *client)
 	struct v4l2_subdev *sd = i2c_get_clientdata(client);
 	struct jaguar1 *jaguar1 = to_jaguar1(sd);
 
+	jaguar1_exit();
 	mutex_destroy(&jaguar1->mutex);
 
 	pm_runtime_disable(&client->dev);

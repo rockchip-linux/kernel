@@ -20,5 +20,7 @@
 
 void jaguar1_start(video_init_all *video_init);
 void jaguar1_stop(void);
+int jaguar1_init(int i2c_bus);
+void jaguar1_exit(void);
 
 #endif
