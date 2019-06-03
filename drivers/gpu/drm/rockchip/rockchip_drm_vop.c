@@ -1477,6 +1477,7 @@ static int vop_plane_atomic_check(struct drm_plane *plane,
 	struct drm_crtc_state *crtc_state;
 	const struct vop_data *vop_data;
 	struct vop *vop;
+	struct drm_display_mode *adjusted_mode;
 	bool visible;
 	int ret;
 	struct drm_rect *dest = &vop_plane_state->dest;
@@ -1498,6 +1499,7 @@ static int vop_plane_atomic_check(struct drm_plane *plane,
 	if (!crtc || !fb)
 		goto out_disable;
 
+	adjusted_mode = &crtc->state->adjusted_mode;
 	crtc_state = drm_atomic_get_crtc_state(state->state, crtc);
 	if (IS_ERR(crtc_state))
 		return PTR_ERR(crtc_state);
@@ -1560,7 +1562,8 @@ static int vop_plane_atomic_check(struct drm_plane *plane,
 	offset = (src->x1 >> 16) * drm_format_plane_bpp(fb->pixel_format, 0) / 8;
 	vop_plane_state->offset = offset + fb->offsets[0];
 	if (state->rotation & BIT(DRM_REFLECT_Y) ||
-	    (rockchip_fb_is_logo(fb) && vop_plane_state->logo_ymirror))
+	    (rockchip_fb_is_logo(fb) && vop_plane_state->logo_ymirror) ||
+	    adjusted_mode->flags & DRM_MODE_FLAG_YMIRROR)
 		offset += ((src->y2 >> 16) - 1) * fb->pitches[0];
 	else
 		offset += (src->y1 >> 16) * fb->pitches[0];
@@ -2795,6 +2798,15 @@ static void vop_crtc_enable(struct drm_crtc *crtc)
 		VOP_CTRL_SET(vop, p2i_en, 0);
 		act_end = vact_end;
 	}
+
+	if (adjusted_mode->flags & DRM_MODE_FLAG_YMIRROR)
+		VOP_CTRL_SET(vop, ymirror, 1);
+	else
+		VOP_CTRL_SET(vop, ymirror, 0);
+	if (adjusted_mode->flags & DRM_MODE_FLAG_XMIRROR)
+		VOP_CTRL_SET(vop, xmirror, 1);
+	else
+		VOP_CTRL_SET(vop, xmirror, 0);
 
 	if (VOP_MAJOR(vop->version) == 3 &&
 	    (VOP_MINOR(vop->version) == 2 || VOP_MINOR(vop->version) == 8))
