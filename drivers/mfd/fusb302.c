@@ -2864,7 +2864,7 @@ static void fusb_state_snk_send_softreset(struct fusb30x_chip *chip, u32 evt)
 					 chip->timer_state);
 		} else if (tmp == tx_failed) {
 			/* can't reach here */
-			set_state(chip, policy_snk_send_hardrst);
+			//set_state(chip, policy_snk_send_hardrst);
 		}
 
 		if (!(evt & FLAG_EVENT))
