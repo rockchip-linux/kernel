@@ -1500,7 +1500,7 @@
 	};
 
 	cif: cif@ff950000 {
-		compatible = "rockchip,cif";
+		compatible = "rockchip,cif", "rockchip,rk3288-cif";
 		reg = <0x0 0xff950000 0x0 0x400>;
 		interrupts = <GIC_SPI 13 IRQ_TYPE_LEVEL_HIGH>;
 		clocks = <&cru ACLK_VIP>, <&cru HCLK_VIP>,
@@ -1591,6 +1591,17 @@
 		rockchip,grf = <&grf>;
 		clocks = <&cru SCLK_MIPIDSI_24M>, <&cru PCLK_MIPI_CSI>;
 		clock-names = "dphy-ref", "pclk";
+		status = "disabled";
+	};
+
+	csi_host: mipi-csi-host@ff968000 {
+		compatible = "rockchip,rk3288-mipi-csi2";
+		reg = <0x0 0xff968000 0x0 0x4000>;
+		interrupts = <GIC_SPI 21 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 22 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "csi-intr1", "csi-intr2";
+		clocks = <&cru PCLK_MIPI_CSI>;
+		clock-names = "pclk_csi2host";
 		status = "disabled";
 	};
 
@@ -2511,22 +2522,6 @@
 			};
 		};
 
-		cif {
-			cif_dvp_d2d9: cif-dvp-d2d9 {
-				rockchip,pins = <2 0 RK_FUNC_1 &pcfg_pull_none>,
-						<2 1 RK_FUNC_1 &pcfg_pull_none>,
-						<2 2 RK_FUNC_1 &pcfg_pull_none>,
-						<2 3 RK_FUNC_1 &pcfg_pull_none>,
-						<2 4 RK_FUNC_1 &pcfg_pull_none>,
-						<2 5 RK_FUNC_1 &pcfg_pull_none>,
-						<2 6 RK_FUNC_1 &pcfg_pull_none>,
-						<2 7 RK_FUNC_1 &pcfg_pull_none>,
-						<2 8 RK_FUNC_1 &pcfg_pull_none>,
-						<2 9 RK_FUNC_1 &pcfg_pull_none>,
-						<2 11 RK_FUNC_1 &pcfg_pull_none>;
-			};
-		};
-
 		isp_pin {
 			isp_mipi: isp-mipi {
 				rockchip,pins =
@@ -2605,7 +2600,35 @@
 			};
 		};
 
+		cif_pin {
+			cif_dvp_d0d1: cif-dvp-d0d1 {
+				rockchip,pins =	<2 12 RK_FUNC_1 &pcfg_pull_none>, /* cif_data0 */
+						<2 13 RK_FUNC_1 &pcfg_pull_none>; /* cif_data1 */
+			};
+
+			cif_dvp_d2d9: cif-dvp-d2d9 {
+				rockchip,pins =	<2 0 RK_FUNC_1 &pcfg_pull_none>, /* cif_data2 */
+						<2 1 RK_FUNC_1 &pcfg_pull_none>, /* cif_data3 */
+						<2 2 RK_FUNC_1 &pcfg_pull_none>, /* cif_data4 */
+						<2 3 RK_FUNC_1 &pcfg_pull_none>, /* cif_data5 */
+						<2 4 RK_FUNC_1 &pcfg_pull_none>, /* cif_data6 */
+						<2 5 RK_FUNC_1 &pcfg_pull_none>, /* cif_data7 */
+						<2 6 RK_FUNC_1 &pcfg_pull_none>, /* cif_data8 */
+						<2 7 RK_FUNC_1 &pcfg_pull_none>, /* cif_data9 */
+						<2 8 RK_FUNC_1 &pcfg_pull_none>, /* cif_sync */
+						<2 9 RK_FUNC_1 &pcfg_pull_none>, /* cif_href */
+						<2 10 RK_FUNC_1 &pcfg_pull_none>, /* cif_clkin */
+						<2 11 RK_FUNC_1 &pcfg_pull_none>; /* cif_clkout */
+			};
+
+			cif_dvp_d10d11: cif-dvp-d10d11 {
+				rockchip,pins = <2 14 RK_FUNC_1 &pcfg_pull_none>, /* cif_data10 */
+						<2 15 RK_FUNC_1 &pcfg_pull_none>; /* cif_data11 */
+			};
+		};
+
 	};
+
 	rockchip_suspend: rockchip-suspend {
 		compatible = "rockchip,pm-rk3288";
 		status = "disabled";
