@@ -1674,12 +1674,37 @@ static const struct vop_ctrl rk3308_ctrl_data = {
 				      0xffffffff, 0),
 };
 
+static const int rk3308_vop_intrs[] = {
+	FS_INTR,
+	FS_NEW_INTR,
+	ADDR_SAME_INTR,
+	LINE_FLAG_INTR,
+	LINE_FLAG1_INTR,
+	BUS_ERROR_INTR,
+	0,
+	0,
+	DSP_HOLD_VALID_INTR,
+	DMA_FINISH_INTR,
+	0,
+	POST_BUF_EMPTY_INTR
+};
+
+static const struct vop_intr rk3308_vop_intr = {
+	.intrs = rk3308_vop_intrs,
+	.nintrs = ARRAY_SIZE(rk3308_vop_intrs),
+	.line_flag_num[0] = VOP_REG(RK3366_LIT_LINE_FLAG, 0xfff, 0),
+	.line_flag_num[1] = VOP_REG(RK3366_LIT_LINE_FLAG, 0xfff, 16),
+	.status = VOP_REG_MASK(RK3366_LIT_INTR_STATUS, 0xffff, 0),
+	.enable = VOP_REG_MASK(RK3366_LIT_INTR_EN, 0xffff, 0),
+	.clear = VOP_REG_MASK(RK3366_LIT_INTR_CLEAR, 0xffff, 0),
+};
+
 static const struct vop_data rk3308_vop = {
 	.version = VOP_VERSION(2, 7),
 	.max_input = {1920, 8192},
 	.max_output = {1920, 1080},
 	.ctrl = &rk3308_ctrl_data,
-	.intr = &rk3366_lit_intr,
+	.intr = &rk3308_vop_intr,
 	.win = rk3366_vop_lit_win_data,
 	.win_size = ARRAY_SIZE(rk3366_vop_lit_win_data),
 };
