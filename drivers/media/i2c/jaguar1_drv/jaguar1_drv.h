@@ -18,6 +18,11 @@
 
 #include "jaguar1_video.h"
 
+#define JAGUAR1_MCLK_594MHZ  0x01
+#define JAGUAR1_MCLK_378MHZ  0x02
+#define JAGUAR1_MCLK_1242MHZ 0x03
+
+void jaguar1_set_mclk(unsigned int mclk);
 void jaguar1_start(video_init_all *video_init);
 void jaguar1_stop(void);
 int jaguar1_init(int i2c_bus);

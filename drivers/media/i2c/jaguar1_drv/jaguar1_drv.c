@@ -692,6 +692,18 @@ static long jaguar1_ioctl(struct file *file, unsigned int cmd, unsigned long arg
 	return 0;
 }
 
+/*
+ * mclk
+ * default: 756MHZ
+ *       1: 378MHZ
+ *       2: 594MHZ
+ *	 3: 1242MHZ
+ */
+void jaguar1_set_mclk(unsigned int mclk)
+{
+	jaguar1_mclk = mclk;
+}
+
 void jaguar1_start(video_init_all *video_init)
 {
 	down(&jaguar1_lock);
