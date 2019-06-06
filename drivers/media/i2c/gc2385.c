@@ -664,7 +664,7 @@ static int __gc2385_power_on(struct gc2385 *gc2385)
 
 	usleep_range(500, 1000);
 	if (!IS_ERR(gc2385->pwdn_gpio))
-		gpiod_set_value_cansleep(gc2385->pwdn_gpio, 0);
+		gpiod_set_value_cansleep(gc2385->pwdn_gpio, 1);
 
 	/* 8192 cycles prior to first SCCB transaction */
 	delay_us = gc2385_cal_delay(8192);
@@ -683,7 +683,7 @@ static void __gc2385_power_off(struct gc2385 *gc2385)
 	int ret = 0;
 
 	if (!IS_ERR(gc2385->pwdn_gpio))
-		gpiod_set_value_cansleep(gc2385->pwdn_gpio, 1);
+		gpiod_set_value_cansleep(gc2385->pwdn_gpio, 0);
 	clk_disable_unprepare(gc2385->xvclk);
 	if (!IS_ERR(gc2385->reset_gpio))
 		gpiod_set_value_cansleep(gc2385->reset_gpio, 1);
