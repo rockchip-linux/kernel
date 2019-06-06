@@ -1,7 +1,8 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * bcmevent read-only data shared by kernel or app layers
  *
- * Copyright (C) 1999-2017, Broadcom Corporation
+ * Copyright (C) 1999-2018, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -165,6 +166,9 @@ static const bcmevent_name_str_t bcmevent_names[] = {
 #if defined(BT_WIFI_HANDOVER) || defined(WL_TBOW)
 	BCMEVENT_NAME(WLC_E_BT_WIFI_HANDOVER_REQ),
 #endif
+#ifdef WLFBT
+	BCMEVENT_NAME(WLC_E_FBT_AUTH_REQ_IND),
+#endif /* WLFBT */
 	BCMEVENT_NAME(WLC_E_AUTHORIZED),
 	BCMEVENT_NAME(WLC_E_PROBREQ_MSG_RX),
 	BCMEVENT_NAME(WLC_E_CSA_START_IND),

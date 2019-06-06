@@ -1,7 +1,8 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Linux cfg80211 driver - Android related functions
  *
- * Copyright (C) 1999-2017, Broadcom Corporation
+ * Copyright (C) 1999-2018, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -134,6 +135,9 @@
 
 #define	CMD_HAPD_MAC_FILTER	"HAPD_MAC_FILTER"
 
+#ifdef WLFBT
+#define CMD_GET_FTKEY      "GET_FTKEY"
+#endif
 
 
 #define CMD_ROAM_OFFLOAD			"SETROAMOFFLOAD"
@@ -2523,6 +2527,12 @@ wl_handle_private_cmd(struct net_device *net, char *command, u32 cmd_len)
 		bytes_written = wl_cfg80211_set_wps_p2p_ie(net, command + skip,
 			priv_cmd.total_len - skip, *(command + skip - 2) - '0');
 	}
+#ifdef WLFBT
+	else if (strnicmp(command, CMD_GET_FTKEY, strlen(CMD_GET_FTKEY)) == 0) {
+		wl_cfg80211_get_fbt_key(command);
+		bytes_written = FBT_KEYLEN;
+	}
+#endif /* WLFBT */
 #endif /* WL_CFG80211 */
 	else if (strnicmp(command, CMD_OKC_SET_PMK, strlen(CMD_OKC_SET_PMK)) == 0)
 		bytes_written = wl_android_set_pmk(net, command, priv_cmd.total_len);
@@ -2662,6 +2672,24 @@ wl_handle_private_cmd(struct net_device *net, char *command, u32 cmd_len)
 
 	return bytes_written;
 }
+
+#if 0
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0))
+static int
+wl_genl_register_family_with_ops_groups(struct genl_family *family,
+       const struct genl_ops *ops, size_t n_ops,
+       const struct genl_multicast_group *mcgrps,
+       size_t n_mcgrps)
+{
+       family->module = THIS_MODULE;
+       family->ops = ops;
+       family->n_ops = n_ops;
+       family->mcgrps = mcgrps;
+       family->n_mcgrps = n_mcgrps;
+       return genl_register_family(family);
+}
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0) */
+#endif
 
 int wl_android_init(void)
 {

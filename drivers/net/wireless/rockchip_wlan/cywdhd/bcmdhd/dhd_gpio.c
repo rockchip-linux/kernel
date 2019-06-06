@@ -1,4 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0 */
+/* SPDX-License-Identifier: GPL-2.0 */
 
 #include <osl.h>
 #include <dhd_linux.h>
@@ -33,7 +34,7 @@ struct resource dhd_wlan_resources = {
 		.name	= "bcmdhd_wlan_irq",
 		.start	= 0,
 		.end	= 0,
-		.flags	= IORESOURCE_IRQ | IORESOURCE_IRQ_SHAREABLE,
+		.flags	= IORESOURCE_IRQ | IORESOURCE_IRQ_SHAREABLE	| IORESOURCE_IRQ_HIGHLEVEL,
 };
 
 static struct cntry_locales_custom brcm_wlan_translate_custom_table[] = {
@@ -105,7 +106,6 @@ static void *dhd_wlan_get_country_code(char *ccode
 int dhd_wlan_init_plat_data(void)
 {
     uint irq;
-	int irq_flags = -1;
 
     irq = rockchip_wifi_get_oob_irq();
 
@@ -113,14 +113,6 @@ int dhd_wlan_init_plat_data(void)
 
     dhd_wlan_resources.start = irq;
     dhd_wlan_resources.end = irq;
-
-	irq_flags = rockchip_wifi_get_oob_irq_flag();
-	if (irq_flags == 1)
-		dhd_wlan_resources.flags |= IORESOURCE_IRQ_HIGHLEVEL;
-	else if (irq_flags == 0)
-		dhd_wlan_resources.flags |= IORESOURCE_IRQ_LOWLEVEL;
-	else
-		pr_warn("%s: unknown oob irqflags !\n", __func__);
 
 	return 0;
 }
