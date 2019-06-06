@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /******************************************************************************
  *
  * Copyright(c) 2007 - 2017 Realtek Corporation.
@@ -15,9 +16,15 @@
 #ifndef __IOCTL_CFG80211_H__
 #define __IOCTL_CFG80211_H__
 
+#define RTW_CFG80211_BLOCK_DISCON_WHEN_CONNECT		BIT0
+#define RTW_CFG80211_BLOCK_DISCON_WHEN_DISCONNECT	BIT1
 
-#ifndef RTW_CFG80211_ALWAYS_INFORM_STA_DISCONNECT_EVENT
-	#define RTW_CFG80211_ALWAYS_INFORM_STA_DISCONNECT_EVENT 0
+#ifndef RTW_CFG80211_BLOCK_STA_DISCON_EVENT
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 2, 0))
+#define RTW_CFG80211_BLOCK_STA_DISCON_EVENT (RTW_CFG80211_BLOCK_DISCON_WHEN_CONNECT)
+#else
+#define RTW_CFG80211_BLOCK_STA_DISCON_EVENT (RTW_CFG80211_BLOCK_DISCON_WHEN_CONNECT | RTW_CFG80211_BLOCK_DISCON_WHEN_DISCONNECT)
+#endif
 #endif
 
 #if defined(RTW_USE_CFG80211_STA_EVENT)
@@ -65,6 +72,12 @@
 
 #if defined(RTW_DEDICATED_P2P_DEVICE) && (LINUX_VERSION_CODE < KERNEL_VERSION(3, 7, 0))
 	#error "RTW_DEDICATED_P2P_DEVICE can't be enabled when kernel < 3.7.0\n"
+#endif
+
+#ifdef CONFIG_RTW_MESH
+	#if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 10, 0))
+		#error "CONFIG_RTW_MESH can't be enabled when kernel < 3.10.0\n"
+	#endif
 #endif
 
 struct rtw_wdev_invit_info {
@@ -130,7 +143,7 @@ struct rtw_wdev_priv {
 
 	_adapter *padapter;
 
-	#if !RTW_CFG80211_ALWAYS_INFORM_STA_DISCONNECT_EVENT
+	#if RTW_CFG80211_BLOCK_STA_DISCON_EVENT
 	u8 not_indic_disco;
 	#endif
 
@@ -160,6 +173,7 @@ struct rtw_wdev_priv {
 	u16 report_mgmt;
 
 	u8 is_mgmt_tx;
+	u16 mgmt_tx_cookie;
 
 	_mutex roch_mutex;
 
@@ -167,14 +181,27 @@ struct rtw_wdev_priv {
 	ATOMIC_T switch_ch_to;
 #endif
 
+#ifdef CONFIG_RTW_CFGVENDOR_RANDOM_MAC_OUI
+	u8 pno_mac_addr[ETH_ALEN];
+	u16 pno_scan_seq_num;
+#endif
+
+#ifdef CONFIG_RTW_CFGVEDNOR_RSSIMONITOR
+        s8 rssi_monitor_max;
+        s8 rssi_monitor_min;
+        u8 rssi_monitor_enable;
+#endif
+
 };
 
-#if RTW_CFG80211_ALWAYS_INFORM_STA_DISCONNECT_EVENT
-#define rtw_wdev_not_indic_disco(rtw_wdev_data) 0
-#define rtw_wdev_set_not_indic_disco(rtw_wdev_data, val) do {} while (0)
-#else
+bool rtw_cfg80211_is_connect_requested(_adapter *adapter);
+
+#if RTW_CFG80211_BLOCK_STA_DISCON_EVENT
 #define rtw_wdev_not_indic_disco(rtw_wdev_data) ((rtw_wdev_data)->not_indic_disco)
 #define rtw_wdev_set_not_indic_disco(rtw_wdev_data, val) do { (rtw_wdev_data)->not_indic_disco = (val); } while (0)
+#else
+#define rtw_wdev_not_indic_disco(rtw_wdev_data) 0
+#define rtw_wdev_set_not_indic_disco(rtw_wdev_data, val) do {} while (0)
 #endif
 
 #define rtw_wdev_free_connect_req(rtw_wdev_data) \
@@ -262,12 +289,15 @@ void rtw_cfg80211_indicate_scan_done_for_buddy(_adapter *padapter, bool bscan_ab
 
 #ifdef CONFIG_AP_MODE
 void rtw_cfg80211_indicate_sta_assoc(_adapter *padapter, u8 *pmgmt_frame, uint frame_len);
-void rtw_cfg80211_indicate_sta_disassoc(_adapter *padapter, unsigned char *da, unsigned short reason);
+void rtw_cfg80211_indicate_sta_disassoc(_adapter *padapter, const u8 *da, unsigned short reason);
 #endif /* CONFIG_AP_MODE */
 
 #ifdef CONFIG_P2P
 void rtw_cfg80211_set_is_roch(_adapter *adapter, bool val);
 bool rtw_cfg80211_get_is_roch(_adapter *adapter);
+bool rtw_cfg80211_is_ro_ch_once(_adapter *adapter);
+void rtw_cfg80211_set_last_ro_ch_time(_adapter *adapter);
+s32 rtw_cfg80211_get_last_ro_ch_passing_ms(_adapter *adapter);
 
 int rtw_cfg80211_iface_has_p2p_group_cap(_adapter *adapter);
 int rtw_cfg80211_is_p2p_scan(_adapter *adapter);
@@ -288,6 +318,7 @@ void rtw_cfg80211_issue_p2p_provision_request(_adapter *padapter, const u8 *buf,
 void rtw_cfg80211_rx_p2p_action_public(_adapter *padapter, union recv_frame *rframe);
 void rtw_cfg80211_rx_action_p2p(_adapter *padapter, union recv_frame *rframe);
 void rtw_cfg80211_rx_action(_adapter *adapter, union recv_frame *rframe, const char *msg);
+void rtw_cfg80211_rx_mframe(_adapter *adapter, union recv_frame *rframe, const char *msg);
 void rtw_cfg80211_rx_probe_request(_adapter *padapter, union recv_frame *rframe);
 
 int rtw_cfg80211_set_mgnt_wpsp2pie(struct net_device *net, char *buf, int len, int type);
@@ -339,7 +370,7 @@ void rtw_cfg80211_deinit_rfkill(struct wiphy *wiphy);
 
 #define rtw_cfg80211_connect_result(wdev, bssid, req_ie, req_ie_len, resp_ie, resp_ie_len, status, gfp) cfg80211_connect_result(wdev_to_ndev(wdev), bssid, req_ie, req_ie_len, resp_ie, resp_ie_len, status, gfp)
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 2, 0)) && !defined(CONFIG_PLATFORM_INTEL_CHT_ANDROID60)
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 2, 0))
 #define rtw_cfg80211_disconnected(wdev, reason, ie, ie_len, locally_generated, gfp) cfg80211_disconnected(wdev_to_ndev(wdev), reason, ie, ie_len, gfp)
 #else
 #define rtw_cfg80211_disconnected(wdev, reason, ie, ie_len, locally_generated, gfp) cfg80211_disconnected(wdev_to_ndev(wdev), reason, ie, ie_len, locally_generated, gfp)
@@ -351,6 +382,10 @@ void rtw_cfg80211_deinit_rfkill(struct wiphy *wiphy);
 #else
 	#error "Cannot support FT for KERNEL_VERSION < 3.10\n"
 #endif
+#endif
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0))
+#define rtw_cfg80211_notify_new_peer_candidate(wdev, addr, ie, ie_len, gfp) cfg80211_notify_new_peer_candidate(wdev_to_ndev(wdev), addr, ie, ie_len, gfp)
 #endif
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0))

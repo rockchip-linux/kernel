@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /******************************************************************************
  *
  * Copyright(c) 2012 - 2017 Realtek Corporation.
@@ -140,7 +141,7 @@ phy_SpurCalibration_8192E_NBI(
 
 VOID
 phy_set_rf_path_switch_8192e(
-	IN	PADAPTER	pAdapter,
+	IN	struct dm_struct		*phydm,
 	IN	bool		bMain
 );
 

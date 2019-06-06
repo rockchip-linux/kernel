@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /******************************************************************************
  *
  * Copyright(c) 2013 - 2017 Realtek Corporation.
@@ -437,7 +438,6 @@ u8 rtw_btcoex_LPS_Leave(PADAPTER padapter)
 
 	if (pwrpriv->pwr_mode != PS_MODE_ACTIVE) {
 		rtw_set_ps_mode(padapter, PS_MODE_ACTIVE, 0, 0, "BTCOEX");
-		LPS_RF_ON_check(padapter, 100);
 		pwrpriv->bpower_saving = _FALSE;
 	}
 

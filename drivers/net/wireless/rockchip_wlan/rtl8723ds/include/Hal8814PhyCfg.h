@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /******************************************************************************
  *
  * Copyright(c) 2007 - 2017 Realtek Corporation.
@@ -167,12 +168,12 @@ PHY_GetTxBBSwing_8814A(
 
 
 /* 1 6. Channel setting API */
-
+#if 0
 VOID
 PHY_SwChnlTimerCallback8814A(
 	IN	struct timer_list		*p_timer
 );
-
+#endif
 VOID
 PHY_SwChnlWorkItemCallback8814A(
 	IN PVOID            pContext
