@@ -41,8 +41,8 @@ int klp_write_module_reloc(struct module *mod, unsigned long type,
 	int ret, numpages, size = 4;
 	bool readonly;
 	unsigned long val;
-	unsigned long core = (unsigned long)mod->core_layout.base;
-	unsigned long core_size = mod->core_layout.size;
+	unsigned long core = (unsigned long)mod->module_core;
+	unsigned long core_size = mod->core_size;
 
 	switch (type) {
 	case R_X86_64_NONE:
@@ -58,6 +58,7 @@ int klp_write_module_reloc(struct module *mod, unsigned long type,
 		val = (s32)value;
 		break;
 	case R_X86_64_PC32:
+	case R_X86_64_PLT32:
 		val = (u32)(value - loc);
 		break;
 	default:
@@ -72,7 +73,7 @@ int klp_write_module_reloc(struct module *mod, unsigned long type,
 	readonly = false;
 
 #ifdef CONFIG_DEBUG_SET_MODULE_RONX
-	if (loc < core + mod->core_layout.ro_size)
+	if (loc < core + mod->core_ro_size)
 		readonly = true;
 #endif
 
