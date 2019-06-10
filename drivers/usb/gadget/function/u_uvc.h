@@ -24,6 +24,7 @@ DECLARE_UVC_EXTENSION_UNIT_DESCRIPTOR(1, 1);
 
 struct f_uvc_opts {
 	struct usb_function_instance			func_inst;
+	bool						streaming_bulk;
 	unsigned int					uvc_gadget_trace_param;
 	unsigned int					streaming_interval;
 	unsigned int					streaming_maxpacket;
