@@ -36,3 +36,44 @@
 	};
 };
 
+&dmc {
+	system-status-freq = <
+		/*system status         freq(KHz)*/
+		SYS_STATUS_NORMAL       1024000
+		SYS_STATUS_REBOOT       1024000
+		SYS_STATUS_SUSPEND      1024000
+		SYS_STATUS_VIDEO_1080P  1024000
+		SYS_STATUS_VIDEO_4K     1024000
+		SYS_STATUS_VIDEO_4K_10B 1024000
+		SYS_STATUS_PERFORMANCE  1024000
+		SYS_STATUS_BOOST        1024000
+	>;
+};
+
+&dmc_opp_table {
+	rockchip,leakage-voltage-sel = <
+		1   8     0
+		9   254   0
+	>;
+	
+	opp-400000000 {
+		status = "disabled";
+	};
+
+	opp-600000000 {
+		status = "disabled";
+	};
+
+	opp-933000000 {
+		opp-hz = /bits/ 64 <933000000>;
+		opp-microvolt = <1150000>;
+		opp-microvolt-L0 = <1150000>;
+		opp-microvolt-L1 = <1100000>;
+	};
+	opp-1024000000 {
+		opp-hz = /bits/ 64 <1024000000>;
+		opp-microvolt = <1200000>;
+		opp-microvolt-L0 = <1200000>;
+		opp-microvolt-L1 = <1175000>;
+	};
+};
