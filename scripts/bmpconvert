@@ -40,12 +40,6 @@ class BMPFile:
         if self.biSize > 40:
             self.read_other(self.biSize-40)
 
-        if self.biBitCount == 8:
-            for i in range(256):
-                self.color_map.append(
-                    [unpack("<B", self.file.read(1))[0], unpack("<B", self.file.read(1))[0],
-                     unpack("<B", self.file.read(1))[0]])
-                self.file.read(1)
         if self.biBitCount == 16 and self.biCompression == 3:
             for i in range(4):
                 self.bf_map.append(
@@ -59,14 +53,7 @@ class BMPFile:
             else:
                 self.bmp16bit_to_24bit()
         elif self.biBitCount == 8:
-            if self.biCompression == 1:
-                # print("8bit rle file not convert")
-                self.file.close()
-                return
-            elif self.biCompression == 0:
-                self.bmp8bit_to_24bit()
-            else:
-                print("err! bit_count is 8 while bit_compressoion is wrong")
+                # Not convert 8bit bmp logo to 24 bit
                 self.file.close()
                 return
         else:
