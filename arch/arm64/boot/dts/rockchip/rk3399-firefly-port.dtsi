@@ -187,7 +187,7 @@
 		status = "okay";
 	};
 	/* GPIO1_C7 controls both VCC18_MIPI and VCC28_MIPI, also AF28 */
-        vcc_mipi: vcc_mipi {
+	vcc_mipi: vcc_mipi {
 		compatible = "regulator-fixed";
 		enable-active-high;
 		gpio = <&gpio1 1 GPIO_ACTIVE_HIGH>;
@@ -195,9 +195,9 @@
 		pinctrl-0 = <&dvp_pwr>;
 		regulator-name = "vcc_mipi";
 		status = "disabled";
-        };
+	};
 
-        dvdd_1v2: dvdd-1v2 {
+	dvdd_1v2: dvdd-1v2 {
 		compatible = "regulator-fixed";
 		enable-active-high;
 		gpio = <&gpio1 17 GPIO_ACTIVE_HIGH>;
@@ -205,7 +205,7 @@
 		pinctrl-0 = <&cif_pwr>;
 		regulator-name = "dvdd_1v2";
 		status = "disabled";
-        };
+	};
 
 	dp_sound: dp-sound {
 		status = "disabled";
