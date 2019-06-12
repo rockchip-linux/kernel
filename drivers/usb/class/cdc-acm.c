@@ -1892,6 +1892,11 @@ static const struct usb_device_id acm_ids[] = {
 	.driver_info = SEND_ZERO_PACKET,
 	},
 
+	/* Rockchip NPU ACM device */
+	{ USB_DEVICE(0x2207, 0x1005),
+	.driver_info = IGNORE_DEVICE
+	},
+
 	/* control interfaces without any protocol set */
 	{ USB_INTERFACE_INFO(USB_CLASS_COMM, USB_CDC_SUBCLASS_ACM,
 		USB_CDC_PROTO_NONE) },
