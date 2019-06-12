@@ -94,34 +94,6 @@
 		#clock-cells = <0>;
 	};
 
-	dw_hdmi_audio: dw-hdmi-audio {
-		status = "disabled";
-		compatible = "rockchip,dw-hdmi-audio";
-		#sound-dai-cells = <0>;
-	};
-
-	dp_sound: dp-sound {
-		status = "disabled";
-		compatible = "rockchip,cdndp-sound";
-		rockchip,cpu = <&spdif>;
-		rockchip,codec = <&cdn_dp 1>;
-	};
-
-	hdmi_sound: hdmi-sound {
-		status = "disabled";
-		compatible = "simple-audio-card";
-		simple-audio-card,format = "i2s";
-		simple-audio-card,mclk-fs = <256>;
-		simple-audio-card,name = "rockchip,hdmi";
-
-		simple-audio-card,cpu {
-			sound-dai = <&i2s2>;
-		};
-		simple-audio-card,codec {
-			sound-dai = <&hdmi>;
-		};
-	};
-
 	sdio_pwrseq: sdio-pwrseq {
 		compatible = "mmc-pwrseq-simple";
 		clocks = <&rk808 1>;

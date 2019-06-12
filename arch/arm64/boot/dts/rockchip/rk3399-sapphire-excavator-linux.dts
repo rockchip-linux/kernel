@@ -157,10 +157,6 @@
 		};
 	};
 
-	hdmi_sound: hdmi-sound {
-		status = "okay";
-	};
-
 	ext_cam_clk: external-camera-clock {
 		compatible = "fixed-clock";
 		clock-frequency = <27000000>;
