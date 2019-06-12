@@ -875,7 +875,7 @@ static void tc35874x_initial_setup(struct v4l2_subdev *sd)
 	struct tc35874x_platform_data *pdata = &state->pdata;
 
 	/* CEC and IR are not supported by this driver */
-	i2c_wr16_and_or(sd, SYSCTL, ~(MASK_CECRST | MASK_IRRST),
+	i2c_wr16_and_or(sd, SYSCTL, ~(MASK_CECRST | MASK_IRRST | MASK_I2SDIS),
 			(MASK_CECRST | MASK_IRRST));
 
 	tc35874x_reset(sd, MASK_CTXRST | MASK_HDMIRST);
