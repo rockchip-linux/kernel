@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: GPL-2.0
+config VIDEO_ROCKCHIP_USBACM_CONTROL
+	tristate "Rockchip Usbacm video control driver"
+	depends on VIDEO_V4L2 && VIDEO_V4L2_SUBDEV_API && NPU_USB_ACM
+	depends on ARCH_ROCKCHIP || COMPILE_TEST
+	depends on MEDIA_CAMERA_SUPPORT
+	select VIDEOBUF2_DMA_CONTIG
+	select V4L2_FWNODE
+	default n
+	help
+	  Support for usbacm video control on the rockchip SoCs like rk1808.
