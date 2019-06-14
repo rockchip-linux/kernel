@@ -33,3 +33,126 @@
 	rockchip,deferred = <1>;
 	status = "okay";
 };
+
+&mipi_dphy_rx0 {
+	status = "okay";
+
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		port@0 {
+			reg = <0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			mipi_in_ucam0: endpoint@1 {
+				reg = <1>;
+				remote-endpoint = <&usbacm_video_control_out>;
+				data-lanes = <1 2 3 4>;
+			};
+		};
+
+		port@1 {
+			reg = <1>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			dphy_rx0_out: endpoint@0 {
+				reg = <0>;
+				remote-endpoint = <&isp0_mipi_in>;
+			};
+		};
+	};
+};
+
+&usbacm_video_control {
+	status = "okay";
+	rockchip,camera-module-index = <0>;
+	rockchip,camera-module-facing = "back";
+	rockchip,camera-module-name = "usbacm_video_control";
+	rockchip,camera-module-lens-name = "usbacm_video_control";
+
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		port@0 {
+			reg = <0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			usbacm_video_control_in: endpoint@1 {
+				reg = <0>;
+				remote-endpoint = <&cam_out>;
+				data-lanes = <1 2 3 4>;
+			};
+		};
+
+		port@1 {
+			reg = <1>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			usbacm_video_control_out: endpoint@0 {
+				reg = <1>;
+				remote-endpoint = <&mipi_in_ucam0>;
+				data-lanes = <1 2 3 4>;
+			};
+		};
+	};
+};
+
+&isp0 {
+	status = "disabled";
+};
+
+&isp1 {
+	status = "disabled";
+};
+
+&rkisp1_0 {
+	status = "okay";
+
+	port {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		isp0_mipi_in: endpoint@0 {
+			reg = <0>;
+			remote-endpoint = <&dphy_rx0_out>;
+		};
+	};
+};
+
+&isp0_mmu {
+	status = "okay";
+};
+
+&i2c4 {
+	status = "okay";
+	i2c-scl-rising-time-ns = <345>;
+	i2c-scl-falling-time-ns = <11>;
+
+	jaguar1: jaguar1@30 {
+		compatible = "jaguar1-v4l2";
+		status = "okay";
+		reg = <0x30>;
+		clocks = <&cru SCLK_CIF_OUT>;
+		clock-names = "xvclk";
+		/*
+		 * pd-gpios = <&gpio4 21 GPIO_ACTIVE_HIGH>; // conflict with csi-ctl-gpios
+		 * rst-gpios = <&gpio0 12 GPIO_ACTIVE_HIGH>;
+		 */
+		rockchip,camera-module-index = <0>;
+		rockchip,camera-module-facing = "back";
+		rockchip,camera-module-name = "jaguar1";
+		rockchip,camera-module-lens-name = "jaguar1";
+		port {
+			cam_out: endpoint {
+				remote-endpoint = <&usbacm_video_control_in>;
+				data-lanes = <1 2 3 4>;
+			};
+		};
+	};
+};
