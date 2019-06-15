@@ -9,7 +9,8 @@ dtbo-$(CONFIG_ARCH_ROCKCHIP) += \
 	devspi2.dtbo \
 	pcie-gen2.dtbo \
 	spi1-waveshare35c.dtbo \
-	spi1-waveshare35b-v2.dtbo
+	spi1-waveshare35b-v2.dtbo \
+	spi1-flash.dtbo
 
 targets += dtbs dtbs_install
 targets += $(dtbo-y)
