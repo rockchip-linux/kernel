@@ -125,7 +125,7 @@ DHDCFLAGS += -DWL_CFG80211_ACL
 # m: module type driver
 # y: built-in type driver
 ##########################
-DRIVER_TYPE ?= m
+DRIVER_TYPE ?= $(CONFIG_CYW_BCMDHD)
 
 #########################
 # Chip dependent feature
@@ -149,7 +149,7 @@ DHD_PLATFORM ?= rockchip
 ifeq ($(DHD_PLATFORM), rockchip)
   CONFIG_BCMDHD_SDIO = y
   CONFIG_BCMDHD_OOB = y
-
+  DHDCFLAGS += -DANDROID_SDIO_RESET
   ## We only add here for the flags in our rockchip code
   DHDCFLAGS += -DCUSTOM_SDIO_F2_BLKSIZE=256
   DHDCFLAGS += -DDHD_OF_SUPPORT 

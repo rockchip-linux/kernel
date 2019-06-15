@@ -10146,7 +10146,7 @@ dhd_module_cleanup(void)
 	dhd_wifi_platform_unregister_drv();
 }
 
-static void __exit
+static void
 dhd_module_exit(void)
 {
 	dhd_buzzz_detach();
@@ -10154,7 +10154,7 @@ dhd_module_exit(void)
 	unregister_reboot_notifier(&dhd_reboot_notifier);
 }
 
-static int __init
+static int
 dhd_module_init(void)
 {
 	int err;
