@@ -168,3 +168,9 @@ Name:   spi1-waveshare35c
 Info:   Overlay for activation of waveshare 3.5inch lcd(C).
         Need set: intfc:uart4=off intfc:spi1=on
 Load:   intfc:dtoverlay=spi1-waveshare35c
+
+
+Name:   spi1-flash
+Info:   Overlay for activation of spi flash.
+        Need set: intfc:uart4=off intfc:spi1=on
+Load:   intfc:dtoverlay=spi1-flash
