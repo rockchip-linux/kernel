@@ -199,7 +199,7 @@
 		regulator-min-microvolt = <5000000>;
 		regulator-max-microvolt = <5000000>;
 	};
-	
+
 	vcc_chargen: vcc-chargen {
 		status = "disabled";
 		compatible = "regulator-fixed";
@@ -213,7 +213,7 @@
 		regulator-min-microvolt = <5000000>;
 		regulator-max-microvolt = <5000000>;
 	};
-	
+
 	vcc_sd: vcc-sd {
 		compatible = "regulator-fixed";
 		enable-active-high;
@@ -282,7 +282,7 @@
 		reset-gpios = <&gpio0 10 GPIO_ACTIVE_LOW>; /* GPIO0_B2 */
 	};
 
-	wireless-wlan {
+	wireless_wlan: wireless-wlan {
 		compatible = "wlan-platdata";
 		rockchip,grf = <&grf>;
 		wifi_chip_type = "ap6354";
@@ -291,7 +291,7 @@
 		status = "disabled";
 	};
 
-	wireless-bluetooth {
+	wireless_bluetooth: wireless-bluetooth {
 		compatible = "bluetooth-platdata";
 		//wifi-bt-power-toggle;
 		clocks = <&rk808 1>;
@@ -512,58 +512,6 @@
 		};
 	};
 };
-
-/*
-&dsi {	
-	status = "disabled";
-	//status = "okay";
-	dsi_panel: panel {
-		compatible ="simple-panel-dsi";
-		reg = <0>;
-		backlight = <&backlight>;
-		power-supply = <&vcc_lcd>;
-		dsi,flags = <(MIPI_DSI_MODE_VIDEO | MIPI_DSI_MODE_VIDEO_BURST)>;
-		dsi,format = <MIPI_DSI_FMT_RGB888>;
-		bus-format = <MEDIA_BUS_FMT_RGB666_1X18>;
-		dsi,lanes = <4>;
-		reset-delay-ms = <20>;
-		init-delay-ms = <20>;
-		enable-delay-ms = <120>;
-		prepare-delay-ms = <120>;
-		status = "okay";
-
-		panel-init-sequence = [
-			05 20 01 29
-			05 96 01 11
-		];
-
-		panel-exit-sequence = [
-			05 05 01 28
-			05 78 01 10
-		];
-
-		disp_timings: display-timings {
-			native-mode = <&timing0>;
-
-			timing0: timing0 {
-				clock-frequency = <80000000>;
-				hactive = <768>;
-				vactive = <1024>;
-				hsync-len = <20>;
-				hback-porch = <110>;
-				hfront-porch = <170>;
-				vsync-len = <40>;
-				vback-porch = <130>;
-				vfront-porch = <136>;
-				hsync-active = <0>;
-				vsync-active = <0>;
-				de-active = <0>;
-				pixelclk-active = <0>;
-			};
-		};
-	};	
-};
-*/
 
 &emmc_phy {
 	status = "okay";
