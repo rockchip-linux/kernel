@@ -1273,6 +1273,25 @@ static int rkisp1_plat_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static int __maybe_unused rkisp1_suspend(struct device *dev)
+{
+	struct rkisp1_device *isp_dev = dev_get_drvdata(dev);
+
+	rkisp1_dma_detach_device(isp_dev);
+	return pm_runtime_force_suspend(dev);
+}
+
+static int __maybe_unused rkisp1_resume(struct device *dev)
+{
+	struct rkisp1_device *isp_dev = dev_get_drvdata(dev);
+	int ret;
+
+	ret = pm_runtime_force_resume(dev);
+	if (ret < 0)
+		return ret;
+	return rkisp1_dma_attach_device(isp_dev);
+}
+
 static int __maybe_unused rkisp1_runtime_suspend(struct device *dev)
 {
 	struct rkisp1_device *isp_dev = dev_get_drvdata(dev);
@@ -1308,8 +1327,7 @@ static int __init rkisp1_clr_unready_dev(void)
 late_initcall_sync(rkisp1_clr_unready_dev);
 
 static const struct dev_pm_ops rkisp1_plat_pm_ops = {
-	SET_SYSTEM_SLEEP_PM_OPS(pm_runtime_force_suspend,
-				pm_runtime_force_resume)
+	SET_SYSTEM_SLEEP_PM_OPS(rkisp1_suspend, rkisp1_resume)
 	SET_RUNTIME_PM_OPS(rkisp1_runtime_suspend, rkisp1_runtime_resume, NULL)
 };
 
