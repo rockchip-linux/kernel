@@ -36,6 +36,10 @@
 #define WAIT_CARDS	(SNDRV_CARDS - 1)
 #define DEFAULT_MCLK_FS	256
 
+#ifdef CONFIG_RK_HEADSET
+extern void rk_headset_set_jack_detect(struct snd_soc_jack *jack);
+#endif
+
 struct multicodecs_data {
 	struct snd_soc_card snd_card;
 	struct snd_soc_dai_link dai_link;
@@ -88,6 +92,10 @@ static int rk_dailink_init(struct snd_soc_pcm_runtime *rtd)
 
 #ifdef CONFIG_SND_SOC_RK3308
 		rk3308_codec_set_jack_detect(rtd->codec, &mc_hp_jack);
+#endif
+
+#ifdef CONFIG_RK_HEADSET
+		rk_headset_set_jack_detect(&mc_hp_jack);
 #endif
 	}
 
