@@ -359,7 +359,7 @@
 		};
 	};
 
-	usb-charge {
+	usb_charge: usb-charge {
 		compatible = "usb-ext-charge";
 		status = "disabled";
 		io-channels = <&saradc 0>;

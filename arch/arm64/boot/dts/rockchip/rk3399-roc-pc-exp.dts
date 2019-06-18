@@ -13,3 +13,8 @@
 &wireless_bluetooth {
 	status = "okay";
 };
+
+&usb_charge {
+	status = "okay";
+};
+
