@@ -69,7 +69,7 @@
 		};
 	};
 
-	rt5651-sound {
+	rt5651_sound: rt5651-sound {
 		status = "okay";
 		compatible = "simple-audio-card";
 		simple-audio-card,format = "i2s";

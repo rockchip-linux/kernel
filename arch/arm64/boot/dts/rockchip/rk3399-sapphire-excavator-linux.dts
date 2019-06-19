@@ -406,6 +406,15 @@
 	status = "okay";
 };
 
+&rt5651_sound {
+	compatible = "rockchip,multicodecs-card";
+	rockchip,card-name = "rockchip,rt5651-codec";
+	rockchip,codec-hp-det;
+	rockchip,mclk-fs = <256>;
+	rockchip,cpu = <&i2s0>;
+	rockchip,codec = <&rt5651>;
+};
+
 &saradc {
 	vref-supply = <&vccadc_ref>;
 };
