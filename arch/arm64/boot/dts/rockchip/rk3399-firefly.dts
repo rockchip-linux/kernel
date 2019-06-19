@@ -80,3 +80,65 @@
 &wdt {
 	status = "disabled";
 };
+
+&vcc_mipi {
+	gpio = <&gpio1 23 GPIO_ACTIVE_HIGH>;
+	status = "okay";
+};
+
+&dvdd_1v2 {
+	gpio = <&gpio1 22 GPIO_ACTIVE_HIGH>;
+	status = "okay";
+};
+
+&ov13850 {
+	reset-gpios = <&gpio0 8 GPIO_ACTIVE_HIGH>;
+	pwdn-gpios = <&gpio2 12 GPIO_ACTIVE_HIGH>;
+	status = "okay";
+};
+
+&ov13850_1 {
+	reset-gpios = <&gpio0 8 GPIO_ACTIVE_HIGH>;
+	pwdn-gpios = <&gpio2 28 GPIO_ACTIVE_HIGH>;
+	status = "okay";
+};
+
+
+&rkisp1_0 {
+	status = "okay";
+};
+
+&mipi_dphy_rx0 {
+	status = "okay";
+};
+
+&isp0_mmu {
+	status = "okay";
+};
+
+&rkisp1_1 {
+	status = "okay";
+};
+
+&mipi_dphy_tx1rx1 {
+	status = "okay";
+};
+
+&isp1_mmu {
+	status = "okay";
+};
+
+&pinctrl {
+	
+	cam0 {
+                cif_pwr: cif-pwr {
+                        rockchip,pins = <1 22 RK_FUNC_GPIO &pcfg_pull_down>;
+                };
+
+                dvp_pwr: dvp-pwr {
+                        rockchip,pins = <1 23 RK_FUNC_GPIO &pcfg_pull_down>;
+                };
+        };
+
+};
+
