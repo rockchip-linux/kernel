@@ -605,7 +605,7 @@ static int dw_mipi_dsi_turn_around_request(struct dw_mipi_dsi *dsi)
 	 * assign dphy_tx1_phyturnrequest = grf_dphy_tx1rx1_basedir ?
 	 * dphy_tx1_phyturnrequest_i : grf_dphy_tx1rx1_turnrequest[0]
 	 */
-	if (!IS_DSI1(dsi))
+	if (!IS_DSI1(dsi) || dsi->pdata->soc_type != RK3288)
 		return 0;
 
 	/* Set TURNREQUEST_N = 1'b1 */
