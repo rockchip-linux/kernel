@@ -622,7 +622,7 @@ static int rk_nandc_chips_init(struct device *dev, struct rk_nandc *nandc)
 			nand_dev_id = chip->read_byte(mtd);
 			chip->select_chip(mtd, -1);
 		} else {
-			chip->select_chip(mtd, bank_idx);
+			chip->select_chip(mtd, chipnr);
 			chip->cmdfunc(mtd, NAND_CMD_RESET, -1, -1);
 			chip->cmdfunc(mtd, NAND_CMD_READID, 0x00, -1);
 			if (nand_maf_id != chip->read_byte(mtd) ||
