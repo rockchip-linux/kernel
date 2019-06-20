@@ -22,8 +22,8 @@
 		#size-cells = <2>;
 		ranges;
 
-		dma_trans: dma_trans@70000000 {
-			reg = <0x0 0x70000000 0x0 0x04000000>;
+		dma_trans: dma_trans@3c000000 {
+			reg = <0x0 0x3c000000 0x0 0x04000000>;
 		};
 	};
 
