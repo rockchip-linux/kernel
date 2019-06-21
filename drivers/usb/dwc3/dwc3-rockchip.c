@@ -51,6 +51,7 @@ struct dwc3_rockchip {
 	bool			suspended;
 	bool			force_mode;
 	bool			reset_on_resume;
+	bool			is_phy_on;
 	enum usb_dr_mode	original_dr_mode;
 	struct device		*dev;
 	struct clk		**clks;
@@ -497,6 +498,8 @@ static void dwc3_rockchip_otg_extcon_evt_work(struct work_struct *work)
 		if (ret < 0) {
 			phy_power_off(dwc->usb2_generic_phy);
 			dev_err(dwc->dev, "Failed to power on usb3 phy\n");
+		} else {
+			rockchip->is_phy_on = true;
 		}
 
 		pm_runtime_get_sync(dwc->dev);
@@ -586,8 +589,11 @@ disconnect:
 				usb_remove_hcd(hcd);
 			}
 
-			phy_power_off(dwc->usb2_generic_phy);
-			phy_power_off(dwc->usb3_generic_phy);
+			if (rockchip->is_phy_on) {
+				phy_power_off(dwc->usb2_generic_phy);
+				phy_power_off(dwc->usb3_generic_phy);
+				rockchip->is_phy_on = false;
+			}
 		}
 
 		if (DWC3_GCTL_PRTCAP(reg) == DWC3_GCTL_PRTCAP_DEVICE) {
@@ -697,18 +703,29 @@ static void dwc3_rockchip_async_probe(void *data, async_cookie_t cookie)
 		rockchip->connected = true;
 
 		if (!rockchip->reset_on_resume &&
-		    of_machine_is_compatible("rockchip,rk3399")) {
+		    of_machine_is_compatible("rockchip,rk3399") &&
+		    rockchip->dwc->dr_mode == USB_DR_MODE_HOST) {
 			/*
 			 * RK3399 USB 3.0 PHY is Type-C PHY, needs to
 			 * power on USB 3.0 PHY here in addition to
 			 * dwc3_core_init() to prevent it powering
-			 * off USB 3.0 PHY during suspend.
+			 * off USB 3.0 PHY during suspend with USB
+			 * Device connect to the DWC3 Host.
 			 */
+			ret = phy_power_on(dwc->usb2_generic_phy);
+			if (ret < 0) {
+				dev_err(dwc->dev, "Failed to power on usb2 phy\n");
+				goto err;
+			}
+
 			ret = phy_power_on(dwc->usb3_generic_phy);
 			if (ret < 0) {
+				phy_power_off(dwc->usb2_generic_phy);
 				dev_err(dwc->dev, "Failed to power on usb3 phy\n");
 				goto err;
 			}
+
+			rockchip->is_phy_on = true;
 		}
 	}
 
@@ -940,19 +957,33 @@ static int __maybe_unused dwc3_rockchip_suspend(struct device *dev)
 	rockchip->suspended = true;
 	cancel_work_sync(&rockchip->otg_work);
 
-	if (rockchip->edev && dwc->dr_mode != USB_DR_MODE_PERIPHERAL) {
+	/*
+	 * The flag of is_phy_on is only true if
+	 * the DWC3 is in Host mode.
+	 */
+	if (rockchip->is_phy_on) {
+		phy_power_off(dwc->usb2_generic_phy);
+
 		/*
-		 * If USB HOST connected, we will do phy power
-		 * on in extcon evt work, so need to do phy
-		 * power off in suspend. And we just power off
-		 * USB2 PHY here because USB3 PHY power on operation
-		 * need to be done while DWC3 controller is in P2
-		 * state, but after resume DWC3 controller is in
-		 * P0 state. So we put USB3 PHY in power on state.
+		 * If link state is Rx.Detect, it means that
+		 * no usb device is connecting with the DWC3
+		 * Host, and need to power off the USB3 PHY.
+		 *
+		 * If link state is in other state, like U0
+		 * or U3 state, it means that at least one
+		 * USB3 device is connecting with the Host
+		 * port, in this case, we don't power off
+		 * the USB3 PHY because some USB3 PHYs (like
+		 * RK3399 Type-C USB3 PHY) require that the
+		 * power on operation must be done while the
+		 * DWC3 controller is in P2 state, but the
+		 * state is in P0 after resume with a USB3
+		 * device connected. So we set the USB3 PHY
+		 * in power on state in this case.
 		 */
-		if (extcon_get_cable_state_(rockchip->edev,
-					    EXTCON_USB_HOST) > 0)
-			phy_power_off(dwc->usb2_generic_phy);
+		dwc->link_state = dwc3_gadget_get_link_state(dwc);
+		if (dwc->link_state == DWC3_LINK_STATE_RX_DET)
+			phy_power_off(dwc->usb3_generic_phy);
 	}
 
 	return 0;
@@ -971,14 +1002,15 @@ static int __maybe_unused dwc3_rockchip_resume(struct device *dev)
 
 	rockchip->suspended = false;
 
+	if (rockchip->is_phy_on) {
+		phy_power_on(dwc->usb2_generic_phy);
+
+		if (dwc->link_state == DWC3_LINK_STATE_RX_DET)
+			phy_power_on(dwc->usb3_generic_phy);
+	}
+
 	if (rockchip->edev)
 		schedule_work(&rockchip->otg_work);
-
-	if (rockchip->edev && dwc->dr_mode != USB_DR_MODE_PERIPHERAL) {
-		if (extcon_get_cable_state_(rockchip->edev,
-					    EXTCON_USB_HOST) > 0)
-			phy_power_on(dwc->usb2_generic_phy);
-	}
 
 	return 0;
 }
