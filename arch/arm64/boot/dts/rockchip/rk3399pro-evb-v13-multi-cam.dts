@@ -1,0 +1,31 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+// Copyright (c) 2018 Fuzhou Rockchip Electronics Co., Ltd.
+
+#include "rk3399pro-evb-v11.dts"
+
+/ {
+	model = "Rockchip RK3399pro evb v13 multi camera board";
+	compatible = "rockchip,rk3399pro-evb-v13-multi-cam", "rockchip,rk3399pro";
+
+	dma_trans: dma_trans@3c000000 {
+		//no-map;
+		reg = <0x0 0x3c000000 0x0 0x04000000>;
+	};
+};
+
+&pcie_phy {
+	status = "okay";
+};
+
+&pcie0 {
+	/delete-property/ ep-gpios;
+	num-lanes = <4>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pcie_clkreqn_cpm>;
+	max-link-speed = <2>;
+	memory-region = <&dma_trans>;
+	busno = <0>;
+	rockchip,dma_trx_enabled = <1>;
+	rockchip,deferred = <1>;
+	status = "okay";
+};

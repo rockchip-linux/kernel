@@ -134,7 +134,8 @@ Rockchip platforms device tree bindings
       - compatible = "rockchip,rk3399pro-evb-v10-avb", "rockchip,rk3399pro";
       - compatible = "rockchip,rk3399pro-evb-v11-avb", "rockchip,rk3399pro";
       - compatible = "rockchip,rk3399pro-evb-lp4-v11-avb", "rockchip,rk3399pro";
-      - compatible = "rockchip,rk3399pro-evb-lp4-v11-multi-cam-avb", "rockchip,rk3399pro";
+      - compatible = "rockchip,rk3399pro-evb-v11-multi-cam-avb", "rockchip,rk3399pro";
+      - compatible = "rockchip,rk3399pro-evb-v13-multi-cam", "rockchip,rk3399pro";
 
 - Rockchip RK3326 f863 board:
     Required root node properties:
