@@ -226,8 +226,8 @@
 		clocks = <&rk809 1>;
 		clock-names = "ext_clock";
 		uart_rts_gpios = <&gpio2 RK_PC3 GPIO_ACTIVE_LOW>;
-		pinctrl-names = "default", "rts_gpio", <&bt_irq_gpio>;
-		pinctrl-0 = <&uart0_rts>;
+		pinctrl-names = "default", "rts_gpio";
+		pinctrl-0 = <&uart0_rts>, <&bt_irq_gpio>;
 		pinctrl-1 = <&uart0_gpios>;
 		BT,reset_gpio    = <&gpio2 RK_PD4 GPIO_ACTIVE_HIGH>;
 		BT,wake_gpio     = <&gpio2 RK_PD2 GPIO_ACTIVE_HIGH>;
