@@ -66,6 +66,16 @@
 		reset-gpios = <&gpio1 20 GPIO_ACTIVE_LOW>; /* GPIO1_C4 */
 	};
 
+	lcd_en:lcd-en-regulator {
+		compatible = "regulator-fixed";
+		enable-active-high;
+		gpio = <&gpio1 4 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&lcd_panel_lcd_en>;
+		regulator-name = "lcd_en";
+		regulator-always-on;
+	};
+
 	leds {
 		compatible = "gpio-leds";
 
@@ -141,6 +151,7 @@
 		disable-delay-ms = <20>;
 		size,width = <120>;
 		size,height = <170>;
+		power-supply = <&lcd_en>;
 		status = "okay";
 
 		panel-init-sequence = [
@@ -354,6 +365,12 @@
 		sdcard_enable_h: sdcard-enable-h {
 			rockchip,pins =
 				<1 20 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	lcd-panel {
+		lcd_panel_lcd_en:lcd-panel-lcd-en {
+			rockchip,pins = <1 4 RK_FUNC_GPIO &pcfg_pull_down>;
 		};
 	};
 };
