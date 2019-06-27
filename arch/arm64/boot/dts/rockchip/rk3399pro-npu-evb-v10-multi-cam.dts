@@ -206,7 +206,7 @@
 		vsel-gpios = <&gpio0 RK_PC6 GPIO_ACTIVE_HIGH>;
 		regulator-name = "vdd_npu";
 		regulator-min-microvolt = <750000>;
-		regulator-max-microvolt = <800000>;
+		regulator-max-microvolt = <880000>;
 		regulator-ramp-delay = <2300>;
 		fcs,suspend-voltage-selector = <1>;
 		regulator-always-on;
