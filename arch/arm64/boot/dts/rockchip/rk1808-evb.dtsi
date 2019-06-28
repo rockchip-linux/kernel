@@ -278,6 +278,7 @@
 		regulator-name = "vdd_npu";
 		regulator-min-microvolt = <750000>;
 		regulator-max-microvolt = <880000>;
+		regulator-init-microvolt = <880000>;
 		regulator-ramp-delay = <2300>;
 		fcs,suspend-voltage-selector = <0>;
 		regulator-boot-on;
