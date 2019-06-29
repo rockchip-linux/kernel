@@ -10,6 +10,10 @@
 / {
 	model = "Rockchip rk3399pro evb v11 avb board";
 	compatible = "rockchip,rk3399pro-evb-v11-avb", "rockchip,rk3399pro";
+
+	chosen: chosen {
+		bootargs = "console=ttyFIQ0 androidboot.baseband=N/A androidboot.wificountrycode=US androidboot.veritymode=enforcing androidboot.hardware=rk30board androidboot.console=ttyFIQ0 firmware_class.path=/vendor/etc/firmware init=/init rootwait ro init=/init androidboot.selinux=permissive";
+	};
 };
 
 &firmware_android {

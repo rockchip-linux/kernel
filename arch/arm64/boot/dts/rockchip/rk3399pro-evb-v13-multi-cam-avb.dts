@@ -11,6 +11,10 @@
 	model = "Rockchip RK3399pro evb v13 multi camera avb board";
 	compatible = "rockchip,rk3399pro-evb-v13-multi-cam-avb", "rockchip,rk3399pro";
 
+	chosen: chosen {
+		bootargs = "console=ttyFIQ0 androidboot.baseband=N/A androidboot.wificountrycode=US androidboot.veritymode=enforcing androidboot.hardware=rk30board androidboot.console=ttyFIQ0 firmware_class.path=/vendor/etc/firmware init=/init rootwait ro init=/init androidboot.selinux=permissive";
+	};
+
 	reserved-memory {
 		#address-cells = <2>;
 		#size-cells = <2>;
