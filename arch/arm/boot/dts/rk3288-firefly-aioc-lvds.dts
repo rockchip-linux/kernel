@@ -48,7 +48,7 @@
 
 / {
 	model = "AIO-3288C Board LVDS HSX101H40C (Linux Opensource)";
-	compatible = "rockchip,rk3288-firefly", "rockchip,rk3288";
+	compatible = "firefly,rk3288-firefly", "rockchip,rk3288";
 
 	backlight: backlight {
 		compatible = "pwm-backlight";

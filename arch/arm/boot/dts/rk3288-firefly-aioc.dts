@@ -46,7 +46,7 @@
 
 / {
 	model = "AIO-3288C Board (Linux Opensource)";
-	compatible = "rockchip,rk3288-firefly", "rockchip,rk3288";
+	compatible = "firefly,rk3288-firefly", "rockchip,rk3288";
 
 	sdio_pwrseq: sdio-pwrseq {
 		compatible = "mmc-pwrseq-simple";
