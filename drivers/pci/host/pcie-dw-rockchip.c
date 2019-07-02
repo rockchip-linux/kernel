@@ -143,6 +143,11 @@ struct rk_pcie_of_data {
 
 #define to_rk_pcie(x)	container_of(x, struct rk_pcie, pp)
 
+static int __maybe_unused rockchip_dw_pcie_resume(struct device *dev);
+static int __maybe_unused rockchip_dw_pcie_suspend(struct device *dev);
+static inline void rk_pcie_disable_ltssm(struct rk_pcie *rk_pcie);
+static inline void rk_pcie_link_status_clear(struct rk_pcie *rk_pcie);
+
 static int rk_pcie_read(void __iomem *addr, int size, u32 *val)
 {
 	if ((uintptr_t)addr & (size - 1)) {
@@ -456,8 +461,7 @@ static void rk_pcie_ep_reset_bar(struct rk_pcie *rk_pcie, enum pci_barno bar)
 	__rk_pcie_ep_reset_bar(rk_pcie, bar, 0);
 }
 
-static int rk_pcie_ep_atu_init(struct rk_pcie *rk_pcie,
-			struct platform_device *pdev)
+static int rk_pcie_ep_atu_init(struct rk_pcie *rk_pcie)
 {
 	int ret;
 	enum pci_barno bar;
@@ -490,7 +494,12 @@ static int rk_pcie_link_up(struct rk_pcie *rk_pcie)
 {
 	u32 val = rk_pcie_readl_apb(rk_pcie, PCIE_CLIENT_GENERAL_DEBUG);
 
-	if ((val & (PCIE_PHY_LINKUP | PCIE_DATA_LINKUP)) == 0x3)
+	/*
+	 * Except phy linkup and data linkup, ltssm status is also
+	 * needed to identify link is up
+	 */
+	if (((val & (PCIE_PHY_LINKUP | PCIE_DATA_LINKUP)) == 0x3) &&
+			((val & GENMASK(15, 10)) >> 10) == 0x11)
 		return 1;
 
 	return 0;
@@ -610,6 +619,8 @@ static int rk_pcie_establish_link(struct rk_pcie *rk_pcie)
 	msleep(100);
 	gpiod_set_value_cansleep(rk_pcie->rst_gpio, 1);
 
+	rk_pcie_disable_ltssm(rk_pcie);
+	rk_pcie_link_status_clear(rk_pcie);
 	/* Enable LTSSM */
 	rk_pcie_enable_ltssm(rk_pcie);
 
@@ -756,7 +767,7 @@ static int rk_pcie_add_ep(struct rk_pcie *rk_pcie,
 		return ret;
 	}
 
-	ret = rk_pcie_ep_atu_init(rk_pcie, pdev);
+	ret = rk_pcie_ep_atu_init(rk_pcie);
 	if (ret) {
 		dev_err(dev, "failed to init ep device\n");
 		return ret;
@@ -1194,11 +1205,89 @@ deinit_clk:
 
 MODULE_DEVICE_TABLE(of, rk_pcie_of_match);
 
+static inline void rk_pcie_link_status_clear(struct rk_pcie *rk_pcie)
+{
+	rk_pcie_writel_apb(rk_pcie, PCIE_CLIENT_GENERAL_DEBUG, 0x0);
+}
+
+static inline void rk_pcie_disable_ltssm(struct rk_pcie *rk_pcie)
+{
+	rk_pcie_writel_apb(rk_pcie, 0x0, 0xc0008);
+}
+
+static int __maybe_unused rockchip_dw_pcie_suspend(struct device *dev)
+{
+	struct rk_pcie *rk_pcie = dev_get_drvdata(dev);
+
+	rk_pcie_link_status_clear(rk_pcie);
+	rk_pcie_disable_ltssm(rk_pcie);
+
+	phy_power_off(rk_pcie->phy);
+	phy_exit(rk_pcie->phy);
+
+	clk_bulk_disable(rk_pcie->clk_cnt, rk_pcie->clks);
+
+	return 0;
+}
+
+static int __maybe_unused rockchip_dw_pcie_resume(struct device *dev)
+{
+	struct rk_pcie *rk_pcie = dev_get_drvdata(dev);
+	int ret;
+
+	ret = clk_bulk_enable(rk_pcie->clk_cnt, rk_pcie->clks);
+	if (ret) {
+		clk_bulk_unprepare(rk_pcie->clk_cnt, rk_pcie->clks);
+		return ret;
+	}
+
+	ret = phy_init(rk_pcie->phy);
+	if (ret < 0) {
+		dev_err(dev, "fail to init phy, err %d\n", ret);
+		return ret;
+	}
+
+	rk_pcie_dbi_ro_wr_en(rk_pcie);
+
+	/* release link reset grant */
+	ret = rk_pcie_reset_grant_ctrl(rk_pcie, true);
+	if (ret)
+		return ret;
+
+	/* Set PCIe mode */
+	rk_pcie_set_mode(rk_pcie);
+	/* Set PCIe gen2 */
+	rk_pcie_set_gens(rk_pcie);
+
+	ret = rk_pcie_establish_link(rk_pcie);
+	if (ret) {
+		dev_err(dev, "failed to establish pcie link\n");
+		return ret;
+	}
+
+	rk_pcie_ep_setup(rk_pcie);
+
+	/* hold link reset grant after link-up */
+	ret = rk_pcie_reset_grant_ctrl(rk_pcie, false);
+	if (ret)
+		return ret;
+
+	rk_pcie_dbi_ro_wr_dis(rk_pcie);
+
+	return 0;
+}
+
+static const struct dev_pm_ops rockchip_dw_pcie_pm_ops = {
+	SET_SYSTEM_SLEEP_PM_OPS(rockchip_dw_pcie_suspend,
+				rockchip_dw_pcie_resume)
+};
+
 static struct platform_driver rk_plat_pcie_driver = {
 	.driver = {
 		.name	= "rk-pcie",
 		.of_match_table = rk_pcie_of_match,
 		.suppress_bind_attrs = true,
+		.pm = &rockchip_dw_pcie_pm_ops,
 	},
 };
 
