@@ -10,7 +10,9 @@ dtbo-$(CONFIG_ARCH_ROCKCHIP) += \
 	pcie-gen2.dtbo \
 	spi1-waveshare35c.dtbo \
 	spi1-waveshare35b-v2.dtbo \
-	spi1-flash.dtbo
+	spi1-flash.dtbo \
+	hifiberry-dac.dtbo \
+	hifiberry-dacplus.dtbo
 
 targets += dtbs dtbs_install
 targets += $(dtbo-y)

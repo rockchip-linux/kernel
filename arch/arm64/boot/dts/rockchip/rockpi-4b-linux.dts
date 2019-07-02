@@ -192,6 +192,10 @@
 		};
 	};
 
+	sound_ext_card: sound-ext-card {
+		status = "disabled";
+	};
+
 	spdif-sound {
 		status = "disabled";
 		compatible = "simple-audio-card";
@@ -332,6 +336,11 @@
 	rockchip,i2s-broken-burst-len;
 	rockchip,playback-channels = <8>;
 	rockchip,capture-channels = <8>;
+	#sound-dai-cells = <0>;
+};
+
+&i2s1 {
+	status = "disabled";
 	#sound-dai-cells = <0>;
 };
 
