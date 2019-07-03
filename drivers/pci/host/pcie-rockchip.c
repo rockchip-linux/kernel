@@ -215,6 +215,9 @@
 #define RC_REGION_0_PASS_BITS			(25 - 1)
 #define MAX_AXI_WRAPPER_REGION_NUM		33
 
+#define PCIE_USER_RELINK 0x1
+#define PCIE_USER_UNLINK 0x2
+
 struct rockchip_pcie {
 	void	__iomem *reg_base;		/* DT axi-base */
 	void	__iomem *apb_base;		/* DT apb-base */
@@ -1324,6 +1327,10 @@ static int rockchip_pcie_wait_l2(struct rockchip_pcie *rockchip)
 	u32 value;
 	int err;
 
+	/* Don't enter L2 state when no ep connected */
+	if (rockchip->dma_trx_enabled == 1)
+		return 0;
+
 	/* send PME_TURN_OFF message */
 	writel(0x0, rockchip->msg_region + PCIE_RC_SEND_PME_OFF);
 
@@ -1375,6 +1382,11 @@ static int __maybe_unused rockchip_pcie_resume_noirq(struct device *dev)
 	clk_prepare_enable(rockchip->hclk_pcie);
 	clk_prepare_enable(rockchip->aclk_perf_pcie);
 	clk_prepare_enable(rockchip->aclk_pcie);
+
+	if (rockchip->dma_trx_enabled == 1) {
+		dev_info(dev, "bypass for user to link...");
+		return 0;
+	}
 
 	err = rockchip_pcie_init_port(rockchip);
 	if (err)
@@ -1459,9 +1471,14 @@ static ssize_t pcie_reset_ep_store(struct device *dev,
 	if (err)
 		return err;
 
+	/* Clear ltssm status before unlinking */
 	if (val) {
+		rockchip_pcie_write(rockchip, 0x00020000, PCIE_CLIENT_CONFIG);
 		phy_power_off(rockchip->phy);
 		phy_exit(rockchip->phy);
+
+		if (val == PCIE_USER_UNLINK)
+			return size;
 
 		rockchip->wait_ep = 1;
 
