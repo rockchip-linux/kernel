@@ -41,7 +41,6 @@
 #include "rk3399-firefly-port.dtsi"
 #include <dt-bindings/sensor-dev.h>
 #include <dt-bindings/display/media-bus-format.h>
-#include "rk3399-firefly-lpddr4-freq.dtsi"
 
 / {
 	model = "AIO-3399C Board (Linux Opensource)";
