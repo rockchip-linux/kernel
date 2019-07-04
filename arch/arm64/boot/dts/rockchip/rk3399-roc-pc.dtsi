@@ -4,7 +4,6 @@
 #include "rk3399-linux.dtsi"
 #include <dt-bindings/input/input.h>
 #include <dt-bindings/display/media-bus-format.h>
-#include "rk3399-firefly-lpddr4-freq.dtsi"
 //#include "include/uapi/drm/drm_mode.h"
 
 / {
