@@ -66,7 +66,7 @@ Optional properties:
  - snps,grx-threshold-cfg: global Rx threshold config
  - snps,gtx-threshold-cfg: global Tx threshold config
 
- - <DEPRECATED> tx-fifo-resize: determines if the FIFO *has* to be reallocated.
+ - snps,tx-fifo-resize: determines if the FIFO *has* to be reallocated.
 
 This is usually a subnode to DWC3 glue to which it is connected.
 
