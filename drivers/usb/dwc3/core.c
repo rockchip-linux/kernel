@@ -1048,6 +1048,8 @@ static int dwc3_probe(struct platform_device *pdev)
 
 	device_property_read_u32_array(dev, "snps,grx-threshold-cfg",
 				       dwc->grxthrcfg, 2);
+	dwc->needs_fifo_resize = device_property_read_bool(dev,
+				"snps,tx-fifo-resize");
 
 	/* default to superspeed if no maximum_speed passed */
 	if (dwc->maximum_speed == USB_SPEED_UNKNOWN)
