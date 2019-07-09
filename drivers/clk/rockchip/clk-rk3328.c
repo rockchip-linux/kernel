@@ -805,6 +805,8 @@ static struct rockchip_clk_branch rk3328_clk_branches[] __initdata = {
 	GATE(PCLK_SARADC, "pclk_saradc", "pclk_bus", 0, RK3328_CLKGATE_CON(17), 15, GFLAGS),
 	GATE(0, "pclk_pmu", "pclk_bus", CLK_IGNORE_UNUSED, RK3328_CLKGATE_CON(28), 3, GFLAGS),
 
+	
+
 	GATE(PCLK_USB3PHY_OTG, "pclk_usb3phy_otg", "pclk_phy_pre", 0, RK3328_CLKGATE_CON(28), 1, GFLAGS),
 	GATE(PCLK_USB3PHY_PIPE, "pclk_usb3phy_pipe", "pclk_phy_pre", 0, RK3328_CLKGATE_CON(28), 2, GFLAGS),
 	GATE(PCLK_USB3_GRF, "pclk_usb3_grf", "pclk_phy_pre", CLK_IGNORE_UNUSED, RK3328_CLKGATE_CON(17), 2, GFLAGS),
@@ -895,6 +897,7 @@ static struct notifier_block rk3328_clk_panic_block = {
 
 static void __init rk3328_clk_init(struct device_node *np)
 {
+	struct clk *clk;
 	struct rockchip_clk_provider *ctx;
 	void __iomem *reg_base;
 
@@ -912,7 +915,15 @@ static void __init rk3328_clk_init(struct device_node *np)
 		iounmap(reg_base);
 		return;
 	}
-
+	
+	/* WDT */
+	clk = clk_register_fixed_factor(NULL, "pclk_wdt", "pclk_bus", 0, 1, 1);
+	if (IS_ERR(clk))
+		pr_warn("%s: could not register clock pclk_wdt: %ld\n",
+				__func__, PTR_ERR(clk));
+	else
+		rockchip_clk_add_lookup(ctx, clk, PCLK_WDT);
+	
 	rockchip_clk_register_plls(ctx, rk3328_pll_clks,
 				   ARRAY_SIZE(rk3328_pll_clks),
 				   RK3328_GRF_SOC_STATUS0);
