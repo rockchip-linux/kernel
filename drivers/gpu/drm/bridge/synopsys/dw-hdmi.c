@@ -1088,7 +1088,7 @@ static void dw_hdmi_update_csc_coeffs(struct dw_hdmi *hdmi)
 	enc_in_rgb = hdmi_bus_fmt_is_rgb(hdmi->hdmi_data.enc_in_bus_format);
 
 	if (is_color_space_conversion(hdmi)) {
-		if (enc_out_rgb == enc_in_rgb) {
+		if (enc_out_rgb && enc_in_rgb) {
 			csc_coeff = &csc_coeff_full_to_limited;
 			csc_scale = 0;
 		} else if (enc_out_rgb) {
