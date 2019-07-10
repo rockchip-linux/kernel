@@ -700,10 +700,6 @@
 	};
 };
 
-&uart2 {
-	status = "okay";
-};
-
 &usbdrd3_0 {
 	status = "okay";
 	extcon = <&fusb0>;
