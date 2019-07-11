@@ -927,7 +927,7 @@ config VIDEO_GC8034
 	  module will be called gc8034.
 
 config VIDEO_SC031GS
-	tristate "GalaxyCore SC031GS sensor support"
+	tristate "SmartSens SC031GS sensor support"
 	depends on VIDEO_V4L2 && I2C && VIDEO_V4L2_SUBDEV_API
 	default y
 	help
@@ -935,6 +935,16 @@ config VIDEO_SC031GS
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called sc031gs.
+
+config VIDEO_SC132GS
+	tristate "SmartSens SC132GS sensor support"
+	depends on VIDEO_V4L2 && I2C && VIDEO_V4L2_SUBDEV_API
+	default n
+	help
+	  Support for the Smartsens SC132GS sensor.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called sc132gs.
 
 config VIDEO_GC0329
 	tristate "GalaxyCore GC0329 sensor support"
