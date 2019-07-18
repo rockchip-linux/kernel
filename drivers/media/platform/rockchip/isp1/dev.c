@@ -1155,6 +1155,9 @@ static int rkisp1_plat_probe(struct platform_device *pdev)
 					ret);
 				return ret;
 			}
+
+			if (isp_dev->mipi_irq == irq)
+				disable_irq(isp_dev->mipi_irq);
 		}
 	} else {
 		/* no irq names in dts */
