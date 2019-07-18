@@ -469,9 +469,15 @@ static void rndis_command_complete(struct usb_ep *ep, struct usb_request *req)
 	/* received RNDIS command from USB_CDC_SEND_ENCAPSULATED_COMMAND */
 //	spin_lock(&dev->lock);
 	status = rndis_msg_parser(rndis->params, (u8 *) req->buf);
-	if (status < 0)
+	if (status < 0) {
 		pr_err("RNDIS command error %d, %d/%d\n",
 			status, req->actual, req->length);
+		/*
+		 * if command is error, req maybe an illegal pointer,
+		 * so we just return to avoid kernel panic
+		 */
+		return;
+	}
 
 	buf = (rndis_init_msg_type *)req->buf;
 
