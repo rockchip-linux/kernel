@@ -21,6 +21,8 @@
 #include <linux/mmc/mmc.h>
 #include <linux/mmc/sd.h>
 
+#include <linux/regulator/consumer.h>
+
 #include "core.h"
 #include "bus.h"
 #include "mmc_ops.h"
@@ -1225,6 +1227,28 @@ static int mmc_sd_suspend(struct mmc_host *host)
 	if (!err) {
 		pm_runtime_disable(&host->card->dev);
 		pm_runtime_set_suspended(&host->card->dev);
+	}
+
+	return err;
+}
+
+static int mmc_sd_shutdown(struct mmc_host *host)
+{
+	int err;
+
+	err = _mmc_sd_suspend(host);
+	if (!err) {
+		pm_runtime_disable(&host->card->dev);
+		pm_runtime_set_suspended(&host->card->dev);
+	}
+
+	if (!IS_ERR(host->supply.vqmmc)) {
+		int result;
+		regulator_set_voltage(host->supply.vqmmc, 3000000, 3000000);
+		result = regulator_enable(host->supply.vqmmc);
+		if (result) {
+			pr_err("%s %d\n",__func__, __LINE__);
+		}
 	}
 
 	return err;
