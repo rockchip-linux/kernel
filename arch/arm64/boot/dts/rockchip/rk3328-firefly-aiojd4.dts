@@ -1,0 +1,153 @@
+/dts-v1/;
+#include "rk3328-firefly-port.dtsi"
+#include <dt-bindings/sensor-dev.h>
+/ {
+	model = "firefly ROC-RK3328-CC";
+	compatible = "rockchip,rk3328-mb-jd4", "rockchip,rk3328";
+
+	wireless-wlan {
+		compatible = "wlan-platdata";
+		rockchip,grf = <&grf>;
+		clocks = <&rk805 1>;
+		clock-names = "ext_clock";
+		wifi_chip_type = "rtl8723ds";
+		sdio_vref = <1800>;
+		WIFI,host_wake_irq = <&gpio3 RK_PA1 GPIO_ACTIVE_HIGH>;
+		status = "okay";
+	};
+
+    wireless-bluetooth {
+		compatible = "bluetooth-platdata";
+		clocks = <&cru SCLK_RTC32K>;
+		clock-names = "ext_clock";
+		BT,power_gpio = <&gpio0 RK_PD6 GPIO_ACTIVE_HIGH>;
+		BT,wake_host_irq = <&gpio1 RK_PD2 GPIO_ACTIVE_HIGH>;
+		status = "okay";
+	};
+
+	fiq-debugger {
+		status = "disabled";
+	};
+
+	leds {
+		compatible = "gpio-leds";
+
+		power {
+			label = "firefly:yellow:power";
+			linux,default-trigger = "ir-power-click";
+			gpios = <&rk805 1 GPIO_ACTIVE_HIGH>;
+			default-state = "on";
+		};
+
+		user {
+			label = "firefly:blue:user";
+			linux,default-trigger = "ir-user-click";
+			gpios = <&rk805 0 GPIO_ACTIVE_HIGH>;
+			default-state = "on";
+		};
+	};
+
+	xin32k: xin32k {
+		compatible = "fixed-clock";
+		clock-frequency = <32768>;
+		clock-output-names = "xin32k";
+		#clock-cells = <0>;
+	};
+};
+
+&uart2 {
+	dma-names = "tx", "rx";
+	status = "okay";
+};
+
+&vccio_sd {
+	gpios = <&gpio0 27 GPIO_ACTIVE_HIGH>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&sd_pwr_1800_sel>;
+};
+
+&vcc_sd {
+	status = "disabled";
+};
+
+&gmac_clkin {
+	clock-frequency = <50000000>;
+};
+
+&sdio_pwrseq {
+	reset-gpios = <&gpio3 RK_PB0 GPIO_ACTIVE_LOW>;
+};
+
+&gmac2io {
+	phy-mode = "rmii";
+	clock_in_out = "output";
+	assigned-clocks = <&cru SCLK_MAC2IO_REFOUT>;
+	assigned-clock-parents = <&gmac_clkin>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&rmiim1_pins &gmac_reset>;
+	status = "okay";
+};
+
+&codec {
+	io-channels = <&saradc 0>;
+	hp-det-adc-value = <1800>;
+	rk3328-codec-spk-gpiomute;
+};
+
+&pinctrl {
+
+	sdio-pwrseq {
+		wifi_enable_h: wifi-enable-h {
+			rockchip,pins =
+				<3 RK_PB0 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	gmac2phy {
+		gmac_reset: gamc-reset {
+			rockchip,pins =
+				<1 18 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	vccio-sd {
+		sd_pwr_1800_sel:sd-pwr-1800-sel {
+			rockchip,pins =
+				<0 RK_PD3 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+};
+
+&rkvdec {
+	vcodec-supply = <&vdd_logic>;
+};
+
+&sdmmc {
+	vmmc-supply = <&vcc_io>;
+};
+
+&sdmmc_ext {
+	bus-width = <4>;
+	//cap-sd-highspeed;
+	cap-sdio-irq;
+	disable-wp;
+	keep-power-in-suspend;
+	max-frequency = <500000000>;
+	mmc-pwrseq = <&sdio_pwrseq>;
+	num-slots = <1>;
+	non-removable;
+	pinctrl-names = "default";
+	pinctrl-0 = <&sdmmc0ext_clk &sdmmc0ext_cmd &sdmmc0ext_bus4>;
+	supports-sdio;
+	status = "okay";
+	vmmc-supply = <&vcc_io>;
+};
+
+&uart1 {
+	status = "disabled";
+};
+
+&usb20_otg {
+	dr_mode = "otg";
+};
+
