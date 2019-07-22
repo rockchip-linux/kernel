@@ -30,6 +30,11 @@
 #include <sound/dmaengine_pcm.h>
 #include "rk3328_codec.h"
 
+#include <linux/iio/iio.h>
+#include <linux/iio/machine.h>
+#include <linux/iio/driver.h>
+#include <linux/iio/consumer.h>
+
 /*
  * volume setting
  * 0: -39dB
@@ -41,15 +46,25 @@
 #define RK3328_GRF_SOC_CON2	(0x0408)
 #define RK3328_GRF_SOC_CON10	(0x0428)
 #define INITIAL_FREQ	(11289600)
+#define RK3328_ADC_INVALID_ADVALUE -1
+#define RK3328_ADC_EMPTY_ADVALUE 1023
+#define RK3328_ADC_DRIFT_ADVALUE 70
+#define RK3328_ADC_REF_ADVALUE 1800
 
 struct rk3328_codec_priv {
 	struct regmap *regmap;
 	struct regmap *grf;
 	struct clk *mclk;
 	struct clk *pclk;
+	struct iio_channel *chan;
+	struct delayed_work adc_poll_work;
 	unsigned int sclk;
 	int spk_depop_time; /* msec */
-	unsigned gpiomute;
+	u32 hp_det_adc_value;
+	bool hp_insert;
+	bool spk_gpiomute;
+	bool hp_gpiomute;
+	bool line_in_status;
 };
 
 static const struct reg_default rk3328_codec_reg_defaults[] = {
@@ -125,10 +140,8 @@ static int rk3328_set_dai_fmt(struct snd_soc_dai *codec_dai,
 
 static void rk3328_analog_output(struct rk3328_codec_priv *rk3328, int mute)
 {
-	if (rk3328->gpiomute) {
-		regmap_write(rk3328->grf, RK3328_GRF_SOC_CON10,
-			(BIT(1) << 16) | (mute << 1));
-	}
+	regmap_write(rk3328->grf, RK3328_GRF_SOC_CON10,
+		(BIT(1) << 16) | (mute << 1));
 }
 
 static int rk3328_digital_mute(struct snd_soc_dai *dai, int mute)
@@ -215,10 +228,10 @@ static int rk3328_codec_open_playback(struct snd_soc_codec *codec)
 	struct rk3328_codec_priv *rk3328 = snd_soc_codec_get_drvdata(codec);
 	int i = 0;
 
-	regmap_update_bits(rk3328->regmap, DAC_PRECHARGE_CTRL,
+	/*regmap_update_bits(rk3328->regmap, DAC_PRECHARGE_CTRL,
 			   DAC_CHARGE_CURRENT_ALL_MASK,
 			   DAC_CHARGE_CURRENT_I);
-
+	*/
 	for (i = 0; i < PLAYBACK_OPEN_LIST_LEN; i++) {
 		regmap_update_bits(rk3328->regmap,
 				   playback_open_list[i].reg,
@@ -228,8 +241,9 @@ static int rk3328_codec_open_playback(struct snd_soc_codec *codec)
 	}
 
 	msleep(rk3328->spk_depop_time);
-	rk3328_analog_output(rk3328, 1);
-
+	if(rk3328->hp_gpiomute || (!rk3328->hp_insert && rk3328->spk_gpiomute)) {
+		rk3328_analog_output(rk3328, 1);
+	}
 	regmap_update_bits(rk3328->regmap, HPOUTL_GAIN_CTRL,
 			   HPOUTL_GAIN_MASK, OUT_VOLUME);
 	regmap_update_bits(rk3328->regmap, HPOUTR_GAIN_CTRL,
@@ -271,8 +285,9 @@ static int rk3328_codec_close_playback(struct snd_soc_codec *codec)
 	struct rk3328_codec_priv *rk3328 = snd_soc_codec_get_drvdata(codec);
 	int i = 0;
 
-	rk3328_analog_output(rk3328, 0);
-
+	if(rk3328->hp_gpiomute || (!rk3328->hp_insert && rk3328->spk_gpiomute)) {
+		rk3328_analog_output(rk3328, 0);
+	}
 	regmap_update_bits(rk3328->regmap, HPOUTL_GAIN_CTRL,
 			   HPOUTL_GAIN_MASK, 0);
 	regmap_update_bits(rk3328->regmap, HPOUTR_GAIN_CTRL,
@@ -286,9 +301,10 @@ static int rk3328_codec_close_playback(struct snd_soc_codec *codec)
 		mdelay(1);
 	}
 
-	regmap_update_bits(rk3328->regmap, DAC_PRECHARGE_CTRL,
+	/*regmap_update_bits(rk3328->regmap, DAC_PRECHARGE_CTRL,
 			   DAC_CHARGE_CURRENT_ALL_MASK,
 			   DAC_CHARGE_CURRENT_I);
+	*/
 	return 0;
 }
 
@@ -377,10 +393,57 @@ static struct snd_soc_dai_driver rk3328_dai[] = {
 	},
 };
 
+static void rk3328_hp_adc_poll(struct work_struct *work)
+{
+	struct rk3328_codec_priv *rk3328;
+	int ret, val;
+	rk3328 = container_of(work, struct rk3328_codec_priv, adc_poll_work.work);
+
+	ret = iio_read_channel_raw(rk3328->chan, &val);
+
+	if(val > RK3328_ADC_INVALID_ADVALUE && val < RK3328_ADC_EMPTY_ADVALUE) {
+		if(val > rk3328->hp_det_adc_value - RK3328_ADC_DRIFT_ADVALUE &&
+		   val < rk3328->hp_det_adc_value + RK3328_ADC_DRIFT_ADVALUE) {
+			if (!rk3328->hp_insert) {
+				rk3328_analog_output(rk3328, 0);
+				rk3328->hp_insert = true;
+			}
+		} else {
+			if(rk3328->hp_insert && val > 50) {
+				rk3328_analog_output(rk3328, 1);
+				rk3328->hp_insert = false;
+			}
+		}
+	}
+	schedule_delayed_work(&rk3328->adc_poll_work, 1000);
+}
+
+static void rk3328_codec_hp_adc_det(struct snd_soc_codec *codec)
+{
+	int ret, val;
+	struct rk3328_codec_priv *rk3328 = snd_soc_codec_get_drvdata(codec);
+
+	rk3328->hp_insert = false;
+
+	if (rk3328->chan) {
+		ret = iio_read_channel_raw(rk3328->chan, &val);
+		if(val > RK3328_ADC_INVALID_ADVALUE && val < RK3328_ADC_EMPTY_ADVALUE) {
+			if(val > rk3328->hp_det_adc_value - RK3328_ADC_DRIFT_ADVALUE &&
+				val < rk3328->hp_det_adc_value + RK3328_ADC_DRIFT_ADVALUE) {
+				rk3328->hp_insert = true;
+				rk3328_analog_output(rk3328, 0);
+			}
+			INIT_DELAYED_WORK(&rk3328->adc_poll_work, rk3328_hp_adc_poll);
+			schedule_delayed_work(&rk3328->adc_poll_work, 1000);
+		}
+	}
+}
+
 static int rk3328_codec_probe(struct snd_soc_codec *codec)
 {
 	rk3328_codec_reset(codec);
 	rk3328_codec_power_on(codec, 0);
+	rk3328_codec_hp_adc_det(codec);
 
 	return 0;
 }
@@ -457,12 +520,28 @@ static int rk3328_platform_probe(struct platform_device *pdev)
 	struct rk3328_codec_priv *rk3328;
 	struct resource *res;
 	struct regmap *grf;
+	struct iio_channel *chan;
+	u32 adc_value;
 	void __iomem *base;
 	int ret = 0;
 
 	rk3328 = devm_kzalloc(&pdev->dev, sizeof(*rk3328), GFP_KERNEL);
 	if (!rk3328)
 		return -ENOMEM;
+
+	chan = iio_channel_get(&pdev->dev, NULL);
+	if (IS_ERR(chan)) {
+		dev_warn(&pdev->dev, "rk3328 have no io-channels defined\n");
+		chan = NULL;
+	} else {
+		if (!of_property_read_u32(rk3328_np, "hp-det-adc-value", &adc_value)) {
+			rk3328->hp_det_adc_value = adc_value / RK3328_ADC_REF_ADVALUE * RK3328_ADC_EMPTY_ADVALUE;
+		} else {
+			chan = NULL;
+			dev_err(&pdev->dev, "rk3328 have no hp_det_adc_value defined\n");
+		}
+	}
+	rk3328->chan = chan;
 
 	grf = syscon_regmap_lookup_by_phandle(rk3328_np,
 					      "rockchip,grf");
@@ -482,8 +561,9 @@ static int rk3328_platform_probe(struct platform_device *pdev)
 		rk3328->spk_depop_time = 100;
 	}
 	
-	rk3328->gpiomute = of_property_read_bool(rk3328_np, "rk3328-codec-gpiomute");
-	printk("gpio_mute:%d \n", rk3328->gpiomute);
+	rk3328->spk_gpiomute = of_property_read_bool(rk3328_np, "rk3328-codec-spk-gpiomute");
+
+	rk3328->hp_gpiomute = of_property_read_bool(rk3328_np, "rk3328-codec-hp-gpiomute");
 
 	rk3328_analog_output(rk3328, 0);
 

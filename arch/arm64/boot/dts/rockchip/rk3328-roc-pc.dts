@@ -33,7 +33,7 @@
 };
 
 &codec {
-	rk3328-codec-gpiomute;
+	rk3328-codec-hp-gpiomute;
 };
 
 &rk805 {
