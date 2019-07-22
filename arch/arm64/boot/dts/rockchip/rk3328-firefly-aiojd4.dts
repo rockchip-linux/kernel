@@ -33,14 +33,14 @@
 		compatible = "gpio-leds";
 
 		power {
-			label = "firefly:yellow:power";
+			label = "firefly:yellow:user";
 			linux,default-trigger = "ir-power-click";
 			gpios = <&rk805 1 GPIO_ACTIVE_HIGH>;
 			default-state = "on";
 		};
 
 		user {
-			label = "firefly:blue:user";
+			label = "firefly:blue:power";
 			linux,default-trigger = "ir-user-click";
 			gpios = <&rk805 0 GPIO_ACTIVE_HIGH>;
 			default-state = "on";
