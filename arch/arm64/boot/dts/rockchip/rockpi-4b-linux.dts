@@ -598,15 +598,16 @@
 	};
 
 	rockpi_mcu: rockpi_mcu@45 {
-	    compatible = "rockpi_mcu";
-	    reg = <0x45>;
+    	compatible = "rockpi_mcu";
+    	reg = <0x45>;
+		status = "disabled";
 	};
 
 	rockpi_ft5406: rockpi_ft5406@38 {
 		compatible = "rockpi_ft5406";
 		reg = <0x38>;
+		status = "disabled";
 	};
-
 };
 
 &i2c4 {
@@ -808,6 +809,7 @@
     status = "disabled";
 };
 
+/*
 &dsi1 {
 	rockchip,dual-channel = <&dsi>;
 	status = "okay";
@@ -821,6 +823,7 @@
 	};
 
 };
+*/
 
 &saradc {
 	status = "okay";

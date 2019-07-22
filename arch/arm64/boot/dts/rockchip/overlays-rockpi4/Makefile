@@ -12,7 +12,8 @@ dtbo-$(CONFIG_ARCH_ROCKCHIP) += \
 	spi1-waveshare35b-v2.dtbo \
 	spi1-flash.dtbo \
 	hifiberry-dac.dtbo \
-	hifiberry-dacplus.dtbo
+	hifiberry-dacplus.dtbo \
+	raspberrypi-7-inch-lcd.dtbo
 
 targets += dtbs dtbs_install
 targets += $(dtbo-y)
