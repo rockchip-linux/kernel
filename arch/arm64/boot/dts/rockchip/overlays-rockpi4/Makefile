@@ -13,7 +13,8 @@ dtbo-$(CONFIG_ARCH_ROCKCHIP) += \
 	spi1-flash.dtbo \
 	hifiberry-dac.dtbo \
 	hifiberry-dacplus.dtbo \
-	raspberrypi-7-inch-lcd.dtbo
+	raspberrypi-7-inch-lcd.dtbo \
+	cpufreq.dtbo
 
 targets += dtbs dtbs_install
 targets += $(dtbo-y)

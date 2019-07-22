@@ -1,0 +1,29 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+	model = "ROCK PI 4B";
+	compatible = "rockchip,rockpi","rockchip,rk3399";
+
+	fragment@0 {
+		target = <&cluster0_opp>;
+
+		__overlay__ {
+			opp-1512000000 {
+				opp-hz = /bits/ 64 <1512000000>;
+				opp-microvolt = <1150000>;
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&cluster1_opp>;
+
+		__overlay__ {
+			opp-2016000000 {
+				opp-hz = /bits/ 64 <2016000000>;
+				opp-microvolt = <1250000>;
+			};
+		};
+	};
+};
