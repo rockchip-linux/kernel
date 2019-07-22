@@ -10,7 +10,7 @@
 
 		__overlay__ {
 			max-freq = <50000000>;
-			dmas = <&dmac_peri 10>, <&dmac_peri 11>;
+			dmas = <&dmac_peri 0xc>, <&dmac_peri 0xd>;
 			dma-names = "tx","rx";
 			#address-cells = <1>;
 			#size-cells = <0>;
