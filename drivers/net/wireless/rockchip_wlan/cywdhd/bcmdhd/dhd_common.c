@@ -94,7 +94,7 @@
 extern void htsf_update(struct dhd_info *dhd, void *data);
 #endif
 
-int dhd_msg_level = DHD_ERROR_VAL | DHD_MSGTRACE_VAL | DHD_EVENT_VAL | DHD_FWLOG_VAL;
+int dhd_msg_level = DHD_ERROR_VAL | DHD_MSGTRACE_VAL | DHD_FWLOG_VAL;
 
 
 #if defined(WL_WLC_SHIM)
