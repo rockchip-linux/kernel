@@ -357,6 +357,8 @@ static int __hci_req_sync(struct hci_dev *hdev,
 		break;
 	}
 
+	kfree_skb(hdev->req_skb);
+	hdev->req_skb = NULL;
 	hdev->req_status = hdev->req_result = 0;
 
 	BT_DBG("%s end: err %d", hdev->name, err);
