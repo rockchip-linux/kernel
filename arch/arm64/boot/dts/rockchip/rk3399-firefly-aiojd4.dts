@@ -101,6 +101,10 @@
 	/delete-property/ gpio;
 };
 
+&pcie0 {
+	ep-gpios = <&gpio4 30 GPIO_ACTIVE_HIGH>;
+};
+
 &uart4 {
     status = "disabled";
 };
