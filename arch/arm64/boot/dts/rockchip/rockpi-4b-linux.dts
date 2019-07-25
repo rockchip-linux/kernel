@@ -611,10 +611,8 @@
 };
 
 &i2c4 {
-	status = "okay";
-
 	camera1: camera-module@10 {
-		status = "okay";
+		status = "disabled";
 		compatible = "sony,imx219";
 		reg = <0x10>;
 
