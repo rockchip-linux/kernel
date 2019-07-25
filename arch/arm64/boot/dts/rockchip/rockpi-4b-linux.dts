@@ -628,6 +628,23 @@
 			};
 		};
 	};
+
+	camera2: camera-module@36 {
+		status = "disabled";
+		compatible = "ovti,ov5647";
+		reg = <0x36>;
+
+		clocks = <&cru SCLK_CIF_OUT>;
+		clock-names = "clk_cif_out";
+		pinctrl-names = "rockchip,camera_default";
+
+		port {
+			ucam_out1: endpoint {
+				remote-endpoint = <&mipi_in_ucam0>;
+				data-lanes = <1 2>;
+			};
+		};
+	};
 };
 
 &i2c2 {
@@ -961,7 +978,8 @@
 		i2c4_xfer: i2c4-xfer {
 			rockchip,pins =
 				<1 12 RK_FUNC_1 &pcfg_pull_up>,
-				<1 11 RK_FUNC_1 &pcfg_pull_up>;
+				<1 11 RK_FUNC_1 &pcfg_pull_up>,
+				<1 13 RK_FUNC_GPIO &pcfg_pull_up>;	//camera module enable pin
 		};
 	};
 	i2s0 {
