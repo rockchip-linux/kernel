@@ -848,6 +848,7 @@ static const struct flash_info spi_nor_ids[] = {
 
 	/* XTX SPI Nor Flash */
 	{ "xt25f32b", INFO(0x0b4016, 0, 64 * 1024, 64, SECT_4K) },
+	{ "xt25f128b", INFO(0x0b4018, 0, 64 * 1024, 256, SECT_4K) },
 	{ },
 };
 
