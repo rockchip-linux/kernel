@@ -146,6 +146,10 @@ struct tc35874x_state {
 	struct v4l2_ctrl *audio_sampling_rate_ctrl;
 	struct v4l2_ctrl *audio_present_ctrl;
 
+	/* fake controls to satisfy someone */
+	struct v4l2_ctrl *exposure;
+	struct v4l2_ctrl *vblank;
+
 	struct delayed_work delayed_work_enable_hotplug;
 
 	struct timer_list timer;
@@ -1412,6 +1416,16 @@ static int tc35874x_subscribe_event(struct v4l2_subdev *sd, struct v4l2_fh *fh,
 	}
 }
 
+/* --------------- CTRL OPS --------------- */
+static int tc35874x_s_ctrl(struct v4l2_ctrl *ctrl)
+{
+	return 0;
+}
+
+static const struct v4l2_ctrl_ops tc35874x_ctrl_ops = {
+	.s_ctrl = tc35874x_s_ctrl,
+};
+
 /* --------------- VIDEO OPS --------------- */
 
 static int tc35874x_g_input_status(struct v4l2_subdev *sd, u32 *status)
@@ -2080,6 +2094,10 @@ static int tc35874x_probe(struct i2c_client *client,
 
 	state->audio_present_ctrl = v4l2_ctrl_new_custom(&state->hdl,
 			&tc35874x_ctrl_audio_present, NULL);
+	state->exposure = v4l2_ctrl_new_std(&state->hdl,
+			&tc35874x_ctrl_ops, V4L2_CID_EXPOSURE, 0, 100, 1, 0);
+	state->vblank = v4l2_ctrl_new_std(&state->hdl,
+			&tc35874x_ctrl_ops, V4L2_CID_VBLANK, 0, 100, 1, 0);
 
 	sd->ctrl_handler = &state->hdl;
 	if (state->hdl.error) {
