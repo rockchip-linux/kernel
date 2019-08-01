@@ -46,9 +46,16 @@ MODULE_LICENSE("Dual BSD/GPL");
 #define WK2XXX_STATUS_BRK   4
 #define WK2XXX_STATUS_OE    8
 
+
+//#define WK2XX_DEBUG(x)      printk(KERN_ALERT "ttysWK%d: pass_counter = %d\n",s->port.iobase, pass_counter);
+
+
+#define WK2XX_DEBUG(format, ...) printk (#format, ## __VA_ARGS__)
+
 static DEFINE_MUTEX(wk2xxxs_lock);                /* race on probe */
 static DEFINE_MUTEX(wk2xxxs_reg_lock);
 static DEFINE_MUTEX(wk2xxs_work_lock);                /* work on probe */
+static DEFINE_MUTEX(wk2xxs_global_register_lock);                /* work on wk2xxx_startup read or write global register */
 
 //extern void tty_flip_buffer_push(struct tty_port *port);
 
@@ -292,107 +299,85 @@ static void wk2xxx_work(struct work_struct *w)
 	int work_conf_flag;
 
 	do {
-	mutex_lock(&wk2xxs_work_lock);
-		work_start_tx_flag = s->start_tx_flag;
+	    mutex_lock(&wk2xxs_work_lock);
+	
+    	work_start_tx_flag = s->start_tx_flag;
 		if(work_start_tx_flag)
 			s->start_tx_flag = 0;
 
-	 work_stop_rx_flag = s->stop_rx_flag;
+	    work_stop_rx_flag = s->stop_rx_flag;
 		if(work_stop_rx_flag)
 			s->stop_rx_flag = 0;
 
 		work_conf_flag = s->conf_flag;
 
-	 work_irq_flag = s->irq_flag;
-		if(work_irq_flag)
+	    work_irq_flag = s->irq_flag;
+        if(work_irq_flag)
 			s->irq_flag = 0;
 
-		mutex_unlock(&wk2xxs_work_lock);
+	    mutex_unlock(&wk2xxs_work_lock);
 
 	//printk("%s : ----- work_start_tx_flag = %d \r\n",__func__,work_start_tx_flag);
 
-		if(work_start_tx_flag)
+		if(work_start_tx_flag)  //使能 发送FIFO触点中断
 		{
 			wk2xxx_read_reg(s->spi_wk,s->port.iobase,WK2XXX_SIER,&rx);
 			rx |= WK2XXX_TFTRIG_IEN;
-		//printk("w2xxx_work----start_tx_flag:%d--SIER:%d--\n",work_start_tx_flag,rx);
 			wk2xxx_write_reg(s->spi_wk,s->port.iobase,WK2XXX_SIER,rx);
-
-			#ifdef _DEBUG_WK2XXX1
-			wk2xxx_read_reg(s->spi_wk,s->port.iobase,WK2XXX_SIER,&rx);
-			printk(KERN_ALERT "w2xxx_work----start_tx_flag:%d--SIER:%d--\n",work_start_tx_flag,rx);
-			#endif
 		}
 
-	//printk("%s : ----- work_stop_rx_flag = %d \r\n",__func__,work_stop_rx_flag);
 	if(work_stop_rx_flag)
 		{
+            //禁用接收超时 和 触点终端
 			wk2xxx_read_reg(s->spi_wk,s->port.iobase,WK2XXX_SIER,&rx);
-		#ifdef _DEBUG_WK2XXX1
-			printk(KERN_ALERT "stop_rx_flag----SIER:%d--\n",rx);
-		#endif
 			rx &=~WK2XXX_RFTRIG_IEN;
 			rx &=~WK2XXX_RXOUT_IEN;
 			wk2xxx_write_reg(s->spi_wk,s->port.iobase,WK2XXX_SIER,rx);
-		#ifdef _DEBUG_WK2XXX1
-			printk(KERN_ALERT "stop_rx_flag----SIFR:%d--\n",rx);
-		#endif
+
+            // 清接收超时和触点终端标志
 			wk2xxx_read_reg(s->spi_wk,s->port.iobase,WK2XXX_SIFR,&rx);
 			rx &= ~WK2XXX_RFTRIG_INT;
 			rx &= ~WK2XXX_RXOVT_INT;
 			wk2xxx_write_reg(s->spi_wk,s->port.iobase,WK2XXX_SIFR,rx);
-
-		//printk("w2xxx_work----stop_rx_flag:%d--SIER:%d--\n",work_stop_rx_flag,rx);
-		#ifdef _DEBUG_WK2XXX1
-				printk(KERN_ALERT "stop_rx_flag----SIFR:%d--\n",rx);
-		#endif
 		}
 
-	//printk("%s : ----- work_irq_flag = %d \r\n",__func__,work_irq_flag);
-		if(work_irq_flag)
+		if(work_irq_flag)   //如果有硬件中断
 		{
-			//printk("--wk2xxx_work---in---%d\n", ++count);
 			wk2xxxirq_app(&s->port);
 				s->irq_fail = 1;
 		}
-	}while (!s->force_end_work && !freezing(current) && \
-	(work_irq_flag || work_stop_rx_flag ));
-	 /*work_stop_tx_flag || work_tx_empty_flag || work_conf_flag*/
-
-#ifdef _DEBUG_WK2XXX
-	printk("-----exit------- work ------\n");
-#endif
-
-
-	//printk("%s : ----- s->start_tx_fail = %d \r\n",__func__,s->start_tx_fail);
+	}while (!s->force_end_work && \
+                    !freezing(current) && \
+	                (work_irq_flag || work_stop_rx_flag ) \
+                     );
+                     
 	if(s->start_tx_fail)
 	{
-			wk2xxx_read_reg(s->spi_wk,s->port.iobase,WK2XXX_SIER,&rx);
-			rx |= WK2XXX_TFTRIG_IEN;
+        wk2xxx_read_reg(s->spi_wk,s->port.iobase,WK2XXX_SIER,&rx);
+        rx |= WK2XXX_TFTRIG_IEN;
 		wk2xxx_write_reg(s->spi_wk,s->port.iobase,WK2XXX_SIER,rx);
 		s->start_tx_fail =0;
 	}
 
 	if(s->stop_rx_fail)
 	{
-			wk2xxx_read_reg(s->spi_wk,s->port.iobase,WK2XXX_SIER,&rx);
-			rx &=~WK2XXX_RFTRIG_IEN;
-		rx &=~WK2XXX_RXOUT_IEN;
-		wk2xxx_write_reg(s->spi_wk,s->port.iobase,WK2XXX_SIER,rx);
+        wk2xxx_read_reg(s->spi_wk,s->port.iobase,WK2XXX_SIER,&rx);
+        rx &=~WK2XXX_RFTRIG_IEN;
+        rx &=~WK2XXX_RXOUT_IEN;
+        wk2xxx_write_reg(s->spi_wk,s->port.iobase,WK2XXX_SIER,rx);
 
-			wk2xxx_read_reg(s->spi_wk,s->port.iobase,WK2XXX_SIFR,&rx);
-			rx &= ~WK2XXX_RFTRIG_INT;
-			rx &= ~WK2XXX_RXOVT_INT;
-			wk2xxx_write_reg(s->spi_wk,s->port.iobase,WK2XXX_SIFR,rx);
-			s->stop_rx_fail =0;
-	}
+        wk2xxx_read_reg(s->spi_wk,s->port.iobase,WK2XXX_SIFR,&rx);
+        rx &= ~WK2XXX_RFTRIG_INT;
+        rx &= ~WK2XXX_RXOVT_INT;
+        wk2xxx_write_reg(s->spi_wk,s->port.iobase,WK2XXX_SIFR,rx);
+        s->stop_rx_fail =0;
+    }
 
 	if(s->irq_fail)
 	{
-	 s->irq_fail = 0;
-		enable_irq(s->port.irq);
+        s->irq_fail = 0;
+        enable_irq(s->port.irq);
 	}
-//printk("work_pending() =: %d tx_empty_flag = : %d start_tx_flag = :%d stop_tx_flag = :%d conf_flag =: %d irq_flag =: %d tx_empty=:%d\n",work_pending(&s->work),s->tx_empty_flag,s->start_tx_flag,s->stop_tx_flag,s->stop_rx_flag,s->conf_flag,s->          irq_flag,s->tx_empty);
 
 #ifdef _DEBUG_WK2XXX
     printk("--wk2xxx_work---exit---\n");
@@ -402,157 +387,140 @@ static void wk2xxx_work(struct work_struct *w)
 
 static void wk2xxx_rx_chars(struct uart_port *port)//vk32xx_port *port)
 {
-#ifdef _DEBUG_WK2XXX
-      //printk(KERN_ALERT "wk2xxx_rx_chars()---------in---\n");
-#endif
-
     struct wk2xxx_port *s = container_of(port,struct wk2xxx_port,port);
     uint8_t fsr,lsr,dat[1],rx_dat[256]={0};
     unsigned int ch,flg,sifr, ignored=0,status = 0,rx_count=0;
     int rfcnt=0,rx_num=0;
+
     wk2xxx_write_reg(s->spi_wk,s->port.iobase,WK2XXX_SPAGE,WK2XXX_PAGE0);//set register in page0
     wk2xxx_read_reg(s->spi_wk,s->port.iobase,WK2XXX_FSR,dat);
     fsr = dat[0];
+
     wk2xxx_read_reg(s->spi_wk,s->port.iobase,WK2XXX_LSR,dat);
     lsr = dat[0];
+
     wk2xxx_read_reg(s->spi_wk,s->port.iobase,WK2XXX_SIFR,dat);
     sifr=dat[0];
-#ifdef _DEBUG_WK2XXX
-      printk(KERN_ALERT "rx_chars()-port:%d--fsr:0x%x--lsr:0x%x--\n",s->port.iobase,fsr,lsr);
-#endif
+
 	if(!(sifr&0x80))//no error
 	{
 		flg = TTY_NORMAL;
-		if (fsr& WK2XXX_RDAT)
-		{
-			wk2xxx_read_reg(s->spi_wk,s->port.iobase,WK2XXX_RFCNT,dat);
-			rfcnt=dat[0];
-		if(rfcnt==0)
-		{
-			rfcnt=255;
-		}
-#ifdef _DEBUG_WK2XXX
-        //printk(KERN_ALERT "1wk2xxx_rx_chars()----port:%d--RFCNT:0x%x----\n",s->port.iobase,rfcnt);
-#endif
+        if (fsr& WK2XXX_RDAT)   //接收FIFO未空
+        {
+            //子串口接收的FIFO个数
+            wk2xxx_read_reg(s->spi_wk,s->port.iobase,WK2XXX_RFCNT,dat);
+            rfcnt = dat[0];
+            if(rfcnt == 0)
+            {
+                rfcnt=255;
+            }
 
-	wk2xxx_read_fifo(s->spi_wk,s->port.iobase, rfcnt,rx_dat);
+            wk2xxx_read_fifo(s->spi_wk,s->port.iobase, rfcnt,rx_dat);
+            s->port.icount.rx += rfcnt;     //加计数
 
-		s->port.icount.rx+=rfcnt;
-		for(rx_num=0;rx_num<rfcnt;rx_num++)
-		{
-			if (uart_handle_sysrq_char(&s->port,rx_dat[rx_num]))//.state, ch))
-			break;//
+            //没64字节提交一次buff
+            for(rx_num=0; rx_num < rfcnt; rx_num++)
+            {
+                if (uart_handle_sysrq_char(&s->port,rx_dat[rx_num]))//.state, ch))
+                    break;//
 
-#ifdef _DEBUG_WK2XXX5
-       // printk(KERN_ALERT "rx_chars:0x%x----\n",rx_dat[rx_num]);
-#endif
-		//printk(KERN_ALERT "rx_chars:0x%x----\n",rx_dat[rx_num]);
-                  uart_insert_char(&s->port, status, WK2XXX_STATUS_OE, rx_dat[rx_num], flg);
-                  rx_count++;
+                uart_insert_char(&s->port, status, WK2XXX_STATUS_OE, rx_dat[rx_num], flg);
+                rx_count++;
 
-                  if ((rx_count >= 64 ) && (s->port.state->port.tty != NULL))
-                  {
-					tty_flip_buffer_push(&s->port.state->port);
-                   rx_count = 0;
-                 }
+                if ((rx_count >= 64 ) && (s->port.state->port.tty != NULL))
+                {
+                    tty_flip_buffer_push(&s->port. state->port);
+                    rx_count = 0;
+                }
+           }
 
-    }//for
-       if((rx_count > 0)&&(s->port.state->port.tty != NULL))
-  {
-  #ifdef _DEBUG_WK2XXX
-          printk(KERN_ALERT  "push buffer tty flip port = :%d count = :%d\n",s->port.iobase,rx_count);
-  #endif
-         tty_flip_buffer_push(&s->port.state->port);
-         rx_count = 0;
-  }
-
-  }
-}//ifm
-else//error
-{
-    while (fsr& WK2XXX_RDAT)/**/
+           if((rx_count > 0)&&(s->port.state->port.tty != NULL))
+            {
+                tty_flip_buffer_push(&s->port.state->port);
+                rx_count = 0;
+            }
+        }
+    }
+    else//error
+    {
+        while (fsr& WK2XXX_RDAT)/**/ //循环校验错误标志位
         {
             wk2xxx_read_reg(s->spi_wk,s->port.iobase,WK2XXX_FDAT,dat);
-        ch = (int)dat[0];
+            ch = (int)dat[0];
 
-#ifdef _DEBUG_WK2XXX
-        printk(KERN_ALERT "wk2xxx_rx_chars()----port:%d--RXDAT:0x%x----\n",s->port.iobase,ch);
-#endif
+            s->port.icount.rx++;
 
-        s->port.icount.rx++;
-        //rx_count++;
-#ifdef _DEBUG_WK2XXX1
-            printk(KERN_ALERT "wk2xxx_rx_chars()----port:%d error\n",s->port.iobase);
-#endif
             flg = TTY_NORMAL;
-        if (lsr&(WK2XXX_OE |WK2XXX_FE|WK2XXX_PE|WK2XXX_BI))
+            if (lsr&(WK2XXX_OE |WK2XXX_FE|WK2XXX_PE|WK2XXX_BI))
+            {
+                printk(KERN_ALERT "wk2xxx_rx_chars()----port:%lx error,lsr:%x!!!!!!!!!!!!!!!!!\n",s->port.iobase,lsr);
+                if (lsr & WK2XXX_PE)
                 {
-               printk(KERN_ALERT "wk2xxx_rx_chars()----port:%lx error,lsr:%x!!!!!!!!!!!!!!!!!\n",s->port.iobase,lsr);
-                        //goto handle_error;
-            if (lsr & WK2XXX_PE)
-                {
-                        s->port.icount.parity++;
-                        status |= WK2XXX_STATUS_PE;
-                        flg = TTY_PARITY;
+                    s->port.icount.parity++;
+                    status |= WK2XXX_STATUS_PE;
+                    flg = TTY_PARITY;
                 }
                 if (lsr & WK2XXX_FE)
                 {
-                        s->port.icount.frame++;
-                        status |= WK2XXX_STATUS_FE;
-                        flg = TTY_FRAME;
+                    s->port.icount.frame++;
+                    status |= WK2XXX_STATUS_FE;
+                    flg = TTY_FRAME;
                 }
                 if (lsr & WK2XXX_OE)
                 {
-                        s->port.icount.overrun++;
-                        status |= WK2XXX_STATUS_OE;
-                        flg = TTY_OVERRUN;
+                    s->port.icount.overrun++;
+                    status |= WK2XXX_STATUS_OE;
+                    flg = TTY_OVERRUN;
                 }
                 if(lsr&fsr & WK2XXX_BI)
                 {
-                        s->port.icount.brk++;
-                        status |= WK2XXX_STATUS_BRK;
-                        flg = TTY_BREAK;
+                    s->port.icount.brk++;
+                    status |= WK2XXX_STATUS_BRK;
+                    flg = TTY_BREAK;
                 }
 
                 if (++ignored > 100)
-                       goto out;
-
-                 goto ignore_char;
-    }
+                {
+                    goto out;
+                }
+                goto ignore_char;
+            }
 
 error_return:
-	if (uart_handle_sysrq_char(&s->port,ch))//.state, ch))
-        goto ignore_char;
+            if (uart_handle_sysrq_char(&s->port,ch))//.state, ch))
+                goto ignore_char;
 
-	uart_insert_char(&s->port, status, WK2XXX_STATUS_OE, ch, flg);
-	rx_count++;
+            uart_insert_char(&s->port, status, WK2XXX_STATUS_OE, ch, flg);
+            rx_count++;
 
-	if ((rx_count >= 64 ) && (s->port.state->port.tty != NULL))
-	{
-	 tty_flip_buffer_push(&s->port.state->port);
-	 rx_count = 0;
-	}
+            if ((rx_count >= 64 ) && (s->port.state->port.tty != NULL))
+            {
+                tty_flip_buffer_push(&s->port.state->port);
+                rx_count = 0;
+            }
+
 #ifdef _DEBUG_WK2XXX1
-                printk(KERN_ALERT  " s->port.icount.rx = 0x%X char = 0x%X flg = 0x%X port = %d rx_count = %d\n",s->port.icount.rx,ch,flg,s->port.iobase,rx_count);
+            printk(KERN_ALERT  " s->port.icount.rx = 0x%X char = 0x%X flg = 0x%X port = %d rx_count = %d\n",s->port.icount.rx,ch,flg,s->port.iobase,rx_count);
 #endif
-        ignore_char:
 
+ignore_char:
             wk2xxx_read_reg(s->spi_wk,s->port.iobase,WK2XXX_FSR,dat);
             fsr = dat[0];
             wk2xxx_read_reg(s->spi_wk,s->port.iobase,WK2XXX_LSR,dat);
             lsr = dat[0];
         }
-out:
-if((rx_count > 0)&&(s->port.state->port.tty != NULL))
-{
+
+    out:
+    if((rx_count > 0)&&(s->port.state->port.tty != NULL))
+    {
 #ifdef _DEBUG_WK2XXX1
-        printk(KERN_ALERT  "push buffer tty flip port = :%d count = :%d\n",s->port.iobase,rx_count);
+       printk(KERN_ALERT  "push buffer tty flip port = :%d count = :%d\n",s->port.iobase,rx_count);
 #endif
         tty_flip_buffer_push(&s->port.state->port);
         rx_count = 0;
-}
+    }
 
-}//if()else
+    }//if()else
 
  #if 0
    printk(KERN_ALERT  " rx_num = :%d\n",s->port.icount.rx);
@@ -712,101 +680,105 @@ static irqreturn_t wk2xxx_irq(int irq, void *dev_id)//
 
 static void wk2xxxirq_app(struct uart_port *port)//
 {
-        struct wk2xxx_port *s = container_of(port,struct wk2xxx_port,port);
+    struct wk2xxx_port *s = container_of(port,struct wk2xxx_port,port);
 #ifdef _DEBUG_WK2XXX
     printk(KERN_ALERT "wk2xxxirq_app()------port:%d--------------\n",s->port.iobase);
 #endif
-        unsigned int  pass_counter = 0;
-        uint8_t sifr,gifr,sier,dat[1];
-#ifdef _DEBUG_WK2XXX1
+    unsigned int  pass_counter = 0;
+    uint8_t sifr,gifr,sier,dat[1];
 
-        uint8_t gier,sifr0,sifr1,sifr2,sifr3,sier1,sier0,sier2,sier3;
+#ifdef _DEBUG_WK2XXX1
+    uint8_t gier,sifr0,sifr1,sifr2,sifr3,sier1,sier0,sier2,sier3;
  #endif
-        wk2xxx_read_reg(s->spi_wk,WK2XXX_GPORT,WK2XXX_GIFR ,dat);
-        gifr = dat[0];
+
+    wk2xxx_read_reg(s->spi_wk,WK2XXX_GPORT,WK2XXX_GIFR ,dat);
+    gifr = dat[0];
+
 #ifdef _DEBUG_WK2XXX1
-        wk2xxx_read_reg(s->spi_wk,WK2XXX_GPORT,WK2XXX_GIER ,dat);
-        gier = dat[0];
-        wk2xxx_write_reg(s->spi_wk,1,WK2XXX_SPAGE,WK2XXX_PAGE0);//set register in page0
-        wk2xxx_write_reg(s->spi_wk,2,WK2XXX_SPAGE,WK2XXX_PAGE0);//set register in page0
-        wk2xxx_write_reg(s->spi_wk,3,WK2XXX_SPAGE,WK2XXX_PAGE0);//set register in page0
-        wk2xxx_write_reg(s->spi_wk,4,WK2XXX_SPAGE,WK2XXX_PAGE0);//set register in page0
+    wk2xxx_read_reg(s->spi_wk,WK2XXX_GPORT,WK2XXX_GIER ,dat);
+    gier = dat[0];
+    wk2xxx_write_reg(s->spi_wk,1,WK2XXX_SPAGE,WK2XXX_PAGE0);//set register in page0
+    wk2xxx_write_reg(s->spi_wk,2,WK2XXX_SPAGE,WK2XXX_PAGE0);//set register in page0
+    wk2xxx_write_reg(s->spi_wk,3,WK2XXX_SPAGE,WK2XXX_PAGE0);//set register in page0
+    wk2xxx_write_reg(s->spi_wk,4,WK2XXX_SPAGE,WK2XXX_PAGE0);//set register in page0
 
-        wk2xxx_read_reg(s->spi_wk,1,WK2XXX_SIFR,&sifr0);
-        wk2xxx_read_reg(s->spi_wk,2,WK2XXX_SIFR,&sifr1);
-        wk2xxx_read_reg(s->spi_wk,3,WK2XXX_SIFR,&sifr2);
-        wk2xxx_read_reg(s->spi_wk,4,WK2XXX_SIFR,&sifr3);
+    wk2xxx_read_reg(s->spi_wk,1,WK2XXX_SIFR,&sifr0);
+    wk2xxx_read_reg(s->spi_wk,2,WK2XXX_SIFR,&sifr1);
+    wk2xxx_read_reg(s->spi_wk,3,WK2XXX_SIFR,&sifr2);
+    wk2xxx_read_reg(s->spi_wk,4,WK2XXX_SIFR,&sifr3);
 
-        wk2xxx_read_reg(s->spi_wk,1,WK2XXX_SIER,&sier0);
-        wk2xxx_read_reg(s->spi_wk,2,WK2XXX_SIER,&sier1);
-        wk2xxx_read_reg(s->spi_wk,3,WK2XXX_SIER,&sier2);
-        wk2xxx_read_reg(s->spi_wk,4,WK2XXX_SIER,&sier3);
+    wk2xxx_read_reg(s->spi_wk,1,WK2XXX_SIER,&sier0);
+    wk2xxx_read_reg(s->spi_wk,2,WK2XXX_SIER,&sier1);
+    wk2xxx_read_reg(s->spi_wk,3,WK2XXX_SIER,&sier2);
+    wk2xxx_read_reg(s->spi_wk,4,WK2XXX_SIER,&sier3);
 #endif
 
 #ifdef _DEBUG_WK2XXX1
     printk(KERN_ALERT "irq_app....gifr:%x  gier:%x  sier1:%x  sier2:%x sier3:%x sier4:%x   sifr1:%x sifr2:%x sifr3:%x sifr4:%x \n",gifr,gier,sier0,sier1,sier2,sier3,sifr0,sifr1,sifr2,sifr3);
 #endif
-        switch(s->port.iobase)
+    switch(s->port.iobase)
+    {
+        case 1 :
+            if(!(gifr & WK2XXX_UT1INT))
             {
-                case 1 :
-                    if(!(gifr & WK2XXX_UT1INT))
-                    {
-                        return;
-                    }
-                    break;
-                case 2 :
-                    if(!(gifr & WK2XXX_UT2INT))
-                    {
-                        return;
-                    }
-                    break;
-                case 3 :
-                    if(!(gifr & WK2XXX_UT3INT))
-                    {
-                        return;
-                    }
-                    break;
-                case 4 :
-                    if(!(gifr & WK2XXX_UT4INT))
-                    {
-                        return;
-                    }
-                    break;
-                default:
-                    break;
+                return;
             }
+            break;
+        case 2 :
+            if(!(gifr & WK2XXX_UT2INT))
+            {
+                return;
+            }
+            break;
+        case 3 :
+            if(!(gifr & WK2XXX_UT3INT))
+            {
+                return;
+            }
+            break;
+        case 4 :
+            if(!(gifr & WK2XXX_UT4INT))
+            {
+                return;
+            }
+            break;
+        default:
+            break;
+    }
+
+    wk2xxx_read_reg(s->spi_wk,s->port.iobase,WK2XXX_SIFR,dat);
+    sifr = dat[0];
+    wk2xxx_read_reg(s->spi_wk,s->port.iobase,WK2XXX_SIER,dat);
+    sier = dat[0];
+
+    do {
+        //有接收FIFO触点中断和中断超时标志
+        if ((sifr&WK2XXX_RFTRIG_INT)||(sifr&WK2XXX_RXOVT_INT))
+        {
+            wk2xxx_rx_chars(&s->port);
+        }
+
+        //有发送FIFO触点中断和中断超时标志
+        if ((sifr & WK2XXX_TFTRIG_INT)&&(sier & WK2XXX_TFTRIG_IEN ))
+        {
+            wk2xxx_tx_chars(&s->port);
+           return;
+        }
+
+printk( KERN_ALERT"ttysWK%ld: pass_counter = %d\n",s->port.iobase, pass_counter);
+
+        if (pass_counter++ > WK2XXX_ISR_PASS_LIMIT)
+            break;
 
         wk2xxx_read_reg(s->spi_wk,s->port.iobase,WK2XXX_SIFR,dat);
         sifr = dat[0];
         wk2xxx_read_reg(s->spi_wk,s->port.iobase,WK2XXX_SIER,dat);
         sier = dat[0];
-#ifdef _DEBUG_WK2XXX1
-        printk(KERN_ALERT "irq_app..........sifr:%x sier:%x \n",sifr,sier);
-#endif
-                do {
-                       if ((sifr&WK2XXX_RFTRIG_INT)||(sifr&WK2XXX_RXOVT_INT))
-                        {
-                               wk2xxx_rx_chars(&s->port);
-                        }
+    } while ((sifr&WK2XXX_RXOVT_INT) ||  \
+                    (sifr & WK2XXX_RFTRIG_INT) || \
+                    ((sifr & WK2XXX_TFTRIG_INT) && (sier & WK2XXX_TFTRIG_IEN)));
 
-                        if ((sifr & WK2XXX_TFTRIG_INT)&&(sier & WK2XXX_TFTRIG_IEN ))
-                        {
-                               wk2xxx_tx_chars(&s->port);
-                               return;
-                        }
-                        if (pass_counter++ > WK2XXX_ISR_PASS_LIMIT)
-                                break;
-                        wk2xxx_read_reg(s->spi_wk,s->port.iobase,WK2XXX_SIFR,dat);
-                        sifr = dat[0];
-                        wk2xxx_read_reg(s->spi_wk,s->port.iobase,WK2XXX_SIER,dat);
-                        sier = dat[0];
-#ifdef _DEBUG_WK2XXX1
-    printk(KERN_ALERT "irq_app...........rx............tx  sifr:%x sier:%x port:%x\n",sifr,sier,s->port.iobase);
-#endif
-               } while ((sifr&WK2XXX_RXOVT_INT)||(sifr & WK2XXX_RFTRIG_INT)||((sifr & WK2XXX_TFTRIG_INT)&&(sier & WK2XXX_TFTRIG_IEN)));
-#ifdef _DEBUG_WK2XXX
-    printk(KERN_ALERT "wk2xxxirq_app()---------exit---\n");
-#endif
+    printk( KERN_ALERT"func:%s %d\n", __func__, __LINE__);
 }
 
 
@@ -855,7 +827,6 @@ mutex_unlock(&wk2xxxs_lock);
         printk(KERN_ALERT "wk2xxx_tx_empty----------exit---\n");
 #endif
     return s->tx_empty;
-
 
 }
 
@@ -1008,108 +979,92 @@ static void wk2xxx_break_ctl(struct uart_port *port, int break_state)
     //break operation, but there  seems no such operation in vk32
 }
 
-static int wk2xxx_startup(struct uart_port *port)//i
+
+/*
+ *  * enable uart port clock.
+ * @jincheng
+*/
+void wk2xxx_enable_uart_port_clock(struct wk2xxx_port *s)
 {
-#ifdef _DEBUG_WK2XXX
-    printk(KERN_ALERT "-wk2xxx_startup------in---\n");
-#endif
-        uint8_t gena,grst,gier,sier,scr,dat[1];
-        struct wk2xxx_port *s = container_of(port,struct wk2xxx_port,port);
-        char b[12];
-
-        if (s->suspending)
-            return 0;
-
-        s->force_end_work = 0;
-        sprintf(b, "wk2xxx-%d", (uint8_t)s->port.iobase);
-    //s->workqueue = create_singlethread_workqueue(b);
-    s->workqueue = create_workqueue(b);
-
-        if (!s->workqueue)
-       {
-            dev_warn(&s->spi_wk->dev, "cannot create workqueue\n");
-            return -EBUSY;
-        }
-
-        INIT_WORK(&s->work, wk2xxx_work);
-
-        if (s->wk2xxx_hw_suspend)
-          s->wk2xxx_hw_suspend(0);
-
-      wk2xxx_read_reg(s->spi_wk,WK2XXX_GPORT,WK2XXX_GENA,dat);
-     gena=dat[0];
-          switch (s->port.iobase)
+    uint8_t gena;
+    wk2xxx_read_reg(s->spi_wk,WK2XXX_GPORT,WK2XXX_GENA, &gena);
+    switch (s->port.iobase)
     {
-          case 1:
-                  gena|=WK2XXX_UT1EN;
-                  wk2xxx_write_reg(s->spi_wk,WK2XXX_GPORT,WK2XXX_GENA,gena);
-                  break;
-          case 2:
-                  gena|=WK2XXX_UT2EN;
-                  wk2xxx_write_reg(s->spi_wk,WK2XXX_GPORT,WK2XXX_GENA,gena);
-                  break;
-          case 3:
-                 gena|=WK2XXX_UT3EN;
-                 wk2xxx_write_reg(s->spi_wk,WK2XXX_GPORT,WK2XXX_GENA,gena);
-                  break;
-          case 4:
-                  gena|=WK2XXX_UT4EN;
-                  wk2xxx_write_reg(s->spi_wk,WK2XXX_GPORT,WK2XXX_GENA,gena);
-                  break;
-          default:
+    case 1:
+            gena|=WK2XXX_UT1EN;
+            wk2xxx_write_reg(s->spi_wk,WK2XXX_GPORT,WK2XXX_GENA,gena);
+            break;
+    case 2:
+            gena|=WK2XXX_UT2EN;
+            wk2xxx_write_reg(s->spi_wk,WK2XXX_GPORT,WK2XXX_GENA,gena);
+            break;
+    case 3:
+            gena|=WK2XXX_UT3EN;
+            wk2xxx_write_reg(s->spi_wk,WK2XXX_GPORT,WK2XXX_GENA,gena);
+            break;
+    case 4:
+            gena|=WK2XXX_UT4EN;
+            wk2xxx_write_reg(s->spi_wk,WK2XXX_GPORT,WK2XXX_GENA,gena);
+            break;
+    default:
         printk(KERN_ALERT ":con_wk2xxx_subport bad iobase %d\n", (uint8_t)s->port.iobase);
-                  break;
-          }
+            break;
+    }
+}
 
-         wk2xxx_read_reg(s->spi_wk,WK2XXX_GPORT,WK2XXX_GRST,dat);
-           grst=dat[0];
-           switch (s->port.iobase)
-          {
-           case 1:
-                    grst|=WK2XXX_UT1RST;
-                    wk2xxx_write_reg(s->spi_wk,WK2XXX_GPORT,WK2XXX_GRST,grst);
-                   break;
-            case 2:
-                    grst|=WK2XXX_UT2RST;
-                    wk2xxx_write_reg(s->spi_wk,WK2XXX_GPORT,WK2XXX_GRST,grst);
-                    break;
-            case 3:
-                   grst|=WK2XXX_UT3RST;
-                   wk2xxx_write_reg(s->spi_wk,WK2XXX_GPORT,WK2XXX_GRST,grst);
-                    break;
-            case 4:
-                    grst|=WK2XXX_UT4RST;
-                    wk2xxx_write_reg(s->spi_wk,WK2XXX_GPORT,WK2XXX_GRST,grst);
-                    break;
-            default:
-     printk(KERN_ALERT ":con_wk2xxx_subport bad iobase %d\n", (uint8_t)s->port.iobase);
-                    break;
-            }
 
-        wk2xxx_read_reg(s->spi_wk,s->port.iobase,WK2XXX_SIER,dat);
-        sier = dat[0];
-        sier &= ~WK2XXX_TFTRIG_IEN;
-        sier |= WK2XXX_RFTRIG_IEN;
-        sier |= WK2XXX_RXOUT_IEN;
-        wk2xxx_write_reg(s->spi_wk,s->port.iobase,WK2XXX_SIER,sier);
 
-        wk2xxx_read_reg(s->spi_wk,s->port.iobase,WK2XXX_SCR,dat);
-        scr = dat[0] | WK2XXX_TXEN|WK2XXX_RXEN;
-        wk2xxx_write_reg(s->spi_wk,s->port.iobase,WK2XXX_SCR,scr);
+void wk2xxx_reset_uart_port(struct wk2xxx_port *s)
+{
+    uint8_t grst;
 
-    //initiate the fifos
-        wk2xxx_write_reg(s->spi_wk,s->port.iobase,WK2XXX_FCR,0xff);//initiate the fifos
-        wk2xxx_write_reg(s->spi_wk,s->port.iobase,WK2XXX_FCR,0xfc);
-    //set rx/tx interrupt
-        wk2xxx_write_reg(s->spi_wk,s->port.iobase,WK2XXX_SPAGE,1);
-        wk2xxx_write_reg(s->spi_wk,s->port.iobase,WK2XXX_RFTL,0X40);
-        wk2xxx_write_reg(s->spi_wk,s->port.iobase,WK2XXX_TFTL,0X40);
-        wk2xxx_write_reg(s->spi_wk,s->port.iobase,WK2XXX_SPAGE,0);
-    //enable the sub port interrupt
-        wk2xxx_read_reg(s->spi_wk,WK2XXX_GPORT,WK2XXX_GIER,dat);
-        gier = dat[0];
+    wk2xxx_read_reg(s->spi_wk,WK2XXX_GPORT,WK2XXX_GRST, &grst);
+    switch (s->port.iobase)
+    {
+        case 1:
+                grst|=WK2XXX_UT1RST;
+                wk2xxx_write_reg(s->spi_wk,WK2XXX_GPORT,WK2XXX_GRST,grst);
+                break;
+        case 2:
+                grst|=WK2XXX_UT2RST;
+                wk2xxx_write_reg(s->spi_wk,WK2XXX_GPORT,WK2XXX_GRST,grst);
+                break;
+        case 3:
+                grst|=WK2XXX_UT3RST;
+                wk2xxx_write_reg(s->spi_wk,WK2XXX_GPORT,WK2XXX_GRST,grst);
+                break;
+        case 4:
+                grst|=WK2XXX_UT4RST;
+                wk2xxx_write_reg(s->spi_wk,WK2XXX_GPORT,WK2XXX_GRST,grst);
+                break;
+        default:
+                printk(KERN_ALERT ":con_wk2xxx_subport bad iobase %d\n", (uint8_t)s->port.iobase);
+                break;
+    }
+}
 
-        switch (s->port.iobase){
+
+void wk2xxx_init_uart_port_FIFO(struct wk2xxx_port *s)
+{
+    uint8_t sier;
+
+    wk2xxx_read_reg(s->spi_wk,s->port.iobase,WK2XXX_SIER, &sier);
+
+    sier &= ~WK2XXX_TFTRIG_IEN; //禁用FIFO发送触发终端
+    sier |= WK2XXX_RFTRIG_IEN;   //接收FIFO触发中断
+    sier |= WK2XXX_RXOUT_IEN;      //接收FIFO超时中断
+
+    wk2xxx_write_reg(s->spi_wk,s->port.iobase,WK2XXX_SIER,sier);
+}
+
+
+//enable the sub port interrupt
+void wk2xxx_enabel_sub_port_int(struct wk2xxx_port *s)
+{
+    uint8_t gier;
+    wk2xxx_read_reg(s->spi_wk,WK2XXX_GPORT,WK2XXX_GIER,  &gier);
+
+    switch (s->port.iobase){
         case 1:
                 gier|=WK2XXX_UT1IE;
                 wk2xxx_write_reg(s->spi_wk,WK2XXX_GPORT,WK2XXX_GIER,gier);
@@ -1129,25 +1084,85 @@ static int wk2xxx_startup(struct uart_port *port)//i
         default:
                 printk(KERN_ALERT ": bad iobase %d\n", (uint8_t)s->port.iobase);
                 break;
-              }
-
-        if (s->wk2xxx_hw_suspend)
-            s->wk2xxx_hw_suspend(0);
-        msleep(50);
+    } 
+}
 
 
-        uart_circ_clear(&s->port.state->xmit);
-        wk2xxx_enable_ms(&s->port);
-      // request irq
-        if(request_irq(s->port.irq, wk2xxx_irq,IRQF_SHARED|IRQF_TRIGGER_LOW,"wk2xxxspi", s) < 0)
-        {
-                dev_warn(&s->spi_wk->dev, "cannot allocate irq %d\n", s->irq);
-                s->port.irq = 0;
-                destroy_workqueue(s->workqueue);
-                s->workqueue = NULL;
-                return -EBUSY;
-        }       udelay(100);
-        udelay(100);
+static int wk2xxx_startup(struct uart_port *port)//i
+{
+#ifdef _DEBUG_WK2XXX
+    printk(KERN_ALERT "-wk2xxx_startup------in---\n");
+#endif
+    uint8_t scr,dat[1];
+    struct wk2xxx_port *s = container_of(port,struct wk2xxx_port,port);
+    char b[12];
+
+    if (s->suspending)
+        return 0;
+
+    s->force_end_work = 0;
+    sprintf(b, "wk2xxx-%d", (uint8_t)s->port.iobase);
+    //s->workqueue = create_singlethread_workqueue(b);
+    s->workqueue = create_workqueue(b);
+
+    if (!s->workqueue)
+    {
+        dev_warn(&s->spi_wk->dev, "cannot create workqueue\n");
+        return -EBUSY;
+    }
+
+    INIT_WORK(&s->work, wk2xxx_work);
+
+    if (s->wk2xxx_hw_suspend)
+        s->wk2xxx_hw_suspend(0);
+
+
+    mutex_lock(&wk2xxs_global_register_lock);
+
+    wk2xxx_enable_uart_port_clock(s);//使能串口时钟 
+    wk2xxx_reset_uart_port(s);//复位串口
+
+    wk2xxx_init_uart_port_FIFO(s);   //初始化FIFO中断
+
+    //使能串口发送和接收位
+    wk2xxx_read_reg(s->spi_wk,s->port.iobase,WK2XXX_SCR,dat);
+    scr = dat[0] | WK2XXX_TXEN|WK2XXX_RXEN;
+    wk2xxx_write_reg(s->spi_wk,s->port.iobase,WK2XXX_SCR,scr);
+
+//initiate the fifos
+    wk2xxx_write_reg(s->spi_wk,s->port.iobase,WK2XXX_FCR,0xff);//initiate the fifos
+    wk2xxx_write_reg(s->spi_wk,s->port.iobase,WK2XXX_FCR,0xfc);
+//set rx/tx interrupt
+    wk2xxx_write_reg(s->spi_wk,s->port.iobase,WK2XXX_SPAGE,1);
+    wk2xxx_write_reg(s->spi_wk,s->port.iobase,WK2XXX_RFTL,0X40);
+    wk2xxx_write_reg(s->spi_wk,s->port.iobase,WK2XXX_TFTL,0X40);
+    wk2xxx_write_reg(s->spi_wk,s->port.iobase,WK2XXX_SPAGE,0);
+
+//enable the sub port interrupt
+    wk2xxx_enabel_sub_port_int(s);
+
+    mutex_unlock(&wk2xxs_global_register_lock);
+
+    if (s->wk2xxx_hw_suspend)
+        s->wk2xxx_hw_suspend(0);
+
+    msleep(50);
+
+
+    uart_circ_clear(&s->port.state->xmit);
+    wk2xxx_enable_ms(&s->port);
+    // request irq
+    //   if(request_irq(s->port.irq, wk2xxx_irq,IRQF_SHARED | IRQF_TRIGGER_LOW,"wk2xxxspi", s) < 0)
+    if(request_irq(s->port.irq, wk2xxx_irq,IRQF_SHARED | IRQF_TRIGGER_LOW,"wk2xxxspi", s) < 0)
+    {
+            dev_warn(&s->spi_wk->dev, "cannot allocate irq %d\n", s->irq);
+            s->port.irq = 0;
+            destroy_workqueue(s->workqueue);
+            s->workqueue = NULL;
+            return -EBUSY;
+    }       
+    udelay(100);
+    udelay(100);
 #ifdef _DEBUG_WK2XXX
         printk(KERN_ALERT "-wk2xxx_startup------exit---\n", );
 #endif
@@ -1181,7 +1196,7 @@ static void wk2xxx_shutdown(struct uart_port *port)//
 
      wk2xxx_read_reg(s->spi_wk,WK2XXX_GPORT,WK2XXX_GENA,dat);
       gena=dat[0];
-          switch (s->port.iobase)
+      switch (s->port.iobase)
     {
           case 1:
                   gena&=~WK2XXX_UT1EN;
@@ -1202,7 +1217,7 @@ static void wk2xxx_shutdown(struct uart_port *port)//
           default:
                  printk(KERN_ALERT ":con_wk2xxx_subport bad iobase %d\n", (uint8_t)s->port.iobase);
          break;
-          }
+    }
 
 #ifdef _DEBUG_WK2XXX5
         wk2xxx_read_reg(s->spi_wk,WK2XXX_GPORT,WK2XXX_GENA,dat);
@@ -1397,9 +1412,7 @@ static void wk2xxx_termios( struct uart_port *port, struct ktermios *termios,
     /* we are sending char from a workqueue so enable */
 
 
-#ifdef _DEBUG_WK2XXX
-printk(KERN_ALERT "wk2xxx_termios()----port:%d--lcr:0x%x- cflag:0x%x-CSTOPB:0x%x,PARENB:0x%x,PARODD:0x%x--\n",s->port.iobase,lcr,cflag,CSTOPB,PARENB,PARODD);
-#endif
+printk("wk2xxx_termios()----port:%ld--- cflag:0x%x-CSTOPB:0x%x,PARENB:0x%x,PARODD:0x%x--\n",s->port.iobase,cflag,CSTOPB,PARENB,PARODD);
 
         lcr =0;
 
@@ -1521,7 +1534,7 @@ static struct uart_ops wk2xxx_pops = {
         break_ctl	:       wk2xxx_break_ctl,
         startup		:       wk2xxx_startup,
         shutdown	:       wk2xxx_shutdown,
-        set_termios:       wk2xxx_termios,
+        set_termios:       wk2xxx_termios,  //串口波特率和校验位接口
         type		:       wk2xxx_type,
         release_port:     wk2xxx_release_port,
         request_port	:      wk2xxx_request_port,
@@ -1699,32 +1712,32 @@ static int wk2xxx_probe(struct spi_device *spi)
 	}
 	printk(KERN_ALERT "wk2xxx_serial_init()\n");
 
-		/*串口设备初始化*/
-		for(i =0;i<NR_PORTS;i++)
-		{
-			struct wk2xxx_port *s = &wk2xxxs[i];//container_of(port,struct wk2xxx_port,port);
-			s->tx_done       =0;
-			s->spi_wk        = spi;
-			s->port.line     = i;
-			s->port.ops      = &wk2xxx_pops;
-			s->port.uartclk  = WK_CRASTAL_CLK;
-			s->port.fifosize = 64;
-			s->port.iobase   = i+1;
-			s->port.irq      = spi->irq;
-			s->port.iotype   = SERIAL_IO_PORT;
-			s->port.flags    = ASYNC_BOOT_AUTOCONF;
-			//s->minor       = i;
-			status = uart_add_one_port(&wk2xxx_uart_driver, &s->port);
-			if(status<0)
-			{
-				printk(KERN_ALERT "uart_add_one_port failed for line i:= %d with error %d\n",i,status);
-			}else
-				printk(KERN_INFO "uart_add_one_port success for line i:= %d with right %d\n",i,status);
+    /*串口设备初始化*/
+    for(i =0;i<NR_PORTS;i++)
+     {
+        struct wk2xxx_port *s = &wk2xxxs[i];//container_of(port,struct wk2xxx_port,port);
+        s->tx_done       =0;
+        s->spi_wk        = spi;
+        s->port.line     = i;
+        s->port.ops      = &wk2xxx_pops;
+        s->port.uartclk  = WK_CRASTAL_CLK;
+        s->port.fifosize = 64;
+        s->port.iobase   = i+1;
+        s->port.irq      = spi->irq;
+        s->port.iotype   = SERIAL_IO_PORT;
+        s->port.flags    = ASYNC_BOOT_AUTOCONF;
+        //s->minor       = i;
+        status = uart_add_one_port(&wk2xxx_uart_driver, &s->port);
+        if(status<0)
+        {
+            printk(KERN_ALERT "uart_add_one_port failed for line i:= %d with error %d\n",i,status);
+        }else
+            printk(KERN_INFO "uart_add_one_port success for line i:= %d with right %d\n",i,status);
 
-			//=============================================================
-			//spi_set_drvdata(spi, s);
-			//=============================================================
-		}
+        //=============================================================
+        //spi_set_drvdata(spi, s);
+        //=============================================================
+    }
 
 		printk(KERN_ALERT "uart_add_one_port = 0x%d\n",status);
 		mutex_unlock(&wk2xxxs_lock);
