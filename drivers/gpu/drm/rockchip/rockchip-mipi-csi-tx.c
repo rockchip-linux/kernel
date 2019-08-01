@@ -733,13 +733,19 @@ static void rockchip_mipi_csi_fmt_config(struct rockchip_mipi_csi *csi,
 					 struct drm_display_mode *mode)
 {
 	u32 mask, val;
+	u32 format;
+
+	if (csi->format == MIPI_CSI_FMT_YUV422_8BIT)
+		format = MIPI_CSI_FMT_RAW8;
+	else
+		format = csi->format;
 
 	mask = m_PIXEL_FORMAT;
-	val = v_PIXEL_FORMAT(csi->format);
+	val = v_PIXEL_FORMAT(format);
 	csi_mask_write(csi, CSITX_VOP_PATH_CTRL, mask, val, true);
 
 	mask = m_CAM_FORMAT;
-	val = v_CAM_FORMAT(csi->format);
+	val = v_CAM_FORMAT(format);
 	csi_mask_write(csi, CSITX_BYPASS_PATH_CTRL, mask, val, true);
 }
 
