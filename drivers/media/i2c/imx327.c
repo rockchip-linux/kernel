@@ -3,8 +3,6 @@
  * imx327 driver
  *
  * Copyright (C) 2017 Fuzhou Rockchip Electronics Co., Ltd.
- *
- * V0.0X01.0X01 add poweron function.
  */
 
 #include <linux/clk.h>
@@ -17,28 +15,38 @@
 #include <linux/regulator/consumer.h>
 #include <linux/sysfs.h>
 #include <linux/slab.h>
-#include <linux/version.h>
 #include <linux/rk-camera-module.h>
 #include <media/media-entity.h>
 #include <media/v4l2-async.h>
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-subdev.h>
+#include <media/v4l2-fwnode.h>
+#include <linux/pinctrl/consumer.h>
+#include <linux/of.h>
+#include <linux/of_device.h>
+#include <linux/of_graph.h>
+#include <linux/of_platform.h>
+#include <linux/of_gpio.h>
+#include <linux/mfd/syscon.h>
+#include <linux/rk-preisp.h>
 
-#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x01)
+#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x02)
 
 #ifndef V4L2_CID_DIGITAL_GAIN
 #define V4L2_CID_DIGITAL_GAIN		V4L2_CID_GAIN
 #endif
 
-#define IMX327_DATA_FORMAT MEDIA_BUS_FMT_SRGGB12_1X12
-
 #define IMX327_LINK_FREQ		222750000
+#define IMX327_HDR_LANES		4
 #define IMX327_LANES			2
 #define IMX327_BITS_PER_SAMPLE		12
 
 /* pixel rate = link frequency * 2 * lanes / BITS_PER_SAMPLE */
 #define IMX327_PIXEL_RATE \
 (IMX327_LINK_FREQ * 2 * IMX327_LANES / IMX327_BITS_PER_SAMPLE)
+
+#define IMX327_PIXEL_HDR_RATE \
+(IMX327_LINK_FREQ * 2 * IMX327_HDR_LANES / IMX327_BITS_PER_SAMPLE)
 
 #define IMX327_XVCLK_FREQ		37125000
 
@@ -57,7 +65,7 @@
 #define IMX327_FETCH_MID_BYTE_EXP(VAL) (((VAL) >> 8) & 0xFF)
 #define IMX327_FETCH_LOW_BYTE_EXP(VAL) ((VAL) & 0xFF)
 
-#define	IMX327_EXPOSURE_MIN		4
+#define	IMX327_EXPOSURE_MIN		2
 #define	IMX327_EXPOSURE_STEP		1
 #define IMX327_VTS_MAX			0x7fff
 
@@ -78,6 +86,7 @@
 #define IMX327_FETCH_MID_BYTE_VTS(VAL) (((VAL) >> 8) & 0xFF)
 #define IMX327_FETCH_LOW_BYTE_VTS(VAL) ((VAL) & 0xFF)
 
+#define REG_DELAY			0xFFFE
 #define REG_NULL			0xFFFF
 
 #define IMX327_REG_VALUE_08BIT		1
@@ -85,6 +94,9 @@
 #define IMX327_REG_VALUE_24BIT		3
 
 #define IMX327_NAME			"imx327"
+
+#define IMX327_RHS1			0xe1
+static bool g_isHCG;
 
 static const char * const imx327_supply_names[] = {
 	"avdd",		/* Analog power */
@@ -100,6 +112,7 @@ struct regval {
 };
 
 struct imx327_mode {
+	u32 bus_fmt;
 	u32 width;
 	u32 height;
 	u32 max_fps;
@@ -112,8 +125,14 @@ struct imx327_mode {
 struct imx327 {
 	struct i2c_client	*client;
 	struct clk		*xvclk;
+	struct clk		*sclk_vip_src;
 	struct gpio_desc	*reset_gpio;
 	struct gpio_desc	*pwdn_gpio;
+	struct gpio_desc	*avdd_gpio;
+	struct gpio_desc	*dvdd_gpio;
+	struct gpio_desc	*pwdn2_gpio;
+	struct gpio_desc	*avdd2_gpio;
+	struct gpio_desc	*dvdd2_gpio;
 	struct regulator_bulk_data supplies[IMX327_NUM_SUPPLIES];
 
 	struct v4l2_subdev	subdev;
@@ -127,8 +146,10 @@ struct imx327 {
 	struct v4l2_ctrl	*test_pattern;
 	struct mutex		mutex;
 	bool			streaming;
-	bool			power_on;
+	bool			has_devnode;
 	const struct imx327_mode *cur_mode;
+	const struct imx327_mode *support_modes;
+	u32 support_modes_num;
 	u32			module_index;
 	const char		*module_facing;
 	const char		*module_name;
@@ -139,18 +160,12 @@ struct imx327 {
 
 /*
  * Xclk 37.125Mhz
- */
-static const struct regval imx327_global_regs[] = {
-	{0x3003, 0x01},
-	{REG_NULL, 0x00},
-};
-
-/*
- * Xclk 37.125Mhz
  * max_framerate 30fps
  * mipi_datarate per lane 445Mbps
  */
 static const struct regval imx327_1920x1080_regs[] = {
+	{0x3003, 0x01},
+	{REG_DELAY, 0x10},
 	{0x3000, 0x01},
 	{0x3001, 0x00},
 	{0x3002, 0x00},
@@ -221,8 +236,119 @@ static const struct regval imx327_1920x1080_regs[] = {
 	{REG_NULL, 0x00},
 };
 
-static const struct imx327_mode supported_modes[] = {
+static const struct regval imx327_hdr_1920x1080_regs[] = {
+	//10bit hdr2
+	{0x3003, 0x01},
+	{REG_DELAY, 0x10},
+	{0x3000, 0x01},
+	{0x3001, 0x00},
+	{0x3002, 0x00},
+	{0x3005, 0x00},
+	{0x3007, 0x40},
+	{0x3009, 0x01},
+	{0x300a, 0x3c},
+	{0x300c, 0x11}, //hdr+
+	{0x3011, 0x02},
+	{0x3018, 0xb8},/* VMAX L */
+	{0x3019, 0x05},/* VMAX M */
+	{0x301a, 0x00},
+	{0x301c, 0xEc},/* HMAX L */
+	{0x301d, 0x07},/* HMAX H */
+	{0x3045, 0x05},//hdr+
+	{0x3046, 0x00},
+	{0x304b, 0x0a},
+	{0x305c, 0x18},
+	{0x305d, 0x03},
+	{0x305e, 0x20},
+	{0x305f, 0x01},
+	{0x309e, 0x4a},
+	{0x309f, 0x4a},
+	{0x30d2, 0x19},
+	{0x30d7, 0x03},
+	{0x3106, 0x11},//hdr+
+	{0x3129, 0x1d},
+	{0x313b, 0x61},
+	{0x315e, 0x1a},
+	{0x3164, 0x1a},
+	{0x317c, 0x12},
+	{0x31ec, 0x37},
+	{0x3405, 0x10},
+	{0x3407, 0x03},
+	{0x3414, 0x00},
+	{0x3415, 0x00},//hdr+
+	{0x3418, 0x7A},
+	{0x3419, 0x09},
+	{0x3441, 0x0a},
+	{0x3442, 0x0a},
+	{0x3443, 0x03},
+	{0x3444, 0x20},
+	{0x3445, 0x25},
+	{0x3446, 0x57},
+	{0x3447, 0x00},
+	{0x3448, 0x37},//37?
+	{0x3449, 0x00},
+	{0x344a, 0x1f},
+	{0x344b, 0x00},
+	{0x344c, 0x1f},
+	{0x344d, 0x00},
+	{0x344e, 0x1f},
+	{0x344f, 0x00},
+	{0x3450, 0x77},
+	{0x3451, 0x00},
+	{0x3452, 0x1f},
+	{0x3453, 0x00},
+	{0x3454, 0x17},
+	{0x3455, 0x00},
+	{0x3472, 0xa0},
+	{0x3473, 0x07},
+	{0x347b, 0x23},
+	{0x3480, 0x49},
+
+	{0x31a0, 0xb4},//hdr+
+	{0x31a1, 0x02},//hdr+
+
+	{0x3020, 0x02},//hdr+ shs1 l  short
+	{0x3021, 0x00},//hdr+ shs1 m
+	{0x3022, 0x00},//hdr+ shs1 h
+	{0x3030, 0xe1},//hdr+ IMX327_RHS1
+	{0x3031, 0x00},//hdr+IMX327_RHS1
+	{0x3032, 0x00},//hdr+
+
+	{0x31A0, 0xe8},//hdr+ HBLANK1
+	{0x31A1, 0x01},//hdr+
+	{0x303C, 0x04},//hdr+
+	{0x303D, 0x00},//hdr+
+	{0x303E, 0x41},//hdr+
+	{0x303F, 0x04},//hdr+
+	{0x303A, 0x08},//hdr+
+
+	{0x3024, 0xc9},//hdr+ shs2 l
+	{0x3025, 0x06},//hdr+ shs2 m
+	{0x3026, 0x00},//hdr+ shs2 h
+
+	{0x3010, 0x61},//hdr+ gain 1frame FPGC
+	{0x3014, 0x00},//hdr+ gain 1frame long
+	{0x30F0, 0x64},//hdr+ gain 2frame FPGC
+	{0x30f2, 0x00},//hdr+ gain 2frame short
+	{REG_NULL, 0x00},
+};
+
+static const struct imx327_mode supported_hdr_modes[] = {
 	{
+		.bus_fmt = MEDIA_BUS_FMT_SBGGR10_1X10,
+		.width = 1920,
+		.height = 1080,
+		.max_fps = 50,
+		.exp_def = 0x0002,
+		.hts_def = 0x07ec,
+		.vts_def = 0x05b8,
+		.reg_list = imx327_hdr_1920x1080_regs,
+	}
+};
+
+static const struct imx327_mode supported_linear_modes[] = {
+	{
+		.bus_fmt = MEDIA_BUS_FMT_SRGGB12_1X12,
 		.width = 1920,
 		.height = 1080,
 		.max_fps = 30,
@@ -281,9 +407,12 @@ static int imx327_write_array(struct i2c_client *client,
 	int ret = 0;
 
 	for (i = 0; ret == 0 && regs[i].addr != REG_NULL; i++)
-		ret = imx327_write_reg(client, regs[i].addr,
-					IMX327_REG_VALUE_08BIT,
-					regs[i].val);
+		if (unlikely(regs[i].addr == REG_DELAY))
+			usleep_range(regs[i].val, regs[i].val * 2);
+		else
+			ret = imx327_write_reg(client, regs[i].addr,
+							IMX327_REG_VALUE_08BIT,
+							regs[i].val);
 
 	return ret;
 }
@@ -296,7 +425,7 @@ static int imx327_read_reg(struct i2c_client *client, u16 reg, unsigned int len,
 	u8 *data_be_p;
 	__be32 data_be = 0;
 	__be16 reg_addr_be = cpu_to_be16(reg);
-	int ret;
+	int ret, i;
 
 	if (len > 4 || !len)
 		return -EINVAL;
@@ -314,8 +443,12 @@ static int imx327_read_reg(struct i2c_client *client, u16 reg, unsigned int len,
 	msgs[1].len = len;
 	msgs[1].buf = &data_be_p[4 - len];
 
-	ret = i2c_transfer(client->adapter, msgs, ARRAY_SIZE(msgs));
-	if (ret != ARRAY_SIZE(msgs))
+	for (i = 0; i < 3; i++) {
+		ret = i2c_transfer(client->adapter, msgs, ARRAY_SIZE(msgs));
+		if (ret == ARRAY_SIZE(msgs))
+			break;
+	}
+	if (ret != ARRAY_SIZE(msgs) && i == 3)
 		return -EIO;
 
 	*val = be32_to_cpu(data_be);
@@ -331,23 +464,26 @@ static int imx327_get_reso_dist(const struct imx327_mode *mode,
 }
 
 static const struct imx327_mode *
-imx327_find_best_fit(struct v4l2_subdev_format *fmt)
+imx327_find_best_fit(struct v4l2_subdev *sd,
+		     struct v4l2_subdev_format *fmt)
 {
+	struct imx327 *imx327 = to_imx327(sd);
 	struct v4l2_mbus_framefmt *framefmt = &fmt->format;
 	int dist;
 	int cur_best_fit = 0;
 	int cur_best_fit_dist = -1;
 	unsigned int i;
 
-	for (i = 0; i < ARRAY_SIZE(supported_modes); i++) {
-		dist = imx327_get_reso_dist(&supported_modes[i], framefmt);
+	for (i = 0; i < imx327->support_modes_num; i++) {
+		dist = imx327_get_reso_dist(&imx327->support_modes[i],
+							framefmt);
 		if (cur_best_fit_dist == -1 || dist < cur_best_fit_dist) {
 			cur_best_fit_dist = dist;
 			cur_best_fit = i;
 		}
 	}
 
-	return &supported_modes[cur_best_fit];
+	return &imx327->support_modes[cur_best_fit];
 }
 
 static int imx327_set_fmt(struct v4l2_subdev *sd,
@@ -360,8 +496,8 @@ static int imx327_set_fmt(struct v4l2_subdev *sd,
 
 	mutex_lock(&imx327->mutex);
 
-	mode = imx327_find_best_fit(fmt);
-	fmt->format.code = IMX327_DATA_FORMAT;
+	mode = imx327_find_best_fit(sd, fmt);
+	fmt->format.code = mode->bus_fmt;
 	fmt->format.width = mode->width;
 	fmt->format.height = mode->height;
 	fmt->format.field = V4L2_FIELD_NONE;
@@ -406,7 +542,7 @@ static int imx327_get_fmt(struct v4l2_subdev *sd,
 	} else {
 		fmt->format.width = mode->width;
 		fmt->format.height = mode->height;
-		fmt->format.code = IMX327_DATA_FORMAT;
+		fmt->format.code = mode->bus_fmt;
 		fmt->format.field = V4L2_FIELD_NONE;
 	}
 	mutex_unlock(&imx327->mutex);
@@ -417,9 +553,10 @@ static int imx327_enum_mbus_code(struct v4l2_subdev *sd,
 				 struct v4l2_subdev_pad_config *cfg,
 				 struct v4l2_subdev_mbus_code_enum *code)
 {
+	struct imx327 *imx327 = to_imx327(sd);
 	if (code->index != 0)
 		return -EINVAL;
-	code->code = IMX327_DATA_FORMAT;
+	code->code = imx327->support_modes[0].bus_fmt;
 
 	return 0;
 }
@@ -428,16 +565,18 @@ static int imx327_enum_frame_sizes(struct v4l2_subdev *sd,
 				   struct v4l2_subdev_pad_config *cfg,
 				   struct v4l2_subdev_frame_size_enum *fse)
 {
-	if (fse->index >= ARRAY_SIZE(supported_modes))
+	struct imx327 *imx327 = to_imx327(sd);
+
+	if (fse->index >= imx327->support_modes_num)
 		return -EINVAL;
 
-	if (fse->code != IMX327_DATA_FORMAT)
+	if (fse->code != imx327->support_modes[0].bus_fmt)
 		return -EINVAL;
 
-	fse->min_width  = supported_modes[fse->index].width;
-	fse->max_width  = supported_modes[fse->index].width;
-	fse->max_height = supported_modes[fse->index].height;
-	fse->min_height = supported_modes[fse->index].height;
+	fse->min_width  = imx327->support_modes[fse->index].width;
+	fse->max_width  = imx327->support_modes[fse->index].width;
+	fse->max_height = imx327->support_modes[fse->index].height;
+	fse->min_height = imx327->support_modes[fse->index].height;
 
 	return 0;
 }
@@ -484,9 +623,88 @@ static void imx327_get_module_inf(struct imx327 *imx327,
 static long imx327_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 {
 	struct imx327 *imx327 = to_imx327(sd);
+	struct i2c_client *client = imx327->client;
+	struct preisp_hdrae_exp_s *hdrae_exp;
 	long ret = 0;
+	u32 gain_switch = 0;
+	s32 l_gain, s_gain, shs1, fsc, shs2;
 
 	switch (cmd) {
+	case PREISP_CMD_SET_HDRAE_EXP:
+		hdrae_exp = (struct preisp_hdrae_exp_s *)arg;
+		dev_info(&client->dev,
+			"rev exp req: L_time=%d, gain=%d, S_time=%d, gain=%d\n",
+			hdrae_exp->long_exp_reg,
+			hdrae_exp->long_gain_reg,
+			hdrae_exp->short_exp_reg,
+			hdrae_exp->short_gain_reg);
+
+		//long gain and short gain
+		l_gain = hdrae_exp->long_gain_reg;
+		s_gain = hdrae_exp->short_gain_reg;
+		if (l_gain > 100) {
+			l_gain -= 27; //8.1db
+			s_gain = (s_gain < 27) ? 0 : (s_gain - 27);
+			if (!g_isHCG) {
+				gain_switch = 0x11;
+				g_isHCG = true;
+			}
+		} else if (l_gain < 44) {
+			if (g_isHCG) {
+				gain_switch = 0x1;
+				g_isHCG = false;
+			}
+		} else {
+			if (g_isHCG) {
+				l_gain -= 27;
+				s_gain = (s_gain < 27) ? 0 : (s_gain - 27);
+			}
+		}
+		imx327_write_reg(imx327->client, 0x3014,
+				 IMX327_REG_VALUE_08BIT, l_gain);
+		imx327_write_reg(imx327->client, 0x30f2,
+				 IMX327_REG_VALUE_08BIT, s_gain);
+		if (gain_switch)
+			imx327_write_reg(imx327->client, 0x3009,
+					 IMX327_REG_VALUE_08BIT, gain_switch);
+
+		//long exposure and short exposure
+		fsc = imx327->cur_mode->vts_def * 2;
+		shs1 = IMX327_RHS1 - hdrae_exp->short_exp_reg - 1;
+		shs2 = fsc - hdrae_exp->long_exp_reg - 1;
+		if (shs1 < 2)
+			shs1 = 2;
+		else if (shs1 > (IMX327_RHS1 - 2))
+			shs1 = IMX327_RHS1 - 2;
+		if (shs2 < (IMX327_RHS1 + 2))
+			shs2 = IMX327_RHS1 + 2;
+		else if (shs2 > (fsc - 2))
+			shs2 = fsc - 2;
+
+		imx327_write_reg(imx327->client, 0x3020,
+				 IMX327_REG_VALUE_08BIT,
+				 IMX327_FETCH_LOW_BYTE_EXP(shs1));
+		imx327_write_reg(imx327->client, 0x3021,
+				 IMX327_REG_VALUE_08BIT,
+				 IMX327_FETCH_MID_BYTE_EXP(shs1));
+		imx327_write_reg(imx327->client, 0x3022,
+				 IMX327_REG_VALUE_08BIT,
+				 IMX327_FETCH_HIGH_BYTE_EXP(shs1));
+
+		imx327_write_reg(imx327->client, 0x3024,
+				 IMX327_REG_VALUE_08BIT,
+				 IMX327_FETCH_LOW_BYTE_EXP(shs2));
+		imx327_write_reg(imx327->client, 0x3025,
+				 IMX327_REG_VALUE_08BIT,
+				 IMX327_FETCH_MID_BYTE_EXP(shs2));
+		imx327_write_reg(imx327->client, 0x3026,
+				 IMX327_REG_VALUE_08BIT,
+				 IMX327_FETCH_HIGH_BYTE_EXP(shs2));
+
+		dev_info(&client->dev,
+			 "set l_gain:0x%x s_gain:0x%x shs2:0x%x shs1:0x%x\n",
+			 l_gain, s_gain, shs2, shs1);
+		break;
 	case RKMODULE_GET_MODULE_INFO:
 		imx327_get_module_inf(imx327, (struct rkmodule_inf *)arg);
 		break;
@@ -603,44 +821,6 @@ unlock_and_return:
 	return ret;
 }
 
-static int imx327_s_power(struct v4l2_subdev *sd, int on)
-{
-	struct imx327 *imx327 = to_imx327(sd);
-	struct i2c_client *client = imx327->client;
-	int ret = 0;
-
-	mutex_lock(&imx327->mutex);
-
-	/* If the power state is not modified - no work to do. */
-	if (imx327->power_on == !!on)
-		goto unlock_and_return;
-
-	if (on) {
-		ret = pm_runtime_get_sync(&client->dev);
-		if (ret < 0) {
-			pm_runtime_put_noidle(&client->dev);
-			goto unlock_and_return;
-		}
-
-		ret = imx327_write_array(imx327->client, imx327_global_regs);
-		if (ret) {
-			v4l2_err(sd, "could not set init registers\n");
-			pm_runtime_put_noidle(&client->dev);
-			goto unlock_and_return;
-		}
-
-		imx327->power_on = true;
-	} else {
-		pm_runtime_put(&client->dev);
-		imx327->power_on = false;
-	}
-
-unlock_and_return:
-	mutex_unlock(&imx327->mutex);
-
-	return ret;
-}
-
 /* Calculate the delay in us by clock rate and clock cycles */
 static inline u32 imx327_cal_delay(u32 cycles)
 {
@@ -666,6 +846,7 @@ static int __imx327_power_on(struct imx327 *imx327)
 		return ret;
 	}
 
+	clk_prepare_enable(imx327->sclk_vip_src);
 	if (!IS_ERR(imx327->reset_gpio))
 		gpiod_set_value_cansleep(imx327->reset_gpio, 0);
 
@@ -675,9 +856,15 @@ static int __imx327_power_on(struct imx327 *imx327)
 		goto disable_clk;
 	}
 
+	if (!IS_ERR(imx327->pwdn_gpio))
+		gpiod_set_value_cansleep(imx327->pwdn_gpio, 0);
 	if (!IS_ERR(imx327->reset_gpio))
 		gpiod_set_value_cansleep(imx327->reset_gpio, 1);
 
+	if (!IS_ERR(imx327->avdd_gpio))
+		gpiod_set_value_cansleep(imx327->avdd_gpio, 1);
+	if (!IS_ERR(imx327->dvdd_gpio))
+		gpiod_set_value_cansleep(imx327->dvdd_gpio, 1);
 	usleep_range(500, 1000);
 	if (!IS_ERR(imx327->pwdn_gpio))
 		gpiod_set_value_cansleep(imx327->pwdn_gpio, 1);
@@ -698,9 +885,14 @@ static void __imx327_power_off(struct imx327 *imx327)
 {
 	if (!IS_ERR(imx327->pwdn_gpio))
 		gpiod_set_value_cansleep(imx327->pwdn_gpio, 0);
+	clk_disable_unprepare(imx327->sclk_vip_src);
 	clk_disable_unprepare(imx327->xvclk);
 	if (!IS_ERR(imx327->reset_gpio))
 		gpiod_set_value_cansleep(imx327->reset_gpio, 0);
+	if (!IS_ERR(imx327->avdd_gpio))
+		gpiod_set_value_cansleep(imx327->avdd_gpio, 0);
+	if (!IS_ERR(imx327->dvdd_gpio))
+		gpiod_set_value_cansleep(imx327->dvdd_gpio, 0);
 	regulator_bulk_disable(IMX327_NUM_SUPPLIES, imx327->supplies);
 }
 
@@ -730,13 +922,13 @@ static int imx327_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 	struct imx327 *imx327 = to_imx327(sd);
 	struct v4l2_mbus_framefmt *try_fmt =
 				v4l2_subdev_get_try_format(sd, fh->pad, 0);
-	const struct imx327_mode *def_mode = &supported_modes[0];
+	const struct imx327_mode *def_mode = &imx327->support_modes[0];
 
 	mutex_lock(&imx327->mutex);
 	/* Initialize try_fmt */
 	try_fmt->width = def_mode->width;
 	try_fmt->height = def_mode->height;
-	try_fmt->code = IMX327_DATA_FORMAT;
+	try_fmt->code = def_mode->bus_fmt;
 	try_fmt->field = V4L2_FIELD_NONE;
 
 	mutex_unlock(&imx327->mutex);
@@ -758,7 +950,6 @@ static const struct v4l2_subdev_internal_ops imx327_internal_ops = {
 #endif
 
 static const struct v4l2_subdev_core_ops imx327_core_ops = {
-	.s_power = imx327_s_power,
 	.ioctl = imx327_ioctl,
 #ifdef CONFIG_COMPAT
 	.compat_ioctl32 = imx327_compat_ioctl32,
@@ -881,8 +1072,14 @@ static int imx327_initialize_controls(struct imx327 *imx327)
 	if (ctrl)
 		ctrl->flags |= V4L2_CTRL_FLAG_READ_ONLY;
 
-	v4l2_ctrl_new_std(handler, NULL, V4L2_CID_PIXEL_RATE,
-			  0, IMX327_PIXEL_RATE, 1, IMX327_PIXEL_RATE);
+	if (imx327->has_devnode) {
+		v4l2_ctrl_new_std(handler, NULL, V4L2_CID_PIXEL_RATE,
+				  0, IMX327_PIXEL_RATE, 1, IMX327_PIXEL_RATE);
+	} else {
+		v4l2_ctrl_new_std(handler, NULL, V4L2_CID_PIXEL_RATE,
+				  0, IMX327_PIXEL_HDR_RATE,
+				  1, IMX327_PIXEL_HDR_RATE);
+	}
 
 	h_blank = mode->hts_def - mode->width;
 	imx327->hblank = v4l2_ctrl_new_std(handler, NULL, V4L2_CID_HBLANK,
@@ -939,12 +1136,34 @@ static int imx327_check_sensor_id(struct imx327 *imx327,
 			       IMX327_REG_VALUE_08BIT, &id);
 	if (id != CHIP_ID) {
 		dev_err(dev, "Unexpected sensor id(%06x), ret(%d)\n", id, ret);
-		return -ENODEV;
+		return ret;
 	}
 
 	dev_info(dev, "Detected imx327 id:%06x\n", CHIP_ID);
 
 	return 0;
+}
+
+static int imx327_check_remote_dev(struct imx327 *imx327)
+{
+	struct device *dev = &imx327->client->dev;
+	struct device_node *parent = dev->of_node;
+	struct device_node *remote = NULL;
+	int ret = 0;
+
+	imx327->has_devnode = true;
+	remote = of_graph_get_remote_node(parent, 0, 0);
+	if (!remote) {
+		dev_err(dev, "Invalid remote device!\n");
+		return -EINVAL;
+	}
+
+	if (strstr(of_node_full_name(remote), "spi_rk1608"))
+		imx327->has_devnode = false;
+
+	of_node_put(remote);
+
+	return ret;
 }
 
 static int imx327_configure_regulators(struct imx327 *imx327)
@@ -970,9 +1189,9 @@ static int imx327_probe(struct i2c_client *client,
 	int ret;
 
 	dev_info(dev, "driver version: %02x.%02x.%02x",
-		DRIVER_VERSION >> 16,
-		(DRIVER_VERSION & 0xff00) >> 8,
-		DRIVER_VERSION & 0x00ff);
+	DRIVER_VERSION >> 16,
+	(DRIVER_VERSION & 0xff00) >> 8,
+	DRIVER_VERSION & 0x00ff);
 
 	imx327 = devm_kzalloc(dev, sizeof(*imx327), GFP_KERNEL);
 	if (!imx327)
@@ -992,7 +1211,7 @@ static int imx327_probe(struct i2c_client *client,
 	}
 
 	imx327->client = client;
-	imx327->cur_mode = &supported_modes[0];
+	imx327->cur_mode = &imx327->support_modes[0];
 
 	imx327->xvclk = devm_clk_get(dev, "xvclk");
 	if (IS_ERR(imx327->xvclk)) {
@@ -1000,6 +1219,9 @@ static int imx327_probe(struct i2c_client *client,
 		return -EINVAL;
 	}
 
+	imx327->sclk_vip_src = devm_clk_get(dev, "sclk_vip_src");
+	if (IS_ERR(imx327->sclk_vip_src))
+		dev_err(dev, "Failed to get sclk_vip_src\n");
 	imx327->reset_gpio = devm_gpiod_get(dev, "reset", GPIOD_OUT_LOW);
 	if (IS_ERR(imx327->reset_gpio))
 		dev_warn(dev, "Failed to get reset-gpios\n");
@@ -1007,6 +1229,34 @@ static int imx327_probe(struct i2c_client *client,
 	imx327->pwdn_gpio = devm_gpiod_get(dev, "pwdn", GPIOD_OUT_LOW);
 	if (IS_ERR(imx327->pwdn_gpio))
 		dev_warn(dev, "Failed to get pwdn-gpios\n");
+
+	// Justa 20190605 IMX327 For X916
+	{
+		imx327->avdd_gpio = devm_gpiod_get(dev, "avdd",
+				GPIOD_OUT_LOW);
+		if (IS_ERR(imx327->avdd_gpio))
+			dev_warn(dev, "Failed to get avdd-gpios\n");
+
+		imx327->dvdd_gpio = devm_gpiod_get(dev, "dvdd",
+				GPIOD_OUT_LOW);
+		if (IS_ERR(imx327->dvdd_gpio))
+			dev_warn(dev, "Failed to get dvdd-gpios\n");
+
+		imx327->avdd2_gpio = devm_gpiod_get(dev, "avdd2",
+				GPIOD_OUT_LOW);
+		if (IS_ERR(imx327->avdd2_gpio))
+			dev_warn(dev, "Failed to get avdd2-gpios\n");
+
+		imx327->dvdd2_gpio = devm_gpiod_get(dev, "dvdd2",
+				GPIOD_OUT_LOW);
+		if (IS_ERR(imx327->dvdd2_gpio))
+			dev_warn(dev, "Failed to get dvdd2-gpios\n");
+
+		imx327->pwdn2_gpio = devm_gpiod_get(dev, "pwdn2",
+				GPIOD_OUT_LOW);
+		if (IS_ERR(imx327->pwdn2_gpio))
+			dev_warn(dev, "Failed to get pwdn2-gpios\n");
+	}
 
 	ret = imx327_configure_regulators(imx327);
 	if (ret) {
@@ -1018,6 +1268,18 @@ static int imx327_probe(struct i2c_client *client,
 
 	sd = &imx327->subdev;
 	v4l2_i2c_subdev_init(sd, client, &imx327_subdev_ops);
+	imx327_check_remote_dev(imx327);
+	if (imx327->has_devnode) {
+		imx327->support_modes = supported_linear_modes;
+		imx327->support_modes_num = ARRAY_SIZE(supported_linear_modes);
+		dev_err(dev, "linear mode");
+	} else {
+		imx327->support_modes = supported_hdr_modes;
+		imx327->support_modes_num = ARRAY_SIZE(supported_hdr_modes);
+		dev_err(dev, "hdr mode");
+	}
+	imx327->cur_mode = &imx327->support_modes[0];
+
 	ret = imx327_initialize_controls(imx327);
 	if (ret)
 		goto err_destroy_mutex;
