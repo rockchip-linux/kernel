@@ -2008,7 +2008,7 @@ static int tc35874x_probe(struct i2c_client *client,
 			  const struct i2c_device_id *id)
 {
 	static struct v4l2_dv_timings default_timing =
-		V4L2_DV_BT_CEA_640X480P59_94;
+		V4L2_DV_BT_CEA_1920X1080P60; // V4L2_DV_BT_CEA_640X480P59_94;
 	struct tc35874x_state *state;
 	struct tc35874x_platform_data *pdata = client->dev.platform_data;
 	struct v4l2_subdev *sd;
