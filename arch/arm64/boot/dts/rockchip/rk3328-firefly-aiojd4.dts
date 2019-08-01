@@ -2,8 +2,8 @@
 #include "rk3328-firefly-port.dtsi"
 #include <dt-bindings/sensor-dev.h>
 / {
-	model = "firefly ROC-RK3328-CC";
-	compatible = "rockchip,rk3328-mb-jd4", "rockchip,rk3328";
+	model = "Firefly rk3328-firefly-aiojd4";
+	compatible = "rockchip,rk3328-firefly-aiojd4", "rockchip,rk3328";
 
 	wireless-wlan {
 		compatible = "wlan-platdata";
@@ -151,3 +151,16 @@
 	dr_mode = "otg";
 };
 
+&dmc {
+	system-status-freq = <
+		/*system status         freq(KHz)*/
+		SYS_STATUS_NORMAL       786000
+		SYS_STATUS_REBOOT       786000
+		SYS_STATUS_SUSPEND      786000
+		SYS_STATUS_VIDEO_1080P  786000
+		SYS_STATUS_VIDEO_4K     786000
+		SYS_STATUS_VIDEO_4K_10B 786000
+		SYS_STATUS_PERFORMANCE  786000
+		SYS_STATUS_BOOST        786000
+	>;
+};

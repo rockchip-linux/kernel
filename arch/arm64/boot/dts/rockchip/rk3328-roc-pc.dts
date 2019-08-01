@@ -106,3 +106,16 @@
 	vmmc-supply = <&vcc_io>;
 };
 
+&dmc {
+    system-status-freq = <
+        /*system status         freq(KHz)*/
+        SYS_STATUS_NORMAL       786000
+        SYS_STATUS_REBOOT       786000
+        SYS_STATUS_SUSPEND      786000
+        SYS_STATUS_VIDEO_1080P  786000
+        SYS_STATUS_VIDEO_4K     786000
+        SYS_STATUS_VIDEO_4K_10B 786000
+        SYS_STATUS_PERFORMANCE  786000
+        SYS_STATUS_BOOST        786000
+    >;
+};
