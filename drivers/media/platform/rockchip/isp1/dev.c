@@ -653,6 +653,24 @@ static int isp_subdev_notifier(struct rkisp1_device *isp_dev)
 	return v4l2_async_notifier_register(&isp_dev->v4l2_dev, ntf);
 }
 
+static void rkisp1_notify(struct v4l2_subdev *sd,
+			  unsigned int notification, void *arg)
+{
+	switch (notification) {
+	case V4L2_DEVICE_NOTIFY_EVENT:
+	{
+		const struct v4l2_event *ev = arg;
+		if (ev->type == V4L2_EVENT_SOURCE_CHANGE
+			&& ev->u.src_change.changes == V4L2_EVENT_SRC_CH_RESOLUTION) {
+			struct rkisp1_device *dev = container_of(sd->v4l2_dev, struct rkisp1_device, v4l2_dev);
+			_set_pipeline_default_fmt(dev);
+		}
+		break;
+	}
+	default:
+		break;
+	}
+}
 /***************************** platform deive *******************************/
 
 static int rkisp1_register_platform_subdevs(struct rkisp1_device *dev)
@@ -1267,6 +1285,7 @@ static int rkisp1_plat_probe(struct platform_device *pdev)
 		writel(0, isp_dev->base_addr + CIF_ISP_CSI0_MASK2);
 		writel(0, isp_dev->base_addr + CIF_ISP_CSI0_MASK3);
 	}
+	v4l2_dev->notify = rkisp1_notify;
 	return 0;
 
 err_runtime_disable:
