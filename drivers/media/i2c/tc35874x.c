@@ -2128,6 +2128,7 @@ static int tc35874x_probe(struct i2c_client *client,
 	snprintf(sd->name, sizeof(sd->name), "m%02d_%s_%s %s",
 		 state->module_index, facing,
 		 TC35874X_NAME, dev_name(sd->dev));
+	state->timings = default_timing;
 	err = v4l2_async_register_subdev(sd);
 	if (err < 0)
 		goto err_hdl;
