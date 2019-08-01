@@ -2339,6 +2339,17 @@ static int rt5640_probe(struct snd_soc_codec *codec)
 		schedule_delayed_work(&rt5640->adc_aux_work,
 				      msecs_to_jiffies(20000));
 	}
+	
+	if (!gpio_get_value(rt5640->hp_det_gpio)) {
+		rt5640->hp_insert = 0;
+		rt5640_hp_gpio_ctrl(rt5640, false);
+		snd_soc_jack_report(&rt5640->hp_jack, 0, SND_JACK_HEADPHONE);
+	} else {
+		rt5640->hp_insert = 1;
+		rt5640_hp_gpio_ctrl(rt5640, true);
+		snd_soc_jack_report(&rt5640->hp_jack, SND_JACK_HEADPHONE, SND_JACK_HEADPHONE);
+	}
+
 
 	return 0;
 }
