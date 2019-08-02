@@ -266,8 +266,8 @@ static int wk2xxx_dowork(struct wk2xxx_port *s)
         #ifdef _DEBUG_WK2XXX
         printk("--queue_work---ok---\n");
          printk("--wk2xxx_dowork---exit---\n");
-// printk("work_pending =: %d s->force_end_work  = : %d freezing(current) = :%d s->suspending= :%d\n" ,work_pending(&s->work),s->force_end_work ,freezing(current),s->suspending);
       #endif
+
         return 1;
     }
     else
@@ -277,12 +277,8 @@ static int wk2xxx_dowork(struct wk2xxx_port *s)
          printk("--wk2xxx_dowork---exit---\n");
       #endif
 
-//printk("work_pending =: %d s->force_end_work  = : %d freezing(current) = :%d s->suspending= :%d\n" ,work_pending(&s->work),s->force_end_work ,freezing(current),s->suspending);
-    //  return 0;
-//  printk("work_pending() =: %d tx_empty_flag = : %d start_tx_flag = :%d stop_tx_flag = :%d conf_flag =: %d irq_flag =: %d tx_empty=:%d\n",work_pending(&s->work),s->tx_empty_flag,s->start_tx_flag,s->stop_tx_flag,s->stop_rx_flag,s->conf_flag,s->irq_flag,s->tx_empty);
         return 0;
     }
-
 }
 
 static void wk2xxx_work(struct work_struct *w)
@@ -326,7 +322,7 @@ static void wk2xxx_work(struct work_struct *w)
 			wk2xxx_write_reg(s->spi_wk,s->port.iobase,WK2XXX_SIER,rx);
 		}
 
-	if(work_stop_rx_flag)
+        if(work_stop_rx_flag)
 		{
             //禁用接收超时 和 触点终端
 			wk2xxx_read_reg(s->spi_wk,s->port.iobase,WK2XXX_SIER,&rx);
@@ -344,7 +340,7 @@ static void wk2xxx_work(struct work_struct *w)
 		if(work_irq_flag)   //如果有硬件中断
 		{
 			wk2xxxirq_app(&s->port);
-				s->irq_fail = 1;
+			s->irq_fail = 1;
 		}
 	}while (!s->force_end_work && \
                     !freezing(current) && \
@@ -687,35 +683,9 @@ static void wk2xxxirq_app(struct uart_port *port)//
     unsigned int  pass_counter = 0;
     uint8_t sifr,gifr,sier,dat[1];
 
-#ifdef _DEBUG_WK2XXX1
-    uint8_t gier,sifr0,sifr1,sifr2,sifr3,sier1,sier0,sier2,sier3;
- #endif
-
     wk2xxx_read_reg(s->spi_wk,WK2XXX_GPORT,WK2XXX_GIFR ,dat);
     gifr = dat[0];
 
-#ifdef _DEBUG_WK2XXX1
-    wk2xxx_read_reg(s->spi_wk,WK2XXX_GPORT,WK2XXX_GIER ,dat);
-    gier = dat[0];
-    wk2xxx_write_reg(s->spi_wk,1,WK2XXX_SPAGE,WK2XXX_PAGE0);//set register in page0
-    wk2xxx_write_reg(s->spi_wk,2,WK2XXX_SPAGE,WK2XXX_PAGE0);//set register in page0
-    wk2xxx_write_reg(s->spi_wk,3,WK2XXX_SPAGE,WK2XXX_PAGE0);//set register in page0
-    wk2xxx_write_reg(s->spi_wk,4,WK2XXX_SPAGE,WK2XXX_PAGE0);//set register in page0
-
-    wk2xxx_read_reg(s->spi_wk,1,WK2XXX_SIFR,&sifr0);
-    wk2xxx_read_reg(s->spi_wk,2,WK2XXX_SIFR,&sifr1);
-    wk2xxx_read_reg(s->spi_wk,3,WK2XXX_SIFR,&sifr2);
-    wk2xxx_read_reg(s->spi_wk,4,WK2XXX_SIFR,&sifr3);
-
-    wk2xxx_read_reg(s->spi_wk,1,WK2XXX_SIER,&sier0);
-    wk2xxx_read_reg(s->spi_wk,2,WK2XXX_SIER,&sier1);
-    wk2xxx_read_reg(s->spi_wk,3,WK2XXX_SIER,&sier2);
-    wk2xxx_read_reg(s->spi_wk,4,WK2XXX_SIER,&sier3);
-#endif
-
-#ifdef _DEBUG_WK2XXX1
-    printk(KERN_ALERT "irq_app....gifr:%x  gier:%x  sier1:%x  sier2:%x sier3:%x sier4:%x   sifr1:%x sifr2:%x sifr3:%x sifr4:%x \n",gifr,gier,sier0,sier1,sier2,sier3,sifr0,sifr1,sifr2,sifr3);
-#endif
     switch(s->port.iobase)
     {
         case 1 :
@@ -765,8 +735,6 @@ static void wk2xxxirq_app(struct uart_port *port)//
            return;
         }
 
-printk( KERN_ALERT"ttysWK%ld: pass_counter = %d\n",s->port.iobase, pass_counter);
-
         if (pass_counter++ > WK2XXX_ISR_PASS_LIMIT)
             break;
 
@@ -777,8 +745,6 @@ printk( KERN_ALERT"ttysWK%ld: pass_counter = %d\n",s->port.iobase, pass_counter)
     } while ((sifr&WK2XXX_RXOVT_INT) ||  \
                     (sifr & WK2XXX_RFTRIG_INT) || \
                     ((sifr & WK2XXX_TFTRIG_INT) && (sier & WK2XXX_TFTRIG_IEN)));
-
-    printk( KERN_ALERT"func:%s %d\n", __func__, __LINE__);
 }
 
 
@@ -987,6 +953,8 @@ static void wk2xxx_break_ctl(struct uart_port *port, int break_state)
 void wk2xxx_enable_uart_port_clock(struct wk2xxx_port *s)
 {
     uint8_t gena;
+
+    mutex_lock(&wk2xxs_global_register_lock);
     wk2xxx_read_reg(s->spi_wk,WK2XXX_GPORT,WK2XXX_GENA, &gena);
     switch (s->port.iobase)
     {
@@ -1010,6 +978,42 @@ void wk2xxx_enable_uart_port_clock(struct wk2xxx_port *s)
         printk(KERN_ALERT ":con_wk2xxx_subport bad iobase %d\n", (uint8_t)s->port.iobase);
             break;
     }
+    mutex_unlock(&wk2xxs_global_register_lock);
+}
+
+/*
+ *  * disable uart port clock.
+ * @jincheng
+*/
+void wk2xxx_disable_uart_port_clock(struct wk2xxx_port *s)
+{
+    uint8_t gena;
+
+    mutex_lock(&wk2xxs_global_register_lock);
+    wk2xxx_read_reg(s->spi_wk,WK2XXX_GPORT,WK2XXX_GENA, &gena);
+    switch (s->port.iobase)
+    {
+        case 1:
+            gena&=~WK2XXX_UT1EN;
+            wk2xxx_write_reg(s->spi_wk,WK2XXX_GPORT,WK2XXX_GENA,gena);
+           break;
+        case 2:
+            gena&=~WK2XXX_UT2EN;
+            wk2xxx_write_reg(s->spi_wk,WK2XXX_GPORT,WK2XXX_GENA,gena);
+            break;
+        case 3:
+            gena&=~WK2XXX_UT3EN;
+            wk2xxx_write_reg(s->spi_wk,WK2XXX_GPORT,WK2XXX_GENA,gena);
+            break;
+        case 4:
+            gena&=~WK2XXX_UT4EN;
+            wk2xxx_write_reg(s->spi_wk,WK2XXX_GPORT,WK2XXX_GENA,gena);
+            break;
+        default:
+            dev_warn(&s->spi_wk->dev, ":con_wk2xxx_subport bad iobase %d\n", (uint8_t)s->port.iobase);
+        break;
+    }
+    mutex_unlock(&wk2xxs_global_register_lock);
 }
 
 
@@ -1018,6 +1022,7 @@ void wk2xxx_reset_uart_port(struct wk2xxx_port *s)
 {
     uint8_t grst;
 
+    mutex_lock(&wk2xxs_global_register_lock);
     wk2xxx_read_reg(s->spi_wk,WK2XXX_GPORT,WK2XXX_GRST, &grst);
     switch (s->port.iobase)
     {
@@ -1041,27 +1046,15 @@ void wk2xxx_reset_uart_port(struct wk2xxx_port *s)
                 printk(KERN_ALERT ":con_wk2xxx_subport bad iobase %d\n", (uint8_t)s->port.iobase);
                 break;
     }
+    mutex_unlock(&wk2xxs_global_register_lock);
 }
-
-
-void wk2xxx_init_uart_port_FIFO(struct wk2xxx_port *s)
-{
-    uint8_t sier;
-
-    wk2xxx_read_reg(s->spi_wk,s->port.iobase,WK2XXX_SIER, &sier);
-
-    sier &= ~WK2XXX_TFTRIG_IEN; //禁用FIFO发送触发终端
-    sier |= WK2XXX_RFTRIG_IEN;   //接收FIFO触发中断
-    sier |= WK2XXX_RXOUT_IEN;      //接收FIFO超时中断
-
-    wk2xxx_write_reg(s->spi_wk,s->port.iobase,WK2XXX_SIER,sier);
-}
-
 
 //enable the sub port interrupt
 void wk2xxx_enabel_sub_port_int(struct wk2xxx_port *s)
 {
     uint8_t gier;
+
+    mutex_lock(&wk2xxs_global_register_lock);
     wk2xxx_read_reg(s->spi_wk,WK2XXX_GPORT,WK2XXX_GIER,  &gier);
 
     switch (s->port.iobase){
@@ -1085,6 +1078,22 @@ void wk2xxx_enabel_sub_port_int(struct wk2xxx_port *s)
                 printk(KERN_ALERT ": bad iobase %d\n", (uint8_t)s->port.iobase);
                 break;
     } 
+    mutex_unlock(&wk2xxs_global_register_lock);
+}
+
+
+
+void wk2xxx_init_uart_port_FIFO(struct wk2xxx_port *s)
+{
+    uint8_t sier;
+
+    wk2xxx_read_reg(s->spi_wk,s->port.iobase,WK2XXX_SIER, &sier);
+
+    sier &= ~WK2XXX_TFTRIG_IEN; //禁用FIFO发送触发终端
+    sier |= WK2XXX_RFTRIG_IEN;   //接收FIFO触发中断
+    sier |= WK2XXX_RXOUT_IEN;      //接收FIFO超时中断
+
+    wk2xxx_write_reg(s->spi_wk,s->port.iobase,WK2XXX_SIER,sier);
 }
 
 
@@ -1100,35 +1109,29 @@ static int wk2xxx_startup(struct uart_port *port)//i
     if (s->suspending)
         return 0;
 
-    s->force_end_work = 0;
-    sprintf(b, "wk2xxx-%d", (uint8_t)s->port.iobase);
-    //s->workqueue = create_singlethread_workqueue(b);
-    s->workqueue = create_workqueue(b);
+    s->force_end_work = 0;  //clear force_end_work
 
+    //init workqueue
+    sprintf(b, "wk2xxx-%d", (uint8_t)s->port.iobase);
+    s->workqueue = create_workqueue(b);
     if (!s->workqueue)
     {
         dev_warn(&s->spi_wk->dev, "cannot create workqueue\n");
         return -EBUSY;
     }
-
     INIT_WORK(&s->work, wk2xxx_work);
 
     if (s->wk2xxx_hw_suspend)
         s->wk2xxx_hw_suspend(0);
 
-
-    mutex_lock(&wk2xxs_global_register_lock);
-
     wk2xxx_enable_uart_port_clock(s);//使能串口时钟 
     wk2xxx_reset_uart_port(s);//复位串口
-
     wk2xxx_init_uart_port_FIFO(s);   //初始化FIFO中断
 
     //使能串口发送和接收位
     wk2xxx_read_reg(s->spi_wk,s->port.iobase,WK2XXX_SCR,dat);
     scr = dat[0] | WK2XXX_TXEN|WK2XXX_RXEN;
     wk2xxx_write_reg(s->spi_wk,s->port.iobase,WK2XXX_SCR,scr);
-
 //initiate the fifos
     wk2xxx_write_reg(s->spi_wk,s->port.iobase,WK2XXX_FCR,0xff);//initiate the fifos
     wk2xxx_write_reg(s->spi_wk,s->port.iobase,WK2XXX_FCR,0xfc);
@@ -1137,22 +1140,18 @@ static int wk2xxx_startup(struct uart_port *port)//i
     wk2xxx_write_reg(s->spi_wk,s->port.iobase,WK2XXX_RFTL,0X40);
     wk2xxx_write_reg(s->spi_wk,s->port.iobase,WK2XXX_TFTL,0X40);
     wk2xxx_write_reg(s->spi_wk,s->port.iobase,WK2XXX_SPAGE,0);
-
 //enable the sub port interrupt
     wk2xxx_enabel_sub_port_int(s);
 
-    mutex_unlock(&wk2xxs_global_register_lock);
-
     if (s->wk2xxx_hw_suspend)
+    {
         s->wk2xxx_hw_suspend(0);
-
-    msleep(50);
-
-
+        msleep(50);
+    }
+     
     uart_circ_clear(&s->port.state->xmit);
     wk2xxx_enable_ms(&s->port);
-    // request irq
-    //   if(request_irq(s->port.irq, wk2xxx_irq,IRQF_SHARED | IRQF_TRIGGER_LOW,"wk2xxxspi", s) < 0)
+
     if(request_irq(s->port.irq, wk2xxx_irq,IRQF_SHARED | IRQF_TRIGGER_LOW,"wk2xxxspi", s) < 0)
     {
             dev_warn(&s->spi_wk->dev, "cannot allocate irq %d\n", s->irq);
@@ -1161,13 +1160,13 @@ static int wk2xxx_startup(struct uart_port *port)//i
             s->workqueue = NULL;
             return -EBUSY;
     }       
-    udelay(100);
-    udelay(100);
+
 #ifdef _DEBUG_WK2XXX
         printk(KERN_ALERT "-wk2xxx_startup------exit---\n", );
 #endif
        return 0;
 }
+
 //* Power down all displays on reboot, poweroff or halt *
 
 static void wk2xxx_shutdown(struct uart_port *port)//
@@ -1175,11 +1174,12 @@ static void wk2xxx_shutdown(struct uart_port *port)//
 #ifdef _DEBUG_WK2XXX
     printk(KERN_ALERT "-wk2xxx_shutdown------in---\n");
 #endif
-    uint8_t gena,dat[1];
-        struct wk2xxx_port *s = container_of(port,struct wk2xxx_port,port);
+
+    struct wk2xxx_port *s = container_of(port,struct wk2xxx_port,port);
 
     if (s->suspending)
        return;
+
 	s->force_end_work = 1;
     if (s->workqueue)
     {
@@ -1190,34 +1190,12 @@ static void wk2xxx_shutdown(struct uart_port *port)//
 
     if (s->port.irq)
     {
-           // disable_irq_nosync(s->port.irq);
           free_irq(s->port.irq,s);
     }
 
-     wk2xxx_read_reg(s->spi_wk,WK2XXX_GPORT,WK2XXX_GENA,dat);
-      gena=dat[0];
-      switch (s->port.iobase)
-    {
-          case 1:
-                  gena&=~WK2XXX_UT1EN;
-                  wk2xxx_write_reg(s->spi_wk,WK2XXX_GPORT,WK2XXX_GENA,gena);
-                  break;
-          case 2:
-                  gena&=~WK2XXX_UT2EN;
-                  wk2xxx_write_reg(s->spi_wk,WK2XXX_GPORT,WK2XXX_GENA,gena);
-                  break;
-          case 3:
-                 gena&=~WK2XXX_UT3EN;
-                 wk2xxx_write_reg(s->spi_wk,WK2XXX_GPORT,WK2XXX_GENA,gena);
-                  break;
-          case 4:
-                  gena&=~WK2XXX_UT4EN;
-                  wk2xxx_write_reg(s->spi_wk,WK2XXX_GPORT,WK2XXX_GENA,gena);
-                  break;
-          default:
-                 printk(KERN_ALERT ":con_wk2xxx_subport bad iobase %d\n", (uint8_t)s->port.iobase);
-         break;
-    }
+    //disabel uart port clock
+    wk2xxx_disable_uart_port_clock(s);
+
 
 #ifdef _DEBUG_WK2XXX5
         wk2xxx_read_reg(s->spi_wk,WK2XXX_GPORT,WK2XXX_GENA,dat);
@@ -1228,7 +1206,6 @@ static void wk2xxx_shutdown(struct uart_port *port)//
         printk(KERN_ALERT "-wk2xxx_shutdown-----exit---\n");
 #endif
         return;
-
 }
 
 static void conf_wk2xxx_subport(struct uart_port *port)//i
@@ -1237,7 +1214,7 @@ static void conf_wk2xxx_subport(struct uart_port *port)//i
             printk(KERN_ALERT "-conf_wk2xxx_subport------in---\n");
 #endif
 
-        struct wk2xxx_port *s = container_of(port,struct wk2xxx_port,port);
+    struct wk2xxx_port *s = container_of(port,struct wk2xxx_port,port);
     uint8_t old_sier,lcr,scr,scr_ss,dat[1],baud0_ss,baud1_ss,pres_ss;
 
     lcr = s->new_lcr;
@@ -1245,9 +1222,9 @@ static void conf_wk2xxx_subport(struct uart_port *port)//i
     baud0_ss=s->new_baud0;
     baud1_ss=s->new_baud1;
     pres_ss=s->new_pres;
-        wk2xxx_read_reg(s->spi_wk,s->port.iobase,WK2XXX_SIER ,dat);
-        old_sier = dat[0];
-        wk2xxx_write_reg(s->spi_wk,s->port.iobase,WK2XXX_SIER ,old_sier&(~(WK2XXX_TFTRIG_IEN | WK2XXX_RFTRIG_IEN | WK2XXX_RXOUT_IEN)));
+    wk2xxx_read_reg(s->spi_wk,s->port.iobase,WK2XXX_SIER ,dat);
+    old_sier = dat[0];
+    wk2xxx_write_reg(s->spi_wk,s->port.iobase,WK2XXX_SIER ,old_sier&(~(WK2XXX_TFTRIG_IEN | WK2XXX_RFTRIG_IEN | WK2XXX_RXOUT_IEN)));
     //local_irq_restore(flags);
     do{
         wk2xxx_read_reg(s->spi_wk,s->port.iobase,WK2XXX_FSR,dat);
@@ -1268,17 +1245,15 @@ static void conf_wk2xxx_subport(struct uart_port *port)//i
         wk2xxx_write_reg(s->spi_wk,s->port.iobase,WK2XXX_BAUD1 ,baud1_ss);
         wk2xxx_write_reg(s->spi_wk,s->port.iobase,WK2XXX_PRES ,pres_ss);
 #ifdef _DEBUG_WK2XXX2
-            wk2xxx_read_reg(s->spi_wk,s->port.iobase,WK2XXX_BAUD0,dat);
-            printk(KERN_ALERT ":WK2XXX_BAUD0=0x%X\n", dat[0]);
-             wk2xxx_read_reg(s->spi_wk,s->port.iobase,WK2XXX_BAUD1,dat);
-            printk(KERN_ALERT ":WK2XXX_BAUD1=0x%X\n", dat[0]);
-             wk2xxx_read_reg(s->spi_wk,s->port.iobase,WK2XXX_PRES,dat);
-            printk(KERN_ALERT ":WK2XXX_PRES=0x%X\n", dat[0]);
+        wk2xxx_read_reg(s->spi_wk,s->port.iobase,WK2XXX_BAUD0,dat);
+        printk(KERN_ALERT ":WK2XXX_BAUD0=0x%X\n", dat[0]);
+        wk2xxx_read_reg(s->spi_wk,s->port.iobase,WK2XXX_BAUD1,dat);
+        printk(KERN_ALERT ":WK2XXX_BAUD1=0x%X\n", dat[0]);
+        wk2xxx_read_reg(s->spi_wk,s->port.iobase,WK2XXX_PRES,dat);
+        printk(KERN_ALERT ":WK2XXX_PRES=0x%X\n", dat[0]);
 #endif
         wk2xxx_write_reg(s->spi_wk,s->port.iobase,WK2XXX_SPAGE ,0);
         wk2xxx_write_reg(s->spi_wk,s->port.iobase,WK2XXX_SCR ,scr|(WK2XXX_RXEN|WK2XXX_TXEN)  );
-
-
 #ifdef _DEBUG_WK2XXX
         printk(KERN_ALERT "-conf_wk2xxx_subport------exit---\n");
 #endif
@@ -1308,7 +1283,7 @@ static void wk2xxx_termios( struct uart_port *port, struct ktermios *termios,
     baud1=0;
     baud0=0;
     pres=0;
-    baud = tty_termios_baud_rate(termios);
+    baud = tty_termios_baud_rate(termios);//用户空间传递到内核空间
 
 	switch (baud) {
 	case 600:
@@ -1406,15 +1381,12 @@ static void wk2xxx_termios( struct uart_port *port, struct ktermios *termios,
 		baud1=0x00;
 		baud0=0x00;
 		pres=0;
-		}
+	}
     tty_termios_encode_baud_rate(termios, baud, baud);
 
     /* we are sending char from a workqueue so enable */
 
-
-printk("wk2xxx_termios()----port:%ld--- cflag:0x%x-CSTOPB:0x%x,PARENB:0x%x,PARODD:0x%x--\n",s->port.iobase,cflag,CSTOPB,PARENB,PARODD);
-
-        lcr =0;
+    lcr =0;
 
 	//设置停止位
         if (cflag & CSTOPB)
@@ -1433,7 +1405,6 @@ printk("wk2xxx_termios()----port:%ld--- cflag:0x%x-CSTOPB:0x%x,PARENB:0x%x,PAROD
                 else{
                         lcr |= WK2XXX_PAM0;//PAM0=1
                         lcr &= ~WK2XXX_PAM1;//PAM1=0
-
                 }
         }
         else{
