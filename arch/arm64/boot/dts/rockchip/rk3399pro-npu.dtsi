@@ -7,8 +7,10 @@
 #include <dt-bindings/pinctrl/rockchip.h>
 #include <dt-bindings/power/rk1808-power.h>
 #include <dt-bindings/phy/phy.h>
+#include <dt-bindings/soc/rockchip-system-status.h>
 #include <dt-bindings/suspend/rockchip-rk1808.h>
 #include <dt-bindings/thermal/thermal.h>
+#include "rk1808-dram-default-timing.dtsi"
 
 / {
 	compatible = "rockchip,rk3399pro-npu";
@@ -714,12 +716,95 @@
 		status = "disabled";
 	};
 
+	dcf: dcf@ff640000 {
+		compatible = "syscon";
+		reg = <0x0 0xff640000 0x0 0x1000>;
+	};
+
 	rktimer: rktimer@ff700000 {
 		compatible = "rockchip,rk3288-timer";
 		reg = <0x0 0xff700000 0x0 0x1000>;
 		interrupts = <GIC_SPI 26 IRQ_TYPE_LEVEL_HIGH>;
 		clocks = <&cru PCLK_TIMER>, <&cru SCLK_TIMER0>;
 		clock-names = "pclk", "timer";
+	};
+
+	dfi: dfi@ff9c0000 {
+		reg = <0x00 0xff9c0000 0x00 0x400>;
+		compatible = "rockchip,rk1808-dfi";
+		rockchip,pmugrf = <&pmugrf>;
+		status = "disabled";
+	};
+
+	dmc: dmc {
+		compatible = "rockchip,rk1808-dmc";
+		dcf_reg = <&dcf>;
+		interrupts = <GIC_SPI 0 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "complete_irq";
+		devfreq-events = <&dfi>;
+		clocks = <&cru SCLK_DDRCLK>;
+		clock-names = "dmc_clk";
+		operating-points-v2 = <&dmc_opp_table>;
+		ddr_timing = <&ddr_timing>;
+		upthreshold = <40>;
+		downdifferential = <20>;
+		system-status-freq = <
+			/*system status         freq(KHz)*/
+			SYS_STATUS_NORMAL       924000
+			SYS_STATUS_REBOOT       450000
+			SYS_STATUS_SUSPEND      328000
+			SYS_STATUS_BOOST        924000
+			SYS_STATUS_ISP          924000
+			SYS_STATUS_PERFORMANCE  924000
+		>;
+		auto-min-freq = <328000>;
+		auto-freq-en = <0>;
+		#cooling-cells = <2>;
+		status = "disabled";
+	};
+
+	dmc_opp_table: dmc-opp-table {
+		compatible = "operating-points-v2";
+
+		rockchip,max-volt = <950000>;
+		rockchip,evb-irdrop = <12500>;
+		nvmem-cells = <&logic_leakage>;
+		nvmem-cell-names = "leakage";
+
+		opp-192000000 {
+			opp-hz = /bits/ 64 <192000000>;
+			opp-microvolt = <750000>;
+		};
+		opp-324000000 {
+			opp-hz = /bits/ 64 <324000000>;
+			opp-microvolt = <750000>;
+		};
+		opp-450000000 {
+			opp-hz = /bits/ 64 <450000000>;
+			opp-microvolt = <750000>;
+		};
+		opp-528000000 {
+			opp-hz = /bits/ 64 <528000000>;
+			opp-microvolt = <750000>;
+		};
+		opp-664000000 {
+			opp-hz = /bits/ 64 <664000000>;
+			opp-microvolt = <750000>;
+		};
+		opp-784000000 {
+			opp-hz = /bits/ 64 <784000000>;
+			opp-microvolt = <750000>;
+		};
+		opp-924000000 {
+			opp-hz = /bits/ 64 <924000000>;
+			opp-microvolt = <750000>;
+		};
+		/* 1066M is only for ddr4 */
+		opp-1066000000 {
+			opp-hz = /bits/ 64 <1066000000>;
+			opp-microvolt = <775000>;
+			status = "disabled";
+		};
 	};
 
 	rk_rga: rk_rga@ffaf0000 {
