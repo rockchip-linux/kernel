@@ -511,6 +511,10 @@
 };
 
 &dsi0 {
+	/*
+	 * this property is used for providing backward compatibility
+	 * for rk/uboot:rkdevelop.
+	 */
 	rockchip,dual-channel = <&dsi1>;
 	rockchip,lane-rate = <1000>;
 	status = "okay";
@@ -569,6 +573,14 @@
 
 &dsi1 {
 	status = "okay";
+};
+
+&vopb_out_dsi1 {
+	status = "disabled";
+};
+
+&vopl_out_dsi1 {
+	status = "disabled";
 };
 
 &dsi0_in_vopl {
