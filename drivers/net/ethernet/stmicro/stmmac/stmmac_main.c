@@ -3138,7 +3138,6 @@ int stmmac_resume(struct device *dev)
 	stmmac_clear_descriptors(priv);
 
 	stmmac_hw_setup(ndev, false);
-	stmmac_init_tx_coalesce(priv);
 	stmmac_set_rx_mode(ndev);
 
 	napi_enable(&priv->napi);
