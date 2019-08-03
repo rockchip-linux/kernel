@@ -110,6 +110,30 @@
 		};
 	};
 
+	gmac-1 {
+		rmiim1_pins: rmiim1-pins {
+		    rockchip,pins =
+		        /* mac_mdio */
+		        <1 RK_PC3 RK_FUNC_2 &pcfg_pull_none_2ma>,
+		        /* mac_txen */
+		        <1 RK_PD1 RK_FUNC_2 &pcfg_pull_none_12ma>,
+		        /* mac_clk */
+		        <1 RK_PC5 RK_FUNC_2 &pcfg_pull_none_2ma>,
+		        /* mac_rxdv */
+		        <1 RK_PC6 RK_FUNC_2 &pcfg_pull_none_2ma>,
+		        /* mac_mdc */
+		        <1 RK_PC7 RK_FUNC_2 &pcfg_pull_none_2ma>,
+		        /* mac_rxd1 */
+		        <1 RK_PB2 RK_FUNC_2 &pcfg_pull_none_2ma>,
+		        /* mac_rxd0 */
+		        <1 RK_PB3 RK_FUNC_2 &pcfg_pull_none_2ma>,
+		        /* mac_txd1 */
+		        <1 RK_PB0 RK_FUNC_2 &pcfg_pull_none_12ma>,
+		        /* mac_txd0 */
+		        <1 RK_PB1 RK_FUNC_2 &pcfg_pull_none_12ma>;
+		};
+	};
+
 	vccio-sd {
 		sd_pwr_1800_sel:sd-pwr-1800-sel {
 			rockchip,pins =
