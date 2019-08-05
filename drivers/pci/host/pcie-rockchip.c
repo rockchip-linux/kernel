@@ -385,7 +385,7 @@ static int rockchip_pcie_rd_other_conf(struct rockchip_pcie *rockchip,
 	busdev = PCIE_ECAM_ADDR(bus->number, PCI_SLOT(devfn),
 				PCI_FUNC(devfn), where);
 
-	if (!IS_ALIGNED(busdev, size) || busdev >= SZ_1M) {
+	if (!IS_ALIGNED(busdev, size)) {
 		*val = 0;
 		return PCIBIOS_BAD_REGISTER_NUMBER;
 	}
@@ -411,7 +411,7 @@ static int rockchip_pcie_wr_other_conf(struct rockchip_pcie *rockchip,
 
 	busdev = PCIE_ECAM_ADDR(bus->number, PCI_SLOT(devfn),
 				PCI_FUNC(devfn), where);
-	if (!IS_ALIGNED(busdev, size) || busdev >= SZ_1M)
+	if (!IS_ALIGNED(busdev, size))
 		return PCIBIOS_BAD_REGISTER_NUMBER;
 
 	if (size == 4)
