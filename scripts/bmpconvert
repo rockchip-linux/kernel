@@ -62,9 +62,6 @@ class BMPFile:
         if self.bfReserved1 != 8399 and self.biHeight > 0:
             self.reverse_bmp_data()
             print("reverse data at first time")
-        if self.bfReserved1 != 8399:
-            self.rb_swap = 1
-            print("swap bgr to rgb at first time")
         if self.force_revers:
             self.reverse_bmp_data()
             print("reverse data by force")
@@ -254,11 +251,12 @@ class BMPFile:
         self.file.write(pack("<i", 54))  # bfOffBits
         self.file.write(pack("<i", 40))  # biSize
         self.file.write(pack("<i", self.biWidth))
-        # force height to positive for vop not support negative height
+        # force height to negative let logo show normal in windows
+        # the uboot code can deal with negative height
         if self.biHeight < 0:
-            self.file.write(pack("<i", self.biHeight * -1))
-        else:
             self.file.write(pack("<i", self.biHeight))
+        else:
+            self.file.write(pack("<i", self.biHeight * -1))
         self.file.write(pack("<h", self.biPlanes))
         self.file.write(pack("<h", 24))  # biBitCount
         self.file.write(pack("<i", 0))  # biCompression
