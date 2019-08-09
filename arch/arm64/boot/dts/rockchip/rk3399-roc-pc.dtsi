@@ -1330,7 +1330,7 @@
 };
 
 &uart2 {
-	status = "okay";
+	status = "disabled";
 };
 
 &usbdrd3_0 {
