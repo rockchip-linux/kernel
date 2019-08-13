@@ -362,6 +362,7 @@
 };
 
 &usbdrd_dwc3 {
+	maximum-speed = "high-speed";
 	phys = <&u2phy_otg>;
 	phy-names = "usb2-phy";
 	status = "okay";
