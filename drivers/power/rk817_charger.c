@@ -367,10 +367,10 @@ static int rk817_charge_ac_get_property(struct power_supply *psy,
 		DBG("report prop: %d\n", val->intval);
 		break;
 	case POWER_SUPPLY_PROP_VOLTAGE_MAX:
-		val->intval = charge->max_chrg_voltage;
+		val->intval = charge->max_chrg_voltage * 1000;	/* uV */
 		break;
 	case POWER_SUPPLY_PROP_CURRENT_MAX:
-		val->intval = charge->max_chrg_current;
+		val->intval = charge->max_chrg_current * 1000;	/* uA */
 		break;
 	default:
 		ret = -EINVAL;

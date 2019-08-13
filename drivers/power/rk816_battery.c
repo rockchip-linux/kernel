@@ -1213,10 +1213,10 @@ static int rk816_bat_ac_get_property(struct power_supply *psy,
 			val->intval = di->ac_in | di->dc_in;
 		break;
 	case POWER_SUPPLY_PROP_VOLTAGE_MAX:
-		val->intval = di->voltage_max;
+		val->intval = di->voltage_max * 1000;	/* uV */
 		break;
 	case POWER_SUPPLY_PROP_CURRENT_MAX:
-		val->intval = di->current_max;
+		val->intval = di->current_max * 1000;	/* uA */
 		break;
 	case POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT:
 		val->intval = rk816_bat_is_input_enabled(di);
@@ -1246,10 +1246,10 @@ static int rk816_bat_usb_get_property(struct power_supply *psy,
 			val->intval = di->usb_in;
 		break;
 	case POWER_SUPPLY_PROP_VOLTAGE_MAX:
-		val->intval = di->voltage_max;
+		val->intval = di->voltage_max * 1000;	/* uV */
 		break;
 	case POWER_SUPPLY_PROP_CURRENT_MAX:
-		val->intval = di->current_max;
+		val->intval = di->current_max * 1000;	/* uA */
 		break;
 	case POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT:
 		val->intval = rk816_bat_is_input_enabled(di);

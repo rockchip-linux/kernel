@@ -351,7 +351,7 @@ static int rk818_cg_get_bat_max_vol(struct rk818_charger *cg)
 	rk818_cg_get_psy(cg);
 
 	if (!cg->bat_psy)
-		return cg->pdata->max_chrg_voltage;
+		return cg->pdata->max_chrg_voltage * 1000;
 
 	ret = cg->bat_psy->desc->get_property(cg->bat_psy,
 					      POWER_SUPPLY_PROP_VOLTAGE_MAX,
@@ -359,7 +359,7 @@ static int rk818_cg_get_bat_max_vol(struct rk818_charger *cg)
 	if (!ret && val.intval)
 		return val.intval;
 
-	return cg->pdata->max_chrg_voltage;
+	return cg->pdata->max_chrg_voltage * 1000;
 }
 
 static enum power_supply_property rk818_ac_props[] = {
