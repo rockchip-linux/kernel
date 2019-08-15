@@ -21,7 +21,7 @@ DHDCFLAGS += -Wall -Wstrict-prototypes -Dlinux -DLINUX -DBCMDRIVER            \
 	-DKEEP_ALIVE -DCSCAN -DPKT_FILTER_SUPPORT                             \
 	-DEMBEDDED_PLATFORM -DPNO_SUPPORT                                     \
 	-DDHD_DONOT_FORWARD_BCMEVENT_AS_NETWORK_PKT                           \
-	-DCUSTOMER_HW2 -DSDTEST
+	-DCUSTOMER_HW2 -DSDTEST -DENABLE_INSMOD_NO_FW_LOAD
 
 #################
 # Common feature
@@ -263,7 +263,6 @@ DHDCFLAGS += -DDHD_DHCP_DUMP
 EXTRA_LDFLAGS += --strip-debug
 
 ifeq ($(DRIVER_TYPE),y)
-  DHDCFLAGS += -DENABLE_INSMOD_NO_FW_LOAD
   DHDCFLAGS += -DUSE_LATE_INITCALL_SYNC
 endif
 

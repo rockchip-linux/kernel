@@ -110,6 +110,7 @@ extern bool  bcmsdh_fatal_error(void *sdh);
 
 #define MAX_DATA_BUF	(64 * 1024)	/* Must be large enough to hold biggest possible glom */
 
+#define MAX_MEM_BUF    4096
 #ifndef DHD_FIRSTREAD
 #define DHD_FIRSTREAD   32
 #endif
@@ -382,6 +383,7 @@ typedef struct dhd_bus {
 	uint32		txglom_total_len;	/* Total length of pkts in glom array */
 	bool		txglom_enable;	/* Flag to indicate whether tx glom is enabled/disabled */
 	uint32		txglomsize;	/* Glom size limitation */
+	uint8           *membuf;
 #ifdef DHDENABLE_TAILPAD
 	void		*pad_pkt;
 #endif /* DHDENABLE_TAILPAD */
@@ -2854,6 +2856,10 @@ dhdsdio_membytes(dhd_bus_t *bus, bool write, uint32 address, uint8 *data, uint s
 	else
 		dsize = size;
 
+	if (dsize > MAX_MEM_BUF) {
+		DHD_ERROR(("%s: dsize %d > %d\n", __FUNCTION__, dsize, MAX_MEM_BUF));
+		goto xfer_done;
+	}
 	/* Set the backplane window to include the start address */
 	if ((bcmerror = dhdsdio_set_siaddr_window(bus, address))) {
 		DHD_ERROR(("%s: window change failed\n", __FUNCTION__));
@@ -2865,9 +2871,15 @@ dhdsdio_membytes(dhd_bus_t *bus, bool write, uint32 address, uint8 *data, uint s
 		DHD_INFO(("%s: %s %d bytes at offset 0x%08x in window 0x%08x\n",
 		          __FUNCTION__, (write ? "write" : "read"), dsize, sdaddr,
 		          (address & SBSDIO_SBWINDOW_MASK)));
-		if ((bcmerror = bcmsdh_rwdata(bus->sdh, write, sdaddr, data, dsize))) {
+		if (write) {
+			memcpy(bus->membuf, data, dsize);
+		}
+		if ((bcmerror = bcmsdh_rwdata(bus->sdh, write, sdaddr, bus->membuf, dsize))) {
 			DHD_ERROR(("%s: membytes transfer failed\n", __FUNCTION__));
 			break;
+		}
+		if (!write) {
+			memcpy(data, bus->membuf, dsize);
 		}
 
 		/* Adjust for next transfer (if any) */
@@ -7520,6 +7532,20 @@ dhdsdio_probe_malloc(dhd_bus_t *bus, osl_t *osh, void *sdh)
 			DHD_OS_PREFREE(bus->dhd, bus->rxbuf, bus->rxblen);
 		goto fail;
 	}
+	bus->membuf = MALLOC(osh, MAX_MEM_BUF);
+	if (bus->membuf == NULL) {
+		DHD_ERROR(("%s: MALLOC of %d-byte membuf failed\n", __FUNCTION__, MAX_MEM_BUF));
+		if (bus->databuf) {
+#ifndef CONFIG_DHD_USE_STATIC_BUF
+			MFREE(osh, bus->databuf, MAX_DATA_BUF);
+#endif
+			bus->databuf = NULL;
+		}
+		if (!bus->rxblen)
+			DHD_OS_PREFREE(bus->dhd, bus->rxbuf, bus->rxblen);
+		goto fail;
+	}
+	memset(bus->membuf, 0, MAX_MEM_BUF);
 
 	/* Align the buffer */
 	if ((uintptr)bus->databuf % DHD_SDALIGN)
@@ -7737,6 +7763,10 @@ dhdsdio_release_malloc(dhd_bus_t *bus, osl_t *osh)
 #endif
 		bus->databuf = NULL;
 	}
+	if (bus->membuf) {
+		MFREE(osh, bus->membuf, MAX_DATA_BUF);
+		bus->membuf = NULL;
+	}
 
 	if (bus->vars && bus->varsz) {
 		MFREE(osh, bus->vars, bus->varsz);
@@ -7814,6 +7844,9 @@ dhdsdio_suspend(void *context)
 		DHD_ERROR(("prot is not inited\n"));
 		return BCME_ERROR;
 	}
+	if (bus->dhd->up == FALSE) {
+		return BCME_OK;
+	}
 	DHD_GENERAL_LOCK(bus->dhd, flags);
 	if (bus->dhd->busstate != DHD_BUS_DATA && bus->dhd->busstate != DHD_BUS_SUSPEND) {
 		DHD_ERROR(("not in a readystate to LPBK  is not inited\n"));
@@ -7866,6 +7899,9 @@ dhdsdio_resume(void *context)
 {
 	dhd_bus_t *bus = (dhd_bus_t*)context;
 	unsigned long flags;
+	if (bus->dhd->up == FALSE) {
+		return BCME_OK;
+	}
 
 	DHD_GENERAL_LOCK(bus->dhd, flags);
 	bus->dhd->busstate = DHD_BUS_DATA;
