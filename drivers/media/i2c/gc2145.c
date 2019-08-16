@@ -2596,6 +2596,11 @@ static int __gc2145_power_on(struct gc2145 *gc2145)
 		usleep_range(2000, 5000);
 	}
 
+	if (!IS_ERR(gc2145->reset_gpio)) {
+		gpiod_set_value_cansleep(gc2145->reset_gpio, 0);
+		usleep_range(2000, 5000);
+	}
+
 	if (!IS_ERR(gc2145->xvclk)) {
 		ret = clk_prepare_enable(gc2145->xvclk);
 		if (ret < 0)
