@@ -90,6 +90,7 @@ dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3399-firefly-aioc.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3399-firefly-aioec.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3399-firefly-aioec-lvds.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3399-firefly-aiojd4.dtb
+dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3399-firefly-aiojd4-sr.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3399-firefly-android.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3399-firefly-edp.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3399-firefly-linux.dtb
