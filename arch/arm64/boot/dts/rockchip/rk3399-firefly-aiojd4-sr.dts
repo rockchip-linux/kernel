@@ -10,7 +10,7 @@
 	test-power {
 		status = "okay";
 	};
-	
+
 	fan_ctl: fan-ctl-regulator {
 		compatible = "regulator-fixed";
         	enable-active-high;
@@ -22,6 +22,23 @@
         	pinctrl-0 = <&fan_drv>;
 	};
 };
+
+&sdmmc {
+	status = "disabled";
+};
+
+&rt5640 {
+	status = "disabled";
+};
+
+&vcc5v0_host {
+	gpio = <&gpio1 23 GPIO_ACTIVE_HIGH>;
+};
+
+&host_vbus_drv {
+	rockchip,pins = <1 23 RK_FUNC_GPIO &pcfg_pull_none>;
+};
+
 
 &gmac {
 	tx_delay = <0x2F>;
@@ -51,9 +68,6 @@
 &vcca1v8_codec {
 	regulator-min-microvolt = <900000>;
 	regulator-max-microvolt = <900000>;
-};
-&uart4 {
-    status = "disabled";
 };
 
 &spi1 {
@@ -113,6 +127,7 @@
 		};
 	};
 
+	
 	fan-ctl {
         	fan_drv: fan-drv {
              		rockchip,pins = <3 10 RK_FUNC_GPIO &pcfg_pull_none>;
@@ -138,12 +153,6 @@
 &u2phy0 {
     status = "okay";
     /delete-property/ extcon;
-
-    u2phy0_otg: otg-port {
-        rockchip,vbus-always-on;
-        vbus-5v-gpios = <&gpio1 3 GPIO_ACTIVE_HIGH>;
-        status = "okay";
-    };
 };
 
 &usbdrd3_0 {
@@ -152,7 +161,7 @@
 };
 
 &usbdrd_dwc3_0 {
-    dr_mode = "host";
+    dr_mode = "peripheral";
 };
 
 &route_hdmi {
@@ -163,4 +172,5 @@
      /delete-property/ pmic,stby-gpio;
      /delete-property/ pmic,hold-gpio;
 };
+
 
