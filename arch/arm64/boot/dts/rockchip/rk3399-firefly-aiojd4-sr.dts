@@ -23,6 +23,10 @@
 	};
 };
 
+&i2s0 {
+	status = "disabled";
+};
+
 &sdmmc {
 	status = "disabled";
 };
@@ -39,6 +43,13 @@
 	rockchip,pins = <1 23 RK_FUNC_GPIO &pcfg_pull_none>;
 };
 
+&vcc3v3_3g {
+	gpio = <&gpio1 17 GPIO_ACTIVE_HIGH>;
+};
+
+&pcie_3g_drv {
+	rockchip,pins = <1 17 RK_FUNC_GPIO &pcfg_pull_up>;
+};
 
 &gmac {
 	tx_delay = <0x2F>;
@@ -75,9 +86,7 @@
     	status = "okay";
 };
 
-&vcc3v3_3g {
-	gpio = <&gpio2 28 GPIO_ACTIVE_HIGH>;
-};
+
 
 &vcc3v3_pcie {
 	/delete-property/ gpio;
