@@ -50,6 +50,12 @@
 	};	
 };
 
+//pcie0 reset port
+&pcie0 {
+	ep-gpios = <&gpio1 4 GPIO_ACTIVE_HIGH>;
+};
+
+
 &i2c4 {
 	status = "okay";
 	hym8563: hym8563@51 {
@@ -124,9 +130,7 @@
 	/delete-property/ gpio;
 };
 
-&pcie0 {
-	ep-gpios = <&gpio4 30 GPIO_ACTIVE_HIGH>;
-};
+
 
 &uart4 {
     status = "disabled";
@@ -201,5 +205,4 @@
 		};
 	};
 };
-
 
