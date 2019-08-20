@@ -10,18 +10,9 @@
 	test-power {
 		status = "okay";
 	};
-
-	fan_ctl: fan-ctl-regulator {
-		compatible = "regulator-fixed";
-        	enable-active-high;
-        	regulator-always-on;
-		regulator-boot-on;
-		gpio = <&gpio3 10 GPIO_ACTIVE_HIGH>;
-		pinctrl-names = "default";
-		regulator-name = "fan_ctl";
-        	pinctrl-0 = <&fan_drv>;
-	};
 };
+
+
 
 &i2s0 {
 	status = "disabled";
@@ -35,6 +26,34 @@
 	status = "disabled";
 };
 
+/* rtc */
+&spi1 {
+    	status = "disabled";
+};
+
+&rk808{
+	rtc {
+		status = "disabled";
+	};	
+};
+
+&i2c4 {
+	status = "okay";
+	hym8563: hym8563@51 {
+		compatible = "haoyu,hym8563";
+		reg = <0x51>;
+		interrupt-parent = <&gpio1>;
+		interrupts = <9 IRQ_TYPE_EDGE_FALLING>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&rtc_int>;
+		#clock-cells = <0>;
+		clock-frequency = <32768>;
+		clock-output-names = "xin32k";
+	};
+};
+
+/* Usb 5v */
+
 &vcc5v0_host {
 	gpio = <&gpio1 23 GPIO_ACTIVE_HIGH>;
 };
@@ -43,6 +62,8 @@
 	rockchip,pins = <1 23 RK_FUNC_GPIO &pcfg_pull_none>;
 };
 
+/* Mini pcie 4G */
+
 &vcc3v3_3g {
 	gpio = <&gpio1 17 GPIO_ACTIVE_HIGH>;
 };
@@ -50,6 +71,8 @@
 &pcie_3g_drv {
 	rockchip,pins = <1 17 RK_FUNC_GPIO &pcfg_pull_up>;
 };
+
+
 
 &gmac {
 	tx_delay = <0x2F>;
@@ -81,10 +104,6 @@
 	regulator-max-microvolt = <900000>;
 };
 
-&spi1 {
-	dev-port = <0>;
-    	status = "okay";
-};
 
 
 
@@ -126,26 +145,6 @@
 	regulator-max-microvolt = <900000>;
 };
 
-&pinctrl {
-	pinctrl-names = "default";
-
-	pcie {
-		pcie_3g_drv: pcie-3g-drv {
-			rockchip,pins =
-				<2 6 RK_FUNC_GPIO &pcfg_pull_up>;
-		};
-	};
-
-	
-	fan-ctl {
-        	fan_drv: fan-drv {
-             		rockchip,pins = <3 10 RK_FUNC_GPIO &pcfg_pull_none>;
-        };
-    };
-
-
-};
-
 &fusb0 {
     status = "disabled";
 };
@@ -180,6 +179,14 @@
 &rk808 {
      /delete-property/ pmic,stby-gpio;
      /delete-property/ pmic,hold-gpio;
+};
+
+&pinctrl {
+	hym8563 {
+		rtc_int: rtc-int {
+			rockchip,pins = <RK_GPIO1 9 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+	};
 };
 
 
