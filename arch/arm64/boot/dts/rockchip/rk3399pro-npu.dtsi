@@ -1094,7 +1094,7 @@
 		>;
 		rockchip,pvtm-freq = <200000>;
 		rockchip,pvtm-volt = <800000>;
-		rockchip,pvtm-ch = <0 0>;
+		rockchip,pvtm-ch = <2 0>;
 		rockchip,pvtm-sample-time = <1000>;
 		rockchip,pvtm-number = <10>;
 		rockchip,pvtm-error = <1000>;
