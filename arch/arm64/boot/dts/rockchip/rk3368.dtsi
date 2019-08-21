@@ -1738,6 +1738,8 @@
 			 <&cru SCLK_HEVC_CORE>, <&cru SCLK_HEVC_CABAC>;
 		clock-names = "aclk_vcodec", "hclk_vcodec",
 			      "clk_core", "clk_cabac";
+		assigned-clocks = <&cru SCLK_HEVC_CORE>, <&cru SCLK_HEVC_CABAC>;
+		assigned-clock-rates = <400000000>, <400000000>;
 		resets = <&cru SRST_VIDEO_AXI>, <&cru SRST_VIDEO_AHB>,
 			 <&cru SRST_VIDEO>;
 		reset-names = "video_a", "video_h", "video";
