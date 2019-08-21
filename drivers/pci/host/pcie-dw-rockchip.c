@@ -624,14 +624,14 @@ static int rk_pcie_establish_link(struct rk_pcie *rk_pcie)
 	/* Enable LTSSM */
 	rk_pcie_enable_ltssm(rk_pcie);
 
-	for (retries = 0; retries < 1000; retries++) {
+	for (retries = 0; retries < 1000000; retries++) {
 		if (rk_pcie_link_up(rk_pcie)) {
 			dev_info(rk_pcie->dev, "PCIe Link up\n");
 			return 0;
 		}
 
-		dev_info(rk_pcie->dev, "PCIe Linking...\n");
-		mdelay(1000);
+		dev_info_ratelimited(rk_pcie->dev, "PCIe Linking...\n");
+		mdelay(1);
 	}
 
 	dev_err(rk_pcie->dev, "PCIe Link Fail\n");
