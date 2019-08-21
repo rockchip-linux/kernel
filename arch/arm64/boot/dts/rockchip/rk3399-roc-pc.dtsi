@@ -739,7 +739,6 @@
 		rockchip,camera-module-name = "CMK-CT0116";
 		rockchip,camera-module-lens-name = "Largan-50013A1";
 
-
 		avdd-supply = <&vcc_mipi>; /* GPIO1_C6 CIF_PWR  AGND*/
 		dovdd-supply = <&vcc_mipi>; /* GPIO1_C6 CIF_PWR  AGND */
 		dvdd-supply = <&dvdd_1v2>; /* GPIO1_C7 DVP_PWR DVDD_1V2 */
@@ -771,7 +770,6 @@
 		rockchip,camera-module-facing = "back";
 		rockchip,camera-module-name = "CMK-CT0116";
 		rockchip,camera-module-lens-name = "Largan-50013A1";
-
 
 		avdd-supply = <&vcc_mipi>; /* VCC28_MIPI */
 		dovdd-supply = <&vcc_mipi>; /* VCC18_MIPI */
@@ -942,11 +940,11 @@
 &pinctrl {
 	cam0 {
                 cif_pwr: cif-pwr {
-                        rockchip,pins = <1 17 RK_FUNC_GPIO &pcfg_pull_down>;
+                        rockchip,pins = <1 23 RK_FUNC_GPIO &pcfg_pull_down>;
                 };
 
                 dvp_pwr: dvp-pwr {
-                        rockchip,pins = <1 1 RK_FUNC_GPIO &pcfg_pull_down>;
+                        rockchip,pins = <1 22 RK_FUNC_GPIO &pcfg_pull_down>;
                 };
     };
 
@@ -1085,7 +1083,7 @@
 	cam_pins {
 		cam0_default_pins: cam0-default-pins {
 			rockchip,pins =
-				<4 27 RK_FUNC_GPIO &pcfg_pull_none>,
+		//		<4 27 RK_FUNC_GPIO &pcfg_pull_none>,
 				<2 11 RK_FUNC_3 &pcfg_pull_none>;
 		};
 
