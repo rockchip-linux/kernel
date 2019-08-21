@@ -648,7 +648,7 @@ static int rockchip_pcie_init_port(struct rockchip_pcie *rockchip)
 	gpiod_set_value(rockchip->ep_gpio, 1);
 
 	if (rockchip->wait_ep)
-		timeouts = 5000;
+		timeouts = 10000;
 
 	/* 500ms timeout value should be enough for Gen1/2 training */
 	err = readl_poll_timeout(rockchip->apb_base + PCIE_CLIENT_BASIC_STATUS1,
@@ -1346,7 +1346,7 @@ static int rockchip_pcie_wait_l2(struct rockchip_pcie *rockchip)
 	return 0;
 }
 
-static int __maybe_unused rockchip_pcie_suspend_noirq(struct device *dev)
+static int rockchip_pcie_suspend_for_user(struct device *dev)
 {
 	struct rockchip_pcie *rockchip = dev_get_drvdata(dev);
 	int ret;
@@ -1365,28 +1365,13 @@ static int __maybe_unused rockchip_pcie_suspend_noirq(struct device *dev)
 	phy_power_off(rockchip->phy);
 	phy_exit(rockchip->phy);
 
-	clk_disable_unprepare(rockchip->clk_pcie_pm);
-	clk_disable_unprepare(rockchip->hclk_pcie);
-	clk_disable_unprepare(rockchip->aclk_perf_pcie);
-	clk_disable_unprepare(rockchip->aclk_pcie);
-
 	return ret;
 }
 
-static int __maybe_unused rockchip_pcie_resume_noirq(struct device *dev)
+static int rockchip_pcie_resume_for_user(struct device *dev)
 {
 	struct rockchip_pcie *rockchip = dev_get_drvdata(dev);
 	int err;
-
-	clk_prepare_enable(rockchip->clk_pcie_pm);
-	clk_prepare_enable(rockchip->hclk_pcie);
-	clk_prepare_enable(rockchip->aclk_perf_pcie);
-	clk_prepare_enable(rockchip->aclk_pcie);
-
-	if (rockchip->dma_trx_enabled == 1) {
-		dev_info(dev, "bypass for user to link...");
-		return 0;
-	}
 
 	err = rockchip_pcie_init_port(rockchip);
 	if (err)
@@ -1401,6 +1386,38 @@ static int __maybe_unused rockchip_pcie_resume_noirq(struct device *dev)
 	rockchip_pcie_enable_interrupts(rockchip);
 
 	return 0;
+}
+
+static int __maybe_unused rockchip_pcie_suspend_noirq(struct device *dev)
+{
+	struct rockchip_pcie *rockchip = dev_get_drvdata(dev);
+	int ret = 0;
+
+	if (!rockchip->dma_trx_enabled)
+		ret = rockchip_pcie_suspend_for_user(dev);
+
+	clk_disable_unprepare(rockchip->clk_pcie_pm);
+	clk_disable_unprepare(rockchip->hclk_pcie);
+	clk_disable_unprepare(rockchip->aclk_perf_pcie);
+	clk_disable_unprepare(rockchip->aclk_pcie);
+
+	return ret;
+}
+
+static int __maybe_unused rockchip_pcie_resume_noirq(struct device *dev)
+{
+	struct rockchip_pcie *rockchip = dev_get_drvdata(dev);
+	int ret = 0;
+
+	if (!rockchip->dma_trx_enabled)
+		ret = rockchip_pcie_resume_for_user(dev);
+
+	clk_prepare_enable(rockchip->clk_pcie_pm);
+	clk_prepare_enable(rockchip->hclk_pcie);
+	clk_prepare_enable(rockchip->aclk_perf_pcie);
+	clk_prepare_enable(rockchip->aclk_pcie);
+
+	return ret;
 }
 
 static int rockchip_pcie_really_probe(struct rockchip_pcie *rockchip)
@@ -1471,40 +1488,12 @@ static ssize_t pcie_reset_ep_store(struct device *dev,
 	if (err)
 		return err;
 
-	/* Clear ltssm status before unlinking */
-	if (val) {
-		rockchip_pcie_write(rockchip, 0x00020000, PCIE_CLIENT_CONFIG);
-		phy_power_off(rockchip->phy);
-		phy_exit(rockchip->phy);
-
-		if (val == PCIE_USER_UNLINK)
-			return size;
-
-		rockchip->wait_ep = 1;
-
-		err = rockchip_pcie_init_port(rockchip);
-		if (err)
-			return err;
-
-		rockchip_pcie_enable_interrupts(rockchip);
-
-		err = rockchip_cfg_atu(rockchip);
-		if (err)
-			return err;
-
-		/*
-		 * In order not to bother sending remain but unused data to the
-		 * peer,we need to flush out the pending data to the link before
-		 * setting up the ATU. This is safe as the peer's ATU isn't
-		 * ready at this moment and the sender also can turn its FSM
-		 * back without any exception.
-		 */
-		obj->loop_count = 0;
-		obj->local_read_available = 0x0;
-		obj->local_write_available = 0xff;
-		obj->remote_write_available = 0xff;
-		obj->dma_free = true;
-	}
+	if (val == PCIE_USER_UNLINK)
+		rockchip_pcie_suspend_for_user(rockchip->dev);
+	else if (val == PCIE_USER_RELINK)
+		rockchip_pcie_resume_for_user(rockchip->dev);
+	else
+		return -EINVAL;
 
 	return size;
 }
