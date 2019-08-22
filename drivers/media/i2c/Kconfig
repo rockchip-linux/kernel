@@ -493,6 +493,14 @@ config VIDEO_APTINA_PLL
 config VIDEO_SMIAPP_PLL
 	tristate
 
+config VIDEO_IMX214
+	tristate "Sony imx214 sensor support"
+	depends on VIDEO_V4L2 && I2C
+	depends on MEDIA_CAMERA_SUPPORT
+	select V4L2_FWNODE
+	help
+	  This driver supports IMX214 cameras from Sony
+
 config VIDEO_IMX219
 	tristate "Sony imx219 sensor support"
 	depends on VIDEO_V4L2 && I2C
