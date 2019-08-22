@@ -6,13 +6,26 @@
 / {
 	model = "AIO-3399-JD4-SR Board (Linux Opensource)";
 	compatible = "rockchip,rk3399-firefly", "rockchip,rk3399";
-
+	
+	/delete-node/ gpio-keys;
+	/delete-node/ wireless-wlan;
+	/delete-node/ wireless-bluetooth;
 	test-power {
 		status = "okay";
 	};
 };
 
+&pwm3 {
+	status = "disabled";
+};
 
+&sdio0 {
+	status = "disabled";
+};
+
+&sdio_pwrseq {
+	status = "disabled";
+};
 
 &i2s0 {
 	status = "disabled";
