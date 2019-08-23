@@ -178,6 +178,7 @@
 };
 
 &i2s_8ch_2 {
+	rockchip,playback-only;
 	status = "okay";
 };
 
