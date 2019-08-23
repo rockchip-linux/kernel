@@ -2466,7 +2466,14 @@ static int panel_simple_dsi_probe(struct mipi_dsi_device *dsi)
 	if (!of_property_read_u32(dev->of_node, "dsi,lanes", &val))
 		dsi->lanes = val;
 
-	return mipi_dsi_attach(dsi);
+	err = mipi_dsi_attach(dsi);
+	if (err) {
+		struct panel_simple *panel = dev_get_drvdata(&dsi->dev);
+
+		drm_panel_remove(&panel->base);
+	}
+
+	return err;
 }
 
 static int panel_simple_dsi_remove(struct mipi_dsi_device *dsi)
