@@ -180,6 +180,54 @@
 	test-power {
 		status = "okay";
 	};
+
+
+	leds {
+		compatible = "gpio-leds";
+		pinctrl-names = "default";
+		pinctrl-0 = <&user_led1>, <&user_led2>, <&user_led3>,
+			    <&user_led4>, <&wlan_led>, <&bt_led>;
+
+		user_led1 {
+			label = "green:user1";
+			gpios = <&gpio4 RK_PC2 0>;
+			linux,default-trigger = "heartbeat";
+		};
+
+		user_led2 {
+			label = "green:user2";
+			gpios = <&gpio4 RK_PC6 0>;
+			linux,default-trigger = "mmc0";
+		};
+
+		user_led3 {
+			label = "green:user3";
+			gpios = <&gpio4 RK_PD0 0>;
+			linux,default-trigger = "mmc1";
+		};
+
+		user_led4 {
+			label = "green:user4";
+			gpios = <&gpio4 RK_PD4 0>;
+			panic-indicator;
+			linux,default-trigger = "none";
+		};
+
+		wlan_active_led {
+			label = "yellow:wlan";
+			gpios = <&gpio4 RK_PD5 0>;
+			linux,default-trigger = "phy0tx";
+			default-state = "off";
+		};
+
+		bt_active_led {
+			label = "blue:bt";
+			gpios = <&gpio4 RK_PD6 0>;
+			linux,default-trigger = "hci0-power";
+			default-state = "off";
+		};
+	};
+
 };
 
 &hdmi {
@@ -986,6 +1034,38 @@
 		fusb0_int: fusb0-int {
 			rockchip,pins =
 				<1 2 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+	};
+
+	leds {
+		user_led1: user_led1 {
+			rockchip,pins =
+				<4 RK_PC2 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+
+		user_led2: user_led2 {
+			rockchip,pins =
+				<4 RK_PC6 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+
+		user_led3: user_led3 {
+			rockchip,pins =
+				<4 RK_PD0 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+
+		user_led4: user_led4 {
+			rockchip,pins =
+				<4 RK_PD4 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+	
+		wlan_led: wlan_led {
+			rockchip,pins =
+				<4 RK_PD5 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+
+		bt_led: bt_led {
+			rockchip,pins =
+				<4 RK_PD6 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
 };
