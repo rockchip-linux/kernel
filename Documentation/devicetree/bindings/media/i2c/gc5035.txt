@@ -1,0 +1,51 @@
+* GalaxyCore GC5035 MIPI sensor
+
+Required Properties:
+- compatible: should be "galaxycore,gc5035"
+- clocks: reference to the 24M xvclk input clock.
+- clock-names: should be "xvclk".
+- dovdd-supply: Digital I/O voltage supply, 1.7~3.0 volts
+- avdd-supply: Analog voltage supply, 2.8 volts
+- dvdd-supply: Digital core voltage supply, 1.2 volts
+- reset-gpios: Low active reset gpio
+- powerdown-gpios: Low active powerdown gpio
+
+Attention:
+GC5035 device address 0x6e(8bit) or 0x7e(8bit) is decided by IDSEL pin;
+
+The device node must contain one 'port' child node for its digital output
+video port, in accordance with the video interface bindings defined in
+Documentation/devicetree/bindings/media/video-interfaces.txt.
+
+Example:
+
+&i2c1 {
+	status = "okay";
+	gc5035: gc5035@37 { // or gc5035: gc5035@3f
+		status = "okay";
+		compatible = "galaxycore,gc5035";
+		reg = <0x37>; //or reg = <0x3f>;
+		clocks = <&cru SCLK_CIF_OUT>;
+		clock-names = "xvclk";
+
+		avdd-supply = <&vcc2v8_dvp>;
+		dovdd-supply = <&vcc1v8_dvp>;
+		dvdd-supply = <&vdd1v2_dvp>;
+		pwdn-gpios = <&gpio2 RK_PD4 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "rockchip,camera_default";
+		pinctrl-0 = <&cif_clkout>;
+
+		rockchip,camera-module-index = <1>;
+		rockchip,camera-module-facing = "front";
+		rockchip,camera-module-name = "CQ95-HL106F-5035_V1";
+		rockchip,camera-module-lens-name = "HTT-M503B-70";
+		lens-focus = <&dw9714f>;
+		port {
+			ucam_out1: endpoint {
+				//remote-endpoint = <&mipi_in_ucam0>;
+				remote-endpoint = <&mipi_in_ucam1>;
+				data-lanes = <1 2>;
+			};
+		};
+	};
+};
