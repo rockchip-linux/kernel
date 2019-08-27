@@ -9,6 +9,14 @@ config VIDEO_GS1662
 	---help---
 	  Enable the GS1662 driver which serializes video streams.
 
+config VIDEO_IMX327_SPI
+	tristate "Sony imx327 sensor support"
+	depends on SPI && VIDEO_V4L2 && VIDEO_V4L2_SUBDEV_API
+	depends on MEDIA_CAMERA_SUPPORT
+	select V4L2_FWNODE
+	help
+	  This driver supports IMX327 cameras from Sony
+
 config VIDEO_ROCKCHIP_PREISP
 	tristate "Rockchip Image Signal Pre-processing driver"
 	depends on VIDEO_V4L2 && VIDEO_V4L2_SUBDEV_API && SPI_MASTER

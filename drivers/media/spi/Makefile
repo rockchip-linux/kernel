@@ -1,2 +1,3 @@
 obj-$(CONFIG_VIDEO_GS1662) += gs1662.o
+obj-$(CONFIG_VIDEO_IMX327_SPI) += imx327.o
 obj-$(CONFIG_VIDEO_ROCKCHIP_PREISP) += rk1608_dphy.o rk1608.o rk1608_dev.o
