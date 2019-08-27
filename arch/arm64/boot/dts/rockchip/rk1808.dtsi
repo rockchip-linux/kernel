@@ -1383,6 +1383,9 @@
 		rockchip,evb-irdrop = <12500>;
 		nvmem-cells = <&logic_leakage>;
 		nvmem-cell-names = "leakage";
+		rockchip,temp-hysteresis = <5000>;
+		rockchip,low-temp = <0>;
+		rockchip,low-temp-min-volt = <800000>;
 
 		opp-192000000 {
 			opp-hz = /bits/ 64 <192000000>;
