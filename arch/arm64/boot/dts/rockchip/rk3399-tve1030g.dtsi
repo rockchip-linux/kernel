@@ -235,12 +235,12 @@
 
 	opp-200000000 {
 		opp-hz = /bits/ 64 <200000000>;
-		opp-microvolt = <825000>;
+		opp-microvolt = <900000>;
 		status = "disabled";
 	};
 	opp-300000000 {
 		opp-hz = /bits/ 64 <300000000>;
-		opp-microvolt = <850000>;
+		opp-microvolt = <900000>;
 		status = "disabled";
 	};
 	opp-400000000 {
@@ -878,8 +878,7 @@
 };
 
 &sdio0 {
-	clock-frequency = <100000000>;
-	clock-freq-min-max = <200000 100000000>;
+	max-frequency = <100000000>;
 	supports-sdio;
 	bus-width = <4>;
 	disable-wp;
@@ -939,10 +938,6 @@
 &uart0 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&uart0_xfer &uart0_cts>;
-	status = "okay";
-};
-
-&uart2 {
 	status = "okay";
 };
 

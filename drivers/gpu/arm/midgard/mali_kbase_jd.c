@@ -28,6 +28,7 @@
 #include <linux/random.h>
 #include <linux/version.h>
 #include <linux/ratelimit.h>
+#include <linux/nospec.h>
 
 #include <mali_kbase_jm.h>
 #include <mali_kbase_hwaccess_jm.h>
@@ -1384,7 +1385,7 @@ int kbase_jd_submit(struct kbase_context *kctx,
 #define compiletime_assert(x, msg) do { switch (0) { case 0: case (x):; } } \
 while (false)
 #endif
-		compiletime_assert((1 << (8*sizeof(user_atom.atom_number))) ==
+		compiletime_assert((1 << (8*sizeof(user_atom.atom_number))) >=
 					BASE_JD_ATOM_COUNT,
 			"BASE_JD_ATOM_COUNT and base_atom_id type out of sync");
 		compiletime_assert(sizeof(user_atom.pre_dep[0].atom_id) ==
@@ -1394,6 +1395,13 @@ while (false)
 #undef compiletime_assert
 #undef compiletime_assert_defined
 #endif
+		if (user_atom.atom_number >= BASE_JD_ATOM_COUNT) {
+			err = -EINVAL;
+			break;
+		}
+		user_atom.atom_number =
+			array_index_nospec(user_atom.atom_number,
+					   BASE_JD_ATOM_COUNT);
 		katom = &jctx->atoms[user_atom.atom_number];
 
 		/* Record the flush ID for the cache flush optimisation */

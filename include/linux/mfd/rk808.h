@@ -347,6 +347,8 @@ enum rk805_reg {
 
 #define VOUT_LO_INT	BIT(0)
 #define CLK32KOUT2_EN	BIT(0)
+#define CLK32KOUT2_FUNC		(0 << 1)
+#define CLK32KOUT2_FUNC_MASK	BIT(1)
 #define H5V_EN_MASK		BIT(0)
 #define H5V_EN_ENABLE		BIT(0)
 #define REF_RDY_CTRL_MASK	BIT(1)
@@ -822,6 +824,9 @@ enum rk809_reg_id {
 #define RK817_RTC_INT_REG		0xf
 #define RK817_RTC_COMP_LSB_REG		0x10
 #define RK817_RTC_COMP_MSB_REG		0x11
+
+#define RK817_POWER_EN_SAVE0		0x99
+#define RK817_POWER_EN_SAVE1		0xa4
 
 #define RK817_POWER_EN_REG(i)		(0xb1 + (i))
 #define RK817_POWER_SLP_EN_REG(i)	(0xb5 + (i))

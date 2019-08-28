@@ -385,7 +385,7 @@ static int rockchip_pcie_rd_other_conf(struct rockchip_pcie *rockchip,
 	busdev = PCIE_ECAM_ADDR(bus->number, PCI_SLOT(devfn),
 				PCI_FUNC(devfn), where);
 
-	if (!IS_ALIGNED(busdev, size)) {
+	if (!IS_ALIGNED(busdev, size) || busdev >= SZ_1M) {
 		*val = 0;
 		return PCIBIOS_BAD_REGISTER_NUMBER;
 	}
@@ -411,7 +411,7 @@ static int rockchip_pcie_wr_other_conf(struct rockchip_pcie *rockchip,
 
 	busdev = PCIE_ECAM_ADDR(bus->number, PCI_SLOT(devfn),
 				PCI_FUNC(devfn), where);
-	if (!IS_ALIGNED(busdev, size))
+	if (!IS_ALIGNED(busdev, size) || busdev >= SZ_1M)
 		return PCIBIOS_BAD_REGISTER_NUMBER;
 
 	if (size == 4)
@@ -980,9 +980,9 @@ static int rockchip_pcie_parse_dt(struct rockchip_pcie *rockchip)
 		return PTR_ERR(rockchip->aclk_rst);
 	}
 
-	rockchip->ep_gpio = devm_gpiod_get(dev, "ep", GPIOD_OUT_HIGH);
+	rockchip->ep_gpio = devm_gpiod_get_optional(dev, "ep", GPIOD_OUT_HIGH);
 	if (IS_ERR(rockchip->ep_gpio)) {
-		dev_err(dev, "missing ep-gpios property in node\n");
+		dev_err(dev, "invalid ep-gpios property in node\n");
 		return PTR_ERR(rockchip->ep_gpio);
 	}
 
@@ -1311,6 +1311,11 @@ static int rockchip_cfg_atu(struct rockchip_pcie *rockchip)
 
 	rockchip->msg_bus_addr = rockchip->mem_bus_addr +
 					((reg_no + offset) << 20);
+
+	rockchip->msg_region = devm_ioremap(dev, rockchip->msg_bus_addr, SZ_1M);
+	if (!rockchip->msg_region)
+		err = -ENOMEM;
+
 	return err;
 }
 
@@ -1598,13 +1603,6 @@ static int rockchip_pcie_probe(struct platform_device *pdev)
 		}
 	}
 
-	rockchip->msg_region = devm_ioremap(rockchip->dev,
-					    rockchip->msg_bus_addr, SZ_1M);
-	if (!rockchip->msg_region) {
-		err = -ENOMEM;
-		goto err_free_res;
-	}
-
 	if (rockchip->deferred) {
 		err = sysfs_create_group(&pdev->dev.kobj, &pcie_attr_group);
 		if (err) {
@@ -1618,6 +1616,9 @@ static int rockchip_pcie_probe(struct platform_device *pdev)
 			goto err_free_res;
 		}
 	}
+
+	if (rockchip->dma_trx_enabled == 0)
+		return 0;
 
 	rockchip->dma_obj = rk_pcie_dma_obj_probe(dev);
 	if (IS_ERR(rockchip->dma_obj)) {

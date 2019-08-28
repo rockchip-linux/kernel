@@ -281,7 +281,7 @@
 		SYS_STATUS_NORMAL	600000
 		SYS_STATUS_REBOOT	600000
 		SYS_STATUS_SUSPEND	240000
-		SYS_STATUS_VIDEO_1080P	240000
+		SYS_STATUS_VIDEO_1080P	396000
 		SYS_STATUS_VIDEO_4K	600000
 		SYS_STATUS_PERFORMANCE	600000
 		SYS_STATUS_BOOST	396000
@@ -290,11 +290,11 @@
 	>;
 	vop-bw-dmc-freq = <
 	/* min_bw(MB/s) max_bw(MB/s) freq(KHz) */
-		0       531      240000
-		532     99999    396000
+		0       582      240000
+		583     99999    396000
 	>;
 	auto-min-freq = <240000>;
-	auto-freq-en = <1>;
+	auto-freq-en = <0>;
 };
 
 &rockchip_suspend {

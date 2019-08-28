@@ -29,6 +29,7 @@
 
 #include "rkflash_api.h"
 #include "rkflash_blk.h"
+#include "rkflash_debug.h"
 #include "rk_sftl.h"
 
 #include "../soc/rockchip/flash_vendor_storage.h"
@@ -229,12 +230,15 @@ static unsigned int rk_partition_init(struct flash_part *part)
 
 static int rkflash_proc_show(struct seq_file *m, void *v)
 {
-	int real_size = 0;
 	char *ftl_buf = kzalloc(4096, GFP_KERNEL);
+
+#if IS_ENABLED(CONFIG_RK_NANDC_NAND) || IS_ENABLED(CONFIG_RK_SFC_NAND)
+	int real_size = 0;
 
 	real_size = rknand_proc_ftlread(4096, ftl_buf);
 	if (real_size > 0)
 		seq_printf(m, "%s", ftl_buf);
+#endif
 	seq_printf(m, "Totle Read %ld KB\n", totle_read_data >> 1);
 	seq_printf(m, "Totle Write %ld KB\n", totle_write_data >> 1);
 	seq_printf(m, "totle_write_count %ld\n", totle_write_count);
@@ -290,6 +294,8 @@ static int rkflash_xfer(struct flash_blk_dev *dev,
 		totle_read_data += nsector;
 		totle_read_count++;
 		mutex_lock(&g_flash_ops_mutex);
+		rkflash_print_bio("rkflash r sec= %lx, n_sec= %lx\n",
+				  start, nsector);
 		ret = g_boot_ops[g_flash_type]->read(start, nsector, buf);
 		mutex_unlock(&g_flash_ops_mutex);
 		if (ret)
@@ -300,6 +306,8 @@ static int rkflash_xfer(struct flash_blk_dev *dev,
 		totle_write_data += nsector;
 		totle_write_count++;
 		mutex_lock(&g_flash_ops_mutex);
+		rkflash_print_bio("rkflash w sec= %lx, n_sec= %lx\n",
+				  start, nsector);
 		ret = g_boot_ops[g_flash_type]->write(start, nsector, buf);
 		mutex_unlock(&g_flash_ops_mutex);
 		if (ret)

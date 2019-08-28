@@ -613,6 +613,10 @@ void drm_display_mode_from_videomode(const struct videomode *vm,
 		dmode->flags |= DRM_MODE_FLAG_DBLCLK;
 	if (vm->flags & DISPLAY_FLAGS_PIXDATA_POSEDGE)
 		dmode->flags |= DRM_MODE_FLAG_PPIXDATA;
+	if (vm->flags & DISPLAY_FLAGS_MIRROR_Y)
+		dmode->flags |= DRM_MODE_FLAG_YMIRROR;
+	if (vm->flags & DISPLAY_FLAGS_MIRROR_X)
+		dmode->flags |= DRM_MODE_FLAG_XMIRROR;
 
 	drm_mode_set_name(dmode);
 }
@@ -725,7 +729,7 @@ int drm_mode_hsync(const struct drm_display_mode *mode)
 	if (mode->hsync)
 		return mode->hsync;
 
-	if (mode->htotal < 0)
+	if (mode->htotal <= 0)
 		return 0;
 
 	calc_val = (mode->clock * 1000) / mode->htotal; /* hsync in Hz */

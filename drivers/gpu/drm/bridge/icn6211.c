@@ -362,23 +362,15 @@ static void icn6211_bridge_pre_enable(struct drm_bridge *bridge)
 	 * FIXME:
 	 * fout = fin / pll_refdiv / pll_extra_div * pll_int / pll_dv / 2
 	 */
-	pll_refdiv = 1;
-	pll_extra_div = 2;
-
-	if (mode->clock <= 44000) {
-		pll_dv = 8;
-		regmap_write(icn6211->regmap, PLL_REF_DIV, 0x71);
-	} else if (mode->clock <= 88000) {
-		pll_dv = 4;
-		regmap_write(icn6211->regmap, PLL_REF_DIV, 0x51);
-	} else {
-		pll_dv = 2;
-		regmap_write(icn6211->regmap, PLL_REF_DIV, 0x31);
-	}
+	pll_refdiv = 13;
+	pll_extra_div = 1;
+	pll_dv = 4;
+	regmap_write(icn6211->regmap, PLL_REF_DIV, 0x4d);
 
 	pll_int = DIV_ROUND_UP(mode->clock * 1000 * 2 * pll_dv,
 			       refclk / pll_refdiv / pll_extra_div);
-	regmap_write(icn6211->regmap, PLL_INT_0, pll_int);
+	regmap_write(icn6211->regmap, PLL_INT_0, pll_int & 0xff);
+	regmap_write(icn6211->regmap, PLL_INT_1, (pll_int >> 8) & 0x3);
 
 	dev_dbg(icn6211->dev,
 		"pll_refdiv=%d, pll_extra_div=%d, pll_int=%d, pll_dv=%d\n",

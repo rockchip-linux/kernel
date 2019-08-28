@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /******************************************************************************
  *
  * Copyright(c) 2007 - 2017 Realtek Corporation.
@@ -266,6 +267,53 @@ static int is_wildcard_bssid(u8 *bssid)
 	return _FALSE;
 }
 
+/* for caller outside rm */
+u8 rm_add_nb_req(_adapter *padapter, struct sta_info *psta)
+{
+	struct mlme_ext_priv *pmlmeext = &padapter->mlmeextpriv;
+	struct mlme_ext_info *pmlmeinfo = &pmlmeext->mlmext_info;
+	struct rm_obj *prm;
+
+
+	prm = rm_alloc_rmobj(padapter);
+
+	if (prm == NULL) {
+		RTW_ERR("RM: unable to alloc rm obj for requeset\n");
+		return _FALSE;
+	}
+
+	prm->psta = psta;
+	prm->q.category = RTW_WLAN_CATEGORY_RADIO_MEAS;
+	prm->q.diag_token = pmlmeinfo->dialogToken++;
+	prm->q.m_token = 1;
+
+	prm->rmid = psta->cmn.aid << 16
+		| prm->q.diag_token << 8
+		| RM_MASTER;
+
+	prm->q.action_code = RM_ACT_NB_REP_REQ;
+
+	#if 0
+	if (pmac) { /* find sta_info according to bssid */
+		pmac += 4; /* skip mac= */
+		if (hwaddr_parse(pmac, bssid) == NULL) {
+			sprintf(pstr(s), "Err: \nincorrect mac format\n");
+			return _FAIL;
+		}
+		psta = rm_get_sta(padapter, 0xff, bssid);
+	}
+	#endif
+
+	/* enquee rmobj */
+	rm_enqueue_rmobj(padapter, prm, _FALSE);
+
+	RTW_INFO("RM: rmid=%x add req to " MAC_FMT "\n",
+		prm->rmid, MAC_ARG(psta->cmn.mac_addr));
+
+	return _SUCCESS;
+}
+
+
 static u8 *build_wlan_hdr(_adapter *padapter, struct xmit_frame *pmgntframe,
 	struct sta_info *psta, u16 frame_type)
 {
@@ -383,40 +431,17 @@ int issue_null_reply(struct rm_obj *prm)
 int ready_for_scan(struct rm_obj *prm)
 {
 	_adapter *padapter = prm->psta->padapter;
-	struct mlme_priv *pmlmepriv = &padapter->mlmepriv;
-
-
-	if (rtw_is_scan_deny(padapter))
-		return _FALSE;
+	u8 ssc_chk;
 
 	if (!rtw_is_adapter_up(padapter))
 		return _FALSE;
 
-	if (rtw_mi_busy_traffic_check(padapter, _FALSE))
-		return _FALSE;
+	ssc_chk = rtw_sitesurvey_condition_check(padapter, _FALSE);
 
-	if (check_fwstate(pmlmepriv, WIFI_AP_STATE)
-		&& check_fwstate(pmlmepriv, WIFI_UNDER_WPS)) {
-		RTW_INFO(FUNC_ADPT_FMT" WIFI_AP_STATE && WIFI_UNDER_WPS\n",
-		FUNC_ADPT_ARG(padapter));
-		return _FALSE;
-	}
-	if (check_fwstate(pmlmepriv,
-		(_FW_UNDER_SURVEY | _FW_UNDER_LINKING)) == _TRUE) {
-		RTW_INFO(FUNC_ADPT_FMT" _FW_UNDER_SURVEY|_FW_UNDER_LINKING\n",
-			FUNC_ADPT_ARG(padapter));
-		return _FALSE;
-	}
+	if (ssc_chk == SS_ALLOW)
+		return _SUCCESS;
 
-#ifdef CONFIG_CONCURRENT_MODE
-	if (rtw_mi_buddy_check_fwstate(padapter,
-		(_FW_UNDER_SURVEY | _FW_UNDER_LINKING | WIFI_UNDER_WPS))) {
-		RTW_INFO(FUNC_ADPT_FMT", but buddy_intf is under scanning or linking or wps_phase\n",
-			FUNC_ADPT_ARG(padapter));
-		return _FALSE;
-	}
-#endif
-	return _SUCCESS;
+	return _FALSE;
 }
 
 int rm_sitesurvey(struct rm_obj *prm)
@@ -911,10 +936,11 @@ int rm_radio_mens_nb_rep(_adapter *padapter,
 #endif
 	rm_post_event(padapter, prm->rmid, RM_EV_recv_rep);
 
-#ifdef CONFIG_RTW_BSS_TRANS
-	ret = bss_transition_candidates_list_survey(padapter,
-		pframe_body+3, len, _FALSE);
-	if (ret == _FAIL)
+#ifdef CONFIG_LAYER2_ROAMING
+	if (rtw_wnm_btm_candidates_survey(padapter
+			,(pdiag_body + 3)
+			,(len - sizeof(struct rtw_ieee80211_hdr_3addr))
+			,_FALSE) == _FAIL)
 		return _FALSE;
 #endif
 	rtw_cfg80211_rx_rrm_action(padapter, precv_frame);
@@ -1824,32 +1850,43 @@ int rm_radio_meas_report_cond(struct rm_obj *prm)
 
 int retrieve_radio_meas_result(struct rm_obj *prm)
 {
-	int i;
+	HAL_DATA_TYPE *hal_data = GET_HAL_DATA(prm->psta->padapter);
+	int i, ch = -1;
 	u8 val8;
 
 
+	ch = rtw_chset_search_ch(adapter_to_chset(prm->psta->padapter),
+		prm->q.ch_num);
+
+	if ((ch == -1) || (ch >= MAX_CHANNEL_NUM)) {
+		RTW_ERR("RM: get ch(CH:%d) fail\n", prm->q.ch_num);
+		ch = 0;
+	}
+
 	switch (prm->q.m_type) {
 	case ch_load_req:
-#ifdef CONFOG_RTK_ACS
-		val8 = rtw_acs_get_clm_ratio_by_ch_num(
-			prm->psta->padapter,prm->q.ch_num);
-		val8 = 255 * (val8/100);
+#ifdef CONFIG_RTW_ACS
+		val8 = hal_data->acs.clm_ratio[ch];
 #else
 		val8 = 0;
 #endif
 		prm->p.ch_load = val8;
 		break;
 	case noise_histo_req:
+#ifdef CONFIG_RTW_ACS
 		/* ANPI */
-#ifdef CONFIG_BACKGROUND_NOISE_MONITOR
-		//val8 = rtw_noise_query_by_chan_num(padapter, cur_chan);
-		prm->p.anpi = 0; /* TODO */
+		prm->p.anpi = hal_data->acs.nhm_ratio[ch];
+
+		/* IPI 0~10 */
+		for (i=0;i<11;i++)
+			prm->p.ipi[i] = hal_data->acs.nhm[ch][i];
+		
 #else
 		val8 = 0;
-#endif
-		/* IPI 0~10 TODO */
+		prm->p.anpi = val8;
 		for (i=0;i<11;i++)
-			prm->p.ipi[i] = i;
+			prm->p.ipi[i] = val8;
+#endif
 		break;
 	default:
 		break;
@@ -1939,9 +1976,12 @@ done:
 void rtw_ap_parse_sta_rm_en_cap(_adapter *padapter,
 	struct sta_info *psta, struct rtw_ieee802_11_elems *elem)
 {
-	RTW_INFO("assoc.rm_en_cap="RM_CAP_FMT"\n", RM_CAP_ARG(elem->rm_en_cap));
-	_rtw_memcpy(psta->rm_en_cap,
-		(elem->rm_en_cap), elem->rm_en_cap_len);
+	if (elem->rm_en_cap) {
+		RTW_INFO("assoc.rm_en_cap="RM_CAP_FMT"\n",
+			RM_CAP_ARG(elem->rm_en_cap));
+		_rtw_memcpy(psta->rm_en_cap,
+			(elem->rm_en_cap), elem->rm_en_cap_len);
+	}
 }
 
 void RM_IE_handler(_adapter *padapter, PNDIS_802_11_VARIABLE_IEs pIE)
@@ -2385,6 +2425,10 @@ static void rm_dbg_list_meas(_adapter *padapter, char *s)
 
 void rm_dbg_cmd(_adapter *padapter, char *s)
 {
+	unsigned val;
+	char *paid;
+	struct sta_info *psta=NULL;
+
 #if (RM_SUPPORT_IWPRIV_DBG)
 	if (_rtw_memcmp(s, "help", 4)) {
 		rm_dbg_help(padapter, s);
@@ -2406,6 +2450,18 @@ void rm_dbg_cmd(_adapter *padapter, char *s)
 
 	} else if (_rtw_memcmp(s, "run_meas", 8)) {
 		rm_dbg_run_meas(padapter, s);
+	} else if (_rtw_memcmp(s, "nb", 2)) {
+
+		paid = strstr(s, "aid=");
+
+		if (paid) { /* find sta_info according to aid */
+			paid += 4; /* skip aid= */
+			sscanf(paid, "%u", &val); /* aid=x */
+			psta = rm_get_sta(padapter, val, NULL);
+
+			if (psta)
+				rm_add_nb_req(padapter, psta);
+		}
 	}
 #else
 	sprintf(pstr(s), "\n");

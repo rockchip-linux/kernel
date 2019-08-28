@@ -31,6 +31,9 @@
 #include <media/rc-core.h>
 #include <media/cec-notifier.h>
 
+#define CEC_CAP_DEFAULTS (CEC_CAP_LOG_ADDRS | CEC_CAP_TRANSMIT | \
+			  CEC_CAP_PASSTHROUGH | CEC_CAP_RC)
+
 /**
  * struct cec_devnode - cec device node
  * @dev:	cec device
@@ -428,5 +431,18 @@ static inline int cec_phys_addr_validate(u16 phys_addr, u16 *parent, u16 *port)
 }
 
 #endif
+
+/**
+ * cec_phys_addr_invalidate() - set the physical address to INVALID
+ *
+ * @adap:	the CEC adapter
+ *
+ * This is a simple helper function to invalidate the physical
+ * address.
+ */
+static inline void cec_phys_addr_invalidate(struct cec_adapter *adap)
+{
+	cec_s_phys_addr(adap, CEC_PHYS_ADDR_INVALID, false);
+}
 
 #endif /* _MEDIA_CEC_H */

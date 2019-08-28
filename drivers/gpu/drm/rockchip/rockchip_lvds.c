@@ -40,7 +40,7 @@
 #define PX30_LVDS_SELECT(x)		HIWORD_UPDATE(x, 14, 13)
 #define PX30_LVDS_MODE_EN(x)		HIWORD_UPDATE(x, 12, 12)
 #define PX30_LVDS_MSBSEL(x)		HIWORD_UPDATE(x, 11, 11)
-#define PX30_LVDS_P2S_EN(x)		HIWORD_UPDATE(x, 10, 10)
+#define PX30_LVDS_P2S_EN(x)		HIWORD_UPDATE(x,  6,  6)
 #define PX30_LVDS_VOP_SEL(x)		HIWORD_UPDATE(x,  1,  1)
 
 #define RK3126_GRF_LVDS_CON0		0x0150
@@ -171,11 +171,14 @@ static void rockchip_lvds_encoder_mode_set(struct drm_encoder *encoder,
 		bus_format = info->bus_formats[0];
 
 	switch (bus_format) {
-	case MEDIA_BUS_FMT_RGB666_1X7X3_SPWG:	/* jeida-18 */
+	case MEDIA_BUS_FMT_RGB666_1X7X3_JEIDA:	/* jeida-18 */
 		lvds->format = LVDS_6BIT_MODE;
 		break;
 	case MEDIA_BUS_FMT_RGB888_1X7X4_JEIDA:	/* jeida-24 */
 		lvds->format = LVDS_8BIT_MODE_FORMAT_2;
+		break;
+	case MEDIA_BUS_FMT_RGB666_1X7X3_SPWG:	/* vesa-18 */
+		lvds->format = LVDS_8BIT_MODE_FORMAT_3;
 		break;
 	case MEDIA_BUS_FMT_RGB888_1X7X4_SPWG:	/* vesa-24 */
 	default:

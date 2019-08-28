@@ -36,6 +36,7 @@
 #define _RKISP1_DEV_H
 
 #include "capture.h"
+#include "dmarx.h"
 #include "rkisp1.h"
 #include "isp_params.h"
 #include "isp_stats.h"
@@ -52,6 +53,7 @@
 #define GRP_ID_ISP			BIT(2)
 #define GRP_ID_ISP_MP			BIT(3)
 #define GRP_ID_ISP_SP			BIT(4)
+#define GRP_ID_ISP_DMARX		BIT(5)
 
 #define RKISP1_MAX_BUS_CLK	8
 #define RKISP1_MAX_SENSOR	2
@@ -60,11 +62,28 @@
 #define RKISP1_MEDIA_BUS_FMT_MASK	0xF000
 #define RKISP1_MEDIA_BUS_FMT_BAYER	0x3000
 
+#define RKISP1_CONTI_ERR_MAX		50
+
+/* ISP_V10_1 for only support MP */
 enum rkisp1_isp_ver {
-	ISP_V10 = 0,
-	ISP_V11,
-	ISP_V12,
-	ISP_V13
+	ISP_V10 = 0x00,
+	ISP_V10_1 = 0x01,
+	ISP_V11 = 0x10,
+	ISP_V12 = 0x20,
+	ISP_V13 = 0x30,
+};
+
+enum rkisp1_isp_state {
+	ISP_STOP = 0,
+	ISP_START,
+	ISP_ERROR
+};
+
+enum rkisp1_isp_inp {
+	INP_INVAL = 0,
+	INP_CSI,
+	INP_DVP,
+	INP_DMARX_ISP,
 };
 
 /*
@@ -86,6 +105,7 @@ struct rkisp1_pipeline {
 		    struct media_entity *me, bool prepare);
 	int (*close)(struct rkisp1_pipeline *p);
 	int (*set_stream)(struct rkisp1_pipeline *p, bool on);
+	int (*pm_use)(struct media_entity *entity, int use);
 };
 
 /*
@@ -109,6 +129,7 @@ struct rkisp1_sensor_info {
  * @params_vdev: ISP input parameters device
  */
 struct rkisp1_device {
+	struct list_head list;
 	struct regmap *grf;
 	void __iomem *base_addr;
 	int irq;
@@ -127,6 +148,7 @@ struct rkisp1_device {
 	struct rkisp1_stream stream[RKISP1_MAX_STREAM];
 	struct rkisp1_isp_stats_vdev stats_vdev;
 	struct rkisp1_isp_params_vdev params_vdev;
+	struct rkisp1_dmarx_device dmarx_dev;
 	struct rkisp1_pipeline pipe;
 	struct vb2_alloc_ctx *alloc_ctx;
 	struct iommu_domain *domain;
@@ -141,6 +163,10 @@ struct rkisp1_device {
 	int vs_irq;
 	struct gpio_desc *vs_irq_gpio;
 	struct v4l2_subdev *hdr_sensor;
+	enum rkisp1_isp_state isp_state;
+	unsigned int isp_err_cnt;
+	enum rkisp1_isp_inp isp_inp;
+	struct mutex apilock; /* mutex to serialize the calls from user */
 };
 
 #endif

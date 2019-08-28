@@ -46,11 +46,14 @@
 #define dev_pm_opp_find_freq_floor opp_find_freq_floor
 #endif /* Linux >= 3.13 */
 #include <soc/rockchip/rockchip_opp_select.h>
+#include <soc/rockchip/rockchip_system_monitor.h>
 
-static struct thermal_opp_device_data gpu_devdata = {
-	.type = THERMAL_OPP_TPYE_DEV,
-	.low_temp_adjust = rockchip_dev_low_temp_adjust,
-	.high_temp_adjust = rockchip_dev_high_temp_adjust,
+static struct devfreq_simple_ondemand_data ondemand_data;
+
+static struct monitor_dev_profile mali_mdevp = {
+	.type = MONITOR_TPYE_DEV,
+	.low_temp_adjust = rockchip_monitor_dev_low_temp_adjust,
+	.high_temp_adjust = rockchip_monitor_dev_high_temp_adjust,
 };
 
 /**
@@ -333,6 +336,7 @@ static int kbase_devfreq_init_core_mask_table(struct kbase_device *kbdev)
 
 int kbase_devfreq_init(struct kbase_device *kbdev)
 {
+	struct device_node *np = kbdev->dev->of_node;
 	struct devfreq_dev_profile *dp;
 	unsigned long opp_rate;
 	int err;
@@ -362,8 +366,13 @@ int kbase_devfreq_init(struct kbase_device *kbdev)
 	if (err)
 		return err;
 
+	of_property_read_u32(np, "upthreshold",
+			     &ondemand_data.upthreshold);
+	of_property_read_u32(np, "downdifferential",
+			     &ondemand_data.downdifferential);
+
 	kbdev->devfreq = devfreq_add_device(kbdev->dev, dp,
-				"simple_ondemand", NULL);
+				"simple_ondemand", &ondemand_data);
 	if (IS_ERR(kbdev->devfreq)) {
 		kbase_devfreq_term_freq_table(kbdev);
 		return PTR_ERR(kbdev->devfreq);
@@ -386,12 +395,12 @@ int kbase_devfreq_init(struct kbase_device *kbdev)
 	rcu_read_unlock();
 	kbdev->devfreq->last_status.current_frequency = opp_rate;
 
-	gpu_devdata.data = kbdev->devfreq;
-	kbdev->opp_info = rockchip_register_thermal_notifier(kbdev->dev,
-							     &gpu_devdata);
-	if (IS_ERR(kbdev->opp_info)) {
-		dev_dbg(kbdev->dev, "without thermal notifier\n");
-		kbdev->opp_info = NULL;
+	mali_mdevp.data = kbdev->devfreq;
+	kbdev->mdev_info = rockchip_system_monitor_register(kbdev->dev,
+							    &mali_mdevp);
+	if (IS_ERR(kbdev->mdev_info)) {
+		dev_dbg(kbdev->dev, "without system monitor\n");
+		kbdev->mdev_info = NULL;
 	}
 #ifdef CONFIG_DEVFREQ_THERMAL
 	err = kbase_ipa_init(kbdev);
@@ -435,7 +444,7 @@ void kbase_devfreq_term(struct kbase_device *kbdev)
 
 	dev_dbg(kbdev->dev, "Term Mali devfreq\n");
 
-	rockchip_unregister_thermal_notifier(kbdev->opp_info);
+	rockchip_system_monitor_unregister(kbdev->mdev_info);
 #ifdef CONFIG_DEVFREQ_THERMAL
 	if (kbdev->devfreq_cooling)
 		devfreq_cooling_unregister(kbdev->devfreq_cooling);

@@ -1,7 +1,8 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Linux platform device for DHD WLAN adapter
  *
- * Copyright (C) 1999-2017, Broadcom Corporation
+ * Copyright (C) 1999-2018, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -42,6 +43,9 @@
 #if defined(CONFIG_WIFI_CONTROL_FUNC)
 #include <linux/wlan_plat.h>
 #endif
+#ifdef BCMDBUS
+#include <dbus.h>
+#endif
 #ifdef CONFIG_DTS
 #include<linux/regulator/consumer.h>
 #include<linux/of_gpio.h>
@@ -63,9 +67,9 @@ static bool is_power_on = FALSE;
 #if !defined(CONFIG_DTS)
 #if defined(DHD_OF_SUPPORT)
 static bool dts_enabled = TRUE;
-extern int dhd_wlan_init_plat_data(void);
 extern struct resource dhd_wlan_resources;
 extern struct wifi_platform_data dhd_wlan_control;
+extern int dhd_wlan_init_plat_data(void);
 #else
 static bool dts_enabled = FALSE;
 struct resource dhd_wlan_resources = {0};
@@ -195,6 +199,31 @@ int wifi_platform_set_power(wifi_adapter_info_t *adapter, bool on, unsigned long
 	return err;
 }
 
+#if defined(CUSTOMER_IMX)
+extern void wifi_card_detect(bool);
+int wifi_platform_bus_enumerate(wifi_adapter_info_t *adapter, bool device_present)
+{
+	int err = 0;
+	struct wifi_platform_data *plat_data;
+
+	if (!adapter) {
+		pr_err("!!!! %s: failed!  adapter variable is NULL!!!!!\n", __FUNCTION__);
+		return -EINVAL;
+	}
+
+	DHD_ERROR(("%s device present %d\n", __FUNCTION__, device_present));
+
+	if (!adapter->wifi_plat_data) {
+		wifi_card_detect(device_present); /* hook for card_detect */
+	} else {
+		plat_data = adapter->wifi_plat_data;
+		if (plat_data->set_carddetect)
+			err = plat_data->set_carddetect(device_present);
+	}
+
+	return 0; /* force success status returned */
+}
+#else
 int wifi_platform_bus_enumerate(wifi_adapter_info_t *adapter, bool device_present)
 {
 	int err = 0;
@@ -211,6 +240,7 @@ int wifi_platform_bus_enumerate(wifi_adapter_info_t *adapter, bool device_presen
 	return err;
 
 }
+#endif /* CUSTOMER_IMX */
 
 int wifi_platform_get_mac_addr(wifi_adapter_info_t *adapter, unsigned char *buf)
 {
@@ -457,10 +487,10 @@ static int wifi_ctrlfunc_register_drv(void)
 	if (dts_enabled) {
 		struct resource *resource;
 
-        wifi_plat_dev_probe_ret = dhd_wlan_init_plat_data();
+		wifi_plat_dev_probe_ret = dhd_wlan_init_plat_data();
 
-        if (wifi_plat_dev_probe_ret)
-            return wifi_plat_dev_probe_ret;
+		if (wifi_plat_dev_probe_ret)
+		    return wifi_plat_dev_probe_ret;
 
 		adapter->wifi_plat_data = (void *)&dhd_wlan_control;
 		resource = &dhd_wlan_resources;
@@ -802,16 +832,49 @@ static int dhd_wifi_platform_load_sdio(void)
 }
 #endif /* BCMSDIO */
 
+#ifdef BCMDBUS
+/* User-specified vid/pid */
+int dhd_vid = 0xa5c;
+int dhd_pid = 0x48f;
+module_param(dhd_vid, int, 0);
+module_param(dhd_pid, int, 0);
+void *dhd_dbus_probe_cb(void *arg, const char *desc, uint32 bustype, uint32 hdrlen);
+void dhd_dbus_disconnect_cb(void *arg);
+
+static int dhd_wifi_platform_load_usb(void)
+{
+	int err = 0;
+
+	if (dhd_vid < 0 || dhd_vid > 0xffff) {
+		DHD_ERROR(("%s: invalid dhd_vid 0x%x\n", __FUNCTION__, dhd_vid));
+		return -EINVAL;
+	}
+	if (dhd_pid < 0 || dhd_pid > 0xffff) {
+		DHD_ERROR(("%s: invalid dhd_pid 0x%x\n", __FUNCTION__, dhd_pid));
+		return -EINVAL;
+	}
+
+	err = dbus_register(dhd_vid, dhd_pid, dhd_dbus_probe_cb, dhd_dbus_disconnect_cb,
+		NULL, NULL, NULL);
+
+	/* Device not detected */
+	if (err == DBUS_ERR_NODEVICE)
+		err = DBUS_OK;
+
+	return err;
+}
+#else /* BCMDBUS */
 static int dhd_wifi_platform_load_usb(void)
 {
 	return 0;
 }
+#endif /* BCMDBUS */
 
 static int dhd_wifi_platform_load()
 {
 	int err = 0;
 
-	wl_android_init();
+		wl_android_init();
 
 	if ((err = dhd_wifi_platform_load_usb()))
 		goto end;

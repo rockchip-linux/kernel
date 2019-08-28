@@ -197,6 +197,7 @@ struct vop_win {
 
 	int win_id;
 	int area_id;
+	int zpos;
 	uint32_t offset;
 	enum drm_plane_type type;
 	const struct vop_win_phy *phy;
@@ -1087,18 +1088,18 @@ static int vop_csc_atomic_check(struct drm_crtc *crtc,
 		if (ret)
 			return ret;
 
+		vop_setup_csc_mode(is_input_yuv, s->yuv_overlay,
+				   vop_plane_state->color_space, s->color_space,
+				   &vop_plane_state->y2r_en,
+				   &vop_plane_state->r2y_en,
+				   &vop_plane_state->csc_mode);
+
 		if (csc_table) {
 			vop_plane_state->y2r_en = !!vop_plane_state->y2r_table;
 			vop_plane_state->r2r_en = !!vop_plane_state->r2r_table;
 			vop_plane_state->r2y_en = !!vop_plane_state->r2y_table;
 			continue;
 		}
-
-		vop_setup_csc_mode(is_input_yuv, s->yuv_overlay,
-				   vop_plane_state->color_space, s->color_space,
-				   &vop_plane_state->y2r_en,
-				   &vop_plane_state->r2y_en,
-				   &vop_plane_state->csc_mode);
 
 		/*
 		 * This is update for IC design not reasonable, when enable
@@ -1393,6 +1394,7 @@ static void vop_crtc_disable(struct drm_crtc *crtc)
 	VOP_CTRL_SET(vop, reg_done_frm, 1);
 	VOP_CTRL_SET(vop, dsp_interlace, 0);
 	drm_crtc_vblank_off(crtc);
+	VOP_CTRL_SET(vop, afbdc_en, 0);
 	vop_disable_all_planes(vop);
 
 	/*
@@ -1477,6 +1479,7 @@ static int vop_plane_atomic_check(struct drm_plane *plane,
 	struct drm_crtc_state *crtc_state;
 	const struct vop_data *vop_data;
 	struct vop *vop;
+	struct drm_display_mode *adjusted_mode;
 	bool visible;
 	int ret;
 	struct drm_rect *dest = &vop_plane_state->dest;
@@ -1498,6 +1501,7 @@ static int vop_plane_atomic_check(struct drm_plane *plane,
 	if (!crtc || !fb)
 		goto out_disable;
 
+	adjusted_mode = &crtc->state->adjusted_mode;
 	crtc_state = drm_atomic_get_crtc_state(state->state, crtc);
 	if (IS_ERR(crtc_state))
 		return PTR_ERR(crtc_state);
@@ -1560,7 +1564,8 @@ static int vop_plane_atomic_check(struct drm_plane *plane,
 	offset = (src->x1 >> 16) * drm_format_plane_bpp(fb->pixel_format, 0) / 8;
 	vop_plane_state->offset = offset + fb->offsets[0];
 	if (state->rotation & BIT(DRM_REFLECT_Y) ||
-	    (rockchip_fb_is_logo(fb) && vop_plane_state->logo_ymirror))
+	    (rockchip_fb_is_logo(fb) && vop_plane_state->logo_ymirror) ||
+	    adjusted_mode->flags & DRM_MODE_FLAG_YMIRROR)
 		offset += ((src->y2 >> 16) - 1) * fb->pitches[0];
 	else
 		offset += (src->y1 >> 16) * fb->pitches[0];
@@ -1788,6 +1793,7 @@ static void vop_plane_atomic_update(struct drm_plane *plane,
 		VOP_WIN_SET_EXT(vop, win, csc, y2r_en, vop_plane_state->y2r_en);
 		VOP_WIN_SET_EXT(vop, win, csc, r2r_en, vop_plane_state->r2r_en);
 		VOP_WIN_SET_EXT(vop, win, csc, r2y_en, vop_plane_state->r2y_en);
+		VOP_WIN_SET_EXT(vop, win, csc, csc_mode, vop_plane_state->csc_mode);
 	}
 	VOP_WIN_SET(vop, win, enable, 1);
 	VOP_WIN_SET(vop, win, gate, 1);
@@ -1847,7 +1853,7 @@ static void vop_atomic_plane_reset(struct drm_plane *plane)
 	if (!vop_plane_state)
 		return;
 
-	vop_plane_state->zpos = win->win_id;
+	vop_plane_state->zpos = win->zpos;
 	vop_plane_state->global_alpha = 0xff;
 	plane->state = &vop_plane_state->base;
 	plane->state->plane = plane;
@@ -2550,6 +2556,7 @@ static void vop_update_csc(struct drm_crtc *crtc)
 	case MEDIA_BUS_FMT_RGB666_1X18:
 	case MEDIA_BUS_FMT_RGB666_1X24_CPADHI:
 	case MEDIA_BUS_FMT_RGB666_1X7X3_SPWG:
+	case MEDIA_BUS_FMT_RGB666_1X7X3_JEIDA:
 		VOP_CTRL_SET(vop, dither_down_en, 1);
 		VOP_CTRL_SET(vop, dither_down_mode, RGB888_TO_RGB666);
 		break;
@@ -2563,6 +2570,8 @@ static void vop_update_csc(struct drm_crtc *crtc)
 		VOP_CTRL_SET(vop, dither_down_en, 0);
 		VOP_CTRL_SET(vop, pre_dither_down_en, 0);
 		break;
+	case MEDIA_BUS_FMT_SRGB888_3X8:
+	case MEDIA_BUS_FMT_SRGB888_DUMMY_4X8:
 	case MEDIA_BUS_FMT_RGB888_1X24:
 	case MEDIA_BUS_FMT_RGB888_1X7X4_SPWG:
 	case MEDIA_BUS_FMT_RGB888_1X7X4_JEIDA:
@@ -2791,6 +2800,15 @@ static void vop_crtc_enable(struct drm_crtc *crtc)
 		VOP_CTRL_SET(vop, p2i_en, 0);
 		act_end = vact_end;
 	}
+
+	if (adjusted_mode->flags & DRM_MODE_FLAG_YMIRROR)
+		VOP_CTRL_SET(vop, ymirror, 1);
+	else
+		VOP_CTRL_SET(vop, ymirror, 0);
+	if (adjusted_mode->flags & DRM_MODE_FLAG_XMIRROR)
+		VOP_CTRL_SET(vop, xmirror, 1);
+	else
+		VOP_CTRL_SET(vop, xmirror, 0);
 
 	if (VOP_MAJOR(vop->version) == 3 &&
 	    (VOP_MINOR(vop->version) == 2 || VOP_MINOR(vop->version) == 8))
@@ -4279,6 +4297,26 @@ static void vop_destroy_crtc(struct vop *vop)
 }
 
 /*
+ * Win_id is the order in vop_win_data array.
+ * This is related to the actual hardware plane.
+ * But in the Linux platform, such as video hardware and camera preview,
+ * it can only be played on the nv12 plane.
+ * So set the order of zpos to PRIMARY < OVERLAY (if have) < CURSOR (if have).
+ */
+static int vop_plane_get_zpos(enum drm_plane_type type, unsigned int size)
+{
+	switch (type) {
+	case DRM_PLANE_TYPE_PRIMARY:
+		return 0;
+	case DRM_PLANE_TYPE_OVERLAY:
+		return 1;
+	case DRM_PLANE_TYPE_CURSOR:
+		return size - 1;
+	}
+	return 0;
+}
+
+/*
  * Initialize the vop->win array elements.
  */
 static int vop_win_init(struct vop *vop)
@@ -4316,6 +4354,9 @@ static int vop_win_init(struct vop *vop)
 		vop_win->vop = vop;
 		vop_win->win_id = i;
 		vop_win->area_id = 0;
+		vop_win->zpos = vop_plane_get_zpos(win_data->type,
+						   vop_data->win_size);
+
 		num_wins++;
 
 		for (j = 0; j < win_data->area_size; j++) {
@@ -4336,7 +4377,7 @@ static int vop_win_init(struct vop *vop)
 	}
 
 	prop = drm_property_create_range(vop->drm_dev, DRM_MODE_PROP_ATOMIC,
-					 "ZPOS", 0, vop->data->win_size);
+					 "ZPOS", 0, vop->data->win_size - 1);
 	if (!prop) {
 		DRM_ERROR("failed to create zpos property\n");
 		return -EINVAL;

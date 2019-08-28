@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /******************************************************************************
  *
  * Copyright(c) 2007 - 2017 Realtek Corporation.
@@ -1068,22 +1069,20 @@ static void _bfer_remove_entry(PADAPTER adapter, struct beamformer_entry *entry)
 
 static u8 _bfer_set_entry_gid(PADAPTER adapter, u8 *addr, u8 *gid, u8 *position)
 {
-	struct beamformer_entry *bfer = NULL;
+	struct beamformer_entry bfer;
 
-
-	bfer = _bfer_get_entry_by_addr(adapter, addr);
-	if (!bfer) {
-		RTW_INFO("%s: Cannot find BFer entry!!\n", __FUNCTION__);
-		return _FAIL;
-	}
+	memset(&bfer, 0, sizeof(bfer));
+	memcpy(bfer.mac_addr, addr, ETH_ALEN);
 
 	/* Parsing Membership Status Array */
-	_rtw_memcpy(bfer->gid_valid, gid, 8);
+	memcpy(bfer.gid_valid, gid, 8);
+
 	/* Parsing User Position Array */
-	_rtw_memcpy(bfer->user_position, position, 16);
+	memcpy(bfer.user_position, position, 16);
 
 	/* Config HW GID table */
-	rtw_bf_cmd(adapter, BEAMFORMING_CTRL_SET_GID_TABLE, (u8*)&bfer, sizeof(struct beamformer_entry *), 1);
+	rtw_bf_cmd(adapter, BEAMFORMING_CTRL_SET_GID_TABLE, (u8 *) &bfer,
+			sizeof(bfer), 1);
 
 	return _SUCCESS;
 }
@@ -1794,6 +1793,7 @@ void rtw_bf_init(PADAPTER adapter)
 	info->beamformee_mu_reg_maping = 0;
 	info->first_mu_bfee_index = 0xFF;
 	info->mu_bfer_curidx = 0xFF;
+	info->cur_csi_rpt_rate = HALMAC_OFDM24;
 
 	_sounding_init(&info->sounding_info);
 	rtw_init_timer(&info->sounding_timer, adapter, _sounding_timer_handler, adapter);
@@ -1832,7 +1832,7 @@ void rtw_bf_cmd_hdl(PADAPTER adapter, u8 type, u8 *pbuf)
 		break;
 
 	case BEAMFORMING_CTRL_SET_GID_TABLE:
-		rtw_hal_set_hwreg(adapter, HW_VAR_SOUNDING_SET_GID_TABLE, *(void**)pbuf);
+		rtw_hal_set_hwreg(adapter, HW_VAR_SOUNDING_SET_GID_TABLE, pbuf);
 		break;
 
 	case BEAMFORMING_CTRL_SET_CSI_REPORT:
@@ -2917,7 +2917,7 @@ u32	rtw_beamforming_get_report_frame(PADAPTER	 Adapter, union recv_frame *precv_
 	u32	ret = _SUCCESS;
 #if (BEAMFORMING_SUPPORT == 1)
 	PHAL_DATA_TYPE	pHalData = GET_HAL_DATA(Adapter);
-	struct PHY_DM_STRUCT		*pDM_Odm = &(pHalData->odmpriv);
+	struct dm_struct		*pDM_Odm = &(pHalData->odmpriv);
 
 	ret = beamforming_get_report_frame(pDM_Odm, precv_frame);
 
@@ -2964,7 +2964,7 @@ void	rtw_beamforming_get_ndpa_frame(PADAPTER	 Adapter, union recv_frame *precv_f
 {
 #if (BEAMFORMING_SUPPORT == 1)
 	PHAL_DATA_TYPE	pHalData = GET_HAL_DATA(Adapter);
-	struct PHY_DM_STRUCT		*pDM_Odm = &(pHalData->odmpriv);
+	struct dm_struct		*pDM_Odm = &(pHalData->odmpriv);
 
 	beamforming_get_ndpa_frame(pDM_Odm, precv_frame);
 
@@ -3040,7 +3040,7 @@ void	rtw_beamforming_get_ndpa_frame(PADAPTER	 Adapter, union recv_frame *precv_f
 void	beamforming_wk_hdl(_adapter *padapter, u8 type, u8 *pbuf)
 {
 	PHAL_DATA_TYPE	pHalData = GET_HAL_DATA(padapter);
-	struct PHY_DM_STRUCT		*pDM_Odm = &(pHalData->odmpriv);
+	struct dm_struct		*pDM_Odm = &(pHalData->odmpriv);
 
 #if (BEAMFORMING_SUPPORT == 1) /*(BEAMFORMING_SUPPORT == 1)- for PHYDM beamfoming*/
 	switch (type) {
@@ -3048,7 +3048,7 @@ void	beamforming_wk_hdl(_adapter *padapter, u8 type, u8 *pbuf)
 		struct sta_info	*psta = (PVOID)pbuf;
 		u16			staIdx = psta->cmn.mac_id;
 
-		beamforming_enter(pDM_Odm, staIdx);
+		beamforming_enter(pDM_Odm, staIdx, adapter_mac_addr(psta->padapter));
 		break;
 	}
 	case BEAMFORMING_CTRL_LEAVE:

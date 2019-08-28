@@ -94,6 +94,14 @@ static const struct output_pixfmt supported_formats[] = {
 		.code = MEDIA_BUS_FMT_SRGGB10_1X10,
 	}, {
 		.code = MEDIA_BUS_FMT_RGB888_1X24,
+	}, {
+		.code = MEDIA_BUS_FMT_UYVY8_2X8,
+	}, {
+		.code = MEDIA_BUS_FMT_VYUY8_2X8,
+	}, {
+		.code = MEDIA_BUS_FMT_YUYV8_2X8,
+	}, {
+		.code = MEDIA_BUS_FMT_YVYU8_2X8,
 	},
 };
 
@@ -109,10 +117,20 @@ static const struct output_mode supported_modes[] = {
 		.hts_def = 2400,
 		.vts_def = 1200,
 	}, {
+		.width = 2560,
+		.height = 720,
+		.hts_def = 2800,
+		.vts_def = 900,
+	}, {
 		.width = 3840,
 		.height = 720,
 		.hts_def = 4300,
 		.vts_def = 900,
+	}, {
+		.width = 3840,
+		.height = 1080,
+		.hts_def = 4300,
+		.vts_def = 1200,
 	}, {
 		.width = 3840,
 		.height = 2160,
@@ -376,12 +394,23 @@ static int vcamera_s_ctrl(struct v4l2_ctrl *ctrl)
 	return 0;
 }
 
+static int vcamera_g_mbus_config(struct v4l2_subdev *sd,
+				 struct v4l2_mbus_config *cfg)
+{
+	cfg->type = V4L2_MBUS_CSI2;
+	cfg->flags = V4L2_MBUS_CSI2_4_LANE |
+		     V4L2_MBUS_CSI2_CHANNELS;
+
+	return 0;
+}
+
 static struct v4l2_subdev_core_ops vcamera_core_ops = {
 	.log_status = v4l2_ctrl_subdev_log_status,
 };
 
 static struct v4l2_subdev_video_ops vcamera_video_ops = {
 	.s_stream = vcamera_s_stream,
+	.g_mbus_config = vcamera_g_mbus_config,
 };
 
 static struct v4l2_subdev_pad_ops vcamera_pad_ops = {

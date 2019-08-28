@@ -451,10 +451,6 @@
 	status = "okay";
 };
 
-&uart2 {
-	status = "okay";
-};
-
 &pinctrl {
 	backlight {
 		bl_en: bl-en {

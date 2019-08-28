@@ -566,7 +566,6 @@ static int camsys_mrv_clkin_cb(void *ptr, unsigned int on)
 				clk_prepare_enable(clk->pclk_dphytxrx);
 
 				clk_prepare_enable(clk->pclkin_isp);
-				clk_prepare_enable(clk->cif_clk_out);
 			} else {
 				clk_set_rate(clk->clk_isp0, isp_clk);
 				clk_prepare_enable(clk->hclk_isp0_noc);
@@ -699,8 +698,8 @@ static int camsys_mrv_clkout_cb(void *ptr, unsigned int on, unsigned int inclk)
 					inclk);
 	} else if (!on && clk->out_on) {
 		if (!IS_ERR_OR_NULL(clk->cif_clk_pll)) {
-			clk_set_parent(clk->cif_clk_out,
-				clk->cif_clk_pll);
+			/* just for closing clk which base on XIN24M */
+			clk_set_rate(clk->cif_clk_out, 36000000);
 		} else {
 			camsys_warn("%s clock out may be not off!",
 				dev_name(camsys_dev->miscdev.this_device));

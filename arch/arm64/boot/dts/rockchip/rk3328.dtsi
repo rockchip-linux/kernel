@@ -112,6 +112,8 @@
 		compatible = "operating-points-v2";
 		opp-shared;
 
+		rockchip,video-4k-freq = <1008000>;
+
 		rockchip,leakage-voltage-sel = <
 			1   10    0
 			11  254   1
@@ -196,6 +198,15 @@
 		status = "disabled";
 		rockchip,sleep-mode-config = <0>;
 		rockchip,virtual-poweroff = <0>;
+	};
+
+	rockchip_system_monitor: rockchip-system-monitor {
+		compatible = "rockchip,system-monitor";
+
+		rockchip,thermal-zone = "soc-thermal";
+		rockchip,polling-delay = <200>; /* milliseconds */
+
+		rockchip,video-4k-offline-cpus = "3";
 	};
 
 	timer {
@@ -554,7 +565,7 @@
 		compatible = "snps,dw-wdt";
 		reg = <0x0 0xff1a0000 0x0 0x100>;
 		interrupts = <GIC_SPI 40 IRQ_TYPE_LEVEL_HIGH>;
-		clocks = <&cru PCLK_WDT>;
+		clocks = <&cru PCLK_BUS_PRE>;
 		status = "disabled";
 	};
 

@@ -3,6 +3,8 @@
  * ov4689 driver
  *
  * Copyright (C) 2017 Fuzhou Rockchip Electronics Co., Ltd.
+ *
+ * V0.0X01.0X01 add poweron function.
  */
 
 #include <linux/clk.h>
@@ -14,11 +16,16 @@
 #include <linux/pm_runtime.h>
 #include <linux/regulator/consumer.h>
 #include <linux/sysfs.h>
+#include <linux/slab.h>
+#include <linux/version.h>
+#include <linux/rk-camera-module.h>
 #include <media/media-entity.h>
 #include <media/v4l2-async.h>
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-subdev.h>
 #include <linux/pinctrl/consumer.h>
+
+#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x01)
 
 #ifndef V4L2_CID_DIGITAL_GAIN
 #define V4L2_CID_DIGITAL_GAIN		V4L2_CID_GAIN
@@ -69,6 +76,8 @@
 #define OF_CAMERA_PINCTRL_STATE_DEFAULT	"rockchip,camera_default"
 #define OF_CAMERA_PINCTRL_STATE_SLEEP	"rockchip,camera_sleep"
 
+#define OV4689_NAME			"ov4689"
+
 static const char * const ov4689_supply_names[] = {
 	"avdd",		/* Analog power */
 	"dovdd",	/* Digital I/O power */
@@ -114,7 +123,12 @@ struct ov4689 {
 	struct v4l2_ctrl	*test_pattern;
 	struct mutex		mutex;
 	bool			streaming;
+	bool			power_on;
 	const struct ov4689_mode *cur_mode;
+	u32			module_index;
+	const char		*module_facing;
+	const char		*module_name;
+	const char		*len_name;
 };
 
 #define to_ov4689(sd) container_of(sd, struct ov4689, subdev)
@@ -635,13 +649,79 @@ static int ov4689_g_frame_interval(struct v4l2_subdev *sd,
 	return 0;
 }
 
+static void ov4689_get_module_inf(struct ov4689 *ov4689,
+				  struct rkmodule_inf *inf)
+{
+	memset(inf, 0, sizeof(*inf));
+	strlcpy(inf->base.sensor, OV4689_NAME, sizeof(inf->base.sensor));
+	strlcpy(inf->base.module, ov4689->module_name,
+		sizeof(inf->base.module));
+	strlcpy(inf->base.lens, ov4689->len_name, sizeof(inf->base.lens));
+}
+
+static long ov4689_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
+{
+	struct ov4689 *ov4689 = to_ov4689(sd);
+	long ret = 0;
+
+	switch (cmd) {
+	case RKMODULE_GET_MODULE_INFO:
+		ov4689_get_module_inf(ov4689, (struct rkmodule_inf *)arg);
+		break;
+	default:
+		ret = -ENOIOCTLCMD;
+		break;
+	}
+
+	return ret;
+}
+
+#ifdef CONFIG_COMPAT
+static long ov4689_compat_ioctl32(struct v4l2_subdev *sd,
+				  unsigned int cmd, unsigned long arg)
+{
+	void __user *up = compat_ptr(arg);
+	struct rkmodule_inf *inf;
+	struct rkmodule_awb_cfg *cfg;
+	long ret;
+
+	switch (cmd) {
+	case RKMODULE_GET_MODULE_INFO:
+		inf = kzalloc(sizeof(*inf), GFP_KERNEL);
+		if (!inf) {
+			ret = -ENOMEM;
+			return ret;
+		}
+
+		ret = ov4689_ioctl(sd, cmd, inf);
+		if (!ret)
+			ret = copy_to_user(up, inf, sizeof(*inf));
+		kfree(inf);
+		break;
+	case RKMODULE_AWB_CFG:
+		cfg = kzalloc(sizeof(*cfg), GFP_KERNEL);
+		if (!cfg) {
+			ret = -ENOMEM;
+			return ret;
+		}
+
+		ret = copy_from_user(cfg, up, sizeof(*cfg));
+		if (!ret)
+			ret = ov4689_ioctl(sd, cmd, cfg);
+		kfree(cfg);
+		break;
+	default:
+		ret = -ENOIOCTLCMD;
+		break;
+	}
+
+	return ret;
+}
+#endif
+
 static int __ov4689_start_stream(struct ov4689 *ov4689)
 {
 	int ret;
-
-	ret = ov4689_write_array(ov4689->client, ov4689_global_regs);
-	if (ret)
-		return ret;
 
 	ret = ov4689_write_array(ov4689->client, ov4689->cur_mode->reg_list);
 	if (ret)
@@ -694,6 +774,44 @@ static int ov4689_s_stream(struct v4l2_subdev *sd, int on)
 	}
 
 	ov4689->streaming = on;
+
+unlock_and_return:
+	mutex_unlock(&ov4689->mutex);
+
+	return ret;
+}
+
+static int ov4689_s_power(struct v4l2_subdev *sd, int on)
+{
+	struct ov4689 *ov4689 = to_ov4689(sd);
+	struct i2c_client *client = ov4689->client;
+	int ret = 0;
+
+	mutex_lock(&ov4689->mutex);
+
+	/* If the power state is not modified - no work to do. */
+	if (ov4689->power_on == !!on)
+		goto unlock_and_return;
+
+	if (on) {
+		ret = pm_runtime_get_sync(&client->dev);
+		if (ret < 0) {
+			pm_runtime_put_noidle(&client->dev);
+			goto unlock_and_return;
+		}
+
+		ret = ov4689_write_array(ov4689->client, ov4689_global_regs);
+		if (ret) {
+			v4l2_err(sd, "could not set init registers\n");
+			pm_runtime_put_noidle(&client->dev);
+			goto unlock_and_return;
+		}
+
+		ov4689->power_on = true;
+	} else {
+		pm_runtime_put(&client->dev);
+		ov4689->power_on = false;
+	}
 
 unlock_and_return:
 	mutex_unlock(&ov4689->mutex);
@@ -826,6 +944,14 @@ static const struct v4l2_subdev_internal_ops ov4689_internal_ops = {
 };
 #endif
 
+static const struct v4l2_subdev_core_ops ov4689_core_ops = {
+	.s_power = ov4689_s_power,
+	.ioctl = ov4689_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl32 = ov4689_compat_ioctl32,
+#endif
+};
+
 static const struct v4l2_subdev_video_ops ov4689_video_ops = {
 	.s_stream = ov4689_s_stream,
 	.g_frame_interval = ov4689_g_frame_interval,
@@ -839,6 +965,7 @@ static const struct v4l2_subdev_pad_ops ov4689_pad_ops = {
 };
 
 static const struct v4l2_subdev_ops ov4689_subdev_ops = {
+	.core	= &ov4689_core_ops,
 	.video	= &ov4689_video_ops,
 	.pad	= &ov4689_pad_ops,
 };
@@ -983,7 +1110,7 @@ static int ov4689_check_sensor_id(struct ov4689 *ov4689,
 			      OV4689_REG_VALUE_16BIT, &id);
 	if (id != CHIP_ID) {
 		dev_err(dev, "Unexpected sensor id(%06x), ret(%d)\n", id, ret);
-		return ret;
+		return -ENODEV;
 	}
 
 	dev_info(dev, "Detected OV%06x sensor\n", CHIP_ID);
@@ -1007,13 +1134,33 @@ static int ov4689_probe(struct i2c_client *client,
 			const struct i2c_device_id *id)
 {
 	struct device *dev = &client->dev;
+	struct device_node *node = dev->of_node;
 	struct ov4689 *ov4689;
 	struct v4l2_subdev *sd;
+	char facing[2];
 	int ret;
+
+	dev_info(dev, "driver version: %02x.%02x.%02x",
+		DRIVER_VERSION >> 16,
+		(DRIVER_VERSION & 0xff00) >> 8,
+		DRIVER_VERSION & 0x00ff);
 
 	ov4689 = devm_kzalloc(dev, sizeof(*ov4689), GFP_KERNEL);
 	if (!ov4689)
 		return -ENOMEM;
+
+	ret = of_property_read_u32(node, RKMODULE_CAMERA_MODULE_INDEX,
+				   &ov4689->module_index);
+	ret |= of_property_read_string(node, RKMODULE_CAMERA_MODULE_FACING,
+				       &ov4689->module_facing);
+	ret |= of_property_read_string(node, RKMODULE_CAMERA_MODULE_NAME,
+				       &ov4689->module_name);
+	ret |= of_property_read_string(node, RKMODULE_CAMERA_LENS_NAME,
+				       &ov4689->len_name);
+	if (ret) {
+		dev_err(dev, "could not get module information!\n");
+		return -EINVAL;
+	}
 
 	ov4689->client = client;
 	ov4689->cur_mode = &supported_modes[0];
@@ -1090,7 +1237,16 @@ static int ov4689_probe(struct i2c_client *client,
 		goto err_power_off;
 #endif
 
-	ret = v4l2_async_register_subdev(sd);
+	memset(facing, 0, sizeof(facing));
+	if (strcmp(ov4689->module_facing, "back") == 0)
+		facing[0] = 'b';
+	else
+		facing[0] = 'f';
+
+	snprintf(sd->name, sizeof(sd->name), "m%02d_%s_%s %s",
+		 ov4689->module_index, facing,
+		 OV4689_NAME, dev_name(sd->dev));
+	ret = v4l2_async_register_subdev_sensor_common(sd);
 	if (ret) {
 		dev_err(dev, "v4l2 async register subdev failed\n");
 		goto err_clean_entity;
@@ -1151,7 +1307,7 @@ static const struct i2c_device_id ov4689_match_id[] = {
 
 static struct i2c_driver ov4689_i2c_driver = {
 	.driver = {
-		.name = "ov4689",
+		.name = OV4689_NAME,
 		.pm = &ov4689_pm_ops,
 		.of_match_table = of_match_ptr(ov4689_of_match),
 	},

@@ -3,6 +3,8 @@
  * ov5695 driver
  *
  * Copyright (C) 2017 Fuzhou Rockchip Electronics Co., Ltd.
+ *
+ * V0.0X01.0X01 add poweron function.
  */
 
 #include <linux/clk.h>
@@ -14,10 +16,15 @@
 #include <linux/pm_runtime.h>
 #include <linux/regulator/consumer.h>
 #include <linux/sysfs.h>
+#include <linux/slab.h>
+#include <linux/version.h>
+#include <linux/rk-camera-module.h>
 #include <media/media-entity.h>
 #include <media/v4l2-async.h>
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-subdev.h>
+
+#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x01)
 
 #ifndef V4L2_CID_DIGITAL_GAIN
 #define V4L2_CID_DIGITAL_GAIN		V4L2_CID_GAIN
@@ -73,6 +80,8 @@
 #define I2C_MSG_MAX			300
 #define I2C_DATA_MAX			(I2C_MSG_MAX * 3)
 
+#define OV5695_NAME			"ov5695"
+
 static const char * const ov5695_supply_names[] = {
 	"avdd",		/* Analog power */
 	"dovdd",	/* Digital I/O power */
@@ -114,7 +123,12 @@ struct ov5695 {
 	struct v4l2_ctrl	*test_pattern;
 	struct mutex		mutex;
 	bool			streaming;
+	bool			power_on;
 	const struct ov5695_mode *cur_mode;
+	u32			module_index;
+	const char		*module_facing;
+	const char		*module_name;
+	const char		*len_name;
 };
 
 #define to_ov5695(sd) container_of(sd, struct ov5695, subdev)
@@ -817,13 +831,80 @@ static int ov5695_g_frame_interval(struct v4l2_subdev *sd,
 	return 0;
 }
 
+static void ov5695_get_module_inf(struct ov5695 *ov5695,
+				  struct rkmodule_inf *inf)
+{
+	memset(inf, 0, sizeof(*inf));
+	strlcpy(inf->base.sensor, OV5695_NAME, sizeof(inf->base.sensor));
+	strlcpy(inf->base.module, ov5695->module_name,
+		sizeof(inf->base.module));
+	strlcpy(inf->base.lens, ov5695->len_name, sizeof(inf->base.lens));
+}
+
+static long ov5695_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
+{
+	struct ov5695 *ov5695 = to_ov5695(sd);
+	long ret = 0;
+
+	switch (cmd) {
+	case RKMODULE_GET_MODULE_INFO:
+		ov5695_get_module_inf(ov5695, (struct rkmodule_inf *)arg);
+		break;
+	default:
+		ret = -ENOIOCTLCMD;
+		break;
+	}
+
+	return ret;
+}
+
+#ifdef CONFIG_COMPAT
+static long ov5695_compat_ioctl32(struct v4l2_subdev *sd,
+				  unsigned int cmd, unsigned long arg)
+{
+	void __user *up = compat_ptr(arg);
+	struct rkmodule_inf *inf;
+	struct rkmodule_awb_cfg *cfg;
+	long ret;
+
+	switch (cmd) {
+	case RKMODULE_GET_MODULE_INFO:
+		inf = kzalloc(sizeof(*inf), GFP_KERNEL);
+		if (!inf) {
+			ret = -ENOMEM;
+			return ret;
+		}
+
+		ret = ov5695_ioctl(sd, cmd, inf);
+		if (!ret)
+			ret = copy_to_user(up, inf, sizeof(*inf));
+		kfree(inf);
+		break;
+	case RKMODULE_AWB_CFG:
+		cfg = kzalloc(sizeof(*cfg), GFP_KERNEL);
+		if (!cfg) {
+			ret = -ENOMEM;
+			return ret;
+		}
+
+		ret = copy_from_user(cfg, up, sizeof(*cfg));
+		if (!ret)
+			ret = ov5695_ioctl(sd, cmd, cfg);
+		kfree(cfg);
+		break;
+	default:
+		ret = -ENOIOCTLCMD;
+		break;
+	}
+
+	return ret;
+}
+#endif
+
 static int __ov5695_start_stream(struct ov5695 *ov5695)
 {
 	int ret;
 
-	ret = ov5695_write_array(ov5695->client, ov5695_global_regs);
-	if (ret)
-		return ret;
 	ret = ov5695_write_array(ov5695->client, ov5695->cur_mode->reg_list);
 	if (ret)
 		return ret;
@@ -875,6 +956,44 @@ static int ov5695_s_stream(struct v4l2_subdev *sd, int on)
 	}
 
 	ov5695->streaming = on;
+
+unlock_and_return:
+	mutex_unlock(&ov5695->mutex);
+
+	return ret;
+}
+
+static int ov5695_s_power(struct v4l2_subdev *sd, int on)
+{
+	struct ov5695 *ov5695 = to_ov5695(sd);
+	struct i2c_client *client = ov5695->client;
+	int ret = 0;
+
+	mutex_lock(&ov5695->mutex);
+
+	/* If the power state is not modified - no work to do. */
+	if (ov5695->power_on == !!on)
+		goto unlock_and_return;
+
+	if (on) {
+		ret = pm_runtime_get_sync(&client->dev);
+		if (ret < 0) {
+			pm_runtime_put_noidle(&client->dev);
+			goto unlock_and_return;
+		}
+
+		ret = ov5695_write_array(ov5695->client, ov5695_global_regs);
+		if (ret) {
+			v4l2_err(sd, "could not set init registers\n");
+			pm_runtime_put_noidle(&client->dev);
+			goto unlock_and_return;
+		}
+
+		ov5695->power_on = true;
+	} else {
+		pm_runtime_put(&client->dev);
+		ov5695->power_on = false;
+	}
 
 unlock_and_return:
 	mutex_unlock(&ov5695->mutex);
@@ -997,6 +1116,14 @@ static const struct v4l2_subdev_internal_ops ov5695_internal_ops = {
 };
 #endif
 
+static const struct v4l2_subdev_core_ops ov5695_core_ops = {
+	.s_power = ov5695_s_power,
+	.ioctl = ov5695_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl32 = ov5695_compat_ioctl32,
+#endif
+};
+
 static const struct v4l2_subdev_video_ops ov5695_video_ops = {
 	.s_stream = ov5695_s_stream,
 	.g_frame_interval = ov5695_g_frame_interval,
@@ -1010,6 +1137,7 @@ static const struct v4l2_subdev_pad_ops ov5695_pad_ops = {
 };
 
 static const struct v4l2_subdev_ops ov5695_subdev_ops = {
+	.core	= &ov5695_core_ops,
 	.video	= &ov5695_video_ops,
 	.pad	= &ov5695_pad_ops,
 };
@@ -1164,7 +1292,7 @@ static int ov5695_check_sensor_id(struct ov5695 *ov5695,
 			      OV5695_REG_VALUE_24BIT, &id);
 	if (id != CHIP_ID) {
 		dev_err(dev, "Unexpected sensor id(%06x), ret(%d)\n", id, ret);
-		return ret;
+		return -ENODEV;
 	}
 
 	dev_info(dev, "Detected OV%06x sensor\n", CHIP_ID);
@@ -1188,13 +1316,33 @@ static int ov5695_probe(struct i2c_client *client,
 			const struct i2c_device_id *id)
 {
 	struct device *dev = &client->dev;
+	struct device_node *node = dev->of_node;
 	struct ov5695 *ov5695;
 	struct v4l2_subdev *sd;
+	char facing[2];
 	int ret;
+
+	dev_info(dev, "driver version: %02x.%02x.%02x",
+		DRIVER_VERSION >> 16,
+		(DRIVER_VERSION & 0xff00) >> 8,
+		DRIVER_VERSION & 0x00ff);
 
 	ov5695 = devm_kzalloc(dev, sizeof(*ov5695), GFP_KERNEL);
 	if (!ov5695)
 		return -ENOMEM;
+
+	ret = of_property_read_u32(node, RKMODULE_CAMERA_MODULE_INDEX,
+				   &ov5695->module_index);
+	ret |= of_property_read_string(node, RKMODULE_CAMERA_MODULE_FACING,
+				       &ov5695->module_facing);
+	ret |= of_property_read_string(node, RKMODULE_CAMERA_MODULE_NAME,
+				       &ov5695->module_name);
+	ret |= of_property_read_string(node, RKMODULE_CAMERA_LENS_NAME,
+				       &ov5695->len_name);
+	if (ret) {
+		dev_err(dev, "could not get module information!\n");
+		return -EINVAL;
+	}
 
 	ov5695->client = client;
 	ov5695->cur_mode = &supported_modes[0];
@@ -1248,7 +1396,16 @@ static int ov5695_probe(struct i2c_client *client,
 		goto err_power_off;
 #endif
 
-	ret = v4l2_async_register_subdev(sd);
+	memset(facing, 0, sizeof(facing));
+	if (strcmp(ov5695->module_facing, "back") == 0)
+		facing[0] = 'b';
+	else
+		facing[0] = 'f';
+
+	snprintf(sd->name, sizeof(sd->name), "m%02d_%s_%s %s",
+		 ov5695->module_index, facing,
+		 OV5695_NAME, dev_name(sd->dev));
+	ret = v4l2_async_register_subdev_sensor_common(sd);
 	if (ret) {
 		dev_err(dev, "v4l2 async register subdev failed\n");
 		goto err_clean_entity;
@@ -1309,7 +1466,7 @@ static const struct i2c_device_id ov5695_match_id[] = {
 
 static struct i2c_driver ov5695_i2c_driver = {
 	.driver = {
-		.name = "ov5695",
+		.name = OV5695_NAME,
 		.pm = &ov5695_pm_ops,
 		.of_match_table = of_match_ptr(ov5695_of_match),
 	},

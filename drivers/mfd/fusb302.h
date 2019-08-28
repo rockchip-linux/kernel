@@ -14,6 +14,7 @@
 
 #include <linux/i2c.h>
 #include <linux/hrtimer.h>
+#include <linux/input.h>
 
 const char *FUSB_DT_INTERRUPT_INTN =	"fsc_interrupt_int_n";
 #define FUSB_DT_GPIO_INTN		"fairchild,int_n"
@@ -133,6 +134,9 @@ enum connection_state {
 
 	attach_try_src,
 	attach_try_snk,
+
+	attach_wait_audio_acc,
+	attached_audio_acc,
 };
 
 enum vdm_state {
@@ -262,6 +266,10 @@ enum role_mode {
 #define CC_STATE_TOGSS_CC1	SBF(1, 0)
 #define CC_STATE_TOGSS_CC2	SBF(1, 1)
 #define CC_STATE_TOGSS_IS_UFP	SBF(1, 2)
+
+#define CC_STATE_TOGSS_IS_DFP	SBF(2, 2)
+#define CC_STATE_TOGSS_IS_ACC	SBF(3, 2)
+#define CC_STATE_TOGSS_ROLE	SBF(3, 2)
 
 #define INTERRUPTA_HARDRST	SBF(1, 0)
 #define INTERRUPTA_SOFTRST	SBF(1, 1)
@@ -408,9 +416,9 @@ enum role_mode {
 #define CAP_VPDO_CURRENT(PDO)		((PDO >> 0) & 0x3ff)
 
 enum CC_ORIENTATION {
-	NONE,
-	CC1,
-	CC2,
+	TYPEC_ORIENTATION_NONE,
+	TYPEC_ORIENTATION_CC1,
+	TYPEC_ORIENTATION_CC2,
 };
 
 enum typec_cc_polarity {
@@ -547,6 +555,7 @@ struct fusb30x_chip {
 	bool vconn_supported;
 	bool try_role_complete;
 	enum role_mode try_role;
+	struct input_dev *input;
 };
 
 #endif /* FUSB302_H */

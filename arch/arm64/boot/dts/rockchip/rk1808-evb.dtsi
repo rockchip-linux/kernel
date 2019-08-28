@@ -198,7 +198,7 @@
 		compatible = "bluetooth-platdata";
 		uart_rts_gpios = <&gpio4 RK_PB7 GPIO_ACTIVE_LOW>;
 		pinctrl-names = "default", "rts_gpio";
-		pinctrl-0 = <&uart4_rts>;
+		pinctrl-0 = <&uart4_rts &bt_wake_host>;
 		pinctrl-1 = <&uart4_rts_gpio>;
 		BT,power_gpio    = <&gpio4 RK_PC3 GPIO_ACTIVE_HIGH>;
 		BT,wake_host_irq = <&gpio4 RK_PC2 GPIO_ACTIVE_HIGH>;
@@ -213,6 +213,17 @@
 		wifi_chip_type = "ap6212";
 		WIFI,host_wake_irq = <&gpio4 RK_PC1 GPIO_ACTIVE_HIGH>;
 		status = "okay";
+	};
+
+	lcd_pwr: lcd-pwr {
+		compatible = "regulator-fixed";
+		regulator-name = "lcd_pwr";
+		regulator-boot-on;
+		gpio = <&gpio0 RK_PC4 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+		regulator-state-mem {
+			regulator-off-in-suspend;
+		};
 	};
 };
 
@@ -251,7 +262,6 @@
 	assigned-clock-parents = <&gmac_clkin>;
 	tx_delay = <0x50>;
 	rx_delay = <0x3a>;
-	status = "okay";
 };
 
 &i2c0 {
@@ -284,9 +294,9 @@
 		pinctrl-names = "default", "pmic-sleep",
 				"pmic-power-off", "pmic-reset";
 		pinctrl-0 = <&pmic_int>;
-		pinctrl-1 = <&soc_slppin_slp>, <&rk817_slppin_slp>;
+		pinctrl-1 = <&soc_slppin_gpio>, <&rk817_slppin_slp>;
 		pinctrl-2 = <&soc_slppin_gpio>, <&rk817_slppin_pwrdn>;
-		pinctrl-3 = <&soc_slppin_gpio>, <&rk817_slppin_null>;
+		pinctrl-3 = <&soc_slppin_slp>, <&rk817_slppin_rst>;
 		rockchip,system-power-controller;
 		wakeup-source;
 		#clock-cells = <1>;
@@ -449,7 +459,7 @@
 
 				regulator-name = "vcc1v8_dvp";
 				regulator-state-mem {
-					regulator-on-in-suspend;
+					regulator-off-in-suspend;
 					regulator-suspend-microvolt = <1800000>;
 				};
 			};
@@ -460,7 +470,7 @@
 
 				regulator-name = "vdd1v5_dvp";
 				regulator-state-mem {
-					regulator-on-in-suspend;
+					regulator-off-in-suspend;
 					regulator-suspend-microvolt = <1500000>;
 
 				};
@@ -487,7 +497,7 @@
 
 				regulator-name = "vccio_sd";
 				regulator-state-mem {
-					regulator-on-in-suspend;
+					regulator-off-in-suspend;
 					regulator-suspend-microvolt = <3300000>;
 				};
 			};
@@ -498,7 +508,7 @@
 
 				regulator-name = "vcc3v3_sd";
 				regulator-state-mem {
-					regulator-on-in-suspend;
+					regulator-off-in-suspend;
 					regulator-suspend-microvolt = <3300000>;
 				};
 			};
@@ -549,6 +559,7 @@
 	gt1x: gt1x@14 {
 		compatible = "goodix,gt1x";
 		reg = <0x14>;
+		power-supply = <&lcd_pwr>;
 		goodix,rst-gpio = <&gpio0 RK_PB4 GPIO_ACTIVE_HIGH>;
 		goodix,irq-gpio = <&gpio0 RK_PB5 IRQ_TYPE_LEVEL_LOW>;
 	};
@@ -707,6 +718,11 @@
 		uart4_rts_gpio: uart4-rts-gpio {
 			rockchip,pins = <4 RK_PB7 0 &pcfg_pull_none>;
 		};
+
+		bt_wake_host: bt-wake-host {
+			rockchip,pins = <4 RK_PC2 0 &pcfg_pull_none>;
+		};
+
 	};
 
 	wireless-wlan {

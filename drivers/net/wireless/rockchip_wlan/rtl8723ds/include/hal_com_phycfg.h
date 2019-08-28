@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /******************************************************************************
  *
  * Copyright(c) 2007 - 2017 Realtek Corporation.
@@ -28,8 +29,6 @@ typedef enum _RF_TX_NUM {
 	RF_MAX_TX_NUM,
 	RF_TX_NUM_NONIMPLEMENT,
 } RF_TX_NUM;
-
-#define MAX_POWER_INDEX		0x3F
 
 /*------------------------------Define structure----------------------------*/
 typedef struct _BB_REGISTER_DEFINITION {
@@ -182,9 +181,9 @@ s8 PHY_GetTxPowerLimit(_adapter *adapter
 	, u8 rfpath, u8 rate, u8 ntx_idx, u8 cch
 );
 #else
-#define phy_get_txpwr_lmt_abs(adapter, regd_name, band, bw, tlrs, ntx_idx, cch, lock) MAX_POWER_INDEX
-#define phy_get_txpwr_lmt(adapter, regd_name, band, bw, rfpath, rs, ntx_idx, cch, lock) MAX_POWER_INDEX
-#define PHY_GetTxPowerLimit(adapter, regd_name, band, bw, rfpath, rate, ntx_idx, cch) MAX_POWER_INDEX
+#define phy_get_txpwr_lmt_abs(adapter, regd_name, band, bw, tlrs, ntx_idx, cch, lock) (GET_HAL_SPEC(adapter)->txgi_max)
+#define phy_get_txpwr_lmt(adapter, regd_name, band, bw, rfpath, rs, ntx_idx, cch, lock) (GET_HAL_SPEC(adapter)->txgi_max)
+#define PHY_GetTxPowerLimit(adapter, regd_name, band, bw, rfpath, rate, ntx_idx, cch) (GET_HAL_SPEC(adapter)->txgi_max)
 #endif /* CONFIG_TXPWR_LIMIT */
 
 s8
@@ -235,6 +234,10 @@ void phy_reload_tx_power_ext_info(_adapter *adapter);
 void phy_reload_default_tx_power_ext_info(_adapter *adapter);
 
 const struct map_t *hal_pg_txpwr_def_info(_adapter *adapter);
+
+#ifdef CONFIG_EFUSE_CONFIG_FILE
+int check_phy_efuse_tx_power_info_valid(_adapter *adapter);
+#endif
 
 void dump_hal_txpwr_info_2g(void *sel, _adapter *adapter, u8 rfpath_num, u8 max_tx_cnt);
 void dump_hal_txpwr_info_5g(void *sel, _adapter *adapter, u8 rfpath_num, u8 max_tx_cnt);
@@ -293,5 +296,5 @@ int PHY_ConfigRFWithPowerLimitTableParaFile(IN PADAPTER	Adapter, IN const char *
 void phy_free_filebuf_mask(_adapter *padapter, u8 mask);
 void phy_free_filebuf(_adapter *padapter);
 #endif /* CONFIG_LOAD_PHY_PARA_FROM_FILE */
-
+u8 phy_check_under_survey_ch(_adapter *adapter);
 #endif /* __HAL_COMMON_H__ */

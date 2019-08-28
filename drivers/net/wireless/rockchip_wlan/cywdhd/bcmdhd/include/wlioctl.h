@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Custom OID/ioctl definitions for
  *
@@ -6,7 +7,7 @@
  *
  * Definitions subject to change without notice.
  *
- * Copyright (C) 1999-2017, Broadcom Corporation
+ * Copyright (C) 1999-2018, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -27,7 +28,7 @@
  * other than the GPL, without Broadcom's express prior written consent.
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: wlioctl.h 606700 2015-12-16 12:15:50Z $
+ * $Id: wlioctl.h 692666 2018-07-30 08:58:07Z $
  */
 
 #ifndef _wlioctl_h_
@@ -8505,6 +8506,14 @@ typedef struct {
 } wl_roam_channel_list_t;
 #endif 
 
+#ifdef MFP
+/* values for IOV_MFP arg */
+enum {
+    WL_MFP_NONE = 0,
+    WL_MFP_CAPABLE,
+    WL_MFP_REQUIRED
+};
+#endif /* MFP */
 
 /*
  * WOWL unassociated mode power svae pattern.
@@ -8526,5 +8535,72 @@ typedef struct wl_peer_rssi {
 	int32 cur_val;
 	struct ether_addr ea;
 } wl_peer_rssi_t;
+
+#define GPIO_WAKE_PAYLOAD_MAXSIZE	1024
+#define MAX_GPIO_WAKE_INT_SIZE		(sizeof(wl_gpio_wake_int_t)+GPIO_WAKE_PAYLOAD_MAXSIZE-1)
+
+enum {
+	GPIO_WAKE_PROTO_TCP = 0,
+	GPIO_WAKE_PROTO_RAW,
+};
+
+typedef struct wl_gpio_wake_int_s {
+	uint8 enable;
+	uint8 proto;
+	uint8 idx;
+	uint16 data_len;
+	uint8 data[1];
+} wl_gpio_wake_int_t;
+
+/*
+ * DHCP lease time renew offload definitions
+ */
+
+/* common iovar struct */
+typedef struct wl_dltro {
+	uint8 subcmd_id;	/* subcommand id */
+	uint8 pad;
+	uint16 len;		/* total length of data[] */
+	uint8 data[1];		/* subcommand data */
+} wl_dltro_t;
+
+
+/* Subcommand ids */
+#define WL_DLTRO_SUBCMD_CONNECT     0   /* DLTRO connection info */
+#define WL_DLTRO_SUBCMD_PARAM       1   /* DLTRO parameter info */
+#define WL_DLTRO_SUBCMD_MAX_DLTRO   2   /* Max DLTRO supported */
+
+/* WL_DLTRO_SUBCMD_CONNECT subcommand data
+ * Invoke with unique 'index' for each DLTRO connection
+ */
+typedef struct wl_dltro_connect {
+	uint8 index;        /* DLTRO connection index, 0 to max-1 */
+	uint8 ip_addr_type;	/* 0 - IPv4, 1 - IPv6 */
+	uint8 offload_type; /* 0 - Client, 1 - Server */
+	uint8 pad;
+	uint32 tid;         /* Transaction id */
+	uint32 timer_val;   /* DHCP lease time remaining */
+	uint32 time_before_expiry; /* Time before expiry for DHCP lease renewal */
+	uint32 len;         /* Length of the variable data */
+	uint8 data[1];      /* Variable length field containing DLTRO packet */
+} wl_dltro_connect_t;
+
+/* WL_DLTRO_SUBCMD_PARAM subcommand data
+ * Invoke with unique 'index' for each DLTRO connection
+ */
+typedef struct wl_dltro_param {
+	uint8 index;        /* DLTRO connection index, 0 to max-1 */
+	uint8 retry;        /* Number of retries */
+} wl_dltro_param_t;
+
+/* WL_DLTRO_SUBCMD_PARAM subcommand data to GET configured info for specific index */
+typedef struct wl_dltro_get_param {
+	uint8 index;        /* DLTRO connection index, 0 to max-1 */
+} wl_dltro_get_param_t;
+
+/* WL_DLTRO_SUBCMD_MAX_DLTRO subcommand data */
+typedef struct wl_dltro_max_dltro {
+	uint8 max;	/* Max DLTRO supported */
+} wl_dltro_max_dltro_t;
 
 #endif /* _wlioctl_h_ */

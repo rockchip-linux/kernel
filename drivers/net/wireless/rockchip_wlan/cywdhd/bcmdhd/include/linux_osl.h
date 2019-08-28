@@ -1,7 +1,8 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Linux OS Independent Layer
  *
- * Copyright (C) 1999-2017, Broadcom Corporation
+ * Copyright (C) 1999-2018, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -481,8 +482,9 @@ extern int osl_error(int bcmerror);
 #define PKTSETID(skb, id)       ({BCM_REFERENCE(skb); BCM_REFERENCE(id);})
 #define PKTSHRINK(osh, m)		({BCM_REFERENCE(osh); m;})
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 6, 0)) && defined(TSQ_MULTIPLIER)
-#define PKTORPHAN(skb)          osl_pkt_orphan_partial(skb)
-extern void osl_pkt_orphan_partial(struct sk_buff *skb);
+//#define PKTORPHAN(skb)          osl_pkt_orphan_partial(skb)
+//extern void osl_pkt_orphan_partial(struct sk_buff *skb);
+#define PKTORPHAN(skb)          skb_orphan(skb)
 #else
 #define PKTORPHAN(skb)          ({BCM_REFERENCE(skb); 0;})
 #endif /* LINUX VERSION >= 3.6 */

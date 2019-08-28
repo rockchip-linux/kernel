@@ -52,7 +52,7 @@
 	};
 
 	chosen {
-		bootargs = "earlycon=uart8250,mmio32,0xff1a0000 swiotlb=1";
+		bootargs = "earlycon=uart8250,mmio32,0xff1a0000 swiotlb=1 coherent_pool=1m";
 	};
 
 	cpuinfo {
@@ -471,6 +471,10 @@
 		status = "disabled";
 		power-domains = <&power RK3399_PD_EDP>;
 	};
+};
+
+&uart2 {
+	status = "disabled";
 };
 
 &vpu {

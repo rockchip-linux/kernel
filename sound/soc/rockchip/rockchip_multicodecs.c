@@ -36,6 +36,10 @@
 #define WAIT_CARDS	(SNDRV_CARDS - 1)
 #define DEFAULT_MCLK_FS	256
 
+#ifdef CONFIG_RK_HEADSET
+extern void rk_headset_set_jack_detect(struct snd_soc_jack *jack);
+#endif
+
 struct multicodecs_data {
 	struct snd_soc_card snd_card;
 	struct snd_soc_dai_link dai_link;
@@ -44,6 +48,17 @@ struct multicodecs_data {
 };
 
 static struct snd_soc_jack mc_hp_jack;
+static struct snd_soc_jack_pin mc_hp_jack_pins[] = {
+	{
+		/*
+		 * The name of pin must be 'Headphone', it will be combine
+		 * 'Jack' as 'Headphone Jack', then, the ALSA UCM will identify
+		 * it.
+		 */
+		.pin = "Headphone",
+		.mask = SND_JACK_HEADPHONE,
+	},
+};
 
 static int rk_multicodecs_hw_params(struct snd_pcm_substream *substream,
 				    struct snd_pcm_hw_params *params)
@@ -82,12 +97,19 @@ static int rk_dailink_init(struct snd_soc_pcm_runtime *rtd)
 	struct multicodecs_data *mc_data = snd_soc_card_get_drvdata(rtd->card);
 
 	if (mc_data->codec_hp_det) {
-		snd_soc_card_jack_new(rtd->card, "Headphones",
+		snd_soc_card_jack_new(rtd->card, "Headphone Jack",
 				      SND_JACK_HEADPHONE,
-				      &mc_hp_jack, NULL, 0);
+				      &mc_hp_jack,
+				      mc_hp_jack_pins,
+				      ARRAY_SIZE(mc_hp_jack_pins));
 
 #ifdef CONFIG_SND_SOC_RK3308
-		rk3308_codec_set_jack_detect(rtd->codec, &mc_hp_jack);
+		if (rk3308_codec_set_jack_detect_cb)
+			rk3308_codec_set_jack_detect_cb(rtd->codec, &mc_hp_jack);
+#endif
+
+#ifdef CONFIG_RK_HEADSET
+		rk_headset_set_jack_detect(&mc_hp_jack);
 #endif
 	}
 

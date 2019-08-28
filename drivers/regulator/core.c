@@ -1337,12 +1337,15 @@ static struct regulator *create_regulator(struct regulator_dev *rdev,
 		if (regulator->supply_name == NULL)
 			goto overflow_err;
 
-		err = sysfs_create_link_nowarn(&rdev->dev.kobj, &dev->kobj,
-					buf);
-		if (err) {
-			rdev_dbg(rdev, "could not add device link %s err %d\n",
-				  dev->kobj.name, err);
-			/* non-fatal */
+		if (device_is_registered(dev)) {
+			err = sysfs_create_link_nowarn(&rdev->dev.kobj,
+						       &dev->kobj, buf);
+			if (err) {
+				rdev_dbg(rdev,
+					 "could not add device link %s err %d\n",
+					 dev->kobj.name, err);
+				/* non-fatal */
+			}
 		}
 	} else {
 		regulator->supply_name = kstrdup(supply_name, GFP_KERNEL);
@@ -4411,6 +4414,19 @@ regulator_register(const struct regulator_desc *regulator_desc,
 	}
 
 	dev_set_drvdata(&rdev->dev, rdev);
+
+	/* Add a link to the device sysfs entry */
+	if (rdev->supply && rdev->supply->dev) {
+		ret = sysfs_create_link_nowarn(&rdev->supply->dev->kobj,
+					       &rdev->dev.kobj,
+					       rdev->supply->supply_name);
+		if (ret) {
+			rdev_dbg(rdev, "could not add device link %s err %d\n",
+				 rdev->dev.kobj.name, ret);
+			/* non-fatal */
+		}
+	}
+
 	rdev_init_debugfs(rdev);
 	rdev_init_early_min_volt(rdev);
 

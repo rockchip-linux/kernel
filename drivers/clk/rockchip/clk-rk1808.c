@@ -11,6 +11,7 @@
 #include "clk.h"
 
 #define RK1808_GRF_SOC_STATUS0		0x480
+#define RK1808_PMUGRF_SOC_CON0		0x100
 #define RK1808_UART_FRAC_MAX_PRATE	800000000
 #define RK1808_PDM_FRAC_MAX_PRATE	300000000
 #define RK1808_I2S_FRAC_MAX_PRATE	600000000
@@ -44,7 +45,7 @@ static struct rockchip_pll_rate_table rk1808_pll_rates[] = {
 	RK3036_PLL_RATE(1104000000, 1, 46, 1, 1, 1, 0),
 	RK3036_PLL_RATE(1100000000, 2, 275, 3, 1, 1, 0),
 	RK3036_PLL_RATE(1008000000, 1, 84, 2, 1, 1, 0),
-	RK3036_PLL_RATE(1000000000, 1, 250, 6, 1, 1, 0),
+	RK3036_PLL_RATE(1000000000, 1, 125, 3, 1, 1, 0),
 	RK3036_PLL_RATE(984000000, 1, 82, 2, 1, 1, 0),
 	RK3036_PLL_RATE(960000000, 1, 80, 2, 1, 1, 0),
 	RK3036_PLL_RATE(936000000, 1, 78, 2, 1, 1, 0),
@@ -177,6 +178,7 @@ PNAME(mux_mipidsiphy_ref_p)	= { "xin24m", "clk_ref24m_pmu" };
 PNAME(mux_pciephy_ref_p)		= { "xin24m", "clk_pciephy_src" };
 PNAME(mux_ppll_xin24m_p)		= { "ppll", "xin24m" };
 PNAME(mux_xin24m_32k_p)		= { "xin24m", "xin32k" };
+PNAME(mux_clk_32k_ioe_p)	= { "clk_rtc32k_pmu", "xin32k" };
 
 static struct rockchip_pll_clock rk1808_pll_clks[] __initdata = {
 	[apll] = PLL(pll_rk3036, PLL_APLL, "apll", mux_pll_p,
@@ -335,9 +337,9 @@ static struct rockchip_clk_branch rk1808_clk_branches[] __initdata = {
 	/*
 	 * Clock-Architecture Diagram 4
 	 */
-	COMPOSITE_NOGATE(0, "clk_npu_div", mux_gpll_cpll_p, CLK_KEEP_REQ_RATE,
+	COMPOSITE_NOGATE(0, "clk_npu_div", mux_gpll_cpll_p, CLK_KEEP_REQ_RATE | CLK_OPS_PARENT_ENABLE,
 			RK1808_CLKSEL_CON(1), 8, 2, MFLAGS, 0, 4, DFLAGS),
-	COMPOSITE_NOGATE_HALFDIV(0, "clk_npu_np5", mux_gpll_cpll_p, CLK_KEEP_REQ_RATE,
+	COMPOSITE_NOGATE_HALFDIV(0, "clk_npu_np5", mux_gpll_cpll_p, CLK_KEEP_REQ_RATE | CLK_OPS_PARENT_ENABLE,
 			RK1808_CLKSEL_CON(1), 10, 2, MFLAGS, 4, 4, DFLAGS),
 	MUX(0, "clk_npu_pre", mux_npu_p, CLK_SET_RATE_PARENT,
 			RK1808_CLKSEL_CON(1), 15, 1, MFLAGS),
@@ -644,7 +646,7 @@ static struct rockchip_clk_branch rk1808_clk_branches[] __initdata = {
 			RK1808_CLKGATE_CON(9), 8, GFLAGS),
 	COMPOSITE_NODIV(SCLK_SDMMC, "clk_sdmmc", mux_sdmmc_p, CLK_SET_RATE_PARENT | CLK_SET_RATE_NO_REPARENT,
 			RK1808_CLKSEL_CON(21), 15, 1, MFLAGS,
-			RK1808_CLKGATE_CON(9), 10, GFLAGS),
+			RK1808_CLKGATE_CON(9), 9, GFLAGS),
 	MMC(SCLK_SDMMC_DRV,     "sdmmc_drv",    "clk_sdmmc", RK1808_SDMMC_CON0, 1),
 	MMC(SCLK_SDMMC_SAMPLE,  "sdmmc_sample", "clk_sdmmc", RK1808_SDMMC_CON1, 1),
 
@@ -1139,6 +1141,9 @@ static struct rockchip_clk_branch rk1808_clk_branches[] __initdata = {
 	GATE(PCLK_UART0_PMU, "pclk_uart0_pmu", "pclk_pmu_pre", 0, RK1808_PMU_CLKGATE_CON(0), 7, GFLAGS),
 	GATE(0, "pclk_cru_pmu", "pclk_pmu_pre", CLK_IGNORE_UNUSED, RK1808_PMU_CLKGATE_CON(0), 8, GFLAGS),
 	GATE(PCLK_I2C0_PMU, "pclk_i2c0_pmu", "pclk_pmu_pre", 0, RK1808_PMU_CLKGATE_CON(0), 9, GFLAGS),
+
+	MUXPMUGRF(SCLK_32K_IOE, "clk_32k_ioe", mux_clk_32k_ioe_p,  0,
+			RK1808_PMUGRF_SOC_CON0, 0, 1, MFLAGS)
 };
 
 static const char *const rk1808_critical_clocks[] __initconst = {
@@ -1160,6 +1165,7 @@ static const char *const rk1808_critical_clocks[] __initconst = {
 	"pclk_ddr_grf",
 	"aclk_gic",
 	"hsclk_imem",
+	"cpll",
 };
 
 static void __iomem *rk1808_cru_base;

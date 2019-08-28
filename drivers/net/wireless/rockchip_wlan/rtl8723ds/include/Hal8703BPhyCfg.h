@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /******************************************************************************
  *
  * Copyright(c) 2007 - 2017 Realtek Corporation.
@@ -123,7 +124,7 @@ PHY_SetSwChnlBWMode8703B(
 );
 
 VOID phy_set_rf_path_switch_8703b(
-	IN	PADAPTER	pAdapter,
+	IN	struct dm_struct		*phydm,
 	IN	bool		bMain
 );
 

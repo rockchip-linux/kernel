@@ -25,6 +25,9 @@
 #define DEVFREQ_GOV_SUSPEND			0x4
 #define DEVFREQ_GOV_RESUME			0x5
 
+#define DEVFREQ_MIN_FREQ			0
+#define DEVFREQ_MAX_FREQ			ULONG_MAX
+
 /* Caution: devfreq->lock must be locked before calling update_devfreq */
 extern int update_devfreq(struct devfreq *devfreq);
 
@@ -37,5 +40,7 @@ extern void devfreq_interval_update(struct devfreq *devfreq,
 
 extern int devfreq_add_governor(struct devfreq_governor *governor);
 extern int devfreq_remove_governor(struct devfreq_governor *governor);
+
+extern int devfreq_update_status(struct devfreq *devfreq, unsigned long freq);
 
 #endif /* _GOVERNOR_H */

@@ -17,7 +17,7 @@
 	compatible = "rockchip,rk3326-evb-lp3-v10-linux", "rockchip,rk3326";
 
 	chosen {
-                bootargs = "earlycon=uart8250,mmio32,0xff160000 swiotlb=1 console=ttyFIQ0 root=PARTUUID=614e0000-0000 rootfstype=ext4 rootwait";
+                bootargs = "earlycon=uart8250,mmio32,0xff160000 swiotlb=1 console=ttyFIQ0 rw root=PARTUUID=614e0000-0000 rootfstype=ext4 rootwait";
         };
 
 	adc-keys {
@@ -713,6 +713,10 @@
 
 		/* hw changed the pwdn to gpio2_b5 */
 		pwdn-gpios = <&gpio2 13 GPIO_ACTIVE_HIGH>;
+		rockchip,camera-module-index = <1>;
+		rockchip,camera-module-facing = "front";
+		rockchip,camera-module-name = "CMK-CW2392";
+		rockchip,camera-module-lens-name = "CMK-CW2392";
 
 		port {
 			gc2155_out: endpoint {
@@ -730,10 +734,15 @@
 
 		avdd-supply = <&vcc2v8_dvp>;
 		dovdd-supply = <&vcc1v8_dvp>;
-		dvdd-supply = <&vcc1v8_dvp>;
+		dvdd-supply = <&vdd1v5_dvp>;
 
 		/*reset-gpios = <&gpio2 14 GPIO_ACTIVE_HIGH>;*/
 		pwdn-gpios = <&gpio2 14 GPIO_ACTIVE_HIGH>;
+
+		rockchip,camera-module-index = <0>;
+		rockchip,camera-module-facing = "back";
+		rockchip,camera-module-name = "TongJu";
+		rockchip,camera-module-lens-name = "CHT842-MD";
 
 		port {
 			ucam_out: endpoint {
@@ -755,7 +764,7 @@
 	vccio1-supply = <&vcc1v8_soc>;
 	vccio2-supply = <&vccio_sd>;
 	vccio3-supply = <&vcc1v8_dvp>;
-	vccio4-supply = <&vcc1v8_soc>;
+	vccio4-supply = <&vcc_3v0>;
 	vccio5-supply = <&vcc_3v0>;
 };
 

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /******************************************************************************
  *
  * Copyright(c) 2007 - 2017 Realtek Corporation.
@@ -595,7 +596,7 @@ PHY_BBConfig8723D(
 {
 	int	rtStatus = _SUCCESS;
 	HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(Adapter);
-	u32	RegVal;
+	u16	RegVal;
 	u8	TmpU1B = 0;
 	u8	value8;
 
@@ -603,17 +604,16 @@ PHY_BBConfig8723D(
 
 	/* Enable BB and RF */
 	RegVal = rtw_read16(Adapter, REG_SYS_FUNC_EN);
-	rtw_write16(Adapter, REG_SYS_FUNC_EN, (u16)(RegVal | BIT(13) | BIT(0) | BIT(1)));
+	RegVal |= FEN_EN_25_1 | FEN_BB_GLB_RSTn | FEN_BBRSTB;
+	rtw_write16(Adapter, REG_SYS_FUNC_EN, RegVal);
 
 	rtw_write8(Adapter, REG_RF_CTRL, RF_EN | RF_RSTB | RF_SDMRSTB);
 
-#if (DEV_BUS_TYPE == RT_USB_INTERFACE)
-	rtw_write8(Adapter, REG_SYS_FUNC_EN, FEN_USBA | FEN_USBD | FEN_BB_GLB_RSTn | FEN_BBRSTB);
-#else
+#if defined(CONFIG_PCI_HCI)
 	rtw_write8(Adapter, REG_SYS_FUNC_EN, FEN_PPLL | FEN_PCIEA | FEN_DIO_PCIE | FEN_BB_GLB_RSTn | FEN_BBRSTB);
 #endif
 
-#if DEV_BUS_TYPE == RT_USB_INTERFACE
+#ifdef CONFIG_USB_HCI
 	/* To Fix MAC loopback mode fail. Suggested by SD4 Johnny. 2010.03.23. */
 	PlatformEFIOWrite1Byte(Adapter, REG_LDOHCI12_CTRL, 0x0f);
 	PlatformEFIOWrite1Byte(Adapter, 0x15, 0xe9);
@@ -808,6 +808,7 @@ PHY_GetTxPowerIndex_8723D(
 )
 {
 	PHAL_DATA_TYPE pHalData = GET_HAL_DATA(pAdapter);
+	struct hal_spec_t *hal_spec = GET_HAL_SPEC(pAdapter);
 	s16 power_idx;
 	u8 base_idx = 0;
 	s8 by_rate_diff = 0, limit = 0, tpt_offset = 0, extra_bias = 0;
@@ -834,8 +835,8 @@ PHY_GetTxPowerIndex_8723D(
 
 	if (power_idx < 0)
 		power_idx = 0;
-	else if (power_idx > MAX_POWER_INDEX)
-		power_idx = MAX_POWER_INDEX;
+	else if (power_idx > hal_spec->txgi_max)
+		power_idx = hal_spec->txgi_max;
 
 	return power_idx;
 }
@@ -899,7 +900,7 @@ phy_SpurCalibration_8723D(
 	/* add for notch */
 	u4Byte				wlan_channel, CurrentChannel;
 	HAL_DATA_TYPE		*pHalData	= GET_HAL_DATA(pAdapter);
-	struct PHY_DM_STRUCT		*pDM_Odm = &(pHalData->odmpriv);
+	struct dm_struct		*pDM_Odm = &(pHalData->odmpriv);
 
 	/* check threshold */
 	if (threshold <= 0x0)
@@ -1165,6 +1166,16 @@ phy_SwChnlAndSetBwMode8723D(
 	if (pHalData->bSetChnlBW) {
 		phy_PostSetBwMode8723D(Adapter);
 		pHalData->bSetChnlBW = _FALSE;
+	}
+
+	if (pHalData->bNeedIQK == _TRUE) {
+		if (pHalData->neediqk_24g == _TRUE) {
+
+			halrf_iqk_trigger(&pHalData->odmpriv, _FALSE);
+			pHalData->bIQKInitialized = _TRUE;
+			pHalData->neediqk_24g = _FALSE;
+		}
+		pHalData->bNeedIQK = _FALSE;
 	}
 
 	PHY_SetTxPowerLevel8723D(Adapter, pHalData->current_channel);

@@ -118,7 +118,7 @@
 		rockchip,mclk-fs = <128>;
 		rockchip,cpu = <&i2s_2ch_0>;
 		rockchip,codec = <&dummy_codec>;
-		rockchip,format = "dsp_b";
+		rockchip,format = "dsp_a";
 		rockchip,bitclock-inversion = <0>;
 		rockchip,wait-card-locked = <0>;
 	};

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /******************************************************************************
  *
  * Copyright(c) 2007 - 2017 Realtek Corporation.
@@ -25,7 +26,7 @@
 #define NDIS_802_11_LENGTH_RATES        8
 #define NDIS_802_11_LENGTH_RATES_EX     16
 
-typedef unsigned char   NDIS_802_11_MAC_ADDRESS[6];
+typedef unsigned char   NDIS_802_11_MAC_ADDRESS[ETH_ALEN];
 typedef long    		NDIS_802_11_RSSI;           /* in dBm */
 typedef unsigned char   NDIS_802_11_RATES[NDIS_802_11_LENGTH_RATES];        /* Set of 8 data rates */
 typedef unsigned char   NDIS_802_11_RATES_EX[NDIS_802_11_LENGTH_RATES_EX];  /* Set of 16 data rates */
@@ -77,6 +78,7 @@ typedef enum _NDIS_802_11_NETWORK_INFRASTRUCTURE {
 	Ndis802_11InfrastructureMax,     /* Not a real value, defined as upper bound */
 	Ndis802_11APMode,
 	Ndis802_11Monitor,
+	Ndis802_11_mesh,
 } NDIS_802_11_NETWORK_INFRASTRUCTURE, *PNDIS_802_11_NETWORK_INFRASTRUCTURE;
 
 
@@ -274,7 +276,7 @@ typedef struct _NDIS_802_11_TEST {
 #define NDIS_802_11_LENGTH_RATES        8
 #define NDIS_802_11_LENGTH_RATES_EX     16
 
-typedef unsigned char   NDIS_802_11_MAC_ADDRESS[6];
+typedef unsigned char   NDIS_802_11_MAC_ADDRESS[ETH_ALEN];
 typedef long    		NDIS_802_11_RSSI;           /* in dBm */
 typedef unsigned char   NDIS_802_11_RATES[NDIS_802_11_LENGTH_RATES];        /* Set of 8 data rates */
 typedef unsigned char   NDIS_802_11_RATES_EX[NDIS_802_11_LENGTH_RATES_EX];  /* Set of 16 data rates */
@@ -561,6 +563,7 @@ typedef struct _WLAN_BSSID_EX {
 	NDIS_802_11_MAC_ADDRESS  MacAddress;
 	UCHAR  Reserved[2];/* [0]: IS beacon frame , bss_type*/
 	NDIS_802_11_SSID  Ssid;
+	NDIS_802_11_SSID  mesh_id;
 	ULONG  Privacy;
 	NDIS_802_11_RSSI  Rssi;/* (in dBM,raw data ,get from PHY) */
 	NDIS_802_11_NETWORK_TYPE  NetworkTypeInUse;
@@ -616,6 +619,12 @@ struct	wlan_network {
 	int	network_type;	/* refer to ieee80211.h for WIRELESS_11A/B/G */
 	int	fixed;			/* set to fixed when not to be removed as site-surveying */
 	systime last_scanned; /* timestamp for the network */
+#ifdef CONFIG_RTW_MESH
+#if CONFIG_RTW_MESH_ACNODE_PREVENT
+	systime acnode_stime;
+	systime acnode_notify_etime;
+#endif
+#endif
 	int	aid;			/* will only be valid when a BSS is joinned. */
 	int	join_res;
 	WLAN_BSSID_EX	network; /* must be the last item */

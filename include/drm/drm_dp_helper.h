@@ -505,6 +505,9 @@
 #define DP_DEVICE_SERVICE_IRQ_VECTOR_ESI0   0x2003   /* 1.2 */
 
 #define DP_DEVICE_SERVICE_IRQ_VECTOR_ESI1   0x2004   /* 1.2 */
+# define DP_RX_GTC_MSTR_REQ_STATUS_CHANGE    (1 << 0)
+# define DP_LOCK_ACQUISITION_REQUEST         (1 << 1)
+# define DP_CEC_IRQ                          (1 << 2)
 
 #define DP_LINK_SERVICE_IRQ_VECTOR_ESI0     0x2005   /* 1.2 */
 
@@ -544,6 +547,62 @@
 #define DP_AUX_HDCP_BINFO		0x6802A
 #define DP_AUX_HDCP_KSV_FIFO		0x6802C
 #define DP_AUX_HDCP_AINFO		0x6803B
+
+/* HDMI CEC tunneling over AUX DP 1.3 section 5.3.3.3.1 DPCD 1.4+ */
+#define DP_CEC_TUNNELING_CAPABILITY            0x3000
+# define DP_CEC_TUNNELING_CAPABLE               (1 << 0)
+# define DP_CEC_SNOOPING_CAPABLE                (1 << 1)
+# define DP_CEC_MULTIPLE_LA_CAPABLE             (1 << 2)
+
+#define DP_CEC_TUNNELING_CONTROL               0x3001
+# define DP_CEC_TUNNELING_ENABLE                (1 << 0)
+# define DP_CEC_SNOOPING_ENABLE                 (1 << 1)
+
+#define DP_CEC_RX_MESSAGE_INFO                 0x3002
+# define DP_CEC_RX_MESSAGE_LEN_MASK             (0xf << 0)
+# define DP_CEC_RX_MESSAGE_LEN_SHIFT            0
+# define DP_CEC_RX_MESSAGE_HPD_STATE            (1 << 4)
+# define DP_CEC_RX_MESSAGE_HPD_LOST             (1 << 5)
+# define DP_CEC_RX_MESSAGE_ACKED                (1 << 6)
+# define DP_CEC_RX_MESSAGE_ENDED                (1 << 7)
+
+#define DP_CEC_TX_MESSAGE_INFO                 0x3003
+# define DP_CEC_TX_MESSAGE_LEN_MASK             (0xf << 0)
+# define DP_CEC_TX_MESSAGE_LEN_SHIFT            0
+# define DP_CEC_TX_RETRY_COUNT_MASK             (0x7 << 4)
+# define DP_CEC_TX_RETRY_COUNT_SHIFT            4
+# define DP_CEC_TX_MESSAGE_SEND                 (1 << 7)
+
+#define DP_CEC_TUNNELING_IRQ_FLAGS             0x3004
+# define DP_CEC_RX_MESSAGE_INFO_VALID           (1 << 0)
+# define DP_CEC_RX_MESSAGE_OVERFLOW             (1 << 1)
+# define DP_CEC_TX_MESSAGE_SENT                 (1 << 4)
+# define DP_CEC_TX_LINE_ERROR                   (1 << 5)
+# define DP_CEC_TX_ADDRESS_NACK_ERROR           (1 << 6)
+# define DP_CEC_TX_DATA_NACK_ERROR              (1 << 7)
+
+#define DP_CEC_LOGICAL_ADDRESS_MASK            0x300E /* 0x300F word */
+# define DP_CEC_LOGICAL_ADDRESS_0               (1 << 0)
+# define DP_CEC_LOGICAL_ADDRESS_1               (1 << 1)
+# define DP_CEC_LOGICAL_ADDRESS_2               (1 << 2)
+# define DP_CEC_LOGICAL_ADDRESS_3               (1 << 3)
+# define DP_CEC_LOGICAL_ADDRESS_4               (1 << 4)
+# define DP_CEC_LOGICAL_ADDRESS_5               (1 << 5)
+# define DP_CEC_LOGICAL_ADDRESS_6               (1 << 6)
+# define DP_CEC_LOGICAL_ADDRESS_7               (1 << 7)
+#define DP_CEC_LOGICAL_ADDRESS_MASK_2          0x300F /* 0x300E word */
+# define DP_CEC_LOGICAL_ADDRESS_8               (1 << 0)
+# define DP_CEC_LOGICAL_ADDRESS_9               (1 << 1)
+# define DP_CEC_LOGICAL_ADDRESS_10              (1 << 2)
+# define DP_CEC_LOGICAL_ADDRESS_11              (1 << 3)
+# define DP_CEC_LOGICAL_ADDRESS_12              (1 << 4)
+# define DP_CEC_LOGICAL_ADDRESS_13              (1 << 5)
+# define DP_CEC_LOGICAL_ADDRESS_14              (1 << 6)
+# define DP_CEC_LOGICAL_ADDRESS_15              (1 << 7)
+
+#define DP_CEC_RX_MESSAGE_BUFFER               0x3010
+#define DP_CEC_TX_MESSAGE_BUFFER               0x3020
+#define DP_CEC_MESSAGE_BUFFER_LENGTH             0x10
 
 /* DP 1.2 Sideband message defines */
 /* peer device type - DP 1.2a Table 2-92 */
@@ -684,11 +743,31 @@ struct drm_dp_aux_msg {
 	size_t size;
 };
 
+struct cec_adapter;
+struct edid;
+
+/**
+ * struct drm_dp_aux_cec - DisplayPort CEC-Tunneling-over-AUX
+ * @lock: mutex protecting this struct
+ * @adap: the CEC adapter for CEC-Tunneling-over-AUX support.
+ * @name: name of the CEC adapter
+ * @parent: parent device of the CEC adapter
+ * @unregister_work: unregister the CEC adapter
+ */
+struct drm_dp_aux_cec {
+	struct mutex lock;
+	struct cec_adapter *adap;
+	const char *name;
+	struct device *parent;
+	struct delayed_work unregister_work;
+};
+
 /**
  * struct drm_dp_aux - DisplayPort AUX channel
  * @name: user-visible name of this AUX channel and the I2C-over-AUX adapter
  * @ddc: I2C adapter that can be used for I2C-over-AUX communication
  * @dev: pointer to struct device that is the parent for this AUX channel
+ * @crtc: backpointer to the crtc that is currently using this AUX channel
  * @hw_mutex: internal mutex used for locking transfers
  * @transfer: transfers a message representing a single AUX transaction
  *
@@ -725,10 +804,22 @@ struct drm_dp_aux {
 	const char *name;
 	struct i2c_adapter ddc;
 	struct device *dev;
+	struct drm_crtc *crtc;
 	struct mutex hw_mutex;
 	ssize_t (*transfer)(struct drm_dp_aux *aux,
 			    struct drm_dp_aux_msg *msg);
-	unsigned i2c_nack_count, i2c_defer_count;
+	/**
+	 * @i2c_nack_count: Counts I2C NACKs, used for DP validation.
+	 */
+	unsigned i2c_nack_count;
+	/**
+	 * @i2c_defer_count: Counts I2C DEFERs, used for DP validation.
+	 */
+	unsigned i2c_defer_count;
+	/**
+	 * @cec: struct containing fields used for CEC-Tunneling-over-AUX.
+	 */
+	struct drm_dp_aux_cec cec;
 };
 
 ssize_t drm_dp_dpcd_read(struct drm_dp_aux *aux, unsigned int offset,
@@ -788,5 +879,89 @@ int drm_dp_link_configure(struct drm_dp_aux *aux, struct drm_dp_link *link);
 
 int drm_dp_aux_register(struct drm_dp_aux *aux);
 void drm_dp_aux_unregister(struct drm_dp_aux *aux);
+
+struct drm_dp_dpcd_ident {
+	u8 oui[3];
+	u8 device_id[6];
+	u8 hw_rev;
+	u8 sw_major_rev;
+	u8 sw_minor_rev;
+} __packed;
+
+/**
+ * struct drm_dp_desc - DP branch/sink device descriptor
+ * @ident: DP device identification from DPCD 0x400 (sink) or 0x500 (branch).
+ * @quirks: Quirks; use drm_dp_has_quirk() to query for the quirks.
+ */
+struct drm_dp_desc {
+	struct drm_dp_dpcd_ident ident;
+	u32 quirks;
+};
+
+int drm_dp_read_desc(struct drm_dp_aux *aux, struct drm_dp_desc *desc,
+		     bool is_branch);
+
+/**
+ * enum drm_dp_quirk - Display Port sink/branch device specific quirks
+ *
+ * Display Port sink and branch devices in the wild have a variety of bugs, try
+ * to collect them here. The quirks are shared, but it's up to the drivers to
+ * implement workarounds for them.
+ */
+enum drm_dp_quirk {
+	/**
+	 * @DP_DPCD_QUIRK_LIMITED_M_N:
+	 *
+	 * The device requires main link attributes Mvid and Nvid to be limited
+	 * to 16 bits.
+	 */
+	DP_DPCD_QUIRK_LIMITED_M_N,
+};
+
+/**
+ * drm_dp_has_quirk() - does the DP device have a specific quirk
+ * @desc: Device decriptor filled by drm_dp_read_desc()
+ * @quirk: Quirk to query for
+ *
+ * Return true if DP device identified by @desc has @quirk.
+ */
+static inline bool
+drm_dp_has_quirk(const struct drm_dp_desc *desc, enum drm_dp_quirk quirk)
+{
+	return desc->quirks & BIT(quirk);
+}
+
+#ifdef CONFIG_DRM_DP_CEC
+void drm_dp_cec_irq(struct drm_dp_aux *aux);
+void drm_dp_cec_register_connector(struct drm_dp_aux *aux, const char *name,
+				   struct device *parent);
+void drm_dp_cec_unregister_connector(struct drm_dp_aux *aux);
+void drm_dp_cec_set_edid(struct drm_dp_aux *aux, const struct edid *edid);
+void drm_dp_cec_unset_edid(struct drm_dp_aux *aux);
+#else
+static inline void drm_dp_cec_irq(struct drm_dp_aux *aux)
+{
+}
+
+static inline void drm_dp_cec_register_connector(struct drm_dp_aux *aux,
+						 const char *name,
+						 struct device *parent)
+{
+}
+
+static inline void drm_dp_cec_unregister_connector(struct drm_dp_aux *aux)
+{
+}
+
+static inline void drm_dp_cec_set_edid(struct drm_dp_aux *aux,
+				       const struct edid *edid)
+{
+}
+
+static inline void drm_dp_cec_unset_edid(struct drm_dp_aux *aux)
+{
+}
+
+#endif
 
 #endif /* _DRM_DP_HELPER_H_ */

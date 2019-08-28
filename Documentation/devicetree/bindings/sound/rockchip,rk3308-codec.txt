@@ -49,12 +49,16 @@ Optional properties:
   during suspend.
 - rockchip,no-hp-det: If there is no headphone on boards, we don't need to
   enable headphone detection.
-- rockchip,internal-micbias: Using internal micbias which are from codec.
+- rockchip,micbias1: Using internal micbias1 supply which are from codec.
+- rockchip,micbias2: Using internal micbias2 supply which are from codec.
+- rockchip,hp-jack-reversed;: To detect headphone via the reversed jack.
 - hp-ctl-gpios: The gpio of head phone controller.
 - pa-drv-gpios: The gpio of poweramplifier controller
 - rockchip,delay-pa-drv-ms: This property points out that the delay for
   power on amplifier
 - spk-ctl-gpios: The gpio of speak controller.
+- micbias-en-gpios: The GPIO to enable external micbias.
+- vmicbias-supply: The phandle to the regulator to handle external micbias.
 
 Example for rk3308 internal codec:
 

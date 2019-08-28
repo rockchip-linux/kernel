@@ -1,0 +1,24 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright (c) 2019 Fuzhou Rockchip Electronics Co., Ltd
+ */
+
+/dts-v1/;
+#include "rk1808-compute.dtsi"
+
+/ {
+	model = "Rockchip RK1808 toybrick compute stick V10 Board";
+	compatible = "rockchip,rk1808-toybrick-compute-stick-v10", "rockchip,rk1808";
+
+	chosen {
+		bootargs = "earlycon=uart8250,mmio32,0xff550000 console=ttyFIQ0 root=PARTUUID=614e0000-0000 rootfstype=ext4 rootwait swiotlb=1 kpti=0 snd_aloop.index=7";
+	};
+};
+
+&emmc {
+	status = "okay";
+};
+
+&sfc {
+	status = "disabled";
+};

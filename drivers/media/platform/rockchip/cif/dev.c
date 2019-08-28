@@ -16,11 +16,18 @@
 #include <linux/reset.h>
 #include <linux/pm_runtime.h>
 #include <linux/pinctrl/consumer.h>
-#include <linux/dma-iommu.h>
+#include <linux/regmap.h>
+#include <media/videobuf2-dma-contig.h>
 #include <media/v4l2-fwnode.h>
+#include <linux/dma-iommu.h>
+#include <dt-bindings/soc/rockchip-system-status.h>
+#include <soc/rockchip/rockchip-system-status.h>
 
 #include "dev.h"
 #include "regs.h"
+#include "version.h"
+
+#define RKCIF_VERNO_LEN		10
 
 struct cif_match_data {
 	int chip_id;
@@ -34,39 +41,215 @@ int rkcif_debug;
 module_param_named(debug, rkcif_debug, int, 0644);
 MODULE_PARM_DESC(debug, "Debug level (0-1)");
 
-int using_pingpong;
+static char rkcif_version[RKCIF_VERNO_LEN];
+module_param_string(version, rkcif_version, RKCIF_VERNO_LEN, 0444);
+MODULE_PARM_DESC(version, "version number");
+
+static DEFINE_MUTEX(rkcif_dev_mutex);
+static LIST_HEAD(rkcif_device_list);
+
+/**************************** pipeline operations *****************************/
+
+static int __cif_pipeline_prepare(struct rkcif_pipeline *p,
+				  struct media_entity *me)
+{
+	struct v4l2_subdev *sd;
+	int i;
+
+	p->num_subdevs = 0;
+	memset(p->subdevs, 0, sizeof(p->subdevs));
+
+	while (1) {
+		struct media_pad *pad = NULL;
+
+		/* Find remote source pad */
+		for (i = 0; i < me->num_pads; i++) {
+			struct media_pad *spad = &me->pads[i];
+
+			if (!(spad->flags & MEDIA_PAD_FL_SINK))
+				continue;
+			pad = media_entity_remote_pad(spad);
+			if (pad)
+				break;
+		}
+
+		if (!pad)
+			break;
+
+		sd = media_entity_to_v4l2_subdev(pad->entity);
+		p->subdevs[p->num_subdevs++] = sd;
+		me = &sd->entity;
+		if (me->num_pads == 1)
+			break;
+	}
+
+	return 0;
+}
+
+static int __subdev_set_power(struct v4l2_subdev *sd, int on)
+{
+	int ret;
+
+	if (!sd)
+		return -ENXIO;
+
+	ret = v4l2_subdev_call(sd, core, s_power, on);
+
+	return ret != -ENOIOCTLCMD ? ret : 0;
+}
+
+static int __cif_pipeline_s_power(struct rkcif_pipeline *p, bool on)
+{
+	int i, ret;
+
+	if (on) {
+		for (i = p->num_subdevs - 1; i >= 0; --i) {
+			ret = __subdev_set_power(p->subdevs[i], true);
+			if (ret < 0 && ret != -ENXIO)
+				goto err_power_off;
+		}
+	} else {
+		for (i = 0; i < p->num_subdevs; ++i)
+			__subdev_set_power(p->subdevs[i], false);
+	}
+
+	return 0;
+
+err_power_off:
+	for (++i; i < p->num_subdevs; ++i)
+		__subdev_set_power(p->subdevs[i], false);
+	return ret;
+}
+
+static int __cif_pipeline_s_cif_clk(struct rkcif_pipeline *p)
+{
+	return 0;
+}
+
+static int rkcif_pipeline_open(struct rkcif_pipeline *p,
+			       struct media_entity *me,
+				bool prepare)
+{
+	int ret;
+
+	if (WARN_ON(!p || !me))
+		return -EINVAL;
+	if (atomic_inc_return(&p->power_cnt) > 1)
+		return 0;
+
+	/* go through media graphic and get subdevs */
+	if (prepare)
+		__cif_pipeline_prepare(p, me);
+
+	if (!p->num_subdevs)
+		return -EINVAL;
+
+	ret = __cif_pipeline_s_cif_clk(p);
+	if (ret < 0)
+		return ret;
+
+	ret = __cif_pipeline_s_power(p, 1);
+	if (ret < 0)
+		return ret;
+
+	return 0;
+}
+
+static int rkcif_pipeline_close(struct rkcif_pipeline *p)
+{
+	int ret;
+
+	if (atomic_dec_return(&p->power_cnt) > 0)
+		return 0;
+	ret = __cif_pipeline_s_power(p, 0);
+
+	return ret == -ENXIO ? 0 : ret;
+}
+
+/*
+ * stream-on order: isp_subdev, mipi dphy, sensor
+ * stream-off order: mipi dphy, sensor, isp_subdev
+ */
+static int rkcif_pipeline_set_stream(struct rkcif_pipeline *p, bool on)
+{
+	int i, ret;
+
+	if ((on && atomic_inc_return(&p->stream_cnt) > 1) ||
+	    (!on && atomic_dec_return(&p->stream_cnt) > 0))
+		return 0;
+
+	if (on)
+		rockchip_set_system_status(SYS_STATUS_CIF0);
+
+	/* phy -> sensor */
+	for (i = p->num_subdevs - 1; i > -1; --i) {
+		ret = v4l2_subdev_call(p->subdevs[i], video, s_stream, on);
+		if (on && ret < 0 && ret != -ENOIOCTLCMD && ret != -ENODEV)
+			goto err_stream_off;
+	}
+
+	if (!on)
+		rockchip_clear_system_status(SYS_STATUS_CIF0);
+
+	return 0;
+
+err_stream_off:
+	for (--i; i >= 0; --i)
+		v4l2_subdev_call(p->subdevs[i], video, s_stream, false);
+	rockchip_clear_system_status(SYS_STATUS_CIF0);
+	return ret;
+}
 
 /***************************** media controller *******************************/
 static int rkcif_create_links(struct rkcif_device *dev)
 {
-	unsigned int s, pad;
+	unsigned int s, pad, id, stream_num = 0;
 	int ret;
+
+	if (dev->chip_id == CHIP_RK1808_CIF)
+		stream_num = RKCIF_MULTI_STREAMS_NUM;
+	else
+		stream_num = RKCIF_SINGLE_STREAM;
 
 	/* sensor links(or mipi-phy) */
 	for (s = 0; s < dev->num_sensors; ++s) {
 		struct rkcif_sensor_info *sensor = &dev->sensors[s];
 
-		for (pad = 0; pad < sensor->sd->entity.num_pads; pad++)
+		for (pad = 0; pad < sensor->sd->entity.num_pads; pad++) {
 			if (sensor->sd->entity.pads[pad].flags &
-				MEDIA_PAD_FL_SOURCE)
-				break;
+					MEDIA_PAD_FL_SOURCE) {
+				if (pad == sensor->sd->entity.num_pads) {
+					dev_err(dev->dev,
+						"failed to find src pad for %s\n",
+						sensor->sd->name);
 
-		if (pad == sensor->sd->entity.num_pads) {
-			dev_err(dev->dev, "failed to find src pad for %s\n",
-				sensor->sd->name);
-			return -ENXIO;
-		}
+					return -ENXIO;
+				}
 
-		ret = media_entity_create_link(&sensor->sd->entity,
-				pad, &dev->stream.vdev.entity, 0,
-				s ? 0 : MEDIA_LNK_FL_ENABLED);
-		if (ret) {
-			dev_err(dev->dev, "failed to create link for %s\n",
-				sensor->sd->name);
-			return ret;
+				for (id = 0; id < stream_num; id++) {
+					ret = media_entity_create_link(&sensor->sd->entity,
+								       pad,
+								       &dev->stream[id].vnode.vdev.entity,
+								       0,
+								       (dev->chip_id != CHIP_RK1808_CIF) |
+								       (id == pad - 1) ?
+								       MEDIA_LNK_FL_ENABLED : 0);
+					if (ret) {
+						dev_err(dev->dev,
+							"failed to create link for %s\n",
+							sensor->sd->name);
+						return ret;
+					}
+				}
+			}
 		}
 	}
 
+	return 0;
+}
+
+static int _set_pipeline_default_fmt(struct rkcif_device *dev)
+{
 	return 0;
 }
 
@@ -77,7 +260,7 @@ static int subdev_notifier_complete(struct v4l2_async_notifier *notifier)
 
 	dev = container_of(notifier, struct rkcif_device, notifier);
 
-	mutex_lock(&dev->media_dev.graph_mutex);
+	/* mutex_lock(&dev->media_dev.graph_mutex); */
 
 	ret = rkcif_create_links(dev);
 	if (ret < 0)
@@ -87,10 +270,13 @@ static int subdev_notifier_complete(struct v4l2_async_notifier *notifier)
 	if (ret < 0)
 		goto unlock;
 
+	ret = _set_pipeline_default_fmt(dev);
+	if (ret < 0)
+		goto unlock;
 	v4l2_info(&dev->v4l2_dev, "Async subdev notifier completed\n");
 
 unlock:
-	mutex_unlock(&dev->media_dev.graph_mutex);
+	/* mutex_unlock(&dev->media_dev.graph_mutex); */
 	return ret;
 }
 
@@ -123,8 +309,8 @@ static int subdev_notifier_bound(struct v4l2_async_notifier *notifier,
 }
 
 static int rkcif_fwnode_parse(struct device *dev,
-			       struct v4l2_fwnode_endpoint *vep,
-			       struct v4l2_async_subdev *asd)
+			      struct v4l2_fwnode_endpoint *vep,
+			      struct v4l2_async_subdev *asd)
 {
 	struct rkcif_async_subdev *rk_asd =
 			container_of(asd, struct rkcif_async_subdev, asd);
@@ -159,7 +345,7 @@ static int cif_subdev_notifier(struct rkcif_device *cif_dev)
 	int ret;
 
 	ret = v4l2_async_notifier_parse_fwnode_endpoints(dev, ntf,
-			sizeof(struct rkcif_async_subdev), rkcif_fwnode_parse);
+							 sizeof(struct rkcif_async_subdev), rkcif_fwnode_parse);
 
 	if (ret < 0)
 		return ret;
@@ -176,20 +362,38 @@ static int cif_subdev_notifier(struct rkcif_device *cif_dev)
 
 static int rkcif_register_platform_subdevs(struct rkcif_device *cif_dev)
 {
-	int ret;
+	int stream_num = 0, ret;
 
-	ret = rkcif_register_stream_vdev(cif_dev);
-	if (ret < 0)
-		return ret;
+	cif_dev->alloc_ctx = vb2_dma_contig_init_ctx(cif_dev->v4l2_dev.dev);
+
+	if (cif_dev->chip_id == CHIP_RK1808_CIF) {
+		stream_num = RKCIF_MULTI_STREAMS_NUM;
+		ret = rkcif_register_stream_vdevs(cif_dev, stream_num,
+						  true);
+		if (ret < 0)
+			goto err_cleanup_ctx;
+	} else {
+		stream_num = RKCIF_SINGLE_STREAM;
+		ret = rkcif_register_stream_vdevs(cif_dev, stream_num,
+						  false);
+		if (ret < 0)
+			goto err_cleanup_ctx;
+	}
 
 	ret = cif_subdev_notifier(cif_dev);
 	if (ret < 0) {
 		v4l2_err(&cif_dev->v4l2_dev,
 			 "Failed to register subdev notifier(%d)\n", ret);
-		rkcif_unregister_stream_vdev(cif_dev);
+		goto err_unreg_stream_vdev;
 	}
 
 	return 0;
+err_unreg_stream_vdev:
+	rkcif_unregister_stream_vdevs(cif_dev, stream_num);
+err_cleanup_ctx:
+	vb2_dma_contig_cleanup_ctx(cif_dev->alloc_ctx);
+
+	return ret;
 }
 
 static const char * const px30_cif_clks[] = {
@@ -210,7 +414,7 @@ static const char * const rk1808_cif_clks[] = {
 	"dclk_cif",
 	"hclk_cif",
 	"sclk_cif_out",
-	"pclk_csi2host"
+	/* "pclk_csi2host" */
 };
 
 static const char * const rk1808_cif_rsts[] = {
@@ -235,7 +439,6 @@ static const char * const rk3288_cif_clks[] = {
 	"aclk_cif0",
 	"hclk_cif0",
 	"cif0_in",
-	"cif0_out",
 };
 
 static const char * const rk3288_cif_rsts[] = {
@@ -299,54 +502,10 @@ static irqreturn_t rkcif_irq_handler(int irq, void *ctx)
 	struct device *dev = ctx;
 	struct rkcif_device *cif_dev = dev_get_drvdata(dev);
 
-	if (using_pingpong)
+	if (cif_dev->workmode == RKCIF_WORKMODE_PINGPONG)
 		rkcif_irq_pingpong(cif_dev);
 	else
 		rkcif_irq_oneframe(cif_dev);
-
-	return IRQ_HANDLED;
-}
-
-#define CSIHOST_MAX_ERRINT_COUNT	10
-
-static irqreturn_t rk_csirx_irq1_handler(int irq, void *ctx)
-{
-	struct device *dev = ctx;
-	struct rkcif_device *cif_dev = dev_get_drvdata(dev);
-	static int csi_err1_cnt;
-	u32 val;
-
-	val = read_csihost_reg(cif_dev->csi_base, CSIHOST_ERR1);
-	if (val) {
-		pr_err("ERROR: csi err1 intr: 0x%x\n", val);
-
-		if (++csi_err1_cnt > CSIHOST_MAX_ERRINT_COUNT) {
-			write_csihost_reg(cif_dev->csi_base,
-					  CSIHOST_MSK1, 0xffffffff);
-			csi_err1_cnt = 0;
-		}
-	}
-
-	return IRQ_HANDLED;
-}
-
-static irqreturn_t rk_csirx_irq2_handler(int irq, void *ctx)
-{
-	struct device *dev = ctx;
-	struct rkcif_device *cif_dev = dev_get_drvdata(dev);
-	static int csi_err2_cnt;
-	u32 val;
-
-	val = read_csihost_reg(cif_dev->csi_base, CSIHOST_ERR2);
-	if (val) {
-		pr_err("ERROR: csi err2 intr: 0x%x\n", val);
-
-		if (++csi_err2_cnt > CSIHOST_MAX_ERRINT_COUNT) {
-			write_csihost_reg(cif_dev->csi_base,
-					  CSIHOST_MSK2, 0xffffffff);
-			csi_err2_cnt = 0;
-		}
-	}
 
 	return IRQ_HANDLED;
 }
@@ -370,6 +529,7 @@ static int rkcif_enable_sys_clk(struct rkcif_device *cif_dev)
 			goto err;
 	}
 
+	write_cif_reg_and(cif_dev->base_addr, CIF_CSI_INTEN, 0x0);
 	return 0;
 
 err:
@@ -454,11 +614,11 @@ static inline bool is_iommu_enable(struct device *dev)
 	return true;
 }
 
-void rkcif_soft_reset(struct rkcif_device *cif_dev)
+void rkcif_soft_reset(struct rkcif_device *cif_dev, bool is_rst_iommu)
 {
 	unsigned int i;
 
-	if (cif_dev->iommu_en)
+	if (cif_dev->iommu_en && is_rst_iommu)
 		rkcif_iommu_cleanup(cif_dev);
 
 	for (i = 0; i < ARRAY_SIZE(cif_dev->cif_rst); i++)
@@ -469,7 +629,7 @@ void rkcif_soft_reset(struct rkcif_device *cif_dev)
 		if (cif_dev->cif_rst[i])
 			reset_control_deassert(cif_dev->cif_rst[i]);
 
-	if (cif_dev->iommu_en)
+	if (cif_dev->iommu_en && is_rst_iommu)
 		rkcif_iommu_init(cif_dev);
 }
 
@@ -483,6 +643,13 @@ static int rkcif_plat_probe(struct platform_device *pdev)
 	const struct cif_match_data *data;
 	struct resource *res;
 	int i, ret, irq;
+
+	sprintf(rkcif_version, "v%02x.%02x.%02x",
+		RKCIF_DRIVER_VERSION >> 16,
+		(RKCIF_DRIVER_VERSION & 0xff00) >> 8,
+		RKCIF_DRIVER_VERSION & 0x00ff);
+
+	dev_info(dev, "rkcif driver version: %s\n", rkcif_version);
 
 	match = of_match_node(rkcif_plat_of_match, node);
 	if (IS_ERR(match))
@@ -510,42 +677,13 @@ static int rkcif_plat_probe(struct platform_device *pdev)
 	data = match->data;
 	cif_dev->chip_id = data->chip_id;
 	if (data->chip_id == CHIP_RK1808_CIF) {
-		using_pingpong = 1;
-
-		res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "cif_regs");
+		res = platform_get_resource_byname(pdev,
+						   IORESOURCE_MEM,
+						   "cif_regs");
 		cif_dev->base_addr = devm_ioremap_resource(dev, res);
 		if (IS_ERR(cif_dev->base_addr))
 			return PTR_ERR(cif_dev->base_addr);
-
-		res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "csihost_regs");
-		cif_dev->csi_base = devm_ioremap_resource(dev, res);
-		if (IS_ERR(cif_dev->csi_base))
-			return PTR_ERR(cif_dev->csi_base);
-
-		irq = platform_get_irq_byname(pdev, "csi-intr1");
-		if (irq > 0) {
-			ret = devm_request_irq(dev, irq, rk_csirx_irq1_handler,
-					       0, dev_driver_string(dev), dev);
-			if (ret < 0)
-				dev_err(dev, "request csi-intr1 irq failed: %d\n",
-					ret);
-		} else {
-			dev_err(dev, "No found irq csi-intr1\n");
-		}
-
-		irq = platform_get_irq_byname(pdev, "csi-intr2");
-		if (irq > 0) {
-			ret = devm_request_irq(dev, irq, rk_csirx_irq2_handler,
-					       0, dev_driver_string(dev), dev);
-			if (ret < 0)
-				dev_err(dev, "request csi-intr2 failed: %d\n",
-					ret);
-		} else {
-			dev_err(dev, "No found irq csi-intr2\n");
-		}
 	} else {
-		using_pingpong = 0;
-
 		res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 		cif_dev->base_addr = devm_ioremap_resource(dev, res);
 		if (IS_ERR(cif_dev->base_addr))
@@ -553,7 +691,7 @@ static int rkcif_plat_probe(struct platform_device *pdev)
 	}
 
 	if (data->clks_num > RKCIF_MAX_BUS_CLK ||
-		data->rsts_num > RKCIF_MAX_RESET) {
+	    data->rsts_num > RKCIF_MAX_RESET) {
 		dev_err(dev, "out of range: clks(%d %d) rsts(%d %d)\n",
 			data->clks_num, RKCIF_MAX_BUS_CLK,
 			data->rsts_num, RKCIF_MAX_RESET);
@@ -561,6 +699,7 @@ static int rkcif_plat_probe(struct platform_device *pdev)
 	}
 	for (i = 0; i < data->clks_num; i++) {
 		struct clk *clk = devm_clk_get(dev, data->clks[i]);
+
 		if (IS_ERR(clk)) {
 			dev_err(dev, "failed to get %s\n", data->clks[i]);
 			return PTR_ERR(clk);
@@ -579,7 +718,31 @@ static int rkcif_plat_probe(struct platform_device *pdev)
 		cif_dev->cif_rst[i] = rst;
 	}
 
-	rkcif_stream_init(cif_dev);
+	mutex_init(&cif_dev->stream_lock);
+	atomic_set(&cif_dev->pipe.power_cnt, 0);
+	atomic_set(&cif_dev->pipe.stream_cnt, 0);
+	atomic_set(&cif_dev->fh_cnt, 0);
+	cif_dev->pipe.open = rkcif_pipeline_open;
+	cif_dev->pipe.close = rkcif_pipeline_close;
+	cif_dev->pipe.set_stream = rkcif_pipeline_set_stream;
+
+	if (data->chip_id == CHIP_RK1808_CIF) {
+		rkcif_stream_init(cif_dev, RKCIF_STREAM_MIPI_ID0);
+		rkcif_stream_init(cif_dev, RKCIF_STREAM_MIPI_ID1);
+		rkcif_stream_init(cif_dev, RKCIF_STREAM_MIPI_ID2);
+		rkcif_stream_init(cif_dev, RKCIF_STREAM_MIPI_ID3);
+		rkcif_stream_init(cif_dev, RKCIF_STREAM_DVP);
+	} else {
+		rkcif_stream_init(cif_dev, RKCIF_STREAM_CIF);
+	}
+
+#if defined(CONFIG_ROCKCHIP_CIF_WORKMODE_PINGPONG)
+	cif_dev->workmode = RKCIF_WORKMODE_PINGPONG;
+#elif defined(CONFIG_ROCKCHIP_CIF_WORKMODE_ONEFRAME)
+	cif_dev->workmode = RKCIF_WORKMODE_ONEFRAME;
+#else
+	cif_dev->workmode = RKCIF_WORKMODE_PINGPONG;
+#endif
 
 	strlcpy(cif_dev->media_dev.model, "rkcif",
 		sizeof(cif_dev->media_dev.model));
@@ -618,6 +781,12 @@ static int rkcif_plat_probe(struct platform_device *pdev)
 
 	pm_runtime_enable(&pdev->dev);
 
+	mutex_lock(&rkcif_dev_mutex);
+	list_add_tail(&cif_dev->list, &rkcif_device_list);
+	mutex_unlock(&rkcif_dev_mutex);
+
+	rkcif_soft_reset(cif_dev, true);
+
 	return 0;
 
 err_unreg_media_dev:
@@ -629,6 +798,7 @@ err_unreg_v4l2_dev:
 
 static int rkcif_plat_remove(struct platform_device *pdev)
 {
+	int stream_num = 0;
 	struct rkcif_device *cif_dev = platform_get_drvdata(pdev);
 
 	pm_runtime_disable(&pdev->dev);
@@ -637,7 +807,12 @@ static int rkcif_plat_remove(struct platform_device *pdev)
 
 	media_device_unregister(&cif_dev->media_dev);
 	v4l2_device_unregister(&cif_dev->v4l2_dev);
-	rkcif_unregister_stream_vdev(cif_dev);
+	if (cif_dev->chip_id == CHIP_RK1808_CIF)
+		stream_num = RKCIF_MULTI_STREAMS_NUM;
+	else
+		stream_num = RKCIF_SINGLE_STREAM;
+	rkcif_unregister_stream_vdevs(cif_dev, stream_num);
+	vb2_dma_contig_cleanup_ctx(cif_dev->alloc_ctx);
 
 	return 0;
 }
@@ -663,6 +838,19 @@ static int __maybe_unused rkcif_runtime_resume(struct device *dev)
 
 	return 0;
 }
+
+static int __init rkcif_clr_unready_dev(void)
+{
+	struct rkcif_device *cif_dev;
+
+	mutex_lock(&rkcif_dev_mutex);
+	list_for_each_entry(cif_dev, &rkcif_device_list, list)
+		v4l2_async_notifier_clr_unready_dev(&cif_dev->notifier);
+	mutex_unlock(&rkcif_dev_mutex);
+
+	return 0;
+}
+late_initcall_sync(rkcif_clr_unready_dev);
 
 static const struct dev_pm_ops rkcif_plat_pm_ops = {
 	SET_SYSTEM_SLEEP_PM_OPS(pm_runtime_force_suspend,

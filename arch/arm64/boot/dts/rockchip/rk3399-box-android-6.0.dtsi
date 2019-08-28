@@ -595,10 +595,6 @@
 	status = "okay";
 };
 
-&uart2 {
-	status = "okay";
-};
-
 &usb_host0_ehci {
 	status = "okay";
 };
@@ -641,6 +637,8 @@
 &pwm3 {
 	status = "okay";
 
+	pinctrl-names = "default";
+	pinctrl-0 = <&pwm3a_pin>;
 	interrupts = <GIC_SPI 61 IRQ_TYPE_LEVEL_HIGH 0>;
 	compatible = "rockchip,remotectl-pwm";
 	remote_pwm_id = <3>;

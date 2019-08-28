@@ -1,347 +1,372 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /******************************************************************************
  *
- * Copyright(c) 2007 - 2011 Realtek Corporation. All rights reserved.
- *                                        
+ * Copyright(c) 2007 - 2017  Realtek Corporation.
+ *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
  * published by the Free Software Foundation.
  *
  * This program is distributed in the hope that it will be useful, but WITHOUT
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
  * more details.
  *
- * You should have received a copy of the GNU General Public License along with
- * this program; if not, write to the Free Software Foundation, Inc.,
- * 51 Franklin Street, Fifth Floor, Boston, MA 02110, USA
+ * The full GNU General Public License is included in this distribution in the
+ * file called LICENSE.
  *
+ * Contact Information:
+ * wlanfae <wlanfae@realtek.com>
+ * Realtek Corporation, No. 2, Innovation Road II, Hsinchu Science Park,
+ * Hsinchu 300, Taiwan.
  *
- ******************************************************************************/
+ * Larry Finger <Larry.Finger@lwfinger.net>
+ *
+ *****************************************************************************/
 #include "mp_precomp.h"
 #include "phydm_precomp.h"
 
-VOID
-odm_SetCrystalCap(
-	IN		PVOID					pDM_VOID,
-	IN		u1Byte					CrystalCap
+void
+phydm_set_crystal_cap(
+	void					*dm_void,
+	u8					crystal_cap
 )
 {
-#if (DM_ODM_SUPPORT_TYPE & (ODM_WIN|ODM_CE))
-	PDM_ODM_T					pDM_Odm = (PDM_ODM_T)pDM_VOID;
-	PCFO_TRACKING				pCfoTrack = (PCFO_TRACKING)PhyDM_Get_Structure( pDM_Odm, PHYDM_CFOTRACK);
-	BOOLEAN 					bEEPROMCheck;
-#if (DM_ODM_SUPPORT_TYPE & (ODM_WIN|ODM_CE))
-	PADAPTER					Adapter = pDM_Odm->Adapter;
-	HAL_DATA_TYPE				*pHalData = GET_HAL_DATA(Adapter);
+	struct dm_struct				*dm = (struct dm_struct *)dm_void;
+	struct phydm_cfo_track_struct				*cfo_track = (struct phydm_cfo_track_struct *)phydm_get_structure(dm, PHYDM_CFOTRACK);
 
-	bEEPROMCheck = (pHalData->EEPROMVersion >= 0x01)?TRUE:FALSE;
-#else
-	bEEPROMCheck = TRUE;
-#endif
-
-	if(pCfoTrack->CrystalCap == CrystalCap)
+	if (cfo_track->crystal_cap == crystal_cap)
 		return;
 
-	pCfoTrack->CrystalCap = CrystalCap;
+	crystal_cap = crystal_cap & 0x3F;
+	cfo_track->crystal_cap = crystal_cap;
 
-	if (pDM_Odm->SupportICType & (ODM_RTL8188E | ODM_RTL8188F)) {
-		/* write 0x24[22:17] = 0x24[16:11] = CrystalCap */
-		CrystalCap = CrystalCap & 0x3F;
-		ODM_SetBBReg(pDM_Odm, REG_AFE_XTAL_CTRL, 0x007ff800, (CrystalCap|(CrystalCap << 6)));
-	} else if (pDM_Odm->SupportICType & ODM_RTL8812) {
-		/* write 0x2C[30:25] = 0x2C[24:19] = CrystalCap */
-		CrystalCap = CrystalCap & 0x3F;
-		ODM_SetBBReg(pDM_Odm, REG_MAC_PHY_CTRL, 0x7FF80000, (CrystalCap|(CrystalCap << 6)));
-	} else if (((pDM_Odm->SupportICType & ODM_RTL8723A) && bEEPROMCheck) ||
-		(pDM_Odm->SupportICType & (ODM_RTL8703B|ODM_RTL8723B|ODM_RTL8192E|ODM_RTL8821))) {
-		/* 0x2C[23:18] = 0x2C[17:12] = CrystalCap */
-		CrystalCap = CrystalCap & 0x3F;
-		ODM_SetBBReg(pDM_Odm, REG_MAC_PHY_CTRL, 0x00FFF000, (CrystalCap|(CrystalCap << 6)));	
-	} else if (pDM_Odm->SupportICType & ODM_RTL8821B) {
-		/* write 0x28[6:1] = 0x24[30:25] = CrystalCap */
-		CrystalCap = CrystalCap & 0x3F;
-		ODM_SetBBReg(pDM_Odm, REG_AFE_XTAL_CTRL, 0x7E000000, CrystalCap);
-		ODM_SetBBReg(pDM_Odm, REG_AFE_PLL_CTRL, 0x7E, CrystalCap);
-	} else if (pDM_Odm->SupportICType & ODM_RTL8814A) {
-		/* write 0x2C[26:21] = 0x2C[20:15] = CrystalCap */
-		CrystalCap = CrystalCap & 0x3F;
-		ODM_SetBBReg(pDM_Odm, REG_MAC_PHY_CTRL, 0x07FF8000, (CrystalCap|(CrystalCap << 6)));
-	} else if (pDM_Odm->SupportICType & ODM_RTL8822B) {
-		/* write 0x24[30:25] = 0x28[6:1] = CrystalCap */
-		CrystalCap = CrystalCap & 0x3F;
-		ODM_SetBBReg(pDM_Odm, REG_AFE_XTAL_CTRL, 0x7e000000, CrystalCap);
-		ODM_SetBBReg(pDM_Odm, REG_AFE_PLL_CTRL, 0x7e, CrystalCap);
-	} else {
-		ODM_RT_TRACE(pDM_Odm, ODM_COMP_CFO_TRACKING, ODM_DBG_LOUD, ("odm_SetCrystalCap(): Use default setting.\n"));
-		ODM_SetBBReg(pDM_Odm, REG_MAC_PHY_CTRL, 0xFFF000, (CrystalCap|(CrystalCap << 6)));
+	if (dm->support_ic_type & (ODM_RTL8188E | ODM_RTL8188F)) {
+		#if (RTL8188E_SUPPORT == 1) || (RTL8188F_SUPPORT == 1)
+		/* write 0x24[22:17] = 0x24[16:11] = crystal_cap */
+		odm_set_bb_reg(dm, REG_AFE_XTAL_CTRL, 0x007ff800, (crystal_cap | (crystal_cap << 6)));
+		#endif
 	}
-
-	ODM_RT_TRACE(pDM_Odm, ODM_COMP_CFO_TRACKING, ODM_DBG_LOUD, ("odm_SetCrystalCap(): CrystalCap = 0x%x\n", CrystalCap));
-#endif
-}
-
-u1Byte
-odm_GetDefaultCrytaltalCap(
-	IN		PVOID					pDM_VOID
-)
-{
-	PDM_ODM_T					pDM_Odm = (PDM_ODM_T)pDM_VOID;
-	u1Byte						CrystalCap = 0x20;
-
-#if (DM_ODM_SUPPORT_TYPE & (ODM_WIN|ODM_CE))
-	PADAPTER					Adapter = pDM_Odm->Adapter;
-	HAL_DATA_TYPE				*pHalData = GET_HAL_DATA(Adapter);
-
-	CrystalCap = pHalData->CrystalCap;
-#else
-	prtl8192cd_priv	priv		= pDM_Odm->priv;
-
-	if(priv->pmib->dot11RFEntry.xcap > 0)
-		CrystalCap = priv->pmib->dot11RFEntry.xcap;
-#endif
-
-	CrystalCap = CrystalCap & 0x3f;
-
-	return CrystalCap;
-}
-
-VOID
-odm_SetATCStatus(
-	IN		PVOID					pDM_VOID,
-	IN		BOOLEAN					ATCStatus
-)
-{
-	PDM_ODM_T					pDM_Odm = (PDM_ODM_T)pDM_VOID;
-	PCFO_TRACKING				pCfoTrack = (PCFO_TRACKING)PhyDM_Get_Structure( pDM_Odm, PHYDM_CFOTRACK);
-
-	if(pCfoTrack->bATCStatus == ATCStatus)
-		return;
+	#if (RTL8812A_SUPPORT == 1)
+	else if (dm->support_ic_type & ODM_RTL8812) {
 	
-	ODM_SetBBReg(pDM_Odm, ODM_REG(BB_ATC,pDM_Odm), ODM_BIT(BB_ATC,pDM_Odm), ATCStatus);
-	pCfoTrack->bATCStatus = ATCStatus;
-}
-
-BOOLEAN
-odm_GetATCStatus(
-	IN		PVOID					pDM_VOID
-)
-{
-	BOOLEAN						ATCStatus;
-	PDM_ODM_T					pDM_Odm = (PDM_ODM_T)pDM_VOID;
-
-	ATCStatus = (BOOLEAN)ODM_GetBBReg(pDM_Odm, ODM_REG(BB_ATC,pDM_Odm), ODM_BIT(BB_ATC,pDM_Odm));
-	return ATCStatus;
-}
-
-VOID
-ODM_CfoTrackingReset(
-	IN		PVOID					pDM_VOID
-)
-{
-	PDM_ODM_T					pDM_Odm = (PDM_ODM_T)pDM_VOID;
-	PCFO_TRACKING				pCfoTrack = (PCFO_TRACKING)PhyDM_Get_Structure( pDM_Odm, PHYDM_CFOTRACK);
-
-	pCfoTrack->DefXCap = odm_GetDefaultCrytaltalCap(pDM_Odm);
-	pCfoTrack->bAdjust = TRUE;
-
-	if(pCfoTrack->CrystalCap > pCfoTrack->DefXCap)
-	{
-		odm_SetCrystalCap(pDM_Odm, pCfoTrack->CrystalCap - 1);
-		ODM_RT_TRACE(pDM_Odm, ODM_COMP_CFO_TRACKING, ODM_DBG_LOUD,
-			("ODM_CfoTrackingReset(): approch default value (0x%x)\n", pCfoTrack->CrystalCap));
-	} else if (pCfoTrack->CrystalCap < pCfoTrack->DefXCap)
-	{
-		odm_SetCrystalCap(pDM_Odm, pCfoTrack->CrystalCap + 1);
-		ODM_RT_TRACE(pDM_Odm, ODM_COMP_CFO_TRACKING, ODM_DBG_LOUD,
-			("ODM_CfoTrackingReset(): approch default value (0x%x)\n", pCfoTrack->CrystalCap));
-	}
-
-	#if (DM_ODM_SUPPORT_TYPE & (ODM_WIN|ODM_CE))
-	odm_SetATCStatus(pDM_Odm, TRUE);
+		/* write 0x2C[30:25] = 0x2C[24:19] = crystal_cap */
+		odm_set_bb_reg(dm, REG_MAC_PHY_CTRL, 0x7FF80000, (crystal_cap | (crystal_cap << 6)));
+		
+	} 
 	#endif
-}
-
-VOID
-ODM_CfoTrackingInit(
-	IN		PVOID					pDM_VOID
-)
-{
-	PDM_ODM_T					pDM_Odm = (PDM_ODM_T)pDM_VOID;
-	PCFO_TRACKING				pCfoTrack = (PCFO_TRACKING)PhyDM_Get_Structure( pDM_Odm, PHYDM_CFOTRACK);
-
-	pCfoTrack->DefXCap = pCfoTrack->CrystalCap = odm_GetDefaultCrytaltalCap(pDM_Odm);
-	pCfoTrack->bATCStatus = odm_GetATCStatus(pDM_Odm);
-	pCfoTrack->bAdjust = TRUE;
-	ODM_RT_TRACE(pDM_Odm, ODM_COMP_CFO_TRACKING, ODM_DBG_LOUD, ("ODM_CfoTracking_init()=========> \n"));
-	ODM_RT_TRACE(pDM_Odm, ODM_COMP_CFO_TRACKING, ODM_DBG_LOUD, ("ODM_CfoTracking_init(): bATCStatus = %d, CrystalCap = 0x%x \n",pCfoTrack->bATCStatus, pCfoTrack->DefXCap));
-}
-
-VOID
-ODM_CfoTracking(
-	IN		PVOID					pDM_VOID
-)
-{
-	PDM_ODM_T					pDM_Odm = (PDM_ODM_T)pDM_VOID;
-	PCFO_TRACKING				pCfoTrack = (PCFO_TRACKING)PhyDM_Get_Structure( pDM_Odm, PHYDM_CFOTRACK);
-	int							CFO_kHz_A, CFO_kHz_B, CFO_ave = 0;
-	int							CFO_ave_diff;
-	int							CrystalCap = (int)pCfoTrack->CrystalCap;
-	u1Byte						Adjust_Xtal = 1;
-
-	//4 Support ability
-	if(!(pDM_Odm->SupportAbility & ODM_BB_CFO_TRACKING))
-	{
-		ODM_RT_TRACE(pDM_Odm, ODM_COMP_CFO_TRACKING, ODM_DBG_LOUD, ("ODM_CfoTracking(): Return: SupportAbility ODM_BB_CFO_TRACKING is disabled\n"));
-		return;
-	}
-
-	ODM_RT_TRACE(pDM_Odm, ODM_COMP_CFO_TRACKING, ODM_DBG_LOUD, ("ODM_CfoTracking()=========> \n"));
-
-	if(!pDM_Odm->bLinked || !pDM_Odm->bOneEntryOnly)
-	{	
-		//4 No link or more than one entry
-		ODM_CfoTrackingReset(pDM_Odm);
-		ODM_RT_TRACE(pDM_Odm, ODM_COMP_CFO_TRACKING, ODM_DBG_LOUD, ("ODM_CfoTracking(): Reset: bLinked = %d, bOneEntryOnly = %d\n", 
-			pDM_Odm->bLinked, pDM_Odm->bOneEntryOnly));
-	}
-	else
-	{
-		//3 1. CFO Tracking
-		//4 1.1 No new packet
-		if(pCfoTrack->packetCount == pCfoTrack->packetCount_pre)
-		{
-			ODM_RT_TRACE(pDM_Odm, ODM_COMP_CFO_TRACKING, ODM_DBG_LOUD, ("ODM_CfoTracking(): packet counter doesn't change\n"));
-			return;
-		}
-		pCfoTrack->packetCount_pre = pCfoTrack->packetCount;
+	#if (RTL8703B_SUPPORT == 1) || (RTL8723B_SUPPORT == 1) || (RTL8192E_SUPPORT == 1) || (RTL8821A_SUPPORT == 1) || (RTL8723D_SUPPORT == 1)
+	else if ((dm->support_ic_type & (ODM_RTL8703B | ODM_RTL8723B | ODM_RTL8192E | ODM_RTL8821 | ODM_RTL8723D))) {
 	
-		//4 1.2 Calculate CFO
-		CFO_kHz_A =  (int)((pCfoTrack->CFO_tail[0] * 3125)  / 10)>>7; /* CFO_tail[1:0] is S(8,7),    (num_subcarrier>>7) x 312.5K = CFO value(K Hz)   */
-		CFO_kHz_B =  (int)((pCfoTrack->CFO_tail[1] * 3125)  / 10)>>7;
+		/* 0x2C[23:18] = 0x2C[17:12] = crystal_cap */
+		odm_set_bb_reg(dm, REG_MAC_PHY_CTRL, 0x00FFF000, (crystal_cap | (crystal_cap << 6)));
 		
-		if(pDM_Odm->RFType < ODM_2T2R)
-			CFO_ave = CFO_kHz_A;
-		else
-			CFO_ave = (int)(CFO_kHz_A + CFO_kHz_B) >> 1;
-		ODM_RT_TRACE(pDM_Odm, ODM_COMP_CFO_TRACKING, ODM_DBG_LOUD, ("ODM_CfoTracking(): CFO_kHz_A = %dkHz, CFO_kHz_B = %dkHz, CFO_ave = %dkHz\n", 
-						CFO_kHz_A, CFO_kHz_B, CFO_ave));
-
-		//4 1.3 Avoid abnormal large CFO
-		CFO_ave_diff = (pCfoTrack->CFO_ave_pre >= CFO_ave)?(pCfoTrack->CFO_ave_pre - CFO_ave):(CFO_ave - pCfoTrack->CFO_ave_pre);
-		if(CFO_ave_diff > 20 && pCfoTrack->largeCFOHit == 0 && !pCfoTrack->bAdjust)
-		{
-			ODM_RT_TRACE(pDM_Odm, ODM_COMP_CFO_TRACKING, ODM_DBG_LOUD, ("ODM_CfoTracking(): first large CFO hit\n"));
-			pCfoTrack->largeCFOHit = 1;
-			return;
-		}
-		else
-			pCfoTrack->largeCFOHit = 0;
-		pCfoTrack->CFO_ave_pre = CFO_ave;
-
-		//4 1.4 Dynamic Xtal threshold
-		if(pCfoTrack->bAdjust == FALSE)
-		{
-			if(CFO_ave > CFO_TH_XTAL_HIGH || CFO_ave < (-CFO_TH_XTAL_HIGH))
-				pCfoTrack->bAdjust = TRUE;
-		}
-		else
-		{
-			if(CFO_ave < CFO_TH_XTAL_LOW && CFO_ave > (-CFO_TH_XTAL_LOW))
-				pCfoTrack->bAdjust = FALSE;
-		}
-
-#if (DM_ODM_SUPPORT_TYPE & (ODM_WIN|ODM_CE))
-		//4 1.5 BT case: Disable CFO tracking
-		if(pDM_Odm->bBtEnabled)
-		{
-			pCfoTrack->bAdjust = FALSE;
-			odm_SetCrystalCap(pDM_Odm, pCfoTrack->DefXCap);
-			ODM_RT_TRACE(pDM_Odm, ODM_COMP_CFO_TRACKING, ODM_DBG_LOUD, ("ODM_CfoTracking(): Disable CFO tracking for BT!!\n"));
-		}
-/*
-		//4 1.6 Big jump 
-		if(pCfoTrack->bAdjust)
-		{
-			if(CFO_ave > CFO_TH_XTAL_LOW)
-				Adjust_Xtal =  Adjust_Xtal + ((CFO_ave - CFO_TH_XTAL_LOW) >> 2);
-			else if(CFO_ave < (-CFO_TH_XTAL_LOW))
-				Adjust_Xtal =  Adjust_Xtal + ((CFO_TH_XTAL_LOW - CFO_ave) >> 2);
-
-			ODM_RT_TRACE(pDM_Odm, ODM_COMP_CFO_TRACKING, ODM_DBG_LOUD, ("ODM_CfoTracking(): Crystal cap offset = %d\n", Adjust_Xtal));
-		}
-*/
-#endif
-		
-		//4 1.7 Adjust Crystal Cap.
-		if(pCfoTrack->bAdjust)
-		{
-			if(CFO_ave > CFO_TH_XTAL_LOW)
-				CrystalCap = CrystalCap + Adjust_Xtal;
-			else if(CFO_ave < (-CFO_TH_XTAL_LOW))
-				CrystalCap = CrystalCap - Adjust_Xtal;
-
-			if(CrystalCap > 0x3f)
-				CrystalCap = 0x3f;
-			else if (CrystalCap < 0)
-				CrystalCap = 0;
-
-			odm_SetCrystalCap(pDM_Odm, (u1Byte)CrystalCap);
-		}
-		ODM_RT_TRACE(pDM_Odm, ODM_COMP_CFO_TRACKING, ODM_DBG_LOUD, ("ODM_CfoTracking(): Crystal cap = 0x%x, Default Crystal cap = 0x%x\n", 
-			pCfoTrack->CrystalCap, pCfoTrack->DefXCap));
-
-#if (DM_ODM_SUPPORT_TYPE & (ODM_WIN|ODM_CE))
-		if(pDM_Odm->SupportICType & ODM_IC_11AC_SERIES)
-			return;
-		
-		//3 2. Dynamic ATC switch
-		if(CFO_ave < CFO_TH_ATC && CFO_ave > -CFO_TH_ATC)
-		{
-			odm_SetATCStatus(pDM_Odm, FALSE);
-			ODM_RT_TRACE(pDM_Odm, ODM_COMP_CFO_TRACKING, ODM_DBG_LOUD, ("ODM_CfoTracking(): Disable ATC!!\n"));
-		}
-		else
-		{
-			odm_SetATCStatus(pDM_Odm, TRUE);
-			ODM_RT_TRACE(pDM_Odm, ODM_COMP_CFO_TRACKING, ODM_DBG_LOUD, ("ODM_CfoTracking(): Enable ATC!!\n"));
-		}
-#endif
 	}
+	#endif
+	#if (RTL8814A_SUPPORT == 1)	
+	else if (dm->support_ic_type & ODM_RTL8814A) {
+	
+		/* write 0x2C[26:21] = 0x2C[20:15] = crystal_cap */
+		odm_set_bb_reg(dm, REG_MAC_PHY_CTRL, 0x07FF8000, (crystal_cap | (crystal_cap << 6)));
+		
+	}
+	#endif
+	#if (RTL8822B_SUPPORT == 1) || (RTL8821C_SUPPORT == 1) || (RTL8197F_SUPPORT == 1)
+	else if (dm->support_ic_type & (ODM_RTL8822B | ODM_RTL8821C | ODM_RTL8197F)) {
+	
+		/* write 0x24[30:25] = 0x28[6:1] = crystal_cap */
+		odm_set_bb_reg(dm, REG_AFE_XTAL_CTRL, 0x7e000000, crystal_cap);
+		odm_set_bb_reg(dm, REG_AFE_PLL_CTRL, 0x7e, crystal_cap);
+		
+	}
+	#endif
+	#if (RTL8710B_SUPPORT == 1)
+	else if (dm->support_ic_type & (ODM_RTL8710B)) {
+	
+		#if (DM_ODM_SUPPORT_TYPE & ODM_WIN)		
+		/* write 0x60[29:24] = 0x60[23:18] = crystal_cap */
+		HAL_SetSYSOnReg((PADAPTER)dm->adapter, REG_SYS_XTAL_CTRL0, 0x3FFC0000, (crystal_cap | (crystal_cap << 6)));
+		#endif
+	}
+	#endif
+	PHYDM_DBG(dm, DBG_CFO_TRK, "Set rystal_cap = 0x%x\n", cfo_track->crystal_cap);
+
 }
 
-VOID
-ODM_ParsingCFO(
-	IN		PVOID			pDM_VOID,
-	IN		PVOID			pPktinfo_VOID,
-	IN		s1Byte* 			pcfotail
-	)
+u8
+phydm_get_default_crytaltal_cap(
+	void					*dm_void
+)
 {
-	PDM_ODM_T				pDM_Odm = (PDM_ODM_T)pDM_VOID;
-	PODM_PACKET_INFO_T		pPktinfo = (PODM_PACKET_INFO_T)pPktinfo_VOID;
-	PCFO_TRACKING			pCfoTrack = (PCFO_TRACKING)PhyDM_Get_Structure( pDM_Odm, PHYDM_CFOTRACK);
-	u1Byte					i;
+	struct dm_struct	*dm = (struct dm_struct *)dm_void;
+	u8						crystal_cap = 0x20;
 
-	if(!(pDM_Odm->SupportAbility & ODM_BB_CFO_TRACKING))
+#if (DM_ODM_SUPPORT_TYPE & ODM_CE) && defined(DM_ODM_CE_MAC80211)
+	struct rtl_priv *rtlpriv = (struct rtl_priv *)dm->adapter;
+	struct rtl_efuse *rtlefuse = rtl_efuse(rtlpriv);
+
+	crystal_cap = rtlefuse->crystalcap;
+#elif (DM_ODM_SUPPORT_TYPE & (ODM_WIN | ODM_CE))
+	void	*adapter = dm->adapter;
+	HAL_DATA_TYPE	*hal_data = GET_HAL_DATA(((PADAPTER)adapter));
+
+	crystal_cap = hal_data->crystal_cap;
+#else
+	struct rtl8192cd_priv	*priv	= dm->priv;
+
+	if (priv->pmib->dot11RFEntry.xcap > 0)
+		crystal_cap = priv->pmib->dot11RFEntry.xcap;
+#endif
+
+	crystal_cap = crystal_cap & 0x3f;
+
+	return crystal_cap;
+}
+
+void
+phydm_set_atc_status(
+	void					*dm_void,
+	boolean					atc_status
+)
+{
+	struct dm_struct					*dm = (struct dm_struct *)dm_void;
+	struct phydm_cfo_track_struct				*cfo_track = (struct phydm_cfo_track_struct *)phydm_get_structure(dm, PHYDM_CFOTRACK);
+
+	if (cfo_track->is_atc_status == atc_status)
 		return;
 
-#if(DM_ODM_SUPPORT_TYPE & (ODM_WIN|ODM_CE))
-	if(pPktinfo->bPacketMatchBSSID)
-#else
-	if(pPktinfo->StationID != 0)
-#endif
-	{				
-		//3 Update CFO report for path-A & path-B
-		// Only paht-A and path-B have CFO tail and short CFO
-		for(i = ODM_RF_PATH_A; i <= ODM_RF_PATH_B; i++)   
-		{
-			pCfoTrack->CFO_tail[i] = (int)pcfotail[i];
-	 	}
+	odm_set_bb_reg(dm, ODM_REG(BB_ATC, dm), ODM_BIT(BB_ATC, dm), atc_status);
+	cfo_track->is_atc_status = atc_status;
+}
 
-		//3 Update packet counter
-		if(pCfoTrack->packetCount == 0xffffffff)
-			pCfoTrack->packetCount = 0;
+boolean
+phydm_get_atc_status(
+	void					*dm_void
+)
+{
+	boolean						atc_status;
+	struct dm_struct					*dm = (struct dm_struct *)dm_void;
+
+	atc_status = (boolean)odm_get_bb_reg(dm, ODM_REG(BB_ATC, dm), ODM_BIT(BB_ATC, dm));
+	return atc_status;
+}
+
+void
+phydm_cfo_tracking_reset(
+	void					*dm_void
+)
+{
+	struct dm_struct					*dm = (struct dm_struct *)dm_void;
+	struct phydm_cfo_track_struct				*cfo_track = (struct phydm_cfo_track_struct *)phydm_get_structure(dm, PHYDM_CFOTRACK);
+
+	PHYDM_DBG(dm, DBG_CFO_TRK, "%s ======>\n", __func__);
+
+	cfo_track->def_x_cap = phydm_get_default_crytaltal_cap(dm);
+	cfo_track->is_adjust = true;
+
+	if (cfo_track->crystal_cap > cfo_track->def_x_cap) {
+		
+		phydm_set_crystal_cap(dm, cfo_track->crystal_cap - 1);
+		PHYDM_DBG(dm, DBG_CFO_TRK, "approch to Init-val (0x%x)\n", cfo_track->crystal_cap);
+		
+	} else if (cfo_track->crystal_cap < cfo_track->def_x_cap) {
+	
+		phydm_set_crystal_cap(dm, cfo_track->crystal_cap + 1);
+		PHYDM_DBG(dm, DBG_CFO_TRK, "approch to init-val 0x%x\n", cfo_track->crystal_cap);
+	}
+
+#if (DM_ODM_SUPPORT_TYPE & (ODM_WIN | ODM_CE))
+	phydm_set_atc_status(dm, true);
+#endif
+}
+
+void
+phydm_cfo_tracking_init(
+	void					*dm_void
+)
+{
+	struct dm_struct					*dm = (struct dm_struct *)dm_void;
+	struct phydm_cfo_track_struct				*cfo_track = (struct phydm_cfo_track_struct *)phydm_get_structure(dm, PHYDM_CFOTRACK);
+
+	cfo_track->def_x_cap = cfo_track->crystal_cap = phydm_get_default_crytaltal_cap(dm);
+	cfo_track->is_atc_status = phydm_get_atc_status(dm);
+	cfo_track->is_adjust = true;
+	PHYDM_DBG(dm, DBG_CFO_TRK, "ODM_CfoTracking_init()=========>\n");
+	PHYDM_DBG(dm, DBG_CFO_TRK, "ODM_CfoTracking_init(): is_atc_status = %d, crystal_cap = 0x%x\n", cfo_track->is_atc_status, cfo_track->def_x_cap);
+
+#if RTL8822B_SUPPORT
+	/* Crystal cap. control by WiFi */
+	if (dm->support_ic_type & ODM_RTL8822B)
+		odm_set_bb_reg(dm, 0x10, 0x40, 0x1);
+#endif
+
+#if RTL8821C_SUPPORT
+	/* Crystal cap. control by WiFi */
+	if (dm->support_ic_type & ODM_RTL8821C)
+		odm_set_bb_reg(dm, 0x10, 0x40, 0x1);
+#endif
+}
+
+void
+phydm_cfo_tracking(
+	void					*dm_void
+)
+{
+	struct dm_struct					*dm = (struct dm_struct *)dm_void;
+	struct phydm_cfo_track_struct				*cfo_track = (struct phydm_cfo_track_struct *)phydm_get_structure(dm, PHYDM_CFOTRACK);
+	s32						cfo_avg = 0, cfo_path_sum = 0;	/*avg among each path*/
+	u32						cfo_rpt_sum, cfo_khz_avg[4] = {0};
+	s8						crystal_cap = cfo_track->crystal_cap;
+	u8						i, valid_path_cnt = 0;
+
+	if (!(dm->support_ability & ODM_BB_CFO_TRACKING)) {
+		return;
+	}
+
+	PHYDM_DBG(dm, DBG_CFO_TRK, "%s ======>\n", __func__);
+
+	if (!dm->is_linked || !dm->is_one_entry_only) {
+		phydm_cfo_tracking_reset(dm);
+		PHYDM_DBG(dm, DBG_CFO_TRK, "is_linked = %d, one_entry_only = %d\n",
+			dm->is_linked, dm->is_one_entry_only);
+		
+	} else {
+		
+		/* No new packet */
+		if (cfo_track->packet_count == cfo_track->packet_count_pre) {
+			PHYDM_DBG(dm, DBG_CFO_TRK, "Pkt cnt doesn't change\n");
+			return;
+		}
+		cfo_track->packet_count_pre = cfo_track->packet_count;
+
+		/*Calculate CFO */
+		for (i = 0; i < dm->num_rf_path; i++) {
+			if (cfo_track->CFO_cnt[i] == 0)
+				continue;
+
+			valid_path_cnt++;
+			cfo_rpt_sum = (u32)CFO_HW_RPT_2_KHZ(((cfo_track->CFO_tail[i] < 0) ? (0 - cfo_track->CFO_tail[i]) :  cfo_track->CFO_tail[i]));
+			cfo_khz_avg[i] = cfo_rpt_sum / cfo_track->CFO_cnt[i];
+
+			PHYDM_DBG(dm, DBG_CFO_TRK, "[Path-%d] CFO_sum = (( %d )), cnt = (( %d )) , CFO_avg= (( %s%d )) kHz\n",
+				i, cfo_rpt_sum, cfo_track->CFO_cnt[i], ((cfo_track->CFO_tail[i] < 0) ? "-" : " "), cfo_khz_avg[i]);
+		}
+
+		for (i = 0; i < valid_path_cnt; i++) {
+			if (cfo_track->CFO_tail[i] < 0) {
+				cfo_path_sum += (0 - (s32)cfo_khz_avg[i]);
+			} else
+				cfo_path_sum += (s32)cfo_khz_avg[i];
+		}
+
+		if (valid_path_cnt >= 2)
+			cfo_avg = cfo_path_sum / valid_path_cnt;
 		else
-	 		pCfoTrack->packetCount++;
+			cfo_avg = cfo_path_sum;
+
+		cfo_track->CFO_ave_pre = cfo_avg;
+
+		PHYDM_DBG(dm, DBG_CFO_TRK, "path_cnt = ((%d)), CFO_avg_path=((%d kHz))\n", valid_path_cnt, cfo_avg);
+
+		/*reset counter*/
+		for (i = 0; i < dm->num_rf_path; i++) {
+			cfo_track->CFO_tail[i] = 0;
+			cfo_track->CFO_cnt[i] = 0;
+		}
+
+		/* To adjust crystal cap or not */
+		if (cfo_track->is_adjust == false) {
+			if (cfo_avg > CFO_TRK_ENABLE_TH || cfo_avg < (-CFO_TRK_ENABLE_TH))
+				cfo_track->is_adjust = true;
+		} else {
+			if (cfo_avg < CFO_TRK_STOP_TH && cfo_avg > (-CFO_TRK_STOP_TH))
+				cfo_track->is_adjust = false;
+		}
+
+		#ifdef ODM_CONFIG_BT_COEXIST
+		/*BT case: Disable CFO tracking */
+		if (dm->bt_info_table.is_bt_enabled) {
+			cfo_track->is_adjust = false;
+			phydm_set_crystal_cap(dm, cfo_track->def_x_cap);
+			PHYDM_DBG(dm, DBG_CFO_TRK, "Disable CFO tracking for BT\n");
+		}
+		#endif
+		
+		/*Adjust Crystal Cap. */
+		if (cfo_track->is_adjust) {
+			if (cfo_avg > CFO_TRK_STOP_TH)
+				crystal_cap += 1;
+			else if (cfo_avg < (-CFO_TRK_STOP_TH))
+				crystal_cap -=1;
+
+			if (crystal_cap > 0x3f)
+				crystal_cap = 0x3f;
+			else if (crystal_cap < 0)
+				crystal_cap = 0;
+
+			phydm_set_crystal_cap(dm, (u8)crystal_cap);
+		}
+		
+		PHYDM_DBG(dm, DBG_CFO_TRK, "Crystal cap{Current, Default}={0x%x, 0x%x}\n\n",
+			cfo_track->crystal_cap, cfo_track->def_x_cap);
+
+		/* Dynamic ATC switch */
+		#if (DM_ODM_SUPPORT_TYPE & (ODM_WIN | ODM_CE))
+		if (dm->support_ic_type & ODM_IC_11N_SERIES) {
+			if (cfo_avg < CFO_TH_ATC && cfo_avg > -CFO_TH_ATC) {
+				phydm_set_atc_status(dm, false);
+				PHYDM_DBG(dm, DBG_CFO_TRK, "Disable ATC\n");
+			} else {
+				phydm_set_atc_status(dm, true);
+				PHYDM_DBG(dm, DBG_CFO_TRK, "Enable ATC\n");
+			}
+		}
+		#endif
 	}
 }
 
+void
+phydm_parsing_cfo(
+	void			*dm_void,
+	void			*pktinfo_void,
+	s8			*pcfotail,
+	u8			num_ss
+)
+{
+	struct dm_struct				*dm = (struct dm_struct *)dm_void;
+	struct phydm_perpkt_info_struct		*pktinfo = (struct phydm_perpkt_info_struct *)pktinfo_void;
+	struct phydm_cfo_track_struct			*cfo_track = (struct phydm_cfo_track_struct *)phydm_get_structure(dm, PHYDM_CFOTRACK);
+	u8					i;
+
+	if (!(dm->support_ability & ODM_BB_CFO_TRACKING))
+		return;
+
+#if (DM_ODM_SUPPORT_TYPE & (ODM_WIN | ODM_CE))
+	if (pktinfo->is_packet_match_bssid)
+#else
+	if (pktinfo->station_id != 0)
+#endif
+	{
+		if (num_ss > dm->num_rf_path) /*For fool proof*/
+			num_ss = dm->num_rf_path;
+
+		/*PHYDM_DBG(dm, DBG_CFO_TRK, "num_ss = ((%d)),  dm->num_rf_path = ((%d))\n", num_ss,  dm->num_rf_path);*/
+
+
+		/* 3 Update CFO report for path-A & path-B */
+		/* Only paht-A and path-B have CFO tail and short CFO */
+		for (i = 0; i < num_ss; i++) {
+			cfo_track->CFO_tail[i] += pcfotail[i];
+			cfo_track->CFO_cnt[i]++;
+			/*PHYDM_DBG(dm, DBG_CFO_TRK, "[ID %d][path %d][rate 0x%x] CFO_tail = ((%d)), CFO_tail_sum = ((%d)), CFO_cnt = ((%d))\n",
+				pktinfo->station_id, i, pktinfo->data_rate, pcfotail[i], cfo_track->CFO_tail[i], cfo_track->CFO_cnt[i]);
+			*/
+		}
+
+		/* 3 Update packet counter */
+		if (cfo_track->packet_count == 0xffffffff)
+			cfo_track->packet_count = 0;
+		else
+			cfo_track->packet_count++;
+	}
+}

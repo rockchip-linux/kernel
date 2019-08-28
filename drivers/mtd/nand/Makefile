@@ -55,5 +55,6 @@ obj-$(CONFIG_MTD_NAND_BCM47XXNFLASH)	+= bcm47xxnflash/
 obj-$(CONFIG_MTD_NAND_SUNXI)		+= sunxi_nand.o
 obj-$(CONFIG_MTD_NAND_HISI504)	        += hisi504_nand.o
 obj-$(CONFIG_MTD_NAND_BRCMNAND)		+= brcmnand/
-
+obj-$(CONFIG_MTD_NAND_ROCKCHIP_V6)	+= rockchip_nand_v6.o
+obj-$(CONFIG_MTD_NAND_ROCKCHIP_V9)	+= rockchip_nand_v9.o
 nand-objs := nand_base.o nand_bbt.o nand_timings.o

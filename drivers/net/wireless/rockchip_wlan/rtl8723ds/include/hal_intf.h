@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /******************************************************************************
  *
  * Copyright(c) 2007 - 2017 Realtek Corporation.
@@ -34,9 +35,12 @@ enum _CHIP_TYPE {
 	RTL8814A,
 	RTL8703B,
 	RTL8188F,
+	RTL8188GTV,
 	RTL8822B,
 	RTL8723D,
 	RTL8821C,
+	RTL8710B,
+	RTL8192F,
 	MAX_CHIP_TYPE
 };
 
@@ -67,6 +71,7 @@ typedef enum _HW_VARIABLES {
 	HW_VAR_BASIC_RATE,
 	HW_VAR_TXPAUSE,
 	HW_VAR_BCN_FUNC,
+	HW_VAR_BCN_CTRL_ADDR,
 	HW_VAR_CORRECT_TSF,
 	HW_VAR_RCR,
 	HW_VAR_MLME_DISCONNECT,
@@ -82,7 +87,6 @@ typedef enum _HW_VARIABLES {
 	HW_VAR_SEC_DK_CFG,
 	HW_VAR_BCN_VALID,
 	HW_VAR_RF_TYPE,
-	HW_VAR_TSF,
 	HW_VAR_FREECNT,
 
 	/* PHYDM odm->SupportAbility */
@@ -97,11 +101,14 @@ typedef enum _HW_VARIABLES {
 	HW_VAR_UAPSD_TID,
 #endif /* CONFIG_WMMPS_STA */
 	HW_VAR_AMPDU_MIN_SPACE,
+#ifdef CONFIG_80211N_HT
 	HW_VAR_AMPDU_FACTOR,
+#endif /* CONFIG_80211N_HT */
 	HW_VAR_RXDMA_AGG_PG_TH,
 	HW_VAR_SET_RPWM,
 	HW_VAR_CPWM,
 	HW_VAR_H2C_FW_PWRMODE,
+	HW_VAR_H2C_INACTIVE_IPS,
 	HW_VAR_H2C_PS_TUNE_PARAM,
 	HW_VAR_H2C_FW_JOINBSSRPT,
 	HW_VAR_FWLPS_RF_ON,
@@ -137,6 +144,8 @@ typedef enum _HW_VARIABLES {
 #endif
 	HW_VAR_RPWM_TOG,
 #ifdef CONFIG_GPIO_WAKEUP
+	HW_VAR_WOW_OUTPUT_GPIO,
+	HW_VAR_WOW_INPUT_GPIO,
 	HW_SET_GPIO_WL_CTRL,
 #endif
 	HW_VAR_SYS_CLKR,
@@ -195,6 +204,19 @@ typedef enum _HW_VARIABLES {
 #endif
 	HW_VAR_DUMP_MAC_TXFIFO,
 	HW_VAR_PWR_CMD,
+#ifdef CONFIG_FW_HANDLE_TXBCN
+	HW_VAR_BCN_HEAD_SEL,
+#endif
+	HW_VAR_SET_SOML_PARAM,
+	HW_VAR_ENABLE_RX_BAR,
+	HW_VAR_TSF_AUTO_SYNC,
+	HW_VAR_LPS_STATE_CHK,
+	#ifdef CONFIG_RTS_FULL_BW
+	HW_VAR_SET_RTS_BW,
+	#endif
+#if defined(CONFIG_PCI_HCI)
+	HW_VAR_ENSWBCN,
+#endif
 } HW_VARIABLES;
 
 typedef enum _HAL_DEF_VARIABLE {
@@ -231,7 +253,6 @@ typedef enum _HAL_DEF_VARIABLE {
 	HAL_DEF_PCI_SUUPORT_L1_BACKDOOR, /* Determine if the L1 Backdoor setting is turned on. */
 	HAL_DEF_PCI_AMD_L1_SUPPORT,
 	HAL_DEF_PCI_ASPM_OSC, /* Support for ASPM OSC, added by Roger, 2013.03.27. */
-	HAL_DEF_DBG_DIS_PWT, /* disable Tx power training or not. */
 	HAL_DEF_EFUSE_USAGE,	/* Get current EFUSE utilization. 2008.12.19. Added by Roger. */
 	HAL_DEF_EFUSE_BYTES,
 	HW_VAR_BEST_AMPDU_DENSITY,
@@ -303,6 +324,7 @@ struct hal_ops {
 	u8(*check_ips_status)(_adapter *padapter);
 #if defined(CONFIG_PCI_HCI)
 	s32(*interrupt_handler)(_adapter *padapter);
+	void (*unmap_beacon_icf)(_adapter *padapter);
 #endif
 
 #if defined(CONFIG_USB_HCI) && defined(CONFIG_SUPPORT_USB_INT)
@@ -349,7 +371,12 @@ struct hal_ops {
 	void	(*write_bbreg)(_adapter *padapter, u32 RegAddr, u32 BitMask, u32 Data);
 	u32 (*read_rfreg)(_adapter *padapter, enum rf_path eRFPath, u32 RegAddr, u32 BitMask);
 	void	(*write_rfreg)(_adapter *padapter, enum rf_path eRFPath, u32 RegAddr, u32 BitMask, u32 Data);
-
+#ifdef CONFIG_SYSON_INDIRECT_ACCESS
+	u32 (*read_syson_reg)(_adapter *padapter, u32 RegAddr, u32 BitMask);
+	void (*write_syson_reg)(_adapter *padapter, u32 RegAddr, u32 BitMask, u32 Data);
+#endif
+	void (*read_wmmedca_reg)(_adapter *padapter, u16 *vo_params, u16 *vi_params, u16 *be_params, u16 *bk_params);
+	
 #ifdef CONFIG_HOSTAPD_MLME
 	s32(*hostap_mgnt_xmit_entry)(_adapter *padapter, _pkt *pkt);
 #endif
@@ -363,6 +390,9 @@ struct hal_ops {
 	int	(*Efuse_PgPacketWrite)(_adapter *padapter, u8 offset, u8 word_en, u8 *data, BOOLEAN bPseudoTest);
 	u8(*Efuse_WordEnableDataWrite)(_adapter *padapter, u16 efuse_addr, u8 word_en, u8 *data, BOOLEAN bPseudoTest);
 	BOOLEAN(*Efuse_PgPacketWrite_BT)(_adapter *padapter, u8 offset, u8 word_en, u8 *data, BOOLEAN bPseudoTest);
+#if defined(CONFIG_RTL8710B)
+	BOOLEAN(*efuse_indirect_read4)(_adapter *padapter, u16 regaddr, u8 *value);
+#endif
 
 #ifdef DBG_CONFIG_ERROR_DETECT
 	void (*sreset_init_value)(_adapter *padapter);
@@ -402,7 +432,9 @@ struct hal_ops {
 	int (*hal_gpio_func_check)(_adapter *padapter, u8 gpio_num);
 	void (*hal_gpio_multi_func_reset)(_adapter *padapter, u8 gpio_num);
 #endif
+#ifdef CONFIG_FW_CORRECT_BCN
 	void (*fw_correct_bcn)(PADAPTER padapter);
+#endif
 
 #ifdef RTW_HALMAC
 	u8(*init_mac_register)(PADAPTER);
@@ -465,12 +497,18 @@ typedef enum _HARDWARE_TYPE {
 	HARDWARE_TYPE_RTL8188FE,
 	HARDWARE_TYPE_RTL8188FU,
 	HARDWARE_TYPE_RTL8188FS,
+	HARDWARE_TYPE_RTL8188GTVU,
+	HARDWARE_TYPE_RTL8188GTVS,
 	HARDWARE_TYPE_RTL8723DE,
 	HARDWARE_TYPE_RTL8723DU,
 	HARDWARE_TYPE_RTL8723DS,
 	HARDWARE_TYPE_RTL8821CE,
 	HARDWARE_TYPE_RTL8821CU,
 	HARDWARE_TYPE_RTL8821CS,
+	HARDWARE_TYPE_RTL8710BU,
+	HARDWARE_TYPE_RTL8192FS,
+	HARDWARE_TYPE_RTL8192FU,
+	HARDWARE_TYPE_RTL8192FE,
 	HARDWARE_TYPE_MAX,
 } HARDWARE_TYPE;
 
@@ -544,12 +582,33 @@ typedef enum _HARDWARE_TYPE {
 	 IS_HARDWARE_TYPE_8723DU(_Adapter) || \
 	 IS_HARDWARE_TYPE_8723DS(_Adapter))
 
+/* RTL8192F Series */
+#define IS_HARDWARE_TYPE_8192FS(_Adapter)\
+	(rtw_get_hw_type(_Adapter) == HARDWARE_TYPE_RTL8192FS)
+#define IS_HARDWARE_TYPE_8192FU(_Adapter)\
+	(rtw_get_hw_type(_Adapter) == HARDWARE_TYPE_RTL8192FU)	
+#define IS_HARDWARE_TYPE_8192FE(_Adapter)\
+	(rtw_get_hw_type(_Adapter) == HARDWARE_TYPE_RTL8192FE)	
+#define	IS_HARDWARE_TYPE_8192F(_Adapter)\
+	(IS_HARDWARE_TYPE_8192FS(_Adapter) ||\
+	 IS_HARDWARE_TYPE_8192FU(_Adapter) ||\
+	 IS_HARDWARE_TYPE_8192FE(_Adapter))
+
 /* RTL8188F Series */
 #define IS_HARDWARE_TYPE_8188FE(_Adapter)		(rtw_get_hw_type(_Adapter) == HARDWARE_TYPE_RTL8188FE)
 #define IS_HARDWARE_TYPE_8188FS(_Adapter)		(rtw_get_hw_type(_Adapter) == HARDWARE_TYPE_RTL8188FS)
 #define IS_HARDWARE_TYPE_8188FU(_Adapter)		(rtw_get_hw_type(_Adapter) == HARDWARE_TYPE_RTL8188FU)
 #define	IS_HARDWARE_TYPE_8188F(_Adapter)			\
 	(IS_HARDWARE_TYPE_8188FE(_Adapter) || IS_HARDWARE_TYPE_8188FU(_Adapter) || IS_HARDWARE_TYPE_8188FS(_Adapter))
+
+#define IS_HARDWARE_TYPE_8188GTVU(_Adapter)		(rtw_get_hw_type(_Adapter) == HARDWARE_TYPE_RTL8188GTVU)
+#define IS_HARDWARE_TYPE_8188GTVS(_Adapter)		(rtw_get_hw_type(_Adapter) == HARDWARE_TYPE_RTL8188GTVS)
+#define	IS_HARDWARE_TYPE_8188GTV(_Adapter)			\
+	(IS_HARDWARE_TYPE_8188GTVU(_Adapter) || IS_HARDWARE_TYPE_8188GTVS(_Adapter))
+
+/* RTL8710B Series */
+#define IS_HARDWARE_TYPE_8710BU(_Adapter) (rtw_get_hw_type(_Adapter) == HARDWARE_TYPE_RTL8710BU)
+#define IS_HARDWARE_TYPE_8710B(_Adapter) (IS_HARDWARE_TYPE_8710BU(_Adapter))
 
 #define IS_HARDWARE_TYPE_8821BE(_Adapter)		(rtw_get_hw_type(_Adapter) == HARDWARE_TYPE_RTL8821BE)
 #define IS_HARDWARE_TYPE_8821BU(_Adapter)		(rtw_get_hw_type(_Adapter) == HARDWARE_TYPE_RTL8821BU)
@@ -609,6 +668,9 @@ u32 rtw_hal_power_on(_adapter *padapter);
 void rtw_hal_power_off(_adapter *padapter);
 
 uint rtw_hal_init(_adapter *padapter);
+#ifdef CONFIG_NEW_NETDEV_HDL
+uint rtw_hal_iface_init(_adapter *adapter);
+#endif
 uint rtw_hal_deinit(_adapter *padapter);
 void rtw_hal_stop(_adapter *padapter);
 u8 rtw_hal_set_hwreg(PADAPTER padapter, u8 variable, u8 *val);
@@ -674,12 +736,19 @@ void	rtw_hal_write_rfreg(_adapter *padapter, enum rf_path eRFPath, u32 RegAddr, 
 #define phy_query_rf_reg(Adapter, eRFPath, RegAddr, BitMask) rtw_hal_read_rfreg((Adapter), (eRFPath), (RegAddr), (BitMask))
 #define phy_set_rf_reg(Adapter, eRFPath, RegAddr, BitMask, Data) rtw_hal_write_rfreg((Adapter), (eRFPath), (RegAddr), (BitMask), (Data))
 
+#ifdef CONFIG_SYSON_INDIRECT_ACCESS
+u32 rtw_hal_read_syson_reg(PADAPTER padapter, u32 RegAddr, u32 BitMask);
+void rtw_hal_write_syson_reg(_adapter *padapter, u32 RegAddr, u32 BitMask, u32 Data);
+#define hal_query_syson_reg(Adapter, RegAddr, BitMask) rtw_hal_read_syson_reg((Adapter), (RegAddr), (BitMask))
+#define hal_set_syson_reg(Adapter, RegAddr, BitMask, Data) rtw_hal_write_syson_reg((Adapter), (RegAddr), (BitMask), (Data))
+#endif
+
 #define phy_set_mac_reg	phy_set_bb_reg
 #define phy_query_mac_reg phy_query_bb_reg
 
-
 #if defined(CONFIG_PCI_HCI)
 	s32	rtw_hal_interrupt_handler(_adapter *padapter);
+	void	rtw_hal_unmap_beacon_icf(_adapter *padapter);
 #endif
 #if  defined(CONFIG_USB_HCI) && defined(CONFIG_SUPPORT_USB_INT)
 	void	rtw_hal_interrupt_handler(_adapter *padapter, u16 pkt_len, u8 *pbuf);
@@ -753,8 +822,9 @@ void rtw_hal_update_hisr_hsisr_ind(_adapter *padapter, u32 flag);
 int rtw_hal_gpio_func_check(_adapter *padapter, u8 gpio_num);
 void rtw_hal_gpio_multi_func_reset(_adapter *padapter, u8 gpio_num);
 #endif
-
+#ifdef CONFIG_FW_CORRECT_BCN
 void rtw_hal_fw_correct_bcn(_adapter *padapter);
+#endif
 s32 rtw_hal_fw_dl(_adapter *padapter, u8 wowlan);
 
 #if defined(CONFIG_WOWLAN) || defined(CONFIG_AP_WOWLAN)

@@ -72,7 +72,13 @@ static int cdn_dp_set_pattern(struct cdn_dp_device *dp, uint8_t dp_train_pat)
 		return ret;
 	}
 
-	if (drm_dp_enhanced_frame_cap(dp->dpcd))
+	if (drm_dp_enhanced_frame_cap(dp->dpcd) ||
+	    /*
+	     * A setting of 1 indicates that this is an eDP device that uses
+	     * only Enhanced Framing, independently of the setting by the
+	     * source of ENHANCED_FRAME_EN
+	     */
+	    dp->dpcd[DP_EDP_CONFIGURATION_CAP] & DP_FRAMING_CHANGE_CAP)
 		ret = cdn_dp_reg_write(dp, DPTX_ENHNCD, 1);
 	else
 		ret = cdn_dp_reg_write(dp, DPTX_ENHNCD, 0);
@@ -354,9 +360,11 @@ static int cdn_dp_get_lower_link_rate(struct cdn_dp_device *dp)
 
 int cdn_dp_software_train_link(struct cdn_dp_device *dp)
 {
+	struct cdn_dp_port *port = dp->port[dp->active_port];
 	int ret, stop_err;
 	u8 link_config[2];
 	u32 rate, sink_max, source_max;
+	bool ssc_on;
 
 	ret = drm_dp_dpcd_read(&dp->aux, DP_DPCD_REV, dp->dpcd,
 			       sizeof(dp->dpcd));
@@ -374,13 +382,27 @@ int cdn_dp_software_train_link(struct cdn_dp_device *dp)
 	rate = min(source_max, sink_max);
 	dp->link.rate = drm_dp_link_rate_to_bw_code(rate);
 
-	link_config[0] = 0;
+	ssc_on = !!(dp->dpcd[DP_MAX_DOWNSPREAD] & DP_MAX_DOWNSPREAD_0_5);
+	link_config[0] = ssc_on ? DP_SPREAD_AMP_0_5 : 0;
 	link_config[1] = 0;
 	if (dp->dpcd[DP_MAIN_LINK_CHANNEL_CODING] & 0x01)
 		link_config[1] = DP_SET_ANSI_8B10B;
 	drm_dp_dpcd_write(&dp->aux, DP_DOWNSPREAD_CTRL, link_config, 2);
 
 	while (true) {
+		ret = tcphy_dp_set_link_rate(port->phy,
+				drm_dp_bw_code_to_link_rate(dp->link.rate),
+				ssc_on);
+		if (ret) {
+			DRM_ERROR("failed to set link rate: %d\n", ret);
+			return ret;
+		}
+
+		ret = tcphy_dp_set_lane_count(port->phy, dp->link.num_lanes);
+		if (ret) {
+			DRM_ERROR("failed to set lane count: %d\n", ret);
+			return ret;
+		}
 
 		/* Write the link configuration data */
 		link_config[0] = dp->link.rate;

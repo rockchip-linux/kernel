@@ -201,7 +201,7 @@
 
 	bt-sound {
 		compatible = "simple-audio-card";
-		simple-audio-card,format = "dsp_b";
+		simple-audio-card,format = "dsp_a";
 		simple-audio-card,bitclock-inversion = <1>;
 		simple-audio-card,mclk-fs = <256>;
 		simple-audio-card,name = "rockchip,bt";
@@ -1002,10 +1002,6 @@
 &uart0 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&uart0_xfer &uart0_cts>;
-	status = "okay";
-};
-
-&uart2 {
 	status = "okay";
 };
 

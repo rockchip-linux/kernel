@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /******************************************************************************
  *
  * Copyright(c) 2007 - 2017 Realtek Corporation.
@@ -151,6 +152,14 @@ typedef struct _R_ANTENNA_SELECT_CCK {
 	u8			r_ccktx_enable:4;
 } R_ANTENNA_SELECT_CCK;
 
+
+/*--------------------------Exported Function prototype---------------------*/
+u32
+PHY_CalculateBitShift(
+	u32 BitMask
+);
+
+#ifdef CONFIG_RF_SHADOW_RW
 typedef struct RF_Shadow_Compare_Map {
 	/* Shadow register value */
 	u32		Value;
@@ -163,13 +172,6 @@ typedef struct RF_Shadow_Compare_Map {
 	/*  */
 	u8		Driver_Write;
 } RF_SHADOW_T;
-
-/*--------------------------Exported Function prototype---------------------*/
-
-u32
-PHY_CalculateBitShift(
-	u32 BitMask
-);
 
 u32
 PHY_RFShadowRead(
@@ -229,5 +231,5 @@ PHY_RFShadowRecorverFlagSetAll(
 VOID
 PHY_RFShadowRefresh(
 	IN	PADAPTER		Adapter);
-
+#endif /*#CONFIG_RF_SHADOW_RW*/
 #endif /* __HAL_COMMON_H__ */

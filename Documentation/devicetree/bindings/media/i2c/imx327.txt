@@ -1,0 +1,34 @@
+* Sony IMX327 MIPI sensor
+
+Required Properties:
+- compatible: should be "sony,imx327"
+- clocks: reference to the 37.125M xvclk input clock.
+- clock-names: should be "xvclk".
+- dovdd-supply: Digital I/O voltage supply, 1.8 volts
+- avdd-supply: Analog voltage supply, 2.8 volts
+- dvdd-supply: Digital core voltage supply, 1.2 volts
+- reset-gpios: Low active reset gpio
+
+The device node must contain one 'port' child node for its digital output
+video port, in accordance with the video interface bindings defined in
+Documentation/devicetree/bindings/media/video-interfaces.txt.
+
+Example:
+&i2c3: imx327@1a {
+	compatible = "sony,imx327";
+	reg = <0x1a>;
+	clocks = <&cru SCLK_CIF_OUT>;
+	clock-names = "xvclk";
+	avdd-supply = <&vcc2v8_dvp>;
+	dovdd-supply = <&vcc1v8_dvp>;
+	dvdd-supply = <&vdd1v5_dvp>;
+	pwdn-gpios = <&gpio0 23 GPIO_ACTIVE_HIGH>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&cif_clkout_m0>;
+	port {
+		ucam_out: endpoint {
+			remote-endpoint = <&mipi_in_ucam>;
+			data-lanes = <1 2>;
+		};
+	};
+};

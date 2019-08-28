@@ -40,6 +40,10 @@
 #include "tee_tz_priv.h"
 #include "handle.h"
 
+#ifdef CONFIG_ARM
+#include <asm/psci.h>
+#endif
+
 #ifdef CONFIG_OUTER_CACHE
 #undef CONFIG_OUTER_CACHE
 #endif
@@ -1220,8 +1224,6 @@ static int tz_start(struct tee *tee)
 	BUG_ON(ptee->started);
 	ptee->started = true;
 
-	rk_set_uart_port(ptee);
-
 	ret = configure_shm(ptee);
 	if (ret)
 		goto exit;
@@ -1368,6 +1370,8 @@ static int tz_tee_probe(struct platform_device *pdev)
 	if (ret)
 		goto bail1;
 
+	rk_set_uart_port(ptee);
+
 #ifdef _TEE_DEBUG
 	pr_debug("- tee=%p, id=%d, iminor=%d\n", tee, tee->id,
 		 tee->miscdev.minor);
@@ -1430,6 +1434,13 @@ static struct platform_device tz_0_plt_device = {
 static int __init tee_tz_init(void)
 {
 	int rc;
+
+#ifdef CONFIG_ARM
+	if (!psci_smp_available()) {
+		pr_info("tee: kernel is running in secure mode, tee service unavailable.\n");
+		return -EACCES;
+	}
+#endif
 
 	pr_info("TEE armv7 Driver initialization\n");
 

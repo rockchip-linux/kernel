@@ -1189,7 +1189,11 @@ static struct kbase_va_region *kbase_mem_from_user_buffer(
 	/* We can't really store the page list because that would involve */
 	/* keeping the pages pinned - instead we pin/unpin around the job */
 	/* (as part of the external resources handling code) */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 6, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 168) && LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0)
+	faulted_pages = get_user_pages(current, current->mm, address, *va_pages,
+			reg->flags & KBASE_REG_GPU_WR ? FOLL_WRITE : 0,
+			NULL, NULL);
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 6, 0)
 	faulted_pages = get_user_pages(current, current->mm, address, *va_pages,
 			reg->flags & KBASE_REG_GPU_WR, 0, NULL, NULL);
 #else

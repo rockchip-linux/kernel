@@ -68,7 +68,7 @@
 		rockchip,mclk-fs = <128>;
 		rockchip,cpu = <&i2s_8ch_0>;
 		rockchip,codec = <&dummy_codec>;
-		rockchip,format = "dsp_b";
+		rockchip,format = "dsp_a";
 		rockchip,bitclock-inversion = <0>;
 		rockchip,wait-card-locked = <0>;
 	};
@@ -206,8 +206,9 @@
 		regulator-name = "vccio_flash";
 		regulator-always-on;
 		regulator-boot-on;
-		regulator-min-microvolt = <1800000>;
-		regulator-max-microvolt = <1800000>;
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		vin-supply = <&vcc_io>;
 	};
 
 	vcc_phy: vcc-phy-regulator {

@@ -1,7 +1,8 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Linux OS Independent Layer
  *
- * Copyright (C) 1999-2017, Broadcom Corporation
+ * Copyright (C) 1999-2018, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -1982,7 +1983,12 @@ osl_os_get_image_block(char *buf, int len, void *image)
 	if (!image)
 		return 0;
 
-	rdlen = kernel_read(fp, fp->f_pos, buf, len);
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0))
+        rdlen = kernel_read(fp, fp->f_pos, buf, len);
+#else
+        rdlen = kernel_read(fp, buf, len, (loff_t *)fp->f_pos);
+#endif /* (LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0)) */
+
 	if (rdlen > 0)
 		fp->f_pos += rdlen;
 
@@ -2485,6 +2491,7 @@ osl_sec_dma_free_consistent(osl_t *osh, void *va, uint size, dmaaddr_t pa)
 
 #endif /* BCM_SECURE_DMA */
 
+#if 0
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 6, 0) && defined(TSQ_MULTIPLIER)
 #include <linux/kallsyms.h>
 #include <net/sock.h>
@@ -2519,3 +2526,4 @@ osl_pkt_orphan_partial(struct sk_buff *skb)
 	atomic_sub(fraction, &skb->sk->sk_wmem_alloc);
 }
 #endif /* LINUX_VERSION >= 3.6.0 && TSQ_MULTIPLIER */
+#endif

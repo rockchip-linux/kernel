@@ -371,11 +371,19 @@
 		clocks = <&ext_cam_clk>;
 		clock-names = "refclk";
 		reset-gpios = <&gpio2 7 GPIO_ACTIVE_LOW>;
-		interrupt-parent = <&gpio2>;
-		interrupts = <12 IRQ_TYPE_LEVEL_LOW>;
+		/* hardware irq-pin is dangling
+		 * connect it to other gpio then configurate follow interrupt
+		 * or del config just using software poll
+		 */
+		//interrupt-parent = <&gpio2>;
+		//interrupts = <12 IRQ_TYPE_LEVEL_LOW>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&hdmiin_gpios>;
 		status = "disabled";
+		rockchip,camera-module-index = <0>;
+		rockchip,camera-module-facing = "back";
+		rockchip,camera-module-name = "default";
+		rockchip,camera-module-lens-name = "default";
 		port {
 			hdmiin_out0: endpoint {
 				/* Unlinked mipi dphy rx0 */
@@ -386,6 +394,14 @@
 					/bits/ 64 <297000000>;
 			};
 		};
+	};
+
+	vm149c: vm149c@0c {
+		compatible = "silicon touch,vm149c";
+		status = "okay";
+		reg = <0x0c>;
+		rockchip,camera-module-index = <0>;
+		rockchip,camera-module-facing = "back";
 	};
 
 	ov13850: ov13850@10 {
@@ -400,6 +416,11 @@
 		pwdn-gpios = <&gpio1 4 GPIO_ACTIVE_HIGH>;
 		pinctrl-names = "rockchip,camera_default";
 		pinctrl-0 = <&cif_clkout>;
+		rockchip,camera-module-index = <0>;
+		rockchip,camera-module-facing = "back";
+		rockchip,camera-module-name = "CMK-CT0116";
+		rockchip,camera-module-lens-name = "Largan-50013A1";
+		lens-focus = <&vm149c>;
 
 		port {
 			ucam_out0: endpoint {
@@ -447,6 +468,10 @@
 				<2 12 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
+};
+
+&uart2 {
+	status = "disabled";
 };
 
 &vopb {

@@ -3,6 +3,8 @@
  * ov7251 driver
  *
  * Copyright (C) 2017 Fuzhou Rockchip Electronics Co., Ltd.
+ *
+ * V0.0X01.0X01 add poweron function.
  */
 
 #include <linux/clk.h>
@@ -14,10 +16,15 @@
 #include <linux/pm_runtime.h>
 #include <linux/regulator/consumer.h>
 #include <linux/sysfs.h>
+#include <linux/slab.h>
+#include <linux/version.h>
+#include <linux/rk-camera-module.h>
 #include <media/media-entity.h>
 #include <media/v4l2-async.h>
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-subdev.h>
+
+#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x01)
 
 #ifndef V4L2_CID_DIGITAL_GAIN
 #define V4L2_CID_DIGITAL_GAIN		V4L2_CID_GAIN
@@ -60,6 +67,8 @@
 #define OV7251_REG_VALUE_16BIT		2
 #define OV7251_REG_VALUE_24BIT		3
 
+#define OV7251_NAME			"ov7251"
+
 static const char * const ov7251_supply_names[] = {
 	"avdd",		/* Analog power */
 	"dovdd",	/* Digital I/O power */
@@ -101,7 +110,12 @@ struct ov7251 {
 	struct v4l2_ctrl	*test_pattern;
 	struct mutex		mutex;
 	bool			streaming;
+	bool			power_on;
 	const struct ov7251_mode *cur_mode;
+	u32			module_index;
+	const char		*module_facing;
+	const char		*module_name;
+	const char		*len_name;
 };
 
 #define to_ov7251(sd) container_of(sd, struct ov7251, subdev)
@@ -511,6 +525,76 @@ static int ov7251_g_frame_interval(struct v4l2_subdev *sd,
 	return 0;
 }
 
+static void ov7251_get_module_inf(struct ov7251 *ov7251,
+				  struct rkmodule_inf *inf)
+{
+	memset(inf, 0, sizeof(*inf));
+	strlcpy(inf->base.sensor, OV7251_NAME, sizeof(inf->base.sensor));
+	strlcpy(inf->base.module, ov7251->module_name,
+		sizeof(inf->base.module));
+	strlcpy(inf->base.lens, ov7251->len_name, sizeof(inf->base.lens));
+}
+
+static long ov7251_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
+{
+	struct ov7251 *ov7251 = to_ov7251(sd);
+	long ret = 0;
+
+	switch (cmd) {
+	case RKMODULE_GET_MODULE_INFO:
+		ov7251_get_module_inf(ov7251, (struct rkmodule_inf *)arg);
+		break;
+	default:
+		ret = -ENOTTY;
+		break;
+	}
+
+	return ret;
+}
+
+#ifdef CONFIG_COMPAT
+static long ov7251_compat_ioctl32(struct v4l2_subdev *sd,
+				  unsigned int cmd, unsigned long arg)
+{
+	void __user *up = compat_ptr(arg);
+	struct rkmodule_inf *inf;
+	struct rkmodule_awb_cfg *cfg;
+	long ret;
+
+	switch (cmd) {
+	case RKMODULE_GET_MODULE_INFO:
+		inf = kzalloc(sizeof(*inf), GFP_KERNEL);
+		if (!inf) {
+			ret = -ENOMEM;
+			return ret;
+		}
+
+		ret = ov7251_ioctl(sd, cmd, inf);
+		if (!ret)
+			ret = copy_to_user(up, inf, sizeof(*inf));
+		kfree(inf);
+		break;
+	case RKMODULE_AWB_CFG:
+		cfg = kzalloc(sizeof(*cfg), GFP_KERNEL);
+		if (!cfg) {
+			ret = -ENOMEM;
+			return ret;
+		}
+
+		ret = copy_from_user(cfg, up, sizeof(*cfg));
+		if (!ret)
+			ret = ov7251_ioctl(sd, cmd, cfg);
+		kfree(cfg);
+		break;
+	default:
+		ret = -ENOIOCTLCMD;
+		break;
+	}
+
+	return ret;
+}
+#endif
+
 static int __ov7251_start_stream(struct ov7251 *ov7251)
 {
 	int ret;
@@ -566,6 +650,37 @@ static int ov7251_s_stream(struct v4l2_subdev *sd, int on)
 	}
 
 	ov7251->streaming = on;
+
+unlock_and_return:
+	mutex_unlock(&ov7251->mutex);
+
+	return ret;
+}
+
+static int ov7251_s_power(struct v4l2_subdev *sd, int on)
+{
+	struct ov7251 *ov7251 = to_ov7251(sd);
+	struct i2c_client *client = ov7251->client;
+	int ret = 0;
+
+	mutex_lock(&ov7251->mutex);
+
+	/* If the power state is not modified - no work to do. */
+	if (ov7251->power_on == !!on)
+		goto unlock_and_return;
+
+	if (on) {
+		ret = pm_runtime_get_sync(&client->dev);
+		if (ret < 0) {
+			pm_runtime_put_noidle(&client->dev);
+			goto unlock_and_return;
+		}
+
+		ov7251->power_on = true;
+	} else {
+		pm_runtime_put(&client->dev);
+		ov7251->power_on = false;
+	}
 
 unlock_and_return:
 	mutex_unlock(&ov7251->mutex);
@@ -683,6 +798,14 @@ static const struct v4l2_subdev_internal_ops ov7251_internal_ops = {
 };
 #endif
 
+static const struct v4l2_subdev_core_ops ov7251_core_ops = {
+	.s_power = ov7251_s_power,
+	.ioctl = ov7251_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl32 = ov7251_compat_ioctl32,
+#endif
+};
+
 static const struct v4l2_subdev_video_ops ov7251_video_ops = {
 	.s_stream = ov7251_s_stream,
 	.g_frame_interval = ov7251_g_frame_interval,
@@ -696,6 +819,7 @@ static const struct v4l2_subdev_pad_ops ov7251_pad_ops = {
 };
 
 static const struct v4l2_subdev_ops ov7251_subdev_ops = {
+	.core	= &ov7251_core_ops,
 	.video	= &ov7251_video_ops,
 	.pad	= &ov7251_pad_ops,
 };
@@ -837,7 +961,7 @@ static int ov7251_check_sensor_id(struct ov7251 *ov7251,
 			      OV7251_REG_VALUE_16BIT, &id);
 	if (id != CHIP_ID) {
 		dev_err(dev, "Unexpected sensor id(%06x), ret(%d)\n", id, ret);
-		return ret;
+		return -ENODEV;
 	}
 
 	dev_info(dev, "Detected OV%06x sensor\n", CHIP_ID);
@@ -861,13 +985,33 @@ static int ov7251_probe(struct i2c_client *client,
 			const struct i2c_device_id *id)
 {
 	struct device *dev = &client->dev;
+	struct device_node *node = dev->of_node;
 	struct ov7251 *ov7251;
 	struct v4l2_subdev *sd;
+	char facing[2];
 	int ret;
+
+	dev_info(dev, "driver version: %02x.%02x.%02x",
+		DRIVER_VERSION >> 16,
+		(DRIVER_VERSION & 0xff00) >> 8,
+		DRIVER_VERSION & 0x00ff);
 
 	ov7251 = devm_kzalloc(dev, sizeof(*ov7251), GFP_KERNEL);
 	if (!ov7251)
 		return -ENOMEM;
+
+	ret = of_property_read_u32(node, RKMODULE_CAMERA_MODULE_INDEX,
+				   &ov7251->module_index);
+	ret |= of_property_read_string(node, RKMODULE_CAMERA_MODULE_FACING,
+				       &ov7251->module_facing);
+	ret |= of_property_read_string(node, RKMODULE_CAMERA_MODULE_NAME,
+				       &ov7251->module_name);
+	ret |= of_property_read_string(node, RKMODULE_CAMERA_LENS_NAME,
+				       &ov7251->len_name);
+	if (ret) {
+		dev_err(dev, "could not get module information!\n");
+		return -EINVAL;
+	}
 
 	ov7251->client = client;
 	ov7251->cur_mode = &supported_modes[0];
@@ -927,7 +1071,16 @@ static int ov7251_probe(struct i2c_client *client,
 		goto err_power_off;
 #endif
 
-	ret = v4l2_async_register_subdev(sd);
+	memset(facing, 0, sizeof(facing));
+	if (strcmp(ov7251->module_facing, "back") == 0)
+		facing[0] = 'b';
+	else
+		facing[0] = 'f';
+
+	snprintf(sd->name, sizeof(sd->name), "m%02d_%s_%s %s",
+		 ov7251->module_index, facing,
+		 OV7251_NAME, dev_name(sd->dev));
+	ret = v4l2_async_register_subdev_sensor_common(sd);
 	if (ret) {
 		dev_err(dev, "v4l2 async register subdev failed\n");
 		goto err_clean_entity;
@@ -988,7 +1141,7 @@ static const struct i2c_device_id ov7251_match_id[] = {
 
 static struct i2c_driver ov7251_i2c_driver = {
 	.driver = {
-		.name = "ov7251",
+		.name = OV7251_NAME,
 		.pm = &ov7251_pm_ops,
 		.of_match_table = of_match_ptr(ov7251_of_match),
 	},

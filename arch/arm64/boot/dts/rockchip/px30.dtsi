@@ -572,6 +572,18 @@
 		status = "disabled";
 	};
 
+	crypto: crypto@ff0b0000 {
+		compatible = "rockchip,px30-crypto";
+		reg = <0x0 0xff0b0000 0x0 0x4000>;
+		interrupts = <GIC_SPI 82 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&cru ACLK_CRYPTO >, <&cru HCLK_CRYPTO >,
+			<&cru SCLK_CRYPTO>, <&cru SCLK_CRYPTO_APK>;
+		clock-names = "aclk", "hclk", "sclk", "apb_pclk";
+		resets = <&cru SRST_CRYPTO>;
+		reset-names = "crypto-rst";
+		status = "disabled";
+	};
+
 	gic: interrupt-controller@ff131000 {
 		compatible = "arm,gic-400";
 		#interrupt-cells = <3>;
@@ -827,6 +839,8 @@
 		reg = <0x0 0xff1e0000 0x0 0x100>;
 		clocks = <&cru PCLK_WDT_NS>;
 		interrupts = <GIC_SPI 37 IRQ_TYPE_LEVEL_HIGH>;
+		resets = <&cru SRST_WDT_NS_P>;
+		reset-names = "reset";
 		status = "disabled";
 	};
 
@@ -1875,6 +1889,13 @@
 		};
 	};
 
+	rockchip_system_monitor: rockchip-system-monitor {
+		compatible = "rockchip,system-monitor";
+
+		rockchip,thermal-zone = "soc-thermal";
+		rockchip,polling-delay = <200>; /* milliseconds */
+	};
+
 	pinctrl: pinctrl {
 		compatible = "rockchip,px30-pinctrl";
 		rockchip,grf = <&grf>;
@@ -2813,7 +2834,7 @@
 
 		cif-m0 {
 			cif_clkout_m0: cif-clkout-m0 {
-				rockchip,pins = <2 RK_PB3 RK_FUNC_1 &pcfg_pull_none>;/* cif_clkout */
+				rockchip,pins = <2 RK_PB3 RK_FUNC_1 &pcfg_pull_none_12ma>;/* cif_clkout */
 			};
 
 			dvp_d2d9_m0: dvp-d2d9-m0 {

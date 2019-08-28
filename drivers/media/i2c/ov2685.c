@@ -18,10 +18,15 @@
 #include <linux/pm_runtime.h>
 #include <linux/regulator/consumer.h>
 #include <linux/sysfs.h>
+#include <linux/slab.h>
+#include <linux/version.h>
+#include <linux/rk-camera-module.h>
 #include <media/media-entity.h>
 #include <media/v4l2-async.h>
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-subdev.h>
+
+#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x0)
 
 #define CHIP_ID				0x2685
 #define OV2685_REG_CHIP_ID		0x300a
@@ -60,6 +65,8 @@
 #define OV2685_LANES			1
 #define OV2685_BITS_PER_SAMPLE		10
 
+#define OV2685_NAME			"ov2685"
+
 struct regval {
 	u16 addr;
 	u8 val;
@@ -94,6 +101,10 @@ struct ov2685 {
 	struct v4l2_ctrl_handler ctrl_handler;
 
 	const struct ov2685_mode *cur_mode;
+	u32			module_index;
+	const char		*module_facing;
+	const char		*module_name;
+	const char		*len_name;
 };
 #define to_ov2685(sd) container_of(sd, struct ov2685, subdev)
 
@@ -474,6 +485,76 @@ static int ov2685_s_power(struct v4l2_subdev *sd, int on)
 	return ret;
 }
 
+static void ov2685_get_module_inf(struct ov2685 *ov2685,
+				  struct rkmodule_inf *inf)
+{
+	memset(inf, 0, sizeof(*inf));
+	strlcpy(inf->base.sensor, OV2685_NAME, sizeof(inf->base.sensor));
+	strlcpy(inf->base.module, ov2685->module_name,
+		sizeof(inf->base.module));
+	strlcpy(inf->base.lens, ov2685->len_name, sizeof(inf->base.lens));
+}
+
+static long ov2685_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
+{
+	struct ov2685 *ov2685 = to_ov2685(sd);
+	long ret = 0;
+
+	switch (cmd) {
+	case RKMODULE_GET_MODULE_INFO:
+		ov2685_get_module_inf(ov2685, (struct rkmodule_inf *)arg);
+		break;
+	default:
+		ret = -ENOIOCTLCMD;
+		break;
+	}
+
+	return ret;
+}
+
+#ifdef CONFIG_COMPAT
+static long ov2685_compat_ioctl32(struct v4l2_subdev *sd,
+				  unsigned int cmd, unsigned long arg)
+{
+	void __user *up = compat_ptr(arg);
+	struct rkmodule_inf *inf;
+	struct rkmodule_awb_cfg *cfg;
+	long ret;
+
+	switch (cmd) {
+	case RKMODULE_GET_MODULE_INFO:
+		inf = kzalloc(sizeof(*inf), GFP_KERNEL);
+		if (!inf) {
+			ret = -ENOMEM;
+			return ret;
+		}
+
+		ret = ov2685_ioctl(sd, cmd, inf);
+		if (!ret)
+			ret = copy_to_user(up, inf, sizeof(*inf));
+		kfree(inf);
+		break;
+	case RKMODULE_AWB_CFG:
+		cfg = kzalloc(sizeof(*cfg), GFP_KERNEL);
+		if (!cfg) {
+			ret = -ENOMEM;
+			return ret;
+		}
+
+		ret = copy_from_user(cfg, up, sizeof(*cfg));
+		if (!ret)
+			ret = ov2685_ioctl(sd, cmd, cfg);
+		kfree(cfg);
+		break;
+	default:
+		ret = -ENOIOCTLCMD;
+		break;
+	}
+
+	return ret;
+}
+#endif
+
 static int ov2685_s_stream(struct v4l2_subdev *sd, int on)
 {
 	struct ov2685 *ov2685 = to_ov2685(sd);
@@ -611,6 +692,10 @@ static int ov2685_set_ctrl(struct v4l2_ctrl *ctrl)
 
 static struct v4l2_subdev_core_ops ov2685_core_ops = {
 	.s_power = ov2685_s_power,
+	.ioctl = ov2685_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl32 = ov2685_compat_ioctl32,
+#endif
 };
 
 static struct v4l2_subdev_video_ops ov2685_video_ops = {
@@ -730,12 +815,33 @@ static int ov2685_probe(struct i2c_client *client,
 			const struct i2c_device_id *id)
 {
 	struct device *dev = &client->dev;
+	struct device_node *node = dev->of_node;
 	struct ov2685 *ov2685;
+	struct v4l2_subdev *sd;
+	char facing[2];
 	int ret;
+
+	dev_info(dev, "driver version: %02x.%02x.%02x",
+		DRIVER_VERSION >> 16,
+		(DRIVER_VERSION & 0xff00) >> 8,
+		DRIVER_VERSION & 0x00ff);
 
 	ov2685 = devm_kzalloc(dev, sizeof(*ov2685), GFP_KERNEL);
 	if (!ov2685)
 		return -ENOMEM;
+
+	ret = of_property_read_u32(node, RKMODULE_CAMERA_MODULE_INDEX,
+				   &ov2685->module_index);
+	ret |= of_property_read_string(node, RKMODULE_CAMERA_MODULE_FACING,
+				       &ov2685->module_facing);
+	ret |= of_property_read_string(node, RKMODULE_CAMERA_MODULE_NAME,
+				       &ov2685->module_name);
+	ret |= of_property_read_string(node, RKMODULE_CAMERA_LENS_NAME,
+				       &ov2685->len_name);
+	if (ret) {
+		dev_err(dev, "could not get module information!\n");
+		return -EINVAL;
+	}
 
 	ov2685->client = client;
 	ov2685->cur_mode = &supported_modes[0];
@@ -785,7 +891,17 @@ static int ov2685_probe(struct i2c_client *client,
 		goto free_ctrl_handler;
 #endif
 
-	ret = v4l2_async_register_subdev(&ov2685->subdev);
+	sd = &ov2685->subdev;
+	memset(facing, 0, sizeof(facing));
+	if (strcmp(ov2685->module_facing, "back") == 0)
+		facing[0] = 'b';
+	else
+		facing[0] = 'f';
+
+	snprintf(sd->name, sizeof(sd->name), "m%02d_%s_%s %s",
+		 ov2685->module_index, facing,
+		 OV2685_NAME, dev_name(sd->dev));
+	ret = v4l2_async_register_subdev_sensor_common(sd);
 	if (ret) {
 		dev_err(dev, "v4l2 async register subdev failed\n");
 		goto clean_entity;
@@ -826,7 +942,7 @@ static const struct of_device_id ov2685_of_match[] = {
 
 static struct i2c_driver ov2685_i2c_driver = {
 	.driver = {
-		.name = "ov2685",
+		.name = OV2685_NAME,
 		.owner = THIS_MODULE,
 		.pm = &ov2685_pm_ops,
 		.of_match_table = ov2685_of_match

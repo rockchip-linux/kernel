@@ -1284,6 +1284,9 @@ static inline void __stop_tx(struct uart_8250_port *p)
 {
 	if (p->ier & UART_IER_THRI) {
 		p->ier &= ~UART_IER_THRI;
+#ifdef CONFIG_ARCH_ROCKCHIP
+		p->ier &= ~UART_IER_PTIME;
+#endif
 		serial_out(p, UART_IER, p->ier);
 		serial8250_rpm_put_tx(p);
 	}
@@ -1311,12 +1314,19 @@ static void serial8250_start_tx(struct uart_port *port)
 	struct uart_8250_port *up = up_to_u8250p(port);
 
 	serial8250_rpm_get_tx(up);
-
+#ifdef CONFIG_ARCH_ROCKCHIP
+	if (up->dma && up->dma->txchan && !up->dma->tx_dma(up))
+		return;
+#else
 	if (up->dma && !up->dma->tx_dma(up))
 		return;
+#endif
 
 	if (!(up->ier & UART_IER_THRI)) {
 		up->ier |= UART_IER_THRI;
+#ifdef CONFIG_ARCH_ROCKCHIP
+		up->ier |= UART_IER_PTIME;
+#endif
 		serial_port_out(port, UART_IER, up->ier);
 
 		if (up->bugs & UART_BUG_TXEN) {
@@ -1551,7 +1561,7 @@ int serial8250_handle_irq(struct uart_port *port, unsigned int iir)
 	unsigned char status;
 	unsigned long flags;
 	struct uart_8250_port *up = up_to_u8250p(port);
-	int dma_err = 0, idx;
+	int dma_err = -1, idx;
 
 	if (iir & UART_IIR_NO_INT)
 		return 0;
@@ -1561,7 +1571,15 @@ int serial8250_handle_irq(struct uart_port *port, unsigned int iir)
 	status = serial_port_in(port, UART_LSR);
 
 	DEBUG_INTR("status = %x...", status);
+#ifdef CONFIG_ARCH_ROCKCHIP
+	if (status & (UART_LSR_DR | UART_LSR_BI)) {
+		if (up->dma && up->dma->rxchan)
+			dma_err = up->dma->rx_dma(up, iir);
 
+		if (!up->dma || dma_err)
+			status = serial8250_rx_chars(up, status);
+	}
+#else
 	if (status & (UART_LSR_DR | UART_LSR_BI)) {
 		if (up->dma)
 			dma_err = up->dma->rx_dma(up, iir);
@@ -1569,10 +1587,18 @@ int serial8250_handle_irq(struct uart_port *port, unsigned int iir)
 		if (!up->dma || dma_err)
 			status = serial8250_rx_chars(up, status);
 	}
+#endif
 	serial8250_modem_status(up);
+#ifdef CONFIG_ARCH_ROCKCHIP
+	if ((!up->dma || (up->dma && (!up->dma->txchan || up->dma->tx_err))) &&
+	    ((iir & 0xf) == UART_IIR_THRI))
+		serial8250_tx_chars(up);
+#else
 	if ((!up->dma || (up->dma && up->dma->tx_err)) &&
 	    (status & UART_LSR_THRE))
 		serial8250_tx_chars(up);
+#endif
+
 #ifdef CONFIG_ARCH_ROCKCHIP
 	if (status & UART_LSR_BRK_ERROR_BITS) {
 

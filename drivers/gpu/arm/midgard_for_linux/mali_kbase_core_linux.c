@@ -3687,12 +3687,10 @@ static int kbase_platform_device_probe(struct platform_device *pdev)
 
 #ifdef CONFIG_MALI_DEVFREQ
 	err = kbase_devfreq_init(kbdev);
-	if (err) {
-		dev_err(kbdev->dev, "Fevfreq initialization failed\n");
-		kbase_platform_device_remove(pdev);
-		return err;
-	}
-	kbdev->inited_subsys |= inited_devfreq;
+	if (err)
+		dev_err(kbdev->dev, "devfreq initialization failed\n");
+	else
+		kbdev->inited_subsys |= inited_devfreq;
 #endif /* CONFIG_MALI_DEVFREQ */
 
 	kbdev->vinstr_ctx = kbase_vinstr_init(kbdev);

@@ -54,7 +54,7 @@
 	compatible = "rockchip,rk3399-firefly-android", "rockchip,rk3399";
 
 	chosen {
-		bootargs = "earlycon=uart8250,mmio32,0xff1a0000 swiotlb=1";
+		bootargs = "earlycon=uart8250,mmio32,0xff1a0000 swiotlb=1 coherent_pool=1m";
 	};
 
 	cpuinfo {
@@ -1048,10 +1048,6 @@
 &uart0 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&uart0_xfer &uart0_cts>;
-	status = "okay";
-};
-
-&uart2 {
 	status = "okay";
 };
 

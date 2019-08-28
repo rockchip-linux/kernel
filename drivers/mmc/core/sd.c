@@ -901,6 +901,18 @@ unsigned mmc_sd_get_max_clock(struct mmc_card *card)
 	return max_dtr;
 }
 
+static bool mmc_sd_card_using_v18(struct mmc_card *card)
+{
+	/*
+	 * According to the SD spec., the Bus Speed Mode (function group 1) bits
+	 * 2 to 4 are zero if the card is initialized at 3.3V signal level. Thus
+	 * they can be used to determine if the card has already switched to
+	 * 1.8V signaling.
+	 */
+	return card->sw_caps.sd3_bus_mode &
+	       (SD_MODE_UHS_SDR50 | SD_MODE_UHS_SDR104 | SD_MODE_UHS_DDR50);
+}
+
 /*
  * Handle the detection and initialisation of a card.
  *
@@ -914,10 +926,12 @@ static int mmc_sd_init_card(struct mmc_host *host, u32 ocr,
 	int err;
 	u32 cid[4];
 	u32 rocr = 0;
+	bool v18_fixup_failed = false;
 
 	BUG_ON(!host);
 	WARN_ON(!host->claimed);
 
+retry:
 	err = mmc_sd_get_cid(host, ocr, cid, &rocr);
 	if (err)
 		return err;
@@ -983,6 +997,36 @@ static int mmc_sd_init_card(struct mmc_host *host, u32 ocr,
 	if (err)
 		goto free_card;
 
+	/*
+	 * If the card has not been power cycled, it may still be using 1.8V
+	 * signaling. Detect that situation and try to initialize a UHS-I (1.8V)
+	 * transfer mode.
+	 */
+	if (!v18_fixup_failed && !mmc_host_is_spi(host) && mmc_host_uhs(host) &&
+	    mmc_sd_card_using_v18(card) &&
+	    host->ios.signal_voltage != MMC_SIGNAL_VOLTAGE_180) {
+		/*
+		 * Re-read switch information in case it has changed since
+		 * oldcard was initialized.
+		 */
+		if (oldcard) {
+			err = mmc_read_switch(card);
+			if (err)
+				goto free_card;
+		}
+		if (mmc_sd_card_using_v18(card)) {
+			if (mmc_host_set_uhs_voltage(host, MMC_SIGNAL_VOLTAGE_180) ||
+			    mmc_sd_init_uhs_card(card)) {
+				v18_fixup_failed = true;
+				mmc_power_cycle(host, ocr);
+				if (!oldcard)
+					mmc_remove_card(card);
+				goto retry;
+			}
+			goto done;
+		}
+	}
+
 	/* Initialization sequence for UHS-I cards */
 	if (rocr & SD_ROCR_S18A && mmc_host_uhs(host)) {
 		err = mmc_sd_init_uhs_card(card);
@@ -1016,6 +1060,7 @@ static int mmc_sd_init_card(struct mmc_host *host, u32 ocr,
 		}
 	}
 
+done:
 	host->card = card;
 	return 0;
 
@@ -1116,6 +1161,58 @@ static int _mmc_sd_suspend(struct mmc_host *host)
 
 out:
 	mmc_release_host(host);
+	return err;
+}
+
+static int _mmc_sd_shutdown(struct mmc_host *host)
+{
+	int err = 0;
+
+	BUG_ON(!host);
+	BUG_ON(!host->card);
+
+	mmc_claim_host(host);
+
+	if (mmc_card_suspended(host->card))
+		goto out;
+
+	if (!mmc_host_is_spi(host))
+		err = mmc_deselect_cards(host);
+
+	if (!err) {
+		mmc_power_off(host);
+		mmc_card_set_suspended(host->card);
+	}
+
+	/*
+	 * mmc_sd_shutdown is used for SD card, so what we need
+	 * is to make sure we set signal voltage to initial state
+	 * if it's used as main disk. RESTRICT_CARD_TYPE_MMC is
+	 * combined into host->restrict_caps via DT for SD cards
+	 * running system image.
+	 */
+	if (host->restrict_caps & RESTRICT_CARD_TYPE_EMMC) {
+		host->ios.signal_voltage = MMC_SIGNAL_VOLTAGE_330;
+		host->ios.vdd = fls(host->ocr_avail) - 1;
+		mmc_regulator_set_vqmmc(host, &host->ios);
+		pr_info("Set signal voltage to initial state\n");
+	}
+
+out:
+	mmc_release_host(host);
+	return err;
+}
+
+static int mmc_sd_shutdown(struct mmc_host *host)
+{
+	int err;
+
+	err = _mmc_sd_shutdown(host);
+	if (!err) {
+		pm_runtime_disable(&host->card->dev);
+		pm_runtime_set_suspended(&host->card->dev);
+	}
+
 	return err;
 }
 

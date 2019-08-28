@@ -126,8 +126,17 @@
  *5. fix AE information is not correct when updating exposure by each frame.
  *6. support Y8/Y12 grey sensor.
  *
+ *v0.2.0x3
+ *1. add TEST_PATTERN in s_ctrl;
+ *2. add enum_frame_size support;
+ *3. enable SYS_STATUS_ISP status;
+ *4. fix cproc en bit is affected by cifisp_cproc_config;
+ *5. add timestamp to vb buffer;
+ *6. add control for clear exposure list;
+ *7. add api mutex for multi-thread app;
+ *
  */
 
-#define CONFIG_CIFISP10_DRIVER_VERSION KERNEL_VERSION(0, 2, 0x2)
+#define CONFIG_CIFISP10_DRIVER_VERSION KERNEL_VERSION(0, 2, 0x3)
 
 #endif

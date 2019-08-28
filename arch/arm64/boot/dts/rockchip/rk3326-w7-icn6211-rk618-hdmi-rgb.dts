@@ -97,8 +97,6 @@
 		pinctrl-0 = <&i2s1_2ch_mclk>;
 		clocks = <&cru SCLK_I2S1_OUT>;
 		clock-names = "clkin";
-		assigned-clocks = <&cru SCLK_I2S1_OUT>;
-		assigned-clock-rates = <12000000>;
 		reset-gpios = <&gpio3 RK_PB1 GPIO_ACTIVE_LOW>;
 		status = "okay";
 
@@ -112,8 +110,8 @@
 					  <&clock VIF0_PRE_CLK>,
 					  <&clock CODEC_CLK>,
 					  <&clock DITHER_CLK>;
-			assigned-clock-parents = <&cru SCLK_I2S1_OUT>,
-						 <&cru SCLK_I2S1_OUT>,
+			assigned-clock-parents = <&clock LCDC0_CLK>,
+						 <&clock LCDC0_CLK>,
 						 <&clock SCALER_PLL_CLK>,
 						 <&clock VIF_PLL_CLK>,
 						 <&cru SCLK_I2S1_OUT>,

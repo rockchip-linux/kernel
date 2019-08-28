@@ -10,7 +10,11 @@
 #define __RK1608_H__
 
 #include <linux/spi/spi.h>
+#include <linux/miscdevice.h>
+#include <linux/version.h>
 #include "rk1608_dphy.h"
+
+#define RK1608_VERSION			KERNEL_VERSION(0, 0x01, 0x03)
 
 #define RK1608_OP_TRY_MAX		3
 #define RK1608_OP_TRY_DELAY		10
@@ -80,6 +84,11 @@
 			(((u32)(x) & 0x01010101) << 7))
 #endif
 
+struct rk1608_client_list {
+	struct mutex mutex; /* protect clients */
+	struct list_head list;
+};
+
 struct rk1608_state {
 	struct v4l2_subdev sd;
 	struct rk1608_dphy *dphy[2];
@@ -95,6 +104,9 @@ struct rk1608_state {
 	struct v4l2_subdev *sensor[4];
 	struct device *dev;
 	struct spi_device *spi;
+	struct miscdevice misc;
+	struct rk1608_client_list clients;
+	int log_level;
 	int power_count;
 	int msg_num;
 	u32 link_nums;
@@ -110,7 +122,6 @@ struct rk1608_state {
 	struct v4l2_ctrl *exposure;
 	struct v4l2_ctrl *gain;
 	struct v4l2_ctrl_handler ctrl_handler;
-	s64 link_freqs;
 	u32 max_speed_hz;
 	u32 min_speed_hz;
 	struct preisp_hdrae_para_s hdrae_para;
@@ -159,6 +170,13 @@ struct rk1608_msg_queue {
 	u32 cur_recv; /* current msg receive position */
 };
 
+enum _log_level {
+	LOG_ERROR,
+	LOG_WARN,
+	LOG_INFO,
+	LOG_DEBUG,
+};
+
 struct msg {
 	u32 size; /* unit 4 bytes */
 	u16 type;
@@ -197,7 +215,7 @@ struct preisp_vc_cfg {
 
 struct msg_in_size {
 	struct msg msg_head;
-	struct preisp_vc_cfg channel[2];
+	struct preisp_vc_cfg channel[4];
 };
 
 struct msg_out_size_head {
@@ -207,12 +225,13 @@ struct msg_out_size_head {
 	u32 mipi_clk;
 	u16 line_length_pclk;
 	u16 frame_length_lines;
-	u8 mipi_lane;
+	u16 mipi_lane;
+	u16 reserved;
 };
 
 struct msg_set_output_size {
 	struct msg_out_size_head head;
-	struct preisp_vc_cfg channel[2];
+	struct preisp_vc_cfg channel[4];
 };
 
 enum ISP_AE_Bayer_Mode_e {
@@ -318,7 +337,7 @@ enum {
 	/* RK1608 -> AP
 	 * 6 response of sensor msg
 	 */
-	id_msg_init_sensor_ret_t =	0x0301,
+	id_msg_init_sensor_ret_t =	0x0300,
 	id_msg_set_input_size_ret_t,
 	id_msg_set_output_size_ret_t,
 	id_msg_set_stream_in_on_ret_t,
@@ -359,7 +378,7 @@ enum {
 	id_msg_xfile_mkdir_t
 };
 
-static int rk1608_send_msg_to_dsp(struct rk1608_state *pdata, struct msg *m);
+int rk1608_send_msg_to_dsp(struct rk1608_state *pdata, struct msg *m);
 /**
  * rk1608_write - RK1608 synchronous write
  *
@@ -371,8 +390,8 @@ static int rk1608_send_msg_to_dsp(struct rk1608_state *pdata, struct msg *m);
  *
  * It returns zero on success, else a negative error code.
  */
-static int rk1608_write(struct spi_device *spi, s32 addr,
-			const s32 *data, size_t data_len);
+int rk1608_write(struct spi_device *spi, s32 addr,
+		 const s32 *data, size_t data_len);
 
 /**
  * rk1608_safe_write - RK1608 synchronous write with state check
@@ -385,8 +404,8 @@ static int rk1608_write(struct spi_device *spi, s32 addr,
  *
  * It returns zero on success, else operation state code.
  */
-static int rk1608_safe_write(struct spi_device *spi,
-			     s32 addr, const s32 *data, size_t data_len);
+int rk1608_safe_write(struct spi_device *spi,
+		      s32 addr, const s32 *data, size_t data_len);
 
 /**
  * rk1608_read - RK1608 synchronous read
@@ -399,8 +418,8 @@ static int rk1608_safe_write(struct spi_device *spi,
  *
  * It returns zero on success, else a negative error code.
  */
-static int rk1608_read(struct spi_device *spi, s32 addr,
-		       s32 *data, size_t data_len);
+int rk1608_read(struct spi_device *spi, s32 addr,
+		s32 *data, size_t data_len);
 
 /**
  * rk1608_safe_read - RK1608 synchronous read with state check
@@ -413,8 +432,8 @@ static int rk1608_read(struct spi_device *spi, s32 addr,
  *
  * It returns zero on success, else operation state code.
  */
-static int rk1608_safe_read(struct spi_device *spi,
-			    s32 addr, s32 *data, size_t data_len);
+int rk1608_safe_read(struct spi_device *spi,
+		     s32 addr, s32 *data, size_t data_len);
 
 /**
  * rk1608_operation_query - RK1608 last operation state query
@@ -425,7 +444,18 @@ static int rk1608_safe_read(struct spi_device *spi,
  *
  * It returns zero on success, else a negative error code.
  */
-static int rk1608_operation_query(struct spi_device *spi, s32 *state);
+int rk1608_operation_query(struct spi_device *spi, s32 *state);
+
+/**
+ * rk1608_state_query - RK1608 system state query
+ *
+ * @spi: spi device
+ * @state: system state [out]
+ * Context: can sleep
+ *
+ * It returns zero on success, else a negative error code.
+ */
+int rk1608_state_query(struct spi_device *spi, int32_t *state);
 
 /**
  * rk1608_interrupt_request - RK1608 request a rk1608 interrupt
@@ -436,17 +466,8 @@ static int rk1608_operation_query(struct spi_device *spi, s32 *state);
  *
  * It returns zero on success, else a negative error code.
  */
-static int rk1608_interrupt_request(struct spi_device *spi,
-				    s32 interrupt_num);
+int rk1608_interrupt_request(struct spi_device *spi, s32 interrupt_num);
 
-static int rk1608_read_wait(struct spi_device *spi,
-			    const struct rk1608_section *sec);
-
-static int rk1608_boot_request(struct spi_device *spi,
-			       const struct rk1608_section *sec);
-
-static int rk1608_download_section(struct spi_device *spi, const u8 *data,
-				   const struct rk1608_section *sec);
 /**
  * rk1608_download_fw: - rk1608 firmware download through spi
  *
@@ -456,29 +477,37 @@ static int rk1608_download_section(struct spi_device *spi, const u8 *data,
  *
  * It returns zero on success, else a negative error code.
  **/
-static int rk1608_download_fw(struct spi_device *spi, const char *fw_name);
-
-/**
- * rk1608_msq_read_head - read rk1608 msg queue head
- *
- * @spi: spi device
- * @addr: msg queue head addr
- * @m: msg queue pointer
- *
- * It returns zero on success, else a negative error code.
- */
-static int rk1608_msq_read_head(struct spi_device *spi,
-				u32 addr, struct rk1608_msg_queue *q);
+int rk1608_download_fw(struct spi_device *spi, const char *fw_name);
 
 /**
  * rk1608_msq_recv_msg - receive a msg from RK1608 -> AP msg queue
  *
- * @q: msg queue
+ * @spi: spi device
  * @m: a msg pointer buf [out]
  *
  * need call rk1608_msq_free_received_msg to free msg after msg use done
  *
  * It returns zero on success, else a negative error code.
  */
-static int rk1608_msq_recv_msg(struct spi_device *spi, struct msg **m);
+int rk1608_msq_recv_msg(struct spi_device *spi, struct msg **m);
+
+/*
+ * rk1608_msq_send_msg - send a msg from AP -> RK1608 msg queue
+ *
+ * @spi: spi device
+ * @m: a msg to send
+ *
+ * It returns zero on success, else a negative error code.
+ */
+int rk1608_msq_send_msg(struct spi_device *spi, struct msg *m);
+
+int rk1608_set_power(struct rk1608_state *pdata, int on);
+
+void rk1608_set_spi_speed(struct rk1608_state *pdata, u32 hz);
+
+int rk1608_set_log_level(struct rk1608_state *pdata, int level);
+
+int rk1608_dev_register(struct rk1608_state *pdata);
+void rk1608_dev_unregister(struct rk1608_state *pdata);
+void rk1608_dev_receive_msg(struct rk1608_state *pdata, struct msg *msg);
 #endif

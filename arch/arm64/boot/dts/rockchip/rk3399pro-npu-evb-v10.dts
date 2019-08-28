@@ -98,6 +98,10 @@
 	status = "okay";
 };
 
+&rockchip_suspend {
+	status = "okay";
+};
+
 &combphy {
 	status = "okay";
 };

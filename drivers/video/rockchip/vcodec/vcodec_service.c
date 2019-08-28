@@ -1729,11 +1729,10 @@ static long vpu_service_ioctl(struct file *filp, unsigned int cmd,
 	case VPU_IOC_SET_CLIENT_TYPE: {
 		int secure_mode;
 
-		secure_mode = (arg & 0xffff0000) >> 16;
-		session->type = (enum VPU_CLIENT_TYPE)(arg & 0xffff);
+		secure_mode = arg >> 16;
 		atomic_set(&pservice->secure_mode, secure_mode);
 
-		session->type = (enum VPU_CLIENT_TYPE)arg;
+		session->type = (enum VPU_CLIENT_TYPE)(arg & 0xffff);
 		vpu_debug(DEBUG_IOCTL, "pid %d set client type %d, secure mode = %d\n",
 			  session->pid, session->type, secure_mode);
 	} break;
@@ -1797,7 +1796,7 @@ static long vpu_service_ioctl(struct file *filp, unsigned int cmd,
 		vpu_debug(DEBUG_IOCTL, "pid %d get reg type %d\n",
 			  session->pid, session->type);
 
-		if (atomic_read(&pservice->secure_mode) == 1) {
+		if (atomic_read(&pservice->secure_mode)) {
 			ret = wait_event_timeout(session->wait,
 						 pservice->secure_isr,
 						 VPU_TIMEOUT_DELAY);
@@ -2282,7 +2281,8 @@ static void vcodec_get_reg_freq_rk3288(struct vpu_subdev_data *data,
 {
 	vcodec_get_reg_freq_default(data, reg);
 
-	if (reg->type == VPU_DEC || reg->type == VPU_DEC_PP) {
+	if ((reg->type == VPU_DEC || reg->type == VPU_DEC_PP) &&
+	    data->hw_id != HEVC_ID) {
 		if (reg_check_fmt(reg) == VPU_DEC_FMT_H264) {
 			if (reg_probe_width(reg) > 2560) {
 				/*

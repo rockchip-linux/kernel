@@ -19,7 +19,7 @@
 		status = "okay";
 		compatible = "rockchip,multicodecs-card";
 		rockchip,card-name = "rockchip,rk1808-vad";
-		rockchip,cpu = <&i2s0>;
+		rockchip,cpu = <&pdm>;
 		rockchip,codec = <&vad>;
 	};
 };
@@ -49,8 +49,7 @@
 		compatible = "sitronix,st7703", "simple-panel-dsi";
 		reg = <0>;
 		backlight = <&backlight>;
-		enable-gpios = <&gpio0 RK_PC4 GPIO_ACTIVE_HIGH>;
-		power-supply = <&vcc5v0_sys>;
+		power-supply = <&lcd_pwr>;
 		prepare-delay-ms = <2>;
 		reset-delay-ms = <1>;
 		init-delay-ms = <20>;
@@ -141,9 +140,9 @@
 
 	clock-frequency = <100000>;
 
-	ov5695: ov5695@36 {
-		compatible = "ovti,ov5695";
-		reg = <0x36>;
+	imx327: imx327@1a {
+		compatible = "sony,imx327";
+		reg = <0x1a>;
 		clocks = <&cru SCLK_CIF_OUT>;
 		clock-names = "xvclk";
 		avdd-supply = <&vcc2v8_dvp>;
@@ -152,6 +151,10 @@
 		pwdn-gpios = <&gpio0 23 GPIO_ACTIVE_HIGH>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&cif_clkout_m0>;
+		rockchip,camera-module-index = <0>;
+		rockchip,camera-module-facing = "back";
+		rockchip,camera-module-name = "TongJu";
+		rockchip,camera-module-lens-name = "CHT842-MD";
 		port {
 			ucam_out: endpoint {
 				remote-endpoint = <&mipi_in_ucam>;
@@ -161,7 +164,342 @@
 	};
 };
 
-&i2s0 {
+&i2c4 {
+	is31fl3236: led-controller@3c {
+		compatible = "issi,is31fl3236";
+		reg = <0x3c>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reset-gpios = <&gpio0 RK_PA7 GPIO_ACTIVE_HIGH>;
+		status = "okay";
+
+		led1: led@1 {
+			label = "led1";
+			reg = <1>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "timer";
+			linux,default-trigger-delay-ms = <0>;
+			linux,blink-delay-on-ms = <100>;
+			linux,blink-delay-off-ms = <1200>;
+		};
+
+		led2: led@2 {
+			label = "led2";
+			reg = <2>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "timer";
+			linux,default-trigger-delay-ms = <0>;
+			linux,blink-delay-on-ms = <100>;
+			linux,blink-delay-off-ms = <1200>;
+		};
+
+		led3: led@3 {
+			label = "led3";
+			reg = <3>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "default-on";
+		};
+
+		led4: led@4 {
+			label = "led4";
+			reg = <4>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "timer";
+			linux,default-trigger-delay-ms = <100>;
+			linux,blink-delay-on-ms = <100>;
+			linux,blink-delay-off-ms = <1200>;
+		};
+
+		led5: led@5 {
+			label = "led5";
+			reg = <5>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "timer";
+			linux,default-trigger-delay-ms = <100>;
+			linux,blink-delay-on-ms = <100>;
+			linux,blink-delay-off-ms = <1200>;
+		};
+
+		led6: led@6 {
+			label = "led6";
+			reg = <6>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "default-on";
+		};
+
+		led7: led@7 {
+			label = "led7";
+			reg = <7>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "timer";
+			linux,default-trigger-delay-ms = <200>;
+			linux,blink-delay-on-ms = <100>;
+			linux,blink-delay-off-ms = <1200>;
+		};
+
+		led8: led@8 {
+			label = "led8";
+			reg = <8>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "timer";
+			linux,default-trigger-delay-ms = <200>;
+			linux,blink-delay-on-ms = <100>;
+			linux,blink-delay-off-ms = <1200>;
+		};
+
+		led9: led@9 {
+			label = "led9";
+			reg = <9>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "default-on";
+		};
+
+		led10: led@10 {
+			label = "led10";
+			reg = <10>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "timer";
+			linux,default-trigger-delay-ms = <300>;
+			linux,blink-delay-on-ms = <100>;
+			linux,blink-delay-off-ms = <1200>;
+		};
+
+		led11: led@11 {
+			label = "led11";
+			reg = <11>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "timer";
+			linux,default-trigger-delay-ms = <300>;
+			linux,blink-delay-on-ms = <100>;
+			linux,blink-delay-off-ms = <1200>;
+		};
+
+		led12: led@12 {
+			label = "led12";
+			reg = <12>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "default-on";
+		};
+
+		led13: led@13 {
+			label = "led13";
+			reg = <13>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "timer";
+			linux,default-trigger-delay-ms = <400>;
+			linux,blink-delay-on-ms = <100>;
+			linux,blink-delay-off-ms = <1200>;
+		};
+
+		led14: led@14 {
+			label = "led14";
+			reg = <14>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "timer";
+			linux,default-trigger-delay-ms = <400>;
+			linux,blink-delay-on-ms = <100>;
+			linux,blink-delay-off-ms = <1200>;
+		};
+
+		led15: led@15 {
+			label = "led15";
+			reg = <15>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "default-on";
+		};
+
+		led16: led@16 {
+			label = "led16";
+			reg = <16>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "timer";
+			linux,default-trigger-delay-ms = <500>;
+			linux,blink-delay-on-ms = <100>;
+			linux,blink-delay-off-ms = <1200>;
+		};
+
+		led17: led@17 {
+			label = "led17";
+			reg = <17>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "timer";
+			linux,default-trigger-delay-ms = <500>;
+			linux,blink-delay-on-ms = <100>;
+			linux,blink-delay-off-ms = <1200>;
+		};
+
+		led18: led@18 {
+			label = "led18";
+			reg = <18>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "default-on";
+		};
+
+		led19: led@19 {
+			label = "led19";
+			reg = <19>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "timer";
+			linux,default-trigger-delay-ms = <600>;
+			linux,blink-delay-on-ms = <100>;
+			linux,blink-delay-off-ms = <1200>;
+		};
+
+		led20: led@20 {
+			label = "led20";
+			reg = <20>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "timer";
+			linux,default-trigger-delay-ms = <600>;
+			linux,blink-delay-on-ms = <100>;
+			linux,blink-delay-off-ms = <1200>;
+		};
+
+		led21: led@21 {
+			label = "led21";
+			reg = <21>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "default-on";
+		};
+
+		led22: led@22 {
+			label = "led22";
+			reg = <22>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "timer";
+			linux,default-trigger-delay-ms = <700>;
+			linux,blink-delay-on-ms = <100>;
+			linux,blink-delay-off-ms = <1200>;
+		};
+
+		led23: led@23 {
+			label = "led23";
+			reg = <23>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "timer";
+			linux,default-trigger-delay-ms = <700>;
+			linux,blink-delay-on-ms = <100>;
+			linux,blink-delay-off-ms = <1200>;
+		};
+
+		led124: led@24 {
+			label = "led24";
+			reg = <24>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "default-on";
+		};
+
+		led25: led@25 {
+			label = "led25";
+			reg = <25>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "timer";
+			linux,default-trigger-delay-ms = <800>;
+			linux,blink-delay-on-ms = <100>;
+			linux,blink-delay-off-ms = <1200>;
+		};
+
+		led26: led@26 {
+			label = "led26";
+			reg = <26>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "timer";
+			linux,default-trigger-delay-ms = <800>;
+			linux,blink-delay-on-ms = <100>;
+			linux,blink-delay-off-ms = <1200>;
+		};
+
+		led27: led@27 {
+			label = "led27";
+			reg = <27>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "default-on";
+		};
+
+		led28: led@28 {
+			label = "led28";
+			reg = <28>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "timer";
+			linux,default-trigger-delay-ms = <900>;
+			linux,blink-delay-on-ms = <100>;
+			linux,blink-delay-off-ms = <1200>;
+		};
+
+		led29: led@29 {
+			label = "led29";
+			reg = <29>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "timer";
+			linux,default-trigger-delay-ms = <900>;
+			linux,blink-delay-on-ms = <100>;
+			linux,blink-delay-off-ms = <1200>;
+		};
+
+		led30: led@30 {
+			label = "led30";
+			reg = <30>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "default-on";
+		};
+
+		led31: led@31 {
+			label = "led31";
+			reg = <31>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "timer";
+			linux,default-trigger-delay-ms = <1000>;
+			linux,blink-delay-on-ms = <100>;
+			linux,blink-delay-off-ms = <1200>;
+		};
+
+		led32: led@32 {
+			label = "led32";
+			reg = <32>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "timer";
+			linux,default-trigger-delay-ms = <1000>;
+			linux,blink-delay-on-ms = <100>;
+			linux,blink-delay-off-ms = <1200>;
+		};
+
+		led33: led@33 {
+			label = "led33";
+			reg = <33>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "default-on";
+		};
+
+		led34: led@34 {
+			label = "led34";
+			reg = <34>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "timer";
+			linux,default-trigger-delay-ms = <1100>;
+			linux,blink-delay-on-ms = <100>;
+			linux,blink-delay-off-ms = <1200>;
+		};
+
+		led35: led@35 {
+			label = "led35";
+			reg = <35>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "timer";
+			linux,default-trigger-delay-ms = <1100>;
+			linux,blink-delay-on-ms = <100>;
+			linux,blink-delay-off-ms = <1200>;
+		};
+
+		led36: led@36 {
+			label = "led36";
+			reg = <36>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "default-on";
+		};
+	};
+};
+
+&pdm {
 	status = "okay";
 	#sound-dai-cells = <0>;
 };
@@ -257,7 +595,7 @@
 
 &vad {
 	status = "okay";
-	rockchip,audio-src = <&i2s0>;
+	rockchip,audio-src = <&pdm>;
 	rockchip,buffer-time-ms = <200>;
 	rockchip,det-channel = <0>;
 	rockchip,mode = <1>;

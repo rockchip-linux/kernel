@@ -1723,6 +1723,7 @@ static int snd_soc_instantiate_card(struct snd_soc_card *card)
 	}
 
 	card->instantiated = 1;
+	dapm_mark_endpoints_dirty(card);
 	snd_soc_dapm_sync(&card->dapm);
 	mutex_unlock(&card->mutex);
 	mutex_unlock(&client_mutex);
@@ -1734,7 +1735,8 @@ probe_aux_dev_err:
 		soc_remove_aux_dev(card, i);
 
 probe_dai_err:
-	soc_remove_dai_links(card);
+	if (ret != -ENODEV)
+		soc_remove_dai_links(card);
 
 card_probe_error:
 	if (card->remove)

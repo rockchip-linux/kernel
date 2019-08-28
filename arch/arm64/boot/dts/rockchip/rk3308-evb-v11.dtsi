@@ -103,7 +103,7 @@
 		rockchip,mclk-fs = <128>;
 		rockchip,cpu = <&i2s_2ch_0>;
 		rockchip,codec = <&dummy_codec>;
-		rockchip,format = "dsp_b";
+		rockchip,format = "dsp_a";
 		rockchip,bitclock-inversion = <0>;
 		rockchip,wait-card-locked = <0>;
 	};
@@ -233,15 +233,6 @@
 		regulator-max-microvolt = <3300000>;
 	};
 
-	vccio_flash: vccio-flash {
-		compatible = "regulator-fixed";
-		regulator-name = "vccio_flash";
-		regulator-always-on;
-		regulator-boot-on;
-		regulator-min-microvolt = <1800000>;
-		regulator-max-microvolt = <1800000>;
-	};
-
 	vcc_phy: vcc-phy-regulator {
 		compatible = "regulator-fixed";
 		regulator-name = "vcc_phy";
@@ -341,7 +332,7 @@
 	vccio0-supply = <&vcc_io>;
 	vccio1-supply = <&vcc_io>;
 	vccio2-supply = <&vcc_1v8>;
-	vccio3-supply = <&vccio_flash>;
+	vccio3-supply = <&vcc_io>;
 	vccio4-supply = <&vccio_sdio>;
 	vccio5-supply = <&vccio_sd>;
 };

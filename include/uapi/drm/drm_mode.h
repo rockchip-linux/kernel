@@ -87,6 +87,11 @@
 #define  DRM_MODE_FLAG_PIC_AR_16_9 \
 			(DRM_MODE_PICTURE_ASPECT_16_9<<19)
 
+/* Panel Mirror control */
+#define DRM_MODE_FLAG_XMIRROR			(1 << 28)
+#define DRM_MODE_FLAG_YMIRROR			(1 << 29)
+#define DRM_MODE_FLAG_XYMIRROR			(DRM_MODE_FLAG_XMIRROR | DRM_MODE_FLAG_YMIRROR)
+
 #define DRM_MODE_FLAG_PPIXDATA			(1<<31)
 /* DPMS flags */
 /* bit compatible with the xorg definitions. */

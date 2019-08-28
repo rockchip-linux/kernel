@@ -298,7 +298,7 @@
 	status = "okay";
 	clock-frequency = <400000>;
 
-	camera: tc358749@0f {
+	tc358749: tc358749@0f {
 		compatible = "toshiba,tc358749";
 		reg = <0x0f>;
 		clocks = <&ext_cam_clk>;
@@ -311,6 +311,10 @@
 
 		interrupt-parent = <&gpio8>;
 		interrupts = <9 IRQ_TYPE_LEVEL_LOW>;
+		rockchip,camera-module-index = <0>;
+		rockchip,camera-module-facing = "back";
+		rockchip,camera-module-name = "tc358749";
+		rockchip,camera-module-lens-name = "tc358749";
 
 		port {
 			camera_out: endpoint {

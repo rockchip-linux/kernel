@@ -1,10 +1,11 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Header file describing the internal (inter-module) DHD interfaces.
  *
  * Provides type definitions and function prototypes used to link the
  * DHD OS, bus, and protocol modules.
  *
- * Copyright (C) 1999-2017, Broadcom Corporation
+ * Copyright (C) 1999-2018, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -393,6 +394,9 @@ typedef struct dhd_pub {
 	 * please do NOT merge it back from other branches !!!
 	 */
 
+#ifdef BCMDBUS
+	struct dbus_pub *dbus;
+#endif
 
 	/* Internal dhd items */
 	bool up;		/* Driver up/down (to OS) */
@@ -1364,7 +1368,9 @@ extern char fw_path2[MOD_PARAM_PATHLEN];
 
 /* Flag to indicate if we should download firmware on driver load */
 extern uint dhd_download_fw_on_driverload;
+#ifndef BCMDBUS
 extern int allow_delay_fwdl;
+#endif /* !BCMDBUS */
 
 
 extern void dhd_wait_for_event(dhd_pub_t *dhd, bool *lockvar);
@@ -1470,6 +1476,10 @@ extern void dhd_os_general_spin_unlock(dhd_pub_t *pub, unsigned long flags);
 
 extern void dhd_dump_to_kernelog(dhd_pub_t *dhdp);
 
+#ifdef BCMDBUS
+extern void dhd_bus_dump(dhd_pub_t *dhdp, struct bcmstrbuf *strbuf);
+extern void dhd_bus_clearcounts(dhd_pub_t *dhdp);
+#endif /* BCMDBUS */
 
 #ifdef DHD_L2_FILTER
 extern int dhd_get_parp_status(dhd_pub_t *dhdp, uint32 idx);

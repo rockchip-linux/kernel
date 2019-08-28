@@ -56,6 +56,7 @@
 
 #define RKISP1_EMDDATA_FIFO_MAX		4
 #define RKISP1_DMATX_CHECK              0xA5A5A5A5
+#define RKISP1_RK3326_USE_OLDMIPI	0
 
 enum rkisp1_sd_type {
 	RKISP1_SD_SENSOR,
@@ -68,8 +69,6 @@ enum rkisp1_sd_type {
 /* One structure per video node */
 struct rkisp1_vdev_node {
 	struct vb2_queue buf_queue;
-	/* vfd lock */
-	struct mutex vlock;
 	struct video_device vdev;
 	struct media_pad pad;
 };

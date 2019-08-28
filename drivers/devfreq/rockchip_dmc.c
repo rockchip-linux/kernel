@@ -25,7 +25,6 @@
 #include <linux/devfreq.h>
 #include <linux/devfreq_cooling.h>
 #include <linux/devfreq-event.h>
-#include <linux/fb.h>
 #include <linux/input.h>
 #include <linux/interrupt.h>
 #include <linux/irq.h>
@@ -36,7 +35,6 @@
 #include <linux/platform_device.h>
 #include <linux/pm_opp.h>
 #include <linux/pm_qos.h>
-#include <linux/reboot.h>
 #include <linux/regmap.h>
 #include <linux/regulator/consumer.h>
 #include <linux/rockchip/rockchip_sip.h>
@@ -50,6 +48,7 @@
 #include <soc/rockchip/rkfb_dmc.h>
 #include <soc/rockchip/rockchip_dmc.h>
 #include <soc/rockchip/rockchip_sip.h>
+#include <soc/rockchip/rockchip_system_monitor.h>
 #include <soc/rockchip/rockchip-system-status.h>
 #include <soc/rockchip/rockchip_opp_select.h>
 #include <soc/rockchip/scpi.h>
@@ -87,15 +86,6 @@ struct freq_map_table {
 struct rl_map_table {
 	unsigned int pn; /* panel number */
 	unsigned int rl; /* readlatency */
-};
-
-struct video_info {
-	unsigned int width;
-	unsigned int height;
-	unsigned int ishevc;
-	unsigned int videoFramerate;
-	unsigned int streamBitrate;
-	struct list_head node;
 };
 
 struct share_params {
@@ -1125,13 +1115,11 @@ struct rockchip_dmcfreq {
 	struct dram_timing *timing;
 	struct regulator *vdd_center;
 	struct notifier_block status_nb;
-	struct notifier_block reboot_nb;
-	struct notifier_block fb_nb;
 	struct list_head video_info_list;
 	struct freq_map_table *vop_bw_tbl;
 	struct work_struct boost_work;
 	struct input_handler input_handler;
-	struct thermal_opp_info *opp_info;
+	struct monitor_dev_info *mdev_info;
 	struct rl_map_table *vop_pn_rl_tbl;
 	struct delayed_work msch_rl_work;
 
@@ -1139,8 +1127,6 @@ struct rockchip_dmcfreq {
 	unsigned long rate, target_rate;
 	unsigned long volt, target_volt;
 
-	unsigned long min;
-	unsigned long max;
 	unsigned long auto_min_rate;
 	unsigned long status_rate;
 	unsigned long normal_rate;
@@ -1180,12 +1166,6 @@ struct rockchip_dmcfreq {
 
 	int (*set_auto_self_refresh)(u32 en);
 	int (*set_msch_readlatency)(unsigned int rl);
-};
-
-static struct thermal_opp_device_data dmc_devdata = {
-	.type = THERMAL_OPP_TPYE_DEV,
-	.low_temp_adjust = rockchip_dev_low_temp_adjust,
-	.high_temp_adjust = rockchip_dev_high_temp_adjust,
 };
 
 static struct pm_qos_request pm_qos;
@@ -1517,44 +1497,6 @@ static struct devfreq_dev_profile rockchip_devfreq_dmc_profile = {
 	.get_cur_freq	= rockchip_dmcfreq_get_cur_freq,
 };
 
-static int rockchip_dmcfreq_init_freq_table(struct device *dev,
-					    struct devfreq_dev_profile *devp)
-{
-	int count;
-	int i = 0;
-	unsigned long freq = 0;
-	struct dev_pm_opp *opp;
-
-	rcu_read_lock();
-	count = dev_pm_opp_get_opp_count(dev);
-	if (count < 0) {
-		rcu_read_unlock();
-		return count;
-	}
-	rcu_read_unlock();
-
-	devp->freq_table = kmalloc_array(count, sizeof(devp->freq_table[0]),
-				GFP_KERNEL);
-	if (!devp->freq_table)
-		return -ENOMEM;
-
-	rcu_read_lock();
-	for (i = 0; i < count; i++, freq++) {
-		opp = dev_pm_opp_find_freq_ceil(dev, &freq);
-		if (IS_ERR(opp))
-			break;
-
-		devp->freq_table[i] = freq;
-	}
-	rcu_read_unlock();
-
-	if (count != i)
-		dev_warn(dev, "Unable to enumerate all OPPs (%d!=%d)\n",
-			 count, i);
-
-	devp->max_state = i;
-	return 0;
-}
 
 static inline void reset_last_status(struct devfreq *devfreq)
 {
@@ -2834,6 +2776,7 @@ static int rockchip_dmcfreq_system_status_notifier(struct notifier_block *nb,
 	}
 
 	if (dmcfreq->reboot_rate && (status & SYS_STATUS_REBOOT)) {
+		devfreq_monitor_stop(dmcfreq->devfreq);
 		target_rate = dmcfreq->reboot_rate;
 		goto next;
 	}
@@ -2885,48 +2828,6 @@ next:
 	return NOTIFY_OK;
 }
 
-static int rockchip_dmcfreq_reboot_notifier(struct notifier_block *nb,
-					    unsigned long action, void *ptr)
-{
-	struct rockchip_dmcfreq *dmcfreq = reboot_to_dmcfreq(nb);
-
-	devfreq_monitor_stop(dmcfreq->devfreq);
-	rockchip_set_system_status(SYS_STATUS_REBOOT);
-
-	return NOTIFY_OK;
-}
-
-static int rockchip_dmcfreq_fb_notifier(struct notifier_block *nb,
-					unsigned long action, void *ptr)
-{
-	struct fb_event *event = ptr;
-
-	switch (action) {
-	case FB_EARLY_EVENT_BLANK:
-		switch (*((int *)event->data)) {
-		case FB_BLANK_UNBLANK:
-			rockchip_clear_system_status(SYS_STATUS_SUSPEND);
-			break;
-		default:
-			break;
-		}
-		break;
-	case FB_EVENT_BLANK:
-		switch (*((int *)event->data)) {
-		case FB_BLANK_POWERDOWN:
-			rockchip_set_system_status(SYS_STATUS_SUSPEND);
-			break;
-		default:
-			break;
-		}
-		break;
-	default:
-		break;
-	}
-
-	return NOTIFY_OK;
-}
-
 static ssize_t rockchip_dmcfreq_status_show(struct device *dev,
 					    struct device_attribute *attr,
 					    char *buf)
@@ -2936,192 +2837,15 @@ static ssize_t rockchip_dmcfreq_status_show(struct device *dev,
 	return sprintf(buf, "0x%x\n", status);
 }
 
-static unsigned long rockchip_get_video_param(char **str)
-{
-	char *p;
-	unsigned long val = 0;
-
-	strsep(str, "=");
-	p = strsep(str, ",");
-	if (p) {
-		if (kstrtoul(p, 10, &val))
-			return 0;
-	}
-
-	return val;
-}
-
-/*
- * format:
- * 0,width=val,height=val,ishevc=val,videoFramerate=val,streamBitrate=val
- * 1,width=val,height=val,ishevc=val,videoFramerate=val,streamBitrate=val
- */
-static struct video_info *rockchip_parse_video_info(const char *buf)
-{
-	struct video_info *video_info;
-	const char *cp = buf;
-	char *str;
-	int ntokens = 0;
-
-	while ((cp = strpbrk(cp + 1, ",")))
-		ntokens++;
-	if (ntokens != 5)
-		return NULL;
-
-	video_info = kzalloc(sizeof(*video_info), GFP_KERNEL);
-	if (!video_info)
-		return NULL;
-
-	INIT_LIST_HEAD(&video_info->node);
-
-	str = kstrdup(buf, GFP_KERNEL);
-	strsep(&str, ",");
-	video_info->width = rockchip_get_video_param(&str);
-	video_info->height = rockchip_get_video_param(&str);
-	video_info->ishevc = rockchip_get_video_param(&str);
-	video_info->videoFramerate = rockchip_get_video_param(&str);
-	video_info->streamBitrate = rockchip_get_video_param(&str);
-	pr_debug("%c,width=%d,height=%d,ishevc=%d,videoFramerate=%d,streamBitrate=%d\n",
-		 buf[0],
-		 video_info->width,
-		 video_info->height,
-		 video_info->ishevc,
-		 video_info->videoFramerate,
-		 video_info->streamBitrate);
-	kfree(str);
-
-	return video_info;
-}
-
-static struct video_info *
-rockchip_find_video_info(struct rockchip_dmcfreq *dmcfreq, const char *buf)
-{
-	struct video_info *info, *video_info;
-
-	video_info = rockchip_parse_video_info(buf);
-
-	if (!video_info)
-		return NULL;
-
-	mutex_lock(&dmcfreq->lock);
-	list_for_each_entry(info, &dmcfreq->video_info_list, node) {
-		if ((info->width == video_info->width) &&
-		    (info->height == video_info->height) &&
-		    (info->ishevc == video_info->ishevc) &&
-		    (info->videoFramerate == video_info->videoFramerate) &&
-		    (info->streamBitrate == video_info->streamBitrate)) {
-			mutex_unlock(&dmcfreq->lock);
-			kfree(video_info);
-			return info;
-		}
-	}
-
-	mutex_unlock(&dmcfreq->lock);
-	kfree(video_info);
-
-	return NULL;
-}
-
-static void rockchip_add_video_info(struct rockchip_dmcfreq *dmcfreq,
-				    struct video_info *video_info)
-{
-	if (video_info) {
-		mutex_lock(&dmcfreq->lock);
-		list_add(&video_info->node, &dmcfreq->video_info_list);
-		mutex_unlock(&dmcfreq->lock);
-	}
-}
-
-static void rockchip_del_video_info(struct rockchip_dmcfreq *dmcfreq,
-				    struct video_info *video_info)
-{
-	if (video_info) {
-		mutex_lock(&dmcfreq->lock);
-		list_del(&video_info->node);
-		mutex_unlock(&dmcfreq->lock);
-		kfree(video_info);
-	}
-}
-
-static void rockchip_update_video_info(struct rockchip_dmcfreq *dmcfreq)
-{
-	struct video_info *video_info;
-	int max_res = 0, max_stream_bitrate = 0, res = 0;
-
-	mutex_lock(&dmcfreq->lock);
-	if (list_empty(&dmcfreq->video_info_list)) {
-		mutex_unlock(&dmcfreq->lock);
-		rockchip_clear_system_status(SYS_STATUS_VIDEO);
-		return;
-	}
-
-	list_for_each_entry(video_info, &dmcfreq->video_info_list, node) {
-		res = video_info->width * video_info->height;
-		if (res > max_res)
-			max_res = res;
-		if (video_info->streamBitrate > max_stream_bitrate)
-			max_stream_bitrate = video_info->streamBitrate;
-	}
-	mutex_unlock(&dmcfreq->lock);
-
-	if (max_res <= VIDEO_1080P_SIZE) {
-		rockchip_set_system_status(SYS_STATUS_VIDEO_1080P);
-	} else {
-		if (max_stream_bitrate == 10)
-			rockchip_set_system_status(SYS_STATUS_VIDEO_4K_10B);
-		else
-			rockchip_set_system_status(SYS_STATUS_VIDEO_4K);
-	}
-}
-
 static ssize_t rockchip_dmcfreq_status_store(struct device *dev,
 					     struct device_attribute *attr,
 					     const char *buf,
 					     size_t count)
 {
-	struct devfreq *devfreq = to_devfreq(dev);
-	struct rockchip_dmcfreq *dmcfreq = dev_get_drvdata(devfreq->dev.parent);
-	struct video_info *video_info;
-
 	if (!count)
 		return -EINVAL;
 
-	switch (buf[0]) {
-	case '0':
-		/* clear video flag */
-		video_info = rockchip_find_video_info(dmcfreq, buf);
-		if (video_info) {
-			rockchip_del_video_info(dmcfreq, video_info);
-			rockchip_update_video_info(dmcfreq);
-		}
-		break;
-	case '1':
-		/* set video flag */
-		video_info = rockchip_parse_video_info(buf);
-		if (video_info) {
-			rockchip_add_video_info(dmcfreq, video_info);
-			rockchip_update_video_info(dmcfreq);
-		}
-		break;
-	case 'L':
-		/* clear low power flag */
-		rockchip_clear_system_status(SYS_STATUS_LOW_POWER);
-		break;
-	case 'l':
-		/* set low power flag */
-		rockchip_set_system_status(SYS_STATUS_LOW_POWER);
-		break;
-	case 'p':
-		/* set performance flag */
-		rockchip_set_system_status(SYS_STATUS_PERFORMANCE);
-		break;
-	case 'n':
-		/* clear performance flag */
-		rockchip_clear_system_status(SYS_STATUS_PERFORMANCE);
-		break;
-	default:
-		break;
-	}
+	rockchip_update_system_status(buf);
 
 	return count;
 }
@@ -3252,7 +2976,6 @@ static int devfreq_dmc_ondemand_func(struct devfreq *df,
 	int err;
 	struct devfreq_dev_status *stat;
 	unsigned long long a, b;
-	unsigned long max_freq = (df->max_freq) ? df->max_freq : UINT_MAX;
 	struct rockchip_dmcfreq *dmcfreq = dev_get_drvdata(df->dev.parent);
 	struct devfreq_simple_ondemand_data *data = &dmcfreq->ondemand_data;
 	unsigned int upthreshold = data->upthreshold;
@@ -3296,7 +3019,7 @@ static int devfreq_dmc_ondemand_func(struct devfreq *df,
 
 	/* Assume MAX if it is going to be divided by zero */
 	if (stat->total_time == 0) {
-		*freq = max_freq;
+		*freq = DEVFREQ_MAX_FREQ;
 		return 0;
 	}
 
@@ -3309,13 +3032,13 @@ static int devfreq_dmc_ondemand_func(struct devfreq *df,
 	/* Set MAX if it's busy enough */
 	if (stat->busy_time * 100 >
 	    stat->total_time * upthreshold) {
-		*freq = max_freq;
+		*freq = DEVFREQ_MAX_FREQ;
 		return 0;
 	}
 
 	/* Set MAX if we do not know the initial frequency */
 	if (stat->current_frequency == 0) {
-		*freq = max_freq;
+		*freq = DEVFREQ_MAX_FREQ;
 		return 0;
 	}
 
@@ -3323,7 +3046,7 @@ static int devfreq_dmc_ondemand_func(struct devfreq *df,
 	if (stat->busy_time * 100 >
 	    stat->total_time * (upthreshold - downdifferential)) {
 		*freq = max(target_freq, stat->current_frequency);
-		goto next;
+		return 0;
 	}
 
 	/* Set the desired frequency based on the load */
@@ -3333,15 +3056,11 @@ static int devfreq_dmc_ondemand_func(struct devfreq *df,
 	b *= 100;
 	b = div_u64(b, (upthreshold - downdifferential / 2));
 	*freq = max_t(unsigned long, target_freq, b);
-	goto next;
+
+	return 0;
 
 reset_last_status:
 	reset_last_status(df);
-next:
-	if (df->min_freq && *freq < df->min_freq)
-		*freq = df->min_freq;
-	if (df->max_freq && *freq > df->max_freq)
-		*freq = df->max_freq;
 
 	return 0;
 }
@@ -3622,11 +3341,6 @@ static int rockchip_dmcfreq_add_devfreq(struct rockchip_dmcfreq *dmcfreq)
 	}
 	rcu_read_unlock();
 
-	if (rockchip_dmcfreq_init_freq_table(dev, devp)) {
-		dev_err(dev, "failed to set init freq talbe\n");
-		return -EFAULT;
-	}
-
 	devp->initial_freq = dmcfreq->rate;
 	dmcfreq->devfreq = devm_devfreq_add_device(dev, devp,
 						   "dmc_ondemand",
@@ -3638,17 +3352,18 @@ static int rockchip_dmcfreq_add_devfreq(struct rockchip_dmcfreq *dmcfreq)
 
 	devm_devfreq_register_opp_notifier(dev, dmcfreq->devfreq);
 
-	dmcfreq->min = devp->freq_table[0];
-	dmcfreq->max =
-		devp->freq_table[devp->max_state ? devp->max_state - 1 : 0];
-	dmcfreq->devfreq->min_freq = dmcfreq->min;
-	dmcfreq->devfreq->max_freq = dmcfreq->max;
 	dmcfreq->devfreq->last_status.current_frequency = opp_rate;
 
 	reset_last_status(dmcfreq->devfreq);
 
 	return 0;
 }
+
+static struct monitor_dev_profile dmc_mdevp = {
+	.type = MONITOR_TPYE_DEV,
+	.low_temp_adjust = rockchip_monitor_dev_low_temp_adjust,
+	.high_temp_adjust = rockchip_monitor_dev_high_temp_adjust,
+};
 
 static void rockchip_dmcfreq_register_notifier(struct rockchip_dmcfreq *dmcfreq)
 {
@@ -3663,27 +3378,19 @@ static void rockchip_dmcfreq_register_notifier(struct rockchip_dmcfreq *dmcfreq)
 	if (ret)
 		dev_err(dmcfreq->dev, "failed to register system_status nb\n");
 
-	dmcfreq->reboot_nb.notifier_call = rockchip_dmcfreq_reboot_notifier;
-	ret = register_reboot_notifier(&dmcfreq->reboot_nb);
-	if (ret)
-		dev_err(dmcfreq->dev, "failed to register reboot nb\n");
-
-	dmcfreq->fb_nb.notifier_call = rockchip_dmcfreq_fb_notifier;
-	ret = fb_register_client(&dmcfreq->fb_nb);
-	if (ret)
-		dev_err(dmcfreq->dev, "failed to register fb nb\n");
-
-	dmc_devdata.data = dmcfreq->devfreq;
-	dmcfreq->opp_info = rockchip_register_thermal_notifier(dmcfreq->dev,
-							       &dmc_devdata);
-	if (IS_ERR(dmcfreq->opp_info)) {
-		dev_dbg(dmcfreq->dev, "without thermal notifier\n");
-		dmcfreq->opp_info = NULL;
+	dmc_mdevp.data = dmcfreq->devfreq;
+	dmcfreq->mdev_info = rockchip_system_monitor_register(dmcfreq->dev,
+							      &dmc_mdevp);
+	if (IS_ERR(dmcfreq->mdev_info)) {
+		dev_dbg(dmcfreq->dev, "without without system monitor\n");
+		dmcfreq->mdev_info = NULL;
 	}
 }
 
 static void rockchip_dmcfreq_add_interface(struct rockchip_dmcfreq *dmcfreq)
 {
+	if (!rockchip_add_system_status_interface(&dmcfreq->devfreq->dev))
+		return;
 	if (sysfs_create_file(&dmcfreq->devfreq->dev.kobj,
 			      &dev_attr_system_status.attr))
 		dev_err(dmcfreq->dev,

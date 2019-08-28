@@ -148,36 +148,27 @@
 		};
 	};
 
-	rga: rga@ff680000 {
-		compatible = "rockchip,rga2";
-		dev_mode = <1>;
-		reg = <0x0 0xff680000 0x0 0x1000>;
-		interrupts = <GIC_SPI 55 IRQ_TYPE_LEVEL_HIGH 0>;
-		clocks = <&cru ACLK_RGA>, <&cru HCLK_RGA>, <&cru SCLK_RGA_CORE>;
-		clock-names = "aclk_rga", "hclk_rga", "clk_rga";
-		power-domains = <&power RK3399_PD_RGA>;
-		dma-coherent;
-		status = "okay";
+	rk809_sound: rk809-sound {
+		compatible = "rockchip,multicodecs-card";
+		rockchip,card-name = "rockchip,rk809-codec";
+		rockchip,codec-hp-det;
+		rockchip,mclk-fs = <256>;
+		rockchip,cpu = <&i2s1>;
+		rockchip,codec = <&rk809_codec>;
 	};
 
-	rk809-sound {
+	hdmi_sound: hdmi-sound {
+		status = "okay";
 		compatible = "simple-audio-card";
 		simple-audio-card,format = "i2s";
-		simple-audio-card,name = "rockchip,rk809-codec";
 		simple-audio-card,mclk-fs = <256>;
-		simple-audio-card,widgets =
-			"Microphone", "Mic Jack",
-			"Headphone", "Headphone Jack";
-		simple-audio-card,routing =
-			"Mic Jack", "MICBIAS1",
-			"IN1P", "Mic Jack",
-			"Headphone Jack", "HPOL",
-			"Headphone Jack", "HPOR";
+		simple-audio-card,name = "rockchip,hdmi";
+
 		simple-audio-card,cpu {
-			sound-dai = <&i2s1>;
+			sound-dai = <&i2s2>;
 		};
 		simple-audio-card,codec {
-			sound-dai = <&rk809_codec>;
+			sound-dai = <&hdmi>;
 		};
 	};
 
@@ -224,7 +215,7 @@
 	wireless-wlan {
 		compatible = "wlan-platdata";
 		rockchip,grf = <&grf>;
-		wifi_chip_type = "ap6255";
+		wifi_chip_type = "ap6398s";
 		sdio_vref = <1800>;
 		WIFI,host_wake_irq = <&gpio0 RK_PA3 GPIO_ACTIVE_HIGH>;
 		status = "okay";
@@ -235,7 +226,7 @@
 		clocks = <&rk809 1>;
 		clock-names = "ext_clock";
 		uart_rts_gpios = <&gpio2 RK_PC3 GPIO_ACTIVE_LOW>;
-		pinctrl-names = "default", "rts_gpio";
+		pinctrl-names = "default", "rts_gpio", <&bt_irq_gpio>;
 		pinctrl-0 = <&uart0_rts>;
 		pinctrl-1 = <&uart0_gpios>;
 		BT,reset_gpio    = <&gpio2 RK_PD4 GPIO_ACTIVE_HIGH>;
@@ -298,7 +289,7 @@
 	};
 };
 
-&edp_in_vopl {
+&edp_in_vopb {
 	status = "disabled";
 };
 
@@ -333,6 +324,7 @@
 
 &hdmi {
 	status = "okay";
+	#sound-dai-cells = <0>;
 	rockchip,phy-table =
 		<74250000  0x8009 0x0004 0x0272>,
 		<165000000 0x802b 0x0004 0x0209>,
@@ -341,7 +333,7 @@
 		<000000000 0x0000 0x0000 0x0000>;
 };
 
-&hdmi_in_vopb {
+&hdmi_in_vopl {
 	status = "disabled";
 };
 
@@ -714,6 +706,14 @@
 		layout = <3>;
 	};
 
+	vm149c: vm149c@0c {
+		compatible = "silicon touch,vm149c";
+		status = "okay";
+		reg = <0x0c>;
+		rockchip,camera-module-index = <0>;
+		rockchip,camera-module-facing = "back";
+	};
+
 	ov13850: ov13850@10 {
 		compatible = "ovti,ov13850";
 		status = "disabled";
@@ -726,6 +726,11 @@
 		pwdn-gpios = <&gpio4 25 GPIO_ACTIVE_HIGH>;
 		pinctrl-names = "rockchip,camera_default";
 		pinctrl-0 = <&cif_clkout>;
+		rockchip,camera-module-index = <0>;
+		rockchip,camera-module-facing = "back";
+		rockchip,camera-module-name = "CMK-CT0116";
+		rockchip,camera-module-lens-name = "Largan-50013A1";
+		lens-focus = <&vm149c>;
 
 		port {
 			ucam_out0: endpoint {
@@ -1173,6 +1178,11 @@
 	};
 
 	wireless-bluetooth {
+		bt_irq_gpio: bt-irq-gpio {
+			rockchip,pins =
+				<0 RK_PA5 0 &pcfg_pull_down>;
+		};
+
 		uart0_gpios: uart0-gpios {
 			rockchip,pins =
 				<2 RK_PC3 0 &pcfg_pull_none>;

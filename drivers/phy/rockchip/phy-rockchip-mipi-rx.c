@@ -77,6 +77,8 @@
 #define RK3288_PHY_TEST_CTRL1	0x34
 #define RK3288_PHY_SHUTDOWNZ	0x08
 #define RK3288_PHY_RSTZ		0x0c
+#define RK3288_PHY_N_LANES	0x04
+#define RK3288_PHY_RESETN	0x10
 
 #define RK3399_PHY_TEST_CTRL0	0xb4
 #define RK3399_PHY_TEST_CTRL1	0xb8
@@ -261,6 +263,9 @@ enum txrx_reg_id {
 	TXRX_PHY_TEST_CTRL1,
 	TXRX_PHY_SHUTDOWNZ,
 	TXRX_PHY_RSTZ,
+	TXRX_PHY_N_LANES,
+	TXRX_PHY_ENABLECLK,
+	TXRX_PHY_RESETN
 };
 
 struct dphy_reg {
@@ -370,6 +375,8 @@ static const struct txrx_reg rk3288_txrx_regs[] = {
 	[TXRX_PHY_TEST_CTRL1] = TXRX_REG(RK3288_PHY_TEST_CTRL1),
 	[TXRX_PHY_SHUTDOWNZ] = TXRX_REG(RK3288_PHY_SHUTDOWNZ),
 	[TXRX_PHY_RSTZ] = TXRX_REG(RK3288_PHY_RSTZ),
+	[TXRX_PHY_N_LANES] = TXRX_REG(RK3288_PHY_N_LANES),
+	[TXRX_PHY_RESETN] = TXRX_REG(RK3288_PHY_RESETN),
 };
 
 static const struct txrx_reg rk3399_txrx_regs[] = {
@@ -479,6 +486,7 @@ struct mipidphy_priv {
 	bool is_streaming;
 	void __iomem *txrx_base_addr;
 	int (*stream_on)(struct mipidphy_priv *priv, struct v4l2_subdev *sd);
+	int (*stream_off)(struct mipidphy_priv *priv, struct v4l2_subdev *sd);
 };
 
 static inline struct mipidphy_priv *to_dphy_priv(struct v4l2_subdev *subdev)
@@ -547,7 +555,7 @@ static inline void write_csiphy_reg(struct mipidphy_priv *priv,
 }
 
 static inline void read_csiphy_reg(struct mipidphy_priv *priv,
-				    int index, u32 *value)
+				   int index, u32 *value)
 {
 	const struct csiphy_reg *reg = &priv->csiphy_regs[index];
 
@@ -586,6 +594,24 @@ static void csi_mipidphy_wr_ths_settle(struct mipidphy_priv *priv, int hsfreq,
 	write_csiphy_reg(priv, offset, val);
 }
 
+static struct v4l2_subdev *get_remote_sink_dev(struct v4l2_subdev *sd)
+{
+	struct media_pad *local, *remote;
+	struct media_entity *sink_me;
+
+	local = &sd->entity.pads[MIPI_DPHY_RX_PAD_SOURCE];
+	remote = media_entity_remote_pad(local);
+	if (!remote) {
+		v4l2_warn(sd, "No link between dphy and cif or isp\n");
+
+		return NULL;
+	}
+
+	sink_me = media_entity_remote_pad(local)->entity;
+
+	return media_entity_to_v4l2_subdev(sink_me);
+}
+
 static struct v4l2_subdev *get_remote_sensor(struct v4l2_subdev *sd)
 {
 	struct media_pad *local, *remote;
@@ -607,9 +633,10 @@ static struct mipidphy_sensor *sd_to_sensor(struct mipidphy_priv *priv,
 {
 	int i;
 
-	for (i = 0; i < priv->num_sensors; ++i)
+	for (i = 0; i < priv->num_sensors; ++i) {
 		if (priv->sensors[i].sd == sd)
 			return &priv->sensors[i];
+	}
 
 	return NULL;
 }
@@ -645,6 +672,39 @@ static int mipidphy_get_sensor_data_rate(struct v4l2_subdev *sd)
 	return 0;
 }
 
+static int mipidphy_update_sensor_mbus(struct v4l2_subdev *sd)
+{
+	struct mipidphy_priv *priv = to_dphy_priv(sd);
+	struct v4l2_subdev *sensor_sd = get_remote_sensor(sd);
+	struct mipidphy_sensor *sensor = sd_to_sensor(priv, sensor_sd);
+	struct v4l2_mbus_config mbus;
+	int ret;
+
+	ret = v4l2_subdev_call(sensor_sd, video, g_mbus_config, &mbus);
+	if (ret)
+		return ret;
+
+	sensor->mbus = mbus;
+	switch (mbus.flags & V4L2_MBUS_CSI2_LANES) {
+	case V4L2_MBUS_CSI2_1_LANE:
+		sensor->lanes = 1;
+		break;
+	case V4L2_MBUS_CSI2_2_LANE:
+		sensor->lanes = 2;
+		break;
+	case V4L2_MBUS_CSI2_3_LANE:
+		sensor->lanes = 3;
+		break;
+	case V4L2_MBUS_CSI2_4_LANE:
+		sensor->lanes = 4;
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
 static int mipidphy_s_stream_start(struct v4l2_subdev *sd)
 {
 	struct mipidphy_priv *priv = to_dphy_priv(sd);
@@ -657,6 +717,7 @@ static int mipidphy_s_stream_start(struct v4l2_subdev *sd)
 	if (ret < 0)
 		return ret;
 
+	mipidphy_update_sensor_mbus(sd);
 	priv->stream_on(priv, sd);
 
 	priv->is_streaming = true;
@@ -671,6 +732,8 @@ static int mipidphy_s_stream_stop(struct v4l2_subdev *sd)
 	if (!priv->is_streaming)
 		return 0;
 
+	if (priv->stream_off)
+		priv->stream_off(priv, sd);
 	priv->is_streaming = false;
 
 	return 0;
@@ -691,7 +754,10 @@ static int mipidphy_g_mbus_config(struct v4l2_subdev *sd,
 	struct v4l2_subdev *sensor_sd = get_remote_sensor(sd);
 	struct mipidphy_sensor *sensor = sd_to_sensor(priv, sensor_sd);
 
-	*config = sensor->mbus;
+	if (sensor_sd) {
+		mipidphy_update_sensor_mbus(sd);
+		*config = sensor->mbus;
+	}
 
 	return 0;
 }
@@ -967,11 +1033,18 @@ static int mipidphy_txrx_stream_on(struct mipidphy_priv *priv,
 				   struct v4l2_subdev *sd)
 {
 	struct v4l2_subdev *sensor_sd = get_remote_sensor(sd);
+	struct v4l2_subdev *sink_sd = get_remote_sink_dev(sd);
 	struct mipidphy_sensor *sensor = sd_to_sensor(priv, sensor_sd);
 	const struct dphy_drv_data *drv_data = priv->drv_data;
 	const struct hsfreq_range *hsfreq_ranges = drv_data->hsfreq_ranges;
 	int num_hsfreq_ranges = drv_data->num_hsfreq_ranges;
 	int i, hsfreq = 0;
+	bool is_linked_isp;
+
+	if (strstr(sink_sd->name, "csi2"))
+		is_linked_isp = false;
+	else
+		is_linked_isp = true;
 
 	for (i = 0; i < num_hsfreq_ranges; i++) {
 		if (hsfreq_ranges[i].range_h >= priv->data_rate_mbps) {
@@ -995,7 +1068,10 @@ static int mipidphy_txrx_stream_on(struct mipidphy_priv *priv,
 	 */
 	write_grf_reg(priv, GRF_CON_ISP_DPHY_SEL, 1);
 	write_grf_reg(priv, GRF_DSI_CSI_TESTBUS_SEL, 1);
-	write_grf_reg(priv, GRF_DPHY_RX1_SRC_SEL, 1);
+	if (is_linked_isp)
+		write_grf_reg(priv, GRF_DPHY_RX1_SRC_SEL, 1);
+	else
+		write_grf_reg(priv, GRF_DPHY_RX1_SRC_SEL, 0);
 
 	/*
 	 * Config rk3399：
@@ -1007,6 +1083,10 @@ static int mipidphy_txrx_stream_on(struct mipidphy_priv *priv,
 	/* Step1: set RSTZ = 1'b0, phy1-rx controlled by isp */
 
 	/* Step2: set SHUTDOWNZ = 1'b0, phy1-rx controlled by isp */
+	if (!is_linked_isp) {
+		write_txrx_reg(priv, TXRX_PHY_RSTZ, 0);
+		write_txrx_reg(priv, TXRX_PHY_SHUTDOWNZ, 0);
+	}
 
 	/* Step3: set TESTCLR= 1'b1,TESTCLK=1'b1 */
 	write_txrx_reg(priv, TXRX_PHY_TEST_CTRL0, PHY_TESTCLR | PHY_TESTCLK);
@@ -1062,8 +1142,13 @@ static int mipidphy_txrx_stream_on(struct mipidphy_priv *priv,
 	 * is set by isp1,
 	 * if run 3399 here operates grf_soc_con23[0:3]
 	 */
-	write_grf_reg(priv, GRF_DPHY_TX1RX1_ENABLE,
-		      GENMASK(sensor->lanes - 1, 0));
+	if (is_linked_isp) {
+		write_grf_reg(priv, GRF_DPHY_TX1RX1_ENABLE,
+			      GENMASK(sensor->lanes - 1, 0));
+	} else {
+		write_grf_reg(priv, GRF_DPHY_TX1RX1_ENABLECLK, 1);
+		write_txrx_reg(priv, TXRX_PHY_N_LANES, sensor->lanes - 1);
+	}
 
 	/*
 	 * Step13:Set SHUTDOWNZ=1'b1, phy1-rx controlled by isp,
@@ -1071,6 +1156,12 @@ static int mipidphy_txrx_stream_on(struct mipidphy_priv *priv,
 	 */
 
 	/* Step14:Set RSTZ=1'b1, phy1-rx controlled by isp*/
+	if (!is_linked_isp) {
+		write_txrx_reg(priv, TXRX_PHY_SHUTDOWNZ, 1);
+		usleep_range(100, 150);
+		write_txrx_reg(priv, TXRX_PHY_RSTZ, 1);
+		write_txrx_reg(priv, TXRX_PHY_RESETN, 1);
+	}
 
 	/*
 	 * Step15:Wait until STOPSTATEDATA_N & STOPSTATECLK
@@ -1099,8 +1190,9 @@ static int csi_mipidphy_stream_on(struct mipidphy_priv *priv,
 
 	/* set data lane num and enable clock lane */
 	write_csiphy_reg(priv, CSIPHY_CTRL_LANE_ENABLE,
-		((GENMASK(sensor->lanes - 1, 0) << MIPI_CSI_DPHY_CTRL_DATALANE_ENABLE_OFFSET_BIT) |
-		(0x1 << MIPI_CSI_DPHY_CTRL_CLKLANE_ENABLE_OFFSET_BIT) | 0x1));
+			 ((GENMASK(sensor->lanes - 1, 0) <<
+			  MIPI_CSI_DPHY_CTRL_DATALANE_ENABLE_OFFSET_BIT) |
+			  (0x1 << MIPI_CSI_DPHY_CTRL_CLKLANE_ENABLE_OFFSET_BIT) | 0x1));
 
 	/* Reset dphy analog part */
 	write_csiphy_reg(priv, CSIPHY_CTRL_PWRCTL, 0xe0);
@@ -1154,6 +1246,18 @@ static int csi_mipidphy_stream_on(struct mipidphy_priv *priv,
 	write_grf_reg(priv, GRF_DPHY_CSIPHY_CLKLANE_EN, 0x1);
 	write_grf_reg(priv, GRF_DPHY_CSIPHY_DATALANE_EN,
 		      GENMASK(sensor->lanes - 1, 0));
+
+	return 0;
+}
+
+static int csi_mipidphy_stream_off(struct mipidphy_priv *priv,
+				   struct v4l2_subdev *sd)
+{
+	/* disable all lanes */
+	write_csiphy_reg(priv, CSIPHY_CTRL_LANE_ENABLE, 0x01);
+	/* disable pll and ldo */
+	write_csiphy_reg(priv, CSIPHY_CTRL_PWRCTL, 0xe3);
+	usleep_range(500, 1000);
 
 	return 0;
 }
@@ -1273,10 +1377,11 @@ rockchip_mipidphy_notifier_bound(struct v4l2_async_notifier *notifier,
 		return -ENXIO;
 	}
 
-	ret = media_entity_create_link(
-			&sensor->sd->entity, pad,
-			&priv->sd.entity, MIPI_DPHY_RX_PAD_SINK,
-			priv->num_sensors != 1 ? 0 : MEDIA_LNK_FL_ENABLED);
+	ret = media_entity_create_link(&sensor->sd->entity, pad,
+				       &priv->sd.entity,
+				       MIPI_DPHY_RX_PAD_SINK,
+				       priv->num_sensors != 1 ? 0 :
+				       MEDIA_LNK_FL_ENABLED);
 	if (ret) {
 		dev_err(priv->dev,
 			"failed to create link for %s\n",
@@ -1363,10 +1468,11 @@ static int rockchip_mipidphy_media_init(struct mipidphy_priv *priv)
 	if (ret < 0)
 		return ret;
 
-	ret = v4l2_async_notifier_parse_fwnode_endpoints_by_port(
-		priv->dev, &priv->notifier,
-		sizeof(struct sensor_async_subdev), 0,
-		rockchip_mipidphy_fwnode_parse);
+	ret = v4l2_async_notifier_parse_fwnode_endpoints_by_port(priv->dev,
+								 &priv->notifier,
+								 sizeof(struct sensor_async_subdev),
+								 0,
+								 rockchip_mipidphy_fwnode_parse);
 	if (ret < 0)
 		return ret;
 
@@ -1433,13 +1539,21 @@ static int rockchip_mipidphy_probe(struct platform_device *pdev)
 		res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 		priv->csihost_base_addr = devm_ioremap_resource(dev, res);
 		priv->stream_on = csi_mipidphy_stream_on;
+		priv->stream_off = csi_mipidphy_stream_off;
 	} else {
 		priv->stream_on = mipidphy_txrx_stream_on;
 		priv->txrx_base_addr = NULL;
 		res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-		priv->txrx_base_addr = devm_ioremap_resource(dev, res);
-		if (IS_ERR(priv->txrx_base_addr))
+		if (res) {
+			priv->txrx_base_addr = devm_ioremap_resource(dev, res);
+			if (IS_ERR(priv->txrx_base_addr)) {
+				dev_err(dev, "Failed to ioremap resource\n");
+				return PTR_ERR(priv->txrx_base_addr);
+			}
+		} else {
 			priv->stream_on = mipidphy_rx_stream_on;
+		}
+		priv->stream_off = NULL;
 	}
 
 	sd = &priv->sd;

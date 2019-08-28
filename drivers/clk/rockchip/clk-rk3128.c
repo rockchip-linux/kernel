@@ -580,6 +580,7 @@ static const char *const rk3128_critical_clocks[] __initconst = {
 	"pclk_pmu",
 	"sclk_timer5",
 	"hclk_vio_niu",
+	"hclk_vio_h2p",
 };
 
 static void __iomem *rk312x_reg_base;
@@ -589,6 +590,16 @@ void rkclk_cpuclk_div_setting(int div)
 	if (cpu_is_rk312x())
 		writel_relaxed((0x001f0000 | (div - 1)),
 			       rk312x_reg_base +  RK2928_CLKSEL_CON(0));
+}
+
+static void rk3128_dump_cru(void)
+{
+	if (rk312x_reg_base) {
+		pr_warn("CRU:\n");
+		print_hex_dump(KERN_WARNING, "", DUMP_PREFIX_OFFSET,
+			       32, 4, rk312x_reg_base,
+			       0x1f8, false);
+	}
 }
 
 static struct rockchip_clk_provider *__init rk3128_common_clk_init(struct device_node *np)
@@ -625,6 +636,9 @@ static struct rockchip_clk_provider *__init rk3128_common_clk_init(struct device
 				  ROCKCHIP_SOFTRST_HIWORD_MASK);
 
 	rockchip_register_restart_notifier(ctx, RK2928_GLB_SRST_FST, NULL);
+
+	if (!rk_dump_cru)
+		rk_dump_cru = rk3128_dump_cru;
 
 	return ctx;
 }

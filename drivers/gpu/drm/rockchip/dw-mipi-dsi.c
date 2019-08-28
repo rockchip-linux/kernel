@@ -550,6 +550,64 @@ static void mipi_dphy_power_off(struct dw_mipi_dsi *dsi)
 		phy_power_off(dsi->dphy.phy);
 }
 
+static int dw_mipi_dsi_turn_on_peripheral(struct dw_mipi_dsi *dsi)
+{
+	dpishutdn_assert(dsi);
+	udelay(20);
+	dpishutdn_deassert(dsi);
+
+	return 0;
+}
+
+static int dw_mipi_dsi_shutdown_peripheral(struct dw_mipi_dsi *dsi)
+{
+	dpishutdn_deassert(dsi);
+	udelay(20);
+	dpishutdn_assert(dsi);
+
+	return 0;
+}
+
+static int dw_mipi_dsi_turn_around_request(struct dw_mipi_dsi *dsi)
+{
+	u32 val;
+	int ret;
+
+	/*
+	 * assign dphy_tx1_phyturnrequest = grf_dphy_tx1rx1_basedir ?
+	 * dphy_tx1_phyturnrequest_i : grf_dphy_tx1rx1_turnrequest[0]
+	 */
+	if (!IS_DSI1(dsi) || dsi->pdata->soc_type != RK3288)
+		return 0;
+
+	/* Set TURNREQUEST_N = 1'b1 */
+	grf_field_write(dsi, TURNREQUEST, 1);
+
+	/* Wait until DIRECTION_N output is set to 1'b1 */
+	ret = regmap_read_poll_timeout(dsi->regmap, DSI_PHY_STATUS,
+				       val, val & PHY_DIRECTION, 0, 5000);
+	if (ret) {
+		dev_err(dsi->dev, "wait direction asserted timeout\n");
+		return ret;
+	}
+
+	/* Set TURNREQUEST_N = 1'b0 */
+	grf_field_write(dsi, TURNREQUEST, 0);
+
+	/*
+	 * Wait until STOPSTATEDATA_N is asserted
+	 * (turnaround procedure is completed)
+	 */
+	ret = regmap_read_poll_timeout(dsi->regmap, DSI_PHY_STATUS,
+				       val, val & PHY_STOPSTATE0LANE, 0, 5000);
+	if (ret) {
+		dev_err(dsi->dev, "wait stopstatedata0 asserted timeout\n");
+		return ret;
+	}
+
+	return 0;
+}
+
 static void dw_mipi_dsi_host_power_on(struct dw_mipi_dsi *dsi)
 {
 	regmap_write(dsi->regmap, DSI_PWR_UP, POWERUP);
@@ -903,12 +961,14 @@ static int dw_mipi_dsi_read_from_fifo(struct dw_mipi_dsi *dsi,
 				      const struct mipi_dsi_msg *msg)
 {
 	u8 *payload = msg->rx_buf;
+	unsigned int vrefresh = drm_mode_vrefresh(&dsi->mode);
 	u16 length;
 	u32 val;
 	int ret;
 
 	ret = regmap_read_poll_timeout(dsi->regmap, DSI_CMD_PKT_STATUS,
-				       val, !(val & GEN_RD_CMD_BUSY), 50, 5000);
+				       val, !(val & GEN_RD_CMD_BUSY),
+				       0, DIV_ROUND_UP(1000000, vrefresh));
 	if (ret) {
 		dev_err(dsi->dev, "entire response isn't stored in the FIFO\n");
 		return ret;
@@ -1007,6 +1067,13 @@ static ssize_t dw_mipi_dsi_transfer(struct dw_mipi_dsi *dsi,
 		return ret;
 
 	if (msg->rx_len) {
+		ret = dw_mipi_dsi_turn_around_request(dsi);
+		if (ret) {
+			dev_err(dsi->dev,
+				"failed to send turn around request\n");
+			return ret;
+		}
+
 		ret = dw_mipi_dsi_read_from_fifo(dsi, msg);
 		if (ret < 0)
 			return ret;
@@ -1686,6 +1753,9 @@ static void dw_mipi_dsi_unbind(struct device *dev, struct device *master,
 	void *data)
 {
 	struct dw_mipi_dsi *dsi = dev_get_drvdata(dev);
+
+	if (dsi->panel)
+		drm_panel_detach(dsi->panel);
 
 	pm_runtime_disable(dev);
 	if (dsi->slave)

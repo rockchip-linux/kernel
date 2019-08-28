@@ -849,9 +849,9 @@ static int rk_pcie_resource_get(struct platform_device *pdev,
 	if (IS_ERR(rk_pcie->apb_base))
 		return PTR_ERR(rk_pcie->apb_base);
 
-	rk_pcie->rst_gpio = devm_gpiod_get(&pdev->dev, "reset", GPIOD_OUT_HIGH);
+	rk_pcie->rst_gpio = devm_gpiod_get_optional(&pdev->dev, "reset", GPIOD_OUT_HIGH);
 	if (IS_ERR(rk_pcie->rst_gpio)) {
-		dev_err(&pdev->dev, "missing reset-gpios property in node\n");
+		dev_err(&pdev->dev, "invalid reset-gpios property in node\n");
 		return PTR_ERR(rk_pcie->rst_gpio);
 	}
 

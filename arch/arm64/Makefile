@@ -39,8 +39,8 @@ KBUILD_CFLAGS	+= -mgeneral-regs-only
 endif
 KBUILD_CFLAGS	+= $(lseinstr)
 KBUILD_CFLAGS	+= -fno-pic
-KBUILD_CFLAGS	+= $(call cc-option, -mpc-relative-literal-loads)
 KBUILD_CFLAGS	+= -fno-asynchronous-unwind-tables
+KBUILD_CFLAGS	+= $(call cc-option, -mpc-relative-literal-loads)
 KBUILD_AFLAGS	+= $(lseinstr)
 
 ifeq ($(CONFIG_CPU_BIG_ENDIAN), y)
@@ -187,11 +187,28 @@ make_boot_img := \
 		-o zboot.img && \
 	echo '  Image:  zboot.img (with Image.lz4 $(if $(RAMDISK_IMG),'ramdisk.img ')resource.img) is ready'
 
+repack_boot_img := \
+	$(srctree)/scripts/repack-bootimg \
+		--boot_img $(BOOT_IMG) --out out \
+		--kernel $(objtree)/arch/arm64/boot/Image \
+		--second resource.img \
+		-o boot.img && \
+	echo '  Image:  boot.img ($(BOOT_IMG) + Image + resource.img) is ready'; \
+	$(srctree)/scripts/repack-bootimg \
+		--boot_img $(BOOT_IMG) --out out \
+		--kernel $(objtree)/arch/arm64/boot/Image.lz4 \
+		--second resource.img \
+		-o zboot.img && \
+	echo '  Image:  zboot.img ($(BOOT_IMG) + Image.lz4 + resource.img) is ready'
+
 %.img: rockchip/%.dtb kernel.img $(LOGO) $(LOGO_KERNEL)
+	$(Q) if [ -f $(srctree)/$(LOGO) -a -e $(srctree)/scripts/bmpconvert ]; then $(srctree)/scripts/bmpconvert $(srctree)/$(LOGO); fi
+	$(Q) if [ -f $(srctree)/$(LOGO_KERNEL) -a -e $(srctree)/scripts/bmpconvert ]; then $(srctree)/scripts/bmpconvert $(srctree)/$(LOGO_KERNEL); fi
 	$(Q) if [ -f $(srctree)/$(LOGO) -a "$(srctree)" != "$(objtree)" ]; then cp -a $(srctree)/$(LOGO) $(objtree)/; fi
 	$(Q) if [ -f $(srctree)/$(LOGO_KERNEL) -a "$(srctree)" != "$(objtree)" ]; then cp -a $(srctree)/$(LOGO_KERNEL) $(objtree)/; fi
 	$(Q)scripts/resource_tool $(objtree)/arch/arm64/boot/dts/rockchip/$*.dtb $(LOGO) $(LOGO_KERNEL)
 	@echo '  Image:  resource.img (with $*.dtb $(LOGO) $(LOGO_KERNEL)) is ready'
-	$(Q) if [ -x $(srctree)/scripts/mkbootimg ]; then $(make_boot_img); fi
+	$(Q) if [ -f "$(BOOT_IMG)" -a -x $(srctree)/scripts/repack-bootimg ]; then $(repack_boot_img); elif [ -x $(srctree)/scripts/mkbootimg ]; then $(make_boot_img); fi
 
+CLEAN_DIRS += out
 CLEAN_FILES += boot.img kernel.img resource.img zboot.img

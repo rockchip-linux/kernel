@@ -38,6 +38,9 @@
 #include <net/netlink.h>
 #include <net/genetlink.h>
 #include <linux/suspend.h>
+#ifdef CONFIG_ARCH_ROCKCHIP
+#include <soc/rockchip/rockchip_system_monitor.h>
+#endif
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/thermal.h>
@@ -612,11 +615,6 @@ void thermal_zone_device_update(struct thermal_zone_device *tz)
 
 	thermal_zone_set_trips(tz);
 
-#ifdef CONFIG_ARCH_ROCKCHIP
-	srcu_notifier_call_chain(&tz->thermal_notifier_list,
-				 tz->temperature, tz);
-#endif
-
 	for (count = 0; count < tz->trips; count++)
 		handle_thermal_trip(tz, count);
 }
@@ -1139,6 +1137,15 @@ int power_actor_set_power(struct thermal_cooling_device *cdev,
 		return -EINVAL;
 
 	ret = cdev->ops->power2state(cdev, instance->tz, power, &state);
+#ifdef CONFIG_ARCH_ROCKCHIP
+	if (ret)
+		state = THERMAL_CSTATE_INVALID;
+	rockchip_system_monitor_adjust_cdev_state(cdev,
+						  instance->tz->temperature,
+						  &state);
+	if (state == THERMAL_CSTATE_INVALID)
+		ret = -EINVAL;
+#endif
 	if (ret)
 		return ret;
 
@@ -1875,9 +1882,7 @@ struct thermal_zone_device *thermal_zone_device_register(const char *type,
 	tz = kzalloc(sizeof(struct thermal_zone_device), GFP_KERNEL);
 	if (!tz)
 		return ERR_PTR(-ENOMEM);
-#ifdef CONFIG_ARCH_ROCKCHIP
-	srcu_init_notifier_head(&tz->thermal_notifier_list);
-#endif
+
 	INIT_LIST_HEAD(&tz->thermal_instances);
 	idr_init(&tz->idr);
 	mutex_init(&tz->lock);
@@ -2074,9 +2079,6 @@ void thermal_zone_device_unregister(struct thermal_zone_device *tz)
 	thermal_set_governor(tz, NULL);
 
 	thermal_remove_hwmon_sysfs(tz);
-#ifdef CONFIG_ARCH_ROCKCHIP
-	srcu_cleanup_notifier_head(&tz->thermal_notifier_list);
-#endif
 	release_idr(&thermal_tz_idr, &thermal_idr_lock, tz->id);
 	idr_destroy(&tz->idr);
 	mutex_destroy(&tz->lock);

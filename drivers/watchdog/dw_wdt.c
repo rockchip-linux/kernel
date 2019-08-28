@@ -35,12 +35,14 @@
 #include <linux/pm.h>
 #include <linux/platform_device.h>
 #include <linux/reboot.h>
+#include <linux/reset.h>
 #include <linux/timer.h>
 #include <linux/uaccess.h>
 #include <linux/watchdog.h>
 
 #define WDOG_CONTROL_REG_OFFSET		    0x00
 #define WDOG_CONTROL_REG_WDT_EN_MASK	    0x01
+#define WDOG_CONTROL_REG_RESP_MODE_MASK	    0x02
 #define WDOG_TIMEOUT_RANGE_REG_OFFSET	    0x04
 #define WDOG_TIMEOUT_RANGE_TOPINIT_SHIFT    4
 #define WDOG_CURRENT_COUNT_REG_OFFSET	    0x08
@@ -62,11 +64,16 @@ MODULE_PARM_DESC(nowayout, "Watchdog cannot be stopped once started "
 static struct {
 	void __iomem		*regs;
 	struct clk		*clk;
+	unsigned long		rate;
 	unsigned long		in_use;
 	unsigned long		next_heartbeat;
 	struct timer_list	timer;
 	int			expect_close;
 	struct notifier_block	restart_handler;
+	struct reset_control	*rst;
+	/* Save/restore */
+	u32			control;
+	u32			timeout;
 } dw_wdt;
 
 static inline int dw_wdt_is_enabled(void)
@@ -81,9 +88,7 @@ static inline int dw_wdt_top_in_seconds(unsigned top)
 	 * There are 16 possible timeout values in 0..15 where the number of
 	 * cycles is 2 ^ (16 + i) and the watchdog counts down.
 	 */
-	unsigned int cycles = 1 << (16 + top);
-
-	return cycles / clk_get_rate(dw_wdt.clk);
+	return (1U << (16 + top)) / dw_wdt.rate;
 }
 
 static int dw_wdt_get_top(void)
@@ -139,19 +144,26 @@ static int dw_wdt_set_top(unsigned top_s)
 	return dw_wdt_top_in_seconds(top_val);
 }
 
+static void dw_wdt_arm_system_reset(void)
+{
+	u32 val = readl(dw_wdt.regs + WDOG_CONTROL_REG_OFFSET);
+
+	/* Disable interrupt mode; always perform system reset. */
+	val &= ~WDOG_CONTROL_REG_RESP_MODE_MASK;
+	/* Enable watchdog. */
+	val |= WDOG_CONTROL_REG_WDT_EN_MASK;
+	writel(val, dw_wdt.regs + WDOG_CONTROL_REG_OFFSET);
+}
+
 static int dw_wdt_restart_handle(struct notifier_block *this,
 				unsigned long mode, void *cmd)
 {
-	u32 val;
-
 	writel(0, dw_wdt.regs + WDOG_TIMEOUT_RANGE_REG_OFFSET);
-	val = readl(dw_wdt.regs + WDOG_CONTROL_REG_OFFSET);
-	if (val & WDOG_CONTROL_REG_WDT_EN_MASK)
+	if (dw_wdt_is_enabled())
 		writel(WDOG_COUNTER_RESTART_KICK_VALUE, dw_wdt.regs +
 			WDOG_COUNTER_RESTART_REG_OFFSET);
 	else
-		writel(WDOG_CONTROL_REG_WDT_EN_MASK,
-		       dw_wdt.regs + WDOG_CONTROL_REG_OFFSET);
+		dw_wdt_arm_system_reset();
 
 	/* wait for reset to assert... */
 	mdelay(500);
@@ -183,8 +195,7 @@ static int dw_wdt_open(struct inode *inode, struct file *filp)
 		 * something reasonable and then start it.
 		 */
 		dw_wdt_set_top(DW_WDT_DEFAULT_SECONDS);
-		writel(WDOG_CONTROL_REG_WDT_EN_MASK,
-		       dw_wdt.regs + WDOG_CONTROL_REG_OFFSET);
+		dw_wdt_arm_system_reset();
 	}
 
 	dw_wdt_set_next_heartbeat();
@@ -226,7 +237,7 @@ static ssize_t dw_wdt_write(struct file *filp, const char __user *buf,
 static u32 dw_wdt_time_left(void)
 {
 	return readl(dw_wdt.regs + WDOG_CURRENT_COUNT_REG_OFFSET) /
-		clk_get_rate(dw_wdt.clk);
+		dw_wdt.rate;
 }
 
 static const struct watchdog_info dw_wdt_ident = {
@@ -286,6 +297,11 @@ static int dw_wdt_release(struct inode *inode, struct file *filp)
 			pr_crit("watchdog cannot be disabled, system will reboot soon\n");
 	}
 
+	if (!IS_ERR(dw_wdt.rst)) {
+		reset_control_assert(dw_wdt.rst);
+		reset_control_deassert(dw_wdt.rst);
+	}
+
 	dw_wdt.expect_close = 0;
 
 	return 0;
@@ -294,6 +310,9 @@ static int dw_wdt_release(struct inode *inode, struct file *filp)
 #ifdef CONFIG_PM_SLEEP
 static int dw_wdt_suspend(struct device *dev)
 {
+	dw_wdt.control = readl(dw_wdt.regs + WDOG_CONTROL_REG_OFFSET);
+	dw_wdt.timeout = readl(dw_wdt.regs + WDOG_TIMEOUT_RANGE_REG_OFFSET);
+
 	clk_disable_unprepare(dw_wdt.clk);
 
 	return 0;
@@ -305,6 +324,9 @@ static int dw_wdt_resume(struct device *dev)
 
 	if (err)
 		return err;
+
+	writel(dw_wdt.timeout, dw_wdt.regs + WDOG_TIMEOUT_RANGE_REG_OFFSET);
+	writel(dw_wdt.control, dw_wdt.regs + WDOG_CONTROL_REG_OFFSET);
 
 	dw_wdt_keepalive();
 
@@ -346,6 +368,19 @@ static int dw_wdt_drv_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
+	dw_wdt.rate = clk_get_rate(dw_wdt.clk);
+	if (dw_wdt.rate == 0) {
+		ret = -EINVAL;
+		goto out_disable_clk;
+	}
+
+	dw_wdt.rst = devm_reset_control_get(&pdev->dev, "reset");
+	if (IS_ERR(dw_wdt.rst))
+		dev_warn(&pdev->dev, "Should better to setup a \'resets\' "
+			"property in dt, that must been named with reset\n");
+	else
+		reset_control_deassert(dw_wdt.rst);
+
 	ret = misc_register(&dw_wdt_miscdev);
 	if (ret)
 		goto out_disable_clk;
@@ -373,7 +408,8 @@ static int dw_wdt_drv_remove(struct platform_device *pdev)
 	unregister_restart_handler(&dw_wdt.restart_handler);
 
 	misc_deregister(&dw_wdt_miscdev);
-
+	if (!IS_ERR(dw_wdt.rst))
+		reset_control_assert(dw_wdt.rst);
 	clk_disable_unprepare(dw_wdt.clk);
 
 	return 0;

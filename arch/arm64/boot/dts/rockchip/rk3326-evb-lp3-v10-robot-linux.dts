@@ -6,11 +6,50 @@
 /dts-v1/;
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/pinctrl/rockchip.h>
+#include <dt-bindings/input/input.h>
 #include "px30-robot.dtsi"
 
 / {
 	model = "Rockchip rk3326 evb lpddr3 v10 board for robot linux";
 	compatible = "rockchip,rk3326-evb-lp3-v10-robot-linux", "rockchip,rk3326";
+
+	adc-keys {
+		compatible = "adc-keys";
+		io-channels = <&saradc 2>;
+		io-channel-names = "buttons";
+		poll-interval = <100>;
+		keyup-threshold-microvolt = <1800000>;
+
+		esc-key {
+			linux,code = <KEY_ESC>;
+			label = "esc";
+			press-threshold-microvolt = <1310000>;
+		};
+
+		home-key {
+			linux,code = <KEY_HOME>;
+			label = "home";
+			press-threshold-microvolt = <624000>;
+		};
+
+		menu-key {
+			linux,code = <KEY_MENU>;
+			label = "menu";
+			press-threshold-microvolt = <987000>;
+		};
+
+		vol-down-key {
+			linux,code = <KEY_VOLUMEDOWN>;
+			label = "volume down";
+			press-threshold-microvolt = <300000>;
+		};
+
+		vol-up-key {
+			linux,code = <KEY_VOLUMEUP>;
+			label = "volume up";
+			press-threshold-microvolt = <17000>;
+		};
+	};
 
 	rk817-sound {
 		compatible = "simple-audio-card";
@@ -77,6 +116,10 @@
 
 &cpu0 {
 	cpu-supply = <&vdd_arm>;
+};
+
+&display_subsystem {
+	status = "okay";
 };
 
 &dfi {
@@ -439,6 +482,11 @@
 		/* hw changed the pwdn to gpio2_b5 */
 		pwdn-gpios = <&gpio2 13 GPIO_ACTIVE_HIGH>;
 
+		rockchip,camera-module-index = <1>;
+		rockchip,camera-module-facing = "front";
+		rockchip,camera-module-name = "CMK-CW2392";
+		rockchip,camera-module-lens-name = "CMK-CW2392";
+
 		port {
 			gc2155_out: endpoint {
 				remote-endpoint = <&cif_in>;
@@ -460,6 +508,11 @@
 		/*reset-gpios = <&gpio2 14 GPIO_ACTIVE_HIGH>;*/
 		pwdn-gpios = <&gpio2 14 GPIO_ACTIVE_HIGH>;
 
+		rockchip,camera-module-index = <0>;
+		rockchip,camera-module-facing = "back";
+		rockchip,camera-module-name = "TongJu";
+		rockchip,camera-module-lens-name = "CHT842-MD";
+
 		port {
 			ucam_out: endpoint {
 				remote-endpoint = <&mipi_in_ucam>;
@@ -480,7 +533,7 @@
 	vccio1-supply = <&vcc1v8_soc>;
 	vccio2-supply = <&vccio_sd>;
 	vccio3-supply = <&vcc1v8_dvp>;
-	vccio4-supply = <&vcc1v8_soc>;
+	vccio4-supply = <&vcc_3v0>;
 	vccio5-supply = <&vcc_3v0>;
 };
 
@@ -549,6 +602,11 @@
 	status = "okay";
 };
 
+&saradc {
+	status = "okay";
+	vref-supply = <&vcc1v8_soc>;
+};
+
 &sdmmc {
 	bus-width = <4>;
 	cap-mmc-highspeed;
@@ -611,6 +669,22 @@
 	status = "okay";
 };
 
+&vopb {
+	status = "okay";
+};
+
+&vopb_mmu {
+	status = "okay";
+};
+
+&vopl {
+	status = "okay";
+};
+
+&vopl_mmu {
+	status = "okay";
+};
+
 &vpu_combo {
 	status = "okay";
 };
@@ -630,6 +704,21 @@
 				<2 RK_PB0 RK_FUNC_1 &pcfg_pull_none>,/* cif_sync */
 				<2 RK_PB1 RK_FUNC_1 &pcfg_pull_none>,/* cif_href */
 				<2 RK_PB2 RK_FUNC_1 &pcfg_pull_none>;/* cif_clkin */
+		};
+
+		cif_pin_m1: cif-pin-m1 {
+			rockchip,pins =
+				<3 RK_PA3 RK_FUNC_3 &pcfg_pull_none>,/* cif_data2 */
+				<3 RK_PA5 RK_FUNC_3 &pcfg_pull_none>,/* cif_data3 */
+				<3 RK_PA7 RK_FUNC_3 &pcfg_pull_none>,/* cif_data4 */
+				<3 RK_PB0 RK_FUNC_3 &pcfg_pull_none>,/* cif_data5 */
+				<3 RK_PB1 RK_FUNC_3 &pcfg_pull_none>,/* cif_data6 */
+				<3 RK_PB4 RK_FUNC_3 &pcfg_pull_none>,/* cif_data7 */
+				<3 RK_PB6 RK_FUNC_3 &pcfg_pull_none>,/* cif_data8 */
+				<3 RK_PB7 RK_FUNC_3 &pcfg_pull_none>,/* cif_data9 */
+				<3 RK_PD1 RK_FUNC_3 &pcfg_pull_none>,/* cif_sync */
+				<3 RK_PD2 RK_FUNC_3 &pcfg_pull_none>,/* cif_href */
+				<3 RK_PD3 RK_FUNC_3 &pcfg_pull_none>;/* cif_clkin */
 		};
 	};
 
