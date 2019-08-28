@@ -362,6 +362,12 @@ static int rk_pcie_misc_open(struct inode *inode, struct file *filp)
 
 	filp->private_data = pcie_misc_dev->obj;
 
+	pcie_misc_dev->obj->loop_count = 0;
+	pcie_misc_dev->obj->local_read_available = 0x0;
+	pcie_misc_dev->obj->local_write_available = 0xff;
+	pcie_misc_dev->obj->remote_write_available = 0xff;
+	pcie_misc_dev->obj->dma_free = true;
+
 	pr_info("Open pcie misc device success\n");
 
 	return 0;
@@ -688,10 +694,6 @@ struct dma_trx_obj *rk_pcie_dma_obj_probe(struct device *dev)
 	if (ret)
 		return ERR_PTR(-ENOMEM);
 
-	obj->local_read_available = 0x0;
-	obj->remote_write_available = 0xff;
-	obj->local_write_available = 0xff;
-
 	obj->dma_trx_wq = create_singlethread_workqueue("dma_trx_wq");
 	INIT_WORK(&obj->dma_trx_work, rk_pcie_dma_trx_work);
 
@@ -711,9 +713,7 @@ struct dma_trx_obj *rk_pcie_dma_obj_probe(struct device *dev)
 		goto free_dma_table;
 	}
 
-	obj->dma_free = true;
 	obj->irq_num = 0;
-	obj->loop_count = 0;
 	obj->loop_count_threshold = 0;
 	init_completion(&obj->done);
 
