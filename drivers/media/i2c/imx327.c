@@ -125,14 +125,8 @@ struct imx327_mode {
 struct imx327 {
 	struct i2c_client	*client;
 	struct clk		*xvclk;
-	struct clk		*sclk_vip_src;
 	struct gpio_desc	*reset_gpio;
 	struct gpio_desc	*pwdn_gpio;
-	struct gpio_desc	*avdd_gpio;
-	struct gpio_desc	*dvdd_gpio;
-	struct gpio_desc	*pwdn2_gpio;
-	struct gpio_desc	*avdd2_gpio;
-	struct gpio_desc	*dvdd2_gpio;
 	struct regulator_bulk_data supplies[IMX327_NUM_SUPPLIES];
 
 	struct v4l2_subdev	subdev;
@@ -146,6 +140,7 @@ struct imx327 {
 	struct v4l2_ctrl	*test_pattern;
 	struct mutex		mutex;
 	bool			streaming;
+	bool			power_on;
 	bool			has_devnode;
 	const struct imx327_mode *cur_mode;
 	const struct imx327_mode *support_modes;
@@ -821,6 +816,37 @@ unlock_and_return:
 	return ret;
 }
 
+static int imx327_s_power(struct v4l2_subdev *sd, int on)
+{
+	struct imx327 *imx327 = to_imx327(sd);
+	struct i2c_client *client = imx327->client;
+	int ret = 0;
+
+	mutex_lock(&imx327->mutex);
+
+	/* If the power state is not modified - no work to do. */
+	if (imx327->power_on == !!on)
+		goto unlock_and_return;
+
+	if (on) {
+		ret = pm_runtime_get_sync(&client->dev);
+		if (ret < 0) {
+			pm_runtime_put_noidle(&client->dev);
+			goto unlock_and_return;
+		}
+
+		imx327->power_on = true;
+	} else {
+		pm_runtime_put(&client->dev);
+		imx327->power_on = false;
+	}
+
+unlock_and_return:
+	mutex_unlock(&imx327->mutex);
+
+	return ret;
+}
+
 /* Calculate the delay in us by clock rate and clock cycles */
 static inline u32 imx327_cal_delay(u32 cycles)
 {
@@ -846,7 +872,6 @@ static int __imx327_power_on(struct imx327 *imx327)
 		return ret;
 	}
 
-	clk_prepare_enable(imx327->sclk_vip_src);
 	if (!IS_ERR(imx327->reset_gpio))
 		gpiod_set_value_cansleep(imx327->reset_gpio, 0);
 
@@ -856,15 +881,9 @@ static int __imx327_power_on(struct imx327 *imx327)
 		goto disable_clk;
 	}
 
-	if (!IS_ERR(imx327->pwdn_gpio))
-		gpiod_set_value_cansleep(imx327->pwdn_gpio, 0);
 	if (!IS_ERR(imx327->reset_gpio))
 		gpiod_set_value_cansleep(imx327->reset_gpio, 1);
 
-	if (!IS_ERR(imx327->avdd_gpio))
-		gpiod_set_value_cansleep(imx327->avdd_gpio, 1);
-	if (!IS_ERR(imx327->dvdd_gpio))
-		gpiod_set_value_cansleep(imx327->dvdd_gpio, 1);
 	usleep_range(500, 1000);
 	if (!IS_ERR(imx327->pwdn_gpio))
 		gpiod_set_value_cansleep(imx327->pwdn_gpio, 1);
@@ -885,14 +904,9 @@ static void __imx327_power_off(struct imx327 *imx327)
 {
 	if (!IS_ERR(imx327->pwdn_gpio))
 		gpiod_set_value_cansleep(imx327->pwdn_gpio, 0);
-	clk_disable_unprepare(imx327->sclk_vip_src);
 	clk_disable_unprepare(imx327->xvclk);
 	if (!IS_ERR(imx327->reset_gpio))
 		gpiod_set_value_cansleep(imx327->reset_gpio, 0);
-	if (!IS_ERR(imx327->avdd_gpio))
-		gpiod_set_value_cansleep(imx327->avdd_gpio, 0);
-	if (!IS_ERR(imx327->dvdd_gpio))
-		gpiod_set_value_cansleep(imx327->dvdd_gpio, 0);
 	regulator_bulk_disable(IMX327_NUM_SUPPLIES, imx327->supplies);
 }
 
@@ -950,6 +964,7 @@ static const struct v4l2_subdev_internal_ops imx327_internal_ops = {
 #endif
 
 static const struct v4l2_subdev_core_ops imx327_core_ops = {
+	.s_power = imx327_s_power,
 	.ioctl = imx327_ioctl,
 #ifdef CONFIG_COMPAT
 	.compat_ioctl32 = imx327_compat_ioctl32,
@@ -1136,7 +1151,7 @@ static int imx327_check_sensor_id(struct imx327 *imx327,
 			       IMX327_REG_VALUE_08BIT, &id);
 	if (id != CHIP_ID) {
 		dev_err(dev, "Unexpected sensor id(%06x), ret(%d)\n", id, ret);
-		return ret;
+		return -ENODEV;
 	}
 
 	dev_info(dev, "Detected imx327 id:%06x\n", CHIP_ID);
@@ -1219,9 +1234,6 @@ static int imx327_probe(struct i2c_client *client,
 		return -EINVAL;
 	}
 
-	imx327->sclk_vip_src = devm_clk_get(dev, "sclk_vip_src");
-	if (IS_ERR(imx327->sclk_vip_src))
-		dev_err(dev, "Failed to get sclk_vip_src\n");
 	imx327->reset_gpio = devm_gpiod_get(dev, "reset", GPIOD_OUT_LOW);
 	if (IS_ERR(imx327->reset_gpio))
 		dev_warn(dev, "Failed to get reset-gpios\n");
@@ -1229,34 +1241,6 @@ static int imx327_probe(struct i2c_client *client,
 	imx327->pwdn_gpio = devm_gpiod_get(dev, "pwdn", GPIOD_OUT_LOW);
 	if (IS_ERR(imx327->pwdn_gpio))
 		dev_warn(dev, "Failed to get pwdn-gpios\n");
-
-	// Justa 20190605 IMX327 For X916
-	{
-		imx327->avdd_gpio = devm_gpiod_get(dev, "avdd",
-				GPIOD_OUT_LOW);
-		if (IS_ERR(imx327->avdd_gpio))
-			dev_warn(dev, "Failed to get avdd-gpios\n");
-
-		imx327->dvdd_gpio = devm_gpiod_get(dev, "dvdd",
-				GPIOD_OUT_LOW);
-		if (IS_ERR(imx327->dvdd_gpio))
-			dev_warn(dev, "Failed to get dvdd-gpios\n");
-
-		imx327->avdd2_gpio = devm_gpiod_get(dev, "avdd2",
-				GPIOD_OUT_LOW);
-		if (IS_ERR(imx327->avdd2_gpio))
-			dev_warn(dev, "Failed to get avdd2-gpios\n");
-
-		imx327->dvdd2_gpio = devm_gpiod_get(dev, "dvdd2",
-				GPIOD_OUT_LOW);
-		if (IS_ERR(imx327->dvdd2_gpio))
-			dev_warn(dev, "Failed to get dvdd2-gpios\n");
-
-		imx327->pwdn2_gpio = devm_gpiod_get(dev, "pwdn2",
-				GPIOD_OUT_LOW);
-		if (IS_ERR(imx327->pwdn2_gpio))
-			dev_warn(dev, "Failed to get pwdn2-gpios\n");
-	}
 
 	ret = imx327_configure_regulators(imx327);
 	if (ret) {
