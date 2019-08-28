@@ -223,7 +223,6 @@ static const struct regval jx_h65_1280x720_regs[] = {
 	{0x90, 0x00},
 	{0x79, 0x00},
 	{0x13, 0x81},
-	{0x12, 0x00},
 	{0x45, 0x89},
 	{0x93, 0x68},
 	{REG_DELAY, 0x00},
@@ -322,7 +321,6 @@ static const struct regval jx_h65_1280x960_regs[] = {
 	{0x90, 0x00},
 	{0x79, 0x00},
 	{0x13, 0x81},
-	{0x12, 0x00},
 	{0x45, 0x89},
 	{0x93, 0x68},
 	{REG_DELAY, 0x00},
@@ -663,19 +661,6 @@ static int jx_h65_g_frame_interval(struct v4l2_subdev *sd,
 
 static int __jx_h65_start_stream(struct jx_h65 *jx_h65)
 {
-	int ret;
-
-	ret = jx_h65_write_array(jx_h65->client, jx_h65->cur_mode->reg_list);
-	if (ret)
-		return ret;
-
-	/* In case these controls are set before streaming */
-	mutex_unlock(&jx_h65->mutex);
-	ret = v4l2_ctrl_handler_setup(&jx_h65->ctrl_handler);
-	mutex_lock(&jx_h65->mutex);
-	if (ret)
-		return ret;
-
 	return jx_h65_write_reg(jx_h65->client, JX_H65_REG_CTRL_MODE,
 				JX_H65_MODE_STREAMING);
 }
@@ -741,6 +726,18 @@ static int jx_h65_s_power(struct v4l2_subdev *sd, int on)
 			pm_runtime_put_noidle(&client->dev);
 			goto unlock_and_return;
 		}
+
+		ret = jx_h65_write_array(jx_h65->client,
+					 jx_h65->cur_mode->reg_list);
+		if (ret)
+			goto unlock_and_return;
+
+		mutex_unlock(&jx_h65->mutex);
+		/* In case these controls are set before streaming */
+		ret = v4l2_ctrl_handler_setup(&jx_h65->ctrl_handler);
+		if (ret)
+			return ret;
+		mutex_lock(&jx_h65->mutex);
 
 		jx_h65->power_on = true;
 	} else {
