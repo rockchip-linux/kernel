@@ -459,7 +459,6 @@ static void acm_port_shutdown(struct acm *acm)
 {
 	struct urb *urb;
 	struct acm_wb *wb;
-	int i;
 
 	dev_dbg(&acm->control->dev, "%s\n", __func__);
 
@@ -482,12 +481,6 @@ static void acm_port_shutdown(struct acm *acm)
 		wb->use = 0;
 		usb_autopm_put_interface_async(acm->control);
 	}
-
-	usb_kill_urb(acm->ctrlurb);
-	for (i = 0; i < ACM_NW; i++)
-		usb_kill_urb(acm->wb[i].urb);
-	for (i = 0; i < acm->rx_buflimit; i++)
-		usb_kill_urb(acm->read_urbs[i]);
 }
 
 static int acm_write(struct acm *acm, const unsigned char *buf, int count)
@@ -1026,6 +1019,7 @@ static void npu_acm_disconnect(struct usb_interface *intf)
 	usb_set_intfdata(acm->data, NULL);
 	mutex_unlock(&acm->mutex);
 
+	acm_port_shutdown(acm);
 	stop_data_traffic(acm);
 
 	usb_free_urb(acm->ctrlurb);
@@ -1041,7 +1035,6 @@ static void npu_acm_disconnect(struct usb_interface *intf)
 	usb_driver_release_interface(&npu_acm_driver,
 				     intf == acm->control ?
 				     acm->data : acm->control);
-	acm_port_shutdown(acm);
 }
 
 #ifdef CONFIG_PM
