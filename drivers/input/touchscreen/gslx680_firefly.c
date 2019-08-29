@@ -194,6 +194,7 @@ static int gslX680_init(void)
 {
 
 	gpio_direction_output(g_wake_pin, 0);
+	msleep(20);
 	gpio_set_value(g_wake_pin,1);
 
 	/*gpio_direction_output(WAKE_PORT, 0);
@@ -1283,24 +1284,6 @@ static int  gsl_ts_probe(struct i2c_client *client,
 
 	printk("GSLX680 Enter %s\n", __func__);
 
-    while(timer > 0)
-    {
-        ret = i2c_master_recv(client,&buffer,1);
-        if(ret >= 0)
-        {
-            printk("%s--%d, i2c_master_recv sucess\n", __func__, __LINE__);
-		    break;
-        }
-        timer--;
-        msleep(100);
-    }
-
-    if(ret < 0)
-    {
-        printk("%s--%d, i2c_master_recv fail\n", __func__, __LINE__);
-        return ret;
-    }
-
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
 		dev_err(&client->dev, "I2C functionality not supported\n");
 		return -ENODEV;
@@ -1358,6 +1341,26 @@ static int  gsl_ts_probe(struct i2c_client *client,
 	if (of_property_read_u32(np, "gsl,fw", &global_fw) < 0)
 		global_fw = 0;
 
+	gslX680_init();
+	msleep(500);
+    while(timer > 0)
+    {
+        ret = i2c_master_recv(client,&buffer,1);
+        if(ret >= 0)
+        {
+            printk("%s--%d, i2c_master_recv sucess\n", __func__, __LINE__);
+		    break;
+        }
+        timer--;
+        msleep(100);
+    }
+
+    if(ret < 0)
+    {
+        printk("%s--%d, i2c_master_recv fail\n", __func__, __LINE__);
+        return ret;
+    }
+
 	rc = gslX680_ts_init(client, ts);
 	if (rc < 0) {
 		dev_err(&client->dev, "GSLX680 init failed\n");
@@ -1366,7 +1369,6 @@ static int  gsl_ts_probe(struct i2c_client *client,
 
 	gsl_client = client;
 
-	gslX680_init();
 //	gpio_set_value(ts->irq_pin,1);
 //	msleep(20);
 
