@@ -106,16 +106,6 @@
 	status = "disabled";
 	i2c-scl-rising-time-ns = <300>;
 	i2c-scl-falling-time-ns = <15>;
-
-	sensor@4c {
-		status = "disabled";
-		compatible = "gs_mc3230";
-		reg = <0x4c>;
-		type = <SENSOR_TYPE_ACCEL>;
-		irq_enable = <0>;
-		poll_delay_ms = <30>;
-		layout = <1>;
-	};
 };
 
 &vcca1v8_codec {

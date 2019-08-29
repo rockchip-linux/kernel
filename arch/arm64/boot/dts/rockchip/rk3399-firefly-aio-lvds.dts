@@ -254,6 +254,7 @@
 	};
 
 	sensor@4c {
+		status = "disabled";
 		compatible = "gs_mc3230";
 		reg = <0x4c>;
 		type = <SENSOR_TYPE_ACCEL>;

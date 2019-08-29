@@ -176,24 +176,30 @@
 };
 
 &i2c4 {
-        status = "okay";
-        gslx680: gslx680@41 {                                                                                                                  
-                compatible = "gslX680";
-                reg = <0x41>;
-                screen_max_x = <800>;
-                screen_max_y = <1280>;
-                touch-gpio = <&gpio2 2 IRQ_TYPE_LEVEL_LOW>;
-                reset-gpio = <&gpio1 23 GPIO_ACTIVE_HIGH>;
-                flip-x = <1>;
-                flip-y = <0>;
-                swap-xy = <0>;
-                gsl,fw = <1>;
-        };
+	status = "okay";
+	gslx680: gslx680@41 {
+		compatible = "gslX680";
+		reg = <0x41>;
+		screen_max_x = <800>;
+		screen_max_y = <1280>;
+		touch-gpio = <&gpio2 2 IRQ_TYPE_LEVEL_LOW>;
+		reset-gpio = <&gpio1 23 GPIO_ACTIVE_HIGH>;
+		flip-x = <1>;
+		flip-y = <0>;
+		swap-xy = <0>;
+		gsl,fw = <1>;
+	};
 
-
+	sensor@4c {
+		status = "disabled";
+		compatible = "gs_mc3230";
+		reg = <0x4c>;
+		type = <SENSOR_TYPE_ACCEL>;
+		irq_enable = <0>;
+		poll_delay_ms = <30>;
+		layout = <1>;
+	};
 };
-
-
 
 &gmac {
 	tx_delay = <0x2F>;
@@ -212,16 +218,6 @@
 	status = "disabled";
 	i2c-scl-rising-time-ns = <300>;
 	i2c-scl-falling-time-ns = <15>;
-
-	sensor@4c {
-		status = "disabled";
-		compatible = "gs_mc3230";
-		reg = <0x4c>;
-		type = <SENSOR_TYPE_ACCEL>;
-		irq_enable = <0>;
-		poll_delay_ms = <30>;
-		layout = <1>;
-	};
 };
 
 &rt5640 {

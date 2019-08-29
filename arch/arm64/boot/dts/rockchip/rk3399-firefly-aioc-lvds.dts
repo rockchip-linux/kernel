@@ -231,6 +231,7 @@
 	i2c-scl-falling-time-ns = <15>;
 
 	sensor@4c {
+		status = "disabled";	
 		compatible = "gs_mc3230";
 		reg = <0x4c>;
 		type = <SENSOR_TYPE_ACCEL>;
@@ -254,6 +255,16 @@
 		flip-x = <1>;
 		flip-y = <0>;
 		swap-xy = <0>;
+	};
+
+	sensor@4c {
+		status = "disabled";
+		compatible = "gs_mc3230";
+		reg = <0x4c>;
+		type = <SENSOR_TYPE_ACCEL>;
+		irq_enable = <0>;
+		poll_delay_ms = <30>;
+		layout = <1>;
 	};
 };
 
