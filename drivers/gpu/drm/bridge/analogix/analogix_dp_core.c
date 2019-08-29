@@ -1300,6 +1300,7 @@ analogix_dp_bind(struct device *dev, struct drm_device *drm_dev,
 		}
 	}
 
+	irq_set_status_flags(dp->irq, IRQ_NOAUTOEN);
 	ret = devm_request_threaded_irq(&pdev->dev, dp->irq,
 					analogix_dp_hardirq,
 					analogix_dp_irq_thread,
@@ -1308,7 +1309,6 @@ analogix_dp_bind(struct device *dev, struct drm_device *drm_dev,
 		dev_err(&pdev->dev, "failed to request host irq\n");
 		return ERR_PTR(ret);
 	}
-	disable_irq(dp->irq);
 
 	dp->drm_dev = drm_dev;
 	dp->encoder = dp->plat_data->encoder;
