@@ -261,6 +261,7 @@
 				regulator-boot-on;
 				regulator-min-microvolt = <750000>;
 				regulator-max-microvolt = <1350000>;
+				regulator-init-microvolt = <1050000>;
 				regulator-name = "vdd_arm";
 				regulator-state-mem {
 					regulator-off-in-suspend;
