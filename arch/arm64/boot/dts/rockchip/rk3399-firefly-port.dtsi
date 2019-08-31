@@ -257,6 +257,10 @@
 		//pinctrl-0 = <&cif_clkout>;
 		pinctrl-0 = <&cam0_default_pins>;
 		pinctrl-1 = <&cam0_sleep_pins>;
+		rockchip,camera-module-index = <0>;
+		rockchip,camera-module-facing = "back";
+		rockchip,camera-module-name = "CMK-CT0116";
+		rockchip,camera-module-lens-name = "Largan-50013A1";
 
 		avdd-supply = <&vcc_mipi>; /* VCC28_MIPI */
 		dovdd-supply = <&vcc_mipi>; /* VCC18_MIPI */
@@ -284,6 +288,11 @@
 		//pinctrl-0 = <&cif_clkout>;
 		pinctrl-0 = <&cam0_default_pins>;
 		pinctrl-1 = <&cam0_sleep_pins>;
+		rockchip,camera-module-index = <1>;
+		rockchip,camera-module-facing = "back";
+		rockchip,camera-module-name = "CMK-CT0116";
+		rockchip,camera-module-lens-name = "Largan-50013A1";
+
 
 		avdd-supply = <&vcc_mipi>; /* VCC28_MIPI */
 		dovdd-supply = <&vcc_mipi>; /* VCC18_MIPI */
