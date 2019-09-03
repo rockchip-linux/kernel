@@ -137,10 +137,10 @@
 		rockchip,max-volt = <1350000>;
 		nvmem-cells = <&cpu_leakage>, <&special_function>,
 			      <&performance>, <&process_version>,
-			      <&performance_w>;
+			      <&performance_w>, <&package_info>;
 		nvmem-cell-names = "leakage", "special",
 				   "performance", "process",
-				   "performance-w";
+				   "performance-w", "package";
 		rockchip,bin-scaling-sel = <
 			0               17
 			1               25
@@ -1892,6 +1892,10 @@
 		special_function: special-function@5 {
 			reg = <0x5 0x1>;
 			bits = <4 4>;
+		};
+		package_info: package-info@5 {
+			reg = <0x5 0x1>;
+			bits = <2 2>;
 		};
 		process_version: process-version@6 {
 			reg = <0x6 0x1>;
