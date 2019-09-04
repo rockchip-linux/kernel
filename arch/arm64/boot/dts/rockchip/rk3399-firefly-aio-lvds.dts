@@ -317,6 +317,10 @@
     gpio = <&gpio0 13 GPIO_ACTIVE_HIGH>;
 };
 
+&pcie0 {
+	ep-gpios = <&gpio4 25 GPIO_ACTIVE_HIGH>;
+};
+
 &vcc3v3_3g {
     gpio = <&gpio2 6 GPIO_ACTIVE_HIGH>;
 };

@@ -77,9 +77,6 @@
 	regulator-min-microvolt = <900000>;
 	regulator-max-microvolt = <900000>;
 };
-&uart4 {
-    status = "disabled";
-};
 
 &spi1 {
 	dev-port = <0>;

@@ -236,6 +236,7 @@
 	regulator-min-microvolt = <900000>;
 	regulator-max-microvolt = <900000>;
 };
+
 &uart4 {
     status = "disabled";
 };
@@ -260,8 +261,8 @@
 	/delete-property/ gpio;
 };
 
-&uart4 {
-    status = "disabled";
+&pcie0 {
+	ep-gpios = <&gpio4 30 GPIO_ACTIVE_HIGH>;
 };
 
 &dp_in_vopb {
@@ -319,7 +320,8 @@
 	fan-ctl {
         	fan_drv: fan-drv {
              		rockchip,pins = <3 10 RK_FUNC_GPIO &pcfg_pull_none>;
-        };
+        	};
+	};
 
 	lcd-panel {
 		lcd_panel_reset: lcd-panel-reset {
@@ -338,9 +340,6 @@
 			rockchip,pins = <0 1 RK_FUNC_GPIO &pcfg_pull_down>;
 		};
 	};
-    };
-
-
 };
 
 &fusb0 {
