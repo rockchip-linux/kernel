@@ -221,10 +221,12 @@
 };
 
 &ov13850 {
+	pwdn-gpios = <&gpio2 1 GPIO_ACTIVE_HIGH>;
 	status = "okay";
 };
 
 &ov13850_1 {
+	pwdn-gpios = <&gpio2 0 GPIO_ACTIVE_HIGH>;
 	status = "okay";
 };
 
