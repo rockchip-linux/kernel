@@ -1,0 +1,28 @@
+/dts-v1/;
+#include "rk3399-roc-pc.dtsi"
+
+/ {
+	model = "Firefly roc-rk3399-pc-plus";
+	compatible = "firefly,roc-rk3399-pc", "rockchip,rk3399";
+};
+
+&vcc_wifi {
+	gpio = <&gpio2 4 GPIO_ACTIVE_HIGH>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&vcc_wifi_h>;
+};
+
+&vcc_wifi_h {
+	rockchip,pins = <2 4 RK_FUNC_GPIO &pcfg_pull_none>;
+};
+
+/*
+&fusb0 {
+	status = "disabled";
+};
+
+
+&fusb1 {
+	status = "disabled";
+};
+*/
