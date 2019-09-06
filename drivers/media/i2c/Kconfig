@@ -502,12 +502,20 @@ config VIDEO_IMX219
 	  This driver supports IMX219 cameras from Sony
 
 config VIDEO_IMX258
-        tristate "Sony imx258 sensor support"
-        depends on VIDEO_V4L2 && I2C
-        depends on MEDIA_CAMERA_SUPPORT
-        select V4L2_FWNODE
-        help
-          This driver supports IMX258 cameras from Sony
+	tristate "Sony imx258 sensor support"
+	depends on VIDEO_V4L2 && I2C
+	depends on MEDIA_CAMERA_SUPPORT
+	select V4L2_FWNODE
+	help
+	  This driver supports IMX258 cameras from Sony
+
+config VIDEO_IMX258_EEPROM
+	tristate "Sony imx258 sensor otp from eeprom support"
+	depends on VIDEO_V4L2 && I2C
+	depends on VIDEO_IMX258
+	select V4L2_FWNODE
+	help
+	  This driver supports IMX258 OTP load from eeprom.
 
 config VIDEO_IMX317
 	tristate "Sony imx317 sensor support"
