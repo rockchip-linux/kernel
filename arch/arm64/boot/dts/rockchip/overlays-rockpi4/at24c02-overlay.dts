@@ -9,6 +9,8 @@
 		target = <&i2c2>;
 
 		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
 
 			at24c02@50 {
 				status = "okay";

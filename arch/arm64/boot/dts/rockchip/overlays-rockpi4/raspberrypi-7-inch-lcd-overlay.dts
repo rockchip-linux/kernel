@@ -19,12 +19,13 @@
 		__overlay__ {
 			rockchip,dual-channel = <&dsi>;
 			status = "okay";
+			#address-cells = <1>;
+			#size-cells = <0>;
 			
 			panel: panel@0 {
-			compatible ="rockpi,tc358762";
-			reg = <0>;
-			status = "okay";
-	
+				compatible ="rockpi,tc358762";
+				reg = <0>;
+				status = "okay";
 			};
 		};
 	};
