@@ -963,7 +963,8 @@ static void imx258_get_module_inf(struct imx258 *imx258,
 		imx258->module_name,
 		sizeof(inf->base.module));
 	strlcpy(inf->base.lens, imx258->len_name, sizeof(inf->base.lens));
-	imx258_get_otp(otp, inf);
+	if (otp)
+		imx258_get_otp(otp, inf);
 }
 
 static void imx258_set_awb_cfg(struct imx258 *imx258,
@@ -1180,11 +1181,11 @@ static int __imx258_start_stream(struct imx258 *imx258)
 	mutex_lock(&imx258->mutex);
 	if (ret)
 		return ret;
-
-	ret = imx258_apply_otp(imx258);
-	if (ret)
-		return ret;
-
+	if (imx258->otp) {
+		ret = imx258_apply_otp(imx258);
+		if (ret)
+			return ret;
+	}
 	return imx258_write_reg(imx258->client,
 		IMX258_REG_CTRL_MODE,
 		IMX258_REG_VALUE_08BIT,
