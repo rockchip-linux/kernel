@@ -1,0 +1,4 @@
+config RTL8723DU
+	tristate "Realtek 8723D USB WiFi"
+	---help---
+	  Help message of RTL8723DU

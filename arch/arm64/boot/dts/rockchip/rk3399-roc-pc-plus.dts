@@ -16,6 +16,10 @@
 	rockchip,pins = <2 4 RK_FUNC_GPIO &pcfg_pull_none>;
 };
 
+&dmc {
+	status = "disabled";
+};
+
 /*
 &fusb0 {
 	status = "disabled";
