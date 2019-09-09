@@ -1447,14 +1447,15 @@ static int __gc8034_start_stream(struct gc8034 *gc8034)
 {
 	int ret;
 
-	ret = gc8034_otp_enable(gc8034);
-	gc8034_check_prsel(gc8034);
-	ret |= gc8034_apply_otp(gc8034);
-	usleep_range(1000, 2000);
-	ret |= gc8034_otp_disable(gc8034);
-	if (ret)
-		return ret;
-
+	if (gc8034->otp) {
+		ret = gc8034_otp_enable(gc8034);
+		gc8034_check_prsel(gc8034);
+		ret |= gc8034_apply_otp(gc8034);
+		usleep_range(1000, 2000);
+		ret |= gc8034_otp_disable(gc8034);
+		if (ret)
+			return ret;
+	}
 	ret = gc8034_write_array(gc8034->client, gc8034->cur_mode->reg_list);
 	if (ret)
 		return ret;
