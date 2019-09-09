@@ -51,9 +51,6 @@
 
 #define GC5025_REG_EXPOSURE_H		0x03
 #define GC5025_REG_EXPOSURE_L		0x04
-#define GC5025_FETCH_HIGH_BYTE_EXP(VAL) (((VAL) >> 8) & 0x0F)	/* 4 Bits */
-#define GC5025_FETCH_LOW_BYTE_EXP(VAL) ((VAL) & 0xFF)	/* 8 Bits */
-#define GC5025_FETCH_LOW_BYTE_EXP(VAL) ((VAL) & 0xFF)	/* 8 Bits */
 #define	GC5025_EXPOSURE_MIN		4
 #define	GC5025_EXPOSURE_STEP		1
 #define GC5025_VTS_MAX			0x1fff
@@ -953,7 +950,8 @@ static void gc5025_get_module_inf(struct gc5025 *gc5025,
 	strlcpy(inf->base.lens,
 		gc5025->len_name,
 		sizeof(inf->base.lens));
-	gc5025_get_otp(otp, inf);
+	if (otp)
+		gc5025_get_otp(otp, inf);
 }
 
 static void gc5025_set_module_inf(struct gc5025 *gc5025,
@@ -1240,13 +1238,13 @@ static int __gc5025_start_stream(struct gc5025 *gc5025)
 	mutex_lock(&gc5025->mutex);
 	if (ret)
 		return ret;
-
-	ret = gc5025_otp_enable(gc5025);
-	ret |= gc5025_apply_otp(gc5025);
-	ret |= gc5025_otp_disable(gc5025);
-	if (ret)
-		return ret;
-
+	if (gc5025->otp) {
+		ret = gc5025_otp_enable(gc5025);
+		ret |= gc5025_apply_otp(gc5025);
+		ret |= gc5025_otp_disable(gc5025);
+		if (ret)
+			return ret;
+	}
 	ret = gc5025_write_reg(gc5025->client,
 		GC5025_REG_SET_PAGE,
 		GC5025_SET_PAGE_ONE);
