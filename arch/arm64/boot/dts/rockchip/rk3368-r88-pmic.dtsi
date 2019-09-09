@@ -600,6 +600,10 @@
 	vop-supply = <&vcc_io>;
 };
 
+&pvtm_clock {
+	status = "disabled";
+};
+
 &saradc {
 	vref-supply = <&vcc_18>;
 	status = "okay";
