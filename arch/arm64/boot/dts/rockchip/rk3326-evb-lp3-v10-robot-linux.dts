@@ -677,14 +677,6 @@
 	status = "okay";
 };
 
-&vopl {
-	status = "okay";
-};
-
-&vopl_mmu {
-	status = "okay";
-};
-
 &vpu_combo {
 	status = "okay";
 };

@@ -12,7 +12,7 @@
 #include <dt-bindings/sensor-dev.h>
 #include "rk3326.dtsi"
 #include "rk3326-863-cif-sensor.dtsi"
-#include "px30-android.dtsi"
+#include "rk3326-android.dtsi"
 
 / {
 	model = "Rockchip rk3326 ai voice assistant evb v11 i2s-dmic board";
@@ -329,10 +329,6 @@
 
 &dsi_in_vopb {
 	status = "okay";
-};
-
-&dsi_in_vopl {
-	status = "disabled";
 };
 
 &route_dsi {
@@ -1193,14 +1189,6 @@
 };
 
 &vopb_mmu {
-	status = "okay";
-};
-
-&vopl {
-	status = "okay";
-};
-
-&vopl_mmu {
 	status = "okay";
 };
 

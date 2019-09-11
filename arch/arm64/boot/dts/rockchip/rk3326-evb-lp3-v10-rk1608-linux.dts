@@ -105,10 +105,6 @@
 	status = "okay";
 };
 
-&dsi_in_vopl {
-	status = "disabled";
-};
-
 &route_dsi {
 	connect = <&vopb_out_dsi>;
 	status = "okay";

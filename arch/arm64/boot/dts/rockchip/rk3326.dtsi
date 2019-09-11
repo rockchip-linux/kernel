@@ -11,6 +11,17 @@
 	assigned-clock-rates = <1040000000>;
 };
 
+/delete-node/ &vopl;
+/delete-node/ &vopl_mmu;
+
+&dsi {
+	ports {
+		port@0 {
+			/delete-node/ endpoint@1;
+		};
+	};
+};
+
 &gpu_opp_table {
 	opp-520000000 {
 		opp-hz = /bits/ 64 <520000000>;
@@ -22,12 +33,26 @@
 	};
 };
 
+&lvds {
+	ports {
+		port@0 {
+			/delete-node/ endpoint@1;
+		};
+	};
+};
+
 &rgb {
 	phys = <&video_phy>;
 	phy-names = "phy";
 	pinctrl-names = "default", "sleep";
 	pinctrl-0 = <&lcdc_m1_rgb_pins>;
 	pinctrl-1 = <&lcdc_m1_sleep_pins>;
+
+	ports {
+		port@0 {
+			/delete-node/ endpoint@1;
+		};
+	};
 };
 
 &pinctrl {

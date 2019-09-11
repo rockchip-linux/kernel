@@ -361,10 +361,6 @@
 	};
 };
 
-&dsi_in_vopl {
-	status = "disabled";
-};
-
 &emmc {
 	bus-width = <8>;
 	cap-mmc-highspeed;
@@ -713,10 +709,6 @@
 	};
 };
 
-&lvds_in_vopl {
-	status = "disabled";
-};
-
 &mipi_dphy_rx0 {
 	status = "okay";
 };
@@ -838,14 +830,6 @@
 };
 
 &vopb_mmu {
-	status = "okay";
-};
-
-&vopl {
-	status = "okay";
-};
-
-&vopl_mmu {
 	status = "okay";
 };
 

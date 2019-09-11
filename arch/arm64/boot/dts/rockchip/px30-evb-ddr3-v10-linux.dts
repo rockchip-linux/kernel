@@ -10,7 +10,7 @@
 #include <dt-bindings/display/drm_mipi_dsi.h>
 #include <dt-bindings/sensor-dev.h>
 #include "px30.dtsi"
-#include "rk3326-linux.dtsi"
+#include "px30-linux.dtsi"
 
 / {
 	model = "Rockchip linux PX30 evb ddr3 board";
