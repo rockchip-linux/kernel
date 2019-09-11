@@ -2416,6 +2416,23 @@ static size_t vop_crtc_bandwidth(struct drm_crtc *crtc,
 	u64 bandwidth;
 	int i, cnt = 0, plane_num = 0;
 
+#if defined(CONFIG_ROCKCHIP_DRM_DEBUG)
+	struct vop_dump_list *pos, *n;
+
+	if (!crtc->vop_dump_list_init_flag) {
+		INIT_LIST_HEAD(&crtc->vop_dump_list_head);
+		crtc->vop_dump_list_init_flag = true;
+	}
+	list_for_each_entry_safe(pos, n, &crtc->vop_dump_list_head, entry) {
+		list_del(&pos->entry);
+		kfree(pos);
+	}
+	if (crtc->vop_dump_status == DUMP_KEEP ||
+	    crtc->vop_dump_times > 0) {
+		crtc->frame_count++;
+	}
+#endif
+
 	if (!htotal || !vdisplay)
 		return 0;
 
@@ -3028,23 +3045,6 @@ static int vop_crtc_atomic_check(struct drm_crtc *crtc,
 	struct vop_zpos *pzpos;
 	int dsp_layer_sel = 0;
 	int i, j, cnt = 0, ret = 0;
-
-#if defined(CONFIG_ROCKCHIP_DRM_DEBUG)
-	struct vop_dump_list *pos, *n;
-
-	if (!crtc->vop_dump_list_init_flag) {
-		INIT_LIST_HEAD(&crtc->vop_dump_list_head);
-		crtc->vop_dump_list_init_flag = true;
-	}
-	list_for_each_entry_safe(pos, n, &crtc->vop_dump_list_head, entry) {
-		list_del(&pos->entry);
-		kfree(pos);
-	}
-	if (crtc->vop_dump_status == DUMP_KEEP ||
-	    crtc->vop_dump_times > 0) {
-		crtc->frame_count++;
-	}
-#endif
 
 	ret = vop_afbdc_atomic_check(crtc, crtc_state);
 	if (ret)
