@@ -30,3 +30,7 @@
 		};
 	};
 };
+
+&rockchip_suspend {
+	rockchip,virtual-poweroff = <1>;
+};
