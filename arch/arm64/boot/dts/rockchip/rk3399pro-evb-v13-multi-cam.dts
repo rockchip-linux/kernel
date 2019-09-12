@@ -7,9 +7,14 @@
 	model = "Rockchip RK3399pro evb v13 multi camera board";
 	compatible = "rockchip,rk3399pro-evb-v13-multi-cam", "rockchip,rk3399pro";
 
-	dma_trans: dma_trans@3c000000 {
-		//no-map;
-		reg = <0x0 0x3c000000 0x0 0x04000000>;
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+
+		dma_trans: dma_trans@3c000000 {
+			//no-map;
+			reg = <0x0 0x3c000000 0x0 0x04000000>;
+		};
 	};
 };
 
