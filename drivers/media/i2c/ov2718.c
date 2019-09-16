@@ -5,6 +5,7 @@
  * Copyright (C) 2018 Fuzhou Rockchip Electronics Co., Ltd.
  *
  * V0.0X01.0X01 add poweron function.
+ * V0.0X01.0X02 fix mclk issue when probe multiple camera.
  */
 
 #include <linux/clk.h>
@@ -33,7 +34,7 @@
 #include <linux/mfd/syscon.h>
 #include <linux/rk-preisp.h>
 
-#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x01)
+#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x02)
 
 #ifndef V4L2_CID_DIGITAL_GAIN
 #define V4L2_CID_DIGITAL_GAIN		V4L2_CID_GAIN
@@ -4501,13 +4502,16 @@ static int __ov2718_power_on(struct ov2718 *ov2718)
 		if (ret < 0)
 			dev_err(dev, "could not set pins\n");
 	}
-
+	ret = clk_set_rate(ov2718->xvclk, OV2718_XVCLK_FREQ);
+	if (ret < 0)
+		dev_warn(dev, "Failed to set xvclk rate (24MHz)\n");
+	if (clk_get_rate(ov2718->xvclk) != OV2718_XVCLK_FREQ)
+		dev_warn(dev, "xvclk mismatched, modes are based on 24MHz\n");
 	ret = clk_prepare_enable(ov2718->xvclk);
 	if (ret < 0) {
 		dev_err(dev, "Failed to enable xvclk\n");
 		return ret;
 	}
-
 	if (ov2718->regulators.regulator) {
 		for (i = 0; i < ov2718->regulators.cnt; i++) {
 			regulator = ov2718->regulators.regulator + i;
@@ -4901,7 +4905,6 @@ static int ov2718_check_sensor_id(struct ov2718 *ov2718,
 
 static int ov2718_analyze_dts(struct ov2718 *ov2718)
 {
-	int ret;
 	int elem_size, elem_index;
 	const char *str = "";
 	struct property *prop;
@@ -4914,13 +4917,6 @@ static int ov2718_analyze_dts(struct ov2718 *ov2718)
 		dev_err(dev, "Failed to get xvclk\n");
 		return -EINVAL;
 	}
-	ret = clk_set_rate(ov2718->xvclk, OV2718_XVCLK_FREQ);
-	if (ret < 0) {
-		dev_err(dev, "Failed to set xvclk rate (24MHz)\n");
-		return ret;
-	}
-	if (clk_get_rate(ov2718->xvclk) != OV2718_XVCLK_FREQ)
-		dev_warn(dev, "xvclk mismatched, modes are based on 24MHz\n");
 
 	ov2718->pinctrl = devm_pinctrl_get(dev);
 	if (!IS_ERR(ov2718->pinctrl)) {

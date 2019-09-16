@@ -3,7 +3,8 @@
  * sc132gs driver
  *
  * Copyright (C) 2017 Fuzhou Rockchip Electronics Co., Ltd.
- *V0.1.0: MIPI is ok.
+ * V0.1.0: MIPI is ok.
+ * V0.0X01.0X02 fix mclk issue when probe multiple camera.
  */
 
 #include <linux/clk.h>
@@ -24,7 +25,7 @@
 #include <media/v4l2-subdev.h>
 #include <linux/pinctrl/consumer.h>
 
-#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x00)
+#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x02)
 #ifndef V4L2_CID_DIGITAL_GAIN
 #define V4L2_CID_DIGITAL_GAIN		V4L2_CID_GAIN
 #endif
@@ -719,6 +720,12 @@ static int __sc132gs_power_on(struct sc132gs *sc132gs)
 		if (ret < 0)
 			dev_err(dev, "could not set pins\n");
 	}
+
+	ret = clk_set_rate(sc132gs->xvclk, SC132GS_XVCLK_FREQ);
+	if (ret < 0)
+		dev_warn(dev, "Failed to set xvclk rate (24MHz)\n");
+	if (clk_get_rate(sc132gs->xvclk) != SC132GS_XVCLK_FREQ)
+		dev_warn(dev, "xvclk mismatched, modes are based on 24MHz\n");
 	ret = clk_prepare_enable(sc132gs->xvclk);
 	if (ret < 0) {
 		dev_err(dev, "Failed to enable xvclk\n");
@@ -1035,13 +1042,6 @@ static int sc132gs_probe(struct i2c_client *client,
 		dev_err(dev, "Failed to get xvclk\n");
 		return -EINVAL;
 	}
-	ret = clk_set_rate(sc132gs->xvclk, SC132GS_XVCLK_FREQ);
-	if (ret < 0) {
-		dev_err(dev, "Failed to set xvclk rate (24MHz)\n");
-		return ret;
-	}
-	if (clk_get_rate(sc132gs->xvclk) != SC132GS_XVCLK_FREQ)
-		dev_warn(dev, "xvclk mismatched, modes are based on 24MHz\n");
 
 	sc132gs->pwdn_gpio = devm_gpiod_get(dev, "pwdn", GPIOD_OUT_LOW);
 	if (IS_ERR(sc132gs->pwdn_gpio))
