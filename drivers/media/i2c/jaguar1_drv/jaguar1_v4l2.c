@@ -128,36 +128,36 @@ static const struct jaguar1_framesize jaguar1_framesizes[] = {
 	{
 		.width		= 1280,
 		.height		= 720,
-		.fmt_idx	= AHD20_720P_25P,
+		.fmt_idx	= AHD20_720P_25P_EX_Btype,
 	}
 #elif defined CONFIG_VIDEO_ROCKCHIP_USBACM_CONTROL
 	{
 		.width		= 2560,
 		.height		= 1440,
-		.fmt_idx	= AHD20_720P_25P,
+		.fmt_idx	= AHD20_720P_25P_EX_Btype,
 	}
 #else
 	{
 		.width		= 1280,
 		.height		= 720,
-		.fmt_idx	= AHD20_720P_25P,
+		.fmt_idx	= AHD20_720P_25P_EX_Btype,
 	},
 	{
 		.width		= 1920,
 		.height		= 1080,
-		.fmt_idx	= AHD20_1080P_25P,
+		.fmt_idx	= AHD20_720P_25P_EX_Btype,
 	},
 	{
 		.width		= 2560,
 		.height		= 1440,
-		.fmt_idx	= AHD20_720P_25P,
+		.fmt_idx	= AHD20_720P_25P_EX_Btype,
 	}
 #endif
 };
 
 static const struct jaguar1_pixfmt jaguar1_formats[] = {
 	{
-		.code = MEDIA_BUS_FMT_YUYV8_2X8
+		.code = MEDIA_BUS_FMT_YVYU8_2X8
 	},
 };
 
