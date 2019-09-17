@@ -1700,15 +1700,18 @@ int rockchip_wifi_init_module_rtkwifi(void)
 int rockchip_wifi_init_module(void)
 #endif
 {
+#define CHIP_TYPE_8723DU (3)
 #ifdef CONFIG_WIFI_LOAD_DRIVER_WHEN_KERNEL_BOOTUP
     int type = get_wifi_chip_type();
-    if (type < WIFI_AP6XXX_SERIES || type == WIFI_ESP8089) return 0;
+    if (type != CHIP_TYPE_8723DU)
+		return 0;
+	//if (type < WIFI_AP6XXX_SERIES || type == WIFI_ESP8089) return 0;
 #endif
     printk("\n");
     printk("=======================================================\n");
     printk("==== Launching Wi-Fi driver! (Powered by Rockchip) ====\n");
     printk("=======================================================\n");
-    printk("Realtek 8723BU USB WiFi driver (Powered by Rockchip) init.\n");
+    printk("Realtek 8723DU USB WiFi driver (Powered by Rockchip) init.\n");
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0))
     rockchip_wifi_power(1);
     //rockchip_wifi_set_carddetect(1);
@@ -1733,7 +1736,7 @@ void rockchip_wifi_exit_module(void)
     printk("=======================================================\n");
     printk("==== Dislaunching Wi-Fi driver! (Powered by Rockchip) ====\n");
     printk("=======================================================\n");
-    printk("Realtek 8723BU USB WiFi driver (Powered by Rockchip) init.\n");
+    printk("Realtek 8723DU USB WiFi driver (Powered by Rockchip) init.\n");
     rtw_drv_halt();
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0))
     //rockchip_wifi_set_carddetect(0);
@@ -1747,14 +1750,14 @@ void rockchip_wifi_exit_module(void)
 module_init(rockchip_wifi_init_module_rtkwifi);
 module_exit(rockchip_wifi_exit_module_rtkwifi);
 #else
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0))
-#ifdef CONFIG_WIFI_LOAD_DRIVER_WHEN_KERNEL_BOOTUP
-late_initcall(rockchip_wifi_init_module_rtkwifi);
-module_exit(rockchip_wifi_exit_module_rtkwifi);
-#else
-module_init(rockchip_wifi_init_module_rtkwifi);
-module_exit(rockchip_wifi_exit_module_rtkwifi);
-#endif
+	#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0))
+		#ifdef CONFIG_WIFI_LOAD_DRIVER_WHEN_KERNEL_BOOTUP
+		late_initcall(rockchip_wifi_init_module_rtkwifi);
+		module_exit(rockchip_wifi_exit_module_rtkwifi);
+		#else
+		module_init(rockchip_wifi_init_module_rtkwifi);
+		module_exit(rockchip_wifi_exit_module_rtkwifi);
+		#endif
 #else
 #ifdef CONFIG_ANDROID_4_2
 module_init(rockchip_wifi_init_module);
