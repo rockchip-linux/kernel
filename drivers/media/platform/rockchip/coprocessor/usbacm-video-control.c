@@ -409,6 +409,13 @@ static int rkcoproc_probe(struct platform_device *pdev)
 	if (ret < 0)
 		goto rmmutex;
 
+	ret = rkcoproc_get_remote_node_dev(rkcoproc);
+	if (ret || !rkcoproc->src_sd) {
+		v4l2_err(&rkcoproc->sd, "sensor remote node dev is NULL\n");
+		return -EINVAL;
+	}
+
+	rkcoproc->sd.ctrl_handler = rkcoproc->src_sd->ctrl_handler;
 	ret = v4l2_async_register_subdev_sensor_common(&rkcoproc->sd);
 	if (ret)
 		v4l2_err(&rkcoproc->sd, "v4l2 async register subdev failed\n");
