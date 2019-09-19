@@ -2,8 +2,28 @@
 #include "rk3399-roc-pc.dtsi"
 
 / {
-	model = "Firefly roc-rk3399-pc-plus";
-	compatible = "firefly,roc-rk3399-pc", "rockchip,rk3399";
+	model = "Firefly ROC-RK3328-CC";
+	compatible = "firefly,roc-rk3328-cc", "rockchip,rk3328";
+
+	es8388-sound {
+		status = "okay";
+		compatible = "simple-audio-card";
+		simple-audio-card,format = "i2s";
+		simple-audio-card,name = "rockchip,es8388-codec";
+		simple-audio-card,mclk-fs = <256>;
+		simple-audio-card,cpu {
+			sound-dai = <&i2s1>;
+			system-clock-frequency = <11289600>;
+		};
+		simple-audio-card,codec {
+			sound-dai = <&es8388>;
+			system-clock-frequency = <11289600>;
+		};
+	};
+};
+
+&i2s1 {
+	status = "okay";
 };
 
 &vcc_wifi {
@@ -18,6 +38,40 @@
 
 &dmc {
 	status = "disabled";
+};
+
+&rk808 {
+	/delete-property/ pmic,hold-gpio;
+};
+
+&i2c1 {
+	status = "okay";
+	es8388: es8388@11 {
+		compatible = "everest,es8323";
+		status = "okay";
+		reg = <0x11>;
+		hp-det-gpio = <&gpio2 6 GPIO_ACTIVE_LOW>;
+		hp-ctl-gpio = <&gpio0 2 GPIO_ACTIVE_HIGH>;
+		clock-names = "mclk";
+		clocks = <&cru SCLK_I2S_8CH_OUT>;
+		pinctrl-names = "default","hp_ctl_h","hp_det_h";
+		pinctrl-0 = <&i2s_8ch_mclk>;
+		pinctrl-1 = <&ear_ctl_h &ear_det_h>;
+		#sound-dai-cells = <0>;
+	};
+};
+
+
+&pinctrl {
+	 es8388-pins {
+		ear_ctl_h: ear-ctl-h {
+                        rockchip,pins = <0 2 RK_FUNC_GPIO &pcfg_pull_down>;
+                };
+		
+		ear_det_h: ear-det-h {
+                        rockchip,pins = <2 6 RK_FUNC_GPIO &pcfg_pull_down>;
+                };
+	};
 };
 
 /*

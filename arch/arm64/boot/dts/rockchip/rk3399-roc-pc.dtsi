@@ -320,7 +320,7 @@
 			label = "firefly:yellow:user";
 			linux,default-trigger = "ir-user-click";
 			default-state = "off";
-			gpios = <&gpio0 2 GPIO_ACTIVE_HIGH>;
+			gpios = <&gpio0 13 GPIO_ACTIVE_HIGH>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&led_user>;
 		};
@@ -977,7 +977,7 @@
 		       };
 	       led_user: led-user {
 		       rockchip,pins =
-		       <0 2 RK_FUNC_GPIO &pcfg_pull_none>;
+		       <0 13 RK_FUNC_GPIO &pcfg_pull_none>;
 		       };
 	};
 
