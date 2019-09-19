@@ -88,13 +88,13 @@
 		compatible = "everest,es8323";
 		status = "okay";
 		reg = <0x11>;
-		hp-det-gpio = <&gpio2 6 GPIO_ACTIVE_LOW>;
+		hp-det-gpio = <&gpio2 6 GPIO_ACTIVE_HIGH>;
 		hp-ctl-gpio = <&gpio0 2 GPIO_ACTIVE_HIGH>;
 		clock-names = "mclk";
 		clocks = <&cru SCLK_I2S_8CH_OUT>;
-		pinctrl-names = "default","hp_ctl_h","hp_det_h";
+		pinctrl-names = "default";
 		pinctrl-0 = <&i2s_8ch_mclk>;
-		pinctrl-1 = <&ear_ctl_h &ear_det_h>;
+		pinctrl-1 = <&ear_ctl_h>;
 		#sound-dai-cells = <0>;
 	};
 };
@@ -109,10 +109,6 @@
 	 es8388-pins {
 		ear_ctl_h: ear-ctl-h {
                         rockchip,pins = <0 2 RK_FUNC_GPIO &pcfg_pull_down>;
-                };
-		
-		ear_det_h: ear-det-h {
-                        rockchip,pins = <2 6 RK_FUNC_GPIO &pcfg_pull_down>;
                 };
 	};
 };
