@@ -612,6 +612,9 @@
 		clocks = <&cru SCLK_VIP_OUT>;
 		clock-names = "xvclk";
 
+		pinctrl-names = "default";
+		pinctrl-0 = <&isp_mipi>;
+
 		reset-gpios = <&gpio7 21 GPIO_ACTIVE_HIGH>;
 		pwdn-gpios = <&gpio2 15 GPIO_ACTIVE_HIGH>;
 		rockchip,camera-module-index = <0>;
