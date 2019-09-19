@@ -2,8 +2,8 @@
 #include "rk3399-roc-pc.dtsi"
 
 / {
-	model = "Firefly ROC-RK3328-CC";
-	compatible = "firefly,roc-rk3328-cc", "rockchip,rk3328";
+	model = "Firefly roc-rk3399-pc-plus";
+	compatible = "firefly,roc-rk3399-pc-plus", "rockchip,rk3399";
 
 	es8388-sound {
 		status = "okay";
@@ -21,6 +21,44 @@
 		};
 	};
 };
+
+/* delet fusb1 node for USB3.0 */
+
+&i2c7 {
+	/delete-node/ mp8859;
+};
+
+&i2c4 {
+	/delete-node/ fusb1;
+};
+
+&fusb0 {
+	/delete-property/ power-dev;
+};
+
+&cdn_dp {
+	status = "okay";
+	extcon = <&fusb0>;
+	phys = <&tcphy0_dp>;
+};
+
+&tcphy1 {
+	/delete-property/ extcon;
+};
+
+&u2phy1 {
+	/delete-property/ extcon;
+};
+
+&usbdrd3_1 {
+	/delete-property/ extcon;
+};
+
+
+
+
+
+
 
 &i2s1 {
 	status = "okay";
@@ -60,6 +98,11 @@
 		#sound-dai-cells = <0>;
 	};
 };
+
+
+
+
+
 
 
 &pinctrl {
