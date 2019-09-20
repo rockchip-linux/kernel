@@ -1234,6 +1234,7 @@
 	status = "okay";
 	interrupts = <GIC_SPI 61 IRQ_TYPE_LEVEL_HIGH 0>;
 	compatible = "rockchip,remotectl-pwm";
+	pinctrl-names = "default";
 	remote_pwm_id = <3>;
 	handle_cpu_id = <0>;
 	remote_support_psci = <1>;
