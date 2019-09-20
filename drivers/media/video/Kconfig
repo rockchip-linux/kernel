@@ -24,3 +24,5 @@ menu "rockchip camera sensor interface driver"
     	select VIDEOBUF_DMA_CONTIG
 		default n
 endmenu		
+
+source "drivers/media/video/rk_preisp/Kconfig"

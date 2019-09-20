@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: GPL-2.0
+
+menu "RockChip preisp driver"
+
+config RKPREISP_DRV
+	tristate "preisp driver "
+	default n
+	---help---
+
+endmenu
+
