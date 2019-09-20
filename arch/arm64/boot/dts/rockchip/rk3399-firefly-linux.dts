@@ -299,8 +299,8 @@
 		regulator-boot-on;
 
 		/* for rockchip boot on */
-		rockchip,pwm_id= <2>;
-		rockchip,pwm_voltage = <900000>;
+		rockchip,pwm_id = <2>;
+		rockchip,pwm_voltage = <1000000>;
 	};
 
 	vccadc_ref: vccadc-ref {
