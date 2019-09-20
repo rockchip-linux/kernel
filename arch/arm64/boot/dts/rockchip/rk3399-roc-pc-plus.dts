@@ -25,11 +25,11 @@
 /* delet fusb1 node for USB3.0 */
 
 &i2c7 {
-	/delete-node/ mp8859;
+	/delete-node/ mp8859@66;
 };
 
 &i2c4 {
-	/delete-node/ fusb1;
+	/delete-node/ fusb30x@22;
 };
 
 &fusb0 {
