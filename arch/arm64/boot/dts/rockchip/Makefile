@@ -84,6 +84,7 @@ dtb-$(CONFIG_ARCH_ROCKCHIP) += rock960-model-ab-linux.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += rock960-model-c-linux.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += rockpi-4a-linux.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += rockpi-4b-linux.dtb
+dtb-$(CONFIG_ARCH_ROCKCHIP) += rockpi-4c-linux.dtb
 
 targets += dtbs dtbs_instal
 targets += $(dtb-y)
