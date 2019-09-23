@@ -48,6 +48,26 @@
 
 	model = "ROCK PI 4C";
 	compatible = "rockchip,rockpi","rockchip,rk3399";
+
+	vpd0: virtual-pd0 {
+		compatible = "linux,extcon-pd-virtual";
+		dp-det-gpios = <&gpio4 25 GPIO_ACTIVE_LOW>;
+		/* 0: positive, 1: negative*/
+		vpd,init-flip = <0>;
+		/* 0: u2, 1: u3*/
+		vpd,init-ss = <1>;
+		/* 0: dfp, 1: ufp, 2: dp 3: dp/ufp */
+		vpd,init-mode = <2>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&dp_pwr>;
+	};
+};
+
+&cdn_dp {
+	status = "okay";
+	extcon = <&vpd0>;
+//	dp_vop_sel = <0>;
+//	phys = <&tcphy0_dp>;
 };
 
 &wireless_wlan {
@@ -65,4 +85,65 @@
 &host_vbus_drv {
 	rockchip,pins =
 		<3 30 RK_FUNC_GPIO &pcfg_pull_none>;
+};
+
+&tcphy0 {
+	extcon = <&vpd0>;
+	status = "okay";
+};
+
+&pinctrl {
+
+	dp {
+		dp_pwr: dp-pwr {
+			rockchip,pins =
+				<1 24 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+	};
+};
+
+&dsi1_in_vopl {
+	status = "disabled";
+};
+
+&dsi1_in_vopb {
+	status = "disabled";
+};
+
+&route_dsi {
+	status = "disabled";
+ };
+
+&route_dsi1{
+	status = "disabled";
+	connect = <&vopl_out_dsi1>;
+};
+
+&hdmi_in_vopl {
+	status = "disabled";
+};
+
+&hdmi_in_vopb {
+	status = "okay";
+};
+
+&route_hdmi {
+	status = "okay";
+	connect = <&vopb_out_hdmi>;
+};
+
+&dp_in_vopb {
+	status = "disabled";
+};
+
+&dp_in_vopl {
+	status = "okay";
+};
+
+&tcphy0_dp {
+	status = "okay";
+};
+
+&tcphy0_usb3 {
+	status = "okay";
 };
