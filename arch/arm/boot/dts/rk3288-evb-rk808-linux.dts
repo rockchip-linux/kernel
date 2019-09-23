@@ -199,7 +199,7 @@
 };
 
 &cif {
-	status = "okay";
+	status = "disabled";
 	port {
 		/* Parallel bus endpoint */
 		/* cif_para_in: endpoint {
@@ -222,7 +222,7 @@
 };
 
 &csi_host {
-	status = "okay";
+	status = "disabled";
 	ports {
 		#address-cells = <1>;
 		#size-cells = <0>;
@@ -564,7 +564,7 @@
 	};
 
 	gc2145: gc2145@3c {
-		status = "okay";
+		status = "disabled";
 		compatible = "galaxycore,gc2145";
 		reg = <0x3c>;
 		pinctrl-names = "default";
@@ -663,7 +663,7 @@
 };
 
 &mipi_phy_tx1rx1 {
-	status = "okay";
+	status = "disabled";
 
 	ports {
 		#address-cells = <1>;
