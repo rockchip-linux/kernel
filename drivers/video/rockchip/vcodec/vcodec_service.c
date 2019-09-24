@@ -632,7 +632,6 @@ static int probe_width(struct vpu_reg *reg)
 	int type = -1;
 
 	if (reg->type != VPU_DEC && reg->type != VPU_DEC_PP) {
-		pr_info("type is not dec or pp, return\n");
 		return -1;
 	}
 	if (reg->task->get_fmt) {
