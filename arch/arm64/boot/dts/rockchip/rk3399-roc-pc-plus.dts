@@ -20,6 +20,29 @@
 			system-clock-frequency = <11289600>;
 		};
 	};
+	/delete-node/ vcc_hub_en-regulator;
+};
+
+/* RTC */
+
+&rk808{
+	rtc {
+		status = "disabled";
+	};	
+};
+
+&i2c0 {
+	status = "okay";
+	hym8563: hym8563@51 {
+		compatible = "haoyu,hym8563";
+		reg = <0x51>;
+		interrupt-parent = <&gpio0>;
+		interrupts = <5 IRQ_TYPE_EDGE_FALLING>;
+		pinctrl-names = "default";
+		#clock-cells = <0>;
+		clock-frequency = <32768>;
+		clock-output-names = "xin32k";
+	};
 };
 
 /* delet fusb1 node for USB3.0 */
