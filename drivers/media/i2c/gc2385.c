@@ -51,7 +51,7 @@
 
 #define GC2385_REG_EXPOSURE_H		0x03
 #define GC2385_REG_EXPOSURE_L		0x04
-#define GC2385_FETCH_HIGH_BYTE_EXP(VAL) (((VAL) >> 8) & 0x0F)	/* 4 Bits */
+#define GC2385_FETCH_HIGH_BYTE_EXP(VAL) (((VAL) >> 8) & 0x3F)	/* 6 Bits */
 #define GC2385_FETCH_LOW_BYTE_EXP(VAL) ((VAL) & 0xFF)	/* 8 Bits */
 #define	GC2385_EXPOSURE_MIN		4
 #define	GC2385_EXPOSURE_STEP		1
