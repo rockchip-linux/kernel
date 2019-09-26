@@ -1592,11 +1592,17 @@ static int rkcif_fh_open(struct file *filp)
 	 * Because CRU would reset iommu too, so there's not chance
 	 * to reset cif once we hold buffers after buf queued
 	 */
-	if (cifdev->chip_id == CHIP_RK1808_CIF)
+	if (cifdev->chip_id == CHIP_RK1808_CIF) {
+		mutex_lock(&cifdev->stream_lock);
+		v4l2_info(&cifdev->v4l2_dev, "fh_cnt: %d\n",
+					atomic_read(&cifdev->fh_cnt));
+		if (!atomic_read(&cifdev->fh_cnt))
+			rkcif_soft_reset(cifdev, true);
 		atomic_inc(&cifdev->fh_cnt);
-	else
+		mutex_unlock(&cifdev->stream_lock);
+	} else {
 		rkcif_soft_reset(cifdev, true);
-
+	}
 	return v4l2_fh_open(filp);
 }
 
