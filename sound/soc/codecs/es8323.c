@@ -901,9 +901,9 @@ static int es8323_hp_jack_change(struct notifier_block *nb,
 				 unsigned long flags, void *data)
 {
 	if ( !(int)flags )
-		snd_soc_write(es8323_codec, 0x0b, 0x02);
-	else
 		snd_soc_write(es8323_codec, 0x0b, 0x82);
+	else
+		snd_soc_write(es8323_codec, 0x0b, 0x02);
 
 	return NOTIFY_OK;
 }
