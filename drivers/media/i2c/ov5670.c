@@ -6,6 +6,7 @@
  *
  * V0.0X01.0X01 add poweron function.
  * V0.0X01.0X02 fix mclk issue when probe multiple camera.
+ * V0.0X01.0X03 add otp function.
  */
 
 #include <linux/clk.h>
@@ -37,7 +38,7 @@
 /* verify default register values */
 //#define CHECK_REG_VALUE
 
-#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x02)
+#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x03)
 
 #ifndef V4L2_CID_DIGITAL_GAIN
 #define V4L2_CID_DIGITAL_GAIN		V4L2_CID_GAIN
@@ -93,6 +94,26 @@
 
 #define OV5670_NAME			"ov5670"
 
+#define  RG_Ratio_Typical_Default (0x16f)
+#define  BG_Ratio_Typical_Default (0x16f)
+
+#define ov5670_write_1byte(client, reg, val)	\
+	ov5670_write_reg((client), (reg), OV5670_REG_VALUE_08BIT, (val))
+
+#define ov5670_read_1byte(client, reg, val)	\
+	ov5670_read_reg((client), (reg), OV5670_REG_VALUE_08BIT, (val))
+
+struct ov5670_otp_info {
+	int flag; // bit[7]: info, bit[6]:wb
+	int module_id;
+	int lens_id;
+	int year;
+	int month;
+	int day;
+	int rg_ratio;
+	int bg_ratio;
+};
+
 static const char * const ov5670_supply_names[] = {
 	"avdd",		/* Analog power */
 	"dovdd",	/* Digital I/O power */
@@ -145,12 +166,78 @@ struct ov5670 {
 	unsigned int cfg_num;
 	unsigned int pixel_rate;
 	u32			module_index;
+	struct ov5670_otp_info *otp;
 	const char		*module_facing;
 	const char		*module_name;
 	const char		*len_name;
+	struct rkmodule_awb_cfg	awb_cfg;
 };
 
 #define to_ov5670(sd) container_of(sd, struct ov5670, subdev)
+
+struct ov5670_id_name {
+	int id;
+	char name[RKMODULE_NAME_LEN];
+};
+
+static const struct ov5670_id_name ov5670_module_info[] = {
+	{0x01, "Sunny"},
+	{0x02, "Truly"},
+	{0x03, "A-kerr"},
+	{0x04, "LiteArray"},
+	{0x05, "Darling"},
+	{0x06, "Qtech"},
+	{0x07, "OFlim"},
+	{0x08, "Huaquan/Kingcom"},
+	{0x09, "Booyi"},
+	{0x0a, "Laimu"},
+	{0x0b, "WDSEN"},
+	{0x0c, "Sunrise"},
+	{0x0d, "CameraKing"},
+	{0x0e, "Sunniness/Riyong"},
+	{0x0f, "Tongju"},
+	{0x10, "Seasons/Sijichun"},
+	{0x11, "Foxconn"},
+	{0x12, "Importek"},
+	{0x13, "Altek"},
+	{0x14, "ABICO/Ability"},
+	{0x15, "Lite-on"},
+	{0x16, "Chicony"},
+	{0x17, "Primax"},
+	{0x18, "AVC"},
+	{0x19, "Suyin"},
+	{0x21, "Sharp"},
+	{0x31, "MCNEX"},
+	{0x32, "SEMCO"},
+	{0x33, "Partron"},
+	{0x41, "Reach/Zhongliancheng"},
+	{0x42, "BYD"},
+	{0x43, "OSTEC(AoShunChuang)"},
+	{0x44, "Chengli"},
+	{0x45, "Jiali"},
+	{0x46, "Chippack"},
+	{0x47, "RongSheng"},
+	{0x48, "ShineTech/ShenTai"},
+	{0x49, "Brodsands"},
+	{0x50, "Others"},
+	{0x00, "Unknown"}
+};
+
+static const struct ov5670_id_name ov5670_lens_info[] = {
+	{0x01, "Largan 40010A2"},
+	{0x10, "Largan 30048A1"},
+	{0x11, "Largan 30031A1B"},
+	{0x12, "Largan 40010A1"},
+	{0x30, "Sunny 3531A"},
+	{0x31, "Sunny 3531B"},
+	{0x32, "Sunny 3533A"},
+	{0x90, "Kinko 3956AH"},
+	{0xa0, "E-pin D517"},
+	{0xc0, "XuYe XA-0502B"},
+	{0xc8, "XuYe XA-0502A"},
+	{0xc9, "XuYe E009A"},
+	{0x00, "Unknown"}
+};
 
 /*
  * Xclk 24Mhz
@@ -825,6 +912,52 @@ static int ov5670_enable_test_pattern(struct ov5670 *ov5670, u32 pattern)
 				OV5670_REG_VALUE_08BIT, val);
 }
 
+static void ov5670_get_otp(struct ov5670_otp_info *otp,
+			       struct rkmodule_inf *inf)
+{
+	u32 i;
+	int rg, bg;
+
+	/* fac */
+	if (otp->flag & 0x80) {
+		inf->fac.flag = 1;
+		inf->fac.year = otp->year;
+		inf->fac.month = otp->month;
+		inf->fac.day = otp->day;
+
+		for (i = 0; i < ARRAY_SIZE(ov5670_module_info) - 1; i++) {
+			if (ov5670_module_info[i].id == otp->module_id)
+				break;
+		}
+		strlcpy(inf->fac.module, ov5670_module_info[i].name,
+			sizeof(inf->fac.module));
+
+		for (i = 0; i < ARRAY_SIZE(ov5670_lens_info) - 1; i++) {
+			if (ov5670_lens_info[i].id == otp->lens_id)
+				break;
+		}
+		strlcpy(inf->fac.lens, ov5670_lens_info[i].name,
+			sizeof(inf->fac.lens));
+	}
+
+	/* awb */
+	if (otp->flag & 0x40) {
+		rg = otp->rg_ratio;
+		bg = otp->bg_ratio;
+
+		inf->awb.flag = 1;
+		inf->awb.r_value = rg;
+		inf->awb.b_value = bg;
+		inf->awb.gr_value = 0x200;
+		inf->awb.gb_value = 0x200;
+
+		inf->awb.golden_r_value = 0;
+		inf->awb.golden_b_value = 0;
+		inf->awb.golden_gr_value = 0;
+		inf->awb.golden_gb_value = 0;
+	}
+}
+
 static int ov5670_g_frame_interval(struct v4l2_subdev *sd,
 				   struct v4l2_subdev_frame_interval *fi)
 {
@@ -841,11 +974,22 @@ static int ov5670_g_frame_interval(struct v4l2_subdev *sd,
 static void ov5670_get_module_inf(struct ov5670 *ov5670,
 				  struct rkmodule_inf *inf)
 {
+	struct ov5670_otp_info *otp = ov5670->otp;
 	memset(inf, 0, sizeof(*inf));
 	strlcpy(inf->base.sensor, OV5670_NAME, sizeof(inf->base.sensor));
 	strlcpy(inf->base.module, ov5670->module_name,
 		sizeof(inf->base.module));
 	strlcpy(inf->base.lens, ov5670->len_name, sizeof(inf->base.lens));
+	if (otp)
+		ov5670_get_otp(otp, inf);
+}
+
+static void ov5670_set_awb_cfg(struct ov5670 *ov5670,
+				 struct rkmodule_awb_cfg *cfg)
+{
+	mutex_lock(&ov5670->mutex);
+	memcpy(&ov5670->awb_cfg, cfg, sizeof(*cfg));
+	mutex_unlock(&ov5670->mutex);
 }
 
 static long ov5670_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
@@ -856,6 +1000,9 @@ static long ov5670_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 	switch (cmd) {
 	case RKMODULE_GET_MODULE_INFO:
 		ov5670_get_module_inf(ov5670, (struct rkmodule_inf *)arg);
+		break;
+	case RKMODULE_AWB_CFG:
+		ov5670_set_awb_cfg(ov5670, (struct rkmodule_awb_cfg *)arg);
 		break;
 	default:
 		ret = -ENOIOCTLCMD;
@@ -871,7 +1018,7 @@ static long ov5670_compat_ioctl32(struct v4l2_subdev *sd,
 {
 	void __user *up = compat_ptr(arg);
 	struct rkmodule_inf *inf;
-	struct rkmodule_awb_cfg *cfg;
+	struct rkmodule_awb_cfg *awb_cfg;
 	long ret;
 
 	switch (cmd) {
@@ -888,16 +1035,16 @@ static long ov5670_compat_ioctl32(struct v4l2_subdev *sd,
 		kfree(inf);
 		break;
 	case RKMODULE_AWB_CFG:
-		cfg = kzalloc(sizeof(*cfg), GFP_KERNEL);
-		if (!cfg) {
+		awb_cfg = kzalloc(sizeof(*awb_cfg), GFP_KERNEL);
+		if (!awb_cfg) {
 			ret = -ENOMEM;
 			return ret;
 		}
 
-		ret = copy_from_user(cfg, up, sizeof(*cfg));
+		ret = copy_from_user(awb_cfg, up, sizeof(*awb_cfg));
 		if (!ret)
-			ret = ov5670_ioctl(sd, cmd, cfg);
-		kfree(cfg);
+			ret = ov5670_ioctl(sd, cmd, awb_cfg);
+		kfree(awb_cfg);
 		break;
 	default:
 		ret = -ENOIOCTLCMD;
@@ -907,6 +1054,71 @@ static long ov5670_compat_ioctl32(struct v4l2_subdev *sd,
 	return ret;
 }
 #endif
+/*--------------------------------------------------------------------------*/
+static int ov5670_apply_otp(struct ov5670 *ov5670)
+{
+	int rg, bg, R_gain, G_gain, B_gain, base_gain;
+	struct i2c_client *client = ov5670->client;
+	struct ov5670_otp_info *otp_ptr = ov5670->otp;
+	struct rkmodule_awb_cfg *awb_cfg = &ov5670->awb_cfg;
+	u32 golden_bg_ratio = 0;
+	u32 golden_rg_ratio = 0;
+	u32 golden_g_value = 0;
+
+	if (awb_cfg->enable) {
+		golden_g_value = (awb_cfg->golden_gb_value +
+				  awb_cfg->golden_gr_value) / 2;
+		if (golden_g_value != 0) {
+			golden_rg_ratio = awb_cfg->golden_r_value * 0x200
+				  / golden_g_value;
+			golden_bg_ratio = awb_cfg->golden_b_value * 0x200
+				  / golden_g_value;
+		} else {
+			golden_rg_ratio = RG_Ratio_Typical_Default;
+			golden_bg_ratio = BG_Ratio_Typical_Default;
+		}
+	}
+
+	/* apply OTP WB Calibration */
+	if (otp_ptr->flag & 0x40) {
+		rg = otp_ptr->rg_ratio;
+		bg = otp_ptr->bg_ratio;
+
+		/* calculate G gain */
+		R_gain = (golden_rg_ratio * 1000) / rg;
+		B_gain = (golden_bg_ratio * 1000) / bg;
+		G_gain = 1000;
+		if (R_gain < 1000 || B_gain < 1000) {
+			if (R_gain < B_gain)
+				base_gain = R_gain;
+			else
+				base_gain = B_gain;
+		} else {
+			base_gain = G_gain;
+		}
+		R_gain = 0x400 * R_gain / (base_gain);
+		B_gain = 0x400 * B_gain / (base_gain);
+		G_gain = 0x400 * G_gain / (base_gain);
+
+		/* update sensor WB gain */
+		if (R_gain > 0x400) {
+			ov5670_write_1byte(client, 0x5032, R_gain >> 8);
+			ov5670_write_1byte(client, 0x5033, R_gain & 0x00ff);
+		}
+		if (G_gain > 0x400) {
+			ov5670_write_1byte(client, 0x5034, G_gain >> 8);
+			ov5670_write_1byte(client, 0x5035, G_gain & 0x00ff);
+		}
+		if (B_gain > 0x400) {
+			ov5670_write_1byte(client, 0x5036, B_gain >> 8);
+			ov5670_write_1byte(client, 0x5037, B_gain & 0x00ff);
+		}
+
+		dev_info(&client->dev, "apply awb gain: 0x%x, 0x%x, 0x%x\n",
+			R_gain, G_gain, B_gain);
+	}
+	return 0;
+}
 
 static int __ov5670_start_stream(struct ov5670 *ov5670)
 {
@@ -937,6 +1149,13 @@ static int __ov5670_start_stream(struct ov5670 *ov5670)
 	mutex_lock(&ov5670->mutex);
 	if (ret)
 		return ret;
+
+	if (ov5670->otp)
+		ret = ov5670_apply_otp(ov5670);
+
+	if (ret)
+		dev_info(&ov5670->client->dev, "APPly otp failed!\n");
+
 	ret = ov5670_write_reg(ov5670->client, OV5670_REG_CTRL_MODE,
 				OV5670_REG_VALUE_08BIT, OV5670_MODE_STREAMING);
 	return ret;
@@ -1059,10 +1278,10 @@ static int __ov5670_power_on(struct ov5670 *ov5670)
 		if (ret < 0)
 			dev_err(dev, "could not set pins\n");
 	}
-	ret = clk_set_rate(ov5648->xvclk, OV5648_XVCLK_FREQ);
+	ret = clk_set_rate(ov5670->xvclk, OV5670_XVCLK_FREQ);
 	if (ret < 0)
 		dev_warn(dev, "Failed to set xvclk rate (24MHz)\n");
-	if (clk_get_rate(ov5648->xvclk) != OV5648_XVCLK_FREQ)
+	if (clk_get_rate(ov5670->xvclk) != OV5670_XVCLK_FREQ)
 		dev_warn(dev, "xvclk mismatched, modes are based on 24MHz\n");
 	ret = clk_prepare_enable(ov5670->xvclk);
 	if (ret < 0) {
@@ -1348,6 +1567,136 @@ err_free_handler:
 	return ret;
 }
 
+static int ov5670_otp_read(struct ov5670 *ov5670)
+{
+	int otp_flag, addr, temp, i;
+	struct ov5670_otp_info *otp_ptr;
+	struct device *dev = &ov5670->client->dev;
+	struct i2c_client *client = ov5670->client;
+
+	otp_ptr = devm_kzalloc(dev, sizeof(*otp_ptr), GFP_KERNEL);
+	if (!otp_ptr)
+		return -ENOMEM;
+
+	otp_flag = 0;
+	ov5670_read_1byte(client, 0x7010, &otp_flag);
+	if ((otp_flag & 0xc0) == 0x40)
+		addr = 0x7011; /* base address of info group 1 */
+	else if ((otp_flag & 0x30) == 0x10)
+		addr = 0x7016; /* base address of info group 2 */
+	else if ((otp_flag & 0x0c) == 0x04)
+		addr = 0x701b; /* base address of info group 3 */
+	else
+		addr = 0;
+
+	if (addr != 0) {
+		otp_ptr->flag = 0x80; /* valid info in OTP */
+		ov5670_read_1byte(client, addr, &otp_ptr->module_id);
+		ov5670_read_1byte(client, addr + 1, &otp_ptr->lens_id);
+		ov5670_read_1byte(client, addr + 2, &otp_ptr->year);
+		ov5670_read_1byte(client, addr + 3, &otp_ptr->month);
+		ov5670_read_1byte(client, addr + 4, &otp_ptr->day);
+		dev_info(dev, "fac info: module(0x%x) lens(0x%x) time(%d_%d_%d)!\n",
+			otp_ptr->module_id,
+			otp_ptr->lens_id,
+			otp_ptr->year,
+			otp_ptr->month,
+			otp_ptr->day);
+	} else {
+		otp_ptr->flag = 0x00; /* not info in OTP */
+		otp_ptr->module_id = 0x00;
+		otp_ptr->lens_id = 0x00;
+		otp_ptr->year = 0x00;
+		otp_ptr->month = 0x00;
+		otp_ptr->day = 0x00;
+		dev_warn(dev, "fac info: module(0x%x) lens(0x%x) time(%d_%d_%d)!\n",
+			otp_ptr->module_id,
+			otp_ptr->lens_id,
+			otp_ptr->year,
+			otp_ptr->month,
+			otp_ptr->day);
+	}
+
+	/* OTP base information and WB calibration data */
+	ov5670_read_1byte(client, 0x7020, &otp_flag);
+	if ((otp_flag & 0xc0) == 0x40)
+		addr = 0x7021; /* base address of info group 1 */
+	else if ((otp_flag & 0x30) == 0x10)
+		addr = 0x7024; /* base address of info group 2 */
+	else if ((otp_flag & 0x0c) == 0x04)
+		addr = 0x7027; /* base address of info group 3 */
+	else
+		addr = 0;
+
+	if (addr != 0) {
+		otp_ptr->flag |= 0x40; /* valid info and AWB in OTP */
+		ov5670_read_1byte(client, addr + 2, &temp);
+		ov5670_read_1byte(client, addr, &otp_ptr->rg_ratio);
+		otp_ptr->rg_ratio = (otp_ptr->rg_ratio << 2) +
+				    ((temp >> 6) & 0x03);
+		ov5670_read_1byte(client, addr + 1, &otp_ptr->bg_ratio);
+		otp_ptr->bg_ratio = (otp_ptr->bg_ratio << 2) +
+				    ((temp >> 4) & 0x03);
+		dev_info(dev, "awb info: (0x%x, 0x%x)!\n",
+			otp_ptr->rg_ratio, otp_ptr->bg_ratio);
+	} else {
+		otp_ptr->rg_ratio = 0x00;
+		otp_ptr->bg_ratio = 0x00;
+		dev_warn(dev, "awb info: (0x%x, 0x%x)!\n",
+			otp_ptr->rg_ratio, otp_ptr->bg_ratio);
+	}
+
+	for (i = 0x7010; i <= 0x7029; i++)
+		ov5670_write_1byte(client, i, 0); /* clear OTP buffer */
+
+	if (otp_ptr->flag) {
+		ov5670->otp = otp_ptr;
+	} else {
+		ov5670->otp = NULL;
+		dev_info(dev, "otp is null!\n");
+		devm_kfree(dev, otp_ptr);
+	}
+
+	return 0;
+}
+
+static int ov5670_otp_check_read(struct ov5670 *ov5670)
+{
+	int temp = 0;
+	int ret = 0;
+	struct i2c_client *client = ov5670->client;
+
+	/* stream on  */
+	ov5670_write_1byte(client,
+			   OV5670_REG_CTRL_MODE,
+			   OV5670_MODE_STREAMING);
+
+	ov5670_read_1byte(client, 0x5002, &temp);
+	ov5670_write_1byte(client, 0x5002, (temp & (~0x08)));
+
+	/* read OTP into buffer */
+	ov5670_write_1byte(client, 0x3d84, 0xC0);
+	ov5670_write_1byte(client, 0x3d88, 0x70); /* OTP start address */
+	ov5670_write_1byte(client, 0x3d89, 0x10);
+	ov5670_write_1byte(client, 0x3d8A, 0x70); /* OTP end address */
+	ov5670_write_1byte(client, 0x3d8B, 0x29);
+	ov5670_write_1byte(client, 0x3d81, 0x01); /* load otp into buffer */
+	usleep_range(10000, 20000);
+
+	ret = ov5670_otp_read(ov5670);
+
+	/* set 0x5002[3] to "1" */
+	ov5670_read_1byte(client, 0x5002, &temp);
+	ov5670_write_1byte(client, 0x5002, 0x08 | (temp & (~0x08)));
+
+	/* stream off */
+	ov5670_write_1byte(client,
+			   OV5670_REG_CTRL_MODE,
+			   OV5670_MODE_SW_STANDBY);
+
+	return ret;
+}
+
 static int ov5670_check_sensor_id(struct ov5670 *ov5670,
 				  struct i2c_client *client)
 {
@@ -1516,6 +1865,7 @@ static int ov5670_probe(struct i2c_client *client,
 				  __func__, __LINE__);
 		goto err_power_off;
 	}
+	ov5670_otp_check_read(ov5670);
 
 #ifdef CONFIG_VIDEO_V4L2_SUBDEV_API
 	sd->internal_ops = &ov5670_internal_ops;
