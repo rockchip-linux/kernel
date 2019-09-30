@@ -508,9 +508,11 @@
 		assigned-clocks = <&cru SCLK_PCIEPHY_REF>;
 		assigned-clock-rates = <25000000>;
 		resets = <&cru SRST_USB3_OTG_A>, <&cru SRST_PCIEPHY_POR>,
-			 <&cru SRST_PCIEPHY_P>, <&cru SRST_PCIEPHY_PIPE>;
+			 <&cru SRST_PCIEPHY_P>, <&cru SRST_PCIEPHY_PIPE>,
+			 <&cru SRST_USB3PHY_GRF_P>;
 		reset-names = "otg-rst", "combphy-por",
-			      "combphy-apb", "combphy-pipe";
+			      "combphy-apb", "combphy-pipe",
+			      "usb3phy_grf_p";
 		rockchip,combphygrf = <&combphy_grf>;
 		rockchip,usbpciegrf = <&usb_pcie_grf>;
 		status = "disabled";
