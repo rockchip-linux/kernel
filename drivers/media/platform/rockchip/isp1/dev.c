@@ -475,7 +475,7 @@ static int _set_pipeline_default_fmt(struct rkisp1_device *dev)
 	struct v4l2_subdev_format fmt;
 	struct v4l2_subdev_selection sel;
 	struct v4l2_subdev_pad_config cfg;
-	u32 width, height;
+	u32 width, height, max_width, max_height;
 	u32 ori_width, ori_height, ori_code;
 
 	isp = &dev->isp_sdev.sd;
@@ -485,28 +485,31 @@ static int _set_pipeline_default_fmt(struct rkisp1_device *dev)
 	ori_height = fmt.format.height;
 	ori_code = fmt.format.code;
 
-	if (dev->isp_ver == ISP_V12) {
-		fmt.format.width  = clamp_t(u32, fmt.format.width,
-					CIF_ISP_INPUT_W_MIN,
-					CIF_ISP_INPUT_W_MAX_V12);
-		fmt.format.height = clamp_t(u32, fmt.format.height,
-					CIF_ISP_INPUT_H_MIN,
-					CIF_ISP_INPUT_H_MAX_V12);
-	} else if (dev->isp_ver == ISP_V13) {
-		fmt.format.width  = clamp_t(u32, fmt.format.width,
-					CIF_ISP_INPUT_W_MIN,
-					CIF_ISP_INPUT_W_MAX_V13);
-		fmt.format.height = clamp_t(u32, fmt.format.height,
-					CIF_ISP_INPUT_H_MIN,
-					CIF_ISP_INPUT_H_MAX_V13);
+	if ((fmt.format.code & RKISP1_MEDIA_BUS_FMT_MASK) !=
+	    RKISP1_MEDIA_BUS_FMT_BAYER) {
+		max_width = CIF_ISP_INPUT_W_MAX;
+		max_height = CIF_ISP_INPUT_H_MAX;
 	} else {
-		fmt.format.width  = clamp_t(u32, fmt.format.width,
-					CIF_ISP_INPUT_W_MIN,
-					CIF_ISP_INPUT_W_MAX);
-		fmt.format.height = clamp_t(u32, fmt.format.height,
-					CIF_ISP_INPUT_H_MIN,
-					CIF_ISP_INPUT_H_MAX);
+		switch (dev->isp_ver) {
+		case ISP_V12:
+			max_width = CIF_ISP_INPUT_W_MAX_V12;
+			max_height = CIF_ISP_INPUT_H_MAX_V12;
+			break;
+		case ISP_V13:
+			max_width = CIF_ISP_INPUT_W_MAX_V13;
+			max_height = CIF_ISP_INPUT_H_MAX_V13;
+			break;
+		default:
+			max_width = CIF_ISP_INPUT_W_MAX;
+			max_height = CIF_ISP_INPUT_H_MAX;
+		}
 	}
+	fmt.format.width  = clamp_t(u32, fmt.format.width,
+				CIF_ISP_INPUT_W_MIN,
+				max_width);
+	fmt.format.height = clamp_t(u32, fmt.format.height,
+				CIF_ISP_INPUT_H_MIN,
+				max_height);
 
 	sel.r.left = 0;
 	sel.r.top = 0;
