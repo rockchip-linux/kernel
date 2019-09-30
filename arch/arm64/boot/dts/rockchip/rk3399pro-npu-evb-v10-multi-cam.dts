@@ -357,7 +357,6 @@
 };
 
 &usbdrd3 {
-	extcon = <&u2phy>;
 	status = "okay";
 };
 
