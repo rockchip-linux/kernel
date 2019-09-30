@@ -1154,6 +1154,7 @@ static void rkisp1_isp_sd_try_fmt(struct v4l2_subdev *sd,
 	struct rkisp1_isp_subdev *isp_sd = &isp_dev->isp_sdev;
 	const struct ispsd_in_fmt *in_fmt;
 	const struct ispsd_out_fmt *out_fmt;
+	u32 max_width, max_height;
 
 	switch (pad) {
 	case RKISP1_ISP_PAD_SINK:
@@ -1163,28 +1164,30 @@ static void rkisp1_isp_sd_try_fmt(struct v4l2_subdev *sd,
 		else
 			fmt->code = MEDIA_BUS_FMT_SRGGB10_1X10;
 
-		if (isp_dev->isp_ver == ISP_V12) {
-			fmt->width  = clamp_t(u32, fmt->width,
-				      CIF_ISP_INPUT_W_MIN,
-				      CIF_ISP_INPUT_W_MAX_V12);
-			fmt->height = clamp_t(u32, fmt->height,
-				      CIF_ISP_INPUT_H_MIN,
-				      CIF_ISP_INPUT_H_MAX_V12);
-		} else if (isp_dev->isp_ver == ISP_V13) {
-			fmt->width  = clamp_t(u32, fmt->width,
-				      CIF_ISP_INPUT_W_MIN,
-				      CIF_ISP_INPUT_W_MAX_V13);
-			fmt->height = clamp_t(u32, fmt->height,
-				      CIF_ISP_INPUT_H_MIN,
-				      CIF_ISP_INPUT_H_MAX_V13);
+		if (in_fmt && in_fmt->fmt_type == FMT_YUV) {
+			max_width = CIF_ISP_INPUT_W_MAX;
+			max_height = CIF_ISP_INPUT_H_MAX;
 		} else {
-			fmt->width  = clamp_t(u32, fmt->width,
-				      CIF_ISP_INPUT_W_MIN,
-				      CIF_ISP_INPUT_W_MAX);
-			fmt->height = clamp_t(u32, fmt->height,
-				      CIF_ISP_INPUT_H_MIN,
-				      CIF_ISP_INPUT_H_MAX);
+			switch (isp_dev->isp_ver) {
+			case ISP_V12:
+				max_width = CIF_ISP_INPUT_W_MAX_V12;
+				max_height = CIF_ISP_INPUT_H_MAX_V12;
+				break;
+			case ISP_V13:
+				max_width = CIF_ISP_INPUT_W_MAX_V13;
+				max_height = CIF_ISP_INPUT_H_MAX_V13;
+				break;
+			default:
+				max_width = CIF_ISP_INPUT_W_MAX;
+				max_height = CIF_ISP_INPUT_H_MAX;
+			}
 		}
+		fmt->width  = clamp_t(u32, fmt->width,
+			      CIF_ISP_INPUT_W_MIN,
+			      max_width);
+		fmt->height = clamp_t(u32, fmt->height,
+			      CIF_ISP_INPUT_H_MIN,
+			      max_height);
 		break;
 	case RKISP1_ISP_PAD_SOURCE_PATH:
 		out_fmt = find_out_fmt(fmt->code);
