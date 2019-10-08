@@ -56,7 +56,7 @@
 };
 
 
-&i2c4 {
+&i2c1 {
 	status = "okay";
 	hym8563: hym8563@51 {
 		compatible = "haoyu,hym8563";
@@ -69,6 +69,15 @@
 		clock-frequency = <32768>;
 		clock-output-names = "xin32k";
 	};
+
+
+
+	sensor@3c {
+		 status = "okay";
+		 compatible = "firefly,pc9202";
+		 reg = <0x3c>;
+	};
+
 };
 
 /* Usb 5v */

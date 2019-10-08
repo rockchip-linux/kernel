@@ -28,6 +28,12 @@ menuconfig WATCHDOG
 	  If unsure, say N.
 
 if WATCHDOG
+config PC9202_WATCHDOG
+    bool "Watchdog PC9202 driver"
+    depends on I2C
+    default y
+    help
+        This option to verify the valid of PCBA.
 
 config WATCHDOG_CORE
 	bool "WatchDog Timer Driver Core"
