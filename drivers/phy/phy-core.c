@@ -387,6 +387,21 @@ int phy_cp_test(struct phy *phy)
 }
 EXPORT_SYMBOL_GPL(phy_cp_test);
 
+int phy_set_vbusdet(struct phy *phy, bool level)
+{
+    int ret;
+
+    if (!phy || !phy->ops->set_vbusdet)
+        return 0;
+
+    mutex_lock(&phy->mutex);
+    ret = phy->ops->set_vbusdet(phy, level);
+    mutex_unlock(&phy->mutex);
+
+    return ret;
+}
+EXPORT_SYMBOL_GPL(phy_set_vbusdet);
+
 /**
  * _of_phy_get() - lookup and obtain a reference to a phy by phandle
  * @np: device_node for which to get the phy

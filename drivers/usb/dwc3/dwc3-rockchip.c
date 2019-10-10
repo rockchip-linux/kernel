@@ -47,6 +47,7 @@
 struct dwc3_rockchip {
 	int			num_clocks;
 	bool			connected;
+	bool			disconnect;
 	bool			skip_suspend;
 	bool			suspended;
 	bool			force_mode;
@@ -104,7 +105,21 @@ static ssize_t dwc3_mode_store(struct device *device,
 		dev_err(rockchip->dev, "Not support set mode!\n");
 		return -EINVAL;
 	}
-
+	if (!strncmp(buf, "0", 1) || !strncmp(buf, "otg", 3)) {
+		new_dr_mode = USB_DR_MODE_OTG;
+        phy_set_vbusdet(dwc->usb2_generic_phy, 0);
+	} else if (!strncmp(buf, "1", 1) || !strncmp(buf, "host", 4)) {
+		new_dr_mode = USB_DR_MODE_HOST;
+        phy_set_vbusdet(dwc->usb2_generic_phy, 0);
+	} else if (!strncmp(buf, "2", 1) || !strncmp(buf, "peripheral", 10)) {
+		new_dr_mode = USB_DR_MODE_PERIPHERAL;
+        phy_set_vbusdet(dwc->usb2_generic_phy, 1);
+	} else {
+		dev_info(rockchip->dev, "illegal dr_mode\n");
+        phy_set_vbusdet(dwc->usb2_generic_phy, 0);
+		return count;
+	}
+/*
 	if (!strncmp(buf, "0", 1) || !strncmp(buf, "otg", 3)) {
 		new_dr_mode = USB_DR_MODE_OTG;
 	} else if (!strncmp(buf, "1", 1) || !strncmp(buf, "host", 4)) {
@@ -115,12 +130,11 @@ static ssize_t dwc3_mode_store(struct device *device,
 		dev_info(rockchip->dev, "illegal dr_mode\n");
 		return count;
 	}
-
+*/
 	if (dwc->dr_mode == new_dr_mode) {
 		dev_info(rockchip->dev, "Same with current dr_mode\n");
 		return count;
 	}
-
 	rockchip->force_mode = true;
 
 	/*
@@ -377,6 +391,16 @@ static void dwc3_rockchip_otg_extcon_evt_work(struct work_struct *work)
 	u32			count = 0;
 
 	mutex_lock(&rockchip->lock);
+    if (extcon_get_cable_state_(edev, EXTCON_USB)) {
+        if ((dwc->link_state == DWC3_LINK_STATE_U3) && !rockchip->disconnect) {
+            phy_set_vbusdet(dwc->usb2_generic_phy, 0);
+            msleep(3000);
+            phy_set_vbusdet(dwc->usb2_generic_phy, 1);
+            rockchip->disconnect = true;
+        } else if(dwc->link_state == DWC3_LINK_STATE_U0) {
+            rockchip->disconnect = false;
+        }
+    }
 
 	if (rockchip->force_mode ? dwc->dr_mode == USB_DR_MODE_PERIPHERAL :
 	    extcon_get_cable_state_(edev, EXTCON_USB)) {
