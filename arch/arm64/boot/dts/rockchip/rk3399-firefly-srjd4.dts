@@ -13,6 +13,18 @@
 	test-power {
 		status = "okay";
 	};
+
+	vcc_adb: vcc-adb {
+		compatible = "regulator-fixed";
+		enable-active-high;
+		gpio = <&gpio1 24 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&adb_sel>;
+		regulator-name = "vcc_adb";
+		regulator-always-on;
+		status = "okay";
+	};
+
 };
 
 &pwm3 {
@@ -40,11 +52,9 @@
 };
 
 /* rtc */
-&spi1 {
-    	status = "disabled";
-};
-
 &rk808{
+	/delete-property/ pmic,stby-gpio;
+	pinctrl-0 = <&pmic_int_l &pmic_dvs2 &pmic_hold>;
 	rtc {
 		status = "disabled";
 	};	
@@ -61,8 +71,8 @@
 	hym8563: hym8563@51 {
 		compatible = "haoyu,hym8563";
 		reg = <0x51>;
-		interrupt-parent = <&gpio1>;
-		interrupts = <9 IRQ_TYPE_EDGE_FALLING>;
+		interrupt-parent = <&gpio3>;
+		interrupts = <31 IRQ_TYPE_EDGE_FALLING>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&rtc_int>;
 		#clock-cells = <0>;
@@ -93,13 +103,38 @@
 /* Mini pcie 4G */
 
 &vcc3v3_3g {
-	gpio = <&gpio1 17 GPIO_ACTIVE_HIGH>;
+	gpio = <&gpio3 28 GPIO_ACTIVE_HIGH>;
 };
 
 &pcie_3g_drv {
-	rockchip,pins = <1 17 RK_FUNC_GPIO &pcfg_pull_up>;
+	rockchip,pins = <3 28 RK_FUNC_GPIO &pcfg_pull_up>;
 };
 
+&spi1 {
+	status = "okay";
+	max-freq = <48000000>;
+	dev-port = <0>;
+
+	spidev0: spidev@00 {
+		status = "okay";
+		//compatible = "linux,spidev";
+		compatible = "jedec,spi-nor";
+		reg = <0x00>;
+		spi-max-frequency = <48000000>;
+	};
+/*
+       spi_demo: spi-demo@00{
+              status = "okay";
+              compatible = "firefly,rk3399-spi";
+              reg = <0x00>;
+              spi-max-frequency = <48000000>;
+*/
+/* rk3399 driver support SPI_CPOL | SPI_CPHA | SPI_CS_HIGH */
+              //spi-cpha;             /* SPI mode: CPHA=1 */
+              //spi-cpol;     /* SPI mode: CPOL=1 */
+              //spi-cs-high;
+//      };
+};
 
 
 &gmac {
@@ -161,6 +196,7 @@
 	regulator-max-microvolt = <900000>;
 };
 
+
 &fusb0 {
     status = "disabled";
 };
@@ -174,9 +210,28 @@
     status = "okay";
 };
 
+&tcphy1 {
+    /delete-property/ extcon;
+    status = "okay";
+};
+
 &u2phy0 {
     status = "okay";
     /delete-property/ extcon;
+
+    u2phy0_otg: otg-port {
+        status = "okay";
+    };
+};
+
+&u2phy1 {
+    status = "okay";
+    /delete-property/ extcon;
+
+    u2phy1_otg: otg-port {
+	firefly,vbus-no-det; //set typec peripheral mode when det pin not connect
+        status = "okay";
+    };
 };
 
 &usbdrd3_0 {
@@ -185,7 +240,16 @@
 };
 
 &usbdrd_dwc3_0 {
+    dr_mode = "host";
+};
+
+&usbdrd3_1 {
+    status = "okay";
+};
+
+&usbdrd_dwc3_1 {
     dr_mode = "peripheral";
+    status = "okay";
 };
 
 &route_hdmi {
@@ -200,8 +264,15 @@
 &pinctrl {
 	hym8563 {
 		rtc_int: rtc-int {
-			rockchip,pins = <RK_GPIO1 9 RK_FUNC_GPIO &pcfg_pull_up>;
+			rockchip,pins = <RK_GPIO3 31 RK_FUNC_GPIO &pcfg_pull_up>;
 		};
 	};
+
+	adb {
+		adb_sel: adb-sel {
+			rockchip,pins = <RK_GPIO1 24 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+	};
+
 };
 
