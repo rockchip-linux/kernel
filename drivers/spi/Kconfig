@@ -703,6 +703,13 @@ config SPI_WK2XXX
 	depends on SPI
 	help
 	  Say Y to get the third party encryption service.
+        
+config SPI_FIREFLY
+    tristate "Firefly SPI demo support "
+    default y
+    help
+    Select this option if your Firefly board needs to run SPI demo.
+
 
 #
 # Add new SPI protocol masters in alphabetical order above this line
