@@ -4,7 +4,7 @@
 #include <dt-bindings/sensor-dev.h>
 
 / {
-	model = "AIO-3399-JD4-SR Board (Linux Opensource)";
+	model = "SR-JD4-SUB Board (Linux Opensource)";
 	compatible = "rockchip,rk3399-firefly", "rockchip,rk3399";
 	
 	/delete-node/ gpio-keys;
@@ -229,7 +229,7 @@
     /delete-property/ extcon;
 
     u2phy1_otg: otg-port {
-	firefly,vbus-no-det; //set typec peripheral mode when det pin not connect
+	//firefly,vbus-no-det; //set typec peripheral mode when det pin not connect
         status = "okay";
     };
 };
@@ -240,7 +240,8 @@
 };
 
 &usbdrd_dwc3_0 {
-    dr_mode = "host";
+    dr_mode = "peripheral";
+    status = "okay";
 };
 
 &usbdrd3_1 {
@@ -248,7 +249,7 @@
 };
 
 &usbdrd_dwc3_1 {
-    dr_mode = "peripheral";
+    dr_mode = "host";
     status = "okay";
 };
 
