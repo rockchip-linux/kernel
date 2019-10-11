@@ -1,0 +1,540 @@
+/*
+ * Copyright (c) 2016 Fuzhou Rockchip Electronics Co., Ltd
+ *
+ * This file is dual-licensed: you can use it either under the terms
+ * of the GPL or the X11 license, at your option. Note that this dual
+ * licensing only applies to this file, and not this project as a
+ * whole.
+ *
+ *  a) This file is free software; you can redistribute it and/or
+ *     modify it under the terms of the GNU General Public License as
+ *     published by the Free Software Foundation; either version 2 of the
+ *     License, or (at your option) any later version.
+ *
+ *     This file is distributed in the hope that it will be useful,
+ *     but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *     GNU General Public License for more details.
+ *
+ * Or, alternatively,
+ *
+ *  b) Permission is hereby granted, free of charge, to any person
+ *     obtaining a copy of this software and associated documentation
+ *     files (the "Software"), to deal in the Software without
+ *     restriction, including without limitation the rights to use,
+ *     copy, modify, merge, publish, distribute, sublicense, and/or
+ *     sell copies of the Software, and to permit persons to whom the
+ *     Software is furnished to do so, subject to the following
+ *     conditions:
+ *
+ *     The above copyright notice and this permission notice shall be
+ *     included in all copies or substantial portions of the Software.
+ *
+ *     THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ *     EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ *     OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ *     NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ *     HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ *     WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ *     FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ *     OTHER DEALINGS IN THE SOFTWARE.
+ */
+
+
+#include "rk3399-firefly-port.dtsi"
+#include <dt-bindings/sensor-dev.h>
+/ {
+	model = "Face-RK3399(Android)";
+	compatible = "rockchip,android", "rockchip,rk3399-firefly-face", "rockchip,rk3399";
+
+	test-power {
+		status = "okay";
+	};
+
+    sdmmc_pwrseq: sdmmc-pwrseq {
+        compatible = "mmc-pwrseq-simple";
+        clocks = <&rk808 1>;
+        clock-names = "ext_clock";
+        pinctrl-names = "default";
+        pinctrl-0 = <&sdcard_enable_h>;
+        /*
+         * On the module itself this is one of these (depending
+         * on the actual card populated):
+         * - SDIO_RESET_L_WL_REG_ON
+         * - PDN (power down when low)
+         */
+        reset-gpios = <&gpio4 30 GPIO_ACTIVE_LOW>; /* GPIO4_D6 */
+    };
+
+    wireless-wlan {
+        compatible = "wlan-platdata";
+        rockchip,grf = <&grf>;
+        wifi_chip_type = "ap6181";
+        sdio_vref = <1800>;
+        WIFI,host_wake_irq = <&gpio0 3 GPIO_ACTIVE_HIGH>; /* GPIO0_a3 */
+        status = "okay";
+    };
+
+    face_leds {
+        status = "okay";
+        compatible = "gpio-leds";
+        face_green_led: face_green {
+            label = "face:green:user";
+            linux,default-trigger = "ir-user-click";
+            default-state = "off";
+            gpios = <&gpio3 0 GPIO_ACTIVE_HIGH>;
+            //gpios = <&gpio0 8 GPIO_ACTIVE_HIGH>;
+            pinctrl-names = "default";
+            pinctrl-0 = <&led_user>;
+        };
+
+        face_red_led: face_red {
+            label = "face:red:user";
+            linux,default-trigger = "ir-user-click";
+            default-state = "off";
+            gpios = <&gpio3 1 GPIO_ACTIVE_HIGH>;
+            //gpios = <&gpio4 24 GPIO_ACTIVE_HIGH>;
+            pinctrl-names = "default";
+            pinctrl-0 = <&led_user>;
+        };
+
+        face_white_led: face_white {
+            label = "face:white:user";
+            linux,default-trigger = "ir-user-click";
+            default-state = "off";
+            gpios = <&gpio4 27 GPIO_ACTIVE_HIGH>;
+            pinctrl-names = "default";
+            pinctrl-0 = <&led_user>;
+        };
+    };
+
+    wiegand-gpio {
+        compatible = "firefly,wiegandout";
+        level_effect = <1>;/*0-low effect 1-high effect*/
+        gpio_d0 = <&gpio1 9 GPIO_ACTIVE_HIGH>;
+        gpio_d1 = <&gpio1 10 GPIO_ACTIVE_HIGH>;
+        gpio_mode_switch = <&gpio1 17 GPIO_ACTIVE_HIGH>;
+        status = "okay";
+    };
+
+    wiegand-receive {
+        compatible = "firefly,wiegand-receive";
+        status = "okay";
+        wiegandin_d0 = <&gpio1 4 GPIO_ACTIVE_HIGH>;
+        wiegandin_d1 = <&gpio1 2 GPIO_ACTIVE_HIGH>;
+    };
+
+	wireless-bluetooth {
+		compatible = "bluetooth-platdata";
+		status = "disabled";
+	};
+
+    radar-gpio {
+        compatible = "firefly,radar";
+        //radar-irq-gpio = <&gpio4 25 IRQ_TYPE_EDGE_BOTH>;
+        radar-irq-gpio = <&gpio3 2 IRQ_TYPE_EDGE_BOTH>;
+        //radar-led-gpio = <&gpio4 27 GPIO_ACTIVE_HIGH>;
+        status = "okay";
+    };
+
+	es8323_sound: es8323-sound {
+		status = "disabled";
+		compatible = "simple-audio-card";
+		simple-audio-card,format = "i2s";
+		simple-audio-card,name = "rockchip,es8323-codec";
+		simple-audio-card,mclk-fs = <256>;
+		simple-audio-card,widgets =
+			"Microphone", "Mic Jack",
+			"Headphone", "Headphone Jack";
+		simple-audio-card,routing =
+			"Mic Jack", "MICBIAS1",
+			"IN1P", "Mic Jack",
+			"Headphone Jack", "HPOL",
+			"Headphone Jack", "HPOR";
+		simple-audio-card,cpu {
+			sound-dai = <&i2s1>;
+			system-clock-frequency = <11289600>;
+		};
+		simple-audio-card,codec {
+			sound-dai = <&es8323>;
+			system-clock-frequency = <11289600>;
+		};
+	};
+};
+
+&vdd_log {
+    regulator-min-microvolt = <400000>;
+    regulator-max-microvolt = <1400000>;
+    rockchip,pwm_voltage = <1000000>;
+};
+
+&sdmmc {
+	/delete-property/ vmmc-supply;
+    mmc-pwrseq = <&sdmmc_pwrseq>;
+    sd-uhs-sdr104;
+};
+
+&dfi {
+    status = "disabled";
+};
+
+&dmc {
+    status = "disabled";
+    center-supply = <&vdd_center>;
+    system-status-freq = <
+        /*system status freq(KHz)*/
+        SYS_STATUS_NORMAL 856000
+        SYS_STATUS_REBOOT 416000
+        SYS_STATUS_SUSPEND 416000
+        SYS_STATUS_VIDEO_1080P 416000
+        SYS_STATUS_VIDEO_4K 856000
+        SYS_STATUS_VIDEO_4K_10B 856000
+        SYS_STATUS_PERFORMANCE 856000
+        SYS_STATUS_BOOST 856000
+        SYS_STATUS_DUALVIEW 856000
+        SYS_STATUS_ISP 856000
+    >;
+    vop-bw-dmc-freq = <
+        /* min_bw(MB/s) max_bw(MB/s) freq(KHz) */
+        0 577 416000
+        578 99999 856000
+    >;
+    auto-min-freq = <416000>;
+    auto-freq-en = <1>;
+};
+
+&dmc_opp_table {
+    compatible = "operating-points-v2";
+    opp-200000000 {
+        opp-hz = /bits/ 64 <200000000>;
+        opp-microvolt = <900000>;
+        status = "disabled";
+    };
+    opp-300000000 {
+        opp-hz = /bits/ 64 <300000000>;
+        opp-microvolt = <900000>;
+        status = "disabled";
+    };
+    opp-400000000 {
+        opp-hz = /bits/ 64 <400000000>;
+        opp-microvolt = <900000>;
+        status = "disabled";
+    };
+    opp-416000000 {
+        opp-hz = /bits/ 64 <416000000>;
+        opp-microvolt = <900000>;
+    };
+    opp-528000000 {
+        opp-hz = /bits/ 64 <528000000>;
+        opp-microvolt = <900000>;
+        status = "disabled";
+    };
+    opp-600000000 {
+        opp-hz = /bits/ 64 <600000000>;
+        opp-microvolt = <900000>;
+        status = "disabled";
+    };
+    opp-800000000 {
+        opp-hz = /bits/ 64 <800000000>;
+        opp-microvolt = <900000>;
+        status = "disabled";
+    };
+    opp-856000000 {
+        opp-hz = /bits/ 64 <856000000>;
+        opp-microvolt = <900000>;
+    };
+    opp-928000000 {
+        opp-hz = /bits/ 64 <928000000>;
+        opp-microvolt = <900000>;
+        status = "disabled";
+    };
+    opp-1056000000 {
+        opp-hz = /bits/ 64 <1056000000>;
+        opp-microvolt = <900000>;
+        status = "disabled";
+    };
+};
+
+&i2c1 {
+	status = "okay";
+	i2c-scl-rising-time-ns = <300>;
+	i2c-scl-falling-time-ns = <15>;
+
+	es8323: es8323@10 {
+        compatible = "everest,es8323";
+        status = "okay";
+        reg = <0x11>;
+        spk-ctl-gpio = <&gpio1 0 GPIO_ACTIVE_HIGH>;
+        clock-names = "mclk";
+        clocks = <&cru SCLK_I2S_8CH_OUT>;
+        pinctrl-names = "default";
+        pinctrl-0 = <&i2s_8ch_mclk>;
+		pinctrl-1 = <&ear_ctl_h>;
+        #sound-dai-cells = <0>;
+    };
+};
+
+&i2c2 {
+    status = "okay";
+    i2c-scl-rising-time-ns = <300>;
+    i2c-scl-falling-time-ns = <15>;
+
+    sensor@4c {
+        status = "okay";
+        compatible = "gs_mc3230";
+        reg = <0x4c>;
+        type = <SENSOR_TYPE_ACCEL>;
+        irq_enable = <0>;
+        poll_delay_ms = <30>;
+        layout = <1>;
+    };
+
+    sensor@3c {
+        status = "okay";
+        compatible = "firefly,pc9202";
+        reg = <0x3c>;
+    };
+};
+
+&i2c4 {
+	status = "okay";
+	i2c-scl-rising-time-ns = <600>;
+	i2c-scl-falling-time-ns = <20>;
+
+	gsl3680: gsl3680@40 {
+	    status = "disabled";
+	    compatible = "gslX680";
+	    reg = <0x40>;
+	    screen_max_x = <800>;
+	    screen_max_y = <1280>;
+	    flip-x = <0>;
+	    flip-y = <0>;
+	    swap-xy = <0>;
+	    gsl,fw = <1>;
+	    touch-gpio = <&gpio4 28 IRQ_TYPE_LEVEL_LOW>;
+	    reset-gpio = <&gpio4 21 GPIO_ACTIVE_HIGH>;
+	};
+};
+
+
+&i2c7 {
+	status = "okay";
+	i2c-scl-rising-time-ns = <300>;
+	i2c-scl-falling-time-ns = <15>;
+
+	hym8563: hym8563@51 {
+		compatible = "haoyu,hym8563";
+		reg = <0x51>;
+        rtc-irq-gpio = <&gpio3 2 IRQ_TYPE_LEVEL_LOW>;
+		/* rtc_int is not connected */
+        status = "okay";
+	};
+
+};
+
+
+	/*
+&rk808 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pmic_int_l &pmic_dvs2>;
+    rtc {
+		compatible = "rockchip,rk808-rtc";				//没有 rockchip,rk808-rtc 对应的驱动
+        firefly,hwversion_range_lt = <0 0x00020000>;    // < v2.0
+    };
+
+
+};
+	*/
+
+&io_domains {
+	status = "okay";
+	bt656-supply = <&vcc_3v0>;
+	audio-supply = <&vcca1v8_codec>;	/* audio_gpio3d4a_ms */
+};
+
+&vcc2v8_dvp {
+	regulator-min-microvolt = <1800000>;
+	regulator-max-microvolt = <1800000>;
+};
+
+&vcc_sd {
+	regulator-max-microvolt = <3000000>;
+	regulator-state-mem {
+		regulator-suspend-microvolt = <3000000>;
+	};
+};
+
+&vcca1v8_codec {
+	regulator-min-microvolt = <900000>;
+	regulator-max-microvolt = <900000>;
+};
+
+&pinctrl {
+    pinctrl-names = "default";
+    pinctrl-0 = <&host_hub_vcc>;
+
+    host-hub-vcc {
+        host_hub_vcc: host-hub-vcc {
+        rockchip,pins = <1 23 RK_FUNC_GPIO &pcfg_output_high>,
+                        <2 4 RK_FUNC_GPIO &pcfg_output_high>,
+                        //<0 8 RK_FUNC_GPIO &pcfg_output_low>,
+                        <0 8 RK_FUNC_GPIO &pcfg_output_high>,
+                        <4 24 RK_FUNC_GPIO &pcfg_output_low>,
+                        <4 27 RK_FUNC_GPIO &pcfg_output_low>,
+                        <4 29 RK_FUNC_GPIO &pcfg_output_high>;
+        };
+    };
+
+    sdmmc-pwrseq {
+        sdcard_enable_h: sdcard-enable-h {
+        rockchip,pins = <4 30 RK_FUNC_GPIO &pcfg_pull_none>;
+        };
+    };
+
+	es8328-pins{
+		ear_ctl_h: ear-ctl-h {
+            rockchip,pins = <1 0 RK_FUNC_GPIO &pcfg_pull_down>;
+		};		
+	};
+};
+
+&uart4 {
+    status = "okay";
+};
+
+&host_vbus_drv {
+	rockchip,pins =
+		<4 29 RK_FUNC_GPIO &pcfg_pull_none>;
+};
+&vcc5v0_host{
+    gpio = <&gpio4 29 GPIO_ACTIVE_HIGH>;
+};
+
+&vcc3v3_3g {
+    gpio = <&gpio2 6 GPIO_ACTIVE_HIGH>;
+};
+
+&pcie_3g_drv {
+    rockchip,pins = <2 6 RK_FUNC_GPIO &pcfg_pull_up>;
+};
+
+&clkin_gmac {
+    clock-frequency = <50000000>;
+};
+
+&gmac {
+    phy-mode = "rmii";
+    clock_in_out = "output";
+};
+
+&rt5640 {
+	status = "disabled";
+};
+
+&fusb0 {
+    status = "disabled";
+};
+
+&cdn_dp {
+    status = "disabled";
+};
+
+&tcphy0 {
+    /delete-property/ extcon;
+    status = "okay";
+};
+
+&u2phy0 {
+    status = "okay";
+    /delete-property/ extcon;
+
+    u2phy0_otg: otg-port {
+        rockchip,vbus-always-on;
+        vbus-5v-gpios = <&gpio1 3 GPIO_ACTIVE_HIGH>;
+        status = "okay";
+    };
+};
+
+&usbdrd3_0 {
+    status = "okay";
+    /delete-property/ extcon;
+};
+
+&usbdrd_dwc3_0 {
+    dr_mode = "otg";
+    //dr_mode = "peripheral";
+};
+
+&hdmi_dp_sound {
+    status = "disabled";
+};
+
+&spdif {
+    status = "disabled";
+};
+
+&spdif_out {
+  status = "disabled";
+};
+
+&uart3 {
+    status = "okay";
+};
+
+&gmac {
+    snps,reset-gpio = <&gpio3 16 GPIO_ACTIVE_LOW>;
+};
+
+&spi4 {
+    status = "disabled";
+    max-freq = <48000000>;
+    spidev@00 {
+        status = "disabled";
+        compatible = "linux,spidev";
+        reg = <0x00>;
+        spi-max-frequency = <48000000>;
+    };
+};
+
+&rgmii_pins {
+	rockchip,pins =
+	/* mac_txclk */
+			<3 17 RK_FUNC_1 &pcfg_pull_none_13ma>,
+			/* mac_rxclk */
+			//<3 14 RK_FUNC_1 &pcfg_pull_none>,
+			/* mac_mdio */
+			<3 13 RK_FUNC_1 &pcfg_pull_none>,
+			/* mac_txen */
+			<3 12 RK_FUNC_1 &pcfg_pull_none_13ma>,
+			/* mac_clk */
+			<3 11 RK_FUNC_1 &pcfg_pull_none>,
+			/* mac_rxdv */
+			<3 9 RK_FUNC_1 &pcfg_pull_none>,
+			/* mac_mdc */
+			<3 8 RK_FUNC_1 &pcfg_pull_none>,
+			/* mac_rxd1 */
+			<3 7 RK_FUNC_1 &pcfg_pull_none>,
+			/* mac_rxd0 */
+			<3 6 RK_FUNC_1 &pcfg_pull_none>,
+			/* mac_txd1 */
+			<3 5 RK_FUNC_1 &pcfg_pull_none_13ma>,
+			/* mac_txd0 */
+			<3 4 RK_FUNC_1 &pcfg_pull_none_13ma>;
+			/* mac_rxd3 */
+			//<3 3 RK_FUNC_1 &pcfg_pull_none>,
+			/* mac_rxd2 */
+			//<3 2 RK_FUNC_1 &pcfg_pull_none>,
+			/* mac_txd3 */
+			//<3 1 RK_FUNC_1 &pcfg_pull_none_13ma>,
+			/* mac_txd2 */
+			//<3 0 RK_FUNC_1 &pcfg_pull_none_13ma>;
+};
+
+
+&cif_isp0 {
+    status = "okay";
+};
+
+&cif_isp1 {
+    status = "okay";
+};

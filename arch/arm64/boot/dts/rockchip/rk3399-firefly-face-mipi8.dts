@@ -1,0 +1,451 @@
+/*
+ * Copyright (c) 2016 Fuzhou Rockchip Electronics Co., Ltd
+ *
+ * This file is dual-licensed: you can use it either under the terms
+ * of the GPL or the X11 license, at your option. Note that this dual
+ * licensing only applies to this file, and not this project as a
+ * whole.
+ *
+ *  a) This file is free software; you can redistribute it and/or
+ *     modify it under the terms of the GNU General Public License as
+ *     published by the Free Software Foundation; either version 2 of the
+ *     License, or (at your option) any later version.
+ *
+ *     This file is distributed in the hope that it will be useful,
+ *     but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *     GNU General Public License for more details.
+ *
+ * Or, alternatively,
+ *
+ *  b) Permission is hereby granted, free of charge, to any person
+ *     obtaining a copy of this software and associated documentation
+ *     files (the "Software"), to deal in the Software without
+ *     restriction, including without limitation the rights to use,
+ *     copy, modify, merge, publish, distribute, sublicense, and/or
+ *     sell copies of the Software, and to permit persons to whom the
+ *     Software is furnished to do so, subject to the following
+ *     conditions:
+ *
+ *     The above copyright notice and this permission notice shall be
+ *     included in all copies or substantial portions of the Software.
+ *
+ *     THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ *     EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ *     OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ *     NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ *     HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ *     WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ *     FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ *     OTHER DEALINGS IN THE SOFTWARE.
+ */
+
+/dts-v1/;
+#include "rk3399-firefly-face.dtsi" 
+#include "dt-bindings/display/media-bus-format.h"
+
+/ {
+    model = "Face-RK3399 8 inches MIPI(Linux Opensource)";
+    compatible = "rockchip,rk3399-firefly", "rockchip,rk3399-firefly-face", "rockchip,rk3399";
+
+	vcc_lcd: vcc-lcd {
+		compatible = "regulator-fixed";
+		enable-active-high;
+		regulator-boot-on;
+		gpio = <&gpio1 1 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&lcd_panel_enable>;
+		regulator-name = "vcc_lcd";
+		vin-supply = <&vcc_3v0>;
+	};
+
+};
+
+&backlight {
+	status = "okay";
+	pwms = <&pwm1 0 25000 1>;
+	brightness-levels = <
+			 255 23  23  24  24  25  25  26
+			 26  27  27  28  28  29  29  30
+			 30  31  31  32  32  33  33  34
+			 34  35  35  36  36  37  38  39
+			 40  41  42  43  44  45  46  47
+			 48  49  50  51  52  53  54  55
+			 56  57  58  59  60  61  62  63
+			 64  65  66  67  68  69  70  71
+			 72  73  74  75  76  77  78  79
+			 80  81  82  83  84  85  86  87
+			 88  89  90  91  92  93  94  95
+			 96  97  98  99 100 101 102 103
+			104 105 106 107 108 109 110 111
+			112 113 114 115 116 117 118 119
+			120 121 122 123 124 125 126 127
+			128 129 130 131 132 133 134 135
+			136 137 138 139 140 141 142 143
+			144 145 146 147 148 149 150 151
+			152 153 154 155 156 157 158 159
+			160 161 162 163 164 165 166 167
+			168 169 170 171 172 173 174 175
+			176 177 178 179 180 181 182 183
+			184 185 186 187 188 189 190 191
+			192 193 194 195 196 197 198 198
+			199 199 200 200 201 201 202 202
+			203 203 204 204 205 205 206 206
+			207 207 208 208 209 219 210 210
+			211 211 212 212 213 213 214 214
+			215 215 216 216 217 217 218 218
+			219 219 220 220 221 221 222 222
+			223 223 224 224 225 225 226 226
+			227 227 228 228 229 229 230 230>;
+};
+
+&dsi {
+	status = "okay";
+	rockchip,lane-rate = <500>;
+	panel@0 {	
+		compatible = "simple-panel-dsi";
+		reg = <0>;
+		backlight = <&backlight>;
+		power-supply = <&vcc_lcd>;
+		enable-gpios = <&gpio1 24 GPIO_ACTIVE_HIGH>; 
+		reset-gpios = <&gpio2 28 GPIO_ACTIVE_LOW>; 
+
+		dsi,flags = <(MIPI_DSI_MODE_VIDEO_BURST | MIPI_DSI_MODE_VIDEO | MIPI_DSI_MODE_LPM )>;
+		dsi,format = <MIPI_DSI_FMT_RGB888>;
+		bus-format = <MEDIA_BUS_FMT_RGB666_1X18>;
+		dsi,lanes = <4>;
+
+        init-delay-ms = <20>;
+        reset-delay-ms = <6>;
+        prepare-delay-ms = <6>;
+        enable-delay-ms = <6>;
+        unprepare-delay-ms = <0>;
+        disable-delay-ms = <20>;
+        size,width = <120>;
+        size,height = <170>;
+        status = "okay";
+
+        panel-init-sequence = [
+            15 00 02 E0 00
+            15 00 02 E1 93
+            15 00 02 E2 65
+            15 00 02 E3 F8
+            15 00 02 80 03
+
+            15 00 02 E0 04
+            15 00 02 2D 03
+            15 00 02 09 14
+
+            15 00 02 E0 01
+            
+
+            15 00 02 00 00
+            15 00 02 01 B6   //5E
+
+            15 00 02 17 00
+            15 00 02 18 B1
+            15 00 02 19 01
+            15 00 02 1A 00
+            15 00 02 1B B1
+            15 00 02 1C 01
+
+            15 00 02 1F 3E
+            15 00 02 20 2D
+            15 00 02 21 2D
+            15 00 02 22 0E
+			15 00 02 35 0F
+
+            15 00 02 37 19
+
+            15 00 02 38 05
+            15 00 02 39 00
+            15 00 02 3A 01
+            15 00 02 3C 78
+			15 00 02 3D FF
+            15 00 02 3E FF
+            15 00 02 3F FF
+
+            15 00 02 40 06
+            15 00 02 41 A0
+			15 00 02 4B 00
+
+            15 00 02 55 0F
+            15 00 02 56 01
+            15 00 02 57 69
+            15 00 02 58 0A
+            15 00 02 59 0A
+            15 00 02 5A 28
+            15 00 02 5B 19
+            //GAMMA
+            15 00 02 5D 7F
+            15 00 02 5E 72
+            15 00 02 5F 67
+            15 00 02 60 5F
+            15 00 02 61 5F
+            15 00 02 62 51
+            15 00 02 63 58
+            15 00 02 64 44
+            15 00 02 65 5C
+            15 00 02 66 5A
+            15 00 02 67 58
+            15 00 02 68 74
+            15 00 02 69 5D
+            15 00 02 6A 5F
+            15 00 02 6B 4D
+            15 00 02 6C 45
+            15 00 02 6D 36
+            15 00 02 6E 24
+            15 00 02 6F 0A
+            15 00 02 70 7F
+            15 00 02 71 72
+            15 00 02 72 67
+            15 00 02 73 5F
+            15 00 02 74 5F
+            15 00 02 75 51
+            15 00 02 76 58
+            15 00 02 77 44
+            15 00 02 78 5C
+            15 00 02 79 5A
+            15 00 02 7A 58
+            15 00 02 7B 74
+            15 00 02 7C 5D
+            15 00 02 7D 5F
+            15 00 02 7E 4D
+            15 00 02 7F 4D
+            15 00 02 80 36
+            15 00 02 81 24
+            15 00 02 82 0A
+
+            15 00 02 E0 02
+
+            15 00 02 00 47
+            15 00 02 01 47
+            15 00 02 02 45
+            15 00 02 03 45
+            15 00 02 04 4B
+            15 00 02 05 4B
+            15 00 02 06 49
+            15 00 02 07 49
+            15 00 02 08 41
+            15 00 02 09 1F
+            15 00 02 0A 1F
+            15 00 02 0B 1F
+            15 00 02 0C 1F
+            15 00 02 0D 1F
+            15 00 02 0E 1F
+            15 00 02 0F 43
+            15 00 02 10 1F
+            15 00 02 11 1F
+            15 00 02 12 1F
+            15 00 02 13 1F
+            15 00 02 14 1F
+            15 00 02 15 1F
+
+            15 00 02 16 46
+            15 00 02 17 46
+            15 00 02 18 44
+            15 00 02 19 44
+            15 00 02 1A 4A
+            15 00 02 1B 4A
+            15 00 02 1C 48
+            15 00 02 1D 48
+            15 00 02 1E 40
+            15 00 02 1F 1F
+            15 00 02 20 1F
+            15 00 02 21 1F
+            15 00 02 22 1F
+            15 00 02 23 1F
+            15 00 02 24 1F
+            15 00 02 25 42
+            15 00 02 26 1F
+            15 00 02 27 1F
+            15 00 02 28 1F
+            15 00 02 29 1F
+            15 00 02 2A 1F
+            15 00 02 2B 1F
+
+            15 00 02 2C 11
+            15 00 02 2D 0F
+            15 00 02 2E 0D
+            15 00 02 2F 0B
+
+            15 00 02 30 09
+            15 00 02 31 07
+            15 00 02 32 05
+            15 00 02 33 18
+            15 00 02 34 17
+            15 00 02 35 1F
+            15 00 02 36 01
+            15 00 02 37 1F
+            15 00 02 38 1F
+            15 00 02 39 1F
+            15 00 02 3A 1F
+            15 00 02 3B 1F
+            15 00 02 3C 1F
+            15 00 02 3D 1F
+            15 00 02 3E 1F
+            15 00 02 3F 13
+            15 00 02 40 1F
+            15 00 02 41 1F
+
+            15 00 02 42 10
+            15 00 02 43 0E
+            15 00 02 44 0C
+            15 00 02 45 0A
+			15 00 02 46 08
+            15 00 02 47 06
+            15 00 02 48 04
+            15 00 02 49 18
+            15 00 02 4A 17
+            15 00 02 4B 1F
+			15 00 02 4C 00
+            15 00 02 4D 1F
+			15 00 02 4E 1F
+            15 00 02 4F 1F
+            15 00 02 50 1F
+            15 00 02 51 1F
+            15 00 02 52 1F
+            15 00 02 53 1F
+            15 00 02 54 1F
+            15 00 02 55 12
+            15 00 02 56 1F
+			15 00 02 57 1F
+
+            15 00 02 58 40
+			15 00 02 59 00
+			15 00 02 5A 00
+            15 00 02 5B 30
+            15 00 02 5C 03
+            15 00 02 5D 30
+            15 00 02 5E 01
+            15 00 02 5F 02
+            15 00 02 60 03
+            15 00 02 61 01
+            15 00 02 62 02
+            15 00 02 63 03
+            15 00 02 64 6B
+            15 00 02 65 00
+            15 00 02 66 00
+            15 00 02 67 73
+            15 00 02 68 05
+            15 00 02 69 06
+            15 00 02 6A 6B
+            15 00 02 6B 08
+            15 00 02 6C 00
+            15 00 02 6D 05
+            15 00 02 6E 05
+            15 00 02 6F 88
+            15 00 02 70 00
+            15 00 02 71 00
+            15 00 02 72 06
+            15 00 02 73 7B
+            15 00 02 74 00
+            15 00 02 75 07
+            15 00 02 76 00
+            15 00 02 77 5D
+            15 00 02 78 17
+            15 00 02 79 1F
+            15 00 02 7A 00
+            15 00 02 7B 00
+            15 00 02 7C 00
+            15 00 02 7D 03
+            15 00 02 7E 7B
+
+            15 00 02 E0 01
+            15 00 02 0E 00
+
+            15 00 02 E0 03
+            15 00 02 98 3F
+
+            15 00 02 E0 04
+            15 00 02 09 10
+            15 00 02 0E 48
+            15 00 02 2B 2B
+            15 00 02 2E 44
+
+            15 00 02 E0 00
+            15 00 02 E6 02
+            15 00 02 E7 02
+			05 78 01 11
+			05 05 01 29
+			15 00 02 35 00 
+        ];
+
+		panel-exit-sequence = [
+			05 05 01 28
+			05 78 01 10
+		];
+
+		display-timings {
+			native-mode = <&timing0>;
+			timing0: timing0 {
+                 clock-frequency = <67000000>;//<80000000>;
+                 hactive = <800>;//<768>;
+                 vactive = <1280>;
+                 hsync-len = <10>;   //20, 50
+                 hback-porch = <10>; //50, 56
+                 hfront-porch = <180>;//50, 30
+                 vsync-len = <4>;
+                 vback-porch = <4>;
+                 vfront-porch = <8>;
+                 hsync-active = <0>;
+                 vsync-active = <0>;
+                 de-active = <0>;
+                 pixelclk-active = <0>;
+            };
+		};
+	};
+};
+
+&gsl3680 {
+	status = "okay";
+};
+
+&es8323_sound{
+	status = "okay";
+};
+
+&pwm1 {
+	status = "okay";
+};
+
+//uboot fb dsi0
+&vopb_out_dsi {
+	status = "okay";
+};
+&vopl_out_dsi {
+	status = "disabled";
+};
+
+&dsi_in_vopl {
+    status = "disabled";
+};
+
+&dsi_in_vopb {
+    status = "okay";
+};
+
+&route_dsi{
+	status = "disabled";	
+	logo,mode = "center";
+};
+
+&pinctrl {
+    lcd-panel {
+    	lcd_panel_reset: lcd-panel-reset {
+    	    rockchip,pins = <2 28 RK_FUNC_GPIO &pcfg_pull_down>;
+		};
+
+		lcd_panel_enable: lcd-panel-enable {
+		    rockchip,pins = <1 1 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+
+		lcd_panel_55power: lcd-panel-55power {
+		    rockchip,pins = <1 24 RK_FUNC_GPIO &pcfg_pull_down>;
+		};
+    };
+};
+
+&rk808 {
+	pmic,stby-gpio = <0>;
+};
