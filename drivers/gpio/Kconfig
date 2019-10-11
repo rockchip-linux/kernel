@@ -1058,4 +1058,10 @@ config GPIO_WIEGAND_RECEIVE
         help
         Sample code of Wiegand.
 
+config GPIO_RADAR
+    tristate "Firefly GPIO radar support"
+    default n
+    help
+    Sample code of radar.
+
 endif

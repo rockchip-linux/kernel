@@ -122,3 +122,4 @@ obj-$(CONFIG_GPIO_ZYNQ)		+= gpio-zynq.o
 obj-$(CONFIG_GPIO_ZX)		+= gpio-zx.o
 obj-$(CONFIG_GPIO_WIEGAND_SEND)		+= gpio-wiegand-send.o
 obj-$(CONFIG_GPIO_WIEGAND_RECEIVE)	+= gpio-wiegand-receive.o
+obj-$(CONFIG_GPIO_RADAR)	+= gpio-radar.o
