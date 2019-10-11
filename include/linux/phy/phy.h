@@ -41,6 +41,7 @@ enum phy_mode {
  * @power_on: powering on the phy
  * @power_off: powering off the phy
  * @set_mode: set the mode of the phy
+ * @set_vbusdet: usb disconnect of the phy
  * @reset: resetting the phy
  * @cp_test: prepare for the phy compliance test
  * @owner: the module owner containing the ops
@@ -51,6 +52,7 @@ struct phy_ops {
 	int	(*power_on)(struct phy *phy);
 	int	(*power_off)(struct phy *phy);
 	int	(*set_mode)(struct phy *phy, enum phy_mode mode);
+        int (*set_vbusdet)(struct phy *phy, bool level);
 	int	(*reset)(struct phy *phy);
 	int	(*cp_test)(struct phy *phy);
 	struct module *owner;
@@ -138,6 +140,7 @@ int phy_exit(struct phy *phy);
 int phy_power_on(struct phy *phy);
 int phy_power_off(struct phy *phy);
 int phy_set_mode(struct phy *phy, enum phy_mode mode);
+int phy_set_vbusdet(struct phy *phy, bool level);
 int phy_reset(struct phy *phy);
 int phy_cp_test(struct phy *phy);
 static inline int phy_get_bus_width(struct phy *phy)
@@ -250,6 +253,13 @@ static inline int phy_set_mode(struct phy *phy, enum phy_mode mode)
 	if (!phy)
 		return 0;
 	return -ENOSYS;
+}
+
+static inline int phy_set_vbusdet(struct phy *phy, bool level)
+{
+    if (!phy)
+        return 0;
+    return -ENOSYS;
 }
 
 static inline int phy_reset(struct phy *phy)

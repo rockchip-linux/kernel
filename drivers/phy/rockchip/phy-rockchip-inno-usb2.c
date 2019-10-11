@@ -246,6 +246,7 @@ struct rockchip_usb2phy_port {
 	bool		utmi_avalid;
 	bool		vbus_attached;
 	bool		vbus_always_on;
+	bool		vbus_det_firefly;
 	bool		vbus_enabled;
 	bool		bypass_uart_en;
 	int		bvalid_irq;
@@ -257,6 +258,7 @@ struct rockchip_usb2phy_port {
 	struct		delayed_work chg_work;
 	struct		delayed_work otg_sm_work;
 	struct		delayed_work sm_work;
+        struct      delayed_work peripheral_work;
 	struct		regulator *vbus;
 	const struct	rockchip_usb2phy_port_cfg *port_cfg;
 	struct notifier_block	event_nb;
@@ -633,6 +635,8 @@ static int rockchip_usb2phy_init(struct phy *phy)
 	int ret = 0;
 
 	mutex_lock(&rport->mutex);
+	
+	
 
 	if (rport->port_id == USB2PHY_PORT_OTG &&
 	    rport->bvalid_irq > 0) {
@@ -667,7 +671,8 @@ static int rockchip_usb2phy_init(struct phy *phy)
 
 		schedule_delayed_work(&rport->sm_work, SCHEDULE_DELAY);
 	}
-
+	
+	
 out:
 	mutex_unlock(&rport->mutex);
 	return ret;
@@ -839,12 +844,38 @@ static int rockchip_usb2phy_set_mode(struct phy *phy, enum phy_mode mode)
 	return ret;
 }
 
+static int rockchip_usb2phy_set_vbusdet(struct phy *phy, bool level)
+{
+    struct rockchip_usb2phy_port *rport = phy_get_drvdata(phy);
+    struct rockchip_usb2phy *rphy = dev_get_drvdata(phy->dev.parent);
+    int ret = 0;
+
+    if (rport->port_id != USB2PHY_PORT_OTG)
+        return ret;
+
+    if (rphy->phy_cfg->reg == 0xe460) {
+        if (level)
+        {
+                ret = regmap_write(rphy->grf, 0x4518, GENMASK(20, 20) | 0x10);
+        }
+        else
+        {
+                ret = regmap_write(rphy->grf, 0x4518, GENMASK(20, 20) | 0x00);
+        }
+    }
+
+    return ret;
+}
+
+
+
 static const struct phy_ops rockchip_usb2phy_ops = {
 	.init		= rockchip_usb2phy_init,
 	.exit		= rockchip_usb2phy_exit,
 	.power_on	= rockchip_usb2phy_power_on,
 	.power_off	= rockchip_usb2phy_power_off,
 	.set_mode	= rockchip_usb2phy_set_mode,
+        .set_vbusdet = rockchip_usb2phy_set_vbusdet,
 	.owner		= THIS_MODULE,
 };
 
@@ -1573,6 +1604,18 @@ static int rockchip_otg_event(struct notifier_block *nb,
 	return NOTIFY_DONE;
 }
 
+static void rockchip_usb2phy_peripheral_work(struct work_struct *work)
+{
+       struct rockchip_usb2phy_port *rport =
+               container_of(work, struct rockchip_usb2phy_port, peripheral_work.work);
+       struct rockchip_usb2phy *rphy = dev_get_drvdata(rport->phy->dev.parent);
+       extcon_set_state(rphy->edev, EXTCON_USB, true);
+       extcon_sync(rphy->edev, EXTCON_USB);
+       schedule_delayed_work(&rport->peripheral_work, 3 * HZ);
+
+}
+
+
 static int rockchip_usb2phy_otg_port_init(struct rockchip_usb2phy *rphy,
 					  struct rockchip_usb2phy_port *rport,
 					  struct device_node *child_np)
@@ -1599,10 +1642,17 @@ static int rockchip_usb2phy_otg_port_init(struct rockchip_usb2phy *rphy,
 		of_property_read_bool(child_np, "rockchip,vbus-always-on");
 	rport->utmi_avalid =
 		of_property_read_bool(child_np, "rockchip,utmi-avalid");
+	rport->vbus_det_firefly =
+		of_property_read_bool(child_np, "firefly,vbus-no-det");
 
 	/* enter lower power state when suspend */
 	rport->low_power_en =
 		of_property_read_bool(child_np, "rockchip,low-power-mode");
+	
+	/* enabled typec peripheral mode when no det pin */
+	if (rport->vbus_det_firefly) {
+		ret = regmap_write(rphy->grf, 0x4518, GENMASK(20, 20) | 0x10);
+	}
 
 	/* Get Vbus regulators */
 	rport->vbus = devm_regulator_get_optional(&rport->phy->dev, "vbus");
@@ -1628,6 +1678,8 @@ static int rockchip_usb2phy_otg_port_init(struct rockchip_usb2phy *rphy,
 			if(ret < 0)
 				printk("%s() gpio_direction_output vbus-gpio set ERROR\n", __FUNCTION__);
 		}
+        INIT_DELAYED_WORK(&rport->peripheral_work, rockchip_usb2phy_peripheral_work);
+        schedule_delayed_work(&rport->peripheral_work, 3 * HZ);
 
 		goto out;
 	}

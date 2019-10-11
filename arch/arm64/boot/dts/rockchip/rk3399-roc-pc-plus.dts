@@ -2,9 +2,12 @@
 #include "rk3399-roc-pc.dtsi"
 
 / {
-	model = "Firefly roc-rk3399-pc-plus";
-	compatible = "firefly,roc-rk3399-pc-plus", "rockchip,rk3399";
+//	model = "Firefly roc-rk3399-pc-plus";
+//	compatible = "firefly,roc-rk3399-pc-plus", "rockchip,rk3399";
 
+	model = "Firefly ROC-RK3328-CC";
+	compatible = "firefly,roc-rk3328-cc", "rockchip,rk3328";
+	
 	es8388-sound {
 		status = "okay";
 		compatible = "simple-audio-card";
