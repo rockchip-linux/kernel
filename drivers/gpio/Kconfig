@@ -1046,4 +1046,16 @@ config GPIO_VIPERBOARD
 
 endmenu
 
+config GPIO_WIEGAND_SEND
+        tristate "Firefly Wiegand recv Demo support"
+        default n
+        help
+        Sample code of Wiegand.
+
+config GPIO_WIEGAND_RECEIVE
+        tristate "Firefly Wiegand recv Demo support"
+        default n
+        help
+        Sample code of Wiegand.
+
 endif
