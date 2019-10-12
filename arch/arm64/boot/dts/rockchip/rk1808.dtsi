@@ -298,7 +298,7 @@
 	};
 
 	pcie0: pcie@fc400000 {
-		compatible = "rockchip,rk1808-pcie-ep", "snps,dw-pcie";
+		compatible = "rockchip,rk1808-pcie", "snps,dw-pcie";
 		#address-cells = <3>;
 		#size-cells = <2>;
 		bus-range = <0x0 0x1f>;
