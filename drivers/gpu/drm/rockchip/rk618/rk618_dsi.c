@@ -293,8 +293,13 @@ static void rk618_dsi_set_hs_clk(struct rk618_dsi *dsi)
 
 		bandwidth = (u64)mode->clock * 1000 * bpp;
 		do_div(bandwidth, lanes);
-		bandwidth = bandwidth * 10 / 9;
-		bandwidth = bandwidth / USEC_PER_SEC * USEC_PER_SEC;
+
+		/* take 1 / 0.9, since mbps must big than bandwidth of RGB */
+		bandwidth *= 10;
+		do_div(bandwidth, 9);
+
+		do_div(bandwidth, USEC_PER_SEC);
+		bandwidth *= USEC_PER_SEC;
 		fout = bandwidth;
 	}
 
