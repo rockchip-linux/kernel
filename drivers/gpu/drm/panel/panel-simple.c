@@ -662,6 +662,8 @@ static int panel_simple_prepare(struct drm_panel *panel)
 
 	p->prepared = true;
 
+	msleep(500);
+
 	return 0;
 }
 

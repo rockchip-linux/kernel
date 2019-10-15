@@ -1,0 +1,291 @@
+/dts-v1/;
+#include "rk3399-roc-pc.dtsi"
+
+/ {
+//	model = "Firefly roc-rk3399-pc-plus";
+//	compatible = "firefly,roc-rk3399-pc-plus", "rockchip,rk3399";
+
+	model = "Firefly ROC-RK3328-CC";
+	compatible = "firefly,roc-rk3328-cc", "rockchip,rk3328";
+	
+	es8388-sound {
+		status = "okay";
+		compatible = "simple-audio-card";
+		simple-audio-card,format = "i2s";
+		simple-audio-card,name = "rockchip,es8388-codec";
+		simple-audio-card,mclk-fs = <256>;
+		simple-audio-card,cpu {
+			sound-dai = <&i2s1>;
+			system-clock-frequency = <11289600>;
+		};
+		simple-audio-card,codec {
+			sound-dai = <&es8388>;
+			system-clock-frequency = <11289600>;
+		};
+	};
+	/delete-node/ vcc_hub_en-regulator;
+
+	edp_panel: edp-panel {
+        compatible = "simple-panel";
+        bus-format = <MEDIA_BUS_FMT_RGB666_1X18>;
+        backlight = <&backlight>;
+        
+		enable-gpios = <&gpio2 5 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+	    pinctrl-0 = <&lcd_panel_enable>;
+
+        display-timings {
+            native-mode = <&timing0>;
+
+            timing0: timing0 {
+                clock-frequency = <200000000>;
+                hactive = <2560>;
+                vactive = <1600>;
+                hfront-porch = <48>;
+                hsync-len = <80>;
+                hback-porch = <32>;
+                vfront-porch = <2>;
+                vsync-len = <39>;
+                vback-porch = <5>;
+                hsync-active = <0>;
+                vsync-active = <0>;
+                de-active = <0>;
+                pixelclk-active = <0>;
+            };
+        };
+
+        ports {
+            panel_in_edp: endpoint {
+                remote-endpoint = <&edp_out_panel>;
+            };
+        };
+    };
+    /*
+      backlight: backlight {
+               pwms = <&pwm0 0 25000 0>;
+            //enable-gpios = <&gpio1 24 GPIO_ACTIVE_HIGH>;
+                // pinctrl-names = "default";
+                // pinctrl-0 = <&lcd_backlight_enable>;
+    };
+    */
+};
+
+/*这里注释拉enable引脚，因为eDP和mipi共用拉，enable引脚。又因为
+        背光电路驱动backlight驱动没有引脚占用检测功能，所有如果不注释会冲突报错
+    */
+&backlight {
+    pwms = <&pwm0 0 25000 0>;
+    //enable-gpios = <&gpio1 24 GPIO_ACTIVE_HIGH>;
+    // pinctrl-names = "default";
+    // pinctrl-0 = <&lcd_backlight_enable>;
+};
+
+
+&edp {
+    status = "okay";
+    pinctrl-names = "default";
+    pinctrl-0 = <&edp_hpd>;
+
+    hpd-gpios = <&gpio1 20 GPIO_ACTIVE_LOW>;
+
+    ports {
+        edp_out: port@1 {
+            reg = <1>;
+            #address-cells = <1>;
+            #size-cells = <0>;
+
+            edp_out_panel: endpoint@0 {
+                reg = <0>;
+                remote-endpoint = <&panel_in_edp>;
+            };
+        };
+
+    };
+};
+//GPIO1_C4  16+4
+&edp_hpd {
+    rockchip,pins = <1 20 RK_FUNC_2 &pcfg_pull_none>;
+};
+
+
+&pinctrl {
+	 es8388-pins {
+		ear_ctl_h: ear-ctl-h {
+                        rockchip,pins = <0 2 RK_FUNC_GPIO &pcfg_pull_down>;
+                };
+	};
+
+	edp {
+        lcd_panel_enable: lcd-panel-enable {
+            rockchip,pins = <2 5 RK_FUNC_GPIO &pcfg_pull_up>;
+        };
+        lcd_backlight_enable: lcd-backlight-enable {
+            rockchip,pins = <1 24 RK_FUNC_GPIO &pcfg_pull_up>;
+        };
+        lcd_edp_hpd_enable: lcd-edp-hpd-enable{
+            rockchip,pins = <1 20 RK_FUNC_GPIO &pcfg_pull_up>;
+        };
+
+        //GPIO1_D0       BL_EN
+        lcd_BL_EN: lcd-bbbacklight-enable {
+            rockchip,pins = <1 24 RK_FUNC_GPIO &pcfg_pull_up>;
+        };
+    };
+};
+
+
+
+//可有可无之后的提交再删除多余节点
+/*
+&route_edp {
+    status = "okay";
+    logo,mode = "center";
+};
+
+&edp_in_vopl {
+    status = "disabled";
+};
+
+
+&dp_in_vopb {
+	status = "disabled";
+};
+
+
+&vopb { 
+    assigned-clocks = <&cru DCLK_VOP0_DIV>; 
+    assigned-clock-parents = <&cru PLL_VPLL>; 
+}; 
+
+&vopl { 
+    assigned-clocks = <&cru DCLK_VOP1_DIV>; 
+    assigned-clock-parents = <&cru PLL_CPLL>; 
+};
+
+
+
+*/
+
+
+
+
+
+
+
+
+
+
+/* RTC */
+
+&rk808{
+	rtc {
+		status = "disabled";
+	};	
+};
+
+&i2c0 {
+	status = "okay";
+	hym8563: hym8563@51 {
+		compatible = "haoyu,hym8563";
+		reg = <0x51>;
+		interrupt-parent = <&gpio0>;
+		interrupts = <5 IRQ_TYPE_EDGE_FALLING>;
+		pinctrl-names = "default";
+		#clock-cells = <0>;
+		clock-frequency = <32768>;
+		clock-output-names = "xin32k";
+	};
+};
+
+/* delet fusb1 node for USB3.0 */
+
+&i2c7 {
+	/delete-node/ mp8859@66;
+};
+
+&i2c4 {
+    //jincheng
+    status = "okay";
+	/delete-node/ fusb30x@22;
+};
+
+&fusb0 {
+	/delete-property/ power-dev;
+    vbus-5v-gpios = <&gpio1 13 GPIO_ACTIVE_HIGH>;
+};
+
+&cdn_dp {
+	status = "okay";
+	extcon = <&fusb0>;
+	phys = <&tcphy0_dp>;
+};
+
+&tcphy1 {
+	/delete-property/ extcon;
+};
+
+&u2phy1 {
+	/delete-property/ extcon;
+};
+
+&usbdrd3_1 {
+	/delete-property/ extcon;
+};
+
+
+
+
+
+
+
+&i2s1 {
+	status = "okay";
+};
+
+&vcc_wifi {
+	gpio = <&gpio2 4 GPIO_ACTIVE_HIGH>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&vcc_wifi_h>;
+};
+
+&vcc_wifi_h {
+	rockchip,pins = <2 4 RK_FUNC_GPIO &pcfg_pull_none>;
+};
+
+&dmc {
+	status = "disabled";
+};
+
+&rk808 {
+	/delete-property/ pmic,hold-gpio;
+};
+
+&i2c1 {
+	status = "okay";
+	es8388: es8388@11 {
+		compatible = "everest,es8323";
+		status = "okay";
+		reg = <0x11>;
+		hp-det-gpio = <&gpio2 6 GPIO_ACTIVE_HIGH>;
+		hp-ctl-gpio = <&gpio0 2 GPIO_ACTIVE_HIGH>;
+		clock-names = "mclk";
+		clocks = <&cru SCLK_I2S_8CH_OUT>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&i2s_8ch_mclk>;
+		pinctrl-1 = <&ear_ctl_h>;
+		#sound-dai-cells = <0>;
+	};
+};
+
+
+
+/*
+&fusb0 {
+	status = "disabled";
+};
+
+&fusb0 {
+	status = "disabled";
+};
+
+*/
