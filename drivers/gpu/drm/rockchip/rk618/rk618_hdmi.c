@@ -554,22 +554,6 @@ static void rk618_hdmi_set_polarity(struct rk618_hdmi *hdmi, int vic)
 	regmap_update_bits(hdmi->parent->regmap, RK618_MISC_CON, mask, val);
 }
 
-static void rk618_hdmi_pol_init(struct rk618_hdmi *hdmi, int pol)
-{
-	u32 val;
-
-	if (pol)
-		val = 0x0;
-	else
-		val = 0x20;
-	regmap_update_bits(hdmi->parent->regmap, RK618_MISC_CON,
-			   INT_ACTIVE_LOW, val);
-
-	regmap_update_bits(hdmi->parent->regmap,
-			   RK618_MISC_CON, HDMI_CLK_SEL_MASK,
-			   HDMI_CLK_SEL_VIDEO_INF0_CLK);
-}
-
 static inline void hdmi_modb(struct rk618_hdmi *hdmi, u16 offset,
 			     u32 msk, u32 val)
 {
@@ -655,6 +639,10 @@ static void rk618_hdmi_reset(struct rk618_hdmi *hdmi)
 {
 	u32 val;
 	u32 msk;
+
+	regmap_update_bits(hdmi->parent->regmap,
+			   RK618_MISC_CON, HDMI_CLK_SEL_MASK,
+			   HDMI_CLK_SEL_VIDEO_INF0_CLK);
 
 	hdmi_modb(hdmi, HDMI_SYS_CTRL, m_RST_DIGITAL, v_NOT_RST_DIGITAL);
 	usleep_range(100, 110);
@@ -1512,7 +1500,6 @@ static int rk618_hdmi_probe(struct platform_device *pdev)
 		return PTR_ERR(hdmi->clock);
 	}
 
-	rk618_hdmi_pol_init(hdmi, 0);
 	rk618_hdmi_reset(hdmi);
 
 	hdmi->ddc = rk618_hdmi_i2c_adapter(hdmi);
@@ -1540,7 +1527,7 @@ static int rk618_hdmi_probe(struct platform_device *pdev)
 
 	ret = devm_request_threaded_irq(dev, irq, NULL,
 					rk618_hdmi_irq,
-					IRQF_TRIGGER_FALLING | IRQF_ONESHOT,
+					IRQF_TRIGGER_HIGH | IRQF_ONESHOT,
 					dev_name(dev), hdmi);
 	if (ret) {
 		dev_err(dev, "failed to request hdmi irq: %d\n", ret);
