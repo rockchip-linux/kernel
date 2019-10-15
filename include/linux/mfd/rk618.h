@@ -111,11 +111,17 @@
 #define MIPI_DPICOLOM			BIT(2)
 #define MIPI_DPISHUTDN			BIT(1)
 
+enum rk618_irqs {
+	RK618_IRQ_HDMI,
+	RK618_IRQ_DSI,
+};
+
 struct rk618 {
 	struct device *dev;
 	struct i2c_client *client;
 	struct clk *clkin;
 	struct regmap *regmap;
+	struct regmap_irq_chip_data *irq_data;
 
 	struct regulator *supply;
 	struct gpio_desc *enable_gpio;
