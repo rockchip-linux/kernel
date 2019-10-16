@@ -48,18 +48,13 @@
 	};
 };
 
-/* delet fusb1 node for USB3.0 */
-
-&i2c7 {
-	/delete-node/ mp8859@66;
-};
 
 &i2c4 {
 	/delete-node/ fusb30x@22;
 };
 
 &fusb0 {
-	/delete-property/ power-dev;
+	fusb302,role = "ROLE_MODE_DFP";
 };
 
 &cdn_dp {
