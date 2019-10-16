@@ -141,21 +141,13 @@
 	};
 };
 
-/* delet fusb1 node for USB3.0 */
-
-&i2c7 {
-	/delete-node/ mp8859@66;
-};
-
 &i2c4 {
-    //jincheng
-    status = "okay";
 	/delete-node/ fusb30x@22;
 };
 
 &fusb0 {
-	/delete-property/ power-dev;
     vbus-5v-gpios = <&gpio1 13 GPIO_ACTIVE_HIGH>;
+	fusb302,role = "ROLE_MODE_DFP";
 };
 
 &cdn_dp {
@@ -220,16 +212,3 @@
 		#sound-dai-cells = <0>;
 	};
 };
-
-
-
-/*
-&fusb0 {
-	status = "disabled";
-};
-
-&fusb0 {
-	status = "disabled";
-};
-
-*/
