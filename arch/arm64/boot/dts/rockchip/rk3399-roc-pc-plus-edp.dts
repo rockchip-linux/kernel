@@ -56,18 +56,10 @@
 
         ports {
             panel_in_edp: endpoint {
-                remote-endpoint = <&edp_out_panel>;
+                remote-endpoint = <&edp_in_vopb>;
             };
         };
     };
-    /*
-      backlight: backlight {
-               pwms = <&pwm0 0 25000 0>;
-            //enable-gpios = <&gpio1 24 GPIO_ACTIVE_HIGH>;
-                // pinctrl-names = "default";
-                // pinctrl-0 = <&lcd_backlight_enable>;
-    };
-    */
 };
 
 /*这里注释拉enable引脚，因为eDP和mipi共用拉，enable引脚。又因为
@@ -99,8 +91,8 @@
                 remote-endpoint = <&panel_in_edp>;
             };
         };
-
     };
+    
 };
 //GPIO1_C4  16+4
 &edp_hpd {
@@ -119,59 +111,11 @@
         lcd_panel_enable: lcd-panel-enable {
             rockchip,pins = <2 5 RK_FUNC_GPIO &pcfg_pull_up>;
         };
-        lcd_backlight_enable: lcd-backlight-enable {
-            rockchip,pins = <1 24 RK_FUNC_GPIO &pcfg_pull_up>;
-        };
         lcd_edp_hpd_enable: lcd-edp-hpd-enable{
             rockchip,pins = <1 20 RK_FUNC_GPIO &pcfg_pull_up>;
         };
-
-        //GPIO1_D0       BL_EN
-        lcd_BL_EN: lcd-bbbacklight-enable {
-            rockchip,pins = <1 24 RK_FUNC_GPIO &pcfg_pull_up>;
-        };
     };
 };
-
-
-
-//可有可无之后的提交再删除多余节点
-/*
-&route_edp {
-    status = "okay";
-    logo,mode = "center";
-};
-
-&edp_in_vopl {
-    status = "disabled";
-};
-
-
-&dp_in_vopb {
-	status = "disabled";
-};
-
-
-&vopb { 
-    assigned-clocks = <&cru DCLK_VOP0_DIV>; 
-    assigned-clock-parents = <&cru PLL_VPLL>; 
-}; 
-
-&vopl { 
-    assigned-clocks = <&cru DCLK_VOP1_DIV>; 
-    assigned-clock-parents = <&cru PLL_CPLL>; 
-};
-
-
-
-*/
-
-
-
-
-
-
-
 
 
 
