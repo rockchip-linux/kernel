@@ -1,0 +1,54 @@
+* Xchip external isp xc7080 connect xc530 MIPI CSI-2 sensor
+
+Required Properties:
+- compatible: xc7080 should be "xchip,xc7080", xc530 should be "xchip,xc7080-xc530"
+- clocks: reference to the 24M xvclk input clock.
+- clock-names: should be "xvclk".
+- dovdd-supply: Digital I/O voltage supply, 1.8 volts
+- avdd-supply: Analog voltage supply, 2.8 volts
+- dvdd-supply: Digital core voltage supply, 1.2 volts
+
+Attention:
+XC7080 device i2c address 0x1b(7bit);
+XC530 device i2c address 0x48(7bit);
+
+The device node must contain one 'port' child node for its digital output
+video port, in accordance with the video interface bindings defined in
+Documentation/devicetree/bindings/media/video-interfaces.txt.
+
+Example:
+
+&i2c1 {
+	status = "okay";
+
+	clock-frequency = <100000>;
+
+	xc7080: xc7080@1b {
+		compatible = "xchip,xc7080";
+		status = "okay";
+		reg = <0x1b>;
+		clocks = <&cru SCLK_CIF_OUT>;
+		clock-names = "xvclk";
+
+		rst-gpios = <&gpio2 23 GPIO_ACTIVE_HIGH>;
+		pwd-gpios = <&gpio0 23 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&cif_clkout_m0>;
+		rockchip,camera-module-index = <0>;
+		rockchip,camera-module-facing = "back";
+		rockchip,camera-module-name = "default";
+		rockchip,camera-module-lens-name = "default";
+		port {
+			ucam_out: endpoint {
+				remote-endpoint = <&mipi_in_ucam>;
+				data-lanes = <1 2>;
+			};
+		};
+
+	};
+	xc7080_xc530: xc7080_xc530@48 {
+		compatible = "xchip,xc7080-xc530";
+		reg = <0x48>;
+		status = "okay";
+	};
+};
