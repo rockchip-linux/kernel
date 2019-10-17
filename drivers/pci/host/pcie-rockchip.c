@@ -260,6 +260,9 @@ struct rockchip_pcie {
 	int wait_ep;
 	struct dma_trx_obj *dma_obj;
 	struct list_head resources;
+	struct pci_bus *root_bus;
+	struct resource *io;
+	bool pcie_really_probed;
 };
 
 static u32 rockchip_pcie_read(struct rockchip_pcie *rockchip, u32 reg)
@@ -1457,12 +1460,16 @@ static int rockchip_pcie_really_probe(struct rockchip_pcie *rockchip)
 	if (!bus)
 		return -EINVAL;
 
+	rockchip->root_bus = bus;
+
 	pci_bus_size_bridges(bus);
 	pci_bus_assign_resources(bus);
 	list_for_each_entry(child, &bus->children, node)
 		pcie_bus_configure_settings(child);
 
 	pci_bus_add_devices(bus);
+
+	rockchip->pcie_really_probed = 1;
 
 	return 0;
 }
@@ -1610,6 +1617,7 @@ static int rockchip_pcie_probe(struct platform_device *pdev)
 					 err, io);
 				continue;
 			}
+			rockchip->io = io;
 			break;
 		case IORESOURCE_MEM:
 			mem = win->res;
@@ -1675,6 +1683,49 @@ err_aclk_pcie:
 	return err;
 }
 
+static int rockchip_pcie_remove(struct platform_device *pdev)
+{
+	struct device *dev = &pdev->dev;
+	struct rockchip_pcie *rockchip = dev_get_drvdata(dev);
+
+	if (rockchip->root_bus) {
+		pci_stop_root_bus(rockchip->root_bus);
+		pci_remove_root_bus(rockchip->root_bus);
+	}
+
+	pci_unmap_iospace(rockchip->io);
+	irq_domain_remove(rockchip->irq_domain);
+
+	/* disabled ltssm */
+	rockchip_pcie_write(rockchip, PCIE_CLIENT_LINK_TRAIN_DISABLE,
+			    PCIE_CLIENT_CONFIG);
+
+	if (rockchip->pcie_really_probed) {
+		phy_power_off(rockchip->phy);
+		phy_exit(rockchip->phy);
+	}
+
+	clk_disable_unprepare(rockchip->clk_pcie_pm);
+	clk_disable_unprepare(rockchip->hclk_pcie);
+	clk_disable_unprepare(rockchip->aclk_perf_pcie);
+	clk_disable_unprepare(rockchip->aclk_pcie);
+
+	if (rockchip->dma_trx_enabled)
+		rk_pcie_dma_obj_remove(rockchip->dma_obj);
+
+	if (rockchip->deferred)
+		sysfs_remove_group(&pdev->dev.kobj, &pcie_attr_group);
+
+	if (!IS_ERR(rockchip->vpcie3v3))
+		regulator_disable(rockchip->vpcie3v3);
+	if (!IS_ERR(rockchip->vpcie1v8))
+		regulator_disable(rockchip->vpcie1v8);
+	if (!IS_ERR(rockchip->vpcie0v9))
+		regulator_disable(rockchip->vpcie0v9);
+
+	return 0;
+}
+
 static const struct dev_pm_ops rockchip_pcie_pm_ops = {
 	SET_NOIRQ_SYSTEM_SLEEP_PM_OPS(rockchip_pcie_suspend_noirq,
 				      rockchip_pcie_resume_noirq)
@@ -1692,6 +1743,6 @@ static struct platform_driver rockchip_pcie_driver = {
 		.pm = &rockchip_pcie_pm_ops,
 	},
 	.probe = rockchip_pcie_probe,
-
+	.remove = rockchip_pcie_remove,
 };
 builtin_platform_driver(rockchip_pcie_driver);
