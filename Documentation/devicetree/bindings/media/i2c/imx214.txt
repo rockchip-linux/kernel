@@ -1,0 +1,50 @@
+* Sony IMX214 MIPI sensor
+
+Required Properties:
+- compatible: should be "sony,imx214"
+- clocks: reference to the 24M xvclk input clock.
+- clock-names: should be "xvclk".
+- dovdd-supply: Digital I/O voltage supply, 1.8 volts
+- avdd-supply: Analog voltage supply, 2.8 volts
+- dvdd-supply: Digital core voltage supply, 1.0 volts
+- reset-gpios: Low active reset gpio
+
+The device node must contain one 'port' child node for its digital output
+video port, in accordance with the video interface bindings defined in
+Documentation/devicetree/bindings/media/video-interfaces.txt.
+
+Example:
+//rk3399 evb board
+&i2c1 {
+	status = "okay";
+	imx214_eeprom: imx214_eeprom@0x50 {
+		compatible = "sony,imx214_eeprom";
+		status = "okay";
+		reg = <0x50>;
+	};
+	imx214: imx214@10 {
+		eeprom-ctrl = <&imx214_eeprom>;
+		compatible = "sony,imx214";
+		status = "okay";
+		reg = <0x10>;
+		clocks = <&cru SCLK_CIF_OUT>;
+		clock-names = "xvclk";
+		/* avdd-supply = <>; */
+		/* dvdd-supply = <>; */
+		/* dovdd-supply = <>; */
+		/* pwdn-gpios = <>; */
+		reset-gpios = <&gpio2 13 GPIO_ACTIVE_LOW>;
+		pinctrl-names = "rockchip,camera_default";
+		pinctrl-0 = <&cif_clkout>;
+		rockchip,camera-module-index = <0>;
+		rockchip,camera-module-facing = "back";
+		rockchip,camera-module-name = "YG9626-S600Y7-C";
+		rockchip,camera-module-lens-name = "LG-50013A7";
+		port {
+			ucam_out1: endpoint {
+				remote-endpoint = <&mipi_in_ucam0>;
+				data-lanes = <1 2>;
+			};
+		};
+	};
+};
