@@ -16,7 +16,8 @@ dtbo-$(CONFIG_ARCH_ROCKCHIP) += \
 	raspberrypi-7-inch-lcd.dtbo \
 	cpufreq.dtbo \
 	imx219.dtbo \
-	ov5647.dtbo
+	ov5647.dtbo \
+	w1-gpio4-30.dtbo
 
 targets += dtbs dtbs_install
 targets += $(dtbo-y)

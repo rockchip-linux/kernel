@@ -174,3 +174,9 @@ Name:   spi1-flash
 Info:   Overlay for activation of spi flash.
         Need set: intfc:uart4=off intfc:spi1=on
 Load:   intfc:dtoverlay=spi1-flash
+
+
+Name:   w1-gpio4-30
+Info:   Overlay for activation of 1-wire on GPIO4_D6 for devices such as
+        DS18B20.
+Load:   intfc:dtoverlay=w1-gpio4-30
