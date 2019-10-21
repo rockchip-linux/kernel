@@ -280,7 +280,7 @@
 	center-supply = <&vdd_center>;
 };
 
-&dp_in_vopb {
+&dp_in_vopl {
 	status = "disabled";
 };
 
