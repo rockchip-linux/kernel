@@ -4899,6 +4899,7 @@ loop:
 			dev_info(&port_dev->dev, "attempt power cycle\n");
 			usb_hub_set_port_power(hdev, hub, port1, false);
 			msleep(2 * hub_power_on_good_delay(hub));
+			set_bit(HCD_FLAG_POWER_ON, &hcd->flags);
 			usb_hub_set_port_power(hdev, hub, port1, true);
 			msleep(hub_power_on_good_delay(hub));
 		}
