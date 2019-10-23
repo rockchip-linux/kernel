@@ -132,3 +132,4 @@ config ROCKCHIP_RK3066_HDMI
 	  HDMI on RK3066 based SoC, you should select this option.
 
 source "drivers/gpu/drm/rockchip/rk618/Kconfig"
+source "drivers/gpu/drm/rockchip/rk628/Kconfig"

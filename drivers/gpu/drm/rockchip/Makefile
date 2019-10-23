@@ -22,3 +22,4 @@ obj-$(CONFIG_ROCKCHIP_DRM_TVE) += rockchip_drm_tve.o
 
 obj-$(CONFIG_ROCKCHIP_RK3066_HDMI) += rk3066_hdmi.o
 obj-$(CONFIG_DRM_ROCKCHIP_RK618) += rk618/
+obj-$(CONFIG_DRM_ROCKCHIP_RK628) += rk628/
