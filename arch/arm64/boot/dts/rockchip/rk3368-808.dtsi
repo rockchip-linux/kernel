@@ -489,7 +489,7 @@
 				regulator-max-microvolt = <1800000>;
 				regulator-name = "vcca_18";
 				regulator-state-mem {
-					regulator-on-in-suspend;
+					regulator-off-in-suspend;
 					regulator-suspend-microvolt = <1800000>;
 				};
 			};
@@ -513,7 +513,7 @@
 				regulator-max-microvolt = <1000000>;
 				regulator-name = "vdd10_lcd";
 				regulator-state-mem {
-					regulator-on-in-suspend;
+					regulator-off-in-suspend;
 					regulator-suspend-microvolt = <1000000>;
 				};
 			};
@@ -537,7 +537,7 @@
 				regulator-max-microvolt = <1800000>;
 				regulator-name = "vcc18_lcd";
 				regulator-state-mem {
-					regulator-on-in-suspend;
+					regulator-off-in-suspend;
 					regulator-suspend-microvolt = <1800000>;
 				};
 			};
@@ -558,7 +558,7 @@
 				regulator-boot-on;
 				regulator-name = "vcc_lan";
 				regulator-state-mem {
-					regulator-on-in-suspend;
+					regulator-off-in-suspend;
 				};
 			};
 		};
@@ -803,11 +803,11 @@
 };
 
 &hdmi {
-	status = "disabled";
+	status = "okay";
 };
 
 &route_hdmi {
-	status = "disabled";
+	status = "okay";
 };
 
 &pinctrl {
