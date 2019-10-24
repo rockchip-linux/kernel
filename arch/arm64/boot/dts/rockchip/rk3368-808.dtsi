@@ -221,6 +221,16 @@
 		status = "okay";
 	};
 
+	4G-Modem {
+		compatible="4g-modem-platdata";
+		pinctrl-names = "default";
+		pinctrl-0 = <&lte_vbat &lte_power_en &lte_reset>;
+		4G,vbat-gpio = <&gpio0 RK_PA4 GPIO_ACTIVE_HIGH>;
+		4G,power-gpio = <&gpio0 RK_PC0 GPIO_ACTIVE_LOW>;
+		4G,reset-gpio = <&gpio0 RK_PB7 GPIO_ACTIVE_LOW>;
+		status = "okay";
+	};
+
 	vcc_sys: vcc-sys {
 		compatible = "regulator-fixed";
 		regulator-name = "vcc_sys";
@@ -876,6 +886,20 @@
 	wireless-bluetooth {
 		uart0_rts_gpio: uart0-rts-gpio {
 			rockchip,pins = <2 27 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	4G-Modem {
+		lte_vbat: lte-vbat {
+			rockchip,pins = <0 RK_PA2 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+
+		lte_power_en: lte-power-en {
+			rockchip,pins = <0 RK_PC0 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+
+		lte_reset: lte-reset {
+			rockchip,pins = <0 RK_PB7 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
 };
