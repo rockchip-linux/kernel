@@ -703,6 +703,9 @@ static int es8316_pcm_startup(struct snd_pcm_substream *substream,
 		msleep(50);
 	} else {
 		snd_soc_update_bits(codec,
+				    ES8316_GPIO_SEL_REG4D,0x02,0x2);
+
+		snd_soc_update_bits(codec,
 				    ES8316_ADC_PDN_LINSEL_REG22, 0xC0, 0x20);
 		snd_soc_update_bits(codec, ES8316_CLKMGR_CLKSW_REG01,
 				    ES8316_CLKMGR_ADC_MCLK_MASK |
@@ -738,6 +741,9 @@ static void es8316_pcm_shutdown(struct snd_pcm_substream *substream,
 				    ES8316_CLKMGR_DAC_ANALOG_MASK,
 				    ES8316_CLKMGR_DAC_ANALOG_DIS);
 	} else {
+		snd_soc_update_bits(codec,
+				    ES8316_GPIO_SEL_REG4D,0x02,0x0);
+
 		snd_soc_write(codec, ES8316_ADC_PDN_LINSEL_REG22, 0xc0);
 		snd_soc_update_bits(codec, ES8316_CLKMGR_CLKSW_REG01,
 				    ES8316_CLKMGR_ADC_MCLK_MASK |
