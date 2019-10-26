@@ -449,3 +449,31 @@
 &rk808 {
 	pmic,stby-gpio = <0>;
 };
+
+&cif_isp1 {
+    status = "okay";
+};
+
+&rkisp1_1 {
+	status = "okay";
+};
+
+&mipi_dphy_tx1rx1 {
+	status = "okay";
+};
+
+&isp1_mmu {
+	status = "okay";
+};
+
+&rkisp1_0 {
+	status = "okay";
+};
+
+&mipi_dphy_rx0 {
+	status = "okay";
+};
+
+&isp0_mmu {
+	status = "okay";
+};

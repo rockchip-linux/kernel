@@ -1114,6 +1114,13 @@ config VIDEO_NVP6324
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called jaguar1_drv.
+
+config VIDEO_XC7022
+	tristate "Firefly XC7022/XC6130 support."
+	depends on VIDEO_V4L2 && I2C
+	---help---
+		Driver for sv-taysh camera.
+
 endmenu
 
 menu "Sensors used on soc_camera driver"

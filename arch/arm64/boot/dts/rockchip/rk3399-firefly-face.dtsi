@@ -256,9 +256,12 @@
 };
 
 &i2c1 {
+
 	status = "okay";
 	i2c-scl-rising-time-ns = <300>;
 	i2c-scl-falling-time-ns = <15>;
+	/delete-node/ ov13850@36;
+	/delete-node/ ov13850@46;
 
 	es8323: es8323@10 {
         compatible = "everest,es8323";
@@ -272,6 +275,38 @@
 		pinctrl-1 = <&ear_ctl_h>;
         #sound-dai-cells = <0>;
     };
+
+	XC7022: XC7022@36{
+		status = "okay";
+		compatible = "firefly,xc7022";
+		reg = <0x1b>;
+		reset-gpios = <&gpio1 23 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&xc7022_reset_pin>;
+
+		port {
+			ucam_out1: endpoint {
+				remote-endpoint = <&mipi_in_ucam1>;
+				data-lanes = <1 2>;
+			};
+		};
+	};
+
+	XC6130: XC6130@46{
+		status = "okay";
+		compatible = "firefly,xc7022";
+		reg = <0x23>;
+		reset-gpios = <&gpio1 22 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&xc6130_reset_pin>;
+
+		port {
+			ucam_out0: endpoint {
+				remote-endpoint = <&mipi_in_ucam0>;
+				data-lanes = <1 2>;
+			};
+		};
+	};
 };
 
 &i2c2 {
@@ -332,20 +367,6 @@
 
 };
 
-
-	/*
-&rk808 {
-	pinctrl-names = "default";
-	pinctrl-0 = <&pmic_int_l &pmic_dvs2>;
-    rtc {
-		compatible = "rockchip,rk808-rtc";				//没有 rockchip,rk808-rtc 对应的驱动
-        firefly,hwversion_range_lt = <0 0x00020000>;    // < v2.0
-    };
-
-
-};
-	*/
-
 &io_domains {
 	status = "okay";
 	bt656-supply = <&vcc_3v0>;
@@ -375,7 +396,7 @@
 
     host-hub-vcc {
         host_hub_vcc: host-hub-vcc {
-        rockchip,pins = <1 23 RK_FUNC_GPIO &pcfg_output_high>,
+        rockchip,pins = //<1 23 RK_FUNC_GPIO &pcfg_output_high>,
                         <2 4 RK_FUNC_GPIO &pcfg_output_high>,
                         //<0 8 RK_FUNC_GPIO &pcfg_output_low>,
                         <0 8 RK_FUNC_GPIO &pcfg_output_high>,
@@ -394,7 +415,17 @@
 	es8328-pins{
 		ear_ctl_h: ear-ctl-h {
             rockchip,pins = <1 0 RK_FUNC_GPIO &pcfg_pull_down>;
-		};		
+		};
+	};
+
+	camera-pins{
+		xc7022_reset_pin: xc7022-reset-pin{
+			rockchip,pins = <1 23 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+
+		xc6130_reset_pin: xc6130-reset-pin{
+			rockchip,pins = <1 22 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
 	};
 };
 
@@ -528,13 +559,4 @@
 			//<3 1 RK_FUNC_1 &pcfg_pull_none_13ma>,
 			/* mac_txd2 */
 			//<3 0 RK_FUNC_1 &pcfg_pull_none_13ma>;
-};
-
-
-&cif_isp0 {
-    status = "okay";
-};
-
-&cif_isp1 {
-    status = "okay";
 };
