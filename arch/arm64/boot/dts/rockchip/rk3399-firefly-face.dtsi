@@ -492,8 +492,7 @@
 };
 
 &usbdrd_dwc3_0 {
-    dr_mode = "otg";
-    //dr_mode = "peripheral";
+    dr_mode = "host";
 };
 
 &hdmi_dp_sound {
