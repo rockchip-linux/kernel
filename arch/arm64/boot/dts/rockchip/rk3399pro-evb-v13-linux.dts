@@ -121,6 +121,14 @@
 	status = "okay";
 };
 
+&iep {
+	status = "okay";
+};
+
+&iep_mmu {
+	status = "okay";
+};
+
 &i2c4 {
 	status = "okay";
 	i2c-scl-rising-time-ns = <345>;
