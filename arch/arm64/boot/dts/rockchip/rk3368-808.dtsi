@@ -23,11 +23,24 @@
 			"IN1P", "Mic Jack",
 			"Headphone Jack", "HPOL",
 			"Headphone Jack", "HPOR";
-		simple-audio-card,cpu {
-			sound-dai = <&i2s_8ch>;
+		simple-audio-card,dai-link@0 {
+			format = "i2s";
+			cpu {
+				sound-dai = <&i2s_8ch>;
+			};
+			codec {
+				sound-dai = <&rt5640>;
+			};
 		};
-		simple-audio-card,codec {
-			sound-dai = <&rt5640>;
+
+		simple-audio-card,dai-link@1 {
+			format = "i2s";
+			cpu {
+				sound-dai = <&i2s_8ch>;
+			};
+			codec {
+				sound-dai = <&hdmi>;
+			};
 		};
 	};
 
@@ -813,6 +826,7 @@
 };
 
 &hdmi {
+	#sound-dai-cells = <0>;
 	status = "okay";
 };
 
