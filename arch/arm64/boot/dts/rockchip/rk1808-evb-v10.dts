@@ -21,6 +21,7 @@
 		rockchip,card-name = "rockchip,rk1808-vad";
 		rockchip,cpu = <&pdm>;
 		rockchip,codec = <&vad>;
+		rockchip,wait-card-locked = <0>;
 	};
 };
 
