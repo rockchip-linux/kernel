@@ -8158,6 +8158,9 @@ dhd_stop(struct net_device *net)
 	dhd->pub.up = 0;
 #endif /* WL_CFG80211 */
 
+	if (!dhd_download_fw_on_driverload)
+		dhd->pub.disabling = TRUE;
+
 #ifdef WL_CFG80211
 	if (ifidx == 0) {
 		dhd_if_t *ifp;
@@ -8313,6 +8316,10 @@ exit:
 		DHD_OS_WAKE_LOCK_DESTROY(dhd);
 		dhd->dhd_state &= ~DHD_ATTACH_STATE_WAKELOCKS_INIT;
 	}
+
+	if (!dhd_download_fw_on_driverload)
+		dhd->pub.disabling = FALSE;
+
 	printf("%s: Exit\n", __FUNCTION__);
 
 	return 0;
