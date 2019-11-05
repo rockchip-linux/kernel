@@ -77,6 +77,15 @@
 		regulator-boot-on;
 	};
 
+	vcc_lcd: vcc-lcd-regulator {
+		compatible = "regulator-fixed";
+		gpio = <&gpio3 RK_PD5 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&lcd_pwr>;
+		regulator-name = "vcc_lcd";
+		enable-active-high;
+	};
+
 	backlight: backlight {
 		compatible = "pwm-backlight";
 		pwms = <&pwm3 0 25000 0>;
@@ -653,6 +662,7 @@
 		reg = <0x40>;
 		screen_max_x = <1920>;
 		screen_max_y = <1200>;
+		power-supply = <&vcc_lcd>;
 		touch-gpio = <&gpio0 12 IRQ_TYPE_LEVEL_LOW>;
 		reset-gpio = <&gpio0 11 GPIO_ACTIVE_HIGH>;
 		status = "okay";
@@ -757,8 +767,7 @@
 		compatible = "sitronix,st7703", "simple-panel-dsi";
 		reg = <0>;
 		backlight = <&backlight>;
-		/* power-supply = <&vcc_sys>; */
-		enable-gpios = <&gpio3 RK_PD5 GPIO_ACTIVE_HIGH>;
+		power-supply = <&vcc_lcd>;
 		prepare-delay-ms = <2>;
 		reset-delay-ms = <1>;
 		init-delay-ms = <20>;
@@ -838,6 +847,12 @@
 	camera {
 		camera_pwr: camera-pwr {
 			rockchip,pins = <0 RK_PB2 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	lcd {
+		lcd_pwr: lcd-pwr {
+			rockchip,pins = <3 RK_PD5 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
 
