@@ -1,5 +1,5 @@
 /*
- * drivers/input/touchscreen/gslX680.c
+ * drivers/input/touchscreen/gslX6801.c
  *
  * Copyright (c) 2012 Shanghai Basewin
  *	Guan Yuwei<guanyuwei@basewin.com>
@@ -38,7 +38,7 @@
 #define FILTER_MAX	9
 #endif
 
-#define GSLX680_I2C_NAME	"gslX680"
+#define GSLX680_I2C_NAME	"gslX6801"
 #define GSLX680_I2C_ADDR	0x40
 #define GSL_DATA_REG		0x80
 #define GSL_STATUS_REG		0xe0
@@ -150,6 +150,7 @@ struct gsl_ts {
 	struct work_struct work;
 	struct workqueue_struct *wq;
 	struct gsl_ts_data *dd;
+	struct regulator *regulator;
 	int flag_irq_is_disable;
 	spinlock_t irq_lock;
 	u8 *touch_data;
@@ -1497,6 +1498,25 @@ static void gsl_ts_late_resume(struct early_suspend *h)
 }
 #endif
 
+static void gsl_ts_power_on(struct gsl_ts *ts, bool enable)
+{
+	int ret = 0;
+
+	if (enable) {
+		ret = regulator_enable(ts->regulator);
+		if (ret)
+			dev_err(&ts->client->dev,
+				"%s failed to enable touch regulator\n",
+				__func__);
+	} else {
+		ret = regulator_disable(ts->regulator);
+		if (ret)
+			dev_err(&ts->client->dev,
+				"%s failed to disable touch regulator",
+				__func__);
+	}
+}
+
 static int gsl_ts_probe(struct i2c_client *client,
 			const struct i2c_device_id *id)
 {
@@ -1512,6 +1532,17 @@ static int gsl_ts_probe(struct i2c_client *client,
 	if (!ts)
 		return -ENOMEM;
 	msleep(20);
+
+	/* get touch for regulator */
+	ts->regulator = devm_regulator_get_optional(&client->dev, "power");
+	if (IS_ERR(ts->regulator)) {
+		if (PTR_ERR(ts->regulator) == -EPROBE_DEFER)
+			dev_err(&client->dev,
+				"get touch regulator is fail, may no need.\n");
+		ts->regulator = NULL;
+	} else {
+		gsl_ts_power_on(ts, true);
+	}
 
 	ts->tp.tp_suspend = gsl_ts_early_suspend;
 	ts->tp.tp_resume = gsl_ts_late_resume;
@@ -1597,6 +1628,7 @@ static int gsl_ts_remove(struct i2c_client *client)
 	cancel_work_sync(&ts->work);
 	free_irq(ts->client->irq, ts);
 	destroy_workqueue(ts->wq);
+	gsl_ts_power_on(ts, false);
 
 	return 0;
 }
