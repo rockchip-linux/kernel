@@ -3,6 +3,7 @@
  * xc7080 driver
  *
  * Copyright (C) 2017 Fuzhou Rockchip Electronics Co., Ltd.
+ * V0.0X01.0X01 add enum_frame_interval function.
  */
 
 #include <linux/clk.h>
@@ -22,7 +23,7 @@
 #include <media/v4l2-subdev.h>
 #include <linux/pinctrl/consumer.h>
 
-#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x0)
+#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x1)
 
 #define XC7080_LINK_FREQ_352MHZ		352000000
 /* pixel rate = link frequency * 2 * lanes / BITS_PER_SAMPLE */
@@ -78,7 +79,7 @@ struct regval1 {
 struct xc7080_mode {
 	u32 width;
 	u32 height;
-	u32 max_fps;
+	struct v4l2_fract max_fps;
 	u32 hts_def;
 	u32 vts_def;
 	u32 exp_def;
@@ -7192,7 +7193,10 @@ static const struct xc7080_mode supported_modes[] = {
 	{
 		.width = 2592,
 		.height = 1944,
-		.max_fps = 15,
+		.max_fps = {
+			.numerator = 10000,
+			.denominator = 150000,
+		},
 		.exp_def = 0x0320,
 		.hts_def = 0x0b60,//0x2d8*4
 		.vts_def = 0x038e,
@@ -7202,7 +7206,10 @@ static const struct xc7080_mode supported_modes[] = {
 	{
 		.width = 1920,
 		.height = 1080,
-		.max_fps = 25,
+		.max_fps = {
+			.numerator = 10000,
+			.denominator = 250000,
+		},
 		.exp_def = 0x0320,
 		.hts_def = 0x0b60,//0x2d8*4
 		.vts_def = 0x038e,
@@ -7485,8 +7492,7 @@ static int XC7080_g_frame_interval(struct v4l2_subdev *sd,
 	const struct xc7080_mode *mode = xc7080->cur_mode;
 
 	mutex_lock(&xc7080->mutex);
-	fi->interval.numerator = 10000;
-	fi->interval.denominator = mode->max_fps * 10000;
+	fi->interval = mode->max_fps;
 	mutex_unlock(&xc7080->mutex);
 
 	return 0;
@@ -7790,6 +7796,22 @@ static int xc7080_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 }
 #endif
 
+static int xc7080_enum_frame_interval(struct v4l2_subdev *sd,
+				       struct v4l2_subdev_pad_config *cfg,
+				       struct v4l2_subdev_frame_interval_enum *fie)
+{
+	if (fie->index >= ARRAY_SIZE(supported_modes))
+		return -EINVAL;
+
+	if (fie->code != XC7080_PIX_FORMAT)
+		return -EINVAL;
+
+	fie->width = supported_modes[fie->index].width;
+	fie->height = supported_modes[fie->index].height;
+	fie->interval = supported_modes[fie->index].max_fps;
+	return 0;
+}
+
 static const struct dev_pm_ops xc7080_pm_ops = {
 	SET_RUNTIME_PM_OPS(xc7080_runtime_suspend,
 				xc7080_runtime_resume, NULL)
@@ -7817,6 +7839,7 @@ static const struct v4l2_subdev_video_ops xc7080_video_ops = {
 static const struct v4l2_subdev_pad_ops xc7080_pad_ops = {
 	.enum_mbus_code = xc7080_enum_mbus_code,
 	.enum_frame_size = xc7080_enum_frame_sizes,
+	.enum_frame_interval = xc7080_enum_frame_interval,
 	.get_fmt = xc7080_get_fmt,
 	.set_fmt = xc7080_set_fmt,
 };

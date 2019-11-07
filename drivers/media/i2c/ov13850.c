@@ -6,6 +6,7 @@
  *
  * V0.0X01.0X01 add poweron function.
  * V0.0X01.0X02 fix mclk issue when probe multiple camera.
+ * V0.0X01.0X03 add enum_frame_interval function.
  */
 
 #include <linux/clk.h>
@@ -26,7 +27,7 @@
 #include <media/v4l2-subdev.h>
 #include <linux/pinctrl/consumer.h>
 
-#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x02)
+#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x03)
 
 #ifndef V4L2_CID_DIGITAL_GAIN
 #define V4L2_CID_DIGITAL_GAIN		V4L2_CID_GAIN
@@ -1190,6 +1191,22 @@ static int ov13850_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 }
 #endif
 
+static int ov13850_enum_frame_interval(struct v4l2_subdev *sd,
+				       struct v4l2_subdev_pad_config *cfg,
+				       struct v4l2_subdev_frame_interval_enum *fie)
+{
+	if (fie->index >= ARRAY_SIZE(supported_modes))
+		return -EINVAL;
+
+	if (fie->code != MEDIA_BUS_FMT_SBGGR10_1X10)
+		return -EINVAL;
+
+	fie->width = supported_modes[fie->index].width;
+	fie->height = supported_modes[fie->index].height;
+	fie->interval = supported_modes[fie->index].max_fps;
+	return 0;
+}
+
 static const struct dev_pm_ops ov13850_pm_ops = {
 	SET_RUNTIME_PM_OPS(ov13850_runtime_suspend,
 			   ov13850_runtime_resume, NULL)
@@ -1217,6 +1234,7 @@ static const struct v4l2_subdev_video_ops ov13850_video_ops = {
 static const struct v4l2_subdev_pad_ops ov13850_pad_ops = {
 	.enum_mbus_code = ov13850_enum_mbus_code,
 	.enum_frame_size = ov13850_enum_frame_sizes,
+	.enum_frame_interval = ov13850_enum_frame_interval,
 	.get_fmt = ov13850_get_fmt,
 	.set_fmt = ov13850_set_fmt,
 };

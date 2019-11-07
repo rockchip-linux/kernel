@@ -7,6 +7,7 @@
  * V0.0X01.0X01 add poweron function.
  * V0.0X01.0X02 fix mclk issue when probe multiple camera.
  * OTP function need to do.
+ * V0.0X01.0X03 add enum_frame_interval function.
  */
 
 #include <linux/clk.h>
@@ -31,7 +32,7 @@
 #include <linux/pinctrl/consumer.h>
 #include "imx214_eeprom_head.h"
 
-#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x02)
+#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x03)
 
 #ifndef V4L2_CID_DIGITAL_GAIN
 #define V4L2_CID_DIGITAL_GAIN		V4L2_CID_GAIN
@@ -1013,7 +1014,8 @@ static int imx214_s_stream(struct v4l2_subdev *sd, int on)
 	dev_info(&client->dev, "%s: on: %d, %dx%d@%d\n", __func__, on,
 		 imx214->cur_mode->width,
 		 imx214->cur_mode->height,
-		 imx214->cur_mode->max_fps.denominator);
+		 DIV_ROUND_CLOSEST(imx214->cur_mode->max_fps.denominator,
+			imx214->cur_mode->max_fps.numerator));
 
 	mutex_lock(&imx214->mutex);
 	on = !!on;
@@ -1224,6 +1226,24 @@ static int imx214_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 }
 #endif
 
+static int imx214_enum_frame_interval(struct v4l2_subdev *sd,
+				       struct v4l2_subdev_pad_config *cfg,
+				       struct v4l2_subdev_frame_interval_enum *fie)
+{
+	struct imx214 *imx214 = to_imx214(sd);
+
+	if (fie->index >= imx214->cfg_num)
+		return -EINVAL;
+
+	if (fie->code != IMX214_MEDIA_BUS_FMT)
+		return -EINVAL;
+
+	fie->width = supported_modes[fie->index].width;
+	fie->height = supported_modes[fie->index].height;
+	fie->interval = supported_modes[fie->index].max_fps;
+	return 0;
+}
+
 static const struct dev_pm_ops imx214_pm_ops = {
 	SET_RUNTIME_PM_OPS(imx214_runtime_suspend,
 		imx214_runtime_resume, NULL)
@@ -1251,6 +1271,7 @@ static const struct v4l2_subdev_video_ops imx214_video_ops = {
 static const struct v4l2_subdev_pad_ops imx214_pad_ops = {
 	.enum_mbus_code = imx214_enum_mbus_code,
 	.enum_frame_size = imx214_enum_frame_sizes,
+	.enum_frame_interval = imx214_enum_frame_interval,
 	.get_fmt = imx214_get_fmt,
 	.set_fmt = imx214_set_fmt,
 };
