@@ -658,9 +658,6 @@ static int rk618_dsi_pre_enable(struct rk618_dsi *dsi)
 	regmap_update_bits(dsi->regmap, DSI_PHY_RSTZ,
 			   PHY_ENABLECLK, PHY_ENABLECLK);
 
-	regmap_write(dsi->regmap, DSI_INT_MSK0, 0);
-	regmap_write(dsi->regmap, DSI_INT_MSK1, 0);
-
 	regmap_update_bits(dsi->regmap, DSI_VID_MODE_CFG, EN_VIDEO_MODE, 0);
 	regmap_update_bits(dsi->regmap, DSI_CMD_MODE_CFG,
 			   EN_CMD_MODE, EN_CMD_MODE);
@@ -1139,6 +1136,10 @@ static int rk618_dsi_probe(struct platform_device *pdev)
 		dev_err(dev, "failed to allocate host register map: %d\n", ret);
 		return ret;
 	}
+
+	/* Mask all interrupts */
+	regmap_write(dsi->regmap, DSI_INT_MSK0, 0xffffffff);
+	regmap_write(dsi->regmap, DSI_INT_MSK1, 0xffffffff);
 
 	dsi->phy.regmap = devm_regmap_init_i2c(rk618->client,
 					       &rk618_dsi_phy_regmap_config);
