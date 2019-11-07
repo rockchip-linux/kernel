@@ -243,7 +243,7 @@
 		status = "okay";
 	};
 
-	4G-Modem {
+	rk_modem: rk-modem {
 		compatible="4g-modem-platdata";
 		pinctrl-names = "default";
 		pinctrl-0 = <&lte_vbat &lte_power_en &lte_reset>;
@@ -918,7 +918,7 @@
 		};
 	};
 
-	4G-Modem {
+	rk-modem {
 		lte_vbat: lte-vbat {
 			rockchip,pins = <0 RK_PA2 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
