@@ -277,7 +277,7 @@
     };
 
 	XC7022: XC7022@36{
-		status = "okay";
+		status = "disabled";
 		compatible = "firefly,xc7022";
 		reg = <0x1b>;
 		reset-gpios = <&gpio1 23 GPIO_ACTIVE_HIGH>;
@@ -293,7 +293,7 @@
 	};
 
 	XC6130: XC6130@46{
-		status = "okay";
+		status = "disabled";
 		compatible = "firefly,xc7022";
 		reg = <0x23>;
 		reset-gpios = <&gpio1 22 GPIO_ACTIVE_HIGH>;
@@ -493,6 +493,10 @@
 
 &usbdrd_dwc3_0 {
     dr_mode = "host";
+};
+
+&route_hdmi{
+	status = "disabled";
 };
 
 &hdmi_dp_sound {

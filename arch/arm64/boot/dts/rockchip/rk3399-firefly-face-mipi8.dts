@@ -58,7 +58,6 @@
 		regulator-name = "vcc_lcd";
 		vin-supply = <&vcc_3v0>;
 	};
-
 };
 
 &backlight {
@@ -426,8 +425,8 @@
 };
 
 &route_dsi{
-	status = "disabled";	
-	logo,mode = "center";
+	status = "okay";
+	connect = <&vopb_out_dsi>;
 };
 
 &pinctrl {
@@ -475,5 +474,12 @@
 };
 
 &isp0_mmu {
+	status = "okay";
+};
+
+&XC7022{
+	status = "okay";
+};
+&XC6130{
 	status = "okay";
 };
