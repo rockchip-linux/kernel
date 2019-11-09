@@ -2,12 +2,9 @@
 #include "rk3399-roc-pc.dtsi"
 
 / {
-//	model = "Firefly roc-rk3399-pc-plus";
-//	compatible = "firefly,roc-rk3399-pc-plus", "rockchip,rk3399";
+	model = "Firefly roc-rk3399-pc";
+	compatible = "firefly,roc-rk3399-pc", "rockchip,rk3399";
 
-	model = "Firefly ROC-RK3328-CC";
-	compatible = "firefly,roc-rk3328-cc", "rockchip,rk3328";
-	
 	es8388-sound {
 		status = "okay";
 		compatible = "simple-audio-card";
@@ -29,7 +26,7 @@
         compatible = "simple-panel";
         bus-format = <MEDIA_BUS_FMT_RGB666_1X18>;
         backlight = <&backlight>;
-        
+
 		enable-gpios = <&gpio2 5 GPIO_ACTIVE_HIGH>;
 		pinctrl-names = "default";
 	    pinctrl-0 = <&lcd_panel_enable>;
@@ -92,7 +89,7 @@
             };
         };
     };
-    
+
 };
 //GPIO1_C4  16+4
 &edp_hpd {
@@ -124,7 +121,7 @@
 &rk808{
 	rtc {
 		status = "disabled";
-	};	
+	};
 };
 
 &i2c0 {
