@@ -1064,4 +1064,10 @@ config GPIO_RADAR
     help
     Sample code of radar.
 
+config GPIO_ADB_SELECT
+        tristate "Firefly GPIO ADB select support"
+        default n
+        help
+        Sample code of ADB select .
+
 endif

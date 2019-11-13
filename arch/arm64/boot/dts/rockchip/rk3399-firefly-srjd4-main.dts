@@ -13,16 +13,14 @@
 	test-power {
 		status = "okay";
 	};
-
-	vcc_adb: vcc-adb {
-		compatible = "regulator-fixed";
-		enable-active-high;
-		gpio = <&gpio1 24 GPIO_ACTIVE_HIGH>;
+       
+	adb-select {
+		status = "okay";
+		compatible = "firefly,adb-select";
+		adb-sel-gpio = <&gpio1 24 GPIO_ACTIVE_LOW>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&adb_sel>;
-		regulator-name = "vcc_adb";
-		regulator-always-on;
-		status = "okay";
+
 	};
 
 };
