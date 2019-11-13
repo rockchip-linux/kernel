@@ -651,6 +651,7 @@ static int cw_battery_get_property(struct power_supply *psy,
 		break;
 
 	case POWER_SUPPLY_PROP_CHARGE_FULL:
+	case POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN:
 		val->intval = cw_bat->plat_data.design_capacity * 1000;
 		break;
 
@@ -674,6 +675,7 @@ static enum power_supply_property cw_battery_properties[] = {
 	POWER_SUPPLY_PROP_TECHNOLOGY,
 	POWER_SUPPLY_PROP_CHARGE_COUNTER,
 	POWER_SUPPLY_PROP_CHARGE_FULL,
+	POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN,
 	POWER_SUPPLY_PROP_TEMP,
 };
 
