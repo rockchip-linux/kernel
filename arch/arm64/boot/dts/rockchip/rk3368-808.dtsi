@@ -84,6 +84,10 @@
 		pinctrl-0 = <&lcd_pwr>;
 		regulator-name = "vcc_lcd";
 		enable-active-high;
+		regulator-boot-on;
+		regulator-state-mem {
+			regulator-off-in-suspend;
+		};
 	};
 
 	backlight: backlight {
