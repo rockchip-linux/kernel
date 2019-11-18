@@ -8,6 +8,7 @@ obj-$(CONFIG_RTL8723BS) += rtl8723bs/
 obj-$(CONFIG_RTL8723BU) += rtl8723bu/
 obj-$(CONFIG_RTL8723CS)	+= rtl8723cs/
 obj-$(CONFIG_RTL8723DS) += rtl8723ds/
+obj-$(CONFIG_RTL8723DU)	+= rtl8723du/
 obj-$(CONFIG_RTL8822BE)	+= rtl8822be/
 obj-$(CONFIG_SSV6051)	+= ssv6xxx/
 obj-$(CONFIG_MVL88W8977)	+= mvl88w8977/
