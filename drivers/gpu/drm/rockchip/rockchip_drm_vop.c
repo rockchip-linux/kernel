@@ -2179,12 +2179,14 @@ static int vop_plane_info_dump(struct seq_file *s, struct drm_plane *plane)
 
 static int vop_crtc_debugfs_dump(struct drm_crtc *crtc, struct seq_file *s)
 {
+	struct drm_device *dev = crtc->dev;
 	struct vop *vop = to_vop(crtc);
 	struct drm_crtc_state *crtc_state = crtc->state;
 	struct drm_display_mode *mode = &crtc->state->adjusted_mode;
 	struct rockchip_crtc_state *state = to_rockchip_crtc_state(crtc->state);
 	bool interlaced = !!(mode->flags & DRM_MODE_FLAG_INTERLACE);
 	struct drm_plane *plane;
+	struct drm_connector *connector;
 	int i;
 
 	DEBUG_PRINT("VOP [%s]: %s\n", dev_name(vop->dev),
@@ -2193,8 +2195,13 @@ static int vop_crtc_debugfs_dump(struct drm_crtc *crtc, struct seq_file *s)
 	if (!crtc_state->active)
 		return 0;
 
-	DEBUG_PRINT("    Connector: %s\n",
-		    drm_get_connector_name(state->output_type));
+	DEBUG_PRINT("    Connector:");
+	mutex_lock(&dev->mode_config.mutex);
+	drm_for_each_connector(connector, dev)
+		if (connector->state->crtc == crtc)
+			DEBUG_PRINT(" %s", drm_get_connector_name(connector->connector_type));
+	mutex_unlock(&dev->mode_config.mutex);
+	DEBUG_PRINT("\n");
 	DEBUG_PRINT("\toverlay_mode[%d] bus_format[%x] output_mode[%x]",
 		    state->yuv_overlay, state->bus_format, state->output_mode);
 	DEBUG_PRINT(" color_space[%d]\n",
@@ -2334,8 +2341,8 @@ vop_crtc_mode_valid(struct drm_crtc *crtc, const struct drm_display_mode *mode,
 	/*
 	 * Hdmi or DisplayPort request a Accurate clock.
 	 */
-	if (output_type == DRM_MODE_CONNECTOR_HDMIA ||
-	    output_type == DRM_MODE_CONNECTOR_DisplayPort)
+	if (output_type & BIT(DRM_MODE_CONNECTOR_HDMIA) ||
+	    output_type & BIT(DRM_MODE_CONNECTOR_DisplayPort))
 		if (clock != request_clock)
 			return MODE_CLOCK_RANGE;
 
@@ -2720,10 +2727,11 @@ static void vop_crtc_enable(struct drm_crtc *crtc)
 	bool interlaced = !!(adjusted_mode->flags & DRM_MODE_FLAG_INTERLACE);
 	int for_ddr_freq = 0;
 	bool dclk_inv;
+	unsigned long possible_output;
 
 	rockchip_set_system_status(sys_status);
 	vop_lock(vop);
-	DRM_DEV_INFO(vop->dev, "Update mode to %dx%d%s%d, type: %d\n",
+	DRM_DEV_INFO(vop->dev, "Update mode to %dx%d%s%d, type: 0x%x\n",
 		     hdisplay, vdisplay, interlaced ? "i" : "p",
 		     adjusted_mode->vrefresh, s->output_type);
 	vop_initial(crtc);
@@ -2753,61 +2761,70 @@ static void vop_crtc_enable(struct drm_crtc *crtc)
 				      "failed to set dclk's parents\n");
 	}
 
-	switch (s->output_type) {
-	case DRM_MODE_CONNECTOR_DPI:
-		VOP_CTRL_SET(vop, rgb_en, 1);
-		VOP_CTRL_SET(vop, rgb_pin_pol, val);
-		VOP_CTRL_SET(vop, rgb_dclk_pol, dclk_inv);
+	possible_output = s->output_type;
+	while (possible_output) {
+		int i;
 
-		VOP_GRF_SET(vop, grf_dclk_inv, !dclk_inv);
-		break;
-	case DRM_MODE_CONNECTOR_LVDS:
-		VOP_CTRL_SET(vop, lvds_en, 1);
-		VOP_CTRL_SET(vop, lvds_pin_pol, val);
-		VOP_CTRL_SET(vop, lvds_dclk_pol, dclk_inv);
+		i = __ffs(possible_output);
+		possible_output &= ~BIT(i);
 
-		VOP_GRF_SET(vop, grf_dclk_inv, !dclk_inv);
-		break;
-	case DRM_MODE_CONNECTOR_eDP:
-		VOP_CTRL_SET(vop, edp_en, 1);
-		VOP_CTRL_SET(vop, edp_pin_pol, val);
-		VOP_CTRL_SET(vop, edp_dclk_pol, dclk_inv);
-		break;
-	case DRM_MODE_CONNECTOR_HDMIA:
-		VOP_CTRL_SET(vop, hdmi_en, 1);
-		VOP_CTRL_SET(vop, hdmi_pin_pol, val);
-		VOP_CTRL_SET(vop, hdmi_dclk_pol, 1);
-		break;
-	case DRM_MODE_CONNECTOR_DSI:
-		VOP_CTRL_SET(vop, mipi_en, 1);
-		VOP_CTRL_SET(vop, mipi_pin_pol, val);
-		VOP_CTRL_SET(vop, mipi_dclk_pol, dclk_inv);
-		VOP_CTRL_SET(vop, mipi_dual_channel_en,
-			!!(s->output_flags & ROCKCHIP_OUTPUT_DSI_DUAL_CHANNEL));
-		VOP_CTRL_SET(vop, data01_swap,
-			!!(s->output_flags & ROCKCHIP_OUTPUT_DSI_DUAL_LINK));
-		break;
-	case DRM_MODE_CONNECTOR_DisplayPort:
-		VOP_CTRL_SET(vop, dp_dclk_pol, 0);
-		VOP_CTRL_SET(vop, dp_pin_pol, val);
-		VOP_CTRL_SET(vop, dp_en, 1);
-		break;
-	case DRM_MODE_CONNECTOR_TV:
-		if (vdisplay == CVBS_PAL_VDISPLAY)
-			VOP_CTRL_SET(vop, tve_sw_mode, 1);
-		else
-			VOP_CTRL_SET(vop, tve_sw_mode, 0);
+		switch (i) {
+		case DRM_MODE_CONNECTOR_DPI:
+			VOP_CTRL_SET(vop, rgb_en, 1);
+			VOP_CTRL_SET(vop, rgb_pin_pol, val);
+			VOP_CTRL_SET(vop, rgb_dclk_pol, dclk_inv);
 
-		VOP_CTRL_SET(vop, tve_dclk_pol, 1);
-		VOP_CTRL_SET(vop, tve_dclk_en, 1);
-		/* use the same pol reg with hdmi */
-		VOP_CTRL_SET(vop, hdmi_pin_pol, val);
-		VOP_CTRL_SET(vop, sw_genlock, 1);
-		VOP_CTRL_SET(vop, sw_uv_offset_en, 1);
-		VOP_CTRL_SET(vop, dither_up_en, 1);
-		break;
-	default:
-		DRM_ERROR("unsupport connector_type[%d]\n", s->output_type);
+			VOP_GRF_SET(vop, grf_dclk_inv, !dclk_inv);
+			break;
+		case DRM_MODE_CONNECTOR_LVDS:
+			VOP_CTRL_SET(vop, lvds_en, 1);
+			VOP_CTRL_SET(vop, lvds_pin_pol, val);
+			VOP_CTRL_SET(vop, lvds_dclk_pol, dclk_inv);
+
+			VOP_GRF_SET(vop, grf_dclk_inv, !dclk_inv);
+			break;
+		case DRM_MODE_CONNECTOR_eDP:
+			VOP_CTRL_SET(vop, edp_en, 1);
+			VOP_CTRL_SET(vop, edp_pin_pol, val);
+			VOP_CTRL_SET(vop, edp_dclk_pol, dclk_inv);
+			break;
+		case DRM_MODE_CONNECTOR_HDMIA:
+			VOP_CTRL_SET(vop, hdmi_en, 1);
+			VOP_CTRL_SET(vop, hdmi_pin_pol, val);
+			VOP_CTRL_SET(vop, hdmi_dclk_pol, 1);
+			break;
+		case DRM_MODE_CONNECTOR_DSI:
+			VOP_CTRL_SET(vop, mipi_en, 1);
+			VOP_CTRL_SET(vop, mipi_pin_pol, val);
+			VOP_CTRL_SET(vop, mipi_dclk_pol, dclk_inv);
+			VOP_CTRL_SET(vop, mipi_dual_channel_en,
+				     !!(s->output_flags & ROCKCHIP_OUTPUT_DSI_DUAL_CHANNEL));
+			VOP_CTRL_SET(vop, data01_swap,
+				     !!(s->output_flags & ROCKCHIP_OUTPUT_DSI_DUAL_LINK));
+			break;
+		case DRM_MODE_CONNECTOR_DisplayPort:
+			VOP_CTRL_SET(vop, dp_dclk_pol, 0);
+			VOP_CTRL_SET(vop, dp_pin_pol, val);
+			VOP_CTRL_SET(vop, dp_en, 1);
+			break;
+		case DRM_MODE_CONNECTOR_TV:
+			if (vdisplay == CVBS_PAL_VDISPLAY)
+				VOP_CTRL_SET(vop, tve_sw_mode, 1);
+			else
+				VOP_CTRL_SET(vop, tve_sw_mode, 0);
+
+			VOP_CTRL_SET(vop, tve_dclk_pol, 1);
+			VOP_CTRL_SET(vop, tve_dclk_en, 1);
+			/* use the same pol reg with hdmi */
+			VOP_CTRL_SET(vop, hdmi_pin_pol, val);
+			VOP_CTRL_SET(vop, sw_genlock, 1);
+			VOP_CTRL_SET(vop, sw_uv_offset_en, 1);
+			VOP_CTRL_SET(vop, dither_up_en, 1);
+			break;
+		default:
+			DRM_ERROR("unsupported connector_type[%d]\n", i);
+			break;
+		}
 	}
 
 	vop_update_csc(crtc);
@@ -3032,7 +3049,7 @@ static void vop_dclk_source_generate(struct drm_crtc *crtc,
 			if (vop->pll)
 				vop->pll->use_count--;
 
-			if (s->output_type != DRM_MODE_CONNECTOR_HDMIA &&
+			if (!(s->output_type & BIT(DRM_MODE_CONNECTOR_HDMIA)) &&
 			    !private->default_pll.use_count)
 				vop->pll = &private->default_pll;
 			else
@@ -3684,6 +3701,9 @@ static struct drm_crtc_state *vop_crtc_duplicate_state(struct drm_crtc *crtc)
 		return NULL;
 
 	__drm_atomic_helper_crtc_duplicate_state(crtc, &rockchip_state->base);
+
+	rockchip_state->output_type = 0;
+
 	return &rockchip_state->base;
 }
 

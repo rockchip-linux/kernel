@@ -820,7 +820,7 @@ dw_hdmi_rockchip_encoder_atomic_check(struct drm_encoder *encoder,
 	if (hdmi->phy)
 		phy_set_bus_width(hdmi->phy, bus_width);
 
-	s->output_type = DRM_MODE_CONNECTOR_HDMIA;
+	s->output_type |= BIT(DRM_MODE_CONNECTOR_HDMIA);
 	s->tv_state = &conn_state->tv;
 
 	hdmi->bus_format = s->bus_format;

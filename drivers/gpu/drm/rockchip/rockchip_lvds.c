@@ -204,7 +204,7 @@ rockchip_lvds_encoder_atomic_check(struct drm_encoder *encoder,
 		s->bus_format = MEDIA_BUS_FMT_RGB888_1X7X4_SPWG;
 
 	s->output_mode = ROCKCHIP_OUT_MODE_P888;
-	s->output_type = DRM_MODE_CONNECTOR_LVDS;
+	s->output_type |= BIT(DRM_MODE_CONNECTOR_LVDS);
 	s->tv_state = &conn_state->tv;
 	s->eotf = TRADITIONAL_GAMMA_SDR;
 	s->color_space = V4L2_COLORSPACE_DEFAULT;

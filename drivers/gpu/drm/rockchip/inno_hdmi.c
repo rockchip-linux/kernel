@@ -591,7 +591,7 @@ inno_hdmi_encoder_atomic_check(struct drm_encoder *encoder,
 	struct rockchip_crtc_state *s = to_rockchip_crtc_state(crtc_state);
 
 	s->output_mode = ROCKCHIP_OUT_MODE_P888;
-	s->output_type = DRM_MODE_CONNECTOR_HDMIA;
+	s->output_type |= BIT(DRM_MODE_CONNECTOR_HDMIA);
 	s->bus_format = MEDIA_BUS_FMT_RGB888_1X24;
 
 	return 0;

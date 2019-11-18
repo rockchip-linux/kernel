@@ -505,7 +505,7 @@ static int cdn_dp_connector_mode_valid(struct drm_connector *connector,
 			continue;
 
 		status = funcs->mode_valid(crtc, mode,
-					   DRM_MODE_CONNECTOR_HDMIA);
+					   DRM_MODE_CONNECTOR_DisplayPort);
 		if (status != MODE_OK)
 			return status;
 	}
@@ -968,7 +968,7 @@ static int cdn_dp_encoder_atomic_check(struct drm_encoder *encoder,
 	}
 
 	s->output_mode = ROCKCHIP_OUT_MODE_AAAA;
-	s->output_type = DRM_MODE_CONNECTOR_DisplayPort;
+	s->output_type |= BIT(DRM_MODE_CONNECTOR_DisplayPort);
 	s->tv_state = &conn_state->tv;
 	s->eotf = TRADITIONAL_GAMMA_SDR;
 	s->color_space = V4L2_COLORSPACE_DEFAULT;
