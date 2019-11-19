@@ -19,6 +19,7 @@
 #include <linux/err.h>
 #include <linux/init.h>
 #include <linux/interrupt.h>
+#include <linux/iopoll.h>
 #include <linux/ioport.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
@@ -64,6 +65,8 @@
 
 struct idmac_desc_64addr {
 	u32		des0;	/* Control Descriptor */
+#define IDMAC_OWN_CLR64(x) \
+	!((x) & cpu_to_le32(IDMAC_DES0_OWN))
 
 	u32		des1;	/* Reserved */
 
@@ -107,7 +110,7 @@ static bool dw_mci_reset(struct dw_mci *host);
 static bool dw_mci_ctrl_reset(struct dw_mci *host, u32 reset);
 static int dw_mci_card_busy(struct mmc_host *mmc);
 static int dw_mci_get_cd(struct mmc_host *mmc);
-
+static int dw_mci_idmac_init(struct dw_mci *host);
 #if defined(CONFIG_DEBUG_FS)
 static int dw_mci_req_show(struct seq_file *s, void *v)
 {
@@ -516,11 +519,12 @@ static void dw_mci_dmac_complete_dma(void *arg)
 		del_timer(&host->xfer_timer);
 }
 
-static void dw_mci_translate_sglist(struct dw_mci *host, struct mmc_data *data,
+static int dw_mci_translate_sglist(struct dw_mci *host, struct mmc_data *data,
 				    unsigned int sg_len)
 {
 	unsigned int desc_len;
 	int i;
+	u32 val;
 
 	if (host->dma_64bit_address == 1) {
 		struct idmac_desc_64addr *desc_first, *desc_last, *desc;
@@ -537,7 +541,17 @@ static void dw_mci_translate_sglist(struct dw_mci *host, struct mmc_data *data,
 					   length : DW_MCI_DESC_DATA_LENGTH;
 
 				length -= desc_len;
-
+				/*
+				 * Wait for the former clear OWN bit operation
+				 * of IDMAC to make sure that this descriptor
+				 * isn't still owned by IDMAC as IDMAC's write
+				 * ops and CPU's read ops are asynchronous.
+				 */
+				if (readl_poll_timeout_atomic(&desc->des0, val,
+							IDMAC_OWN_CLR64(val),
+							10,
+							100 * USEC_PER_MSEC))
+					goto err_own_bit;
 				/*
 				 * Set the OWN bit and disable interrupts
 				 * for this descriptor
@@ -582,6 +596,17 @@ static void dw_mci_translate_sglist(struct dw_mci *host, struct mmc_data *data,
 					   length : DW_MCI_DESC_DATA_LENGTH;
 
 				length -= desc_len;
+				/*
+				 * Wait for the former clear OWN bit operation
+				 * of IDMAC to make sure that this descriptor
+				 * isn't still owned by IDMAC as IDMAC's write
+				 * ops and CPU's read ops are asynchronous.
+				 */
+				if (readl_poll_timeout_atomic(&desc->des0, val,
+							IDMAC_OWN_CLR64(val),
+							10,
+							100 * USEC_PER_MSEC))
+					goto err_own_bit;
 
 				/*
 				 * Set the OWN bit and disable interrupts
@@ -615,13 +640,23 @@ static void dw_mci_translate_sglist(struct dw_mci *host, struct mmc_data *data,
 	}
 
 	wmb(); /* drain writebuffer */
+	return 0;
+err_own_bit:
+	/* restore the descriptor chain as it's polluted */
+	dev_err(host->dev, "descriptor is still owned by IDMAC.\n");
+	memset(host->sg_cpu, 0, PAGE_SIZE);
+	dw_mci_idmac_init(host);
+	return -EINVAL;
 }
 
 static int dw_mci_idmac_start_dma(struct dw_mci *host, unsigned int sg_len)
 {
 	u32 temp;
+	int ret = 0;
 
-	dw_mci_translate_sglist(host, host->data, sg_len);
+	ret = dw_mci_translate_sglist(host, host->data, sg_len);
+	if (ret)
+		goto out;
 
 	/* Make sure to reset DMA in case we did PIO before this */
 	dw_mci_ctrl_reset(host, SDMMC_CTRL_DMA_RESET);
@@ -642,8 +677,8 @@ static int dw_mci_idmac_start_dma(struct dw_mci *host, unsigned int sg_len)
 
 	/* Start it running */
 	mci_writel(host, PLDMND, 1);
-
-	return 0;
+out:
+	return ret;
 }
 
 static int dw_mci_idmac_init(struct dw_mci *host)
