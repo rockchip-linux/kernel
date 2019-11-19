@@ -924,6 +924,17 @@ static int to_vop_csc_mode(int csc_mode)
 	}
 }
 
+static void vop_disable_all_outputs(struct vop *vop)
+{
+	VOP_CTRL_SET(vop, rgb_en, 0);
+	VOP_CTRL_SET(vop, lvds_en, 0);
+	VOP_CTRL_SET(vop, edp_en, 0);
+	VOP_CTRL_SET(vop, hdmi_en, 0);
+	VOP_CTRL_SET(vop, mipi_en, 0);
+	VOP_CTRL_SET(vop, dp_en, 0);
+	VOP_CTRL_SET(vop, tve_dclk_en, 0);
+}
+
 static void vop_disable_all_planes(struct vop *vop)
 {
 	bool active;
@@ -1392,6 +1403,7 @@ static void vop_crtc_disable(struct drm_crtc *crtc)
 				SYS_STATUS_LCDC1 : SYS_STATUS_LCDC0;
 
 	vop_lock(vop);
+	vop_disable_all_outputs(vop);
 	VOP_CTRL_SET(vop, reg_done_frm, 1);
 	VOP_CTRL_SET(vop, dsp_interlace, 0);
 	drm_crtc_vblank_off(crtc);
@@ -2715,6 +2727,7 @@ static void vop_crtc_enable(struct drm_crtc *crtc)
 		     hdisplay, vdisplay, interlaced ? "i" : "p",
 		     adjusted_mode->vrefresh, s->output_type);
 	vop_initial(crtc);
+	vop_disable_all_outputs(vop);
 	vop_disable_allwin(vop);
 	VOP_CTRL_SET(vop, standby, 0);
 	vop->mode_update = vop_crtc_mode_update(crtc);
@@ -2742,10 +2755,13 @@ static void vop_crtc_enable(struct drm_crtc *crtc)
 
 	switch (s->output_type) {
 	case DRM_MODE_CONNECTOR_DPI:
-	case DRM_MODE_CONNECTOR_LVDS:
 		VOP_CTRL_SET(vop, rgb_en, 1);
 		VOP_CTRL_SET(vop, rgb_pin_pol, val);
 		VOP_CTRL_SET(vop, rgb_dclk_pol, dclk_inv);
+
+		VOP_GRF_SET(vop, grf_dclk_inv, !dclk_inv);
+		break;
+	case DRM_MODE_CONNECTOR_LVDS:
 		VOP_CTRL_SET(vop, lvds_en, 1);
 		VOP_CTRL_SET(vop, lvds_pin_pol, val);
 		VOP_CTRL_SET(vop, lvds_dclk_pol, dclk_inv);
