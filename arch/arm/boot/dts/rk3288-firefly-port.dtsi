@@ -41,6 +41,7 @@
  */
 
 #include "rk3288.dtsi"
+#include "rk3288-rkisp1.dtsi"
 #include <dt-bindings/pwm/pwm.h>
 #include <dt-bindings/input/input.h>
 
@@ -197,6 +198,26 @@
 		regulator-always-on;
 		regulator-boot-on;
 		vin-supply = <&vcc28_dvp>;
+	};
+
+	vcc_mipi: vcc-mipi {
+		status = "disabled";
+		compatible = "regulator-fixed";
+		enable-active-high;
+		gpio = <&gpio3 10 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&mipi_pwr>;
+		regulator-name = "vcc_mipi";
+	};
+
+	dvdd_1v2: dvdd-1v2 {
+		status = "disabled";
+		compatible = "regulator-fixed";
+		enable-active-high;
+		gpio = <&gpio7 12 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&cif_pwr>;
+		regulator-name = "dvdd_1v2";
 	};
 
 	adc-keys {
@@ -383,6 +404,27 @@
 
 &i2c3 {
 	status = "okay";
+
+	ov13850: ov13850@10 {
+		status = "disabled";
+		compatible = "ovti,ov13850";
+		reg = <0x10>;
+		clocks = <&cru SCLK_VIP_OUT>;
+		clock-names = "xvclk";
+
+		reset-gpios = <&gpio3 8 GPIO_ACTIVE_HIGH>;
+		pwdn-gpios = <&gpio2 14 GPIO_ACTIVE_HIGH>;
+		avdd-supply = <&vcc_mipi>; /* VCC28_MIPI */
+		dovdd-supply = <&vcc_mipi>; /* VCC18_MIPI */
+		dvdd-supply = <&dvdd_1v2>; /* DVDD_1V2 */
+
+		port {
+			ucam_out0: endpoint {
+				remote-endpoint = <&mipi_in_ucam0>;
+				data-lanes = <1 2>;
+			};
+		};
+	};
 };
 
 &i2c4 {
@@ -441,11 +483,45 @@
 };
 
 &isp {
-	status = "okay";
+	status = "disabled";
+
+	port {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		isp0_mipi_in: endpoint@0 {
+			reg = <0>;
+			remote-endpoint = <&dphy_rx0_out>;
+		};
+	};
+};
+
+&mipi_phy_tx1rx1 {
+	status = "disabled";
+
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		port@0 {
+			reg = <0>;
+			mipi_in_ucam0: endpoint {
+				remote-endpoint = <&ucam_out0>;
+				data-lanes = <1 2>;
+			};
+		};
+
+		port@1 {
+			reg = <1>;
+			dphy_rx0_out: endpoint {
+				remote-endpoint = <&isp0_mipi_in>;
+			};
+		};
+	};
 };
 
 &isp_mmu {
-	status = "okay";
+	status = "disabled";
 };
 
 &rga {
@@ -705,6 +781,16 @@
 	wireless-bluetooth {
 		uart0_gpios: uart0-gpios {
 			rockchip,pins = <4 19 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	cam0 {
+		cif_pwr: cif-pwr {
+			rockchip,pins = <7 12 RK_FUNC_GPIO &pcfg_pull_down>;
+		};
+
+		mipi_pwr: mipi-pwr {
+			rockchip,pins = <3 10 RK_FUNC_GPIO &pcfg_pull_down>;
 		};
 	};
 };
