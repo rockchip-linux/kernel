@@ -425,6 +425,27 @@
 			};
 		};
 	};
+
+	ov13850_1: ov13850@20 {
+		status = "disabled";
+		compatible = "ovti,ov13850";
+		reg = <0x20>;
+		clocks = <&cru SCLK_VIP_OUT>;
+		clock-names = "xvclk";
+
+		reset-gpios = <&gpio3 8 GPIO_ACTIVE_HIGH>;
+		pwdn-gpios = <&gpio2 13 GPIO_ACTIVE_HIGH>;
+		avdd-supply = <&vcc_mipi>; /* VCC28_MIPI */
+		dovdd-supply = <&vcc_mipi>; /* VCC18_MIPI */
+		dvdd-supply = <&dvdd_1v2>; /* DVDD_1V2 */
+
+		port {
+			ucam_out1: endpoint {
+				remote-endpoint = <&mipi_in_ucam1>;
+				data-lanes = <1 2>;
+			};
+		};
+	};
 };
 
 &i2c4 {
@@ -514,6 +535,30 @@
 		port@1 {
 			reg = <1>;
 			dphy_rx0_out: endpoint {
+				remote-endpoint = <&isp0_mipi_in>;
+			};
+		};
+	};
+};
+
+&mipi_phy_rx0 {
+	status = "disabled";
+
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		port@0 {
+			reg = <0>;
+			mipi_in_ucam1: endpoint {
+				remote-endpoint = <&ucam_out1>;
+				data-lanes = <1 2>;
+			};
+		};
+
+		port@1 {
+			reg = <1>;
+			dphy_rx1_out: endpoint {
 				remote-endpoint = <&isp0_mipi_in>;
 			};
 		};
