@@ -138,8 +138,8 @@
 
 
 &gmac {
-	tx_delay = <0x2F>;
-	rx_delay = <0x1E>;
+	tx_delay = <0x2C>;
+	rx_delay = <0x28>;
 };
 
 &hdmi_dp_sound {
