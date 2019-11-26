@@ -25,6 +25,37 @@
 		rockchip,codec = <&rk1000_codec>, <&hdmi>;
 	};
 
+	spdif-sound {
+		status = "okay";
+		compatible = "simple-audio-card";
+		simple-audio-card,name = "ROCKCHIP,SPDIF";
+		simple-audio-card,cpu {
+			sound-dai = <&spdif>;
+		};
+		simple-audio-card,codec {
+			sound-dai = <&spdif_out>;
+		};
+	};
+
+	spdif_out: spdif-out {
+		status = "okay";
+		compatible = "linux,spdif-dit";
+		#sound-dai-cells = <0>;
+	};
+
+	adc_key: adc-keys {
+		compatible = "adc-keys";
+		io-channels = <&saradc 1>;
+		io-channel-names = "buttons";
+		poll-interval = <100>;
+		keyup-threshold-microvolt = <1800000>;
+		esc-key {
+			linux,code = <KEY_VOLUMEUP>;
+			label = "v+";
+			press-threshold-microvolt = <18000>;
+		};
+	};
+
 	keys: gpio-keys {
 		compatible = "gpio-keys";
 		#address-cells = <1>;
@@ -639,6 +670,11 @@
 };
 
 &hdmi {
+	status = "okay";
+	#sound-dai-cells = <0>;
+};
+
+&spdif {
 	status = "okay";
 	#sound-dai-cells = <0>;
 };
