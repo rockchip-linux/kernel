@@ -300,6 +300,30 @@
 	};
 };
 
+&vcc_mipi {
+	status = "okay";
+};
+
+&dvdd_1v2 {
+	status = "okay";
+};
+
+&ov13850 {
+	status = "okay";
+};
+
+&mipi_phy_tx1rx1 {
+	status = "okay";
+};
+
+&isp {
+	status = "okay";
+};
+
+&isp_mmu {
+	status = "okay";
+};
+
 &rga {
 	status = "okay";
 };

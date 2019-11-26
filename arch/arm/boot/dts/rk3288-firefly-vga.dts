@@ -273,6 +273,36 @@
 	};
 };
 
+&vcc_mipi {
+	status = "okay";
+	gpio = <&gpio0 11 GPIO_ACTIVE_HIGH>;
+};
+
+&dvdd_1v2 {
+	status = "okay";
+};
+
+&ov13850 {
+	status = "okay";
+	reset-gpios = <&gpio2 15 GPIO_ACTIVE_HIGH>;
+};
+
+&mipi_pwr {
+	rockchip,pins = <0 11 RK_FUNC_GPIO &pcfg_pull_down>;
+};
+
+&mipi_phy_tx1rx1 {
+	status = "okay";
+};
+
+&isp {
+	status = "okay";
+};
+
+&isp_mmu {
+	status = "okay";
+};
+
 &rga {
 	status = "okay";
 };
