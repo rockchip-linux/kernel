@@ -930,7 +930,7 @@ rockchip_mipi_csi_encoder_atomic_check(struct drm_encoder *encoder,
 		break;
 	}
 
-	s->output_type |= BIT(DRM_MODE_CONNECTOR_DSI);
+	s->output_type = DRM_MODE_CONNECTOR_DSI;
 	if (info->num_bus_formats)
 		s->bus_format = info->bus_formats[0];
 	else

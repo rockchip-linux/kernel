@@ -203,7 +203,7 @@ rockchip_dp_drm_encoder_atomic_check(struct drm_encoder *encoder,
 	 * to RGA10 here.
 	 */
 	s->output_mode = ROCKCHIP_OUT_MODE_AAAA;
-	s->output_type |= BIT(DRM_MODE_CONNECTOR_eDP);
+	s->output_type = DRM_MODE_CONNECTOR_eDP;
 	if (info->num_bus_formats)
 		s->bus_format = info->bus_formats[0];
 	else

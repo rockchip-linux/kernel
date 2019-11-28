@@ -194,7 +194,7 @@ rockchip_rgb_encoder_atomic_check(struct drm_encoder *encoder,
 		break;
 	}
 
-	s->output_type |= BIT(DRM_MODE_CONNECTOR_DPI);
+	s->output_type = DRM_MODE_CONNECTOR_DPI;
 	s->tv_state = &conn_state->tv;
 	s->eotf = TRADITIONAL_GAMMA_SDR;
 	s->color_space = V4L2_COLORSPACE_DEFAULT;
