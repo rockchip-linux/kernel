@@ -958,6 +958,15 @@ config VIDEO_GC0312
 	  To compile this driver as a module, choose M here: the
 	  module will be called gc0312.
 
+config VIDEO_GC2053
+	tristate "GalaxyCore GC2053 sensor support"
+	depends on VIDEO_V4L2 && I2C && VIDEO_V4L2_SUBDEV_API
+	help
+	  Support for the GalaxyCore GC2053 sensor.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called gc2053.
+
 config VIDEO_GC2145
 	tristate "GalaxyCore GC2145 sensor support"
 	depends on VIDEO_V4L2 && I2C && VIDEO_V4L2_SUBDEV_API
