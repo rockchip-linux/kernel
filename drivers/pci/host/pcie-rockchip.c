@@ -1439,13 +1439,13 @@ static int __maybe_unused rockchip_pcie_resume_noirq(struct device *dev)
 	struct rockchip_pcie *rockchip = dev_get_drvdata(dev);
 	int ret = 0;
 
-	if (!rockchip->dma_trx_enabled)
-		ret = rockchip_pcie_resume_for_user(dev);
-
 	clk_prepare_enable(rockchip->clk_pcie_pm);
 	clk_prepare_enable(rockchip->hclk_pcie);
 	clk_prepare_enable(rockchip->aclk_perf_pcie);
 	clk_prepare_enable(rockchip->aclk_pcie);
+
+	if (!rockchip->dma_trx_enabled)
+		ret = rockchip_pcie_resume_for_user(dev);
 
 	return ret;
 }
