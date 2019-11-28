@@ -889,6 +889,15 @@ config VIDEO_NOON010PC30
 
 source "drivers/media/i2c/m5mols/Kconfig"
 
+config VIDEO_S5K4H8
+	tristate "Samsung S5K4H8 sensor support"
+	depends on VIDEO_V4L2 && I2C
+	depends on MEDIA_CAMERA_SUPPORT
+	select V4L2_FWNODE
+	help
+	  This is a V4L2 sensor-level driver for Samsung S5K4H8 8M
+	  camera sensor with an embedded SoC image signal processor.
+
 config VIDEO_S5K6AA
 	tristate "Samsung S5K6AAFX sensor support"
 	depends on MEDIA_CAMERA_SUPPORT
