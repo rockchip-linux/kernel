@@ -332,6 +332,14 @@ static const struct capture_fmt mp_fmts[] = {
 		.mplanes = 1,
 		.write_format = MI_CTRL_MP_WRITE_RAW12,
 	},
+	/* MP rgb24 only for sensor is output rgb24 */
+	{
+		.fourcc = V4L2_PIX_FMT_RGB24,
+		.fmt_type = FMT_BAYER,
+		.bpp = { 24 },
+		.mplanes = 1,
+		.write_format = MI_CTRL_MP_WRITE_YUV_PLA_OR_RAW8,
+	}
 };
 
 static const struct capture_fmt sp_fmts[] = {
