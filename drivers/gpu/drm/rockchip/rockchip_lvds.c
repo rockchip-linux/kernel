@@ -76,6 +76,8 @@ enum lvds_format {
 	LVDS_8BIT_MODE_FORMAT_2,
 	LVDS_8BIT_MODE_FORMAT_3,
 	LVDS_6BIT_MODE,
+	LVDS_10BIT_MODE_FORMAT_1,
+	LVDS_10BIT_MODE_FORMAT_2,
 };
 
 struct rockchip_lvds;
@@ -177,8 +179,14 @@ static void rockchip_lvds_encoder_mode_set(struct drm_encoder *encoder,
 	case MEDIA_BUS_FMT_RGB888_1X7X4_JEIDA:	/* jeida-24 */
 		lvds->format = LVDS_8BIT_MODE_FORMAT_2;
 		break;
+	case MEDIA_BUS_FMT_RGB101010_1X7X5_JEIDA: /* jeida-30 */
+		lvds->format = LVDS_10BIT_MODE_FORMAT_2;
+		break;
 	case MEDIA_BUS_FMT_RGB666_1X7X3_SPWG:	/* vesa-18 */
 		lvds->format = LVDS_8BIT_MODE_FORMAT_3;
+		break;
+	case MEDIA_BUS_FMT_RGB101010_1X7X5_SPWG: /* vesa-30 */
+		lvds->format = LVDS_10BIT_MODE_FORMAT_1;
 		break;
 	case MEDIA_BUS_FMT_RGB888_1X7X4_SPWG:	/* vesa-24 */
 	default:
@@ -204,6 +212,11 @@ rockchip_lvds_encoder_atomic_check(struct drm_encoder *encoder,
 		s->bus_format = MEDIA_BUS_FMT_RGB888_1X7X4_SPWG;
 
 	s->output_mode = ROCKCHIP_OUT_MODE_P888;
+
+	if (s->bus_format == MEDIA_BUS_FMT_RGB101010_1X7X5_SPWG ||
+	    s->bus_format == MEDIA_BUS_FMT_RGB101010_1X7X5_JEIDA)
+		s->output_mode = ROCKCHIP_OUT_MODE_AAAA;
+
 	s->output_type = DRM_MODE_CONNECTOR_LVDS;
 	s->tv_state = &conn_state->tv;
 	s->eotf = TRADITIONAL_GAMMA_SDR;
