@@ -1651,15 +1651,17 @@ static int ov5640_enum_frame_interval(struct v4l2_subdev *sd,
 				    struct v4l2_subdev_pad_config *cfg,
 				    struct v4l2_subdev_frame_interval_enum *fie)
 {
-	if (fie->index >= ARRAY_SIZE(ov5640_framesizes))
+	struct ov5640 *ov5640 = to_ov5640(sd);
+
+	if (fie->index >= ov5640->cfg_num)
 		return -EINVAL;
 
 	if (fie->code != MEDIA_BUS_FMT_UYVY8_2X8)
 		return -EINVAL;
 
-	fie->width = ov5640_framesizes[fie->index].width;
-	fie->height = ov5640_framesizes[fie->index].height;
-	fie->interval = ov5640_framesizes[fie->index].max_fps;
+	fie->width = ov5640->framesize_cfg[fie->index].width;
+	fie->height = ov5640->framesize_cfg[fie->index].height;
+	fie->interval = ov5640->framesize_cfg[fie->index].max_fps;
 	return 0;
 }
 
@@ -1762,7 +1764,7 @@ static int __ov5640_power_on(struct ov5640 *ov5640)
 		if (ret < 0)
 			dev_info(dev, "Failed to set xvclk rate (24MHz)\n");
 	}
-	if (clk_get_rate(gc5025->xvclk) != OV5640_XVCLK_FREQ)
+	if (clk_get_rate(ov5640->xvclk) != OV5640_XVCLK_FREQ)
 		dev_warn(dev, "xvclk mismatched, modes are based on 24MHz\n");
 
 	if (!IS_ERR(ov5640->pwdn_gpio)) {
