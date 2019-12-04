@@ -13,6 +13,7 @@
 #include <drm/rockchip_drm.h>
 #include <linux/dma-mapping.h>
 #include <linux/dma-buf.h>
+#include <linux/time.h>
 
 static const char miscdev_name[] = CAMSYS_MARVIN_DEVNAME;
 
@@ -723,6 +724,7 @@ static irqreturn_t camsys_mrv_irq(int irq, void *data)
 	unsigned int isp_mis, mipi_mis, mi_mis, *mis, jpg_mis, jpg_err_mis;
 	unsigned int mi_ris, mi_imis;
 	static unsigned int mipi_frame;
+	struct timeval tv = {0L, 0L};
 
 	isp_mis = __raw_readl((void volatile *)
 				(camsys_dev->devmems.registermem->vir_base +
@@ -802,6 +804,8 @@ static irqreturn_t camsys_mrv_irq(int irq, void *data)
 				}
 				case MRV_MI_MIS:
 				{
+					if (mi_mis & 0x1)
+						do_gettimeofday(&tv);
 					mis = &mi_mis;
 					break;
 				}
@@ -841,6 +845,7 @@ static irqreturn_t camsys_mrv_irq(int irq, void *data)
 						irqsta->sta.fe_id =
 							(mipi_frame >> 16)
 							& 0xFFFF;
+						irqsta->sta.reserved[0] = (tv.tv_sec * 1000LL + tv.tv_usec / 1000) & (0xffff);
 						list_del_init(&irqsta->list);
 						list_add_tail(&irqsta->list,
 							&irqpool->active);
