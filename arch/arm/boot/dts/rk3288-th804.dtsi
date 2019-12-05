@@ -88,6 +88,24 @@
 		rockchip,uboot-charge-on = <0>;
 		rockchip,android-charge-on = <1>;
 	};
+
+	hdmi_analog_sound: hdmi-analog-sound {
+		compatible = "rockchip,rk3288-hdmi-analog",
+			     "rockchip,rk3368-hdmi-analog";
+		rockchip,model = "rockchip,es8316-codec";
+		rockchip,cpu = <&i2s>;
+		rockchip,codec = <&es8316>, <&hdmi>;
+		rockchip,widgets =
+			"Microphone", "Microphone Jack",
+			"Headphone", "Headphone Jack";
+		rockchip,routing =
+			"MIC1", "Microphone Jack",
+			"MIC2", "Microphone Jack",
+			"Microphone Jack", "micbias1",
+			"Headphone Jack", "HPOL",
+			"Headphone Jack", "HPOR";
+		status = "okay";
+	};
 };
 
 &sdio0 {
@@ -614,24 +632,6 @@
 &route_hdmi {
 	connect = <&vopl_out_hdmi>;
 	status = "okay";
-};
-
-&hdmi_analog_sound {
-	status = "okay";
-	compatible = "rockchip,rk3288-hdmi-analog",
-			"rockchip,rk3368-hdmi-analog";
-	rockchip,model = "rockchip,es8316-codec";
-	rockchip,cpu = <&i2s>;
-	rockchip,codec = <&es8316>, <&hdmi>;
-	rockchip,widgets =
-		"Microphone", "Microphone Jack",
-		"Headphone", "Headphone Jack";
-	rockchip,routing =
-		"MIC1", "Microphone Jack",
-		"MIC2", "Microphone Jack",
-		"Microphone Jack", "micbias1",
-		"Headphone Jack", "HPOL",
-		"Headphone Jack", "HPOR";
 };
 
 &i2s {
