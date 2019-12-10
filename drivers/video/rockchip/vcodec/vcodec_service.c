@@ -4015,12 +4015,13 @@ static void get_hw_info(struct vpu_subdev_data *data)
 		dec->max_dec_pic_width = 4096;
 	}
 
-	/* in 3399 3228 and 3229 chips, avoid vpu timeout
+	/* in 3399 3228 3229 and 1808 chips, avoid vpu timeout
 	 * and can't recover problem
 	 */
 	if (of_machine_is_compatible("rockchip,rk3399") ||
 		of_machine_is_compatible("rockchip,rk3228") ||
-		of_machine_is_compatible("rockchip,rk3229"))
+		of_machine_is_compatible("rockchip,rk3229") ||
+		of_machine_is_compatible("rockchip,rk1808"))
 		pservice->soft_reset = true;
 	else
 		pservice->soft_reset = false;
