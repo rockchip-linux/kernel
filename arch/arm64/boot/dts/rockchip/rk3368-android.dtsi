@@ -335,7 +335,7 @@
 					<1 6 RK_FUNC_1 &pcfg_pull_none>,//cif_data8
 					<1 7 RK_FUNC_1 &pcfg_pull_none>,//cif_data9
 					<1 14 RK_FUNC_1 &pcfg_pull_none>,//cif_data10
-					<1 17 RK_FUNC_1 &pcfg_pull_none>;//cif_data11
+					<1 15 RK_FUNC_1 &pcfg_pull_none>;//cif_data11
 		};
 
 		isp_shutter: isp-shutter {
