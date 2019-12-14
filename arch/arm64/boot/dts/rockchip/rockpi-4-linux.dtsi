@@ -236,7 +236,7 @@
 		status = "disabled";
 	};
 
-	wireless_bluetooth: wireless-bluetooth {
+	bt_uart0: wireless_bluetooth: wireless-bluetooth {
 		compatible = "bluetooth-platdata";
 		clocks = <&rk808 1>;
 		clock-names = "ext_clock";
