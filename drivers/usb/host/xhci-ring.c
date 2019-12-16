@@ -1726,7 +1726,8 @@ static void handle_port_status(struct xhci_hcd *xhci,
 		goto cleanup;
 	}
 
-	if (hcd->speed < HCD_USB3)
+	if (hcd->speed < HCD_USB3 ||
+	    ((portsc & PORT_PLC) && (portsc & PORT_PLS_MASK) == XDEV_INACTIVE))
 		xhci_test_and_clear_bit(xhci, port_array, faked_port_index,
 					PORT_PLC);
 
