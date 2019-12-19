@@ -127,6 +127,9 @@ static const struct mfd_cell rk628_devs[] = {
 	}, {
 		.name = "rk628-post-process",
 		.of_compatible = "rockchip,rk628-post-process",
+	}, {
+		.name = "rk628-bt1120",
+		.of_compatible = "rockchip,rk628-bt1120",
 	},
 };
 
