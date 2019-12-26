@@ -269,6 +269,14 @@
 		};
 	};
 
+	rk_headset {
+		compatible = "rockchip_headset";
+		headset_gpio = <&gpio1 0 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&hp_det>;
+		io-channels = <&saradc 2>;
+	};
+
 	test-power {
 		status = "okay";
 	};
@@ -860,6 +868,12 @@
 };
 
 &pinctrl {
+	headphone {
+		hp_det: hp-det {
+			rockchip,pins =
+				<1 0 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+	};
 
 	sdio0 {
 		sdio0_bus1: sdio0-bus1 {
