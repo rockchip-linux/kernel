@@ -231,6 +231,10 @@
 	cpu-supply = <&vdd_arm>;
 };
 
+&dfi {
+	status = "okay";
+};
+
 &dmc {
 	center-supply = <&vdd_logic>;
 	status = "okay";
