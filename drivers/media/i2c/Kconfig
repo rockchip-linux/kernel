@@ -1139,6 +1139,14 @@ config VIDEO_PS5268
 	  To compile this driver as a module, choose M here: the
 	  module will be called PS5268.
 
+config VIDEO_HM2056
+	tristate "Himax hm2056 sensor support"
+	depends on VIDEO_V4L2 && I2C
+	depends on MEDIA_CAMERA_SUPPORT
+	select V4L2_FWNODE
+	help
+	  This driver supports hm2056 cameras from Himax
+
 config VIDEO_PREISP_DUMMY_SENSOR
 	tristate "Preisp dummy sensor support"
 	depends on VIDEO_V4L2 && I2C && VIDEO_V4L2_SUBDEV_API
