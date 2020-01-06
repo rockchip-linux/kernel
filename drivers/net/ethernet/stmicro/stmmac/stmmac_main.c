@@ -51,6 +51,7 @@
 #include <linux/net_tstamp.h>
 #include "stmmac_ptp.h"
 #include "stmmac.h"
+#include "dwmac-rk-tool.h"
 #include <linux/reset.h>
 #include <linux/of_mdio.h>
 
@@ -2998,6 +2999,14 @@ int stmmac_dvr_probe(struct device *device,
 		goto error_netdev_register;
 	}
 
+	ret = dwmac_rk_create_loopback_sysfs(device);
+	if (ret) {
+		netdev_err(priv->dev, "%s: ERROR %i create loopback sysfs\n",
+			   __func__, ret);
+		unregister_netdev(ndev);
+		goto error_netdev_register;
+	}
+
 	return ret;
 
 error_netdev_register:
@@ -3045,6 +3054,7 @@ int stmmac_dvr_remove(struct device *dev)
 	    priv->pcs != STMMAC_PCS_RTBI)
 		stmmac_mdio_unregister(ndev);
 	mutex_destroy(&priv->lock);
+	dwmac_rk_remove_loopback_sysfs(dev);
 	free_netdev(ndev);
 
 	return 0;
