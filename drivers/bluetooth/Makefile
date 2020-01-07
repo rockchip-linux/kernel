@@ -13,9 +13,10 @@ obj-$(CONFIG_BT_HCIBLUECARD)	+= bluecard_cs.o
 obj-$(CONFIG_BT_HCIBTUART)	+= btuart_cs.o
 
 obj-$(CONFIG_BT_HCIBTUSB)	+= btusb.o
-obj-$(CONFIG_BT_HCIBTUSB_RTL8723DU)	+= rtl8723du/
 obj-$(CONFIG_BT_RTKBTUSB)	+= rtk_btusb.o
 obj-$(CONFIG_BT_HCIBTSDIO)	+= btsdio.o
+obj-$(CONFIG_BT_HCIBTUSB_RTL8723DU)	+= rtl8723du/
+obj-$(CONFIG_BT_HCIBTUSB_RTL8821CU)	+= rtl8821cu/
 
 obj-$(CONFIG_BT_INTEL)		+= btintel.o
 obj-$(CONFIG_BT_ATH3K)		+= ath3k.o

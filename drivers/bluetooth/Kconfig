@@ -36,13 +36,6 @@ config BT_HCIBTUSB
 	  Say Y here to compile support for Bluetooth USB devices into the
 	  kernel or say M to compile it as module (btusb).
 
-config BT_HCIBTUSB_RTL8723DU
-	tristate "realtek rtl8723du module bluetooth driver"
-	depends on USB
-	help
-	  Say Y here to compile support for rtl8723du into the
-	  kernel or say M to compile it as module (bt_rtk8723).
-
 config BT_HCIBTUSB_BCM
 	bool "Broadcom protocol support"
 	depends on BT_HCIBTUSB
@@ -75,6 +68,20 @@ config BT_HCIBTSDIO
 
 	  Say Y here to compile support for Bluetooth SDIO devices into the
 	  kernel or say M to compile it as module (btsdio).
+
+config BT_HCIBTUSB_RTL8723DU
+	tristate "realtek rtl8723du module bluetooth driver"
+	depends on USB
+	help
+	  Say Y here to compile support for rtl8723du into the
+	  kernel or say M to compile it as module (bt_rtl8723du).
+
+config BT_HCIBTUSB_RTL8821CU
+	tristate "realtek rtl8821cu module bluetooth driver"
+	depends on USB
+	help
+	  Say Y here to compile support for rtl8821cu into the
+	  kernel or say M to compile it as module (bt_rtl8821cu).
 
 config BT_HCIUART
 	tristate "HCI UART driver"
