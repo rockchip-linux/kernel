@@ -2,6 +2,9 @@
 #ifdef CONFIG_ARM64
 #include "camsys_soc_priv.h"
 #include "camsys_soc_rk3399.h"
+#include "camsys_marvin.h"
+#include <soc/rockchip/pm_domains.h>
+#include <linux/reset.h>
 
 struct mipiphy_hsfreqrange_s {
 	unsigned int range_l;
@@ -405,13 +408,53 @@ int camsys_rk3399_cfg
 	case Isp_SoftRst: /* ddl@rock-chips.com: v0.d.0 */ {
 		unsigned long reset;
 		reset = (unsigned long)cfg_para;
+		if (reset == 1) {
+			if (strstr(camsys_dev->miscdev.name, "camsys_marvin1")) {
+				int ret = 0;
 
-		if (reset == 1)
-			__raw_writel(0x80, (void *)(camsys_dev->rk_isp_base +
-			MRV_AFM_BASE + VI_IRCL));
-		else
-			__raw_writel(0x00, (void *)(camsys_dev->rk_isp_base +
-			MRV_AFM_BASE + VI_IRCL));
+				camsys_mrv_clk_t *clk =
+					(camsys_mrv_clk_t *)camsys_dev->clk;
+
+				ret = reset_control_assert(clk->rst_isp1);
+				if (ret)
+					camsys_err("failed to assert isp1\n");
+				ret = reset_control_assert(clk->rst_h_isp1);
+				if (ret)
+					camsys_err("failed to assert h_isp1\n");
+
+				udelay(100);
+
+				ret = reset_control_deassert(clk->rst_isp1);
+				if (ret)
+					camsys_err("failed to deassert isp1\n");
+				ret = reset_control_deassert(clk->rst_h_isp1);
+				if (ret)
+					camsys_err("failed to deassert h_isp1\n");
+			} else {
+				int ret = 0;
+
+				camsys_mrv_clk_t *clk =
+					(camsys_mrv_clk_t *)camsys_dev->clk;
+
+				ret = reset_control_assert(clk->rst_isp0);
+				if (ret)
+					camsys_err("failed to assert isp0\n");
+				ret = reset_control_assert(clk->rst_h_isp0);
+				if (ret)
+					camsys_err("failed to assert h_isp0\n");
+
+				udelay(100);
+
+				ret = reset_control_deassert(clk->rst_isp0);
+				if (ret)
+					camsys_err("failed to deassert isp0\n");
+				ret = reset_control_deassert(clk->rst_h_isp0);
+				if (ret)
+					camsys_err("failed to deassert h_isp0\n");
+			}
+		}
+		camsys_trace(2, "Isp self soft rst: %ld", reset);
+
 		break;
 	}
 
