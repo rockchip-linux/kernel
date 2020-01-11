@@ -1,0 +1,1 @@
+obj-$(CONFIG_VENDOR_FRIENDLYELEC)	+= board.o

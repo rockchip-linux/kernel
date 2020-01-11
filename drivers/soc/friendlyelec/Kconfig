@@ -1,0 +1,11 @@
+#
+# Machine drivers
+#
+
+if ARCH_ROCKCHIP
+
+config VENDOR_FRIENDLYELEC
+	bool "FriendlyElec board based on Rockchip SoCs"
+	default n
+
+endif
