@@ -16,5 +16,9 @@ int dwmac_rk_get_phy_interface(struct stmmac_priv *priv);
 int dwmac_rk_create_loopback_sysfs(struct device *dev);
 int dwmac_rk_remove_loopback_sysfs(struct device *device);
 
+#ifdef CONFIG_DWMAC_RK_AUTO_DELAYLINE
+int dwmac_rk_search_rgmii_delayline(struct stmmac_priv *priv);
+#endif
+
 #endif /* __DWMAC_RK_TOOL_H__ */
 

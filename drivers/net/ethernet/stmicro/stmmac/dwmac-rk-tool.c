@@ -1329,3 +1329,52 @@ int dwmac_rk_remove_loopback_sysfs(struct device *device)
 
 	return 0;
 }
+
+#ifdef CONFIG_DWMAC_RK_AUTO_DELAYLINE
+int dwmac_rk_search_rgmii_delayline(struct stmmac_priv *priv)
+{
+	struct dwmac_rk_lb_priv *lb_priv;
+	int phy_iface = dwmac_rk_get_phy_interface(priv);
+	unsigned char delayline[2];
+	int ret;
+
+	if (phy_iface != PHY_INTERFACE_MODE_RGMII &&
+	    phy_iface != PHY_INTERFACE_MODE_RGMII_ID)
+		return 0;
+
+	memset(delayline, 0x0, sizeof(delayline));
+	ret = rk_vendor_read(LAN_RGMII_DL_ID, delayline, 2);
+	if (ret == 2 &&
+	    dwmac_rk_delayline_is_valid(delayline[0], delayline[1])) {
+		pr_info("damac rk: read rgmii dl from vendor tx = 0x%02x, rx = 0x%02x\n",
+			delayline[0], delayline[1]);
+		dwmac_rk_set_rgmii_delayline(priv, delayline[0], delayline[1]);
+
+		return 0;
+	}
+
+	lb_priv = kzalloc(sizeof(*lb_priv), GFP_KERNEL);
+	if (!lb_priv)
+		return -ENOMEM;
+
+	lb_priv->sysfs = 0;
+	lb_priv->type = LOOPBACK_TYPE_PHY;
+	lb_priv->speed = LOOPBACK_SPEED1000;
+	lb_priv->scan = 1;
+
+	ret = dwmac_rk_loopback_run(priv, lb_priv);
+	if (!ret) {
+		delayline[0] = lb_priv->final_tx;
+		delayline[1] = lb_priv->final_rx;
+		if (rk_vendor_write(LAN_RGMII_DL_ID, delayline, 2))
+			pr_err("damac rk: write rgmii delayline to vendor failed\n");
+
+		/* write tx/rx delayline back if loopback okay */
+		dwmac_rk_set_rgmii_delayline(priv, lb_priv->final_tx,
+					     lb_priv->final_rx);
+	}
+
+	kfree(lb_priv);
+	return ret;
+}
+#endif
