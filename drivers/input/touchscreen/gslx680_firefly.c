@@ -364,14 +364,19 @@ static void gsl_load_fw(struct i2c_client *client)
 	const struct fw_data *ptr_fw;
 
 	printk("=============gsl_load_fw start==============\n");
-	if (global_fw){
+	if (1 == global_fw){						//for 10.1 lvds
 		if(0x36 == chip_type)
 		{
-		printk("--------------3680B-----------------------\n");
-		        ptr_fw = GSL3680B_FW;
-		        source_len = ARRAY_SIZE(GSL3680B_FW);
+			printk("--------Using 10.1 lvds-----------\r\n");
+		    ptr_fw = GSL3680B_FW;
+		    source_len = ARRAY_SIZE(GSL3680B_FW);
 		}
-	}else{
+	}else if (0 == global_fw){			//for face lvds
+		printk("--------Using face X1 lvds-----------\r\n");
+		ptr_fw = GSL3680B_FW_FACEX1;
+		source_len = ARRAY_SIZE(GSL3680B_FW_FACEX1);
+	}else {								//for edp & mipi
+		printk("--------Using edp & mipi lvds-----------\r\n");
 		ptr_fw = GSLX680_FW;
 		source_len = ARRAY_SIZE(GSLX680_FW);
 	}
@@ -443,10 +448,15 @@ static void startup_chip(struct i2c_client *client)
 	u8 tmp = 0x00;
 
 #ifdef GSL_NOID_VERSION
-	if (global_fw)
+	if (1 == global_fw){
 		gsl_DataInit(gsl_config_data_id_3680B);
-	else
+	}
+	else if (0 == global_fw){
+		gsl_DataInit(gsl_config_data_id_3680B_faceX1);
+	}
+	else{
 		gsl_DataInit(gsl_config_data_id);
+	}
 #endif
 	gsl_ts_write(client, 0xe0, &tmp, 1);
 	msleep(10);
@@ -665,10 +675,15 @@ ssize_t gsl_config_write_proc(struct file *file, const char *buffer, size_t coun
 	{
 		tmp1=(buf[7]<<24)|(buf[6]<<16)|(buf[5]<<8)|buf[4];
 		tmp=(buf[3]<<24)|(buf[2]<<16)|(buf[1]<<8)|buf[0];
-	if (global_fw){
+	if (1 == global_fw){
 		if(tmp1>=0 && tmp1<ARRAY_SIZE(gsl_config_data_id_3680B))
 		{
 			gsl_config_data_id_3680B[tmp1] = tmp;
+		}
+	}else if (0 == global_fw){
+		if(tmp1>=0 && tmp1<ARRAY_SIZE(gsl_config_data_id_3680B_faceX1))
+		{
+			gsl_config_data_id_3680B_faceX1[tmp1] = tmp;
 		}
 	}else{
 		if(tmp1>=0 && tmp1<ARRAY_SIZE(gsl_config_data_id))
