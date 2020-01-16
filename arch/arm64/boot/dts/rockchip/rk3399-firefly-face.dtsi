@@ -345,7 +345,7 @@
 	    flip-x = <0>;
 	    flip-y = <0>;
 	    swap-xy = <0>;
-	    gsl,fw = <1>;
+	    gsl,fw = <0>;
 	    touch-gpio = <&gpio4 28 IRQ_TYPE_LEVEL_LOW>;
 	    reset-gpio = <&gpio4 21 GPIO_ACTIVE_HIGH>;
 	};
