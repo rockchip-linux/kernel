@@ -463,6 +463,7 @@ static int icn6211_bridge_attach(struct drm_bridge *bridge)
 			return ret;
 		}
 
+		connector->port = icn6211->base.of_node;
 		drm_connector_helper_add(connector,
 					 &icn6211_connector_helper_funcs);
 		drm_mode_connector_attach_encoder(connector, bridge->encoder);
