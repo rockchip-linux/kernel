@@ -1331,9 +1331,8 @@ int dwmac_rk_remove_loopback_sysfs(struct device *device)
 }
 
 #ifdef CONFIG_DWMAC_RK_AUTO_DELAYLINE
-int dwmac_rk_search_rgmii_delayline(struct stmmac_priv *priv)
+int dwmac_rk_get_rgmii_delayline_from_vendor(struct stmmac_priv *priv)
 {
-	struct dwmac_rk_lb_priv *lb_priv;
 	int phy_iface = dwmac_rk_get_phy_interface(priv);
 	unsigned char delayline[2];
 	int ret;
@@ -1352,6 +1351,15 @@ int dwmac_rk_search_rgmii_delayline(struct stmmac_priv *priv)
 
 		return 0;
 	}
+
+	return -ERANGE;
+}
+
+int dwmac_rk_search_rgmii_delayline(struct stmmac_priv *priv)
+{
+	struct dwmac_rk_lb_priv *lb_priv;
+	unsigned char delayline[2];
+	int ret;
 
 	lb_priv = kzalloc(sizeof(*lb_priv), GFP_KERNEL);
 	if (!lb_priv)

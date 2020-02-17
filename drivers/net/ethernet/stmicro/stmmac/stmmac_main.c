@@ -1858,8 +1858,9 @@ static int stmmac_open(struct net_device *dev)
 
 #ifdef CONFIG_DWMAC_RK_AUTO_DELAYLINE
 	if (!priv->delayline_scanned) {
+		if (dwmac_rk_get_rgmii_delayline_from_vendor(priv))
+			schedule_delayed_work(&priv->scan_dwork, msecs_to_jiffies(6000));
 		priv->delayline_scanned = true;
-		schedule_delayed_work(&priv->scan_dwork, msecs_to_jiffies(6000));
 	}
 #endif
 
