@@ -600,12 +600,24 @@ disconnect:
 			ret = readx_poll_timeout(atomic_read,
 						 &dwc->dev->power.usage_count,
 						 val,
-						 val < 2 && !dwc->connected,
+						 val < 2,
 						 1000,
 						 PERIPHERAL_DISCONNECT_TIMEOUT);
-			if (ret < 0) {
+			if (ret < 0 && dwc->connected) {
 				rockchip->skip_suspend = true;
 				dev_warn(rockchip->dev, "Peripheral disconnect timeout\n");
+			} else if (val == 1 && dwc->connected) {
+				/*
+				 * Power usage count has been decreased to 1,
+				 * but peripheral disconnect flag was not set,
+				 * there maybe something wrong with the
+				 * controller, like the Disconnect Event was
+				 * missed and so on, let disconnect manually.
+				 */
+				dev_warn(rockchip->dev, "Peripheral disconnect exception\n");
+				spin_lock_irqsave(&dwc->lock, flags);
+				dwc3_gadget_disconnect_interrupt(dwc);
+				spin_unlock_irqrestore(&dwc->lock, flags);
 			}
 		}
 

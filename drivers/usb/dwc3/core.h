@@ -1203,6 +1203,7 @@ static inline int dwc3_send_gadget_generic_command(struct dwc3 *dwc,
 int dwc3_gadget_suspend(struct dwc3 *dwc);
 int dwc3_gadget_resume(struct dwc3 *dwc);
 void dwc3_gadget_process_pending_events(struct dwc3 *dwc);
+void dwc3_gadget_disconnect_interrupt(struct dwc3 *dwc);
 #else
 static inline int dwc3_gadget_suspend(struct dwc3 *dwc)
 {
@@ -1215,6 +1216,10 @@ static inline int dwc3_gadget_resume(struct dwc3 *dwc)
 }
 
 static inline void dwc3_gadget_process_pending_events(struct dwc3 *dwc)
+{
+}
+
+static inline void dwc3_gadget_disconnect_interrupt(struct dwc3 *dwc)
 {
 }
 #endif /* !IS_ENABLED(CONFIG_USB_DWC3_HOST) */
