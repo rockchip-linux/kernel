@@ -595,12 +595,12 @@ static int ps5268_s_stream(struct v4l2_subdev *sd, int on)
 		ret = __ps5268_start_stream(ps5268);
 		if (ret) {
 			v4l2_err(sd, "start stream failed while write regs\n");
-			pm_runtime_put(&client->dev);
+			pm_runtime_put_autosuspend(&client->dev);
 			goto unlock_and_return;
 		}
 	} else {
 		__ps5268_stop_stream(ps5268);
-		pm_runtime_put(&client->dev);
+		pm_runtime_put_autosuspend(&client->dev);
 	}
 
 	ps5268->streaming = on;
@@ -633,13 +633,14 @@ static int ps5268_s_power(struct v4l2_subdev *sd, int on)
 		ret = ps5268_write_array(ps5268->client, ps5268_global_regs);
 		if (ret) {
 			v4l2_err(sd, "could not set init registers\n");
-			pm_runtime_put_noidle(&client->dev);
+			pm_runtime_put_autosuspend(&client->dev);
 			goto unlock_and_return;
 		}
 
 		ps5268->power_on = true;
 	} else {
-		pm_runtime_put(&client->dev);
+		pm_runtime_mark_last_busy(&client->dev);
+		pm_runtime_put_autosuspend(&client->dev);
 		ps5268->power_on = false;
 	}
 
@@ -791,6 +792,8 @@ static int ps5268_enum_frame_interval(struct v4l2_subdev *sd,
 static const struct dev_pm_ops ps5268_pm_ops = {
 	SET_RUNTIME_PM_OPS(ps5268_runtime_suspend,
 			   ps5268_runtime_resume, NULL)
+	SET_SYSTEM_SLEEP_PM_OPS(pm_runtime_force_suspend,
+				pm_runtime_force_resume)
 };
 
 #ifdef CONFIG_VIDEO_V4L2_SUBDEV_API
@@ -935,7 +938,8 @@ static int ps5268_set_ctrl(struct v4l2_ctrl *ctrl)
 		break;
 	}
 
-	pm_runtime_put(&client->dev);
+	pm_runtime_mark_last_busy(&client->dev);
+	pm_runtime_put_autosuspend(&client->dev);
 
 	return ret;
 }
@@ -1130,13 +1134,20 @@ static int ps5268_probe(struct i2c_client *client,
 	if (ret)
 		goto err_destroy_mutex;
 
-	ret = __ps5268_power_on(ps5268);
-	if (ret)
-		goto err_free_handler;
+	pm_runtime_set_autosuspend_delay(dev, 10 * 1000);
+	pm_runtime_use_autosuspend(dev);
+	pm_runtime_enable(dev);
+	pm_runtime_idle(dev);
+
+	ret = pm_runtime_get_sync(dev);
+	if (ret) {
+		pm_runtime_put_noidle(dev);
+		goto err_pm_disable;
+	}
 
 	ret = ps5268_check_sensor_id(ps5268, client);
 	if (ret)
-		goto err_power_off;
+		goto err_pm_put;
 
 #ifdef CONFIG_VIDEO_V4L2_SUBDEV_API
 	dev_err(dev, "set the video v4l2 subdev api\n");
@@ -1149,7 +1160,7 @@ static int ps5268_probe(struct i2c_client *client,
 	sd->entity.type = MEDIA_ENT_T_V4L2_SUBDEV_SENSOR;
 	ret = media_entity_init(&sd->entity, 1, &ps5268->pad, 0);
 	if (ret < 0)
-		goto err_power_off;
+		goto err_pm_put;
 #endif
 
 	memset(facing, 0, sizeof(facing));
@@ -1167,9 +1178,8 @@ static int ps5268_probe(struct i2c_client *client,
 		goto err_clean_entity;
 	}
 
-	pm_runtime_set_active(dev);
-	pm_runtime_enable(dev);
-	pm_runtime_idle(dev);
+	pm_runtime_put_autosuspend(dev);
+
 	dev_err(dev, "v4l2 async register subdev success\n");
 	return 0;
 
@@ -1177,9 +1187,10 @@ err_clean_entity:
 #if defined(CONFIG_MEDIA_CONTROLLER)
 	media_entity_cleanup(&sd->entity);
 #endif
-err_power_off:
-	__ps5268_power_off(ps5268);
-err_free_handler:
+err_pm_put:
+	pm_runtime_put(dev);
+err_pm_disable:
+	pm_runtime_disable(dev);
 	v4l2_ctrl_handler_free(&ps5268->ctrl_handler);
 err_destroy_mutex:
 	mutex_destroy(&ps5268->mutex);
@@ -1199,6 +1210,7 @@ static int ps5268_remove(struct i2c_client *client)
 	v4l2_ctrl_handler_free(&ps5268->ctrl_handler);
 	mutex_destroy(&ps5268->mutex);
 
+	pm_runtime_dont_use_autosuspend(&client->dev);
 	pm_runtime_disable(&client->dev);
 	if (!pm_runtime_status_suspended(&client->dev))
 		__ps5268_power_off(ps5268);
