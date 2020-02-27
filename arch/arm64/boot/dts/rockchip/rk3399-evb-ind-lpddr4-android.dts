@@ -6,6 +6,7 @@
 /dts-v1/;
 
 #include "rk3399-evb-ind.dtsi"
+#include "rk3399-android.dtsi"
 
 / {
 	model = "Rockchip RK3399 EVB IND LPDDR4 Board edp (Android)";
@@ -154,7 +155,19 @@
 	status = "okay";
 };
 
+&hdmi_in_vopb {
+	status = "disabled";
+};
+
 &hdmi_sound {
+	status = "okay";
+};
+
+&isp0 {
+	status = "okay";
+};
+
+&isp1 {
 	status = "okay";
 };
 
@@ -172,6 +185,25 @@
 &i2s0 {
 	#sound-dai-cells = <0>;
 	status = "okay";
+};
+
+&rk_key {
+	compatible = "rockchip,key";
+	status = "okay";
+
+	io-channels = <&saradc 1>;
+
+	vol-up-key {
+		linux,code = <115>;
+		label = "volume up";
+		rockchip,adc_value = <1>;
+	};
+
+	vol-down-key {
+		linux,code = <114>;
+		label = "volume down";
+		rockchip,adc_value = <170>;
+	};
 };
 
 &tc358749x_sound {

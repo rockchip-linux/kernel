@@ -5,7 +5,6 @@
 
 #include "dt-bindings/pwm/pwm.h"
 #include "rk3399.dtsi"
-#include "rk3399-android.dtsi"
 #include "rk3399-opp.dtsi"
 #include <dt-bindings/sensor-dev.h>
 #include "rk3399-vop-clk-set.dtsi"
@@ -364,10 +363,6 @@
 
 &hdmi {
 	status = "okay";
-};
-
-&hdmi_in_vopb {
-	status = "disabled";
 };
 
 &i2c0 {
@@ -861,39 +856,12 @@
 	status = "okay";
 };
 
-&isp0 {
-	status = "okay";
-};
-
-&isp1 {
-	status = "okay";
-};
-
 &isp0_mmu {
 	status = "okay";
 };
 
 &isp1_mmu {
 	status = "okay";
-};
-
-&rk_key {
-	compatible = "rockchip,key";
-	status = "okay";
-
-	io-channels = <&saradc 1>;
-
-	vol-up-key {
-		linux,code = <115>;
-		label = "volume up";
-		rockchip,adc_value = <1>;
-	};
-
-	vol-down-key {
-		linux,code = <114>;
-		label = "volume down";
-		rockchip,adc_value = <170>;
-	};
 };
 
 &pmu_io_domains {
