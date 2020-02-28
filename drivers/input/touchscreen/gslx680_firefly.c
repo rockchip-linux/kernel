@@ -1354,7 +1354,7 @@ static int  gsl_ts_probe(struct i2c_client *client,
 		ts->revert_xy = 0;
 
 	if (of_property_read_u32(np, "gsl,fw", &global_fw) < 0)
-		global_fw = 0;
+		global_fw = -1;
 
 	gslX680_init();
 	msleep(500);
