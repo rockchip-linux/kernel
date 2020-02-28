@@ -17,9 +17,9 @@ static struct flash_info spi_flash_tbl[] = {
 	/* GD25Q127C and GD25Q128C*/
 	{ 0xc84018, 128, 8, 0x03, 0x02, 0x6B, 0x32, 0x20, 0xD8, 0x0C, 15, 9, 0 },
 	/* GD25Q256B/C/D */
-	{ 0xc84019, 128, 8, 0x13, 0x12, 0x6C, 0x3E, 0x21, 0xDC, 0x1C, 16, 6, 0 },
+	{ 0xc84019, 128, 8, 0x13, 0x12, 0x6C, 0x3E, 0x21, 0xDC, 0x3C, 16, 6, 0 },
 	/* GD25Q512MC */
-	{ 0xc84020, 128, 8, 0x13, 0x12, 0x6C, 0x3E, 0x21, 0xDC, 0x1C, 17, 6, 0 },
+	{ 0xc84020, 128, 8, 0x13, 0x12, 0x6C, 0x3E, 0x21, 0xDC, 0x3C, 17, 6, 0 },
 	/* 25Q64JVSSIQ */
 	{ 0xef4017, 128, 8, 0x03, 0x02, 0x6B, 0x32, 0x20, 0xD8, 0x0C, 14, 9, 0 },
 	/* 25Q128FV and 25Q128JV*/
@@ -52,8 +52,12 @@ static struct flash_info spi_flash_tbl[] = {
 	{ 0x0b4017, 128, 8, 0x03, 0x02, 0x6B, 0x32, 0x20, 0xD8, 0x0D, 14, 9, 0 },
 	/* XT25F128BSSIGU */
 	{ 0x0b4018, 128, 8, 0x03, 0x02, 0x6B, 0x32, 0x20, 0xD8, 0x0D, 15, 9, 0 },
+	/* EN25QH64A */
+	{ 0x1c7017, 128, 8, 0x03, 0x02, 0x6B, 0x32, 0x20, 0xD8, 0x0C, 14, 0, 0 },
 	/* EN25QH128A */
 	{ 0x1c7018, 128, 8, 0x03, 0x02, 0x6B, 0x32, 0x20, 0xD8, 0x0C, 15, 0, 0 },
+	/* EN25QH32B */
+	{ 0x1c7016, 128, 8, 0x03, 0x02, 0x6B, 0x32, 0x20, 0xD8, 0x0C, 13, 0, 0 },
 	/* EN25S32A */
 	{ 0x1c3816, 128, 8, 0x03, 0x02, 0x6B, 0x32, 0x20, 0xD8, 0x0C, 13, 0, 0 },
 	/* EN25S64A */
@@ -68,6 +72,12 @@ static struct flash_info spi_flash_tbl[] = {
 	{ 0x5e4017, 128, 8, 0x03, 0x02, 0x6B, 0x32, 0x20, 0xD8, 0x0C, 14, 9, 0 },
 	/* ZB25VQ128 */
 	{ 0x5e4018, 128, 8, 0x03, 0x02, 0x6B, 0x32, 0x20, 0xD8, 0x0C, 15, 9, 0 },
+	/* 25Q256JVEM */
+	{ 0xef7019, 128, 8, 0x13, 0x12, 0x6C, 0x34, 0x21, 0xDC, 0x3C, 16, 9, 0 },
+	/* BH25Q128AS */
+	{ 0x684018, 128, 8, 0x03, 0x02, 0x6B, 0x32, 0x20, 0xD8, 0x04, 15, 9, 0 },
+	/* BH25Q64BS */
+	{ 0x684017, 128, 8, 0x03, 0x02, 0x6B, 0x32, 0x20, 0xD8, 0x04, 14, 9, 0 },
 };
 
 static int snor_write_en(void)
@@ -240,6 +250,8 @@ int snor_erase(struct SFNOR_DEV *p_dev,
 	union SFCCMD_DATA sfcmd;
 	int timeout[] = {400, 2000, 40000};   /* ms */
 
+	rkflash_print_dio("%s %x\n", __func__, addr);
+
 	if (erase_type > ERASE_CHIP)
 		return SFC_PARAM_ERR;
 
@@ -274,6 +286,8 @@ int snor_prog_page(struct SFNOR_DEV *p_dev,
 	int ret;
 	union SFCCMD_DATA sfcmd;
 	union SFCCTRL_DATA sfctrl;
+
+	rkflash_print_dio("%s %x %x\n", __func__, addr, *(u32 *)(p_data));
 
 	sfcmd.d32 = 0;
 	sfcmd.b.cmd = p_dev->prog_cmd;
@@ -329,28 +343,18 @@ static int snor_enable_QE(struct SFNOR_DEV *p_dev)
 	int bit_offset;
 	u8 status;
 
-	if (p_dev->manufacturer == MID_GIGADEV ||
-	    p_dev->manufacturer == MID_WINBOND ||
-	    p_dev->manufacturer == MID_XTX ||
-	    p_dev->manufacturer == MID_MACRONIX ||
-	    p_dev->manufacturer == MID_PUYA ||
-	    p_dev->manufacturer == MID_XMC ||
-	    p_dev->manufacturer == MID_DOSILICON ||
-	    p_dev->manufacturer == MID_ZBIT) {
-		reg_index = p_dev->QE_bits >> 3;
-		bit_offset = p_dev->QE_bits & 0x7;
-		ret = snor_read_status(reg_index, &status);
-		if (ret != SFC_OK)
-			return ret;
+	reg_index = p_dev->QE_bits >> 3;
+	bit_offset = p_dev->QE_bits & 0x7;
+	ret = snor_read_status(reg_index, &status);
+	if (ret != SFC_OK)
+		return ret;
 
-		if (status & (1 << bit_offset))   /* is QE bit set */
-			return SFC_OK;
+	if (status & (1 << bit_offset))   /* is QE bit set */
+		return SFC_OK;
 
-		status |= (1 << bit_offset);
-		return p_dev->write_status(reg_index, status);
-	}
+	status |= (1 << bit_offset);
 
-	return ret;
+	return p_dev->write_status(reg_index, status);
 }
 
 int snor_disable_QE(struct SFNOR_DEV *p_dev)
@@ -360,28 +364,18 @@ int snor_disable_QE(struct SFNOR_DEV *p_dev)
 	int bit_offset;
 	u8 status;
 
-	if (p_dev->manufacturer == MID_GIGADEV ||
-	    p_dev->manufacturer == MID_WINBOND ||
-	    p_dev->manufacturer == MID_XTX ||
-	    p_dev->manufacturer == MID_MACRONIX ||
-	    p_dev->manufacturer == MID_PUYA ||
-	    p_dev->manufacturer == MID_XMC ||
-	    p_dev->manufacturer == MID_DOSILICON ||
-	    p_dev->manufacturer == MID_ZBIT) {
-		reg_index = p_dev->QE_bits >> 3;
-		bit_offset = p_dev->QE_bits & 0x7;
-		ret = snor_read_status(reg_index, &status);
-		if (ret != SFC_OK)
-			return ret;
+	reg_index = p_dev->QE_bits >> 3;
+	bit_offset = p_dev->QE_bits & 0x7;
+	ret = snor_read_status(reg_index, &status);
+	if (ret != SFC_OK)
+		return ret;
 
-		if (!(status & (1 << bit_offset)))
-			return SFC_OK;
+	if (!(status & (1 << bit_offset)))
+		return SFC_OK;
 
-		status &= ~(1 << bit_offset);
-		return p_dev->write_status(reg_index, status);
-	}
+	status &= ~(1 << bit_offset);
 
-	return ret;
+	return p_dev->write_status(reg_index, status);
 }
 
 int snor_read_data(struct SFNOR_DEV *p_dev,
@@ -419,6 +413,7 @@ int snor_read_data(struct SFNOR_DEV *p_dev,
 		sfcmd.b.addrbits = SFC_ADDR_32BITS;
 
 	ret = sfc_request(sfcmd.d32, sfctrl.d32, addr, p_data);
+	rkflash_print_dio("%s %x %x\n", __func__, addr, *(u32 *)(p_data));
 
 	return ret;
 }
@@ -428,6 +423,8 @@ int snor_read(struct SFNOR_DEV *p_dev, u32 sec, u32 n_sec, void *p_data)
 	int ret = SFC_OK;
 	u32 addr, size, len;
 	u8 *p_buf =  (u8 *)p_data;
+
+	rkflash_print_dio("%s %x %x\n", __func__, sec, n_sec);
 
 	if ((sec + n_sec) > p_dev->capacity)
 		return SFC_PARAM_ERR;
@@ -460,6 +457,8 @@ int snor_write(struct SFNOR_DEV *p_dev, u32 sec, u32 n_sec, void *p_data)
 	u32 len, blk_size, offset;
 	u8 *p_buf =  (u8 *)p_data;
 	u32 total_sec = n_sec;
+
+	rkflash_print_dio("%s %x %x\n", __func__, sec, n_sec);
 
 	if ((sec + n_sec) > p_dev->capacity)
 		return SFC_PARAM_ERR;
@@ -565,7 +564,7 @@ static void *snor_flash_info_adjust(struct flash_info *spi_flash_info)
 int snor_init(struct SFNOR_DEV *p_dev)
 {
 	struct flash_info *g_spi_flash_info;
-	u32 i;
+	u32 i, ret;
 	u8 id_byte[5];
 
 	if (!p_dev)
@@ -604,7 +603,10 @@ int snor_init(struct SFNOR_DEV *p_dev)
 		else if (i == 2)
 			p_dev->write_status = snor_write_status2;
 		if (g_spi_flash_info->feature & FEA_4BIT_READ) {
-			if (snor_enable_QE(p_dev) == SFC_OK) {
+			ret = SFC_OK;
+			if (g_spi_flash_info->QE_bits)
+				ret = snor_enable_QE(p_dev);
+			if (ret == SFC_OK) {
 				p_dev->read_lines = DATA_LINES_X4;
 				p_dev->read_cmd = g_spi_flash_info->read_cmd_4;
 			}
