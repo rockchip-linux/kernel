@@ -1,0 +1,76 @@
+Pincontrol driver for RK628.
+
+Please refer file <devicetree/bindings/pinctrl/pinctrl-bindings.txt>
+for details of the common pinctrl bindings used by client devices,
+including the meaning of the phrase "pin configuration node".
+
+Optional Pinmux properties:
+--------------------------
+Following properties are required if default setting of pins are required
+at boot.
+- pinctrl-names: A pinctrl state named per <pinctrl-binding.txt>.
+- pinctrl[0...n]: Properties to contain the phandle for pinctrl states per
+		<pinctrl-binding.txt>.
+
+The pin configurations are defined as child of the pinctrl states node. Each
+sub-node have following properties:
+
+Optional properties:
+-------------------
+Following are optional properties defined as pinmux DT binding document
+<pinctrl-bindings.txt>. Absence of properties will leave the configuration
+on default.
+
+pins			- the list of pins that properties in the node
+			  apply to (either this or "group" has to be
+			  specified)
+group			- the group to apply the properties to, if the driver
+			  supports configuration of whole groups rather than
+			  individual pins (either this or "pins" has to be
+			  specified)
+bias-high-impedance	- high impedance mode ("third-state", "floating")
+bias-pull-up		- pull up the pin
+bias-pull-down		- pull down the pin
+drive-strength		- sink or source at most X mA
+input-schmitt-enable	- enable schmitt-trigger mode
+input-schmitt-disable	- disable schmitt-trigger mode
+low-power-enable	- enable low power mode
+low-power-disable	- disable low power mode
+output-low		- set the pin to output mode with low level
+output-high		- set the pin to output mode with high level
+
+Example:
+--------
+&rk628_pinctrl: pinctrl {
+	compatible = "rockchip,rk628-pinctrl";
+	status = "okay";
+
+	//for function mode
+	hpd_in_pins: hpd-in {
+		pins = "gpio0b0";
+		function = "hpd_in";
+	}
+
+	//for gpio mode
+	gvi_hpd_gpio: gvi-hpd-gpio {
+		pins = "gpio3b1";
+		function = "gpio";
+		drive-strength = <1>;
+		bias-pull-up;
+		slew-rate = <1>;
+		low-power-enable;
+		input-schmitt-enable;
+		output-high;
+	};
+}
+
+backlight: backlight {
+	...
+	interrupt-parent = <&rk628_gpio0>;
+	interrupts = <RK_PA0 IRQ_TYPE_LEVEL_LOW>;
+
+	pinctrl-names = "default";
+	pinctrl-0 = <&hpd_in_pins>,<&gvi_hpd_gpio>;
+
+	vbus-5v-gpios = <&rk628_gpio0 RK_PA1 GPIO_ACTIVE_LOW>;
+}
