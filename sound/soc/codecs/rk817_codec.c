@@ -888,6 +888,31 @@ static int rk817_suspend(struct snd_soc_codec *codec)
 
 static int rk817_resume(struct snd_soc_codec *codec)
 {
+	struct rk817_codec_priv *rk817 = snd_soc_codec_get_drvdata(codec);
+
+	rk817_codec_power_up(codec, RK817_CODEC_ALL);
+	/* HP_CP_EN , CP 2.3V  */
+	snd_soc_write(codec, RK817_CODEC_AHP_CP, 0x11);
+	/* power on HP two stage opamp ,HP amplitude 0db */
+	snd_soc_write(codec, RK817_CODEC_AHP_CFG0, 0x80);
+
+	/* power on dac ibias/l/r */
+	snd_soc_write(codec, RK817_CODEC_ADAC_CFG1,
+	PWD_DACBIAS_ON | PWD_DACD_ON |
+	PWD_DACL_ON | PWD_DACR_ON);
+
+	if (!rk817->use_ext_amplifier) {
+		/* CLASS D mode */
+		snd_soc_write(codec, RK817_CODEC_DDAC_MUTE_MIXCTL, 0x10);
+		/* CLASS D enable */
+		snd_soc_write(codec, RK817_CODEC_ACLASSD_CFG1, 0xa5);
+		/* restart CLASS D, OCPP/N */
+		snd_soc_write(codec, RK817_CODEC_ACLASSD_CFG2, 0xc4);
+	}
+
+	snd_soc_write(codec, RK817_CODEC_DDAC_VOLL, rk817->hp_volume);
+	snd_soc_write(codec, RK817_CODEC_DDAC_VOLR, rk817->hp_volume);
+
 	return 0;
 }
 
