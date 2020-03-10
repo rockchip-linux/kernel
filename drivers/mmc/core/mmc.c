@@ -1814,8 +1814,14 @@ static int mmc_sleep(struct mmc_host *host)
 	 * SEND_STATUS command to poll the status because that command (and most
 	 * others) is invalid while the card sleeps.
 	 */
-	if (!cmd.busy_timeout || !(host->caps & MMC_CAP_WAIT_WHILE_BUSY))
-		mmc_delay(timeout_ms);
+	if (!cmd.busy_timeout || !(host->caps & MMC_CAP_WAIT_WHILE_BUSY)) {
+		if (host->ops->card_busy) {
+			while (host->ops->card_busy(host) && --timeout_ms)
+				mmc_delay(1);
+		} else {
+			mmc_delay(timeout_ms);
+		}
+	}
 
 out_release:
 	mmc_retune_release(host);
