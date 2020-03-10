@@ -296,7 +296,7 @@ static void wk2xxx_work(struct work_struct *w)
 
 	do {
 	    mutex_lock(&wk2xxs_work_lock);
-	
+
     	work_start_tx_flag = s->start_tx_flag;
 		if(work_start_tx_flag)
 			s->start_tx_flag = 0;
@@ -346,7 +346,7 @@ static void wk2xxx_work(struct work_struct *w)
                     !freezing(current) && \
 	                (work_irq_flag || work_stop_rx_flag ) \
                      );
-                     
+
 	if(s->start_tx_fail)
 	{
         wk2xxx_read_reg(s->spi_wk,s->port.iobase,WK2XXX_SIER,&rx);
@@ -1077,7 +1077,7 @@ void wk2xxx_enabel_sub_port_int(struct wk2xxx_port *s)
         default:
                 printk(KERN_ALERT ": bad iobase %d\n", (uint8_t)s->port.iobase);
                 break;
-    } 
+    }
     mutex_unlock(&wk2xxs_global_register_lock);
 }
 
@@ -1124,7 +1124,7 @@ static int wk2xxx_startup(struct uart_port *port)//i
     if (s->wk2xxx_hw_suspend)
         s->wk2xxx_hw_suspend(0);
 
-    wk2xxx_enable_uart_port_clock(s);//使能串口时钟 
+    wk2xxx_enable_uart_port_clock(s);//使能串口时钟
     wk2xxx_reset_uart_port(s);//复位串口
     wk2xxx_init_uart_port_FIFO(s);   //初始化FIFO中断
 
@@ -1148,7 +1148,7 @@ static int wk2xxx_startup(struct uart_port *port)//i
         s->wk2xxx_hw_suspend(0);
         msleep(50);
     }
-     
+
     uart_circ_clear(&s->port.state->xmit);
     wk2xxx_enable_ms(&s->port);
 
@@ -1159,7 +1159,7 @@ static int wk2xxx_startup(struct uart_port *port)//i
             destroy_workqueue(s->workqueue);
             s->workqueue = NULL;
             return -EBUSY;
-    }       
+    }
 
 #ifdef _DEBUG_WK2XXX
         printk(KERN_ALERT "-wk2xxx_startup------exit---\n", );
@@ -1561,7 +1561,6 @@ static int wk2xxx_probe(struct spi_device *spi)
 	ret = of_get_named_gpio_flags(node, "power-gpio", 0, NULL);
 	if (ret < 0) {
 		printk("%s() Can not read property power-gpio\n", __FUNCTION__);
-		goto err;
 	} else {
 		wk2xxx_dev->pwr = ret;
 		ret = devm_gpio_request(&spi->dev, wk2xxx_dev->pwr, "power-gpio");
