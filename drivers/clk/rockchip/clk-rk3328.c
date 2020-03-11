@@ -555,9 +555,9 @@ static struct rockchip_clk_branch rk3328_clk_branches[] __initdata = {
 	FACTOR_GATE(0, "hclk_venc", "sclk_venc_core", 0, 1, 4,
 			RK3328_CLKGATE_CON(11), 4, GFLAGS),
 
-	GATE(0, "aclk_rkvenc_niu", "sclk_venc_core", 0,
+	GATE(0, "aclk_rkvenc_niu", "sclk_venc_core", CLK_IGNORE_UNUSED,
 			RK3328_CLKGATE_CON(25), 0, GFLAGS),
-	GATE(0, "hclk_rkvenc_niu", "hclk_venc", 0,
+	GATE(0, "hclk_rkvenc_niu", "hclk_venc", CLK_IGNORE_UNUSED,
 			RK3328_CLKGATE_CON(25), 1, GFLAGS),
 	GATE(ACLK_H265, "aclk_h265", "sclk_venc_core", 0,
 			RK3328_CLKGATE_CON(25), 2, GFLAGS),
