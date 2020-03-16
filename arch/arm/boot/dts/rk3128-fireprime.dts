@@ -262,6 +262,7 @@
 };
 
 &dmc {
+	center-supply = <&vdd_logic>;
 	status = "okay";
 };
 
@@ -370,9 +371,6 @@
 				regulator-name = "vcc_ddr";
 				regulator-always-on;
 				regulator-boot-on;
-				regulator-state-mem {
-					regulator-on-in-suspend;
-				};
 			};
 
 			vcc_io: DCDC_REG4 {
