@@ -1575,17 +1575,23 @@ static int csi_mipidphy_stream_on(struct mipidphy_priv *priv,
 	const struct hsfreq_range *hsfreq_ranges = drv_data->hsfreq_ranges;
 	int num_hsfreq_ranges = drv_data->num_hsfreq_ranges;
 	int i, hsfreq = 0;
+	unsigned int tmp = 0, retry = 300, val = 0;
 
 	write_grf_reg(priv, GRF_DVP_V18SEL, 0x1);
 
 	/* phy start */
 	write_csiphy_reg(priv, CSIPHY_CTRL_PWRCTL, 0xe4);
-
-	/* set data lane num and enable clock lane */
-	write_csiphy_reg(priv, CSIPHY_CTRL_LANE_ENABLE,
-			 ((GENMASK(sensor->lanes - 1, 0) <<
-			  MIPI_CSI_DPHY_CTRL_DATALANE_ENABLE_OFFSET_BIT) |
-			  (0x1 << MIPI_CSI_DPHY_CTRL_CLKLANE_ENABLE_OFFSET_BIT) | 0x1));
+	val = ((GENMASK(sensor->lanes - 1, 0) <<
+	       MIPI_CSI_DPHY_CTRL_DATALANE_ENABLE_OFFSET_BIT) |
+	       (0x1 << MIPI_CSI_DPHY_CTRL_CLKLANE_ENABLE_OFFSET_BIT) | 0x1);
+	do {
+		write_csiphy_reg(priv, CSIPHY_CTRL_LANE_ENABLE, val);
+		read_csiphy_reg(priv, CSIPHY_CTRL_LANE_ENABLE, &tmp);
+		if (tmp != val)
+			dev_info_ratelimited(priv->dev,
+					     "expect val is 0x%x,the current is 0x%x, retry %u\n",
+					     val, tmp, retry);
+	} while ((tmp != val) && (retry--));
 
 	/* Reset dphy analog part */
 	write_csiphy_reg(priv, CSIPHY_CTRL_PWRCTL, 0xe0);
