@@ -295,7 +295,7 @@
 	status = "okay";
 };
 
-&isp {
+&rkisp1 {
 	status = "okay";
 };
 

@@ -41,7 +41,6 @@
  */
 
 #include "rk3288.dtsi"
-#include "rk3288-rkisp1.dtsi"
 #include <dt-bindings/pwm/pwm.h>
 #include <dt-bindings/input/input.h>
 
@@ -513,7 +512,7 @@
 	status = "okay";
 };
 
-&isp {
+&rkisp1 {
 	status = "disabled";
 
 	port {
