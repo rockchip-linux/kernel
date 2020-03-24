@@ -353,13 +353,11 @@
 	status = "disabled";
 };
 
-&lvds_in_vopb {
+&rgb_in_vopb {
 	status = "disabled";
 };
 
-&lvds {
-	pinctrl-names = "default";
-	pinctrl-0 = <&lcdc_ctl>;
+&rgb {
 	status = "okay";
 
 	ports {
