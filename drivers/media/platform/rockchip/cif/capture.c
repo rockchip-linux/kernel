@@ -1022,6 +1022,8 @@ static void rkcif_stop_streaming(struct vb2_queue *queue)
 	struct rkcif_buffer *buf = NULL;
 	int ret;
 
+	mutex_lock(&dev->stream_lock);
+
 	stream->stopping = true;
 
 	ret = wait_event_timeout(stream->wq_stopped,
@@ -1064,6 +1066,8 @@ static void rkcif_stop_streaming(struct vb2_queue *queue)
 			 ret);
 	/* rkcif_soft_reset(dev, false); */
 	pm_runtime_put(dev->dev);
+
+	mutex_unlock(&dev->stream_lock);
 }
 
 /*
@@ -1347,6 +1351,8 @@ static int rkcif_start_streaming(struct vb2_queue *queue, unsigned int count)
 	/* struct v4l2_subdev *sd; */
 	int ret;
 
+	mutex_lock(&dev->stream_lock);
+
 	if (WARN_ON(stream->state != RKCIF_STATE_READY)) {
 		ret = -EBUSY;
 		v4l2_err(v4l2_dev, "stream in busy state\n");
@@ -1359,7 +1365,7 @@ static int rkcif_start_streaming(struct vb2_queue *queue, unsigned int count)
 			v4l2_err(v4l2_dev,
 				 "update sensor info failed %d\n",
 				 ret);
-			return ret;
+			goto out;
 		}
 	}
 
@@ -1412,7 +1418,7 @@ static int rkcif_start_streaming(struct vb2_queue *queue, unsigned int count)
 	}
 
 	v4l2_info(&dev->v4l2_dev, "%s successfully!\n", __func__);
-	return 0;
+	goto out;
 
 pipe_stream_off:
 	dev->pipe.set_stream(&dev->pipe, false);
@@ -1437,6 +1443,8 @@ destroy_buf:
 	}
 
 	rkcif_destroy_dummy_buf(stream);
+out:
+	mutex_unlock(&dev->stream_lock);
 	return ret;
 }
 
