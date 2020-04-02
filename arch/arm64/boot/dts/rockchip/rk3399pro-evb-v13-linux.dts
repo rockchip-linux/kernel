@@ -146,9 +146,9 @@
 		clocks = <&cru SCLK_CIF_OUT>;
 		clock-names = "xvclk";
 		/*
-		 * pd-gpios = <&gpio4 21 GPIO_ACTIVE_HIGH>; // conflict with csi-ctl-gpios
-		 * rst-gpios = <&gpio0 12 GPIO_ACTIVE_HIGH>;
+		 *pd-gpios = <&gpio4 RK_PD0 GPIO_ACTIVE_HIGH>; // conflict with csi-ctl-gpios
 		 */
+		rst-gpios = <&gpio0 RK_PB4 GPIO_ACTIVE_HIGH>;
 		rockchip,camera-module-index = <0>;
 		rockchip,camera-module-facing = "back";
 		rockchip,camera-module-name = "jaguar1";
