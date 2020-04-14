@@ -42,7 +42,7 @@
 #include <dt-bindings/sensor-dev.h>
 
 / {
-	model = "AIO-3399C Board (Linux Opensource)";
+	model = "AIO-3399C-AI Board (Linux Opensource)";
 	compatible = "rockchip,rk3399-firefly", "rockchip,rk3399";
 
 	test-power {

@@ -43,7 +43,7 @@
 #include <dt-bindings/display/media-bus-format.h>
 
 / {
-	model = "AIO-3399C Board (Linux Opensource)";
+	model = "AIO-3399C-AI Board LVDS HSX101H40C (Linux Opensource)";
 	compatible = "rockchip,rk3399-firefly", "rockchip,rk3399";
 
 	test-power {

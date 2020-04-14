@@ -2,7 +2,7 @@
 #include "rk3399-roc-pc.dtsi"
 
 / {
-	model = "Firefly roc-rk3399-pc";
+	model = "Firefly roc-rk3399-pc PLUS";
 	compatible = "firefly,roc-rk3399-pc", "rockchip,rk3399";
 
 	es8388-sound {
