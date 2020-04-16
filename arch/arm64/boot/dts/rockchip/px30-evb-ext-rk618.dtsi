@@ -4,7 +4,6 @@
  */
 
 /dts-v1/;
-#include <dt-bindings/clock/rk618-cru.h>
 #include <dt-bindings/display/media-bus-format.h>
 #include "px30-evb-ddr3-v10.dtsi"
 
@@ -117,59 +116,41 @@
 &i2c1 {
 	status = "okay";
 
-	rk618@50 {
-		compatible = "rockchip,rk618";
+	rk618: rk618@50 {
 		reg = <0x50>;
 		interrupt-parent = <&gpio2>;
 		interrupts = <12 IRQ_TYPE_LEVEL_HIGH>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&i2s1_2ch_mclk>;
-		clocks = <&cru SCLK_I2S1_OUT>;
-		clock-names = "clkin";
 		assigned-clocks = <&cru SCLK_I2S1_OUT>;
 		assigned-clock-rates = <11289600>;
 		reset-gpios = <&gpio0 RK_PA0 GPIO_ACTIVE_LOW>;
 		status = "okay";
+	};
+};
 
-		clock: cru {
-			compatible = "rockchip,rk618-cru";
-			clocks = <&cru SCLK_I2S1_OUT>, <&cru DCLK_VOPL>;
-			clock-names = "clkin", "lcdc0_dclkp";
-			assigned-clocks = <&clock SCALER_PLLIN_CLK>,
-					  <&clock VIF_PLLIN_CLK>,
-					  <&clock SCALER_CLK>,
-					  <&clock VIF0_PRE_CLK>,
-					  <&clock CODEC_CLK>,
-					  <&clock DITHER_CLK>;
-			assigned-clock-parents = <&cru SCLK_I2S1_OUT>,
-						 <&clock LCDC0_CLK>,
-						 <&clock SCALER_PLL_CLK>,
-						 <&clock VIF_PLL_CLK>,
-						 <&cru SCLK_I2S1_OUT>,
-						 <&clock VIF0_CLK>;
-			#clock-cells = <1>;
-			status = "okay";
-		};
+#include <arm/rk618.dtsi>
 
-		hdmi {
-			compatible = "rockchip,rk618-hdmi";
-			clocks = <&clock HDMI_CLK>;
-			clock-names = "hdmi";
-			assigned-clocks = <&clock HDMI_CLK>;
-			assigned-clock-parents = <&clock VIF0_CLK>;
-			status = "okay";
+&rk618_clkin {
+	clocks = <&cru SCLK_I2S1_OUT>;
+};
 
-			ports {
-				#address-cells = <1>;
-				#size-cells = <0>;
+&rk618_lcdc0_dclkp {
+	clocks = <&cru DCLK_VOPL>;
+};
 
-				port@0 {
-					reg = <0>;
+&rk618_hdmi {
+	status = "okay";
 
-					hdmi_in_rgb: endpoint {
-						remote-endpoint = <&rgb_out_hdmi>;
-					};
-				};
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		port@0 {
+			reg = <0>;
+
+			hdmi_in_rgb: endpoint {
+				remote-endpoint = <&rgb_out_hdmi>;
 			};
 		};
 	};
