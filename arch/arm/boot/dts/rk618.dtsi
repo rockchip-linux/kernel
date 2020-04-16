@@ -1,0 +1,93 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+// Copyright (c) 2019 Fuzhou Rockchip Electronics Co., Ltd
+
+#include <dt-bindings/clock/rk618-cru.h>
+
+/ {
+	rk618_clkin: rk618-clkin {
+		compatible = "fixed-factor-clock";
+		#clock-cells = <0>;
+		clock-mult = <1>;
+		clock-div = <1>;
+		clock-output-names = "rk618_clkin";
+	};
+
+	rk618_lcdc0_dclkp: rk618-lcdc0-dclkp {
+		compatible = "fixed-factor-clock";
+		#clock-cells = <0>;
+		clock-mult = <1>;
+		clock-div = <1>;
+		clock-output-names = "rk618_lcdc0_dclkp";
+	};
+};
+
+&rk618 {
+	compatible = "rockchip,rk618";
+	clocks = <&rk618_clkin>;
+	clock-names = "clkin";
+
+	rk618_cru: cru {
+		compatible = "rockchip,rk618-cru";
+		assigned-clocks = <&rk618_cru SCALER_PLLIN_CLK>,
+				  <&rk618_cru VIF_PLLIN_CLK>,
+				  <&rk618_cru SCALER_CLK>,
+				  <&rk618_cru VIF0_PRE_CLK>,
+				  <&rk618_cru CODEC_CLK>,
+				  <&rk618_cru DITHER_CLK>;
+		assigned-clock-parents = <&rk618_clkin>,
+					 <&rk618_cru LCDC0_CLK>,
+					 <&rk618_cru SCALER_PLL_CLK>,
+					 <&rk618_cru VIF_PLL_CLK>,
+					 <&rk618_clkin>,
+					 <&rk618_cru VIF0_CLK>;
+		#clock-cells = <1>;
+		status = "okay";
+	};
+
+	rk618_dsi: dsi {
+		compatible = "rockchip,rk618-dsi";
+		clocks = <&rk618_cru MIPI_CLK>;
+		clock-names = "dsi";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		status = "disabled";
+	};
+
+	rk618_hdmi: hdmi {
+		compatible = "rockchip,rk618-hdmi";
+		clocks = <&rk618_cru HDMI_CLK>;
+		clock-names = "hdmi";
+		assigned-clocks = <&rk618_cru HDMI_CLK>;
+		assigned-clock-parents = <&rk618_cru VIF0_CLK>;
+		status = "disabled";
+	};
+
+	rk618_lvds: lvds {
+		compatible = "rockchip,rk618-lvds";
+		clocks = <&rk618_cru LVDS_CLK>;
+		clock-names = "lvds";
+		status = "disabled";
+	};
+
+	rk618_rgb: rgb {
+		compatible = "rockchip,rk618-rgb";
+		clocks = <&rk618_cru RGB_CLK>;
+		clock-names = "rgb";
+		status = "disabled";
+	};
+
+	rk618_scaler: scaler {
+		compatible = "rockchip,rk618-scaler";
+		clocks = <&rk618_cru SCALER_CLK>, <&rk618_cru VIF0_CLK>,
+			 <&rk618_cru DITHER_CLK>;
+		clock-names = "scaler", "vif", "dither";
+		status = "disabled";
+	};
+
+	rk618_vif: vif {
+		compatible = "rockchip,rk618-vif";
+		clocks = <&rk618_cru VIF0_CLK>, <&rk618_cru VIF0_PRE_CLK>;
+		clock-names = "vif", "vif_pre";
+		status = "disabled";
+	};
+};
