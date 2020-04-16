@@ -62,100 +62,98 @@ struct rk618_cru {
 	struct clk_onecell_data clk_data;
 };
 
-static char clkin_name[32] = "dummy";
-static char lcdc0_dclkp_name[32] = "dummy";
-static char lcdc1_dclkp_name[32] = "dummy";
+#define CNAME(x) "rk618_" x
 
 #define PNAME(x) static const char *const x[]
 
-PNAME(mux_pll_in_p) = { "lcdc0_clk", "lcdc1_clk", clkin_name };
-PNAME(mux_pll_src_p) = { "vif_pll_clk", "scaler_pll_clk", };
-PNAME(mux_scaler_in_src_p) = { "vif0_clk", "vif1_clk" };
-PNAME(mux_hdmi_src_p) = { "vif1_clk", "scaler_clk", "vif0_clk" };
-PNAME(mux_dither_src_p) = { "vif0_clk", "scaler_clk" };
-PNAME(mux_vif0_src_p) = { "vif0_pre_clk", lcdc0_dclkp_name };
-PNAME(mux_vif1_src_p) = { "vif1_pre_clk", lcdc1_dclkp_name };
-PNAME(mux_codec_src_p) = { "codec_pre_clk", clkin_name };
+PNAME(mux_pll_in_p) = { CNAME("lcdc0_clk"), CNAME("lcdc1_clk"), CNAME("clkin") };
+PNAME(mux_pll_src_p) = { CNAME("vif_pll_clk"), CNAME("scaler_pll_clk"), };
+PNAME(mux_scaler_in_src_p) = { CNAME("vif0_clk"), CNAME("vif1_clk") };
+PNAME(mux_hdmi_src_p) = { CNAME("vif1_clk"), CNAME("scaler_clk"), CNAME("vif0_clk") };
+PNAME(mux_dither_src_p) = { CNAME("vif0_clk"), CNAME("scaler_clk") };
+PNAME(mux_vif0_src_p) = { CNAME("vif0_pre_clk"), CNAME("lcdc0_dclkp") };
+PNAME(mux_vif1_src_p) = { CNAME("vif1_pre_clk"), CNAME("lcdc1_dclkp") };
+PNAME(mux_codec_src_p) = { CNAME("codec_pre_clk"), CNAME("clkin") };
 
 /* Two PLL, one for dual datarate input logic, the other for scaler */
 static const struct clk_pll_data rk618_clk_plls[] = {
-	RK618_PLL(VIF_PLL_CLK, "vif_pll_clk", "vif_pllin_clk",
+	RK618_PLL(VIF_PLL_CLK, CNAME("vif_pll_clk"), CNAME("vif_pllin_clk"),
 		  RK618_CRU_PLL0_CON0,
 		  0),
-	RK618_PLL(SCALER_PLL_CLK, "scaler_pll_clk", "scaler_pllin_clk",
+	RK618_PLL(SCALER_PLL_CLK, CNAME("scaler_pll_clk"), CNAME("scaler_pllin_clk"),
 		  RK618_CRU_PLL1_CON0,
 		  0),
 };
 
 static const struct clk_mux_data rk618_clk_muxes[] = {
-	MUX(VIF_PLLIN_CLK, "vif_pllin_clk", mux_pll_in_p,
+	MUX(VIF_PLLIN_CLK, CNAME("vif_pllin_clk"), mux_pll_in_p,
 	    RK618_CRU_CLKSEL0, 6, 2,
 	    0),
-	MUX(SCALER_PLLIN_CLK, "scaler_pllin_clk", mux_pll_in_p,
+	MUX(SCALER_PLLIN_CLK, CNAME("scaler_pllin_clk"), mux_pll_in_p,
 	    RK618_CRU_CLKSEL0, 8, 2,
 	    0),
-	MUX(SCALER_IN_CLK, "scaler_in_clk", mux_scaler_in_src_p,
+	MUX(SCALER_IN_CLK, CNAME("scaler_in_clk"), mux_scaler_in_src_p,
 	    RK618_CRU_CLKSEL3, 15, 1,
 	    0),
-	MUX(DITHER_CLK, "dither_clk", mux_dither_src_p,
+	MUX(DITHER_CLK, CNAME("dither_clk"), mux_dither_src_p,
 	    RK618_CRU_CLKSEL3, 14, 1,
 	    0),
-	MUX(VIF0_CLK, "vif0_clk", mux_vif0_src_p,
+	MUX(VIF0_CLK, CNAME("vif0_clk"), mux_vif0_src_p,
 	    RK618_CRU_CLKSEL3, 1, 1,
 	    CLK_SET_RATE_PARENT | CLK_SET_RATE_NO_REPARENT),
-	MUX(VIF1_CLK, "vif1_clk", mux_vif1_src_p,
+	MUX(VIF1_CLK, CNAME("vif1_clk"), mux_vif1_src_p,
 	    RK618_CRU_CLKSEL3, 7, 1,
 	    CLK_SET_RATE_PARENT | CLK_SET_RATE_NO_REPARENT),
-	MUX(CODEC_CLK, "codec_clk", mux_codec_src_p,
+	MUX(CODEC_CLK, CNAME("codec_clk"), mux_codec_src_p,
 	    RK618_CRU_CLKSEL1, 1, 1,
 	    CLK_SET_RATE_PARENT),
 };
 
 static const struct clk_divider_data rk618_clk_dividers[] = {
-	DIV(LCDC0_CLK, "lcdc0_clk", lcdc0_dclkp_name,
+	DIV(LCDC0_CLK, CNAME("lcdc0_clk"), CNAME("lcdc0_dclkp"),
 	    RK618_CRU_CLKSEL0, 0, 3,
 	    0),
-	DIV(LCDC1_CLK, "lcdc1_clk", lcdc1_dclkp_name,
+	DIV(LCDC1_CLK, CNAME("lcdc1_clk"), CNAME("lcdc1_dclkp"),
 	    RK618_CRU_CLKSEL0, 3, 3,
 	    0),
 };
 
 static const struct clk_gate_data rk618_clk_gates[] = {
-	GATE(MIPI_CLK, "mipi_clk", "dither_clk",
+	GATE(MIPI_CLK, CNAME("mipi_clk"), CNAME("dither_clk"),
 	     RK618_CRU_CLKSEL1, 10,
 	     CLK_IGNORE_UNUSED),
-	GATE(LVDS_CLK, "lvds_clk", "dither_clk",
+	GATE(LVDS_CLK, CNAME("lvds_clk"), CNAME("dither_clk"),
 	     RK618_CRU_CLKSEL1, 9,
 	     CLK_IGNORE_UNUSED),
-	GATE(LVTTL_CLK, "lvttl_clk", "dither_clk",
+	GATE(LVTTL_CLK, CNAME("lvttl_clk"), CNAME("dither_clk"),
 	     RK618_CRU_CLKSEL1, 12,
 	     0),
-	GATE(RGB_CLK, "rgb_clk", "dither_clk",
+	GATE(RGB_CLK, CNAME("rgb_clk"), CNAME("dither_clk"),
 	     RK618_CRU_CLKSEL1, 11,
 	     0),
 };
 
 static const struct clk_composite_data rk618_clk_composites[] = {
-	COMPOSITE(SCALER_CLK, "scaler_clk", mux_pll_src_p,
+	COMPOSITE(SCALER_CLK, CNAME("scaler_clk"), mux_pll_src_p,
 		  RK618_CRU_CLKSEL1, 3, 1,
 		  RK618_CRU_CLKSEL1, 5, 3,
 		  RK618_CRU_CLKSEL1, 4,
 		  CLK_SET_RATE_PARENT | CLK_SET_RATE_NO_REPARENT),
-	COMPOSITE_NODIV(HDMI_CLK, "hdmi_clk", mux_hdmi_src_p,
+	COMPOSITE_NODIV(HDMI_CLK, CNAME("hdmi_clk"), mux_hdmi_src_p,
 			RK618_CRU_CLKSEL3, 12, 2,
 			RK618_CRU_CLKSEL1, 8,
 			0),
-	COMPOSITE(VIF0_PRE_CLK, "vif0_pre_clk", mux_pll_src_p,
+	COMPOSITE(VIF0_PRE_CLK, CNAME("vif0_pre_clk"), mux_pll_src_p,
 		  RK618_CRU_CLKSEL3, 0, 1,
 		  RK618_CRU_CLKSEL3, 3, 3,
 		  RK618_CRU_CLKSEL3, 2,
 		  CLK_SET_RATE_PARENT | CLK_SET_RATE_NO_REPARENT),
-	COMPOSITE(VIF1_PRE_CLK, "vif1_pre_clk", mux_pll_src_p,
+	COMPOSITE(VIF1_PRE_CLK, CNAME("vif1_pre_clk"), mux_pll_src_p,
 		  RK618_CRU_CLKSEL3, 6, 1,
 		  RK618_CRU_CLKSEL3, 9, 3,
 		  RK618_CRU_CLKSEL3, 8,
 		  CLK_SET_RATE_PARENT | CLK_SET_RATE_NO_REPARENT),
-	COMPOSITE_FRAC_NOGATE(0, "codec_pre_clk", mux_pll_src_p,
+	COMPOSITE_FRAC_NOGATE(0, CNAME("codec_pre_clk"), mux_pll_src_p,
 			      RK618_CRU_CLKSEL1, 0, 1,
 			      RK618_CRU_CLKSEL2,
 			      0),
@@ -303,9 +301,7 @@ static int rk618_cru_probe(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	struct rk618_cru *cru;
 	struct clk **clk_table;
-	const char *parent_name;
-	struct clk *clk;
-	int ret, i;
+	int i;
 
 	if (!of_device_is_available(dev->of_node))
 		return -ENODEV;
@@ -328,47 +324,6 @@ static int rk618_cru_probe(struct platform_device *pdev)
 	cru->clk_data.clks = clk_table;
 	cru->clk_data.clk_num = NR_CLKS;
 	platform_set_drvdata(pdev, cru);
-
-	clk = devm_clk_get(dev, "clkin");
-	if (IS_ERR(clk)) {
-		ret = PTR_ERR(clk);
-		dev_err(dev, "failed to get clkin: %d\n", ret);
-		return ret;
-	}
-
-	strlcpy(clkin_name, __clk_get_name(clk), sizeof(clkin_name));
-
-	clk = devm_clk_get(dev, "lcdc0_dclkp");
-	if (IS_ERR(clk)) {
-		if (PTR_ERR(clk) != -ENOENT) {
-			ret = PTR_ERR(clk);
-			dev_err(dev, "failed to get lcdc0_dclkp: %d\n", ret);
-			return ret;
-		}
-
-		clk = NULL;
-	}
-
-	parent_name = __clk_get_name(clk);
-	if (parent_name)
-		strlcpy(lcdc0_dclkp_name, parent_name,
-			sizeof(lcdc0_dclkp_name));
-
-	clk = devm_clk_get(dev, "lcdc1_dclkp");
-	if (IS_ERR(clk)) {
-		if (PTR_ERR(clk) != -ENOENT) {
-			ret = PTR_ERR(clk);
-			dev_err(dev, "failed to get lcdc1_dclkp: %d\n", ret);
-			return ret;
-		}
-
-		clk = NULL;
-	}
-
-	parent_name = __clk_get_name(clk);
-	if (parent_name)
-		strlcpy(lcdc1_dclkp_name, parent_name,
-			sizeof(lcdc1_dclkp_name));
 
 	rk618_clk_register_plls(cru);
 	rk618_clk_register_muxes(cru);
