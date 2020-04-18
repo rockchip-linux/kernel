@@ -417,7 +417,7 @@
 		dovdd-supply = <&vcc_mipi>; /* VCC18_MIPI */
 		dvdd-supply = <&dvdd_1v2>; /* DVDD_1V2 */
 
-		rockchip,camera-module-index = "<0>";
+		rockchip,camera-module-index = <0>;
 		rockchip,camera-module-facing = "back";
 		rockchip,camera-module-name = "CMK-CT0116";
 		rockchip,camera-module-lens-name = "Largan-50013A1";
@@ -443,7 +443,7 @@
 		dovdd-supply = <&vcc_mipi>; /* VCC18_MIPI */
 		dvdd-supply = <&dvdd_1v2>; /* DVDD_1V2 */
 
-		rockchip,camera-module-index = "<0>";
+		rockchip,camera-module-index = <0>;
 		rockchip,camera-module-facing = "back";
 		rockchip,camera-module-name = "CMK-CT0116";
 		rockchip,camera-module-lens-name = "Largan-50013A1";
