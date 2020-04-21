@@ -1018,6 +1018,12 @@ uvc_function_bind(struct usb_configuration *c, struct usb_function *f)
 		goto error;
 	}
 
+	uvc->video.async_wq = alloc_workqueue("uvcgvideo",
+					       WQ_UNBOUND | WQ_HIGHPRI,
+					       0);
+	if (!uvc->video.async_wq)
+		goto error;
+
 	/* Initialise video. */
 	ret = uvcg_video_init(&uvc->video);
 	if (ret < 0)
@@ -1213,6 +1219,9 @@ static void uvc_unbind(struct usb_configuration *c, struct usb_function *f)
 
 	usb_ep_free_request(cdev->gadget->ep0, uvc->control_req);
 	kfree(uvc->control_buf);
+
+	if (uvc->video.async_wq)
+		destroy_workqueue(uvc->video.async_wq);
 
 	usb_free_all_descriptors(f);
 }
