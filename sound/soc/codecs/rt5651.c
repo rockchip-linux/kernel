@@ -2123,6 +2123,11 @@ static int rt5651_probe(struct snd_soc_component *component)
 
 	rt5651_apply_properties(component);
 
+	if (rt5651->jd_src == RT5651_JD_NULL) {
+		snd_soc_component_force_enable_pin(component, "LDO");
+		snd_soc_component_force_enable_pin(component, "micbias1");
+	}
+
 	return 0;
 }
 
