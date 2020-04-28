@@ -72,12 +72,15 @@ MODULE_LICENSE("GPL");
 
 /* PIXEL_RATE = MIPI_FREQ * 2 * lane / 8bit */
 #define TC35874X_LINK_FREQ_310MHZ	310000000
-#define TC35874X_PIXEL_RATE		TC35874X_LINK_FREQ_310MHZ
+#define TC35874X_LINK_FREQ_400MHZ	400000000
+#define TC35874X_PIXEL_RATE_310M	TC35874X_LINK_FREQ_310MHZ
+#define TC35874X_PIXEL_RATE_400M	TC35874X_LINK_FREQ_400MHZ
 
 #define TC35874X_NAME			"tc35874x"
 
 static const s64 link_freq_menu_items[] = {
 	TC35874X_LINK_FREQ_310MHZ,
+	TC35874X_LINK_FREQ_400MHZ,
 };
 
 static const struct v4l2_dv_timings_cap tc35874x_timings_cap = {
@@ -85,7 +88,7 @@ static const struct v4l2_dv_timings_cap tc35874x_timings_cap = {
 	/* keep this initialization for compatibility with GCC < 4.4.6 */
 	.reserved = { 0 },
 	/* Pixel clock from REF_01 p. 20. Min/max height/width are unknown */
-	V4L2_INIT_BT_TIMINGS(1, 10000, 1, 10000, 0, 165000000,
+	V4L2_INIT_BT_TIMINGS(1, 10000, 1, 10000, 0, 400000000,
 			V4L2_DV_BT_STD_CEA861 | V4L2_DV_BT_STD_DMT |
 			V4L2_DV_BT_STD_GTF | V4L2_DV_BT_STD_CVT,
 			V4L2_DV_BT_CAP_PROGRESSIVE | V4L2_DV_BT_CAP_INTERLACED |
@@ -131,6 +134,59 @@ static u8 EDID_extend[] = {
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x32,
 };
 
+struct tc35874x_mode {
+	u32 width;
+	u32 height;
+	struct v4l2_fract max_fps;
+	u32 hts_def;
+	u32 vts_def;
+	u32 exp_def;
+};
+
+static const struct tc35874x_mode supported_modes[] = {
+	{
+		.width = 1920,
+		.height = 1080,
+		.max_fps = {
+			.numerator = 10000,
+			.denominator = 600000,
+		},
+		.exp_def = 0x470,
+		.hts_def = 0x898,
+		.vts_def = 0x465,
+	}, {
+		.width = 1280,
+		.height = 720,
+		.max_fps = {
+			.numerator = 10000,
+			.denominator = 600000,
+		},
+		.exp_def = 0x2f0,
+		.hts_def = 0x672,
+		.vts_def = 0x2ee,
+	}, {
+		.width = 720,
+		.height = 576,
+		.max_fps = {
+			.numerator = 10000,
+			.denominator = 500000,
+		},
+		.exp_def = 0x275,
+		.hts_def = 0x360,
+		.vts_def = 0x271,
+	}, {
+		.width = 720,
+		.height = 480,
+		.max_fps = {
+			.numerator = 10000,
+			.denominator = 600000,
+		},
+		.exp_def = 0x210,
+		.hts_def = 0x35a,
+		.vts_def = 0x20d,
+	},
+};
+
 struct tc35874x_state {
 	struct tc35874x_platform_data pdata;
 	struct v4l2_fwnode_bus_mipi_csi2 bus;
@@ -164,6 +220,9 @@ struct tc35874x_state {
 	const char *module_facing;
 	const char *module_name;
 	const char *len_name;
+	struct v4l2_ctrl *link_freq;
+	struct v4l2_ctrl *pixel_rate;
+	const struct tc35874x_mode *cur_mode;
 };
 
 static void tc35874x_enable_interrupts(struct v4l2_subdev *sd,
@@ -244,15 +303,15 @@ static void i2c_wr(struct v4l2_subdev *sd, u16 reg, u8 *values, u32 n)
 
 	switch (n) {
 	case 1:
-		v4l2_info(sd, "I2C write 0x%04x = 0x%02x",
+		v4l2_info(sd, "I2C write 0x%04x = 0x%02x\n",
 				reg, data[2]);
 		break;
 	case 2:
-		v4l2_info(sd, "I2C write 0x%04x = 0x%02x%02x",
+		v4l2_info(sd, "I2C write 0x%04x = 0x%02x%02x\n",
 				reg, data[3], data[2]);
 		break;
 	case 4:
-		v4l2_info(sd, "I2C write 0x%04x = 0x%02x%02x%02x%02x",
+		v4l2_info(sd, "I2C write 0x%04x = 0x%02x%02x%02x%02x\n",
 				reg, data[5], data[4], data[3], data[2]);
 		break;
 	default:
@@ -375,6 +434,8 @@ static int tc35874x_get_detected_timings(struct v4l2_subdev *sd,
 {
 	struct v4l2_bt_timings *bt = &timings->bt;
 	unsigned width, height, frame_width, frame_height, frame_interval, fps;
+	struct tc35874x_state *state = to_state(sd);
+	u16 fifo_level;
 
 	memset(timings, 0, sizeof(struct v4l2_dv_timings));
 
@@ -422,6 +483,25 @@ static int tc35874x_get_detected_timings(struct v4l2_subdev *sd,
 		i2c_wr16(sd, PACKETID1, 0x1e1e);
 	} else {
 		i2c_wr16(sd, FCCTL, 0);
+	}
+
+	if (state->csi_lanes_in_use == 4) {
+		if ((width == 1920 && height == 1080) ||
+			(width == 1280 && height == 720)) {
+			fifo_level = 370;
+		} else if ((width == 720 && height == 576) ||
+			(width == 720 && height == 480)) {
+			fifo_level = 350;
+		} else {
+			fifo_level = 300;
+		}
+
+		if ((bt->interlaced == V4L2_DV_INTERLACED) || (fps <= 33))
+			fifo_level = 300;
+
+		v4l2_dbg(2, debug, sd, "%s interlaced:%d, fifo_level:%d\n",
+			__func__, bt->interlaced, fifo_level);
+		i2c_wr16(sd, FIFOCTL, fifo_level);
 	}
 
 	return 0;
@@ -625,23 +705,43 @@ static void tc35874x_set_pll(struct v4l2_subdev *sd)
 	struct tc35874x_platform_data *pdata = &state->pdata;
 	u16 pllctl0 = i2c_rd16(sd, PLLCTL0);
 	u16 pllctl1 = i2c_rd16(sd, PLLCTL1);
-	u16 pllctl0_new = SET_PLL_PRD(pdata->pll_prd) |
-		SET_PLL_FBD(pdata->pll_fbd);
-	u32 hsck = (pdata->refclk_hz / pdata->pll_prd) * pdata->pll_fbd;
+	u16 pllctl0_new;
+	u32 hsck;
 	u16 pll_frs;
 
-	v4l2_dbg(2, debug, sd, "%s:\n", __func__);
+	if (state->csi_lanes_in_use == 4) {
+		if ((state->timings.bt.interlaced) ||
+			(fps(&(state->timings.bt)) <= 33)) {
+			pdata->pll_prd = 2;
+			pdata->pll_fbd = 65;
+			pll_frs = 0x1;
+		} else {
+			pdata->pll_prd = 5;
+			pdata->pll_fbd = 138;
+			pll_frs = 0x0;
+		}
+	} else {
+		hsck = (pdata->refclk_hz / pdata->pll_prd) * pdata->pll_fbd;
 
-	if (state->timings.bt.interlaced)
-		hsck /= 2;
-	if (hsck > 500000000)
-		pll_frs = 0x0;
-	else if (hsck > 250000000)
-		pll_frs = 0x1;
-	else if (hsck > 125000000)
-		pll_frs = 0x2;
-	else
-		pll_frs = 0x3;
+		if (state->timings.bt.interlaced)
+			hsck /= 2;
+		if (hsck > 500000000)
+			pll_frs = 0x0;
+		else if (hsck > 250000000)
+			pll_frs = 0x1;
+		else if (hsck > 125000000)
+			pll_frs = 0x2;
+		else
+			pll_frs = 0x3;
+	}
+
+	pllctl0_new = SET_PLL_PRD(pdata->pll_prd) | SET_PLL_FBD(pdata->pll_fbd);
+
+	v4l2_dbg(1, debug, sd,
+		"%s: prd:%d, fbd:%d, frs:%d, interlaced:%d, fps:%d\n",
+		__func__, pdata->pll_prd, pdata->pll_fbd, pll_frs,
+		state->timings.bt.interlaced, fps(&(state->timings.bt)));
+
 	/* Only rewrite when needed (new value or disabled), since rewriting
 	 * triggers another format change event. */
 	if (pllctl0 != pllctl0_new || (pllctl1 & MASK_PLL_EN) == 0 ||
@@ -753,6 +853,33 @@ static void tc35874x_set_csi(struct v4l2_subdev *sd)
 		i2c_wr32(sd, D2W_CNTRL, MASK_D2W_LANEDISABLE);
 	if (lanes < 4)
 		i2c_wr32(sd, D3W_CNTRL, MASK_D3W_LANEDISABLE);
+
+	v4l2_dbg(1, debug, sd, "%s: interlaced:%d, fps:%d\n", __func__,
+		state->timings.bt.interlaced, fps(&(state->timings.bt)));
+	if (state->csi_lanes_in_use == 4) {
+		if ((state->timings.bt.interlaced) ||
+			(fps(&(state->timings.bt)) <= 33)) {
+			state->pdata.lineinitcnt = 0x7d0;
+			state->pdata.lptxtimecnt = 0x002;
+			state->pdata.tclk_headercnt = 0x901;
+			state->pdata.tclk_trailcnt = 0x00;
+			state->pdata.ths_headercnt = 0x02;
+			state->pdata.twakeup = 0x32c8;
+			state->pdata.tclk_postcnt = 0x006;
+			state->pdata.ths_trailcnt = 0x0;
+			state->pdata.hstxvregcnt = 5;
+		} else {
+			state->pdata.lineinitcnt = 0x1770;
+			state->pdata.lptxtimecnt = 0x05;
+			state->pdata.tclk_headercnt = 0x1505;
+			state->pdata.tclk_trailcnt = 0x01;
+			state->pdata.ths_headercnt = 0x0105;
+			state->pdata.twakeup = 0x332c;
+			state->pdata.tclk_postcnt = 0x08;
+			state->pdata.ths_trailcnt = 0x02;
+			state->pdata.hstxvregcnt = 0x05;
+		}
+	}
 
 	i2c_wr32(sd, LINEINITCNT, pdata->lineinitcnt);
 	i2c_wr32(sd, LPTXTIMECNT, pdata->lptxtimecnt);
@@ -871,7 +998,7 @@ static void tc35874x_initial_setup(struct v4l2_subdev *sd)
 	struct tc35874x_platform_data *pdata = &state->pdata;
 
 	/* CEC and IR are not supported by this driver */
-	i2c_wr16_and_or(sd, SYSCTL, ~(MASK_CECRST | MASK_IRRST),
+	i2c_wr16_and_or(sd, SYSCTL, ~(MASK_CECRST | MASK_IRRST | MASK_I2SDIS),
 			(MASK_CECRST | MASK_IRRST));
 
 	tc35874x_reset(sd, MASK_CTXRST | MASK_HDMIRST);
@@ -1154,6 +1281,23 @@ static void tc35874x_hdmi_sys_int_handler(struct v4l2_subdev *sd, bool *handled)
 		v4l2_err(sd, "%s: Unhandled SYS_INT interrupts: 0x%02x\n",
 				__func__, sys_int);
 	}
+}
+
+/* --------------- CTRL OPS --------------- */
+
+static int tc35874x_get_ctrl(struct v4l2_ctrl *ctrl)
+{
+	int ret = -1;
+	struct tc35874x_state *state = container_of(ctrl->handler,
+			struct tc35874x_state, hdl);
+	struct v4l2_subdev *sd = &(state->sd);
+
+	if (ctrl->id == V4L2_CID_DV_RX_POWER_PRESENT) {
+		ret = tx_5v_power_present(sd);
+		*ctrl->p_new.p_s32 = ret;
+	}
+
+	return ret;
 }
 
 /* --------------- CORE OPS --------------- */
@@ -1569,6 +1713,42 @@ static int tc35874x_enum_mbus_code(struct v4l2_subdev *sd,
 	return 0;
 }
 
+static int tc35874x_enum_frame_sizes(struct v4l2_subdev *sd,
+				   struct v4l2_subdev_pad_config *cfg,
+				   struct v4l2_subdev_frame_size_enum *fse)
+{
+	v4l2_dbg(1, debug, sd, "%s:\n", __func__);
+
+	if (fse->index >= ARRAY_SIZE(supported_modes))
+		return -EINVAL;
+
+	if (fse->code != MEDIA_BUS_FMT_UYVY8_2X8)
+		return -EINVAL;
+
+	fse->min_width  = supported_modes[fse->index].width;
+	fse->max_width  = supported_modes[fse->index].width;
+	fse->max_height = supported_modes[fse->index].height;
+	fse->min_height = supported_modes[fse->index].height;
+
+	return 0;
+}
+
+static int tc35874x_enum_frame_interval(struct v4l2_subdev *sd,
+				struct v4l2_subdev_pad_config *cfg,
+				struct v4l2_subdev_frame_interval_enum *fie)
+{
+	if (fie->index >= ARRAY_SIZE(supported_modes))
+		return -EINVAL;
+
+	if (fie->code != MEDIA_BUS_FMT_UYVY8_2X8)
+		return -EINVAL;
+
+	fie->width = supported_modes[fie->index].width;
+	fie->height = supported_modes[fie->index].height;
+	fie->interval = supported_modes[fie->index].max_fps;
+	return 0;
+}
+
 static int tc35874x_get_fmt(struct v4l2_subdev *sd,
 		struct v4l2_subdev_pad_config *cfg,
 		struct v4l2_subdev_format *format)
@@ -1604,11 +1784,39 @@ static int tc35874x_get_fmt(struct v4l2_subdev *sd,
 	return 0;
 }
 
+static int tc35874x_get_reso_dist(const struct tc35874x_mode *mode,
+				 struct v4l2_mbus_framefmt *framefmt)
+{
+	return abs(mode->width - framefmt->width) +
+	       abs(mode->height - framefmt->height);
+}
+
+static const struct tc35874x_mode *
+tc35874x_find_best_fit(struct v4l2_subdev_format *fmt)
+{
+	struct v4l2_mbus_framefmt *framefmt = &fmt->format;
+	int dist;
+	int cur_best_fit = 0;
+	int cur_best_fit_dist = -1;
+	unsigned int i;
+
+	for (i = 0; i < ARRAY_SIZE(supported_modes); i++) {
+		dist = tc35874x_get_reso_dist(&supported_modes[i], framefmt);
+		if (cur_best_fit_dist == -1 || dist < cur_best_fit_dist) {
+			cur_best_fit_dist = dist;
+			cur_best_fit = i;
+		}
+	}
+
+	return &supported_modes[cur_best_fit];
+}
+
 static int tc35874x_set_fmt(struct v4l2_subdev *sd,
 		struct v4l2_subdev_pad_config *cfg,
 		struct v4l2_subdev_format *format)
 {
 	struct tc35874x_state *state = to_state(sd);
+	const struct tc35874x_mode *mode;
 
 	u32 code = format->format.code; /* is overwritten by get_fmt */
 	int ret = tc35874x_get_fmt(sd, cfg, format);
@@ -1632,6 +1840,21 @@ static int tc35874x_set_fmt(struct v4l2_subdev *sd,
 	state->mbus_fmt_code = format->format.code;
 
 	enable_stream(sd, false);
+	mode = tc35874x_find_best_fit(format);
+	state->cur_mode = mode;
+
+	if (state->csi_lanes_in_use == 4) {
+		__v4l2_ctrl_s_ctrl(state->link_freq,
+			link_freq_menu_items[1]);
+		__v4l2_ctrl_s_ctrl_int64(state->pixel_rate,
+			TC35874X_PIXEL_RATE_400M);
+	} else {
+		__v4l2_ctrl_s_ctrl(state->link_freq,
+			link_freq_menu_items[0]);
+		__v4l2_ctrl_s_ctrl_int64(state->pixel_rate,
+			TC35874X_PIXEL_RATE_310M);
+	}
+
 	tc35874x_set_pll(sd);
 	tc35874x_set_csi(sd);
 	tc35874x_set_csi_color_space(sd);
@@ -1716,6 +1939,19 @@ static int tc35874x_s_edid(struct v4l2_subdev *sd,
 	return 0;
 }
 
+static int tc35874x_g_frame_interval(struct v4l2_subdev *sd,
+				    struct v4l2_subdev_frame_interval *fi)
+{
+	struct tc35874x_state *state = to_state(sd);
+	const struct tc35874x_mode *mode = state->cur_mode;
+
+	mutex_lock(&state->confctl_mutex);
+	fi->interval = mode->max_fps;
+	mutex_unlock(&state->confctl_mutex);
+
+	return 0;
+}
+
 static void tc35874x_get_module_inf(struct tc35874x_state *tc35874x,
 				  struct rkmodule_inf *inf)
 {
@@ -1788,6 +2024,10 @@ static long tc35874x_compat_ioctl32(struct v4l2_subdev *sd,
 
 /* -------------------------------------------------------------------------- */
 
+static const struct v4l2_ctrl_ops tc35874x_ctrl_ops = {
+	.g_volatile_ctrl = tc35874x_get_ctrl,
+};
+
 static const struct v4l2_subdev_core_ops tc35874x_core_ops = {
 	.log_status = tc35874x_log_status,
 #ifdef CONFIG_VIDEO_ADV_DEBUG
@@ -1810,10 +2050,13 @@ static const struct v4l2_subdev_video_ops tc35874x_video_ops = {
 	.query_dv_timings = tc35874x_query_dv_timings,
 	.g_mbus_config = tc35874x_g_mbus_config,
 	.s_stream = tc35874x_s_stream,
+	.g_frame_interval = tc35874x_g_frame_interval,
 };
 
 static const struct v4l2_subdev_pad_ops tc35874x_pad_ops = {
 	.enum_mbus_code = tc35874x_enum_mbus_code,
+	.enum_frame_size = tc35874x_enum_frame_sizes,
+	.enum_frame_interval = tc35874x_enum_frame_interval,
 	.set_fmt = tc35874x_set_fmt,
 	.get_fmt = tc35874x_get_fmt,
 	.get_edid = tc35874x_g_edid,
@@ -2033,6 +2276,7 @@ static int tc35874x_probe(struct i2c_client *client,
 	}
 
 	state->i2c_client = client;
+	state->cur_mode = &supported_modes[0];
 
 	/* platform data */
 	if (pdata) {
@@ -2065,14 +2309,19 @@ static int tc35874x_probe(struct i2c_client *client,
 	/* control handlers */
 	v4l2_ctrl_handler_init(&state->hdl, 4);
 
-	v4l2_ctrl_new_int_menu(&state->hdl, NULL, V4L2_CID_LINK_FREQ,
-			       0, 0, link_freq_menu_items);
+	state->link_freq = v4l2_ctrl_new_int_menu(&state->hdl, NULL,
+		V4L2_CID_LINK_FREQ, 0, 0, link_freq_menu_items);
 
-	v4l2_ctrl_new_std(&state->hdl, NULL, V4L2_CID_PIXEL_RATE,
-			  0, TC35874X_PIXEL_RATE, 1, TC35874X_PIXEL_RATE);
+	state->pixel_rate = v4l2_ctrl_new_std(&state->hdl, NULL,
+		V4L2_CID_PIXEL_RATE, 0, TC35874X_PIXEL_RATE_400M, 1,
+		TC35874X_PIXEL_RATE_400M);
 
-	state->detect_tx_5v_ctrl = v4l2_ctrl_new_std(&state->hdl, NULL,
-			V4L2_CID_DV_RX_POWER_PRESENT, 0, 1, 0, 0);
+	state->detect_tx_5v_ctrl = v4l2_ctrl_new_std(&state->hdl,
+			&tc35874x_ctrl_ops, V4L2_CID_DV_RX_POWER_PRESENT,
+			0, 1, 0, 0);
+
+	if (state->detect_tx_5v_ctrl)
+		state->detect_tx_5v_ctrl->flags |= V4L2_CTRL_FLAG_VOLATILE;
 
 	/* custom controls */
 	state->audio_sampling_rate_ctrl = v4l2_ctrl_new_custom(&state->hdl,
@@ -2221,4 +2470,15 @@ static struct i2c_driver tc35874x_driver = {
 	.id_table = tc35874x_id,
 };
 
-module_i2c_driver(tc35874x_driver);
+static int __init tc35874x_driver_init(void)
+{
+	return i2c_add_driver(&tc35874x_driver);
+}
+
+static void __exit tc35874x_driver_exit(void)
+{
+	i2c_del_driver(&tc35874x_driver);
+}
+
+device_initcall_sync(tc35874x_driver_init);
+module_exit(tc35874x_driver_exit);
