@@ -613,6 +613,16 @@
 		reg = <0x38>;
 		status = "disabled";
 	};
+
+	gt9xx: gt9xx@14 {
+		compatible = "goodix,gt9xx";
+		status = "disabled";
+		//x2y = <0>;
+		reg = <0x14>;
+		max-x = <800>;
+		max-y = <480>;
+		tp-size = <911>;
+	};
 };
 
 &i2c4 {

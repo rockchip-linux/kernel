@@ -14,6 +14,7 @@ dtbo-$(CONFIG_ARCH_ROCKCHIP) += \
 	hifiberry-dac.dtbo \
 	hifiberry-dacplus.dtbo \
 	raspberrypi-7-inch-lcd.dtbo \
+	gt9xx.dtbo \
 	cpufreq.dtbo \
 	imx219.dtbo \
 	ov5647.dtbo \

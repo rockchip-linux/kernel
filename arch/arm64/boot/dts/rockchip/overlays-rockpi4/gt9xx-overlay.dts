@@ -1,0 +1,18 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+	model = "ROCK PI 4B";
+	compatible = "rockchip,rockpi","rockchip,rk3399";
+
+	fragment@0 {
+		target = <&i2c1>;
+
+		__overlay__ {
+			gt9xx: gt9xx@14 {
+				x2y;
+				status = "okay";
+			};
+		};
+	};
+};
