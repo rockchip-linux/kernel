@@ -1838,7 +1838,9 @@ static void xhci_cleanup_halted_endpoint(struct xhci_hcd *xhci,
 	ep->stopped_stream = stream_id;
 
 	xhci_queue_reset_ep(xhci, command, slot_id, ep_index);
-	xhci_cleanup_stalled_ring(xhci, ep_index, td);
+
+	if (td)
+		xhci_cleanup_stalled_ring(xhci, ep_index, td);
 
 	ep->stopped_stream = 0;
 
@@ -2387,11 +2389,11 @@ static int handle_tx_event(struct xhci_hcd *xhci,
 
 	/* Endpoint ID is 1 based, our index is zero based */
 	ep_index = TRB_TO_EP_ID(le32_to_cpu(event->flags)) - 1;
+	trb_comp_code = GET_COMP_CODE(le32_to_cpu(event->transfer_len));
 	ep = &xdev->eps[ep_index];
 	ep_ring = xhci_dma_to_transfer_ring(ep, le64_to_cpu(event->buffer));
 	ep_ctx = xhci_get_ep_ctx(xhci, xdev->out_ctx, ep_index);
-	if (!ep_ring ||
-	    (le32_to_cpu(ep_ctx->ep_info) & EP_STATE_MASK) ==
+	if ((le32_to_cpu(ep_ctx->ep_info) & EP_STATE_MASK) ==
 	    EP_STATE_DISABLED) {
 		xhci_err(xhci,
 			 "ERROR Transfer event for disabled endpoint slot %u ep %u or incorrect stream ring\n",
@@ -2405,6 +2407,27 @@ static int handle_tx_event(struct xhci_hcd *xhci,
 			 le32_to_cpu(event->transfer_len),
 			 le32_to_cpu(event->flags));
 		return -ENODEV;
+	}
+
+	/* Some transfer events don't always point to a trb, see xhci 4.17.4 */
+	if (!ep_ring) {
+	    switch (trb_comp_code) {
+	    case COMP_STALL_ERROR:
+	    case COMP_USB_TRANSACTION_ERROR:
+	    case COMP_INVALID_STREAM_TYPE_ERROR:
+	    case COMP_INVALID_STREAM_ID_ERROR:
+	        xhci_cleanup_halted_endpoint(xhci, slot_id, ep_index,
+	                         0, NULL, NULL);
+	        goto cleanup;
+	    case COMP_RING_UNDERRUN:
+	    case COMP_RING_OVERRUN:
+	    case COMP_STOPPED_LENGTH_INVALID:
+	        goto cleanup;
+	    default:
+	        xhci_err(xhci, "ERROR Transfer event for unknown stream ring slot %u ep %u\n",
+	             slot_id, ep_index);
+	        return -ENODEV;
+	    }
 	}
 
 	/* Count current td numbers if ep->skip is set */
