@@ -390,8 +390,8 @@ static int analogix_dp_process_clock_recovery(struct analogix_dp_device *dp)
 	int lane, lane_count, retval;
 	u8 voltage_swing, pre_emphasis, training_lane;
 	u8 link_status[2], adjust_request[2];
-	u8 dpcd;
-	bool tps3_supported;
+	u8 dpcd, training_pattern = TRAINING_PTN2;
+	bool source_tps3_supported, sink_tps3_supported;
 
 	usleep_range(100, 101);
 
@@ -411,20 +411,19 @@ static int analogix_dp_process_clock_recovery(struct analogix_dp_device *dp)
 		if (retval < 0)
 			return retval;
 
-		tps3_supported = !!(dpcd & DP_TPS3_SUPPORTED);
+		source_tps3_supported =
+			dp->video_info.max_link_rate == DP_LINK_BW_5_4;
+		sink_tps3_supported = !!(dpcd & DP_TPS3_SUPPORTED);
 
-		dev_dbg(dp->dev, "Training pattern sequence 3 is%s supported\n",
-			tps3_supported ? "" : " not");
+		if (source_tps3_supported && sink_tps3_supported)
+			training_pattern = TRAINING_PTN3;
 
 		/* set training pattern for EQ */
-		analogix_dp_set_training_pattern(dp, tps3_supported ?
-						 TRAINING_PTN3 : TRAINING_PTN2);
+		analogix_dp_set_training_pattern(dp, training_pattern);
 
 		retval = drm_dp_dpcd_writeb(&dp->aux, DP_TRAINING_PATTERN_SET,
 					    DP_LINK_SCRAMBLING_DISABLE |
-					    (tps3_supported ?
-					     DP_TRAINING_PATTERN_3 :
-					     DP_TRAINING_PATTERN_2));
+					    training_pattern);
 		if (retval < 0)
 			return retval;
 
