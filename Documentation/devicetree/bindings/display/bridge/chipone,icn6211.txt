@@ -11,6 +11,7 @@ Optional properties:
 - vdd1-supply: phandle to vdd1 regulator device node
 - vdd2-supply: phandle to vdd2 regulator device node
 - vdd3-supply: phandle to vdd3 regulator device node
+- chipone,mipi-lane-pn-swap: enable mipi lane p/n swap
 
 Example:
 
