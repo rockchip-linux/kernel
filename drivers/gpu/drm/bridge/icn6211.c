@@ -358,16 +358,26 @@ static void icn6211_bridge_pre_enable(struct drm_bridge *bridge)
 	regmap_write(icn6211->regmap, MIPI_PD_CK_LANE, 0xa0);
 	regmap_write(icn6211->regmap, PLL_CTRL_C, 0xff);
 	regmap_write(icn6211->regmap, BIST_POL, 0x01);
-	regmap_write(icn6211->regmap, PLL_CTRL_6, 0x90);
 
 	/*
 	 * FIXME:
 	 * fout = fin / pll_refdiv / pll_extra_div * pll_int / pll_dv / 2
 	 */
-	pll_refdiv = 13;
-	pll_extra_div = 1;
-	pll_dv = 4;
-	regmap_write(icn6211->regmap, PLL_REF_DIV, 0x4d);
+	if (refclk > 40000000) {
+		/* PLL reference clock source from mipi high speed byte clock */
+		regmap_write(icn6211->regmap, PLL_CTRL_6, 0x92);
+		pll_refdiv = 10;
+		pll_extra_div = 2;
+		pll_dv = 4;
+		regmap_write(icn6211->regmap, PLL_REF_DIV, 0x5a);
+	} else {
+		/* PLL reference clock source from 26MHz oscillator */
+		regmap_write(icn6211->regmap, PLL_CTRL_6, 0x90);
+		pll_refdiv = 13;
+		pll_extra_div = 1;
+		pll_dv = 4;
+		regmap_write(icn6211->regmap, PLL_REF_DIV, 0x4d);
+	}
 
 	pll_int = DIV_ROUND_UP(mode->clock * 1000 * 2 * pll_dv,
 			       refclk / pll_refdiv / pll_extra_div);
