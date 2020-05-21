@@ -199,6 +199,7 @@ struct icn6211 {
 	struct regulator *vdd3;	/* RGB output power supply, can be 1.8V-3.3V */
 	struct gpio_desc *enable_gpio;	/* When EN is low, this chip is reset */
 	bool mipi_lane_pn_swap;
+	u32 rgb_color_swap_mode;
 };
 
 static inline struct icn6211 *bridge_to_icn6211(struct drm_bridge *b)
@@ -402,7 +403,8 @@ static void icn6211_bridge_pre_enable(struct drm_bridge *bridge)
 	 *	 Group_1[7:0] = DATA[15:8]
 	 *	 Group_2[7:0] = DATA[23:16]
 	 */
-	regmap_write(icn6211->regmap, SYS_CTRL_0, 0x45);
+	regmap_write(icn6211->regmap, SYS_CTRL_0, 0x40 |
+		     icn6211->rgb_color_swap_mode);
 	regmap_write(icn6211->regmap, SYS_CTRL_1, 0x88);
 	if (icn6211->mipi_lane_pn_swap)
 		regmap_write(icn6211->regmap, MIPI_PN_SWAP, 0x1f);
@@ -497,6 +499,7 @@ static int icn6211_i2c_probe(struct i2c_client *client,
 {
 	struct device *dev = &client->dev;
 	struct icn6211 *icn6211;
+	u32 val;
 	int ret;
 
 	icn6211 = devm_kzalloc(dev, sizeof(*icn6211), GFP_KERNEL);
@@ -540,6 +543,13 @@ static int icn6211_i2c_probe(struct i2c_client *client,
 
 	icn6211->mipi_lane_pn_swap = of_property_read_bool(dev->of_node,
 						"chipone,mipi-lane-pn-swap");
+
+	ret = of_property_read_u32(dev->of_node, "chipone,rgb-color-swap-mode",
+				   &val);
+	if (ret || val > 5)
+		icn6211->rgb_color_swap_mode = 5;
+	else
+		icn6211->rgb_color_swap_mode = val;
 
 	icn6211->regmap = devm_regmap_init_i2c(client, &icn6211_regmap_config);
 	if (IS_ERR(icn6211->regmap)) {
