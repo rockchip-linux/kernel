@@ -50,7 +50,7 @@
 	compatible = "firefly,rk3328-firefly-core", "rockchip,rk3328";
 	
 	chosen {
-		bootargs = "rockchip_jtag earlyprintk=uart8250-32bit,0xff130000 swiotlb=1 kpti=0 console=ttyFIQ0 rw root=PARTUUID=614e0000-0000 rootfstype=ext4 rootwait systemd.gpt_auto=0";
+		bootargs = "rockchip_jtag earlyprintk=uart8250-32bit,0xff130000 swiotlb=1 kpti=0 console=ttyFIQ0 ro root=PARTLABEL=rootfs rootfstype=ext4 rootwait overlayroot=device:dev=PARTLABEL=userdata,fstype=ext4,mkfs=1 systemd.gpt_auto=0 cgroup_enable=memory swapaccount=1";
 		stdout-path = "serial2:1500000n8";
 	};
 
