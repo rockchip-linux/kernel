@@ -2432,7 +2432,6 @@ static void initialize_hdmi_ih_mutes(struct dw_hdmi *hdmi)
 	hdmi_writeb(hdmi, 0xff, HDMI_IH_MUTE_AS_STAT0);
 	hdmi_writeb(hdmi, 0xff, HDMI_IH_MUTE_PHY_STAT0);
 	hdmi_writeb(hdmi, 0xff, HDMI_IH_MUTE_I2CM_STAT0);
-	hdmi_writeb(hdmi, 0xff, HDMI_IH_MUTE_CEC_STAT0);
 	hdmi_writeb(hdmi, 0xff, HDMI_IH_MUTE_VP_STAT0);
 	hdmi_writeb(hdmi, 0xff, HDMI_IH_MUTE_I2CMPHY_STAT0);
 	hdmi_writeb(hdmi, 0xff, HDMI_IH_MUTE_AHBDMAAUD_STAT0);
