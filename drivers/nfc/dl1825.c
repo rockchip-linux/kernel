@@ -92,7 +92,7 @@ static irqreturn_t dl1825_dev_irq_handler(int irq, void *dev_id)
 	input_report_key(nfc_input_temp, KEY_NFC_IN, KEY_PRESS);
 	input_report_key(nfc_input_temp, KEY_NFC_IN, KEY_RELEASE);
 	input_sync(nfc_input_temp);
-	
+
 	return IRQ_HANDLED;
 }
 
@@ -103,7 +103,7 @@ static ssize_t dl1825_dev_read(struct file *filp, char __user *buf, size_t count
 	unsigned char data_len, crc8;
 	int ret;
 	nfc_data_struct_t cur_nfc_data;
-	
+
 	if (count > MAX_BUFFER_SIZE)
 		count = MAX_BUFFER_SIZE;
 
@@ -129,7 +129,7 @@ static ssize_t dl1825_dev_read(struct file *filp, char __user *buf, size_t count
 			__func__, ret);
 		return -EIO;
 	}
-	
+
 	memcpy(&cur_nfc_data, tmp, sizeof(cur_nfc_data.head)+sizeof(cur_nfc_data.len)+sizeof(cur_nfc_data.type));
 	if(NFC_DATA_HEAD != cur_nfc_data.head
 			|| cur_nfc_data.len > NFC_DATA_MAX_LEN)
@@ -137,7 +137,7 @@ static ssize_t dl1825_dev_read(struct file *filp, char __user *buf, size_t count
 		pr_err("%s: i2c_master_recv data err[head] \n", __func__);
 		return 0;
 	}
-	
+
 	data_len = cur_nfc_data.len - sizeof(cur_nfc_data.len) - sizeof(cur_nfc_data.type) - sizeof(cur_nfc_data.crc8);
 	crc8 = firefly_cal_crc8(&tmp[0], sizeof(cur_nfc_data.head)+sizeof(cur_nfc_data.len)+sizeof(cur_nfc_data.type)+data_len);
 	cur_nfc_data.crc8 = tmp[sizeof(cur_nfc_data.head)+sizeof(cur_nfc_data.len)+sizeof(cur_nfc_data.type)+data_len];
@@ -153,7 +153,7 @@ static ssize_t dl1825_dev_read(struct file *filp, char __user *buf, size_t count
 		pr_err("%s: i2c_master_recv data err[tail] \n", __func__);
 		return -EIO;
 	}
-	
+
 	cur_nfc_data.data = (unsigned char *)kzalloc(data_len, GFP_KERNEL);
 	if(NULL == cur_nfc_data.data)
 	{
@@ -173,8 +173,8 @@ static ssize_t dl1825_dev_read(struct file *filp, char __user *buf, size_t count
 		printk(" %02X", cur_nfc_data.data[i]);
 	}
 	printk("\n");
-#endif	
-	
+#endif
+
 #endif
 
 	kfree(cur_nfc_data.data);
@@ -243,7 +243,7 @@ static const struct file_operations dl1825_dev_fops = {
 	.open	= dl1825_dev_open,
 };
 
-extern bool firefly_hwversion_in_range(const struct device_node *device);
+//extern bool firefly_hwversion_in_range(const struct device_node *device);
 
 static int dl1825_probe(struct i2c_client *client, const struct i2c_device_id *id)
 {
@@ -258,8 +258,8 @@ static int dl1825_probe(struct i2c_client *client, const struct i2c_device_id *i
 	struct input_dev *nfc_input = NULL;
 
 
-	if (!firefly_hwversion_in_range(np))
-		return -EINVAL;
+	// if (!firefly_hwversion_in_range(np))
+	// 	return -EINVAL;
 
 	while (timer > 0) {
 		ret = i2c_master_recv(client, &buffer, 1);
@@ -280,7 +280,7 @@ static int dl1825_probe(struct i2c_client *client, const struct i2c_device_id *i
 		printk("input_allocate_device failed!\n");
 		return -ENOMEM;
 	}
-	
+
 	nfc_input->name = NFC_NAME;
 	nfc_input->id.bustype = BUS_HOST;
 
@@ -298,9 +298,9 @@ static int dl1825_probe(struct i2c_client *client, const struct i2c_device_id *i
 	error = input_register_device(nfc_input);
 	if (error)
 		pr_err("nfc: register input device err, error: %d\n", error);
-	
+
 	dev_dbg(&client->dev, "%s: enter\n", __func__);
-		
+
 	printk("zjy dl1825_probe \r\n");
 
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
@@ -336,13 +336,13 @@ static int dl1825_probe(struct i2c_client *client, const struct i2c_device_id *i
 			   dev_err(&client->dev, "%s: unable to set direction for gpio [%d]\n", __func__, irq_gpio);
 			   goto err_irq;
 		 }
-		 
+
 		 irqn = gpio_to_irq(irq_gpio);
 		 if (irqn < 0){
 			   ret = irqn;
 			   goto err_irq;
 		 }
-		 
+
 		 client->irq = irqn;
 
 	}else{

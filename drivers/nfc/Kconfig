@@ -50,6 +50,7 @@ config NFC_MEI_PHY
 
 config NFC_SIM
 	tristate "NFC hardware simulator driver"
+
 	help
 	  This driver declares two virtual NFC devices supporting NFC-DEP
 	  protocol. An LLCP connection can be established between them and
@@ -67,6 +68,17 @@ config NFC_PORT100
 	  RC-S380 dongle.
 
 	  If unsure, say N.
+
+config NFC_DL1825
+	tristate "Texas Instruments DL1825 NFC driver"
+	depends on I2C && NFC_DIGITAL
+	help
+	  This option enables the NFC driver for Texas Instruments' DL1825
+	  device.
+
+	  Say Y here to compile support for DL1825 into the kernel or
+	  say M  to compile it as a module. The module will be called
+	  dl1825.ko.
 
 source "drivers/nfc/fdp/Kconfig"
 source "drivers/nfc/pn544/Kconfig"
