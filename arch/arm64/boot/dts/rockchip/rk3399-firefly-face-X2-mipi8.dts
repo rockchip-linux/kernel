@@ -78,6 +78,15 @@
 		pinctrl-1 = <&ear_ctl_h>;
         #sound-dai-cells = <0>;
     };
+
+    /*NFC*/
+    dl1825: dl1825@35 {
+        compatible = "firefly,dl1825";
+        reg = <0x35>;
+        nfc-irq-gpio = <&gpio2 3 IRQ_TYPE_EDGE_RISING>;
+        status = "okay";
+        firefly,hwversion_range_gt = <1 0x00020000>;    // >= v2.0
+	};
 };
 
 &backlight {
