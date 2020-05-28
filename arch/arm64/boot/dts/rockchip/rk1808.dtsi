@@ -298,7 +298,7 @@
 	};
 
 	pcie0: pcie@fc400000 {
-		compatible = "rockchip,rk1808-pcie-ep", "snps,dw-pcie";
+		compatible = "rockchip,rk1808-pcie", "snps,dw-pcie";
 		#address-cells = <3>;
 		#size-cells = <2>;
 		bus-range = <0x0 0x1f>;
@@ -694,9 +694,11 @@
 		assigned-clocks = <&cru SCLK_PCIEPHY_REF>;
 		assigned-clock-rates = <25000000>;
 		resets = <&cru SRST_USB3_OTG_A>, <&cru SRST_PCIEPHY_POR>,
-			 <&cru SRST_PCIEPHY_P>, <&cru SRST_PCIEPHY_PIPE>;
+			 <&cru SRST_PCIEPHY_P>, <&cru SRST_PCIEPHY_PIPE>,
+			 <&cru SRST_USB3PHY_GRF_P>;
 		reset-names = "otg-rst", "combphy-por",
-			      "combphy-apb", "combphy-pipe";
+			      "combphy-apb", "combphy-pipe",
+			      "usb3phy_grf_p";
 		rockchip,combphygrf = <&combphy_grf>;
 		rockchip,usbpciegrf = <&usb_pcie_grf>;
 		status = "disabled";
@@ -1383,39 +1385,42 @@
 		rockchip,evb-irdrop = <12500>;
 		nvmem-cells = <&logic_leakage>;
 		nvmem-cell-names = "leakage";
+		rockchip,temp-hysteresis = <5000>;
+		rockchip,low-temp = <0>;
+		rockchip,low-temp-min-volt = <800000>;
 
 		opp-192000000 {
 			opp-hz = /bits/ 64 <192000000>;
-			opp-microvolt = <750000>;
+			opp-microvolt = <800000>;
 		};
 		opp-324000000 {
 			opp-hz = /bits/ 64 <324000000>;
-			opp-microvolt = <750000>;
+			opp-microvolt = <800000>;
 		};
 		opp-450000000 {
 			opp-hz = /bits/ 64 <450000000>;
-			opp-microvolt = <750000>;
+			opp-microvolt = <800000>;
 		};
 		opp-528000000 {
 			opp-hz = /bits/ 64 <528000000>;
-			opp-microvolt = <750000>;
+			opp-microvolt = <800000>;
 		};
 		opp-664000000 {
 			opp-hz = /bits/ 64 <664000000>;
-			opp-microvolt = <750000>;
+			opp-microvolt = <800000>;
 		};
 		opp-784000000 {
 			opp-hz = /bits/ 64 <784000000>;
-			opp-microvolt = <750000>;
+			opp-microvolt = <800000>;
 		};
 		opp-924000000 {
 			opp-hz = /bits/ 64 <924000000>;
-			opp-microvolt = <750000>;
+			opp-microvolt = <800000>;
 		};
 		/* 1066M is only for ddr4 */
 		opp-1066000000 {
 			opp-hz = /bits/ 64 <1066000000>;
-			opp-microvolt = <775000>;
+			opp-microvolt = <800000>;
 			status = "disabled";
 		};
 	};
@@ -1717,7 +1722,7 @@
 			   0      792   50000
 		>;
 
-		rockchip,max-volt = <950000>;
+		rockchip,max-volt = <880000>;
 		rockchip,evb-irdrop = <37500>;
 		nvmem-cells = <&npu_leakage>;
 		nvmem-cell-names = "leakage";
@@ -1731,26 +1736,26 @@
 
 		opp-200000000 {
 			opp-hz = /bits/ 64 <200000000>;
-			opp-microvolt = <750000 750000 950000>;
+			opp-microvolt = <750000 750000 880000>;
 		};
 		opp-297000000 {
 			opp-hz = /bits/ 64 <297000000>;
-			opp-microvolt = <750000 750000 950000>;
+			opp-microvolt = <750000 750000 880000>;
 		};
 		opp-400000000 {
 			opp-hz = /bits/ 64 <400000000>;
-			opp-microvolt = <750000 750000 950000>;
+			opp-microvolt = <750000 750000 880000>;
 		};
 		opp-594000000 {
 			opp-hz = /bits/ 64 <594000000>;
-			opp-microvolt = <750000 750000 950000>;
+			opp-microvolt = <750000 750000 880000>;
 		};
 		opp-792000000 {
 			opp-hz = /bits/ 64 <792000000>;
-			opp-microvolt = <825000 825000 950000>;
-			opp-microvolt-L0 = <825000 825000 950000>;
-			opp-microvolt-L1 = <800000 800000 950000>;
-			opp-microvolt-L2 = <775000 775000 950000>;
+			opp-microvolt = <825000 825000 880000>;
+			opp-microvolt-L0 = <825000 825000 880000>;
+			opp-microvolt-L1 = <800000 800000 880000>;
+			opp-microvolt-L2 = <775000 775000 880000>;
 		};
 	};
 

@@ -11,7 +11,7 @@
 #include <dt-bindings/sensor-dev.h>
 #include "rk3326.dtsi"
 #include "rk3326-863-cif-sensor.dtsi"
-#include "px30-android.dtsi"
+#include "rk3326-android.dtsi"
 
 / {
 	model = "Rockchip rk3326 86v board";
@@ -781,14 +781,6 @@
 };
 
 &vopb_mmu {
-	status = "okay";
-};
-
-&vopl {
-	status = "okay";
-};
-
-&vopl_mmu {
 	status = "okay";
 };
 

@@ -3,6 +3,8 @@
  * ov2680 driver
  *
  * Copyright (C) 2017 Fuzhou Rockchip Electronics Co., Ltd.
+ * V0.0X01.0X02 fix mclk issue when probe multiple camera.
+ * V0.0X01.0X03 add enum_frame_interval function.
  */
 
 #include <linux/clk.h>
@@ -34,7 +36,7 @@
 /* verify default register values */
 //#define CHECK_REG_VALUE
 
-#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x0)
+#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x3)
 
 #ifndef V4L2_CID_DIGITAL_GAIN
 #define V4L2_CID_DIGITAL_GAIN		V4L2_CID_GAIN
@@ -685,9 +687,10 @@ static int ov2680_s_stream(struct v4l2_subdev *sd, int on)
 	int ret = 0;
 
 	dev_info(&client->dev, "%s: on: %d, %dx%d@%d\n", __func__, on,
-				ov2680->cur_mode->width,
-				ov2680->cur_mode->height,
-				ov2680->cur_mode->max_fps.denominator);
+		ov2680->cur_mode->width,
+		ov2680->cur_mode->height,
+		DIV_ROUND_CLOSEST(ov2680->cur_mode->max_fps.denominator,
+		ov2680->cur_mode->max_fps.numerator));
 
 	mutex_lock(&ov2680->mutex);
 	on = !!on;
@@ -738,13 +741,16 @@ static int __ov2680_power_on(struct ov2680 *ov2680)
 		if (ret < 0)
 			dev_err(dev, "could not set pins\n");
 	}
-
+	ret = clk_set_rate(ov2680->xvclk, OV2680_XVCLK_FREQ);
+	if (ret < 0)
+		dev_warn(dev, "Failed to set xvclk rate (24MHz)\n");
+	if (clk_get_rate(ov2680->xvclk) != OV2680_XVCLK_FREQ)
+		dev_warn(dev, "xvclk mismatched, modes are based on 24MHz\n");
 	ret = clk_prepare_enable(ov2680->xvclk);
 	if (ret < 0) {
 		dev_err(dev, "Failed to enable xvclk\n");
 		return ret;
 	}
-
 	if (!IS_ERR(ov2680->reset_gpio))
 		gpiod_set_value_cansleep(ov2680->reset_gpio, 1);
 
@@ -871,6 +877,24 @@ static int ov2680_power(struct v4l2_subdev *sd, int on)
 	return 0;
 }
 
+static int ov2680_enum_frame_interval(struct v4l2_subdev *sd,
+				      struct v4l2_subdev_pad_config *cfg,
+				      struct v4l2_subdev_frame_interval_enum *fie)
+{
+	struct ov2680 *ov2680 = to_ov2680(sd);
+
+	if (fie->index >= ov2680->cfg_num)
+		return -EINVAL;
+
+	if (fie->code != MEDIA_BUS_FMT_SBGGR10_1X10)
+		return -EINVAL;
+
+	fie->width = supported_modes[fie->index].width;
+	fie->height = supported_modes[fie->index].height;
+	fie->interval = supported_modes[fie->index].max_fps;
+	return 0;
+}
+
 static const struct dev_pm_ops ov2680_pm_ops = {
 	SET_RUNTIME_PM_OPS(ov2680_runtime_suspend,
 			   ov2680_runtime_resume, NULL)
@@ -898,6 +922,7 @@ static const struct v4l2_subdev_video_ops ov2680_video_ops = {
 static const struct v4l2_subdev_pad_ops ov2680_pad_ops = {
 	.enum_mbus_code = ov2680_enum_mbus_code,
 	.enum_frame_size = ov2680_enum_frame_sizes,
+	.enum_frame_interval = ov2680_enum_frame_interval,
 	.get_fmt = ov2680_get_fmt,
 	.set_fmt = ov2680_set_fmt,
 };
@@ -1158,13 +1183,6 @@ static int ov2680_probe(struct i2c_client *client,
 		dev_err(dev, "Failed to get xvclk\n");
 		return -EINVAL;
 	}
-	ret = clk_set_rate(ov2680->xvclk, OV2680_XVCLK_FREQ);
-	if (ret < 0) {
-		dev_err(dev, "Failed to set xvclk rate (24MHz)\n");
-		return ret;
-	}
-	if (clk_get_rate(ov2680->xvclk) != OV2680_XVCLK_FREQ)
-		dev_warn(dev, "xvclk mismatched, modes are based on 24MHz\n");
 
 	ov2680->power_gpio = devm_gpiod_get(dev, "power", GPIOD_OUT_LOW);
 	if (IS_ERR(ov2680->power_gpio))

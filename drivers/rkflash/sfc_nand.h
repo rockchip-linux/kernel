@@ -5,16 +5,18 @@
 #ifndef __SFC_NAND_H
 #define __SFC_NAND_H
 
-#define SFC_NAND_STRESS_TEST_EN		0
+#include "flash_com.h"
+#include "sfc.h"
 
-#define SFC_NAND_PROG_ERASE_ERROR	-2
-#define SFC_NAND_HW_ERROR		-1
+#define SFC_NAND_PROG_ERASE_ERROR	2
+#define SFC_NAND_HW_ERROR		1
 #define SFC_NAND_ECC_ERROR		NAND_ERROR
 #define SFC_NAND_ECC_REFRESH		NAND_STS_REFRESH
 #define SFC_NAND_ECC_OK			NAND_STS_OK
 
 #define SFC_NAND_PAGE_MAX_SIZE		4224
 #define SFC_NAND_SECTOR_FULL_SIZE	528
+#define SFC_NAND_SECTOR_SIZE		512
 
 #define FEA_READ_STATUE_MASK    (0x3 << 0)
 #define FEA_STATUE_MODE1        0
@@ -24,14 +26,6 @@
 #define FEA_4BYTE_ADDR          BIT(4)
 #define FEA_4BYTE_ADDR_MODE	BIT(5)
 #define FEA_SOFT_QOP_BIT	BIT(6)
-
-#define MID_WINBOND             0xEF
-#define MID_GIGADEV             0xC8
-#define MID_MICRON              0x2C
-#define MID_MACRONIX            0xC2
-#define MID_SPANSION            0x01
-#define MID_EON                 0x1C
-#define MID_ST                  0x20
 
 /* Command Set */
 #define CMD_READ_JEDECID        (0x9F)
@@ -124,8 +118,17 @@ u32 sfc_nand_init(void);
 void sfc_nand_deinit(void);
 int sfc_nand_read_id(u8 *buf);
 u32 sfc_nand_ecc_status_sp1(void);
+u32 sfc_nand_ecc_status_sp2(void);
 u32 sfc_nand_ecc_status_sp3(void);
 u32 sfc_nand_ecc_status_sp4(void);
 u32 sfc_nand_ecc_status_sp5(void);
+u32 sfc_nand_erase_block(u8 cs, u32 addr);
+u32 sfc_nand_prog_page(u8 cs, u32 addr, u32 *p_data, u32 *p_spare);
+u32 sfc_nand_read_page(u8 cs, u32 addr, u32 *p_data, u32 *p_spare);
+u32 sfc_nand_check_bad_block(u8 cs, u32 addr);
+u32 sfc_nand_mark_bad_block(u8 cs, u32 addr);
+void sfc_nand_ftl_ops_init(void);
+struct SFNAND_DEV *sfc_nand_get_private_dev(void);
+struct nand_info *sfc_nand_get_nand_info(void);
 
 #endif

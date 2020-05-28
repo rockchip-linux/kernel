@@ -1368,6 +1368,7 @@ static void vop_initial(struct drm_crtc *crtc)
 	VOP_CTRL_SET(vop, dsp_blank, 0);
 	VOP_CTRL_SET(vop, axi_outstanding_max_num, 30);
 	VOP_CTRL_SET(vop, axi_max_outstanding_en, 1);
+	VOP_CTRL_SET(vop, dither_up_en, 1);
 
 	/*
 	 * We need to make sure that all windows are disabled before resume
@@ -1752,6 +1753,14 @@ static void vop_plane_atomic_update(struct drm_plane *plane,
 	VOP_WIN_SET(vop, win, dsp_st, dsp_st);
 
 	rb_swap = has_rb_swapped(fb->pixel_format);
+	/*
+	 * Px30 treats rgb888 as bgr888
+	 * so we reverse the rb swap to workaround
+	 */
+	if ((fb->pixel_format == DRM_FORMAT_RGB888 ||
+	     fb->pixel_format == DRM_FORMAT_BGR888) &&
+	    (VOP_MAJOR(vop->version) == 2 && VOP_MINOR(vop->version) == 6))
+		rb_swap = !rb_swap;
 	VOP_WIN_SET(vop, win, rb_swap, rb_swap);
 
 	global_alpha_en = (vop_plane_state->global_alpha == 0xff) ? 0 : 1;
@@ -2407,6 +2416,23 @@ static size_t vop_crtc_bandwidth(struct drm_crtc *crtc,
 	u64 bandwidth;
 	int i, cnt = 0, plane_num = 0;
 
+#if defined(CONFIG_ROCKCHIP_DRM_DEBUG)
+	struct vop_dump_list *pos, *n;
+
+	if (!crtc->vop_dump_list_init_flag) {
+		INIT_LIST_HEAD(&crtc->vop_dump_list_head);
+		crtc->vop_dump_list_init_flag = true;
+	}
+	list_for_each_entry_safe(pos, n, &crtc->vop_dump_list_head, entry) {
+		list_del(&pos->entry);
+		kfree(pos);
+	}
+	if (crtc->vop_dump_status == DUMP_KEEP ||
+	    crtc->vop_dump_times > 0) {
+		crtc->frame_count++;
+	}
+#endif
+
 	if (!htotal || !vdisplay)
 		return 0;
 
@@ -3019,23 +3045,6 @@ static int vop_crtc_atomic_check(struct drm_crtc *crtc,
 	struct vop_zpos *pzpos;
 	int dsp_layer_sel = 0;
 	int i, j, cnt = 0, ret = 0;
-
-#if defined(CONFIG_ROCKCHIP_DRM_DEBUG)
-	struct vop_dump_list *pos, *n;
-
-	if (!crtc->vop_dump_list_init_flag) {
-		INIT_LIST_HEAD(&crtc->vop_dump_list_head);
-		crtc->vop_dump_list_init_flag = true;
-	}
-	list_for_each_entry_safe(pos, n, &crtc->vop_dump_list_head, entry) {
-		list_del(&pos->entry);
-		kfree(pos);
-	}
-	if (crtc->vop_dump_status == DUMP_KEEP ||
-	    crtc->vop_dump_times > 0) {
-		crtc->frame_count++;
-	}
-#endif
 
 	ret = vop_afbdc_atomic_check(crtc, crtc_state);
 	if (ret)

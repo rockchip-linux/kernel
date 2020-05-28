@@ -83,13 +83,13 @@ struct kmem_cache {
 	const char *name;	/* Name (only for display!) */
 	struct list_head list;	/* List of slab caches */
 	int red_left_pad;	/* Left redzone padding size */
-#ifdef CONFIG_SYSFS
+#ifdef CONFIG_SLUB_SYSFS
 	struct kobject kobj;	/* For sysfs */
 #endif
 #ifdef CONFIG_MEMCG_KMEM
 	struct memcg_cache_params memcg_params;
 	int max_attr_size; /* for propagation, maximum size of a stored attr */
-#ifdef CONFIG_SYSFS
+#ifdef CONFIG_SLUB_SYSFS
 	struct kset *memcg_kset;
 #endif
 #endif
@@ -108,7 +108,7 @@ struct kmem_cache {
 	struct kmem_cache_node *node[MAX_NUMNODES];
 };
 
-#ifdef CONFIG_SYSFS
+#ifdef CONFIG_SLUB_SYSFS
 #define SLAB_SUPPORTS_SYSFS
 void sysfs_slab_remove(struct kmem_cache *);
 #else

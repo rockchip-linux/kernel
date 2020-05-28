@@ -21,6 +21,7 @@
 		rockchip,card-name = "rockchip,rk1808-vad";
 		rockchip,cpu = <&pdm>;
 		rockchip,codec = <&vad>;
+		rockchip,wait-card-locked = <0>;
 	};
 };
 
@@ -146,8 +147,8 @@
 		clocks = <&cru SCLK_CIF_OUT>;
 		clock-names = "xvclk";
 		avdd-supply = <&vcc2v8_dvp>;
-		dovdd-supply = <&vdd1v5_dvp>;
-		dvdd-supply = <&vcc1v8_dvp>;
+		dovdd-supply = <&vcc1v8_dvp>;
+		dvdd-supply = <&vdd1v5_dvp>;
 		pwdn-gpios = <&gpio0 23 GPIO_ACTIVE_HIGH>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&cif_clkout_m0>;
@@ -575,13 +576,8 @@
 	status = "okay";
 };
 
-&rockchip_suspend {
-	status = "okay";
-	rockchip,sleep-debug-en = <1>;
-};
-
 &route_dsi {
-	status = "disabled";
+	status = "okay";
 };
 
 &tsadc {

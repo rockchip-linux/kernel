@@ -490,9 +490,9 @@ static int rga2_MapUserMemory(struct page **pages, uint32_t *pageTable,
 		pfn = pte_pfn(*pte);
 		Address = ((pfn << PAGE_SHIFT) | (((unsigned long)((Memory + i)
 			   << PAGE_SHIFT)) & ~PAGE_MASK));
-		pte_unmap_unlock(pte, ptl);
 		pageTable[i] = (uint32_t)Address;
 		rga_dma_flush_page(pfn_to_page(pfn));
+		pte_unmap_unlock(pte, ptl);
 	}
 	up_read(&current->mm->mmap_sem);
 	return status;

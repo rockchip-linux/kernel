@@ -108,6 +108,9 @@ struct rk_iommu {
 	struct list_head dev_node;
 };
 
+static void rk_iommu_detach_device(struct iommu_domain *domain,
+				   struct device *dev);
+
 static inline void rk_table_flush(struct rk_iommu_domain *dom, dma_addr_t dma,
 				  unsigned int count)
 {
@@ -969,6 +972,13 @@ static int rk_iommu_attach_device(struct iommu_domain *domain,
 	if (!iommu)
 		return 0;
 
+	/* iommu already attached */
+	if (iommu->domain == domain)
+		return 0;
+
+	if (iommu->domain)
+		rk_iommu_detach_device(iommu->domain, dev);
+
 	rk_iommu_power_on(iommu);
 
 	ret = rk_iommu_enable_stall(iommu);
@@ -1026,6 +1036,10 @@ static void rk_iommu_detach_device(struct iommu_domain *domain,
 	if (!iommu)
 		return;
 
+	/* iommu already detached */
+	if (iommu->domain != domain)
+		return;
+
 	mutex_lock(&rk_domain->iommus_lock);
 	list_del_init(&iommu->node);
 	mutex_unlock(&rk_domain->iommus_lock);
@@ -1042,9 +1056,8 @@ static void rk_iommu_detach_device(struct iommu_domain *domain,
 	if (iommu->skip_read)
 		goto read_wa;
 
-	for (i = 0; i < iommu->num_irq; i++) {
+	for (i = 0; i < iommu->num_irq; i++)
 		devm_free_irq(iommu->dev, iommu->irq[i], iommu);
-	}
 
 read_wa:
 	iommu->domain = NULL;

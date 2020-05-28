@@ -2272,6 +2272,8 @@ int tcp_disconnect(struct sock *sk, int flags)
 	dst_release(sk->sk_rx_dst);
 	sk->sk_rx_dst = NULL;
 	tcp_saved_syn_free(tp);
+	tp->bytes_acked = 0;
+	tp->bytes_received = 0;
 
 	WARN_ON(inet->inet_num && !icsk->icsk_bind_hash);
 
@@ -3190,6 +3192,7 @@ void __init tcp_init(void)
 	int max_rshare, max_wshare, cnt;
 	unsigned int i;
 
+	BUILD_BUG_ON(TCP_MIN_SND_MSS <= MAX_TCP_OPTION_SPACE);
 	sock_skb_cb_check_size(sizeof(struct tcp_skb_cb));
 
 	percpu_counter_init(&tcp_sockets_allocated, 0, GFP_KERNEL);

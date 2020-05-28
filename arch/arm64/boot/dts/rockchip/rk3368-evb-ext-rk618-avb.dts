@@ -1,0 +1,270 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright (c) 2019 Fuzhou Rockchip Electronics Co., Ltd
+ */
+
+/dts-v1/;
+#include <dt-bindings/clock/rk618-cru.h>
+#include "rk3368-808.dtsi"
+
+/ {
+	model = "Rockchip RK3368 EVB EXT RK618 board";
+	compatible = "rockchip,rk3368-evb-ext-rk618-avb", "rockchip,rk3368";
+};
+
+&firmware_android {
+	compatible = "android,firmware";
+	boot_devices = "ff0f0000.dwmmc,ff400000.nandc";
+
+	vbmeta {
+		compatible = "android,vbmeta";
+		parts = "vbmeta,dtbo";
+	};
+
+	fstab {
+		compatible = "android,fstab";
+
+		vendor {
+			compatible = "android,vendor";
+			dev = "/dev/block/by-name/vendor";
+			type = "ext4";
+			mnt_flags = "ro,barrier=1,inode_readahead_blks=8";
+			fsmgr_flags = "wait,avb";
+		};
+	};
+};
+
+&chosen {
+	bootargs = "earlyprintk=uart8250,mmio32,0xff690000 swiotlb=1 console=ttyFIQ0 androidboot.baseband=N/A androidboot.veritymode=enforcing androidboot.hardware=rk30board androidboot.console=ttyFIQ0 androidboot.selinux=permissive init=/init kpti=0";
+};
+
+&i2c2 {
+	status = "okay";
+
+	rk618@50 {
+		compatible = "rockchip,rk618";
+		reg = <0x50>;
+		interrupt-parent = <&gpio1>;
+		interrupts = <12 IRQ_TYPE_LEVEL_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&i2s_8ch_mclk>;
+		clocks = <&cru SCLK_I2S_8CH_OUT>;
+		clock-names = "clkin";
+		assigned-clocks = <&cru SCLK_I2S_8CH_OUT>;
+		assigned-clock-rates = <11289600>;
+		reset-gpios = <&gpio1 RK_PB5 GPIO_ACTIVE_LOW>;
+		status = "okay";
+
+		rk618_cru: cru {
+			compatible = "rockchip,rk618-cru";
+			clocks = <&cru SCLK_I2S_8CH_OUT>, <&cru DCLK_VOP>;
+			clock-names = "clkin", "lcdc0_dclkp";
+			assigned-clocks = <&rk618_cru SCALER_PLLIN_CLK>,
+					  <&rk618_cru VIF_PLLIN_CLK>,
+					  <&rk618_cru SCALER_CLK>,
+					  <&rk618_cru VIF0_PRE_CLK>,
+					  <&rk618_cru CODEC_CLK>,
+					  <&rk618_cru DITHER_CLK>;
+			assigned-clock-parents = <&cru SCLK_I2S_8CH_OUT>,
+						 <&rk618_cru LCDC0_CLK>,
+						 <&rk618_cru SCALER_PLL_CLK>,
+						 <&rk618_cru VIF_PLL_CLK>,
+						 <&cru SCLK_I2S_8CH_OUT>,
+						 <&rk618_cru VIF0_CLK>;
+			#clock-cells = <1>;
+			status = "okay";
+		};
+
+		hdmi {
+			compatible = "rockchip,rk618-hdmi";
+			clocks = <&rk618_cru HDMI_CLK>;
+			clock-names = "hdmi";
+			assigned-clocks = <&rk618_cru HDMI_CLK>;
+			assigned-clock-parents = <&rk618_cru VIF0_CLK>;
+			status = "okay";
+
+			ports {
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				port@0 {
+					reg = <0>;
+
+					hdmi_in_vif: endpoint {
+						remote-endpoint = <&vif_out_hdmi>;
+					};
+				};
+
+				port@1 {
+					reg = <1>;
+
+					hdmi_out_scaler: endpoint {
+						remote-endpoint = <&scaler_in_hdmi>;
+					};
+				};
+			};
+		};
+
+		scaler {
+			compatible = "rockchip,rk618-scaler";
+			clocks = <&rk618_cru SCALER_CLK>,
+				 <&rk618_cru VIF0_CLK>,
+				 <&rk618_cru DITHER_CLK>;
+			clock-names = "scaler", "vif", "dither";
+			status = "okay";
+
+			ports {
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				port@0 {
+					reg = <0>;
+
+					scaler_in_hdmi: endpoint {
+						remote-endpoint = <&hdmi_out_scaler>;
+					};
+				};
+
+				port@1 {
+					reg = <1>;
+
+					scaler_out_dsi: endpoint {
+						remote-endpoint = <&dsi_in_scaler>;
+					};
+				};
+			};
+		};
+
+		vif {
+			compatible = "rockchip,rk618-vif";
+			clocks = <&rk618_cru VIF0_CLK>,
+				 <&rk618_cru VIF0_PRE_CLK>;
+			clock-names = "vif", "vif_pre";
+			status = "okay";
+
+			ports {
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				port@0 {
+					reg = <0>;
+
+					vif_in_rgb: endpoint {
+						remote-endpoint = <&rgb_out_vif>;
+					};
+				};
+
+				port@1 {
+					reg = <1>;
+
+					vif_out_hdmi: endpoint {
+						remote-endpoint = <&hdmi_in_vif>;
+					};
+				};
+			};
+		};
+
+		dsi {
+			compatible = "rockchip,rk618-dsi";
+			clocks = <&rk618_cru MIPI_CLK>;
+			clock-names = "dsi";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			ports {
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				port@0 {
+					reg = <0>;
+
+					dsi_in_scaler: endpoint {
+						remote-endpoint = <&scaler_out_dsi>;
+					};
+				};
+			};
+
+			panel@0 {
+				compatible = "simple-panel-dsi";
+				reg = <0>;
+				backlight = <&backlight>;
+				power-supply = <&vcc_lcd>;
+				prepare-delay-ms = <120>;
+				enable-delay-ms = <120>;
+				disable-delay-ms = <120>;
+				unprepare-delay-ms = <120>;
+
+				dsi,flags = <(MIPI_DSI_MODE_VIDEO |
+					      MIPI_DSI_MODE_VIDEO_BURST |
+					      MIPI_DSI_MODE_LPM |
+					      MIPI_DSI_MODE_EOT_PACKET)>;
+				dsi,format = <MIPI_DSI_FMT_RGB888>;
+				dsi,lanes = <4>;
+
+				display-timings {
+					native-mode = <&timing>;
+
+					timing: timing {
+						clock-frequency = <160000000>;
+						hactive = <1200>;
+						vactive = <1920>;
+						hback-porch = <60>;
+						hfront-porch = <80>;
+						vback-porch = <25>;
+						vfront-porch = <35>;
+						hsync-len = <1>;
+						vsync-len = <1>;
+						hsync-active = <0>;
+						vsync-active = <0>;
+						de-active = <0>;
+						pixelclk-active = <0>;
+					};
+				};
+			};
+		};
+	};
+};
+
+&io_domains {
+	dvp-supply = <&vcca_33>;
+};
+
+&dsi {
+	status = "disabled";
+};
+
+&hdmi {
+	status = "disabled";
+};
+
+&isp {
+	status = "disabled";
+};
+
+&rk_modem {
+	status = "disabled";
+};
+
+&rgb {
+	status = "okay";
+
+	ports {
+		port@1 {
+			reg = <1>;
+
+			rgb_out_vif: endpoint {
+				remote-endpoint = <&vif_in_rgb>;
+			};
+		};
+	};
+};
+
+&video_phy {
+	status = "okay";
+};
+
+&route_rgb {
+	/delete-property/ logo,uboot;
+	status = "okay";
+};

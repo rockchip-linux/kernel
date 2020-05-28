@@ -49,5 +49,7 @@
 
 #define MIPI_CSI_FMT_RAW8		0x10
 #define MIPI_CSI_FMT_RAW10		0x11
+#define MIPI_CSI_FMT_YUV420_8BIT	0x12
+#define MIPI_CSI_FMT_YUV422_8BIT	0x13
 
 #endif /* __DRM_MIPI_DSI__ */

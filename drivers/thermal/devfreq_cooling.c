@@ -283,6 +283,13 @@ static int devfreq_cooling_get_requested_power(struct thermal_cooling_device *cd
 	unsigned long freq = status->current_frequency;
 	u32 dyn_power, static_power;
 
+	if (status->update) {
+		if (devfreq_update_stats(df)) {
+			status->busy_time = 1;
+			status->total_time = 1;
+		}
+	}
+
 	/* Get dynamic power for state */
 	state = freq_get_state(dfc, freq);
 	if (state == THERMAL_CSTATE_INVALID)

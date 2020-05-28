@@ -5,6 +5,9 @@
  * Copyright (C) 2017 Fuzhou Rockchip Electronics Co., Ltd.
  *
  * V0.0X01.0X01 add poweron function.
+ * V0.0X01.0X02 fix mclk issue when probe multiple camera.
+ * V0.0X01.0X03 fix gain range.
+ * V0.0X01.0X04 add enum_frame_interval function.
  */
 
 #include <linux/clk.h>
@@ -25,7 +28,7 @@
 #include <media/v4l2-subdev.h>
 #include <linux/pinctrl/consumer.h>
 
-#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x01)
+#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x04)
 
 #ifndef V4L2_CID_DIGITAL_GAIN
 #define V4L2_CID_DIGITAL_GAIN		V4L2_CID_GAIN
@@ -53,10 +56,10 @@
 #define OV4689_GAIN_H_MASK		0x07
 #define OV4689_GAIN_H_SHIFT		8
 #define OV4689_GAIN_L_MASK		0xff
-#define OV4689_GAIN_MIN			0x10
-#define OV4689_GAIN_MAX			0xf8
+#define OV4689_GAIN_MIN			0x80
+#define OV4689_GAIN_MAX			0x7f8
 #define OV4689_GAIN_STEP		1
-#define OV4689_GAIN_DEFAULT		0x10
+#define OV4689_GAIN_DEFAULT		0x80
 
 #define OV4689_REG_TEST_PATTERN		0x5040
 #define OV4689_TEST_PATTERN_ENABLE	0x80
@@ -94,7 +97,7 @@ struct regval {
 struct ov4689_mode {
 	u32 width;
 	u32 height;
-	u32 max_fps;
+	struct v4l2_fract max_fps;
 	u32 hts_def;
 	u32 vts_def;
 	u32 exp_def;
@@ -405,7 +408,10 @@ static const struct ov4689_mode supported_modes[] = {
 	{
 		.width = 2688,
 		.height = 1520,
-		.max_fps = 30,
+		.max_fps = {
+			.numerator = 10000,
+			.denominator = 300000,
+		},
 		.exp_def = 0x0600,
 		.hts_def = 0x0a18,
 		.vts_def = 0x0612,
@@ -642,8 +648,7 @@ static int ov4689_g_frame_interval(struct v4l2_subdev *sd,
 	const struct ov4689_mode *mode = ov4689->cur_mode;
 
 	mutex_lock(&ov4689->mutex);
-	fi->interval.numerator = 10000;
-	fi->interval.denominator = mode->max_fps * 10000;
+	fi->interval = mode->max_fps;
 	mutex_unlock(&ov4689->mutex);
 
 	return 0;
@@ -837,13 +842,16 @@ static int __ov4689_power_on(struct ov4689 *ov4689)
 		if (ret < 0)
 			dev_err(dev, "could not set pins\n");
 	}
-
+	ret = clk_set_rate(ov4689->xvclk, OV4689_XVCLK_FREQ);
+	if (ret < 0)
+		dev_warn(dev, "Failed to set xvclk rate (24MHz)\n");
+	if (clk_get_rate(ov4689->xvclk) != OV4689_XVCLK_FREQ)
+		dev_warn(dev, "xvclk mismatched, modes are based on 24MHz\n");
 	ret = clk_prepare_enable(ov4689->xvclk);
 	if (ret < 0) {
 		dev_err(dev, "Failed to enable xvclk\n");
 		return ret;
 	}
-
 	if (!IS_ERR(ov4689->reset_gpio))
 		gpiod_set_value_cansleep(ov4689->reset_gpio, 0);
 
@@ -933,6 +941,22 @@ static int ov4689_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 }
 #endif
 
+static int ov4689_enum_frame_interval(struct v4l2_subdev *sd,
+				       struct v4l2_subdev_pad_config *cfg,
+				       struct v4l2_subdev_frame_interval_enum *fie)
+{
+	if (fie->index >= ARRAY_SIZE(supported_modes))
+		return -EINVAL;
+
+	if (fie->code != MEDIA_BUS_FMT_SBGGR10_1X10)
+		return -EINVAL;
+
+	fie->width = supported_modes[fie->index].width;
+	fie->height = supported_modes[fie->index].height;
+	fie->interval = supported_modes[fie->index].max_fps;
+	return 0;
+}
+
 static const struct dev_pm_ops ov4689_pm_ops = {
 	SET_RUNTIME_PM_OPS(ov4689_runtime_suspend,
 			   ov4689_runtime_resume, NULL)
@@ -960,6 +984,7 @@ static const struct v4l2_subdev_video_ops ov4689_video_ops = {
 static const struct v4l2_subdev_pad_ops ov4689_pad_ops = {
 	.enum_mbus_code = ov4689_enum_mbus_code,
 	.enum_frame_size = ov4689_enum_frame_sizes,
+	.enum_frame_interval = ov4689_enum_frame_interval,
 	.get_fmt = ov4689_get_fmt,
 	.set_fmt = ov4689_set_fmt,
 };
@@ -1170,13 +1195,6 @@ static int ov4689_probe(struct i2c_client *client,
 		dev_err(dev, "Failed to get xvclk\n");
 		return -EINVAL;
 	}
-	ret = clk_set_rate(ov4689->xvclk, OV4689_XVCLK_FREQ);
-	if (ret < 0) {
-		dev_err(dev, "Failed to set xvclk rate (24MHz)\n");
-		return ret;
-	}
-	if (clk_get_rate(ov4689->xvclk) != OV4689_XVCLK_FREQ)
-		dev_warn(dev, "xvclk mismatched, modes are based on 24MHz\n");
 
 	ov4689->reset_gpio = devm_gpiod_get(dev, "reset", GPIOD_OUT_LOW);
 	if (IS_ERR(ov4689->reset_gpio))

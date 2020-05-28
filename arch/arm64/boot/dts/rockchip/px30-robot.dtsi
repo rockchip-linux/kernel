@@ -57,6 +57,14 @@
 	/delete-node/ opp-768000000;
 };
 
+&i2s1_2ch {
+	rockchip,playback-only;
+};
+
+&rng {
+	status = "okay";
+};
+
 &soc_thermal {
 	trips {
 		threshold: trip-point-0 {

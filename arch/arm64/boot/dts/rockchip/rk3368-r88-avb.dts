@@ -1,0 +1,36 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright (c) 2017 Fuzhou Rockchip Electronics Co., Ltd
+ *
+ */
+
+/dts-v1/;
+#include "rk3368-r88-pmic.dtsi"
+
+/ {
+	model = "Rockchip RK3368 R88 AVB";
+	compatible = "rockchip,r88-avb", "rockchip,rk3368";
+};
+
+&firmware_android {
+	compatible = "android,firmware";
+	boot_devices = "ff0f0000.dwmmc,ff400000.nandc";
+	vbmeta {
+		compatible = "android,vbmeta";
+		parts = "vbmeta,dtbo";
+	};
+	fstab {
+		compatible = "android,fstab";
+		vendor {
+			compatible = "android,vendor";
+			dev = "/dev/block/by-name/vendor";
+			type = "ext4";
+			mnt_flags = "ro,barrier=1,inode_readahead_blks=8";
+			fsmgr_flags = "wait,avb";
+		};
+	};
+};
+
+&rockchip_suspend {
+	rockchip,virtual-poweroff = <1>;
+};

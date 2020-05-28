@@ -51,6 +51,15 @@
 		regulator-max-microvolt = <850000>;
 	};
 
+	vdd_log: vdd-log {
+		compatible = "regulator-fixed";
+		regulator-name = "vdd_log";
+		regulator-always-on;
+		regulator-boot-on;
+		regulator-min-microvolt = <800000>;
+		regulator-max-microvolt = <800000>;
+	};
+
 	vcc5v0_sys: vcc5v0-sys {
 		compatible = "regulator-fixed";
 		regulator-name = "vcc5v0_sys";
@@ -69,6 +78,16 @@
 	cpu-supply = <&vdd_cpu>;
 };
 
+&dfi {
+	status = "okay";
+};
+
+&dmc {
+	status = "okay";
+
+	center-supply = <&vdd_log>;
+};
+
 &i2c1 {
 	status = "okay";
 
@@ -81,7 +100,8 @@
 		vsel-gpios = <&gpio0 RK_PC6 GPIO_ACTIVE_HIGH>;
 		regulator-name = "vdd_npu";
 		regulator-min-microvolt = <750000>;
-		regulator-max-microvolt = <800000>;
+		regulator-max-microvolt = <880000>;
+		regulator-init-microvolt = <880000>;
 		regulator-ramp-delay = <2300>;
 		fcs,suspend-voltage-selector = <1>;
 		regulator-always-on;

@@ -587,7 +587,8 @@ static const char * const rk3128_dts_timing[] = {
 	"lpddr2_drv",
 	"phy_lpddr2_clk_drv",
 	"phy_lpddr2_cmd_drv",
-	"phy_lpddr2_dqs_drv"
+	"phy_lpddr2_dqs_drv",
+	"ddr_2t",
 };
 
 struct rk3128_ddr_dts_config_timing {
@@ -612,6 +613,7 @@ struct rk3128_ddr_dts_config_timing {
 	u32 phy_lpddr2_cmd_drv;
 	u32 phy_lpddr2_dqs_drv;
 	u32 available;
+	u32 ddr_2t;
 };
 
 static const char * const rk3228_dts_timing[] = {
@@ -1071,6 +1073,7 @@ struct rk3368_dram_timing {
 	u32 phy_cmd_drv;
 	u32 phy_dqs_drv;
 	u32 phy_odt;
+	u32 ddr_2t;
 };
 
 struct rk3399_dram_timing {
@@ -1353,7 +1356,7 @@ static int rockchip_dmcfreq_target(struct device *dev, unsigned long *freq,
 	 * Go to specified cpufreq and block other cpufreq changes since
 	 * set_rate needs to complete during vblank.
 	 */
-	cpu_cur = smp_processor_id();
+	cpu_cur = raw_smp_processor_id();
 	policy = cpufreq_cpu_get(cpu_cur);
 	if (!policy) {
 		dev_err(dev, "cpu%d policy NULL\n", cpu_cur);
@@ -1453,6 +1456,9 @@ static int rockchip_dmcfreq_get_dev_status(struct device *dev,
 	struct rockchip_dmcfreq *dmcfreq = dev_get_drvdata(dev);
 	struct devfreq_event_data edata;
 	int i, j, ret = 0;
+
+	if (!dmcfreq->auto_freq_en)
+		return -EINVAL;
 
 	if (dmcfreq->dfi_id >= 0) {
 		ret = devfreq_event_get_event(dmcfreq->edev[dmcfreq->dfi_id],
@@ -1832,6 +1838,8 @@ static struct rk3368_dram_timing *of_get_rk3368_timings(struct device *dev,
 					    &timing->phy_dqs_drv);
 		ret |= of_property_read_u32(np_tim, "phy_odt",
 					    &timing->phy_odt);
+		ret |= of_property_read_u32(np_tim, "ddr_2t",
+					    &timing->ddr_2t);
 		if (ret) {
 			devm_kfree(dev, timing);
 			goto err;
@@ -3001,6 +3009,8 @@ static int devfreq_dmc_ondemand_func(struct devfreq *df,
 			target_freq = dmcfreq->normal_rate;
 		if (target_freq)
 			*freq = target_freq;
+		if (dmcfreq->auto_freq_en && !devfreq_update_stats(df))
+			return 0;
 		goto reset_last_status;
 	}
 

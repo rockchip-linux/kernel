@@ -9,7 +9,7 @@
 #include <dt-bindings/pinctrl/rockchip.h>
 #include <dt-bindings/display/media-bus-format.h>
 #include "rk3326.dtsi"
-#include "px30-android.dtsi"
+#include "rk3326-android.dtsi"
 
 / {
 	model = "Rockchip rk3326 W7 board";

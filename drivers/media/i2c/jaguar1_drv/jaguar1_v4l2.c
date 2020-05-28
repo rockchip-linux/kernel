@@ -46,6 +46,12 @@
 
 #define JAGUAR1_XVCLK_FREQ			24000000
 #define JAGUAR1_LINK_FREQ			320000000
+#define JAGUAR1_LANES			4
+#define JAGUAR1_BITS_PER_SAMPLE		8
+
+/* pixel rate = link frequency * 2 * lanes / BITS_PER_SAMPLE */
+#define JAGUAR1_PIXEL_RATE \
+	(JAGUAR1_LINK_FREQ * 2 / JAGUAR1_BITS_PER_SAMPLE * JAGUAR1_LANES)
 
 #define OF_CAMERA_PINCTRL_STATE_DEFAULT		"rockchip,camera_default"
 #define OF_CAMERA_PINCTRL_STATE_SLEEP		"rockchip,camera_sleep"
@@ -122,25 +128,36 @@ static const struct jaguar1_framesize jaguar1_framesizes[] = {
 	{
 		.width		= 1280,
 		.height		= 720,
-		.fmt_idx	= AHD20_720P_25P,
+		.fmt_idx	= AHD20_720P_25P_EX_Btype,
+	}
+#elif defined CONFIG_VIDEO_ROCKCHIP_USBACM_CONTROL
+	{
+		.width		= 2560,
+		.height		= 1440,
+		.fmt_idx	= AHD20_720P_25P_EX_Btype,
 	}
 #else
 	{
 		.width		= 1280,
 		.height		= 720,
-		.fmt_idx	= AHD20_720P_25P,
+		.fmt_idx	= AHD20_720P_25P_EX_Btype,
 	},
 	{
 		.width		= 1920,
 		.height		= 1080,
-		.fmt_idx	= AHD20_1080P_25P,
+		.fmt_idx	= AHD20_720P_25P_EX_Btype,
+	},
+	{
+		.width		= 2560,
+		.height		= 1440,
+		.fmt_idx	= AHD20_720P_25P_EX_Btype,
 	}
 #endif
 };
 
 static const struct jaguar1_pixfmt jaguar1_formats[] = {
 	{
-		.code = MEDIA_BUS_FMT_UYVY8_2X8,
+		.code = MEDIA_BUS_FMT_YVYU8_2X8
 	},
 };
 
@@ -306,7 +323,7 @@ static int jaguar1_initialize_controls(struct jaguar1 *jaguar1)
 	int ret;
 
 	handler = &jaguar1->ctrl_handler;
-	ret = v4l2_ctrl_handler_init(handler, 1);
+	ret = v4l2_ctrl_handler_init(handler, 2);
 	if (ret)
 		return ret;
 	handler->lock = &jaguar1->mutex;
@@ -315,6 +332,9 @@ static int jaguar1_initialize_controls(struct jaguar1 *jaguar1)
 				      0, 0, link_freq_menu_items);
 	if (ctrl)
 		ctrl->flags |= V4L2_CTRL_FLAG_READ_ONLY;
+
+	v4l2_ctrl_new_std(handler, NULL, V4L2_CID_PIXEL_RATE,
+			  0, JAGUAR1_PIXEL_RATE, 1, JAGUAR1_PIXEL_RATE);
 
 	if (handler->error) {
 		ret = handler->error;
@@ -382,10 +402,6 @@ static int jaguar1_enum_mbus_code(struct v4l2_subdev *sd,
 				 struct v4l2_subdev_pad_config *cfg,
 				 struct v4l2_subdev_mbus_code_enum *code)
 {
-	struct i2c_client *client = v4l2_get_subdevdata(sd);
-
-	dev_dbg(&client->dev, "%s:\n", __func__);
-
 	if (code->index >= ARRAY_SIZE(jaguar1_formats))
 		return -EINVAL;
 
@@ -420,14 +436,22 @@ static int jaguar1_enum_frame_sizes(struct v4l2_subdev *sd,
 	return 0;
 }
 
+static int jaguar1_g_mbus_config(struct v4l2_subdev *sd,
+				 struct v4l2_mbus_config *cfg)
+{
+	cfg->type = V4L2_MBUS_CSI2;
+	cfg->flags = V4L2_MBUS_CSI2_4_LANE |
+		     V4L2_MBUS_CSI2_CHANNELS;
+
+	return 0;
+}
+
 static int jaguar1_get_fmt(struct v4l2_subdev *sd,
 			  struct v4l2_subdev_pad_config *cfg,
 			  struct v4l2_subdev_format *fmt)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
 	struct jaguar1 *jaguar1 = to_jaguar1(sd);
-
-	dev_dbg(&client->dev, "%s enter\n", __func__);
 
 	if (fmt->which == V4L2_SUBDEV_FORMAT_TRY) {
 #ifdef CONFIG_VIDEO_V4L2_SUBDEV_API
@@ -486,14 +510,11 @@ static int jaguar1_set_fmt(struct v4l2_subdev *sd,
 			  struct v4l2_subdev_pad_config *cfg,
 			  struct v4l2_subdev_format *fmt)
 {
-	struct i2c_client *client = v4l2_get_subdevdata(sd);
 	int index = ARRAY_SIZE(jaguar1_formats);
 	struct v4l2_mbus_framefmt *mf = &fmt->format;
 	const struct jaguar1_framesize *size = NULL;
 	struct jaguar1 *jaguar1 = to_jaguar1(sd);
 	int ret = 0;
-
-	dev_dbg(&client->dev, "%s enter\n", __func__);
 
 	__jaguar1_try_frame_size(mf, &size);
 
@@ -628,6 +649,7 @@ static const struct dev_pm_ops jaguar1_pm_ops = {
 
 static const struct v4l2_subdev_video_ops jaguar1_video_ops = {
 	.s_stream = jaguar1_stream,
+	.g_mbus_config = jaguar1_g_mbus_config,
 };
 
 static const struct v4l2_subdev_pad_ops jaguar1_subdev_pad_ops = {
@@ -775,6 +797,7 @@ static int jaguar1_probe(struct i2c_client *client,
 	struct device_node *node = dev->of_node;
 	struct jaguar1 *jaguar1;
 	struct v4l2_subdev *sd;
+	__maybe_unused char facing[2];
 	int ret;
 
 	dev_info(dev, "driver version: %02x.%02x.%02x",
@@ -828,6 +851,14 @@ static int jaguar1_probe(struct i2c_client *client,
 #ifdef CONFIG_VIDEO_V4L2_SUBDEV_API
 	sd->flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
 #endif
+
+#if defined(CONFIG_VIDEO_ROCKCHIP_USBACM_CONTROL)
+	__jaguar1_power_off(jaguar1);
+	mutex_destroy(&jaguar1->mutex);
+
+	return 0;
+#endif
+
 #if defined(CONFIG_MEDIA_CONTROLLER)
 	jaguar1->pad.flags = MEDIA_PAD_FL_SOURCE;
 	sd->entity.type = MEDIA_ENT_T_V4L2_SUBDEV_SENSOR;
@@ -836,12 +867,21 @@ static int jaguar1_probe(struct i2c_client *client,
 		goto err_power_off;
 #endif
 
+	memset(facing, 0, sizeof(facing));
+	if (strcmp(jaguar1->module_facing, "back") == 0)
+		facing[0] = 'b';
+	else
+		facing[0] = 'f';
+
+	snprintf(sd->name, sizeof(sd->name), "m%02d_%s_%s %s",
+		 jaguar1->module_index, facing,
+		 JAGUAR1_NAME, dev_name(sd->dev));
+
 	ret = v4l2_async_register_subdev_sensor_common(sd);
 	if (ret) {
 		dev_err(dev, "v4l2 async register subdev failed\n");
 		goto err_clean_entity;
 	}
-
 	pm_runtime_set_active(dev);
 	pm_runtime_enable(dev);
 	pm_runtime_idle(dev);

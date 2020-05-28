@@ -339,6 +339,7 @@ static int rk_nandc_hw_syndrome_ecc_write_page(struct mtd_info *mtd,
 	dma_addr_t dma_data, dma_oob;
 	int i;
 	int dma_oob_size = ecc->steps * 64;
+	int pages_per_blk = mtd->erasesize / mtd->writesize;
 
 	for (i = 0; i < ecc->steps; i++) {
 		u32 tmp;
@@ -350,7 +351,14 @@ static int rk_nandc_hw_syndrome_ecc_write_page(struct mtd_info *mtd,
 			tmp = oob[0] | (oob[1] << 8) | (oob[1] << 16) |
 				(oob[1] << 24);
 		} else {
-			tmp = 0xFFFFFFFF;
+			/* The first 16 blocks is stored loader, the first
+			 * 32 bits of oob need link to next page address
+			 * in the same block for Bootrom.
+			 */
+			if (!i && page < pages_per_blk * 16)
+				tmp = (page & (pages_per_blk - 1)) * 4;
+			else
+				tmp = 0xFFFFFFFF;
 		}
 		nandc->oob_buf[i] = tmp;
 	}

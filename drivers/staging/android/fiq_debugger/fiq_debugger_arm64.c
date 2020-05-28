@@ -177,12 +177,16 @@ static int report_trace(struct stackframe *frame, void *d)
 void fiq_debugger_dump_stacktrace(struct fiq_debugger_output *output,
 		const struct pt_regs *regs, unsigned int depth, void *ssp)
 {
+#ifndef CONFIG_THREAD_INFO_IN_TASK
 	struct thread_info *real_thread_info = THREAD_INFO(ssp);
+#endif
 	struct stacktrace_state sts;
 
 	sts.depth = depth;
 	sts.output = output;
+#ifndef CONFIG_THREAD_INFO_IN_TASK
 	*current_thread_info() = *real_thread_info;
+#endif
 
 	if (!current)
 		output->printf(output, "current NULL\n");

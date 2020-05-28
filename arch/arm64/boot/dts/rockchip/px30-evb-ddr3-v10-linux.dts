@@ -10,7 +10,7 @@
 #include <dt-bindings/display/drm_mipi_dsi.h>
 #include <dt-bindings/sensor-dev.h>
 #include "px30.dtsi"
-#include "rk3326-linux.dtsi"
+#include "px30-linux.dtsi"
 
 / {
 	model = "Rockchip linux PX30 evb ddr3 board";
@@ -577,15 +577,15 @@
 				};
 			};
 
-			vcc3v3_lcd: SWITCH_REG1 {
-				regulator-boot-on;
-				regulator-name = "vcc3v3_lcd";
-			};
-
-			vcc5v0_host: SWITCH_REG2 {
+			vcc5v0_host: SWITCH_REG1 {
 				regulator-always-on;
 				regulator-boot-on;
 				regulator-name = "vcc5v0_host";
+			};
+
+			vcc3v3_lcd: SWITCH_REG2 {
+				regulator-boot-on;
+				regulator-name = "vcc3v3_lcd";
 			};
 		};
 

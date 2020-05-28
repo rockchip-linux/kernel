@@ -253,6 +253,8 @@ static int rockchip_pcie_phy_exit(struct phy *phy)
 
 	clk_disable_unprepare(rk_phy->clk_pciephy_ref);
 
+	reset_control_assert(rk_phy->phy_rst);
+	udelay(5);
 	err = reset_control_deassert(rk_phy->phy_rst);
 	if (err) {
 		pr_err("deassert phy_rst err %d\n", err);

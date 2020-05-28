@@ -792,7 +792,8 @@ crtc_set_mode(struct drm_device *dev, struct drm_atomic_state *old_state)
 		mode = &new_crtc_state->mode;
 		adjusted_mode = &new_crtc_state->adjusted_mode;
 
-		if (!new_crtc_state->mode_changed)
+		if (!new_crtc_state->mode_changed &&
+		    !new_crtc_state->connectors_changed)
 			continue;
 
 		DRM_DEBUG_ATOMIC("modeset on [ENCODER:%d:%s]\n",
@@ -1446,7 +1447,7 @@ void drm_atomic_helper_commit_cleanup_done(struct drm_atomic_state *state)
 		 * before releasing our reference, since the vblank work does
 		 * not hold a reference of its own. */
 		ret = wait_for_completion_timeout(&commit->flip_done,
-						  msecs_to_jiffies(100));
+						  HZ);
 		if (ret == 0)
 			DRM_ERROR("[CRTC:%d] flip_done timed out\n",
 				  crtc->base.id);

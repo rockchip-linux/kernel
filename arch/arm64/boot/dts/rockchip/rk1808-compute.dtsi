@@ -21,38 +21,6 @@
 		poll-interval = <100>;
 	};
 
-	i2c@0 {
-		compatible = "i2c-gpio";
-		gpios = <&gpio0 9 GPIO_ACTIVE_HIGH>, /* sda */
-			<&gpio0 8 GPIO_ACTIVE_HIGH>; /* scl */
-		i2c-gpio,delay-us = <2>;        /* ~100 kHz */
-		#address-cells = <1>;
-		#size-cells = <0>;
-		pinctrl-names = "default";
-		pinctrl-0 = <&i2c0_gpio>;
-		status = "okay";
-
-		vdd_npu: tcs4525@1c {
-			compatible = "tcs,tcs452x";
-			reg = <0x1c>;
-			vin-supply = <&vcc5v0_sys>;
-			regulator-compatible = "fan53555-reg";
-			pinctrl-names = "default";
-			pinctrl-0 = <&en_gpio &vsel_gpio>;
-			vsel-gpios = <&gpio0 5 GPIO_ACTIVE_HIGH>;
-			regulator-name = "vdd_npu";
-			regulator-min-microvolt = <750000>;
-			regulator-max-microvolt = <950000>;
-			regulator-ramp-delay = <2300>;
-			fcs,suspend-voltage-selector = <0>;
-			regulator-boot-on;
-			regulator-state-mem {
-				regulator-off-in-suspend;
-			};
-		};
-
-	};
-
 	fiq-debugger {
 		compatible = "rockchip,fiq-debugger";
 		rockchip,serial-id = <2>;
@@ -162,6 +130,31 @@
 	status = "disabled";
 };
 
+&i2c0 {
+	status = "okay";
+	clock-frequency = <400000>;
+
+	vdd_npu: tcs4525@1c {
+		compatible = "tcs,tcs452x";
+		reg = <0x1c>;
+		vin-supply = <&vcc5v0_sys>;
+		regulator-compatible = "fan53555-reg";
+		pinctrl-names = "default";
+		pinctrl-0 = <&en_gpio &vsel_gpio>;
+		vsel-gpios = <&gpio0 5 GPIO_ACTIVE_HIGH>;
+		regulator-name = "vdd_npu";
+		regulator-min-microvolt = <750000>;
+		regulator-max-microvolt = <880000>;
+		regulator-init-microvolt = <880000>;
+		regulator-ramp-delay = <2300>;
+		fcs,suspend-voltage-selector = <0>;
+		regulator-boot-on;
+		regulator-state-mem {
+			regulator-off-in-suspend;
+		};
+	};
+};
+
 &npu {
 	npu-supply = <&vdd_npu>;
 	status = "okay";
@@ -230,13 +223,6 @@
 		vsel_gpio: vsel-gpio {
 				rockchip,pins =
 				<0 RK_PA5 0 &pcfg_pull_down>;
-		};
-		i2c0_gpio: i2c0-gpio {
-				rockchip,pins =
-					/* i2c0_sda */
-					<0 RK_PB1 0 &pcfg_pull_up>,
-					/* i2c0_scl */
-					<0 RK_PB0 0 &pcfg_pull_up>;
 		};
 	};
 };

@@ -5,6 +5,8 @@
  * Copyright (C) 2017 Fuzhou Rockchip Electronics Co., Ltd.
  *
  * V0.0X01.0X01 add poweron function.
+ * V0.0X01.0X02 fix mclk issue when probe multiple camera.
+ * V0.0X01.0X03 add enum_frame_interval function.
  */
 
 #include <linux/clk.h>
@@ -25,7 +27,7 @@
 #include <linux/pinctrl/consumer.h>
 #include <linux/slab.h>
 
-#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x01)
+#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x03)
 
 #ifndef V4L2_CID_DIGITAL_GAIN
 #define V4L2_CID_DIGITAL_GAIN		V4L2_CID_GAIN
@@ -1447,14 +1449,15 @@ static int __gc8034_start_stream(struct gc8034 *gc8034)
 {
 	int ret;
 
-	ret = gc8034_otp_enable(gc8034);
-	gc8034_check_prsel(gc8034);
-	ret |= gc8034_apply_otp(gc8034);
-	usleep_range(1000, 2000);
-	ret |= gc8034_otp_disable(gc8034);
-	if (ret)
-		return ret;
-
+	if (gc8034->otp) {
+		ret = gc8034_otp_enable(gc8034);
+		gc8034_check_prsel(gc8034);
+		ret |= gc8034_apply_otp(gc8034);
+		usleep_range(1000, 2000);
+		ret |= gc8034_otp_disable(gc8034);
+		if (ret)
+			return ret;
+	}
 	ret = gc8034_write_array(gc8034->client, gc8034->cur_mode->reg_list);
 	if (ret)
 		return ret;
@@ -1564,13 +1567,16 @@ static int __gc8034_power_on(struct gc8034 *gc8034)
 		if (ret < 0)
 			dev_err(dev, "could not set pins\n");
 	}
-
+	ret = clk_set_rate(gc8034->xvclk, GC8034_XVCLK_FREQ);
+	if (ret < 0)
+		dev_warn(dev, "Failed to set xvclk rate (24MHz)\n");
+	if (clk_get_rate(gc8034->xvclk) != GC8034_XVCLK_FREQ)
+		dev_warn(dev, "xvclk mismatched, modes are based on 24MHz\n");
 	ret = clk_prepare_enable(gc8034->xvclk);
 	if (ret < 0) {
 		dev_err(dev, "Failed to enable xvclk\n");
 		return ret;
 	}
-
 	if (!IS_ERR(gc8034->reset_gpio))
 		gpiod_set_value_cansleep(gc8034->reset_gpio, 1);
 
@@ -1660,6 +1666,22 @@ static int gc8034_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 }
 #endif
 
+static int gc8034_enum_frame_interval(struct v4l2_subdev *sd,
+				       struct v4l2_subdev_pad_config *cfg,
+				       struct v4l2_subdev_frame_interval_enum *fie)
+{
+	if (fie->index >= ARRAY_SIZE(supported_modes))
+		return -EINVAL;
+
+	if (fie->code != MEDIA_BUS_FMT_SRGGB10_1X10)
+		return -EINVAL;
+
+	fie->width = supported_modes[fie->index].width;
+	fie->height = supported_modes[fie->index].height;
+	fie->interval = supported_modes[fie->index].max_fps;
+	return 0;
+}
+
 static const struct dev_pm_ops gc8034_pm_ops = {
 	SET_RUNTIME_PM_OPS(gc8034_runtime_suspend,
 			gc8034_runtime_resume, NULL)
@@ -1687,6 +1709,7 @@ static const struct v4l2_subdev_video_ops gc8034_video_ops = {
 static const struct v4l2_subdev_pad_ops gc8034_pad_ops = {
 	.enum_mbus_code = gc8034_enum_mbus_code,
 	.enum_frame_size = gc8034_enum_frame_sizes,
+	.enum_frame_interval = gc8034_enum_frame_interval,
 	.get_fmt = gc8034_get_fmt,
 	.set_fmt = gc8034_set_fmt,
 };
@@ -2001,13 +2024,6 @@ static int gc8034_probe(struct i2c_client *client,
 		dev_err(dev, "Failed to get xvclk\n");
 		return -EINVAL;
 	}
-	ret = clk_set_rate(gc8034->xvclk, GC8034_XVCLK_FREQ);
-	if (ret < 0) {
-		dev_err(dev, "Failed to set xvclk rate (24MHz)\n");
-		return ret;
-	}
-	if (clk_get_rate(gc8034->xvclk) != GC8034_XVCLK_FREQ)
-		dev_warn(dev, "xvclk mismatched, modes are based on 24MHz\n");
 
 	gc8034->reset_gpio = devm_gpiod_get(dev, "reset", GPIOD_OUT_LOW);
 	if (IS_ERR(gc8034->reset_gpio))

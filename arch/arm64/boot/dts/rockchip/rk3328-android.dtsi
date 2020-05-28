@@ -5,8 +5,8 @@
  */
 
 / {
-	chosen {
-		bootargs = "earlyprintk=uart8250-32bit,0xff130000 swiotlb=1 kpti=0 coherent_pool=1m";
+	chosen: chosen {
+		bootargs = "earlycon=uart8250,mmio32,0xff130000 swiotlb=1 kpti=0 coherent_pool=1m";
 	};
 
 	fiq-debugger {

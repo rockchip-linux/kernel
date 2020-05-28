@@ -115,11 +115,6 @@ struct rockchip_efuse_chip {
 
 static void rk1808_efuse_timing_init(void __iomem *base)
 {
-	static bool init;
-
-	if (init)
-		return;
-
 	/* enable auto mode */
 	writel(readl(base + RK1808_MOD) & (~RK1808_USER_MODE),
 	       base + RK1808_MOD);
@@ -135,8 +130,25 @@ static void rk1808_efuse_timing_init(void __iomem *base)
 	writel((T_LOAD_R_S << 16) | T_LOAD_R_L, base + T_LOAD_R);
 	writel((T_ADDR_R_S << 16) | T_ADDR_R_L, base + T_ADDR_R);
 	writel((T_STROBE_R_S << 16) | T_STROBE_R_L, base + T_STROBE_R);
+}
 
-	init = true;
+static void rk1808_efuse_timing_deinit(void __iomem *base)
+{
+	/* disable auto mode */
+	writel(readl(base + RK1808_MOD) | RK1808_USER_MODE,
+	       base + RK1808_MOD);
+
+	/* clear efuse timing */
+	writel(0, base + T_CSB_P);
+	writel(0, base + T_PGENB_P);
+	writel(0, base + T_LOAD_P);
+	writel(0, base + T_ADDR_P);
+	writel(0, base + T_STROBE_P);
+	writel(0, base + T_CSB_R);
+	writel(0, base + T_PGENB_R);
+	writel(0, base + T_LOAD_R);
+	writel(0, base + T_ADDR_R);
+	writel(0, base + T_STROBE_R);
 }
 
 static int rockchip_rk1808_efuse_read(void *context, unsigned int offset,
@@ -161,8 +173,6 @@ static int rockchip_rk1808_efuse_read(void *context, unsigned int offset,
 		return ret;
 	}
 
-	rk1808_efuse_timing_init(efuse->base);
-
 	addr_start = rounddown(offset, RK1808_NBYTES) / RK1808_NBYTES;
 	addr_end = roundup(offset + bytes, RK1808_NBYTES) / RK1808_NBYTES;
 	addr_offset = offset % RK1808_NBYTES;
@@ -173,6 +183,8 @@ static int rockchip_rk1808_efuse_read(void *context, unsigned int offset,
 		ret = -ENOMEM;
 		goto nomem;
 	}
+
+	rk1808_efuse_timing_init(efuse->base);
 
 	while (addr_len--) {
 		writel(RK1808_AUTO_RD | RK1808_AUTO_ENB |
@@ -192,6 +204,7 @@ static int rockchip_rk1808_efuse_read(void *context, unsigned int offset,
 	}
 	memcpy(val, buf + addr_offset, bytes);
 err:
+	rk1808_efuse_timing_deinit(efuse->base);
 	kfree(buf);
 nomem:
 	clk_disable_unprepare(efuse->clk);

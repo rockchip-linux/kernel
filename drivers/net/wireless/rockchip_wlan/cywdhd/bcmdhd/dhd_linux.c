@@ -5041,7 +5041,7 @@ dhd_rx_frame(dhd_pub_t *dhdp, int ifidx, void *pktbuf, int numpkt, uint8 chan)
 			}
 
 			if (numpkt != 1) {
-				DHD_ERROR(("%s: Got BRCM event packet in a chained packet.\n",
+				DHD_INFO(("%s: Got BRCM event packet in a chained packet.\n",
 				__FUNCTION__));
 			}
 #ifdef DHD_DONOT_FORWARD_BCMEVENT_AS_NETWORK_PKT

@@ -30,7 +30,7 @@ static const struct drm_display_mode rk1000_cvbs_mode[2] = {
 		   DRM_MODE_FLAG_NHSYNC | DRM_MODE_FLAG_NVSYNC),
 		   .vrefresh = 50, 0, },
 	{ DRM_MODE("720x480", DRM_MODE_TYPE_DRIVER, 27000, 720, 736,
-		   742, 858, 0, 480, 486, 492, 529, 0,
+		   742, 858, 0, 480, 494, 500, 525, 0,
 		   DRM_MODE_FLAG_NHSYNC | DRM_MODE_FLAG_NVSYNC),
 		   .vrefresh = 60, 0, },
 };
