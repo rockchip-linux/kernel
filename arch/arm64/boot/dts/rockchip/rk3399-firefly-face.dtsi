@@ -160,6 +160,15 @@
 			system-clock-frequency = <11289600>;
 		};
 	};
+
+    pwm_white_led: pwm-white-led {
+        status = "okay";
+        compatible = "firefly,rk3399-face-white-led";
+        pwms = <&pwm0 0 500000 0>;   //pwm1:PWM number   0 10000:PWM period in nanoseconds  1:polarity
+        firefly,hwversion_range_gt = <1 0x00020003>;
+		brightness-levels = <0 100000 150000 200000 250000 300000 350000 400000 450000>;
+		default-brightness-level = <0>;
+    };
 };
 
 &vdd_log {
