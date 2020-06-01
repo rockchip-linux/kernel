@@ -1541,7 +1541,7 @@ static int ssv_cmd_txtput(int argc, char *argv[])
  size_per_frame = simple_strtoul(argv[2], &endp, 10);
  loop_times = simple_strtoul(argv[3], &endp, 10);
  sprintf(tmpbf, "type&size&frames:%d&%d&%d\n", pkt_type, size_per_frame, loop_times);
- strncat(ssv6xxx_result_buf, tmpbf, sizeof(tmpbf));
+ strncat(ssv6xxx_result_buf, tmpbf, 64 /* sizeof(tmpbf) */);
  if (ssv6xxx_txtput->txtput_tsk) {
   sprintf(tmpbf, "txtput already in progress\n");
   strcat(ssv6xxx_result_buf, tmpbf);
