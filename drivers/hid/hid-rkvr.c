@@ -777,7 +777,7 @@ static int hid_report_readreg(struct device *dev, u8 reg, u8 *data, int len)
 	if (ret != readlen) {
 		hid_info(hid, "id_hw_raw_request fail\n");
 	} else {
-		memcpy(data, &buf[1], readlen);
+		memcpy(data, &buf[1], sizeof(*data) * len);
 		hid_info(hid, "hid_report_readreg %02x %02x\n", reg, data[0]);
 	}
 
