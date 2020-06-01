@@ -102,6 +102,7 @@ static ssize_t dl1825_dev_read(struct file *filp, char __user *buf, size_t count
 	char tmp[MAX_BUFFER_SIZE];
 	unsigned char data_len, crc8;
 	int ret;
+	struct device * dev = dl1825_dev->dl1825_device.this_device ;
 	nfc_data_struct_t cur_nfc_data;
 
 	if (count > MAX_BUFFER_SIZE)
@@ -134,7 +135,7 @@ static ssize_t dl1825_dev_read(struct file *filp, char __user *buf, size_t count
 	if(NFC_DATA_HEAD != cur_nfc_data.head
 			|| cur_nfc_data.len > NFC_DATA_MAX_LEN)
 	{
-		pr_err("%s: i2c_master_recv data err[head] \n", __func__);
+		dev_warn(dev, "%s: i2c_master_recv data err[head] \n", __func__);
 		return 0;
 	}
 
