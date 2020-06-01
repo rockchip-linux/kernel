@@ -38,6 +38,8 @@ import sys
 import subprocess
 
 allowed_warnings = set([
+    "km_apphint.c:230", # drivers/staging/imgtec/rogue/km_apphint.c:230:48: warning: division 'sizeof (void *) / sizeof (void)' does not compute the number of array elements [-Wsizeof-pointer-div]
+    "uaccess.h:417", # arch/arm64/include/asm/uaccess.h:417:3: warning: 'memset' offset [17, 48] from the object at 'r6' is out of the bounds of referenced subobject 'rtmsg_dst' with type 'struct in6_addr' at offset 0
     "posix-cpu-timers.c:1268", # kernel/time/posix-cpu-timers.c:1268:13: warning: 'now' may be used uninitialized in this function
     "af_unix.c:1036", # net/unix/af_unix.c:1036:20: warning: 'hash' may be used uninitialized in this function
     "sunxi_sram.c:214", # drivers/soc/sunxi/sunxi_sram.c:214:24: warning: 'device' may be used uninitialized in this function
