@@ -143,7 +143,7 @@
 
 &i2s1 {
 	#sound-dai-cells = <0>;
-	status = "disabled";
+	status = "okay";
 };
 
 &rk809_sound {
@@ -184,7 +184,7 @@
 
 &i2s0 {
 	#sound-dai-cells = <0>;
-	status = "okay";
+	status = "disabled";
 };
 
 &rk_key {
