@@ -714,8 +714,6 @@ static int btusb_open(struct hci_dev *hdev)
 		return err;
 
 	data->intf->needs_remote_wakeup = 1;
-	RTKBT_DBG("%s start pm_usage_cnt(0x%x)", __func__,
-		  atomic_read(&(data->intf->pm_usage_cnt)));
 
 	/*******************************/
 	if (0 == atomic_read(&hdev->promisc)) {
@@ -756,8 +754,6 @@ done:
 #ifdef BTCOEX
 	rtk_btcoex_open(hdev);
 #endif
-	RTKBT_DBG("%s end  pm_usage_cnt(0x%x)", __FUNCTION__,
-		  atomic_read(&(data->intf->pm_usage_cnt)));
 
 	return 0;
 
@@ -765,8 +761,7 @@ failed:
 	clear_bit(BTUSB_INTR_RUNNING, &data->flags);
 	clear_bit(HCI_RUNNING, &hdev->flags);
 	usb_autopm_put_interface(data->intf);
-	RTKBT_ERR("%s failed  pm_usage_cnt(0x%x)", __FUNCTION__,
-		  atomic_read(&(data->intf->pm_usage_cnt)));
+
 	return err;
 }
 
@@ -1150,14 +1145,11 @@ static void btusb_waker(struct work_struct *work)
 	int err;
 
 	err = usb_autopm_get_interface(data->intf);
-	RTKBT_DBG("%s start  pm_usage_cnt(0x%x)", __FUNCTION__,
-		  atomic_read(&(data->intf->pm_usage_cnt)));
+
 	if (err < 0)
 		return;
 
 	usb_autopm_put_interface(data->intf);
-	RTKBT_DBG("%s end  pm_usage_cnt(0x%x)", __FUNCTION__,
-		  atomic_read(&(data->intf->pm_usage_cnt)));
 }
 
 int rtkbt_pm_notify(struct notifier_block *notifier,
