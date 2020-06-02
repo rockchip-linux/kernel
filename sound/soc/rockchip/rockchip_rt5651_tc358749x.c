@@ -212,9 +212,8 @@ static int rockchip_sound_probe(struct platform_device *pdev)
 			of_parse_phandle(pdev->dev.of_node,
 					 "rockchip,codec", i);
 		if (!rockchip_dailinks[i].codec_of_node) {
-			dev_err(&pdev->dev,
-				"Property[%d] 'rockchip,codec' failed\n", i);
-			return -EINVAL;
+			card->num_links = i;
+			break;
 		}
 	}
 
