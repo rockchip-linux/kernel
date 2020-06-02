@@ -60,6 +60,11 @@
 	};
 };
 
+&uart0 {
+    current-speed = <9600>;
+    no-loopback-test;
+    status = "okay";
+};
 
 &i2c1 {
     /delete-node/es8323@10;
