@@ -154,10 +154,14 @@
 /* JPEG compressed formats - next is	0x4002 */
 #define MEDIA_BUS_FMT_JPEG_1X8			0x4001
 
-/* Vendor specific formats - next is	0x5002 */
+/* Vendor specific formats - next is	0x5004 */
 
 /* S5C73M3 sensor specific interleaved UYVY and JPEG */
 #define MEDIA_BUS_FMT_S5C_UYVY_JPEG_1X8		0x5001
+/* sensor embedded data format */
+#define MEDIA_BUS_FMT_EBD_1X8			0x5002
+/* sensor shield pix data format */
+#define MEDIA_BUS_FMT_SPD_2X8			0x5003
 
 /* HSV - next is	0x6002 */
 #define MEDIA_BUS_FMT_AHSV8888_1X32		0x6001
