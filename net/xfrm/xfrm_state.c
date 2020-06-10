@@ -44,7 +44,7 @@ static void xfrm_state_gc_task(struct work_struct *work);
  */
 
 static unsigned int xfrm_state_hashmax __read_mostly = 1 * 1024 * 1024;
-static __read_mostly seqcount_t xfrm_state_hash_generation = SEQCNT_ZERO(xfrm_state_hash_generation);
+static __read_mostly seqcount_spinlock_t xfrm_state_hash_generation;
 static struct kmem_cache *xfrm_state_cache __ro_after_init;
 
 static DECLARE_WORK(xfrm_state_gc_work, xfrm_state_gc_task);
@@ -139,6 +139,11 @@ static void xfrm_hash_resize(struct work_struct *work)
 		return;
 	}
 
+	/* XXX - the locking which protects the sequence counter appears
+	 * to be broken here. The sequence counter is global, but the
+	 * spinlock used for the sequence counter write serialization is
+	 * per network namespace...
+	 */
 	spin_lock_bh(&net->xfrm.xfrm_state_lock);
 	write_seqcount_begin(&xfrm_state_hash_generation);
 
@@ -2660,6 +2665,8 @@ int __net_init xfrm_state_init(struct net *net)
 	net->xfrm.state_num = 0;
 	INIT_WORK(&net->xfrm.state_hash_work, xfrm_hash_resize);
 	spin_lock_init(&net->xfrm.xfrm_state_lock);
+	seqcount_spinlock_init(&xfrm_state_hash_generation,
+			       &net->xfrm.xfrm_state_lock);
 	return 0;
 
 out_byspi:
