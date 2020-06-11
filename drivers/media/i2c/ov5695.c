@@ -83,6 +83,14 @@
 
 #define OV5695_NAME			"ov5695"
 
+struct otp_struct {
+	int flag; // bit[7]: info & wb
+	int module_integrator_id;
+	int lens_id;
+	int rg_ratio;
+	int bg_ratio;
+};
+
 static const char * const ov5695_supply_names[] = {
 	"avdd",		/* Analog power */
 	"dovdd",	/* Digital I/O power */
@@ -130,6 +138,9 @@ struct ov5695 {
 	const char		*module_facing;
 	const char		*module_name;
 	const char		*len_name;
+	struct otp_struct otp_info;
+	struct rkmodule_inf	module_inf;
+	struct rkmodule_awb_cfg	awb_cfg;
 };
 
 #define to_ov5695(sd) container_of(sd, struct ov5695, subdev)
@@ -408,13 +419,14 @@ static const struct regval ov5695_1296x972_regs[] = {
 	{0x3611, 0x58},
 	{0x3706, 0x24},
 	{0x3714, 0x27},
-	{0x3716, 0x00},
-	{0x3717, 0x02},
-	{0x37c3, 0xf0},
+	{0x3716, 0x04},
+	{0x3717, 0x07},
+	{0x37c3, 0xf4},
 	{0x380d, 0xe4},
-	{0x380e, 0x03},
-	{0x380f, 0xf4},
+	{0x380e, 0x07},
+	{0x380f, 0xe8},
 	{0x3811, 0x00},
+	{0x3820, 0xbb},
 	{0x5000, 0x13},
 	{REG_NULL, 0x00}
 };
@@ -533,11 +545,11 @@ static const struct ov5695_mode supported_modes[] = {
 		.height = 972,
 		.max_fps = {
 			.numerator = 10000,
-			.denominator = 600000,
+			.denominator = 300000,
 		},
 		.exp_def = 0x03e0,
 		.hts_def = 0x02e4 * 4,
-		.vts_def = 0x03f4,
+		.vts_def = 0x07e8,
 		.reg_list = ov5695_1296x972_regs,
 	},
 	{
@@ -700,6 +712,165 @@ static int ov5695_read_reg(struct i2c_client *client, u16 reg, unsigned int len,
 	return 0;
 }
 
+static int read_otp(struct ov5695 *ov5695)
+{
+	struct i2c_client *client = ov5695->client;
+	struct otp_struct *otp_ptr = &ov5695->otp_info;
+	int ret = 0;
+	u32 otp_flag = 0;
+	u32 addr = 0;
+	u32	temp = 0;
+	int i = 0;
+	u32 temp_rg = 0;
+	u32 temp_bg = 0;
+
+	// OTP base information and WB calibration data
+	ret = ov5695_read_reg(client, 0x700C, OV5695_REG_VALUE_08BIT, &otp_flag);
+	dev_dbg(&client->dev, "otp_flag 0x%x!\n", otp_flag);
+	addr = 0;
+	if ((otp_flag & 0xc0) == 0x40)
+		addr = 0x700D; // base address of info group 1
+	else if ((otp_flag & 0x30) == 0x10)
+		addr = 0x7012; // base address of info group 2
+	else if ((otp_flag & 0x0C) == 0x04)
+		addr = 0x7017; // base address of info group 2
+
+	if (addr != 0) {
+		(*otp_ptr).flag = 0x80; // valid info and AWB in OTP
+		ret |= ov5695_read_reg(client, addr, OV5695_REG_VALUE_08BIT, &temp);
+		(*otp_ptr).module_integrator_id = temp;
+		ret |= ov5695_read_reg(client, addr + 1, OV5695_REG_VALUE_08BIT, &temp);
+		(*otp_ptr).lens_id = temp;
+		ret |= ov5695_read_reg(client, addr + 4, OV5695_REG_VALUE_08BIT, &temp);
+		ret |= ov5695_read_reg(client, addr + 2, OV5695_REG_VALUE_08BIT, &temp_rg);
+		ret |= ov5695_read_reg(client, addr + 3, OV5695_REG_VALUE_08BIT, &temp_bg);
+		(*otp_ptr).rg_ratio = (temp_rg << 2) + ((temp >> 6) & 0x03);
+		(*otp_ptr).bg_ratio = (temp_bg << 2) + ((temp >> 4) & 0x03);
+		dev_dbg(&client->dev,
+			"awb otp info in module_integrator_id(0x%x) lens_id(0x%x) awb info(0x%x,0x%x)\n",
+			(*otp_ptr).module_integrator_id, (*otp_ptr).lens_id,
+			(*otp_ptr).rg_ratio, (*otp_ptr).bg_ratio);
+	} else {
+		(*otp_ptr).flag = 0x00; // not info and AWB in OTP
+		(*otp_ptr).module_integrator_id = 0;
+		(*otp_ptr).lens_id = 0;
+		(*otp_ptr).rg_ratio = 0;
+		(*otp_ptr).bg_ratio = 0;
+		dev_err(&client->dev, "no awb info in otp!\n");
+	}
+
+	for (i = 0x700C; i <= 0x701B; i++) {
+		ret |= ov5695_write_reg(client, i, OV5695_REG_VALUE_08BIT, 0);
+		// clear OTP buffer, recommended use continuous write to accelerate
+	}
+	//set 0x5001[3] to "1"
+	ret |= ov5695_read_reg(client, 0x5001, OV5695_REG_VALUE_08BIT, &temp);
+	ret |= ov5695_write_reg(client, 0x5001, OV5695_REG_VALUE_08BIT,
+							0x08 | temp);
+
+	//stream off
+	ret |= ov5695_write_reg(client, 0x0100, OV5695_REG_VALUE_08BIT, 0x00);
+
+	if ((*otp_ptr).flag != 0 && ret == 0) {
+		dev_dbg(&client->dev, "otp read finished!\n");
+		return 0;
+	}
+	dev_err(&client->dev, "otp read err or no exist otp data!\n");
+	return -1;
+}
+
+static int check_read_otp(struct ov5695 *ov5695)
+{
+	struct i2c_client *client = ov5695->client;
+	u32 temp = 0;
+	int ret = 0;
+	int i = 0;
+
+	//stream on
+	ret = ov5695_write_reg(client, 0x0100, OV5695_REG_VALUE_08BIT, 0x01);
+	ret |= ov5695_read_reg(client, 0x5001, OV5695_REG_VALUE_08BIT, &temp);
+	ret |= ov5695_write_reg(client, 0x5001, OV5695_REG_VALUE_08BIT, temp & (~0x08));
+	// read OTP into buffer
+	ret |= ov5695_write_reg(client, 0x3d84, OV5695_REG_VALUE_08BIT, 0xC0);
+	ret |= ov5695_write_reg(client, 0x3d88, OV5695_REG_VALUE_08BIT, 0x70);
+	ret |= ov5695_write_reg(client, 0x3d89, OV5695_REG_VALUE_08BIT, 0x0C);
+	ret |= ov5695_write_reg(client, 0x3d8A, OV5695_REG_VALUE_08BIT, 0x70);
+	ret |= ov5695_write_reg(client, 0x3d8B, OV5695_REG_VALUE_08BIT, 0x1B);
+	for (i = 0x700C; i <= 0x701B; i++) {
+		ret |= ov5695_write_reg(client, i, OV5695_REG_VALUE_08BIT, 0);
+		// clear OTP buffer, recommended use continuous write to accelerate
+	}
+	ret |= ov5695_write_reg(client, 0x3d81, OV5695_REG_VALUE_08BIT, 0x01);
+	if (ret != 0)
+		return ret;
+	usleep_range(10000, 11000);
+	return read_otp(ov5695);
+}
+
+static int apply_otp(struct ov5695 *ov5695)
+{
+	struct i2c_client *client = ov5695->client;
+	struct rkmodule_awb_cfg *awb_cfg = &ov5695->awb_cfg;
+	struct otp_struct *otp_ptr = &ov5695->otp_info;
+	u32 rg, bg, R_gain, G_gain, B_gain, Base_gain;
+	u32 golden_bg_ratio = 0;
+	u32 golden_rg_ratio = 0;
+	u32 golden_g_value = 0;
+
+	dev_dbg(&client->dev,
+		"awb otp golden_gb(0x%x) golden_gr(0x%x) golden_b(0x%x) golden_r(0x%x)!\n",
+		awb_cfg->golden_gb_value, awb_cfg->golden_gr_value,
+		awb_cfg->golden_b_value, awb_cfg->golden_r_value);
+	if (awb_cfg->enable) {
+		golden_g_value = (awb_cfg->golden_gb_value + awb_cfg->golden_gr_value) / 2;
+		golden_bg_ratio = awb_cfg->golden_b_value * 0x100 / golden_g_value;
+		golden_rg_ratio = awb_cfg->golden_r_value * 0x100 / golden_g_value;
+	}
+
+	// apply OTP WB Calibration
+	if (((*otp_ptr).flag & 0x80) && awb_cfg->enable) {
+		rg = (*otp_ptr).rg_ratio;
+		bg = (*otp_ptr).bg_ratio;
+		//calculate G gain
+		R_gain = (golden_rg_ratio * 1000) / rg;
+		B_gain = (golden_bg_ratio * 1000) / bg;
+		G_gain = 1000;
+		if (R_gain < 1000 || B_gain < 1000) {
+			if (R_gain < B_gain)
+				Base_gain = R_gain;
+			else
+				Base_gain = B_gain;
+		} else {
+			Base_gain = G_gain;
+		}
+		R_gain = 0x400 * R_gain / (Base_gain);
+		B_gain = 0x400 * B_gain / (Base_gain);
+		G_gain = 0x400 * G_gain / (Base_gain);
+		// update sensor WB gain
+
+		if (R_gain > 0x400) {
+			ov5695_write_reg(client, 0x5019, OV5695_REG_VALUE_08BIT, R_gain >> 8);
+			ov5695_write_reg(client, 0x501A, OV5695_REG_VALUE_08BIT, R_gain & 0x00ff);
+		}
+		if (G_gain > 0x400) {
+			ov5695_write_reg(client, 0x501B, OV5695_REG_VALUE_08BIT, G_gain >> 8);
+			ov5695_write_reg(client, 0x501C, OV5695_REG_VALUE_08BIT, G_gain & 0x00ff);
+		}
+		if (B_gain > 0x400) {
+			ov5695_write_reg(client, 0x501D, OV5695_REG_VALUE_08BIT, B_gain >> 8);
+			ov5695_write_reg(client, 0x501E, OV5695_REG_VALUE_08BIT, B_gain & 0x00ff);
+		}
+		dev_info(&client->dev, "awb otp cur_rg(0x%x) cur_bg(0x%x) gol_rg(0x%x) gol_bg(0x%x)!\n",
+				 rg, bg, golden_rg_ratio, golden_bg_ratio);
+		dev_dbg(&client->dev, "apply awb otp r_gain(0x%x) b_gain(0x%x) g_gain(0x%x)!\n",
+				 R_gain, B_gain, G_gain);
+
+	} else {
+		dev_err(&client->dev, "no apply otp!\n");
+	}
+	return 0;
+}
+
 static int ov5695_get_reso_dist(const struct ov5695_mode *mode,
 				struct v4l2_mbus_framefmt *framefmt)
 {
@@ -846,6 +1017,25 @@ static int ov5695_g_frame_interval(struct v4l2_subdev *sd,
 	return 0;
 }
 
+static void ov5695_get_otp(struct otp_struct *otp_info,
+			       struct rkmodule_inf *inf)
+{
+	/* awb */
+	if (otp_info->flag) {
+		inf->fac.flag = 1;
+		inf->awb.flag = 1;
+		inf->awb.r_value = otp_info->rg_ratio;
+		inf->awb.b_value = otp_info->bg_ratio;
+		inf->awb.gr_value = 0x100;
+		inf->awb.gb_value = 0x100;
+
+		inf->awb.golden_r_value = 0;
+		inf->awb.golden_b_value = 0;
+		inf->awb.golden_gr_value = 0;
+		inf->awb.golden_gb_value = 0;
+	}
+}
+
 static void ov5695_get_module_inf(struct ov5695 *ov5695,
 				  struct rkmodule_inf *inf)
 {
@@ -854,6 +1044,15 @@ static void ov5695_get_module_inf(struct ov5695 *ov5695,
 	strlcpy(inf->base.module, ov5695->module_name,
 		sizeof(inf->base.module));
 	strlcpy(inf->base.lens, ov5695->len_name, sizeof(inf->base.lens));
+	ov5695_get_otp(&ov5695->otp_info, inf);
+}
+
+static void ov5695_set_awb_cfg(struct ov5695 *ov5695,
+			       struct rkmodule_awb_cfg *cfg)
+{
+	mutex_lock(&ov5695->mutex);
+	memcpy(&ov5695->awb_cfg, cfg, sizeof(*cfg));
+	mutex_unlock(&ov5695->mutex);
 }
 
 static long ov5695_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
@@ -864,6 +1063,9 @@ static long ov5695_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 	switch (cmd) {
 	case RKMODULE_GET_MODULE_INFO:
 		ov5695_get_module_inf(ov5695, (struct rkmodule_inf *)arg);
+		break;
+	case RKMODULE_AWB_CFG:
+		ov5695_set_awb_cfg(ov5695, (struct rkmodule_awb_cfg *)arg);
 		break;
 	default:
 		ret = -ENOIOCTLCMD;
@@ -923,6 +1125,8 @@ static int __ov5695_start_stream(struct ov5695 *ov5695)
 	ret = ov5695_write_array(ov5695->client, ov5695->cur_mode->reg_list);
 	if (ret)
 		return ret;
+
+	apply_otp(ov5695);
 
 	/* In case these controls are set before streaming */
 	mutex_unlock(&ov5695->mutex);
@@ -1426,6 +1630,8 @@ static int ov5695_probe(struct i2c_client *client,
 	ret = ov5695_check_sensor_id(ov5695, client);
 	if (ret)
 		goto err_pm_put;
+
+	check_read_otp(ov5695);
 
 #ifdef CONFIG_VIDEO_V4L2_SUBDEV_API
 	sd->internal_ops = &ov5695_internal_ops;
