@@ -843,6 +843,7 @@ struct dwc3_scratchpad_array {
  * 	1	- -3.5dB de-emphasis
  * 	2	- No de-emphasis
  * 	3	- Reserved
+ * @needs_fifo_resize: set if we want to resize TXFIFO.
  */
 struct dwc3 {
 	struct usb_ctrlrequest	*ctrl_req;
@@ -995,6 +996,7 @@ struct dwc3 {
 
 	unsigned		tx_de_emphasis_quirk:1;
 	unsigned		tx_de_emphasis:2;
+	unsigned		needs_fifo_resize:1;
 };
 
 /* -------------------------------------------------------------------------- */

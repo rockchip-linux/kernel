@@ -230,6 +230,7 @@
 			/*system status		freq(KHz)*/
 			SYS_STATUS_NORMAL	456000
 			SYS_STATUS_SUSPEND	200000
+			SYS_STATUS_REBOOT	396000
 		>;
 		auto-min-freq = <300000>;
 		auto-freq-en = <0>;
@@ -1209,6 +1210,10 @@
 		cpu_leakage: cpu_leakage@17 {
 			reg = <0x17 0x1>;
 		};
+	};
+
+	rockchip_system_monitor: rockchip-system-monitor {
+		compatible = "rockchip,system-monitor";
 	};
 
 	pinctrl: pinctrl {

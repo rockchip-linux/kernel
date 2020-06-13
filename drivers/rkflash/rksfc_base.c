@@ -57,12 +57,6 @@ void rksfc_dma_unmap_single(unsigned long ptr, int size, int dir)
 #endif
 }
 
-int rksfc_get_reg_addr(unsigned long *p_sfc_addr)
-{
-	*p_sfc_addr = (unsigned long)g_sfc_info.reg_base;
-	return 0;
-}
-
 static irqreturn_t rksfc_interrupt(int irq, void *dev_id)
 {
 	sfc_clean_irq();
@@ -112,7 +106,7 @@ static int rksfc_probe(struct platform_device *pdev)
 	int irq;
 	struct resource	*mem;
 	void __iomem	*membase;
-	int ret;
+	int dev_result = -1;
 
 	g_sfc_dev = &pdev->dev;
 	mem = platform_get_resource(pdev, IORESOURCE_MEM, 0);
@@ -149,9 +143,15 @@ static int rksfc_probe(struct platform_device *pdev)
 		 __func__,
 		 g_sfc_info.clk_rate);
 	rksfc_irq_init();
-	ret = rkflash_dev_init(g_sfc_info.reg_base, FLASH_CON_TYPE_SFC);
+#ifdef CONFIG_RK_SFC_NOR
+	dev_result = rkflash_dev_init(g_sfc_info.reg_base, FLASH_TYPE_SFC_NOR, &sfc_nor_ops);
+#endif
+#ifdef CONFIG_RK_SFC_NAND
+	if (dev_result)
+		dev_result = rkflash_dev_init(g_sfc_info.reg_base, FLASH_TYPE_SFC_NAND, &sfc_nand_ops);
+#endif
 
-	return ret;
+	return dev_result;
 }
 
 static int __maybe_unused rksfc_suspend(struct device *dev)

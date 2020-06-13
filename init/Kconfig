@@ -1132,6 +1132,7 @@ config FAIR_GROUP_SCHED
 config CFS_BANDWIDTH
 	bool "CPU bandwidth provisioning for FAIR_GROUP_SCHED"
 	depends on FAIR_GROUP_SCHED
+	depends on !SCHED_WALT
 	default n
 	help
 	  This option allows users to define CPU bandwidth rates (limits) for
@@ -1787,6 +1788,11 @@ config VM_EVENT_COUNTERS
 	  This option allows the disabling of the VM event counters
 	  on EXPERT systems.  /proc/vmstat will only show page counts
 	  if VM event counters are disabled.
+
+config SLUB_SYSFS
+	bool "Enable SLUB sysfs interface"
+	depends on SLUB && SYSFS
+	default y
 
 config SLUB_DEBUG
 	default y

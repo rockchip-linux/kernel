@@ -137,10 +137,10 @@
 		rockchip,max-volt = <1350000>;
 		nvmem-cells = <&cpu_leakage>, <&special_function>,
 			      <&performance>, <&process_version>,
-			      <&performance_w>;
+			      <&performance_w>, <&package_info>;
 		nvmem-cell-names = "leakage", "special",
 				   "performance", "process",
-				   "performance-w";
+				   "performance-w", "package";
 		rockchip,bin-scaling-sel = <
 			0               17
 			1               25
@@ -350,6 +350,7 @@
 			     <GIC_PPI 11 (GIC_CPU_MASK_SIMPLE(4) | IRQ_TYPE_LEVEL_HIGH)>,
 			     <GIC_PPI 10 (GIC_CPU_MASK_SIMPLE(4) | IRQ_TYPE_LEVEL_HIGH)>;
 		clock-frequency = <24000000>;
+		arm,no-tick-in-suspend;
 	};
 
 	display-subsystem {
@@ -1204,6 +1205,16 @@
 		status = "disabled";
 	};
 
+	rng: rng@ff8a0000 {
+		compatible = "rockchip,cryptov1-rng";
+		reg = <0x0 0xff8a0000 0x0 0x4000>;
+		clocks = <&cru SCLK_CRYPTO>, <&cru HCLK_CRYPTO>;
+		clock-names = "clk_crypto", "hclk_crypto";
+		assigned-clocks = <&cru SCLK_CRYPTO>, <&cru HCLK_CRYPTO>;
+		assigned-clock-rates = <150000000>, <100000000>;
+		status = "disabled";
+	};
+
 	crypto: cypto-controller@ff8a0000 {
 		compatible = "rockchip,rk3288-crypto";
 		reg = <0x0 0xff8a0000 0x0 0x4000>;
@@ -1213,7 +1224,7 @@
 		clock-names = "aclk", "hclk", "sclk", "apb_pclk";
 		resets = <&cru SRST_CRYPTO>;
 		reset-names = "crypto-rst";
-		status = "okay";
+		status = "disabled";
 	};
 
 	spdif: sound@ff8b0000 {
@@ -1888,6 +1899,10 @@
 			reg = <0x5 0x1>;
 			bits = <4 4>;
 		};
+		package_info: package-info@5 {
+			reg = <0x5 0x1>;
+			bits = <2 2>;
+		};
 		process_version: process-version@6 {
 			reg = <0x6 0x1>;
 			bits = <0 4>;
@@ -1919,6 +1934,10 @@
 		      <0x0 0xffc04000 0x0 0x2000>,
 		      <0x0 0xffc06000 0x0 0x2000>;
 		interrupts = <GIC_PPI 9 0xf04>;
+	};
+
+	rockchip_system_monitor: rockchip-system-monitor {
+		compatible = "rockchip,system-monitor";
 	};
 
 	pinctrl: pinctrl {

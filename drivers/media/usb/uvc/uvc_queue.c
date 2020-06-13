@@ -84,10 +84,10 @@ static int uvc_queue_setup(struct vb2_queue *vq, const void *parg,
 		break;
 
 	default:
+		stream = uvc_queue_to_stream(queue);
 		/* Make sure the image size is large enough. */
 		if (fmt && fmt->fmt.pix.sizeimage < stream->ctrl.dwMaxVideoFrameSize)
 			return -EINVAL;
-		stream = uvc_queue_to_stream(queue);
 		size = fmt ? fmt->fmt.pix.sizeimage :
 		       stream->ctrl.dwMaxVideoFrameSize;
 		break;

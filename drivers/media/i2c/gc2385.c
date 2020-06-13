@@ -5,6 +5,8 @@
  * Copyright (C) 2017 Fuzhou Rockchip Electronics Co., Ltd.
  *
  * V0.0X01.0X01 add poweron function.
+ * V0.0X01.0X02 fix mclk issue when probe multiple camera.
+ * V0.0X01.0X03 add enum_frame_interval function.
  */
 
 #include <linux/clk.h>
@@ -24,7 +26,7 @@
 #include <media/v4l2-subdev.h>
 #include <linux/pinctrl/consumer.h>
 
-#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x01)
+#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x03)
 
 #ifndef V4L2_CID_DIGITAL_GAIN
 #define V4L2_CID_DIGITAL_GAIN		V4L2_CID_GAIN
@@ -50,7 +52,7 @@
 
 #define GC2385_REG_EXPOSURE_H		0x03
 #define GC2385_REG_EXPOSURE_L		0x04
-#define GC2385_FETCH_HIGH_BYTE_EXP(VAL) (((VAL) >> 8) & 0x0F)	/* 4 Bits */
+#define GC2385_FETCH_HIGH_BYTE_EXP(VAL) (((VAL) >> 8) & 0x3F)	/* 6 Bits */
 #define GC2385_FETCH_LOW_BYTE_EXP(VAL) ((VAL) & 0xFF)	/* 8 Bits */
 #define	GC2385_EXPOSURE_MIN		4
 #define	GC2385_EXPOSURE_STEP		1
@@ -642,13 +644,16 @@ static int __gc2385_power_on(struct gc2385 *gc2385)
 		if (ret < 0)
 			dev_err(dev, "could not set pins\n");
 	}
-
+	ret = clk_set_rate(gc2385->xvclk, GC2385_XVCLK_FREQ);
+	if (ret < 0)
+		dev_warn(dev, "Failed to set xvclk rate (24MHz)\n");
+	if (clk_get_rate(gc2385->xvclk) != GC2385_XVCLK_FREQ)
+		dev_warn(dev, "xvclk mismatched, modes are based on 24MHz\n");
 	ret = clk_prepare_enable(gc2385->xvclk);
 	if (ret < 0) {
 		dev_err(dev, "Failed to enable xvclk\n");
 		return ret;
 	}
-
 	if (!IS_ERR(gc2385->reset_gpio))
 		gpiod_set_value_cansleep(gc2385->reset_gpio, 1);
 
@@ -664,7 +669,7 @@ static int __gc2385_power_on(struct gc2385 *gc2385)
 
 	usleep_range(500, 1000);
 	if (!IS_ERR(gc2385->pwdn_gpio))
-		gpiod_set_value_cansleep(gc2385->pwdn_gpio, 0);
+		gpiod_set_value_cansleep(gc2385->pwdn_gpio, 1);
 
 	/* 8192 cycles prior to first SCCB transaction */
 	delay_us = gc2385_cal_delay(8192);
@@ -683,7 +688,7 @@ static void __gc2385_power_off(struct gc2385 *gc2385)
 	int ret = 0;
 
 	if (!IS_ERR(gc2385->pwdn_gpio))
-		gpiod_set_value_cansleep(gc2385->pwdn_gpio, 1);
+		gpiod_set_value_cansleep(gc2385->pwdn_gpio, 0);
 	clk_disable_unprepare(gc2385->xvclk);
 	if (!IS_ERR(gc2385->reset_gpio))
 		gpiod_set_value_cansleep(gc2385->reset_gpio, 1);
@@ -738,6 +743,22 @@ static int gc2385_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 }
 #endif
 
+static int gc2385_enum_frame_interval(struct v4l2_subdev *sd,
+				       struct v4l2_subdev_pad_config *cfg,
+				       struct v4l2_subdev_frame_interval_enum *fie)
+{
+	if (fie->index >= ARRAY_SIZE(supported_modes))
+		return -EINVAL;
+
+	if (fie->code != MEDIA_BUS_FMT_SBGGR10_1X10)
+		return -EINVAL;
+
+	fie->width = supported_modes[fie->index].width;
+	fie->height = supported_modes[fie->index].height;
+	fie->interval = supported_modes[fie->index].max_fps;
+	return 0;
+}
+
 static const struct dev_pm_ops gc2385_pm_ops = {
 	SET_RUNTIME_PM_OPS(gc2385_runtime_suspend,
 			   gc2385_runtime_resume, NULL)
@@ -765,6 +786,7 @@ static const struct v4l2_subdev_video_ops gc2385_video_ops = {
 static const struct v4l2_subdev_pad_ops gc2385_pad_ops = {
 	.enum_mbus_code = gc2385_enum_mbus_code,
 	.enum_frame_size = gc2385_enum_frame_sizes,
+	.enum_frame_interval = gc2385_enum_frame_interval,
 	.get_fmt = gc2385_get_fmt,
 	.set_fmt = gc2385_set_fmt,
 };
@@ -1095,13 +1117,6 @@ static int gc2385_probe(struct i2c_client *client,
 		dev_err(dev, "Failed to get xvclk\n");
 		return -EINVAL;
 	}
-	ret = clk_set_rate(gc2385->xvclk, GC2385_XVCLK_FREQ);
-	if (ret < 0) {
-		dev_err(dev, "Failed to set xvclk rate (24MHz)\n");
-		return ret;
-	}
-	if (clk_get_rate(gc2385->xvclk) != GC2385_XVCLK_FREQ)
-		dev_warn(dev, "xvclk mismatched, modes are based on 24MHz\n");
 
 	gc2385->reset_gpio = devm_gpiod_get(dev, "reset", GPIOD_OUT_LOW);
 	if (IS_ERR(gc2385->reset_gpio))

@@ -5,6 +5,8 @@
  * Copyright (C) 2017 Fuzhou Rockchip Electronics Co., Ltd.
  *
  * V0.0X01.0X01 add poweron function.
+ * V0.0X01.0X02 fix mclk issue when probe multiple camera.
+ * V0.0X01.0X03 add enum_frame_interval function.
  */
 
 #include <linux/clk.h>
@@ -25,7 +27,7 @@
 #include <linux/pinctrl/consumer.h>
 #include <linux/slab.h>
 
-#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x01)
+#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x03)
 
 #ifndef V4L2_CID_DIGITAL_GAIN
 #define V4L2_CID_DIGITAL_GAIN		V4L2_CID_GAIN
@@ -51,9 +53,6 @@
 
 #define GC5025_REG_EXPOSURE_H		0x03
 #define GC5025_REG_EXPOSURE_L		0x04
-#define GC5025_FETCH_HIGH_BYTE_EXP(VAL) (((VAL) >> 8) & 0x0F)	/* 4 Bits */
-#define GC5025_FETCH_LOW_BYTE_EXP(VAL) ((VAL) & 0xFF)	/* 8 Bits */
-#define GC5025_FETCH_LOW_BYTE_EXP(VAL) ((VAL) & 0xFF)	/* 8 Bits */
 #define	GC5025_EXPOSURE_MIN		4
 #define	GC5025_EXPOSURE_STEP		1
 #define GC5025_VTS_MAX			0x1fff
@@ -953,7 +952,8 @@ static void gc5025_get_module_inf(struct gc5025 *gc5025,
 	strlcpy(inf->base.lens,
 		gc5025->len_name,
 		sizeof(inf->base.lens));
-	gc5025_get_otp(otp, inf);
+	if (otp)
+		gc5025_get_otp(otp, inf);
 }
 
 static void gc5025_set_module_inf(struct gc5025 *gc5025,
@@ -1240,13 +1240,13 @@ static int __gc5025_start_stream(struct gc5025 *gc5025)
 	mutex_lock(&gc5025->mutex);
 	if (ret)
 		return ret;
-
-	ret = gc5025_otp_enable(gc5025);
-	ret |= gc5025_apply_otp(gc5025);
-	ret |= gc5025_otp_disable(gc5025);
-	if (ret)
-		return ret;
-
+	if (gc5025->otp) {
+		ret = gc5025_otp_enable(gc5025);
+		ret |= gc5025_apply_otp(gc5025);
+		ret |= gc5025_otp_disable(gc5025);
+		if (ret)
+			return ret;
+	}
 	ret = gc5025_write_reg(gc5025->client,
 		GC5025_REG_SET_PAGE,
 		GC5025_SET_PAGE_ONE);
@@ -1362,13 +1362,16 @@ static int __gc5025_power_on(struct gc5025 *gc5025)
 		if (ret < 0)
 			dev_err(dev, "could not set pins\n");
 	}
-
+	ret = clk_set_rate(gc5025->xvclk, GC5025_XVCLK_FREQ);
+	if (ret < 0)
+		dev_warn(dev, "Failed to set xvclk rate (24MHz)\n");
+	if (clk_get_rate(gc5025->xvclk) != GC5025_XVCLK_FREQ)
+		dev_warn(dev, "xvclk mismatched, modes are based on 24MHz\n");
 	ret = clk_prepare_enable(gc5025->xvclk);
 	if (ret < 0) {
 		dev_err(dev, "Failed to enable xvclk\n");
 		return ret;
 	}
-
 	if (!IS_ERR(gc5025->reset_gpio))
 		gpiod_set_value_cansleep(gc5025->reset_gpio, 1);
 
@@ -1458,6 +1461,22 @@ static int gc5025_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 }
 #endif
 
+static int gc5025_enum_frame_interval(struct v4l2_subdev *sd,
+				       struct v4l2_subdev_pad_config *cfg,
+				       struct v4l2_subdev_frame_interval_enum *fie)
+{
+	if (fie->index >= ARRAY_SIZE(supported_modes))
+		return -EINVAL;
+
+	if (fie->code != MEDIA_BUS_FMT_SRGGB10_1X10)
+		return -EINVAL;
+
+	fie->width = supported_modes[fie->index].width;
+	fie->height = supported_modes[fie->index].height;
+	fie->interval = supported_modes[fie->index].max_fps;
+	return 0;
+}
+
 static const struct dev_pm_ops gc5025_pm_ops = {
 	SET_RUNTIME_PM_OPS(gc5025_runtime_suspend,
 			   gc5025_runtime_resume, NULL)
@@ -1485,6 +1504,7 @@ static const struct v4l2_subdev_video_ops gc5025_video_ops = {
 static const struct v4l2_subdev_pad_ops gc5025_pad_ops = {
 	.enum_mbus_code = gc5025_enum_mbus_code,
 	.enum_frame_size = gc5025_enum_frame_sizes,
+	.enum_frame_interval = gc5025_enum_frame_interval,
 	.get_fmt = gc5025_get_fmt,
 	.set_fmt = gc5025_set_fmt,
 };
@@ -1761,13 +1781,6 @@ static int gc5025_probe(struct i2c_client *client,
 		dev_err(dev, "Failed to get xvclk\n");
 		return -EINVAL;
 	}
-	ret = clk_set_rate(gc5025->xvclk, GC5025_XVCLK_FREQ);
-	if (ret < 0) {
-		dev_err(dev, "Failed to set xvclk rate (24MHz)\n");
-		return ret;
-	}
-	if (clk_get_rate(gc5025->xvclk) != GC5025_XVCLK_FREQ)
-		dev_warn(dev, "xvclk mismatched, modes are based on 24MHz\n");
 
 	gc5025->reset_gpio = devm_gpiod_get(dev, "reset", GPIOD_OUT_LOW);
 	if (IS_ERR(gc5025->reset_gpio))

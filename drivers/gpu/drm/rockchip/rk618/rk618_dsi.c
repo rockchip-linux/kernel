@@ -293,8 +293,13 @@ static void rk618_dsi_set_hs_clk(struct rk618_dsi *dsi)
 
 		bandwidth = (u64)mode->clock * 1000 * bpp;
 		do_div(bandwidth, lanes);
-		bandwidth = bandwidth * 10 / 9;
-		bandwidth = bandwidth / USEC_PER_SEC * USEC_PER_SEC;
+
+		/* take 1 / 0.9, since mbps must big than bandwidth of RGB */
+		bandwidth *= 10;
+		do_div(bandwidth, 9);
+
+		do_div(bandwidth, USEC_PER_SEC);
+		bandwidth *= USEC_PER_SEC;
 		fout = bandwidth;
 	}
 
@@ -652,9 +657,6 @@ static int rk618_dsi_pre_enable(struct rk618_dsi *dsi)
 	/* enables the D-PHY Clock Lane Module */
 	regmap_update_bits(dsi->regmap, DSI_PHY_RSTZ,
 			   PHY_ENABLECLK, PHY_ENABLECLK);
-
-	regmap_write(dsi->regmap, DSI_INT_MSK0, 0);
-	regmap_write(dsi->regmap, DSI_INT_MSK1, 0);
 
 	regmap_update_bits(dsi->regmap, DSI_VID_MODE_CFG, EN_VIDEO_MODE, 0);
 	regmap_update_bits(dsi->regmap, DSI_CMD_MODE_CFG,
@@ -1134,6 +1136,10 @@ static int rk618_dsi_probe(struct platform_device *pdev)
 		dev_err(dev, "failed to allocate host register map: %d\n", ret);
 		return ret;
 	}
+
+	/* Mask all interrupts */
+	regmap_write(dsi->regmap, DSI_INT_MSK0, 0xffffffff);
+	regmap_write(dsi->regmap, DSI_INT_MSK1, 0xffffffff);
 
 	dsi->phy.regmap = devm_regmap_init_i2c(rk618->client,
 					       &rk618_dsi_phy_regmap_config);

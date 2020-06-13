@@ -1088,7 +1088,7 @@ static void dw_hdmi_update_csc_coeffs(struct dw_hdmi *hdmi)
 	enc_in_rgb = hdmi_bus_fmt_is_rgb(hdmi->hdmi_data.enc_in_bus_format);
 
 	if (is_color_space_conversion(hdmi)) {
-		if (enc_out_rgb == enc_in_rgb) {
+		if (enc_out_rgb && enc_in_rgb) {
 			csc_coeff = &csc_coeff_full_to_limited;
 			csc_scale = 0;
 		} else if (enc_out_rgb) {
@@ -2092,11 +2092,11 @@ static void hdmi_av_composer(struct dw_hdmi *hdmi,
 		if (vmode->mtmdsclock > 340000000 ||
 		    (hdmi_info->scdc.scrambling.low_rates &&
 		     hdmi->scramble_low_rates)) {
-			drm_scdc_readb(&hdmi->i2c->adap, SCDC_SINK_VERSION,
+			drm_scdc_readb(hdmi->ddc, SCDC_SINK_VERSION,
 				       &bytes);
-			drm_scdc_writeb(&hdmi->i2c->adap, SCDC_SOURCE_VERSION,
+			drm_scdc_writeb(hdmi->ddc, SCDC_SOURCE_VERSION,
 					bytes);
-			drm_scdc_set_scrambling(&hdmi->i2c->adap, 1);
+			drm_scdc_set_scrambling(hdmi->ddc, 1);
 			hdmi_writeb(hdmi, (u8)~HDMI_MC_SWRSTZ_TMDSSWRST_REQ,
 				    HDMI_MC_SWRSTZ);
 			hdmi_writeb(hdmi, 1, HDMI_FC_SCRAMBLER_CTRL);
@@ -2104,8 +2104,10 @@ static void hdmi_av_composer(struct dw_hdmi *hdmi,
 			hdmi_writeb(hdmi, 0, HDMI_FC_SCRAMBLER_CTRL);
 			hdmi_writeb(hdmi, (u8)~HDMI_MC_SWRSTZ_TMDSSWRST_REQ,
 				    HDMI_MC_SWRSTZ);
-			drm_scdc_set_scrambling(&hdmi->i2c->adap, 0);
+			drm_scdc_set_scrambling(hdmi->ddc, 0);
 		}
+	} else {
+		hdmi_writeb(hdmi, 0, HDMI_FC_SCRAMBLER_CTRL);
 	}
 
 	/* Set up horizontal active pixel width */
@@ -3962,6 +3964,20 @@ void dw_hdmi_resume(struct device *dev)
 		dw_hdmi_i2c_init(hdmi);
 	if (hdmi->irq)
 		enable_irq(hdmi->irq);
+	/*
+	 * HDMI status maybe incorrect in the following condition:
+	 * HDMI plug in -> system sleep ->  HDMI plug out -> system wake up.
+	 * At this time, cat /sys/class/drm/card 0-HDMI-A-1/status is connected.
+	 * There is no hpd interrupt, because HDMI is powerdown during suspend.
+	 * So we need check the current HDMI status in this case.
+	 */
+	if (hdmi->connector.status == connector_status_connected)
+		if (hdmi->phy.ops->read_hpd(hdmi, hdmi->phy.data) ==
+		    connector_status_disconnected) {
+			hdmi->hpd_state = false;
+			mod_delayed_work(hdmi->workqueue, &hdmi->work,
+					 msecs_to_jiffies(20));
+		}
 	mutex_unlock(&hdmi->mutex);
 }
 EXPORT_SYMBOL_GPL(dw_hdmi_resume);

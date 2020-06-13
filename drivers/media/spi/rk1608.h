@@ -9,6 +9,7 @@
 #ifndef __RK1608_H__
 #define __RK1608_H__
 
+#include <linux/clk.h>
 #include <linux/spi/spi.h>
 #include <linux/miscdevice.h>
 #include <linux/version.h>
@@ -95,6 +96,7 @@ struct rk1608_state {
 	struct mutex lock; /* protect resource */
 	struct mutex sensor_lock; /* protect sensor */
 	struct mutex send_msg_lock; /* protect msg */
+	struct mutex spi2apb_lock; /* protect spi2apb write/read */
 	spinlock_t hdrae_lock; /* protect hdrae parameter */
 	struct gpio_desc *reset_gpio;
 	struct gpio_desc *irq_gpio;
@@ -104,6 +106,7 @@ struct rk1608_state {
 	struct v4l2_subdev *sensor[4];
 	struct device *dev;
 	struct spi_device *spi;
+	struct clk *mclk;
 	struct miscdevice misc;
 	struct rk1608_client_list clients;
 	int log_level;
@@ -404,7 +407,7 @@ int rk1608_write(struct spi_device *spi, s32 addr,
  *
  * It returns zero on success, else operation state code.
  */
-int rk1608_safe_write(struct spi_device *spi,
+int rk1608_safe_write(struct rk1608_state *rk1608, struct spi_device *spi,
 		      s32 addr, const s32 *data, size_t data_len);
 
 /**
@@ -432,7 +435,7 @@ int rk1608_read(struct spi_device *spi, s32 addr,
  *
  * It returns zero on success, else operation state code.
  */
-int rk1608_safe_read(struct spi_device *spi,
+int rk1608_safe_read(struct rk1608_state *rk1608, struct spi_device *spi,
 		     s32 addr, s32 *data, size_t data_len);
 
 /**
@@ -477,7 +480,8 @@ int rk1608_interrupt_request(struct spi_device *spi, s32 interrupt_num);
  *
  * It returns zero on success, else a negative error code.
  **/
-int rk1608_download_fw(struct spi_device *spi, const char *fw_name);
+int rk1608_download_fw(struct rk1608_state *rk1608, struct spi_device *spi,
+			const char *fw_name);
 
 /**
  * rk1608_msq_recv_msg - receive a msg from RK1608 -> AP msg queue
@@ -489,7 +493,8 @@ int rk1608_download_fw(struct spi_device *spi, const char *fw_name);
  *
  * It returns zero on success, else a negative error code.
  */
-int rk1608_msq_recv_msg(struct spi_device *spi, struct msg **m);
+int rk1608_msq_recv_msg(struct rk1608_state *rk1608, struct spi_device *spi,
+			struct msg **m);
 
 /*
  * rk1608_msq_send_msg - send a msg from AP -> RK1608 msg queue
@@ -499,7 +504,8 @@ int rk1608_msq_recv_msg(struct spi_device *spi, struct msg **m);
  *
  * It returns zero on success, else a negative error code.
  */
-int rk1608_msq_send_msg(struct spi_device *spi, struct msg *m);
+int rk1608_msq_send_msg(struct rk1608_state *rk1608, struct spi_device *spi,
+			struct msg *m);
 
 int rk1608_set_power(struct rk1608_state *pdata, int on);
 

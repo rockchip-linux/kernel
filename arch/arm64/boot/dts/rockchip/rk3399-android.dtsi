@@ -47,7 +47,7 @@
 / {
 	compatible = "rockchip,android", "rockchip,rk3399";
 
-	chosen {
+	chosen: chosen {
 		bootargs = "earlycon=uart8250,mmio32,0xff1a0000 swiotlb=1 coherent_pool=1m";
 	};
 
@@ -361,6 +361,10 @@
 };
 
 &pvtm {
+	status = "okay";
+};
+
+&rng {
 	status = "okay";
 };
 

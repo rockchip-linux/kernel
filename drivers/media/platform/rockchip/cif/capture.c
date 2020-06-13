@@ -25,6 +25,8 @@
 #define CIF_MAX_WIDTH		8192
 #define CIF_MAX_HEIGHT		8192
 
+#define OUTPUT_STEP_WISE		8
+
 #define RKCIF_PLANE_Y			0
 #define RKCIF_PLANE_CBCR		1
 
@@ -407,6 +409,9 @@ static unsigned char get_data_type(u32 pixelformat, u8 cmd_mode_en)
 		return 0x2b;
 	/* csi uyvy 422 */
 	case MEDIA_BUS_FMT_UYVY8_2X8:
+	case MEDIA_BUS_FMT_VYUY8_2X8:
+	case MEDIA_BUS_FMT_YUYV8_2X8:
+	case MEDIA_BUS_FMT_YVYU8_2X8:
 		return 0x1e;
 	case MEDIA_BUS_FMT_RGB888_1X24: {
 		if (cmd_mode_en) /* dsi command mode*/
@@ -731,6 +736,10 @@ static int rkcif_csi_channel_init(struct rkcif_stream *stream,
 		channel->crop_st_y = stream->crop.top;
 		channel->width = stream->crop.width;
 		channel->height = stream->crop.height;
+	} else {
+		channel->width = stream->pixm.width;
+		channel->height = stream->pixm.height;
+		channel->crop_en = 1;
 	}
 
 	fmt = find_output_fmt(stream, stream->pixm.pixelformat);
@@ -951,6 +960,7 @@ static void rkcif_buf_queue(struct vb2_buffer *vb)
 
 static int rkcif_create_dummy_buf(struct rkcif_stream *stream)
 {
+	u32 fourcc;
 	struct rkcif_dummy_buffer *dummy_buf = &stream->dummy_buf;
 	struct rkcif_device *dev = stream->cifdev;
 
@@ -959,6 +969,16 @@ static int rkcif_create_dummy_buf(struct rkcif_stream *stream)
 		stream->pixm.height,
 		stream->pixm.plane_fmt[1].sizeimage,
 		stream->pixm.plane_fmt[2].sizeimage);
+	/*
+	 * rk cif don't support output yuyv fmt data
+	 * if user request yuyv fmt, the input mode must be RAW8
+	 * and the width is double Because the real input fmt is
+	 * yuyv
+	 */
+	fourcc  = stream->cif_fmt_out->fourcc;
+	if (fourcc == V4L2_PIX_FMT_YUYV || fourcc == V4L2_PIX_FMT_YVYU ||
+	    fourcc == V4L2_PIX_FMT_UYVY || fourcc == V4L2_PIX_FMT_VYUY)
+		dummy_buf->size *= 2;
 
 	dummy_buf->vaddr = dma_alloc_coherent(dev->dev, dummy_buf->size,
 					      &dummy_buf->dma_addr,
@@ -991,7 +1011,7 @@ static void rkcif_stop_streaming(struct vb2_queue *queue)
 	struct rkcif_vdev_node *node = &stream->vnode;
 	struct rkcif_device *dev = stream->cifdev;
 	struct v4l2_device *v4l2_dev = &dev->v4l2_dev;
-	struct rkcif_buffer *buf;
+	struct rkcif_buffer *buf = NULL;
 	int ret;
 
 	stream->stopping = true;
@@ -1011,21 +1031,16 @@ static void rkcif_stop_streaming(struct vb2_queue *queue)
 			 ret);
 
 	/* release buffers */
-	if (stream->curr_buf) {
-		list_add_tail(&stream->curr_buf->queue, &stream->buf_head);
-		stream->curr_buf = NULL;
-	}
-	if (stream->next_buf) {
-		list_add_tail(&stream->next_buf->queue, &stream->buf_head);
-		stream->next_buf = NULL;
-	}
-
-	if (stream->next_buf)
-		vb2_buffer_done(&stream->next_buf->vb.vb2_buf,
-				VB2_BUF_STATE_QUEUED);
 	if (stream->curr_buf)
-		vb2_buffer_done(&stream->curr_buf->vb.vb2_buf,
-				VB2_BUF_STATE_QUEUED);
+		list_add_tail(&stream->curr_buf->queue, &stream->buf_head);
+
+	if (stream->next_buf &&
+	    stream->next_buf != stream->curr_buf)
+		list_add_tail(&stream->next_buf->queue, &stream->buf_head);
+
+	stream->curr_buf = NULL;
+	stream->next_buf = NULL;
+
 	while (!list_empty(&stream->buf_head)) {
 		buf = list_first_entry(&stream->buf_head,
 				       struct rkcif_buffer, queue);
@@ -1100,6 +1115,77 @@ static inline u32 rkcif_scl_ctl(struct rkcif_stream *stream)
 		ENABLE_YUV_16BIT_BYPASS : ENABLE_RAW_16BIT_BYPASS;
 }
 
+/**
+ * rkcif_align_bits_per_pixel() - return the bit width of per pixel for stored
+ * In raw or jpeg mode, data is stored by 16-bits,so need to align it.
+ */
+static u32 rkcif_align_bits_per_pixel(const struct cif_output_fmt *fmt,
+				      int plane_index)
+{
+	u32 bpp = 0, i;
+
+	if (fmt) {
+		switch (fmt->fourcc) {
+		case V4L2_PIX_FMT_NV16:
+		case V4L2_PIX_FMT_NV61:
+		case V4L2_PIX_FMT_NV12:
+		case V4L2_PIX_FMT_NV21:
+		case V4L2_PIX_FMT_YUYV:
+		case V4L2_PIX_FMT_YVYU:
+		case V4L2_PIX_FMT_UYVY:
+		case V4L2_PIX_FMT_VYUY:
+		case V4L2_PIX_FMT_Y16:
+			bpp = fmt->bpp[plane_index];
+			break;
+		case V4L2_PIX_FMT_RGB24:
+		case V4L2_PIX_FMT_RGB565:
+		case V4L2_PIX_FMT_BGR666:
+		case V4L2_PIX_FMT_SRGGB8:
+		case V4L2_PIX_FMT_SGRBG8:
+		case V4L2_PIX_FMT_SGBRG8:
+		case V4L2_PIX_FMT_SRGGB10:
+		case V4L2_PIX_FMT_SGRBG10:
+		case V4L2_PIX_FMT_SGBRG10:
+		case V4L2_PIX_FMT_SBGGR10:
+		case V4L2_PIX_FMT_SRGGB12:
+		case V4L2_PIX_FMT_SGRBG12:
+		case V4L2_PIX_FMT_SGBRG12:
+		case V4L2_PIX_FMT_SBGGR12:
+		case V4L2_PIX_FMT_SBGGR16:
+			bpp = max(fmt->bpp[plane_index], (u8)CIF_RAW_STORED_BIT_WIDTH);
+			for (i = 1; i < 5; i++) {
+				if (i * CIF_RAW_STORED_BIT_WIDTH >= bpp) {
+					bpp = i * CIF_RAW_STORED_BIT_WIDTH;
+					break;
+				}
+			}
+			break;
+		default:
+			pr_err("fourcc: %d is not supported!\n", fmt->fourcc);
+			break;
+		}
+	}
+
+	return bpp;
+}
+
+/**
+ * rkcif_cal_raw_vir_line_ratio() - return ratio for virtual line width setting
+ * In raw or jpeg mode, data is stored by 16-bits,
+ * so need to align virtual line width.
+ */
+static u32 rkcif_cal_raw_vir_line_ratio(const struct cif_output_fmt *fmt)
+{
+	u32 ratio = 0, bpp = 0;
+
+	if (fmt) {
+		bpp = rkcif_align_bits_per_pixel(fmt, 0);
+		ratio = bpp / CIF_YUV_STORED_BIT_WIDTH;
+	}
+
+	return ratio;
+}
+
 static int rkcif_stream_start(struct rkcif_stream *stream)
 {
 	u32 val, mbus_flags, href_pol, vsync_pol,
@@ -1107,6 +1193,7 @@ static int rkcif_stream_start(struct rkcif_stream *stream)
 	    inputmode = 0, mipimode = 0, workmode = 0;
 	struct rkcif_device *dev = stream->cifdev;
 	struct rkcif_sensor_info *sensor_info;
+	const struct cif_output_fmt *fmt;
 	void __iomem *base = dev->base_addr;
 
 	sensor_info = dev->active_sensor;
@@ -1154,8 +1241,10 @@ static int rkcif_stream_start(struct rkcif_stream *stream)
 	write_cif_reg(base, CIF_FOR, val);
 
 	val = stream->pixm.width;
-	if (stream->cif_fmt_in->fmt_type == CIF_FMT_TYPE_RAW)
-		val = stream->pixm.width * 2;
+	if (stream->cif_fmt_in->fmt_type == CIF_FMT_TYPE_RAW) {
+		fmt = find_output_fmt(stream, stream->pixm.pixelformat);
+		val = stream->pixm.width * rkcif_cal_raw_vir_line_ratio(fmt);
+	}
 	write_cif_reg(base, CIF_VIR_LINE_WIDTH, val);
 	write_cif_reg(base, CIF_SET_SIZE,
 		      stream->pixm.width | (stream->pixm.height << 16));
@@ -1412,7 +1501,7 @@ static void rkcif_set_fmt(struct rkcif_stream *stream,
 
 	for (i = 0; i < planes; i++) {
 		struct v4l2_plane_pix_format *plane_fmt;
-		int width, height, bpl, size;
+		int width, height, bpl, size, bpp;
 
 		if (i == 0) {
 			width = pixm->width;
@@ -1422,7 +1511,8 @@ static void rkcif_set_fmt(struct rkcif_stream *stream,
 			height = pixm->height / ysubs;
 		}
 
-		bpl = width * fmt->bpp[i] / 8;
+		bpp = rkcif_align_bits_per_pixel(fmt, i);
+		bpl = width * bpp / CIF_YUV_STORED_BIT_WIDTH;
 		size = bpl * height;
 		imagesize += size;
 
@@ -1506,11 +1596,17 @@ static int rkcif_fh_open(struct file *filp)
 	 * Because CRU would reset iommu too, so there's not chance
 	 * to reset cif once we hold buffers after buf queued
 	 */
-	if (cifdev->chip_id == CHIP_RK1808_CIF)
+	if (cifdev->chip_id == CHIP_RK1808_CIF) {
+		mutex_lock(&cifdev->stream_lock);
+		v4l2_info(&cifdev->v4l2_dev, "fh_cnt: %d\n",
+					atomic_read(&cifdev->fh_cnt));
+		if (!atomic_read(&cifdev->fh_cnt))
+			rkcif_soft_reset(cifdev, true);
 		atomic_inc(&cifdev->fh_cnt);
-	else
+		mutex_unlock(&cifdev->stream_lock);
+	} else {
 		rkcif_soft_reset(cifdev, true);
-
+	}
 	return v4l2_fh_open(filp);
 }
 
@@ -1559,6 +1655,76 @@ static int rkcif_try_fmt_vid_cap_mplane(struct file *file, void *fh,
 	struct rkcif_stream *stream = video_drvdata(file);
 
 	rkcif_set_fmt(stream, &f->fmt.pix_mp, true);
+
+	return 0;
+}
+
+static int rkcif_enum_framesizes(struct file *file, void *prov,
+				 struct v4l2_frmsizeenum *fsize)
+{
+	struct v4l2_frmsize_stepwise *s = &fsize->stepwise;
+	struct rkcif_stream *stream = video_drvdata(file);
+	struct rkcif_device *dev = stream->cifdev;
+	struct v4l2_rect input_rect;
+
+	if (fsize->index != 0)
+		return -EINVAL;
+
+	if (!find_output_fmt(stream, fsize->pixel_format))
+		return -EINVAL;
+
+	input_rect.width = RKCIF_DEFAULT_WIDTH;
+	input_rect.height = RKCIF_DEFAULT_HEIGHT;
+
+	if (dev->active_sensor && dev->active_sensor->sd)
+		get_input_fmt(dev->active_sensor->sd,
+			      &input_rect, stream->id + 1);
+
+	fsize->type = V4L2_FRMSIZE_TYPE_STEPWISE;
+	s->min_width = CIF_MIN_WIDTH;
+	s->min_height = CIF_MIN_HEIGHT;
+	s->max_width = input_rect.width;
+	s->max_height = input_rect.height;
+	s->step_width = OUTPUT_STEP_WISE;
+	s->step_height = OUTPUT_STEP_WISE;
+
+	return 0;
+}
+
+static int rkcif_enum_frameintervals(struct file *file, void *fh,
+				     struct v4l2_frmivalenum *fival)
+{
+	struct rkcif_stream *stream = video_drvdata(file);
+	struct rkcif_device *dev = stream->cifdev;
+	struct rkcif_sensor_info *sensor = dev->active_sensor;
+	struct v4l2_subdev_frame_interval fi;
+	int ret;
+
+	if (fival->index != 0)
+		return -EINVAL;
+
+	if (!sensor || !sensor->sd) {
+		/* TODO: active_sensor is NULL if using DMARX path */
+		v4l2_err(&dev->v4l2_dev, "%s Not active sensor\n", __func__);
+		return -ENODEV;
+	}
+
+	ret = v4l2_subdev_call(sensor->sd, video, g_frame_interval, &fi);
+	if (ret && ret != -ENOIOCTLCMD) {
+		return ret;
+	} else if (ret == -ENOIOCTLCMD) {
+		/* Set a default value for sensors not implements ioctl */
+		fi.interval.numerator = 1;
+		fi.interval.denominator = 30;
+	}
+
+	fival->type = V4L2_FRMIVAL_TYPE_CONTINUOUS;
+	fival->stepwise.step.numerator = 1;
+	fival->stepwise.step.denominator = 1;
+	fival->stepwise.max.numerator = 1;
+	fival->stepwise.max.denominator = 1;
+	fival->stepwise.min.numerator = fi.interval.numerator;
+	fival->stepwise.min.denominator = fi.interval.denominator;
 
 	return 0;
 }
@@ -1664,6 +1830,8 @@ static const struct v4l2_ioctl_ops rkcif_v4l2_ioctl_ops = {
 	.vidioc_querycap = rkcif_querycap,
 	.vidioc_s_crop = rkcif_s_crop,
 	.vidioc_g_crop = rkcif_g_crop,
+	.vidioc_enum_frameintervals = rkcif_enum_frameintervals,
+	.vidioc_enum_framesizes = rkcif_enum_framesizes,
 };
 
 static void rkcif_unregister_stream_vdev(struct rkcif_stream *stream)
@@ -2019,7 +2187,7 @@ void rkcif_irq_pingpong(struct rkcif_device *cif_dev)
 		intstat = read_cif_reg(base, CIF_INTSTAT);
 		cif_frmst = read_cif_reg(base, CIF_FRAME_STATUS);
 		lastline = CIF_FETCH_Y_LAST_LINE(read_cif_reg(base, CIF_LAST_LINE));
-		lastpix = read_cif_reg(base, CIF_LAST_PIX);
+		lastpix =  CIF_FETCH_Y_LAST_LINE(read_cif_reg(base, CIF_LAST_PIX));
 		ctl = read_cif_reg(base, CIF_CTRL);
 
 		if (cif_dev->chip_id == CHIP_RK1808_CIF)

@@ -96,6 +96,8 @@
 #ifndef MAX_PHYSMEM_BITS
 #ifdef CONFIG_HIGHMEM64G
 #define MAX_PHYSMEM_BITS 36
+#elif defined(CONFIG_ARM_LPAE)
+#define MAX_PHYSMEM_BITS 36
 #else /* !CONFIG_HIGHMEM64G */
 /*
  * If this definition of MAX_PHYSMEM_BITS is used, OBJ_INDEX_BITS will just

@@ -455,7 +455,7 @@
 			status = "disabled";
 		};
 
-		reboot-mode {
+		reboot_mode: reboot-mode {
 			compatible = "syscon-reboot-mode";
 			offset = <0x200>;
 			mode-bootloader = <BOOT_BL_DOWNLOAD>;
@@ -581,6 +581,22 @@
 		clock-names = "aclk", "hclk", "sclk", "apb_pclk";
 		resets = <&cru SRST_CRYPTO>;
 		reset-names = "crypto-rst";
+		status = "disabled";
+	};
+
+	rng: rng@ff0b0000 {
+		compatible = "rockchip,cryptov2-rng";
+		reg = <0x0 0xff0b0000 0x0 0x4000>;
+		clocks = <&cru SCLK_CRYPTO>, <&cru SCLK_CRYPTO_APK>,
+			<&cru ACLK_CRYPTO>, <&cru HCLK_CRYPTO>;
+		clock-names = "clk_crypto", "clk_crypto_apk",
+				"aclk_crypto", "hclk_crypto";
+		assigned-clocks = <&cru SCLK_CRYPTO>, <&cru SCLK_CRYPTO_APK>,
+					<&cru ACLK_CRYPTO>, <&cru HCLK_CRYPTO>;
+		assigned-clock-rates = <150000000>, <150000000>,
+					<200000000>, <100000000>;
+		resets = <&cru SRST_CRYPTO>;
+		reset-names = "reset";
 		status = "disabled";
 	};
 
@@ -1281,6 +1297,17 @@
 		status = "disabled";
 	};
 
+	sfc: sfc@ff3a0000 {
+		compatible = "rockchip,sfc";
+		reg = <0x0 0xff3a0000 0x0 0x4000>;
+		interrupts = <GIC_SPI 56 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&cru SCLK_SFC>, <&cru HCLK_SFC>;
+		clock-names = "clk_sfc", "hclk_sfc";
+		assigned-clocks = <&cru SCLK_SFC>;
+		assigned-clock-rates = <100000000>;
+		status = "disabled";
+	};
+
 	nandc0: nandc@ff3b0000 {
 		compatible = "rockchip,rk-nandc";
 		reg = <0x0 0xff3b0000 0x0 0x4000>;
@@ -1564,7 +1591,7 @@
 	vopl_mmu: iommu@ff470f00 {
 		compatible = "rockchip,iommu";
 		reg = <0x0 0xff470f00 0x0 0x100>;
-		interrupts = <GIC_SPI 79 IRQ_TYPE_LEVEL_HIGH>;
+		interrupts = <GIC_SPI 78 IRQ_TYPE_LEVEL_HIGH>;
 		interrupt-names = "vopl_mmu";
 		clocks = <&cru ACLK_VOPL>, <&cru HCLK_VOPL>;
 		clock-names = "aclk", "hclk";

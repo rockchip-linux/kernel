@@ -53,7 +53,7 @@
 	model = "Rockchip RK3399 Firefly Board (Android)";
 	compatible = "rockchip,rk3399-firefly-android", "rockchip,rk3399";
 
-	chosen {
+	chosen: chosen {
 		bootargs = "earlycon=uart8250,mmio32,0xff1a0000 swiotlb=1 coherent_pool=1m";
 	};
 
@@ -337,15 +337,15 @@
 		compatible = "pwm-regulator";
 		pwms = <&pwm2 0 25000 1>;
 		regulator-name = "vdd_log";
-		regulator-min-microvolt = <800000>;
 		/*
 		 * the firefly hardware using 3.0 v as APIO2_VDD
 		 * voltage, but the pwm divider resistance is designed
-		 * based on hardware which the APIO2_VDD is 1.8v, so we
-		 * need to change the regulator-max-microvolt from 1.4v
-		 * to 1.0v, so the pwm can output 0.9v voltage.
+		 * based on hardware which the APIO2_VDD is 1.8v.
+		 * The correct min-microvolt measure in hardware is 430mV
+		 * and the max-microvolt is 1.4V.
 		 */
-		regulator-max-microvolt = <1000000>;
+		regulator-min-microvolt = <430000>;
+		regulator-max-microvolt = <1400000>;
 		regulator-always-on;
 		regulator-boot-on;
 

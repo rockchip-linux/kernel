@@ -3065,7 +3065,7 @@ static int btusb_open(struct hci_dev *hdev)
     int err = 0;
 
     RTKBT_INFO("%s: Start, PM usage count %d", __func__,
-            atomic_read(&(data->intf->pm_usage_cnt)));
+            atomic_read(&(data->intf->dev.power.usage_count)));
 
     err = usb_autopm_get_interface(data->intf);
     if (err < 0)
@@ -3096,7 +3096,7 @@ static int btusb_open(struct hci_dev *hdev)
 done:
     usb_autopm_put_interface(data->intf);
     RTKBT_INFO("%s: End, PM usage count %d", __func__,
-            atomic_read(&(data->intf->pm_usage_cnt)));
+            atomic_read(&(data->intf->dev.power.usage_count)));
     return 0;
 
 failed:
@@ -3104,7 +3104,7 @@ failed:
     clear_bit(HCI_RUNNING, &hdev->flags);
     usb_autopm_put_interface(data->intf);
     RTKBT_ERR("%s: Failed, PM usage count %d", __func__,
-            atomic_read(&(data->intf->pm_usage_cnt)));
+            atomic_read(&(data->intf->dev.power.usage_count)));
     return err;
 }
 
@@ -3611,7 +3611,7 @@ static void btusb_waker(struct work_struct *work)
     int err;
 
     RTKBT_DBG("%s: PM usage count %d", __func__,
-            atomic_read(&data->intf->pm_usage_cnt));
+            atomic_read(&data->intf->dev.power.usage_count));
 
     err = usb_autopm_get_interface(data->intf);
     if (err < 0)

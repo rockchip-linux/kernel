@@ -22,16 +22,19 @@
 };
 
 &i2c1 {
+	status = "okay";
 
 	rk618@50 {
 		compatible = "rockchip,rk618";
 		reg = <0x50>;
+		interrupt-parent = <&gpio2>;
+		interrupts = <12 IRQ_TYPE_LEVEL_HIGH>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&i2s1_2ch_mclk>;
 		clocks = <&cru SCLK_I2S1_OUT>;
 		clock-names = "clkin";
 		assigned-clocks = <&cru SCLK_I2S1_OUT>;
-		assigned-clock-rates = <12000000>;
+		assigned-clock-rates = <11289600>;
 		reset-gpios = <&gpio0 RK_PA0 GPIO_ACTIVE_LOW>;
 		status = "okay";
 
@@ -61,8 +64,6 @@
 			clock-names = "hdmi";
 			assigned-clocks = <&clock HDMI_CLK>;
 			assigned-clock-parents = <&clock VIF0_CLK>;
-			interrupt-parent = <&gpio2>;
-			interrupts = <12 IRQ_TYPE_LEVEL_HIGH>;
 			status = "okay";
 
 			ports {

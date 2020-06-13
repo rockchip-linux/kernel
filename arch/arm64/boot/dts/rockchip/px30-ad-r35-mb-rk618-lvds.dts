@@ -59,6 +59,8 @@
 	rk618@50 {
 		compatible = "rockchip,rk618";
 		reg = <0x50>;
+		interrupt-parent = <&gpio2>;
+		interrupts = <12 IRQ_TYPE_LEVEL_HIGH>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&i2s1_2ch_mclk>;
 		clocks = <&cru SCLK_I2S1_OUT>;

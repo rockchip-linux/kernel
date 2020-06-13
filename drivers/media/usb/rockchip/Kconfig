@@ -1,0 +1,8 @@
+config NPU_USB_ACM
+	tristate "Rockchip NPU ACM device driver support"
+	depends on USB
+	help
+	  This is a ACM driver for Rockchip NPU USB device.
+
+	  Say Y here if you want to connect this type of
+	  device to your HOST USB port.

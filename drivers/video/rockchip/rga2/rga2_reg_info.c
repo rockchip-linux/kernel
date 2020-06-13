@@ -388,11 +388,11 @@ static void RGA2_set_reg_dst_info(u8 *base, struct rga2_req *msg)
         case RGA2_FORMAT_YCbCr_422_SP : dst_format = 0x8; x_div = 1; y_div = 1; break;
         case RGA2_FORMAT_YCbCr_422_P  : dst_format = 0x9; x_div = 2; y_div = 1; break;
         case RGA2_FORMAT_YCbCr_420_SP : dst_format = 0xa; x_div = 1; y_div = 2; break;
-        case RGA2_FORMAT_YCbCr_420_P  : dst_format = 0xb; x_div = 2; y_div = 2; break;
+        case RGA2_FORMAT_YCbCr_420_P  : dst_format = 0xb; dst_cbcr_swp = 1; x_div = 2; y_div = 2; break;
         case RGA2_FORMAT_YCrCb_422_SP : dst_format = 0x8; dst_cbcr_swp = 1; x_div = 1; y_div = 1; break;
         case RGA2_FORMAT_YCrCb_422_P  : dst_format = 0x9; dst_cbcr_swp = 1; x_div = 2; y_div = 1; break;
         case RGA2_FORMAT_YCrCb_420_SP : dst_format = 0xa; dst_cbcr_swp = 1; x_div = 1; y_div = 2; break;
-        case RGA2_FORMAT_YCrCb_420_P  : dst_format = 0xb; dst_cbcr_swp = 1; x_div = 2; y_div = 2; break;
+        case RGA2_FORMAT_YCrCb_420_P  : dst_format = 0xb; x_div = 2; y_div = 2; break;
 
 	case RGA2_FORMAT_YUYV_422     : dst_format = 0xc; dpw = 2; break;
 	case RGA2_FORMAT_YVYU_422     : dst_format = 0xc; dpw = 2; dst_cbcr_swp = 1; break;
@@ -1078,7 +1078,7 @@ void RGA_MSG_2_RGA2_MSG(struct rga_req *req_rga, struct rga2_req *req)
     req->src_a_global_val = req_rga->alpha_global_value;
     req->dst_a_global_val = req_rga->alpha_global_value;
     req->rop_code = req_rga->rop_code;
-    req->rop_mode = 0;
+    req->rop_mode = req_rga->alpha_rop_mode;
 
     req->color_fill_mode = req_rga->color_fill_mode;
     req->color_key_min   = req_rga->color_key_min;
@@ -1288,7 +1288,7 @@ void RGA_MSG_2_RGA2_MSG_32(struct rga_req_32 *req_rga, struct rga2_req *req)
     req->src_a_global_val = req_rga->alpha_global_value;
     req->dst_a_global_val = req_rga->alpha_global_value;
     req->rop_code = req_rga->rop_code;
-    req->rop_mode = 0;
+    req->rop_mode = req_rga->alpha_rop_mode;
     req->color_fill_mode = req_rga->color_fill_mode;
     req->color_key_min   = req_rga->color_key_min;
     req->color_key_max   = req_rga->color_key_max;

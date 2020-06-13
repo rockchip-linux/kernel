@@ -201,7 +201,7 @@ static struct video_info *rockchip_parse_video_info(const char *buf)
 {
 	struct video_info *video_info;
 	const char *cp = buf;
-	char *str;
+	char *str, *p;
 	int ntokens = 0;
 
 	while ((cp = strpbrk(cp + 1, ",")))
@@ -216,12 +216,13 @@ static struct video_info *rockchip_parse_video_info(const char *buf)
 	INIT_LIST_HEAD(&video_info->node);
 
 	str = kstrdup(buf, GFP_KERNEL);
-	strsep(&str, ",");
-	video_info->width = rockchip_get_video_param(&str);
-	video_info->height = rockchip_get_video_param(&str);
-	video_info->ishevc = rockchip_get_video_param(&str);
-	video_info->videoFramerate = rockchip_get_video_param(&str);
-	video_info->streamBitrate = rockchip_get_video_param(&str);
+	p = str;
+	strsep(&p, ",");
+	video_info->width = rockchip_get_video_param(&p);
+	video_info->height = rockchip_get_video_param(&p);
+	video_info->ishevc = rockchip_get_video_param(&p);
+	video_info->videoFramerate = rockchip_get_video_param(&p);
+	video_info->streamBitrate = rockchip_get_video_param(&p);
 	pr_debug("%c,width=%d,height=%d,ishevc=%d,videoFramerate=%d,streamBitrate=%d\n",
 		 buf[0],
 		 video_info->width,
@@ -597,6 +598,12 @@ static int monitor_device_parse_status_config(struct device_node *np,
 				   &info->video_4k_freq);
 	ret &= of_property_read_u32(np, "rockchip,reboot-freq",
 				    &info->reboot_freq);
+	if (info->devp->type == MONITOR_TPYE_CPU) {
+		if (!info->reboot_freq) {
+			info->reboot_freq = CPU_REBOOT_FREQ;
+			ret = 0;
+		}
+	}
 
 	return ret;
 }
@@ -1225,8 +1232,6 @@ static void rockchip_system_status_cpu_limit_freq(struct monitor_dev_info *info,
 	int cpu;
 
 	if (status & SYS_STATUS_REBOOT) {
-		if (!info->reboot_freq)
-			info->reboot_freq = CPU_REBOOT_FREQ;
 		info->status_min_limit = info->reboot_freq;
 		info->status_max_limit = info->reboot_freq;
 		info->is_status_freq_fixed = true;

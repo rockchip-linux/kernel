@@ -124,6 +124,7 @@ source "drivers/media/platform/xilinx/Kconfig"
 source "drivers/media/platform/rk-isp10/Kconfig"
 source "drivers/media/platform/rockchip/cif/Kconfig"
 source "drivers/media/platform/rockchip/isp1/Kconfig"
+source "drivers/media/platform/rockchip/coprocessor/Kconfig"
 
 endif # V4L_PLATFORM_DRIVERS
 

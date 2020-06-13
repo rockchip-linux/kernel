@@ -5,6 +5,8 @@
  * Copyright (C) 2017 Fuzhou Rockchip Electronics Co., Ltd.
  *
  * V0.0X01.0X01 add poweron function.
+ * V0.0X01.0X02 fix mclk issue when probe multiple camera.
+ * V0.0X01.0X03 add enum_frame_interval function.
  */
 
 #include <linux/clk.h>
@@ -24,7 +26,7 @@
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-subdev.h>
 
-#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x01)
+#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x03)
 
 #ifndef V4L2_CID_DIGITAL_GAIN
 #define V4L2_CID_DIGITAL_GAIN		V4L2_CID_GAIN
@@ -91,7 +93,7 @@ struct regval {
 struct sc031gs_mode {
 	u32 width;
 	u32 height;
-	u32 max_fps;
+	struct v4l2_fract max_fps;
 	u32 hts_def;
 	u32 vts_def;
 	u32 exp_def;
@@ -310,7 +312,10 @@ static const struct sc031gs_mode supported_modes[] = {
 	{
 		.width = 640,
 		.height = 480,
-		.max_fps = 30,
+		.max_fps = {
+			.numerator = 10000,
+			.denominator = 300000,
+		},
 		.exp_def = 0x0148,
 		.hts_def = 0x036e,
 		.vts_def = 0x0aac,
@@ -742,8 +747,7 @@ static int sc031gs_g_frame_interval(struct v4l2_subdev *sd,
 	const struct sc031gs_mode *mode = sc031gs->cur_mode;
 
 	mutex_lock(&sc031gs->mutex);
-	fi->interval.numerator = 10000;
-	fi->interval.denominator = mode->max_fps * 10000;
+	fi->interval = mode->max_fps;
 	mutex_unlock(&sc031gs->mutex);
 
 	return 0;
@@ -792,6 +796,11 @@ static int __sc031gs_power_on(struct sc031gs *sc031gs)
 	u32 delay_us;
 	struct device *dev = &sc031gs->client->dev;
 
+	ret = clk_set_rate(sc031gs->xvclk, SC031GS_XVCLK_FREQ);
+	if (ret < 0)
+		dev_warn(dev, "Failed to set xvclk rate (24MHz)\n");
+	if (clk_get_rate(sc031gs->xvclk) != SC031GS_XVCLK_FREQ)
+		dev_warn(dev, "xvclk mismatched, modes are based on 24MHz\n");
 	ret = clk_prepare_enable(sc031gs->xvclk);
 	if (ret < 0) {
 		dev_err(dev, "Failed to enable xvclk\n");
@@ -882,6 +891,22 @@ static int sc031gs_g_mbus_config(struct v4l2_subdev *sd,
 }
 #endif
 
+static int sc031gs_enum_frame_interval(struct v4l2_subdev *sd,
+				      struct v4l2_subdev_pad_config *cfg,
+				      struct v4l2_subdev_frame_interval_enum *fie)
+{
+	if (fie->index >= ARRAY_SIZE(supported_modes))
+		return -EINVAL;
+
+	if (fie->code != PIX_FORMAT)
+		return -EINVAL;
+
+	fie->width = supported_modes[fie->index].width;
+	fie->height = supported_modes[fie->index].height;
+	fie->interval = supported_modes[fie->index].max_fps;
+	return 0;
+}
+
 static const struct dev_pm_ops sc031gs_pm_ops = {
 	SET_RUNTIME_PM_OPS(sc031gs_runtime_suspend,
 			   sc031gs_runtime_resume, NULL)
@@ -912,6 +937,7 @@ static const struct v4l2_subdev_video_ops sc031gs_video_ops = {
 static const struct v4l2_subdev_pad_ops sc031gs_pad_ops = {
 	.enum_mbus_code = sc031gs_enum_mbus_code,
 	.enum_frame_size = sc031gs_enum_frame_sizes,
+	.enum_frame_interval = sc031gs_enum_frame_interval,
 	.get_fmt = sc031gs_get_fmt,
 	.set_fmt = sc031gs_set_fmt,
 };
@@ -1117,13 +1143,6 @@ static int sc031gs_probe(struct i2c_client *client,
 		dev_err(dev, "Failed to get xvclk\n");
 		return -EINVAL;
 	}
-	ret = clk_set_rate(sc031gs->xvclk, SC031GS_XVCLK_FREQ);
-	if (ret < 0) {
-		dev_err(dev, "Failed to set xvclk rate (24MHz)\n");
-		return ret;
-	}
-	if (clk_get_rate(sc031gs->xvclk) != SC031GS_XVCLK_FREQ)
-		dev_warn(dev, "xvclk mismatched, modes are based on 24MHz\n");
 
 	sc031gs->reset_gpio = devm_gpiod_get(dev, "reset", GPIOD_OUT_LOW);
 	if (IS_ERR(sc031gs->reset_gpio))

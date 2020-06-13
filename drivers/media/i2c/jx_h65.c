@@ -5,6 +5,7 @@
  * Copyright (C) 2019 Fuzhou Rockchip Electronics Co., Ltd.
  *
  * V0.0X01.0X01 add poweron function.
+ * V0.0X01.0X02 add enum_frame_interval function.
  */
 
 #include <linux/clk.h>
@@ -22,7 +23,7 @@
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-subdev.h>
 
-#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x01)
+#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x02)
 
 #ifndef V4L2_CID_DIGITAL_GAIN
 #define V4L2_CID_DIGITAL_GAIN		V4L2_CID_GAIN
@@ -51,7 +52,7 @@
 #define	ANALOG_GAIN_MIN			0x00
 #define	ANALOG_GAIN_MAX			0x7f
 #define	ANALOG_GAIN_STEP		1
-#define	ANALOG_GAIN_DEFAULT		0x30
+#define	ANALOG_GAIN_DEFAULT		0x0
 
 #define JX_H65_DIGI_GAIN_L_MASK		0x3f
 #define JX_H65_DIGI_GAIN_H_SHIFT	6
@@ -90,7 +91,7 @@ struct regval {
 struct jx_h65_mode {
 	u32 width;
 	u32 height;
-	u32 max_fps;
+	struct v4l2_fract max_fps;
 	u32 hts_def;
 	u32 vts_def;
 	u32 exp_def;
@@ -223,7 +224,6 @@ static const struct regval jx_h65_1280x720_regs[] = {
 	{0x90, 0x00},
 	{0x79, 0x00},
 	{0x13, 0x81},
-	{0x12, 0x00},
 	{0x45, 0x89},
 	{0x93, 0x68},
 	{REG_DELAY, 0x00},
@@ -322,7 +322,6 @@ static const struct regval jx_h65_1280x960_regs[] = {
 	{0x90, 0x00},
 	{0x79, 0x00},
 	{0x13, 0x81},
-	{0x12, 0x00},
 	{0x45, 0x89},
 	{0x93, 0x68},
 	{REG_DELAY, 0x00},
@@ -335,7 +334,10 @@ static const struct jx_h65_mode supported_modes[] = {
 	{
 		.width = 1280,
 		.height = 960,
-		.max_fps = 30,
+		.max_fps = {
+			.numerator = 10000,
+			.denominator = 300000,
+		},
 		.exp_def = 0x0384,
 		.hts_def = 0x02d0,
 		.vts_def = 0x03e8,
@@ -344,7 +346,10 @@ static const struct jx_h65_mode supported_modes[] = {
 	{
 		.width = 1280,
 		.height = 720,
-		.max_fps = 30,
+		.max_fps = {
+			.numerator = 10000,
+			.denominator = 300000,
+		},
 		.exp_def = 0x0384,
 		.hts_def = 0x02d0,
 		.vts_def = 0x03e8,
@@ -654,8 +659,7 @@ static int jx_h65_g_frame_interval(struct v4l2_subdev *sd,
 	const struct jx_h65_mode *mode = jx_h65->cur_mode;
 
 	mutex_lock(&jx_h65->mutex);
-	fi->interval.numerator = 10000;
-	fi->interval.denominator = mode->max_fps * 10000;
+	fi->interval = mode->max_fps;
 	mutex_unlock(&jx_h65->mutex);
 
 	return 0;
@@ -663,19 +667,6 @@ static int jx_h65_g_frame_interval(struct v4l2_subdev *sd,
 
 static int __jx_h65_start_stream(struct jx_h65 *jx_h65)
 {
-	int ret;
-
-	ret = jx_h65_write_array(jx_h65->client, jx_h65->cur_mode->reg_list);
-	if (ret)
-		return ret;
-
-	/* In case these controls are set before streaming */
-	mutex_unlock(&jx_h65->mutex);
-	ret = v4l2_ctrl_handler_setup(&jx_h65->ctrl_handler);
-	mutex_lock(&jx_h65->mutex);
-	if (ret)
-		return ret;
-
 	return jx_h65_write_reg(jx_h65->client, JX_H65_REG_CTRL_MODE,
 				JX_H65_MODE_STREAMING);
 }
@@ -742,6 +733,18 @@ static int jx_h65_s_power(struct v4l2_subdev *sd, int on)
 			goto unlock_and_return;
 		}
 
+		ret = jx_h65_write_array(jx_h65->client,
+					 jx_h65->cur_mode->reg_list);
+		if (ret)
+			goto unlock_and_return;
+
+		mutex_unlock(&jx_h65->mutex);
+		/* In case these controls are set before streaming */
+		ret = v4l2_ctrl_handler_setup(&jx_h65->ctrl_handler);
+		if (ret)
+			return ret;
+		mutex_lock(&jx_h65->mutex);
+
 		jx_h65->power_on = true;
 	} else {
 		pm_runtime_put(&client->dev);
@@ -781,6 +784,9 @@ static int __jx_h65_power_on(struct jx_h65 *jx_h65)
 		dev_err(dev, "Failed to enable regulators\n");
 		goto disable_clk;
 	}
+
+	/* According to datasheet, at least 10ms for reset duration */
+	usleep_range(10 * 1000, 15 * 1000);
 
 	if (!IS_ERR(jx_h65->reset_gpio))
 		gpiod_set_value_cansleep(jx_h65->reset_gpio, 0);
@@ -852,6 +858,22 @@ static int jx_h65_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 }
 #endif
 
+static int jx_h65_enum_frame_interval(struct v4l2_subdev *sd,
+				       struct v4l2_subdev_pad_config *cfg,
+				       struct v4l2_subdev_frame_interval_enum *fie)
+{
+	if (fie->index >= ARRAY_SIZE(supported_modes))
+		return -EINVAL;
+
+	if (fie->code != MEDIA_BUS_FMT_SBGGR10_1X10)
+		return -EINVAL;
+
+	fie->width = supported_modes[fie->index].width;
+	fie->height = supported_modes[fie->index].height;
+	fie->interval = supported_modes[fie->index].max_fps;
+	return 0;
+}
+
 static const struct dev_pm_ops jx_h65_pm_ops = {
 	SET_RUNTIME_PM_OPS(jx_h65_runtime_suspend,
 			   jx_h65_runtime_resume, NULL)
@@ -879,6 +901,7 @@ static const struct v4l2_subdev_video_ops jx_h65_video_ops = {
 static const struct v4l2_subdev_pad_ops jx_h65_pad_ops = {
 	.enum_mbus_code = jx_h65_enum_mbus_code,
 	.enum_frame_size = jx_h65_enum_frame_sizes,
+	.enum_frame_interval = jx_h65_enum_frame_interval,
 	.get_fmt = jx_h65_get_fmt,
 	.set_fmt = jx_h65_set_fmt,
 };
@@ -914,6 +937,7 @@ static int jx_h65_set_ctrl(struct v4l2_ctrl *ctrl)
 
 	switch (ctrl->id) {
 	case V4L2_CID_EXPOSURE:
+		dev_dbg(&client->dev, "set expo: val: %d\n", ctrl->val);
 		/* 4 least significant bits of expsoure are fractional part */
 		ret = jx_h65_write_reg(jx_h65->client,
 				JX_H65_AEC_PK_LONG_EXPO_HIGH_REG,
@@ -923,12 +947,14 @@ static int jx_h65_set_ctrl(struct v4l2_ctrl *ctrl)
 				JX_H65_FETCH_LOW_BYTE_EXP(ctrl->val));
 		break;
 	case V4L2_CID_ANALOGUE_GAIN:
+		dev_dbg(&client->dev, "set a-gain: val: %d\n", ctrl->val);
 		ret |= jx_h65_write_reg(jx_h65->client,
 			JX_H65_AEC_PK_LONG_GAIN_REG, ctrl->val);
 		break;
 	case V4L2_CID_DIGITAL_GAIN:
 		break;
 	case V4L2_CID_VBLANK:
+		dev_dbg(&client->dev, "set vblank: val: %d\n", ctrl->val);
 		ret |= jx_h65_write_reg(jx_h65->client, JX_H65_REG_HIGH_VTS,
 			JX_H65_FETCH_HIGH_BYTE_VTS((ctrl->val + jx_h65->cur_mode->height)));
 		ret |= jx_h65_write_reg(jx_h65->client, JX_H65_REG_LOW_VTS,

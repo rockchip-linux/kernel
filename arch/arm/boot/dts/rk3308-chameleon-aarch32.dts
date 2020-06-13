@@ -1,0 +1,318 @@
+/*
+ * Copyright (c) 2018 Fuzhou Rockchip Electronics Co., Ltd
+ *
+ * SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+ */
+
+/dts-v1/;
+
+#include <dt-bindings/input/input.h>
+#include "arm64/rockchip/rk3308.dtsi"
+
+/ {
+	model = "Rockchip RK3308 Chameleon Autotest Board";
+	compatible = "rockchip,rk3308-chameleon", "rockchip,rk3308";
+
+	chosen {
+		bootargs = "earlycon=uart8250,mmio32,0xff0a0000 swiotlb=1 console=ttyFIQ0 root=PARTUUID=614e0000-0000 rootfstype=squashfs rootwait snd_aloop.index=7 snd_aloop.use_raw_jiffies=1";
+	};
+
+	acodec_sound: acodec-sound {
+		compatible = "rockchip,multicodecs-card";
+		rockchip,card-name = "rockchip,rk3308-acodec";
+		rockchip,codec-hp-det;
+		rockchip,mclk-fs = <256>;
+		rockchip,cpu = <&i2s_8ch_2>;
+		rockchip,codec = <&acodec>;
+		status = "okay";
+	};
+
+	vdd_core: vdd-core {
+		compatible = "pwm-regulator";
+		pwms = <&pwm0 0 5000 1>;
+		regulator-name = "vdd_core";
+		regulator-min-microvolt = <827000>;
+		regulator-max-microvolt = <1340000>;
+		regulator-init-microvolt = <1015000>;
+		regulator-always-on;
+		regulator-boot-on;
+		regulator-settling-time-up-us = <250>;
+		status = "okay";
+	};
+
+	vdd_log: vdd_1v0: vdd-1v0 {
+		compatible = "regulator-fixed";
+		regulator-name = "vdd_1v0";
+		regulator-always-on;
+		regulator-boot-on;
+		regulator-min-microvolt = <1000000>;
+		regulator-max-microvolt = <1000000>;
+	};
+
+	vcc_io: vcc-io {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc_io";
+		regulator-always-on;
+		regulator-boot-on;
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+	};
+
+	vcc_1v8: vcc-1v8 {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc_1v8";
+		regulator-always-on;
+		regulator-boot-on;
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		vin-supply = <&vcc_io>;
+	};
+
+	vcc_ddr: vcc-ddr {
+	compatible = "regulator-fixed";
+		regulator-name = "vcc_ddr";
+		regulator-always-on;
+		regulator-boot-on;
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+	};
+
+	vccio_rkdfp1: vccio-rkdfp1 {
+		compatible = "regulator-fixed";
+		regulator-name = "vccio_rkdfp1";
+		regulator-always-on;
+		regulator-boot-on;
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <3300000>;
+	};
+
+	vccio_rkdfp2: vccio-rkdfp2 {
+		compatible = "regulator-fixed";
+		regulator-name = "vccio_rkdfp2";
+		regulator-always-on;
+		regulator-boot-on;
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <3300000>;
+	};
+
+	vccio_rkdfp3: vccio-rkdfp3 {
+		compatible = "regulator-fixed";
+		regulator-name = "vccio_rkdfp3";
+		regulator-always-on;
+		regulator-boot-on;
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <3300000>;
+	};
+
+	vccio_rkdfp4: vccio-rkdfp4 {
+		compatible = "regulator-fixed";
+		regulator-name = "vccio_rkdfp4";
+		regulator-always-on;
+		regulator-boot-on;
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <3300000>;
+	};
+};
+
+&acodec {
+	status = "okay";
+
+	rockchip,no-hp-det;
+	rockchip,delay-start-play-ms = <200>;
+	rockchip,loopback-grp = <1>;
+	spk-ctl-gpios = <&gpio1 RK_PA0 GPIO_ACTIVE_HIGH>;
+	rockchip,adc-grps-route = <2 3 0 1>;
+};
+
+&i2s_8ch_2 {
+	status = "okay";
+};
+
+&cpu0 {
+	cpu-supply = <&vdd_core>;
+};
+
+&dmc {
+	center-supply = <&vdd_log>;
+	status = "okay";
+};
+
+&fiq_debugger {
+	rockchip,serial-id = <0>;
+	status = "okay";
+};
+
+&io_domains {
+	status = "okay";
+
+	vccio0-supply = <&vcc_io>;
+	vccio1-supply = <&vccio_rkdfp1>;
+	vccio2-supply = <&vccio_rkdfp2>;
+	vccio3-supply = <&vcc_io>;
+	vccio4-supply = <&vccio_rkdfp4>;
+	vccio5-supply = <&vccio_rkdfp3>;
+};
+
+&ramoops_mem {
+	reg = <0x0 0x30000 0x0 0x20000>;
+};
+
+&ramoops {
+	record-size = <0x0 0x00000>;
+	console-size = <0x0 0x20000>;
+};
+
+&rng {
+	status = "okay";
+};
+
+&saradc {
+	status = "okay";
+	vref-supply = <&vcc_1v8>;
+	/*
+	 * config the connect_det and vccio_det GPIO pull none, power_on GPIO
+	 * pull up.
+	 *
+	 * Because there is no module use those GPIOS, I put pinctrl here just
+	 * for convenience.
+	 */
+	pinctrl-names = "default";
+	pinctrl-0 = <&connect_det_pull_none
+		     &power_on_pull_up
+		     &vccio_det_pull_none>;
+};
+
+&pwm0 {
+	status = "okay";
+	pinctrl-names = "active";
+	pinctrl-0 = <&pwm0_pin_pull_down>;
+};
+
+&sfc {
+	u-boot,dm-pre-reloc;
+	status = "okay";
+};
+
+&uart1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&uart1_xfer>;
+	status = "okay";
+};
+
+&uart4 {
+	status = "okay";
+};
+
+&i2c0 {
+	clock-frequency = <400000>;
+	status = "disabled";
+};
+
+&i2c1 {
+	clock-frequency = <400000>;
+	status = "okay";
+};
+
+&i2c2 {
+	clock-frequency = <400000>;
+	status = "okay";
+};
+
+&i2c3 {
+	clock-frequency = <40000>;
+	status = "okay";
+
+	ina226@40 {
+		compatible = "ti,ina226";
+		reg = <0x40>;
+		shunt-resistor = <20000>;
+	};
+	ina226@41 {
+		compatible = "ti,ina226";
+		reg = <0x41>;
+		shunt-resistor = <20000>;
+	};
+	ina226@42 {
+		compatible = "ti,ina226";
+		reg = <0x42>;
+		shunt-resistor = <20000>;
+	};
+	ina226@43 {
+		compatible = "ti,ina226";
+		reg = <0x43>;
+		shunt-resistor = <20000>;
+	};
+	ina226@44 {
+		compatible = "ti,ina226";
+		reg = <0x44>;
+		shunt-resistor = <20000>;
+	};
+	ina226@45 {
+		compatible = "ti,ina226";
+		reg = <0x45>;
+		shunt-resistor = <20000>;
+	};
+	ina226@46 {
+		compatible = "ti,ina226";
+		reg = <0x46>;
+		shunt-resistor = <20000>;
+	};
+	ina226@47 {
+		compatible = "ti,ina226";
+		reg = <0x47>;
+		shunt-resistor = <20000>;
+	};
+	ina226@48 {
+		compatible = "ti,ina226";
+		reg = <0x48>;
+		shunt-resistor = <20000>;
+	};
+	ina226@49 {
+		compatible = "ti,ina226";
+		reg = <0x49>;
+		shunt-resistor = <20000>;
+	};
+	ina226@4a {
+		compatible = "ti,ina226";
+		reg = <0x4a>;
+		shunt-resistor = <20000>;
+	};
+	ina226@4b {
+		compatible = "ti,ina226";
+		reg = <0x4b>;
+		shunt-resistor = <20000>;
+	};
+};
+
+&pinctrl {
+	dut {
+		connect_det_pull_up: connect_det_pull_up {
+			rockchip,pins =
+				<0 RK_PB2 0 &pcfg_pull_up>,
+				<0 RK_PA3 0 &pcfg_pull_up>,
+				<0 RK_PB6 0 &pcfg_pull_up>,
+				<0 RK_PC4 0 &pcfg_pull_up>;
+			};
+		connect_det_pull_none: connect_det_pull_none {
+			rockchip,pins =
+				<0 RK_PB2 0 &pcfg_pull_none>,
+				<0 RK_PA3 0 &pcfg_pull_none>,
+				<0 RK_PB6 0 &pcfg_pull_none>,
+				<0 RK_PC4 0 &pcfg_pull_none>;
+			};
+		vccio_det_pull_none: vccio_det_pull_none {
+			rockchip,pins =
+				<0 RK_PA0 0 &pcfg_pull_none>,
+				<0 RK_PA1 0 &pcfg_pull_none>,
+				<0 RK_PA2 0 &pcfg_pull_none>,
+				<0 RK_PA5 0 &pcfg_pull_none>;
+			};
+		power_on_pull_up: power_on_pull_up {
+			rockchip,pins =
+				<1 RK_PC5 0 &pcfg_pull_up>,
+				<2 RK_PC0 0 &pcfg_pull_up>,
+				<4 RK_PD4 0 &pcfg_pull_up>,
+				<4 RK_PA4 0 &pcfg_pull_up>;
+			};
+	};
+};

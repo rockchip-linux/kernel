@@ -88,7 +88,7 @@
 
 &display_subsystem {
 	status = "disabled";
-	ports = <&vopb_out>, <&vopl_out>;
+	ports = <&vopb_out>;
 	logo-memory-region = <&drm_logo>;
 
 	route {
@@ -119,6 +119,10 @@
 			connect = <&vopb_out_rgb>;
 		};
 	};
+};
+
+&rng {
+	status = "okay";
 };
 
 &video_phy {

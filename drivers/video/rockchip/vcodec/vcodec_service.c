@@ -16,7 +16,7 @@
  */
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
-
+#include <dt-bindings/soc/rockchip-system-status.h>
 #include <linux/clk.h>
 #include <linux/compat.h>
 #include <linux/delay.h>
@@ -55,6 +55,7 @@
 #include <video/rk_vpu_service.h>
 #include <soc/rockchip/pm_domains.h>
 #include <soc/rockchip/rockchip_opp_select.h>
+#include <soc/rockchip/rockchip-system-status.h>
 
 #include "vcodec_hw_info.h"
 #include "vcodec_hw_vpu.h"
@@ -478,6 +479,224 @@ struct compat_vpu_request {
 
 #define VPU_POWER_OFF_DELAY		(4 * HZ) /* 4s */
 #define VPU_TIMEOUT_DELAY		(2 * HZ) /* 2s */
+
+#define VIDEO_INFO 1
+
+#if VIDEO_INFO
+
+struct video_info {
+	unsigned int width;
+	u8 bit_depth;
+	pid_t pid;
+	struct list_head node;
+};
+
+static DEFINE_MUTEX(video_info_mutex);
+static LIST_HEAD(video_info_list);
+
+static struct video_info *find_video_info(pid_t pid)
+{
+	struct video_info *info;
+
+	mutex_lock(&video_info_mutex);
+	list_for_each_entry(info, &video_info_list, node) {
+		if (info->pid == pid) {
+			mutex_unlock(&video_info_mutex);
+			return info;
+		}
+	}
+	mutex_unlock(&video_info_mutex);
+	return NULL;
+}
+
+static int add_video_info(pid_t pid, unsigned int width, u8 bit_depth)
+{
+	struct video_info *info = find_video_info(pid);
+
+	if (info) {
+		info->width = width;
+		info->bit_depth = bit_depth;
+	} else {
+		info = kzalloc(sizeof(*info), GFP_KERNEL);
+		if (!info)
+			return -ENOMEM;
+		info->pid = pid;
+		info->width = width;
+		info->bit_depth = bit_depth;
+		mutex_lock(&video_info_mutex);
+		list_add(&info->node, &video_info_list);
+		mutex_unlock(&video_info_mutex);
+	}
+	return 0;
+}
+
+static int del_video_info(pid_t pid)
+{
+	struct video_info *info = find_video_info(pid);
+
+	if (!info)
+		return -1;
+
+	mutex_lock(&video_info_mutex);
+	list_del(&info->node);
+	mutex_unlock(&video_info_mutex);
+	kfree(info);
+	return 0;
+}
+
+static bool has_4k_in_list(void)
+{
+	struct video_info *info;
+
+	mutex_lock(&video_info_mutex);
+	list_for_each_entry(info, &video_info_list, node) {
+		if (info->width > 1920 && info->bit_depth != 10) {
+			mutex_unlock(&video_info_mutex);
+			return true;
+		}
+	}
+	mutex_unlock(&video_info_mutex);
+	return false;
+}
+
+static bool has_1080p_in_list(void)
+{
+	struct video_info *info;
+
+	mutex_lock(&video_info_mutex);
+	list_for_each_entry(info, &video_info_list, node) {
+		if (info->width <= 1920 && info->width > 0) {
+			mutex_unlock(&video_info_mutex);
+			return true;
+		}
+	}
+	mutex_unlock(&video_info_mutex);
+	return false;
+}
+
+static bool has_4k_10bit_in_list(void)
+{
+	struct video_info *info;
+
+	mutex_lock(&video_info_mutex);
+	list_for_each_entry(info, &video_info_list, node) {
+		if (info->bit_depth == 10 && info->width > 1920) {
+			mutex_unlock(&video_info_mutex);
+			return true;
+		}
+	}
+	mutex_unlock(&video_info_mutex);
+	return false;
+}
+
+static int update_system_status(void)
+{
+	unsigned long previous_status = rockchip_get_system_status();
+	bool is_previous_4k = previous_status & (SYS_STATUS_VIDEO_4K);
+	bool is_previous_1080P = previous_status & (SYS_STATUS_VIDEO_1080P);
+	bool is_previous_4k_10bit = previous_status & (SYS_STATUS_VIDEO_4K_10B);
+	bool has_4k = has_4k_in_list();
+	bool has_1080p = has_1080p_in_list();
+	bool has_4k_10bit = has_4k_10bit_in_list();
+
+	if (has_4k) {
+		if (!is_previous_4k)
+			rockchip_set_system_status(SYS_STATUS_VIDEO_4K);
+	} else {
+		if (is_previous_4k)
+			rockchip_clear_system_status(SYS_STATUS_VIDEO_4K);
+	}
+
+	if (has_1080p) {
+		if (!is_previous_1080P)
+			rockchip_set_system_status(SYS_STATUS_VIDEO_1080P);
+	} else {
+		if (is_previous_1080P)
+			rockchip_clear_system_status(SYS_STATUS_VIDEO_1080P);
+	}
+
+	if (has_4k_10bit) {
+		if (!is_previous_4k_10bit)
+			rockchip_set_system_status(SYS_STATUS_VIDEO_4K_10B);
+	} else {
+		if (is_previous_4k_10bit)
+			rockchip_clear_system_status(SYS_STATUS_VIDEO_4K_10B);
+	}
+
+	return 0;
+}
+
+static int probe_width(struct vpu_reg *reg)
+{
+	int width = 0;
+	int type = -1;
+
+	if (reg->type != VPU_DEC && reg->type != VPU_DEC_PP) {
+		return -1;
+	}
+	if (reg->task->get_fmt) {
+		type = reg->task->get_fmt(reg->reg);
+	} else {
+		pr_info("invalid task with NULL get_fmt\n");
+		return -EINVAL;
+	}
+
+	switch (reg->data->hw_id) {
+	case VPU_DEC_ID_9190:
+	case VPU_ID_8270:
+	case VPU_ID_4831:
+
+		switch (type) {
+		case FMT_JPEGD:
+		case FMT_H263D:
+		case FMT_H264D:
+		case FMT_MPEG2D:
+		case FMT_MPEG4D:
+		case FMT_VP6D:
+		case FMT_VP8D:
+		case FMT_VC1D:
+		case FMT_AVSD:
+			width = (reg->reg[04] & 0xff800000) >> 19;
+			break;
+		default: //MPEG1D, VP7D, H265D, VP9D, FMT_PP, JPEGE, H264E, VP8E
+			pr_err("unsupported FORMAT_TYPE %d\n", type);
+			break;
+		}
+		break;
+
+	case HEVC_ID:
+	case RKV_DEC_ID:
+	case RKV_DEC_ID2:
+		if (type == FMT_H264D || type == FMT_H265D || type == FMT_VP9D)
+			width = (reg->reg[3] & 0x3ff) << 4;
+		break;
+
+	case VPU2_ID:
+		switch (type) {
+		case FMT_H264D:
+			width = (reg->reg[110] & 0x1ff) << 4;
+			break;
+		case FMT_JPEGD:
+		case FMT_H263D:
+		case FMT_MPEG2D:
+		case FMT_MPEG4D:
+		case FMT_VP6D:
+		case FMT_VP8D:
+		case FMT_VC1D:
+		case FMT_AVSD:
+			width = (reg->reg[120] & 0xff800000) >> 19;
+			break;
+		default: //MPEG1D, VP7D, H265D, VP9D, FMT_PP, JPEGE, H264E, VP8E
+			pr_err("unsupported FORMAT_TYPE %d\n", type);
+			break;
+		}
+		break;
+	}
+
+	return width;
+}
+
+#endif
 
 static void vcodec_reduce_freq_rk3328(struct vpu_service_info *pservice);
 
@@ -1011,6 +1230,21 @@ static int fill_scaling_list_pps(struct vpu_subdev_data *data,
 	}
 	pps = vaddr + offset;
 
+#if VIDEO_INFO
+	{
+		u8 bit_depth = 0;
+
+		if (pps_info_size == 32) {	//FMT_H264D
+			bit_depth = ((((*(pps + 2)) & 0x03) << 1) |
+					(((*(pps + 1)) & 0x80) >> 7)) + 8;
+		} else if (pps_info_size == 80) {	//FMT_H265D
+			bit_depth = ((*(pps + 4)) & 0xf0) >> 4;
+		}
+		if (bit_depth != reg->session->bit_depth)
+			reg->session->bit_depth = bit_depth;
+	}
+#endif
+
 	memcpy(&scaling_offset, pps + base, sizeof(scaling_offset));
 	scaling_offset = le32_to_cpu(scaling_offset);
 
@@ -1271,6 +1505,21 @@ static struct vpu_reg *reg_init(struct vpu_subdev_data *data,
 
 	if (pservice->auto_freq && pservice->hw_ops->get_freq)
 		pservice->hw_ops->get_freq(data, reg);
+
+#if VIDEO_INFO
+	{
+		unsigned int current_width = probe_width(reg);
+
+		if (current_width > 0 &&
+				reg->session->width != current_width) {
+			reg->session->width = current_width;
+			add_video_info(reg->session->pid, reg->session->width,
+					reg->session->bit_depth);
+			update_system_status();
+		}
+	}
+
+#endif
 
 	vpu_debug_leave();
 
@@ -2030,6 +2279,7 @@ static int vpu_service_open(struct inode *inode, struct file *filp)
 
 	session->type	= VPU_TYPE_BUTT;
 	session->pid	= current->pid;
+	session->width	= 0;
 	INIT_LIST_HEAD(&session->waiting);
 	INIT_LIST_HEAD(&session->running);
 	INIT_LIST_HEAD(&session->done);
@@ -2080,6 +2330,10 @@ static int vpu_service_release(struct inode *inode, struct file *filp)
 	list_del_init(&session->list_session);
 	vpu_service_session_clear(data, session);
 	vcodec_iommu_clear(data->iommu_info, session);
+#if VIDEO_INFO
+	del_video_info(session->pid);
+	update_system_status();
+#endif
 	kfree(session);
 	filp->private_data = NULL;
 	mutex_unlock(&pservice->lock);
@@ -2274,6 +2528,27 @@ static void vcodec_get_reg_freq_default(struct vpu_subdev_data *data,
 
 	if (reg->type == VPU_PP)
 		reg->freq = VPU_FREQ_400M;
+}
+
+static void vcodec_get_reg_freq_rk3368(struct vpu_subdev_data *data,
+				       struct vpu_reg *reg)
+{
+	vcodec_get_reg_freq_default(data, reg);
+
+	if ((reg->type == VPU_DEC || reg->type == VPU_DEC_PP) &&
+	    data->hw_id != HEVC_ID) {
+		if (reg_check_fmt(reg) == VPU_DEC_FMT_H264) {
+			if (reg_probe_width(reg) > 2560) {
+				/*
+				 * raise frequency for resolution larger
+				 * than 1440p avc.
+				 */
+				reg->freq = VPU_FREQ_400M;
+			}
+		} else if (reg_check_interlace(reg)) {
+			reg->freq = VPU_FREQ_400M;
+		}
+	}
 }
 
 static void vcodec_get_reg_freq_rk3288(struct vpu_subdev_data *data,
@@ -2728,6 +3003,8 @@ static void vcodec_set_hw_ops(struct vpu_service_info *pservice)
 		} else if (of_machine_is_compatible("rockchip,rk3288") ||
 				of_machine_is_compatible("rockchip,rk3288w")) {
 			pservice->hw_ops->get_freq = vcodec_get_reg_freq_rk3288;
+		} else if (of_machine_is_compatible("rockchip,rk3368")) {
+			pservice->hw_ops->get_freq = vcodec_get_reg_freq_rk3368;
 		}
 	}
 }
@@ -3533,6 +3810,7 @@ static int vcodec_probe(struct platform_device *pdev)
 
 	session->type	= VPU_TYPE_BUTT;
 	session->pid	= current->pid;
+	session->width	= 0;
 	INIT_LIST_HEAD(&session->waiting);
 	INIT_LIST_HEAD(&session->running);
 	INIT_LIST_HEAD(&session->done);

@@ -94,6 +94,19 @@ static int rk3288_get_soc_info(struct device *dev, struct device_node *np,
 			*bin = 1;
 	}
 
+	if (soc_is_rk3288w()) {
+		if (of_property_match_string(np, "nvmem-cell-names",
+					     "package") >= 0) {
+			ret = rockchip_get_efuse_value(np, "package", &value);
+			if (ret) {
+				dev_err(dev, "Failed to get soc package value\n");
+				goto out;
+			}
+			if (value == 0x2)
+				*bin = 0;
+		}
+	}
+
 	if (soc_is_rk3288w())
 		name = "performance-w";
 	else

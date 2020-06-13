@@ -164,6 +164,17 @@
 		#clock-cells = <0>;
 	};
 
+	/delete-node/ rt5651-sound;
+	rt5651_sound: rt5651-sound {
+		compatible = "rockchip,multicodecs-card";
+		rockchip,card-name = "realtek,rt5651-codec";
+		rockchip,codec-hp-det;
+		rockchip,mclk-fs = <256>;
+		rockchip,cpu = <&i2s0>;
+		rockchip,codec = <&rt5651>;
+		status = "okay";
+	};
+
 	test_power: test-power {
 		status = "okay";
 	};
@@ -293,6 +304,14 @@
 	status = "okay";
 };
 
+&iep {
+	status = "okay";
+};
+
+&iep_mmu {
+	status = "okay";
+};
+
 &isp0_mmu {
 	status = "okay";
 };
@@ -404,15 +423,6 @@
 
 &route_edp {
 	status = "okay";
-};
-
-&rt5651_sound {
-	compatible = "rockchip,multicodecs-card";
-	rockchip,card-name = "rockchip,rt5651-codec";
-	rockchip,codec-hp-det;
-	rockchip,mclk-fs = <256>;
-	rockchip,cpu = <&i2s0>;
-	rockchip,codec = <&rt5651>;
 };
 
 &saradc {

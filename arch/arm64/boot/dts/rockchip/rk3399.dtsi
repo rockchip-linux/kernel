@@ -1151,7 +1151,7 @@
 			status = "disabled";
 		};
 
-		reboot-mode {
+		reboot_mode: reboot-mode {
 			compatible = "syscon-reboot-mode";
 			offset = <0x300>;
 			mode-bootloader = <BOOT_BL_DOWNLOAD>;
@@ -1259,6 +1259,7 @@
 				<0 0 0 2 &pcie0_intc 1>,
 				<0 0 0 3 &pcie0_intc 2>,
 				<0 0 0 4 &pcie0_intc 3>;
+		power-domains = <&power RK3399_PD_PERIHP>;
 		phys = <&pcie_phy>;
 		phy-names = "pcie-phy";
 		ranges = <0x83000000 0x0 0xfa000000 0x0 0xfa000000 0x0 0x1e00000
@@ -1782,6 +1783,16 @@
 		resets = <&cru SRST_I2S2_8CH>, <&cru SRST_H_I2S2_8CH>;
 		reset-names = "reset-m", "reset-h";
 		power-domains = <&power RK3399_PD_SDIOAUDIO>;
+		status = "disabled";
+	};
+
+	rng: rng@ff8b8000 {
+		compatible = "rockchip,cryptov1-rng";
+		reg = <0x0 0xff8b8000 0x0 0x1000>;
+		clocks = <&cru SCLK_CRYPTO1>, <&cru HCLK_S_CRYPTO1>;
+		clock-names = "clk_crypto", "hclk_crypto";
+		assigned-clocks = <&cru SCLK_CRYPTO1>, <&cru HCLK_S_CRYPTO1>;
+		assigned-clock-rates = <150000000>, <100000000>;
 		status = "disabled";
 	};
 

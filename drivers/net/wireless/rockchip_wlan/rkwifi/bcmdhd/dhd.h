@@ -1053,6 +1053,7 @@ typedef struct dhd_pub {
 #ifdef WL_EXT_IAPSTA
 	void *iapsta_params;
 #endif
+	bool disabling;
 } dhd_pub_t;
 
 typedef struct {
