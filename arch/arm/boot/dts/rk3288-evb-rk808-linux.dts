@@ -421,7 +421,7 @@
 				regulator-max-microvolt = <3300000>;
 				regulator-name = "vcc_wl";
 				regulator-state-mem {
-					regulator-off-in-suspend;
+					regulator-on-in-suspend;
 				};
 			};
 
