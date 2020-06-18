@@ -1086,10 +1086,9 @@ dw_hdmi_rockchip_set_property(struct drm_connector *connector,
 	} else if (property == hdmi->quant_range) {
 		hdmi->hdmi_quant_range = val;
 		return 0;
+	} else {
+		return drm_atomic_helper_connector_set_property(connector, property, val);
 	}
-
-	DRM_ERROR("failed to set rockchip hdmi connector property\n");
-	return -EINVAL;
 }
 
 static int
