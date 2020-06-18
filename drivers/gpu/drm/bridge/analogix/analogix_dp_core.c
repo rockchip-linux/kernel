@@ -922,6 +922,7 @@ static const struct drm_connector_funcs analogix_dp_connector_funcs = {
 	.detect = analogix_dp_detect,
 	.destroy = analogix_dp_connector_destroy,
 	.reset = drm_atomic_helper_connector_reset,
+	.set_property = drm_atomic_helper_connector_set_property,
 	.atomic_duplicate_state = drm_atomic_helper_connector_duplicate_state,
 	.atomic_destroy_state = drm_atomic_helper_connector_destroy_state,
 };
