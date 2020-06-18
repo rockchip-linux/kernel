@@ -47,8 +47,6 @@ struct gpio_detection {
 	struct device *dev;
 	int num;
 	struct gpio_data *data;
-	struct pinctrl *pinctrl;
-	struct pinctrl_state *pins_default;
 	struct notifier_block fb_notifier;
 	struct wake_lock wake_lock;
 	int mirror;
@@ -335,17 +333,7 @@ static int gpio_det_probe(struct platform_device *pdev)
 	dev_set_name(gpio_det->dev, "gpio_detection");
 	if (!pdev->dev.of_node)
 		return -EINVAL;
-	gpio_det->pinctrl = devm_pinctrl_get(&pdev->dev);
-	if (IS_ERR(gpio_det->pinctrl)) {
-		dev_err(&pdev->dev, "pinctrl get failed\n");
-		return PTR_ERR(gpio_det->pinctrl);
-	}
-	gpio_det->pins_default = pinctrl_lookup_state(gpio_det->pinctrl,
-						      PINCTRL_STATE_DEFAULT);
-	if (IS_ERR(gpio_det->pins_default))
-		dev_err(gpio_det->dev, "get default pinstate failed\n");
-	else
-		pinctrl_select_state(gpio_det->pinctrl, gpio_det->pins_default);
+
 	if (gpio_det_parse_dt(gpio_det, pdev))
 		return -ENODEV;
 	wake_lock_init(&gpio_det->wake_lock, WAKE_LOCK_SUSPEND,
