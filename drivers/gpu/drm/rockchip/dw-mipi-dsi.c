@@ -1421,6 +1421,7 @@ static const struct drm_connector_funcs dw_mipi_dsi_atomic_connector_funcs = {
 	.detect = dw_mipi_dsi_detect,
 	.destroy = dw_mipi_dsi_drm_connector_destroy,
 	.reset = drm_atomic_helper_connector_reset,
+	.set_property = drm_atomic_helper_connector_set_property,
 	.atomic_duplicate_state = drm_atomic_helper_connector_duplicate_state,
 	.atomic_destroy_state = drm_atomic_helper_connector_destroy_state,
 };
