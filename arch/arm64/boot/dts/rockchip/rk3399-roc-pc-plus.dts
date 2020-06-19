@@ -22,7 +22,7 @@
 	};
 	/delete-node/ vcc_hub_en-regulator;
 
-	fan_enable: vcc5v0-host-regulator {
+	fan_enable: fan-regulator {
 		compatible = "regulator-fixed";
 		enable-active-high;
 		gpio = <&gpio1 1 GPIO_ACTIVE_HIGH>;
