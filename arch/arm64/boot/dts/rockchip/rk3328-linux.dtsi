@@ -36,3 +36,6 @@
 	};
 };
 
+&rga {
+	status = "okay";
+};
