@@ -1,0 +1,72 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+// Copyright (c) 2020 Rockchip Electronics Co., Ltd.
+
+
+/dts-v1/;
+#include "rk1808-compute.dtsi"
+
+/ {
+	model = "Rockchip RK1808 Module V01 Board";
+	compatible = "rockchip,rk1808-module-v01", "rockchip,rk1808";
+
+	chosen {
+		bootargs = "earlycon=uart8250,mmio32,0xff550000 console=ttyFIQ0 dump_initrd root=/dev/ram0 init=/init swiotlb=1 kpti=0";
+	};
+
+	keys: gpio-keys {
+		compatible = "gpio-keys";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pwr_key>;
+
+		power {
+			gpios = <&gpio0 RK_PC0 GPIO_ACTIVE_HIGH>;
+			label = "GPIO Power";
+			linux,code = <116>;
+			wakeup-source;
+		};
+	};
+};
+
+&combphy {
+	status = "disabled";
+};
+
+&u2phy_otg {
+	/delete-property/ rockchip,vbus-always-on;
+	status = "okay";
+};
+
+&usbdrd3 {
+	status = "okay";
+	extcon = <&u2phy>;
+};
+
+&usbdrd_dwc3 {
+	dr_mode = "otg";
+	maximum-speed = "high-speed";
+	phys = <&u2phy_otg>;
+	phy-names = "usb2-phy";
+	status = "okay";
+};
+
+&pinctrl {
+	pwr_key: pwr-key {
+		rockchip,pins =
+			<0 RK_PC0 0 &pcfg_pull_none>;
+	};
+};
+
+&rockchip_suspend {
+	status = "okay";
+	rockchip,sleep-debug-en = <1>;
+	rockchip,sleep-mode-config = <
+		(0
+		 | RKPM_SLP_ARMOFF
+		)
+		>;
+	rockchip,wakeup-config = <
+		(0
+		 | RKPM_GPIO_WKUP_EN
+		)
+		>;
+};
