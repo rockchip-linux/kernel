@@ -111,16 +111,121 @@ static struct xc7022 *xc7022_master;
  * max_framerate 30fps
  * mipi_datarate per lane 600Mbps
  */
+static const struct regval xc7022_1080p_regs[] = {
+	{0xfffd, 0x80}, // AE_avg
+	{0xfffe, 0x30}, // AE_avg
+	{0xfffe, 0x30},   // AE_avg
+	{0x1f04, 0x07},   // WIN width
+	{0x1f05, 0x80},
+	{0x1f06, 0x03},   // WIN height
+	{0x1f07, 0x60},
+	{0x1f08, 0x03},
+	{0xfffe, 0x2d},
+	{0x0003, 0x39},
+	{0xfffe, 0x26},
+	{0x8010, 0x05},
+	{0x8012, 0x80},
+	{0x8013, 0x07},
+	{0x8016, 0x00},
+	{0xfffe, 0x2c},
+	{0x0001, 0x07},
+	{0x0002, 0x80},
+	{0x0004, 0x04},
+	{0x0005, 0x38},
+	{0x0048, 0x0E},
+	{0x0049, 0xF0},
+	{0xfffe, 0x26},
+	{0x2019, 0x07},
+	{0x201a, 0x80},
+	{0x201b, 0x04},
+	{0x201c, 0x38},
+	{0xfffe, 0x30},
+	{0x0001, 0x92},
+	{0x005e, 0x7f},
+	{0x005f, 0x07},
+	{0x0060, 0x37},
+	{0x0061, 0x04},
+	{0x0064, 0x80},
+	{0x0065, 0x07},
+	{0x0066, 0x38},
+	{0x0067, 0x04},
+	{0x0006, 0x07},
+	{0x0007, 0x80},
+	{0x0008, 0x04},
+	{0x0009, 0x38},
+	{0x000a, 0x07},
+	{0x000b, 0x80},
+	{0x000c, 0x04},
+	{0x000d, 0x38},
+	{0xfffd, 0x80},
+	{0xfffe, 0x50},
+	{0x001a, 0x08},
+	{0x001a, 0x00},
+	{REG_NULL, 0x00},
+};
+
+static const struct regval xc7022_720p_regs[] = {
+	{0xfffd, 0x80}, // AE_avg
+	{0xfffe, 0x30},   // AE_avg
+	{0x1f04, 0x07},   // WIN width
+	{0x1f05, 0x80},
+	{0x1f06, 0x03},   // WIN height
+	{0x1f07, 0x60},
+	{0x1f08, 0x03},
+	{0xfffe, 0x2d},
+	{0x0003, 0x39},
+	{0xfffe, 0x26},
+	{0x8010, 0x05},
+	{0x8012, 0x80},
+	{0x8013, 0x07},
+	{0x8016, 0x00},
+	{0xfffe, 0x2c},
+	{0x0001, 0x05},
+	{0x0002, 0x00},
+	{0x0004, 0x02},
+	{0x0005, 0xD0},
+	{0x0048, 0x09},
+	{0x0049, 0xF0},
+	{0xfffe, 0x26},
+	{0x2019, 0x05},
+	{0x201a, 0x00},
+	{0x201b, 0x02},
+	{0x201c, 0xD0},
+	{0xfffe, 0x30},
+	{0x0001, 0x92},
+	{0x005e, 0x7f},
+	{0x005f, 0x07},
+	{0x0060, 0x37},
+	{0x0061, 0x04},
+	{0x0064, 0x00},
+	{0x0065, 0x05},
+	{0x0066, 0xD0},
+	{0x0067, 0x02},
+	{0x0006, 0x07},
+	{0x0007, 0x80},
+	{0x0008, 0x04},
+	{0x0009, 0x38},
+	{0x000a, 0x05},
+	{0x000b, 0x00},
+	{0x000c, 0x02},
+	{0x000d, 0xD0},
+	{0xfffd, 0x80},
+	{0xfffe, 0x50},
+	{0x001a, 0x08},
+	{0x001a, 0x00},
+	{REG_NULL, 0x00},
+};
+
 static const struct regval xc7022_480p_regs[] = {
-	{0xfffd, 0x80}, // AE_avg                                     
-	{0xfffe, 0x30}, // AE_avg                                     
-	{0x1f04, 0x05}, // WIN width              
-	{0x1f05, 0xa0},                           
-	{0x1f06, 0x03}, // WIN height             
-	{0x1f07, 0x60},                           
-	{0x1f08, 0x03},                                      
-	{0xfffe, 0x2d}, 
-	{0x0003, 0x38}, 
+	{0xfffd, 0x80}, // AE_avg
+	{0xfffe, 0x30}, // AE_avg
+	{0x1f04, 0x05}, // WIN width
+	{0x1f05, 0xa0},
+	{0x1f06, 0x03}, // WIN height
+	{0x1f07, 0x60},
+	{0x1f08, 0x03},
+	{0xfffe, 0x2d},
+	{0x0003, 0x38},
 	{0xfffe, 0x26},
 	{0x8010, 0x05},
 	{0x8012, 0xA0},
@@ -180,6 +285,22 @@ static const struct regval xc7022_stream_off_regs[] = {
 
 static const struct xc7022_mode supported_modes[] = {
 	{
+		.width = 1280,
+		.height = 720,
+		.max_fps = {
+			.numerator = 10000,
+			.denominator = 600000,
+		},
+		.exp_def = 0x0600,
+		.hts_def = 0x12c0,
+		.vts_def = 0x0680,
+
+		//.exp_def = 0x0450,
+		//.hts_def = 0x0780,
+		//.vts_def = 0x0680,
+		.reg_list = xc7022_720p_regs,
+	},
+	{
 		.width = 640,
 		.height = 480,
 		.max_fps = {
@@ -191,6 +312,19 @@ static const struct xc7022_mode supported_modes[] = {
 		.vts_def = 0x0680,
 		.reg_list = xc7022_480p_regs,
 	},
+	{
+		.width = 1920,
+		.height = 1080,
+		.max_fps = {
+			.numerator = 10000,
+			.denominator = 300000,
+		},
+		.exp_def = 0x0600,
+		.hts_def = 0x12c0,
+		.vts_def = 0x0680,
+		.reg_list = xc7022_1080p_regs,
+	},
+
 };
 
 static const s64 link_freq_menu_items[] = {
@@ -307,6 +441,7 @@ xc7022_find_best_fit(struct v4l2_subdev_format *fmt)
 		}
 	}
 
+	pr_info("========= set %d cur_best_fit\n", cur_best_fit);
 	return &supported_modes[cur_best_fit];
 }
 
@@ -391,7 +526,9 @@ static int xc7022_g_frame_interval(struct v4l2_subdev *sd,
 static int __xc7022_start_stream(struct xc7022 *xc7022)
 {
 	int ret;
-	
+
+	xc7022_write_array(xc7022->client, xc7022->cur_mode->reg_list);
+
 	ret = xc7022_write_array(xc7022->client, xc7022_stream_on_regs);
 	if(ret)
 		printk("write stream on failed\n");
@@ -407,13 +544,13 @@ static int __xc7022_start_stream(struct xc7022 *xc7022)
 }
 
 static int __xc7022_stop_stream(struct xc7022 *xc7022)
-{	
+{
 	int ret;
 
 	ret = xc7022_write_array(xc7022->client, xc7022_stream_off_regs);
 	if(ret)
 		printk("write stream off failed\n");
-		
+
 	return ret;
 }
 
@@ -717,15 +854,15 @@ static int xc7022_check_sensor_id(struct xc7022 *xc7022,
 	int ret;
 
 	ret = xc7022_write_reg(client, CHECK_CHIP_ID_REG1,
-							XC7022_REG_VALUE_08BIT, 
+							XC7022_REG_VALUE_08BIT,
 							CHECK_CHIP_ID_VAL);
 	if (ret){
 		dev_err(dev, "write CHECK_CHIP_ID_REG1 failed\n");
 		return ret;
-	}	
+	}
 
 	ret = xc7022_write_reg(client, CHECK_CHIP_ID_REG2,
-							XC7022_REG_VALUE_08BIT, 
+							XC7022_REG_VALUE_08BIT,
 							CHECK_CHIP_ID_VAL);
 	if (ret){
 		dev_err(dev, "write CHECK_CHIP_ID_REG2 failed\n");
@@ -758,9 +895,9 @@ static int xc7022_check_sensor_id(struct xc7022 *xc7022,
 			return ret;
 		}
 	}
-	
+
 	return 0;
-	
+
 }
 
 static int xc7022_configure_regulators(struct device *dev)
@@ -813,7 +950,7 @@ static int xc7022_probe(struct i2c_client *client,
 			return -1;
 		} else{
 			gpiod_set_value_cansleep(xc7022->reset_gpio, 1);
-			msleep(4500);	
+			msleep(4500);
 		}
 
 		ret = xc7022_configure_regulators(dev);
