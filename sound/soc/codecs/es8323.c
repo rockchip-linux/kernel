@@ -944,8 +944,12 @@ static int es8323_probe(struct snd_soc_codec *codec)
 	codec->hw_write = (hw_write_t) i2c_master_send;
 	codec->control_data = container_of(codec->dev, struct i2c_client, dev);
 
-	if (gpio_get_value(es8323->hp_det_gpio) == es8323->hp_det_level)
-		es8323->hp_inserted = 1;
+
+	if (es8323->hp_det_gpio != INVALID_GPIO) {
+		if (gpio_get_value(es8323->hp_det_gpio) == es8323->hp_det_level)
+			es8323->hp_inserted = 1;
+	}
+
 	if (es8323->aux_det_gpio != INVALID_GPIO)
 		schedule_delayed_work(&aux_det_work, msecs_to_jiffies(500));
 
