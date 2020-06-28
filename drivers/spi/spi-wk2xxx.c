@@ -194,7 +194,11 @@ static int wk2xxx_read_fifo(struct spi_device *spi,uint8_t port,uint8_t fifolen,
                 .len            = fifolen+1,
                 .cs_change      = 1,
         };
-
+		if(!(fifolen>0))
+		{
+			printk(KERN_ERR "%s,fifolen error,fifolen:%d!!\n", __func__,fifolen);
+			return 1;
+		}
         mutex_lock(&wk2xxxs_reg_lock);
 		wk2124_cs_gpio(0);
         spi_message_init(&msg);
@@ -225,7 +229,11 @@ static int wk2xxx_write_fifo(struct spi_device *spi,uint8_t port,uint8_t fifolen
                 .len            = fifolen+1,
                 .cs_change      = 1,
         };
-
+		if(!(fifolen>0))
+		{
+			printk(KERN_ERR "%s,fifolen error,fifolen:%d!!\n", __func__,fifolen);
+			return 1;
+		}
         mutex_lock(&wk2xxxs_reg_lock);
 		wk2124_cs_gpio(0);
         spi_message_init(&msg);
@@ -386,7 +394,7 @@ static void wk2xxx_rx_chars(struct uart_port *port)//vk32xx_port *port)
     struct wk2xxx_port *s = container_of(port,struct wk2xxx_port,port);
     uint8_t fsr,lsr,dat[1],rx_dat[256]={0};
     unsigned int ch,flg,sifr, ignored=0,status = 0,rx_count=0;
-    int rfcnt=0,rx_num=0;
+    int rfcnt=0,rfcnt2=0,rx_num=0;
 
     wk2xxx_write_reg(s->spi_wk,s->port.iobase,WK2XXX_SPAGE,WK2XXX_PAGE0);//set register in page0
     wk2xxx_read_reg(s->spi_wk,s->port.iobase,WK2XXX_FSR,dat);
@@ -406,6 +414,12 @@ static void wk2xxx_rx_chars(struct uart_port *port)//vk32xx_port *port)
             //子串口接收的FIFO个数
             wk2xxx_read_reg(s->spi_wk,s->port.iobase,WK2XXX_RFCNT,dat);
             rfcnt = dat[0];
+            wk2xxx_read_reg(s->spi_wk,s->port.iobase,WK2XXX_RFCNT,dat);
+            rfcnt2 = dat[0];
+            if(!(rfcnt2>=rfcnt))
+            {
+				rfcnt=rfcnt2;
+            }
             if(rfcnt == 0)
             {
                 rfcnt=255;
@@ -601,22 +615,31 @@ static void wk2xxx_tx_chars(struct uart_port *port)//
     printk(KERN_ALERT "fsr:%x\n",fsr);
 #endif
 
-count = tx_count;
-i=0;
-do
-{
-  if(uart_circ_empty(&s->port.state->xmit))
-     break;
-   txbuf[i]=s->port.state->xmit.buf[s->port.state->xmit.tail];
-   s->port.state->xmit.tail = (s->port.state->xmit.tail + 1) & (UART_XMIT_SIZE - 1);
-   s->port.icount.tx++;
-   i++;
+	if(tx_count>=8)
+	{
+		tx_count=tx_count-8;
+	}
+	else
+	{
+		tx_count=0;
+	}
+	count = tx_count;
+	if(count==0)
+		goto out;
+	i=0;
+	while(count)
+	{
+		if(uart_circ_empty(&s->port.state->xmit))
+		break;
+		txbuf[i]=s->port.state->xmit.buf[s->port.state->xmit.tail];
+		s->port.state->xmit.tail = (s->port.state->xmit.tail + 1) & (UART_XMIT_SIZE - 1);
+		s->port.icount.tx++;
+		i++;
+		count=count-1;
 #ifdef _DEBUG_WK2XXX
-
         printk(KERN_ALERT "tx_chars:0x%x--\n",txbuf[i-1]);
 #endif
-
-}while(--count>0);
+	};
 
 #ifdef _DEBUG_WK2XXX5
         printk(KERN_ALERT "tx_chars I:0x%x--\n",i);
@@ -680,8 +703,8 @@ static void wk2xxxirq_app(struct uart_port *port)//
 #ifdef _DEBUG_WK2XXX
     printk(KERN_ALERT "wk2xxxirq_app()------port:%d--------------\n",s->port.iobase);
 #endif
-    unsigned int  pass_counter = 0;
-    uint8_t sifr,gifr,sier,dat[1];
+    //unsigned int  pass_counter = 0;
+    uint8_t sifr,gifr,fsr,sier,dat[1];
 
     wk2xxx_read_reg(s->spi_wk,WK2XXX_GPORT,WK2XXX_GIFR ,dat);
     gifr = dat[0];
@@ -720,10 +743,12 @@ static void wk2xxxirq_app(struct uart_port *port)//
     sifr = dat[0];
     wk2xxx_read_reg(s->spi_wk,s->port.iobase,WK2XXX_SIER,dat);
     sier = dat[0];
+	wk2xxx_read_reg(s->spi_wk,s->port.iobase,WK2XXX_FSR,dat);
+	fsr = dat[0];
 
     do {
         //有接收FIFO触点中断和中断超时标志
-        if ((sifr&WK2XXX_RFTRIG_INT)||(sifr&WK2XXX_RXOVT_INT))
+        if ((sifr&WK2XXX_RFTRIG_INT)||(sifr&WK2XXX_RXOVT_INT)||(fsr& WK2XXX_RDAT))
         {
             wk2xxx_rx_chars(&s->port);
         }
@@ -735,15 +760,18 @@ static void wk2xxxirq_app(struct uart_port *port)//
            return;
         }
 
-        if (pass_counter++ > WK2XXX_ISR_PASS_LIMIT)
-            break;
+        //if (pass_counter++ > WK2XXX_ISR_PASS_LIMIT)
+           // break;
 
         wk2xxx_read_reg(s->spi_wk,s->port.iobase,WK2XXX_SIFR,dat);
         sifr = dat[0];
         wk2xxx_read_reg(s->spi_wk,s->port.iobase,WK2XXX_SIER,dat);
         sier = dat[0];
+        wk2xxx_read_reg(s->spi_wk,s->port.iobase,WK2XXX_FSR,dat);
+		fsr = dat[0];
     } while ((sifr&WK2XXX_RXOVT_INT) ||  \
                     (sifr & WK2XXX_RFTRIG_INT) || \
+                    (fsr& WK2XXX_RDAT) || \
                     ((sifr & WK2XXX_TFTRIG_INT) && (sier & WK2XXX_TFTRIG_IEN)));
 }
 
@@ -1561,6 +1589,7 @@ static int wk2xxx_probe(struct spi_device *spi)
 	ret = of_get_named_gpio_flags(node, "power-gpio", 0, NULL);
 	if (ret < 0) {
 		printk("%s() Can not read property power-gpio\n", __FUNCTION__);
+		goto err;
 	} else {
 		wk2xxx_dev->pwr = ret;
 		ret = devm_gpio_request(&spi->dev, wk2xxx_dev->pwr, "power-gpio");
