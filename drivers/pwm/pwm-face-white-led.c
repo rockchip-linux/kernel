@@ -115,7 +115,7 @@ ssize_t face_white_led_parse_dt(struct face_white_led_data *firefly_pdata, struc
 	prop = of_find_property(np, "brightness-levels", &len);
 	if (!prop)
 		return -EINVAL;
-	
+
 	printk("zjy face_white_led_parse_dt %d \r\n", len);
 	brightness_max = len / sizeof(u32);
 
@@ -128,7 +128,7 @@ ssize_t face_white_led_parse_dt(struct face_white_led_data *firefly_pdata, struc
 	return 0;
 }
 
-extern bool firefly_hwversion_in_range(const struct device_node *device);
+//extern bool firefly_hwversion_in_range(const struct device_node *device);
 
 static int face_white_led_probe(struct platform_device *pdev)
 {
@@ -142,8 +142,8 @@ static int face_white_led_probe(struct platform_device *pdev)
 		return -EINVAL;
 	}
 
-	if (!firefly_hwversion_in_range(np))                                                                                                   
-		return -EINVAL;
+	//if (!firefly_hwversion_in_range(np))
+	//	return -EINVAL;
 
 	firefly_pdata = devm_kzalloc(&pdev->dev, sizeof(*firefly_pdata), GFP_KERNEL);
 	if (!firefly_pdata)
