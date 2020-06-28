@@ -333,14 +333,6 @@ static int rockchip_dp_drm_encoder_loader_protect(struct drm_encoder *encoder,
 		}
 
 		rockchip_drm_psr_inhibit_put(&dp->encoder);
-	} else {
-		rockchip_drm_psr_inhibit_get(&dp->encoder);
-
-		if (dp->vccio_supply)
-			regulator_disable(dp->vccio_supply);
-
-		if (dp->vcc_supply)
-			regulator_disable(dp->vcc_supply);
 	}
 
 	return 0;
