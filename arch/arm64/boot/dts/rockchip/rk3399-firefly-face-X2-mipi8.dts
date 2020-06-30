@@ -75,7 +75,7 @@
         compatible = "everest,es8323";
         status = "okay";
         reg = <0x11>;
-        spk-ctl-gpio = <&gpio1 0 GPIO_ACTIVE_HIGH>;
+        hp-ctl-gpio = <&gpio1 0 GPIO_ACTIVE_HIGH>;
         clock-names = "mclk";
         clocks = <&cru SCLK_I2S_8CH_OUT>;
         pinctrl-names = "default";
