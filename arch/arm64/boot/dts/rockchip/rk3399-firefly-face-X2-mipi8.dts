@@ -48,6 +48,10 @@
     model = "Face-RK3399 8 inches MIPI(Linux Opensource)";
     compatible = "rockchip,rk3399-firefly", "rockchip,rk3399-firefly-face", "rockchip,rk3399";
 
+    chosen {
+        bootargs = "earlycon=uart8250,mmio32,0xff1a0000 swiotlb=1  ro root=PARTLABEL=rootfs rootfstype=ext4 rootwait overlayroot=device:dev=PARTLABEL=userdata,fstype=ext4,mkfs=1 coherent_pool=1m systemd.gpt_auto=0 cgroup_enable=memory swapaccount=1";
+    };
+
 	vcc_lcd: vcc-lcd {
 		compatible = "regulator-fixed";
 		enable-active-high;
@@ -58,6 +62,17 @@
 		regulator-name = "vcc_lcd";
 		vin-supply = <&vcc_3v0>;
 	};
+};
+
+
+&uart2 {
+    current-speed = <9600>;
+    no-loopback-test;
+    status = "okay";
+};
+
+&fiq_debugger {
+    status = "disabled";
 };
 
 &uart0 {
