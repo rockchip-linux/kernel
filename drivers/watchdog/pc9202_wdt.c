@@ -52,6 +52,21 @@ static struct sw2001 *the_sw2001;
 static int major;
 static struct class *cls;
 static struct device *dev;
+int switch_gpio;
+
+void enable_wdt(void)
+{
+	gpio_direction_output(switch_gpio, 1);
+	printk("enable pc9202 watchdog\n");
+	return;
+}
+
+void disable_wdt(void)
+{
+	gpio_direction_output(switch_gpio, 0);
+	printk("disable pc9202 watchdog\n");
+	return;
+}
 
 /*-------------------------------------------------------------------------*/
 /* sw2001_write parameter:
@@ -190,6 +205,8 @@ ssize_t wdt_write(struct file *filp, const char __user *buf, size_t count,loff_t
 		case '1':iWriteByte(SW2001_REG_WDT_CTRL,WDT_KICK_S_2_56);break;//2.56
 		case '2':iWriteByte(SW2001_REG_WDT_CTRL,WDT_KICK_S_10_24);break;//10.24
 		case '3':iWriteByte(SW2001_REG_WDT_CTRL,WDT_KICK_S_40_96);break;//40.96
+		case 'e':enable_wdt();break; //enable wdt
+		case 'd':disable_wdt();break; //disable wdt
 		default:printk("wdt:inviald value \r\n");break;
 	}
 	//printk("wdt_weite %c\r\n", demoBuffer[0]);
@@ -251,6 +268,14 @@ static int pc9202_wdt_probe(struct i2c_client *client,
 	// 创建设备节点
 	dev = device_create(cls, NULL, MKDEV(major, 0), NULL, "wdt_crl");
 
+	switch_gpio = of_get_named_gpio_flags(client->dev.of_node, "sw-gpio", 0, NULL);
+	if (gpio_request(switch_gpio, "wdt-switch")) {
+		printk("gpio %d request failed!\n", switch_gpio); 
+		gpio_free(switch_gpio);
+	} else {
+		gpio_direction_output(switch_gpio, 0);
+	}
+	
     return 0;  	
 err:
 	kfree(pEnc);
@@ -265,6 +290,7 @@ static int pc9202_wdt_remove(struct i2c_client *client)
 
 	//PR_DEBUG("%s\n",__func__);
 
+	gpio_free(switch_gpio);
 	kfree(axp);
 	i2c_set_clientdata(client, NULL);
 	the_sw2001 = NULL;
