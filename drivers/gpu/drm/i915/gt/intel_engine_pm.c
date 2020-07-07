@@ -60,9 +60,10 @@ static int __engine_unpark(struct intel_wakeref *wf)
 
 static inline unsigned long __timeline_mark_lock(struct intel_context *ce)
 {
-	unsigned long flags;
+	unsigned long flags = 0;
 
-	local_irq_save(flags);
+	if (!force_irqthreads)
+		local_irq_save(flags);
 	mutex_acquire(&ce->timeline->mutex.dep_map, 2, 0, _THIS_IP_);
 
 	return flags;
@@ -72,7 +73,8 @@ static inline void __timeline_mark_unlock(struct intel_context *ce,
 					  unsigned long flags)
 {
 	mutex_release(&ce->timeline->mutex.dep_map, _THIS_IP_);
-	local_irq_restore(flags);
+	if (!force_irqthreads)
+		local_irq_restore(flags);
 }
 
 #else
