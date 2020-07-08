@@ -876,9 +876,6 @@ static int analogix_dp_loader_protect(struct drm_connector *connector, bool on)
 	if (on) {
 		pm_runtime_get_sync(dp->dev);
 		dp->dpms_mode = DRM_MODE_DPMS_ON;
-	} else {
-		pm_runtime_put(dp->dev);
-		dp->dpms_mode = DRM_MODE_DPMS_OFF;
 	}
 
 	return 0;
