@@ -102,4 +102,11 @@ config ROCKCHIP_VENDOR_STORAGE_UPDATE_LOADER
 	help
 	  Say y here to enable rockchip vendor storage update loader support.
 	  The /dev/vendor_storage must set root user access only.
+
+config ROCKCHIP_SCHED_PERFORMANCE_BIAS
+	bool "Rockchip task scheduler optimization"
+	default y
+	help
+	  Say y here to enable rockchip optimize task scheduler for performance bias,
+	  this would cause a little more power consumption.
 endif

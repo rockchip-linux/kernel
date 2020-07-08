@@ -483,6 +483,15 @@ static struct ctl_table kern_table[] = {
 		.extra1		= &one,
 	},
 #endif
+#ifdef CONFIG_ROCKCHIP_SCHED_PERFORMANCE_BIAS
+	{
+		.procname	= "sched_performance_bias",
+		.data		= &sysctl_sched_performance_bias,
+		.maxlen		= sizeof(unsigned int),
+		.mode		= 0644,
+		.proc_handler	= proc_dointvec,
+	},
+#endif
 #ifdef CONFIG_SCHED_TUNE
 	{
 		.procname	= "sched_cfs_boost",
