@@ -1438,6 +1438,8 @@ static ssize_t dw_mipi_dsi_transfer(struct dw_mipi_dsi *dsi,
 	if (msg->flags & MIPI_DSI_MSG_USE_LPM) {
 		regmap_update_bits(dsi->regmap, DSI_VID_MODE_CFG,
 				   LP_CMD_EN, LP_CMD_EN);
+		regmap_update_bits(dsi->regmap, DSI_LPCLK_CTRL,
+				   PHY_TXREQUESTCLKHS, PHY_TXREQUESTCLKHS);
 	} else {
 		regmap_update_bits(dsi->regmap, DSI_VID_MODE_CFG, LP_CMD_EN, 0);
 		regmap_update_bits(dsi->regmap, DSI_LPCLK_CTRL,
