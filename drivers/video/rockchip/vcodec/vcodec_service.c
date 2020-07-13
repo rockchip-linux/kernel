@@ -3021,6 +3021,8 @@ static int vcodec_subdev_probe(struct platform_device *pdev,
 						       list_session);
 	const char *name  = np->name;
 	char mmu_dev_dts_name[40];
+	dma_addr_t iova = -1;
+	unsigned long size = 0;
 
 	dev_info(dev, "probe device");
 
@@ -3132,8 +3134,8 @@ static int vcodec_subdev_probe(struct platform_device *pdev,
 	}
 
 	vcodec_iommu_map_iommu(data->iommu_info, session,
-			       data->pa_hdl, NULL, NULL);
-	data->pa_iova = (unsigned long)-1;
+			       data->pa_hdl, &iova, &size);
+	data->pa_iova = iova;
 	vcodec_exit_mode(data);
 
 	hw_info = data->hw_info;
