@@ -60,6 +60,8 @@ static inline void mmdrop_delayed(struct mm_struct *mm)
 # define mmdrop_delayed(mm)	mmdrop(mm)
 #endif
 
+void mmdrop(struct mm_struct *mm);
+
 /*
  * This has to be called after a get_task_mm()/mmget_not_zero()
  * followed by taking the mmap_sem for writing before modifying the

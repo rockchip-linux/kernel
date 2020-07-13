@@ -170,6 +170,7 @@ struct fsync_iocb {
 	struct file		*file;
 	struct work_struct	work;
 	bool			datasync;
+	struct cred		*creds;
 };
 
 struct poll_iocb {
@@ -1588,8 +1589,11 @@ static ssize_t aio_write(struct kiocb *req, const struct iocb *iocb,
 static void aio_fsync_work(struct work_struct *work)
 {
 	struct aio_kiocb *iocb = container_of(work, struct aio_kiocb, fsync.work);
+	const struct cred *old_cred = override_creds(iocb->fsync.creds);
 
 	iocb->ki_res.res = vfs_fsync(iocb->fsync.file, iocb->fsync.datasync);
+	revert_creds(old_cred);
+	put_cred(iocb->fsync.creds);
 	iocb_put(iocb);
 }
 
@@ -1602,6 +1606,10 @@ static int aio_fsync(struct fsync_iocb *req, const struct iocb *iocb,
 
 	if (unlikely(!req->file->f_op->fsync))
 		return -EINVAL;
+
+	req->creds = prepare_creds();
+	if (!req->creds)
+		return -ENOMEM;
 
 	req->datasync = datasync;
 	INIT_WORK(&req->work, aio_fsync_work);

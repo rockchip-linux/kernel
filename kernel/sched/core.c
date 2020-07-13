@@ -5673,7 +5673,6 @@ void sched_setnuma(struct task_struct *p, int nid)
 #endif /* CONFIG_NUMA_BALANCING */
 
 #ifdef CONFIG_HOTPLUG_CPU
-static DEFINE_PER_CPU(struct mm_struct *, idle_last_mm);
 
 /*
  * Ensure that the idle task is using init_mm right before its CPU goes
@@ -5684,17 +5683,14 @@ void idle_task_exit(void)
 	struct mm_struct *mm = current->active_mm;
 
 	BUG_ON(cpu_online(smp_processor_id()));
+	BUG_ON(current != this_rq()->idle);
 
 	if (mm != &init_mm) {
 		switch_mm(mm, &init_mm, current);
-		current->active_mm = &init_mm;
 		finish_arch_post_lock_switch();
 	}
-	/*
-	 * Defer the cleanup to an alive cpu. On RT we can neither
-	 * call mmdrop() nor mmdrop_delayed() from here.
-	 */
-	per_cpu(idle_last_mm, smp_processor_id()) = mm;
+
+	/* finish_cpu(), as ran on the BP, will clean up the active_mm state */
 }
 
 /*
@@ -6008,10 +6004,6 @@ int sched_cpu_dying(unsigned int cpu)
 	update_max_interval();
 	nohz_balance_exit_idle(rq);
 	hrtick_clear(rq);
-	if (per_cpu(idle_last_mm, cpu)) {
-		mmdrop_delayed(per_cpu(idle_last_mm, cpu));
-		per_cpu(idle_last_mm, cpu) = NULL;
-	}
 	return 0;
 }
 #endif
