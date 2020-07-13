@@ -258,9 +258,9 @@ static int vcodec_ion_alloc(struct vcodec_iommu_session_info *session_info,
 	unsigned int heap_id_mask;
 
 	if (iommu_info->mmu_dev)
-		heap_id_mask = ION_HEAP_TYPE_SYSTEM;
+		heap_id_mask = ION_HEAP_SYSTEM_MASK;
 	else
-		heap_id_mask = ION_HEAP_TYPE_DMA;
+		heap_id_mask = ION_HEAP_TYPE_DMA_MASK;
 
 	ion_buffer = kzalloc(sizeof(*ion_buffer), GFP_KERNEL);
 	if (!ion_buffer)
@@ -268,6 +268,11 @@ static int vcodec_ion_alloc(struct vcodec_iommu_session_info *session_info,
 
 	ion_buffer->handle = ion_alloc(ion_info->ion_client, size,
 				       align, heap_id_mask, 0);
+	if (IS_ERR(ion_buffer->handle)) {
+		pr_err("%s +%d: fail to alloc ion buffer handle\n", __func__, __LINE__);
+		kfree(ion_buffer);
+		return -ENOMEM;
+	}
 
 	INIT_LIST_HEAD(&ion_buffer->list);
 	mutex_lock(&session_info->list_mutex);
