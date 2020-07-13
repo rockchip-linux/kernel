@@ -45,7 +45,7 @@
 
 / {
 	model = "Rockchip RK3399 Board rev2 (BOX)";
-	compatible = "rockchip-box-rev2","rockchip,rk3399-box";
+	compatible = "rockchip-box-rev2","rockchip,rk3399-box","rockchip,rk3399";
 };
 
 &pinctrl {
