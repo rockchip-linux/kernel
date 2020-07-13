@@ -196,7 +196,6 @@ static unsigned int napi_gen_id = NR_CPUS;
 static DEFINE_READ_MOSTLY_HASHTABLE(napi_hash, 8);
 
 static seqcount_t devnet_rename_seq;
-static DEFINE_MUTEX(devnet_rename_mutex);
 
 static inline void dev_base_seq_inc(struct net *net)
 {
@@ -922,8 +921,7 @@ retry:
 	strcpy(name, dev->name);
 	rcu_read_unlock();
 	if (read_seqcount_retry(&devnet_rename_seq, seq)) {
-		mutex_lock(&devnet_rename_mutex);
-		mutex_unlock(&devnet_rename_mutex);
+		cond_resched();
 		goto retry;
 	}
 
@@ -1200,17 +1198,20 @@ int dev_change_name(struct net_device *dev, const char *newname)
 	    likely(!(dev->priv_flags & IFF_LIVE_RENAME_OK)))
 		return -EBUSY;
 
-	mutex_lock(&devnet_rename_mutex);
-	__raw_write_seqcount_begin(&devnet_rename_seq);
+	write_seqcount_begin(&devnet_rename_seq);
 
-	if (strncmp(newname, dev->name, IFNAMSIZ) == 0)
-		goto outunlock;
+	if (strncmp(newname, dev->name, IFNAMSIZ) == 0) {
+		write_seqcount_end(&devnet_rename_seq);
+		return 0;
+	}
 
 	memcpy(oldname, dev->name, IFNAMSIZ);
 
 	err = dev_get_valid_name(net, dev, newname);
-	if (err < 0)
-		goto outunlock;
+	if (err < 0) {
+		write_seqcount_end(&devnet_rename_seq);
+		return err;
+	}
 
 	if (oldname[0] && !strchr(oldname, '%'))
 		netdev_info(dev, "renamed from %s\n", oldname);
@@ -1223,12 +1224,11 @@ rollback:
 	if (ret) {
 		memcpy(dev->name, oldname, IFNAMSIZ);
 		dev->name_assign_type = old_assign_type;
-		err = ret;
-		goto outunlock;
+		write_seqcount_end(&devnet_rename_seq);
+		return ret;
 	}
 
-	__raw_write_seqcount_end(&devnet_rename_seq);
-	mutex_unlock(&devnet_rename_mutex);
+	write_seqcount_end(&devnet_rename_seq);
 
 	netdev_adjacent_rename_links(dev, oldname);
 
@@ -1249,8 +1249,7 @@ rollback:
 		/* err >= 0 after dev_alloc_name() or stores the first errno */
 		if (err >= 0) {
 			err = ret;
-			mutex_lock(&devnet_rename_mutex);
-			__raw_write_seqcount_begin(&devnet_rename_seq);
+			write_seqcount_begin(&devnet_rename_seq);
 			memcpy(dev->name, oldname, IFNAMSIZ);
 			memcpy(oldname, newname, IFNAMSIZ);
 			dev->name_assign_type = old_assign_type;
@@ -1262,11 +1261,6 @@ rollback:
 		}
 	}
 
-	return err;
-
-outunlock:
-	__raw_write_seqcount_end(&devnet_rename_seq);
-	mutex_unlock(&devnet_rename_mutex);
 	return err;
 }
 
