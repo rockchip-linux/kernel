@@ -17,6 +17,7 @@
 #include <linux/pm_runtime.h>
 #include <linux/phy/phy.h>
 
+#include <drm/drm_atomic.h>
 #include <drm/drm_of.h>
 #include <drm/drmP.h>
 #include <drm/drm_crtc_helper.h>
@@ -1086,8 +1087,17 @@ dw_hdmi_rockchip_set_property(struct drm_connector *connector,
 	} else if (property == hdmi->quant_range) {
 		hdmi->hdmi_quant_range = val;
 		return 0;
+	} else if (property == hdmi->outputmode_capacity) {
+		return -EINVAL;
+	} else if (property == hdmi->colordepth_capacity) {
+		return -EINVAL;
 	} else {
-		return drm_atomic_helper_connector_set_property(connector, property, val);
+		if (!state)
+			return drm_atomic_helper_connector_set_property(connector,
+									property, val);
+		else
+			return drm_atomic_connector_set_property(connector, state,
+								 property, val);
 	}
 }
 
