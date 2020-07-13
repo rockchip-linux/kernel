@@ -133,7 +133,7 @@
 
 &dsi {
 	status = "okay";
-	rockchip,lane-rate = <800>;
+	rockchip,lane-rate = <864>;  //lvds_clock*6*2
 	dsi_panel: panel {
 		compatible ="simple-panel-dsi";
 		reg = <0>;
@@ -165,14 +165,13 @@
 			29 02 06 10 02 1F 00 00 00
 			29 02 06 04 01 01 00 00 00
 			29 02 06 04 02 01 00 00 00
-			29 02 06 50 04 20 01 F0 03
-			29 02 06 54 04 19 00 5A 00
-			29 02 06 58 04 20 03 24 00
-			29 02 06 5C 04 0A 00 19 00
-			29 02 06 60 04 00 05 0A 00
+			29 02 06 50 04 30 01 F0 03
+			29 02 06 54 04 0A 00 32 00   //hsync_len = 0x0A    hback_porch =0x32
+			29 02 06 58 04 20 03 32 00   //hactive   = 0x320   hfront_porch=0x32
+			29 02 06 5C 04 12 00 0A 00   //vsync_len = 0x12    vback_porch =0x0A
+			29 02 06 60 04 00 05 0A 00   //vactive   = 0x500   vfront_porch=0x0A
 			29 02 06 64 04 01 00 00 00
 			29 02 06 A0 04 06 80 44 00
-
 			29 02 06 A0 04 06 80 04 00
 			29 02 06 04 05 04 00 00 00
 			29 02 06 80 04 00 01 02 03
@@ -182,15 +181,6 @@
 			29 02 06 90 04 16 17 11 12
 			29 02 06 94 04 13 14 15 1B
 			29 02 06 98 04 18 19 1A 06
-			/*
-			29 02 06 80 04 1A 1A 1A 1A
-			29 02 06 84 04 1A 19 1A 1A
-			29 02 06 88 04 18 18 19 19
-			29 02 06 8C 04 18 18 18 18
-			29 02 06 90 04 19 19 18 12
-			29 02 06 94 04 13 14 15 19
-			29 02 06 98 04 18 19 1A 19
-			*/
 			29 02 06 9C 04 31 04 00 00
 		];
 
@@ -202,14 +192,14 @@
 		disp_timings: display-timings {
 			native-mode = <&timing0>;
 			timing0: timing0 {
-				clock-frequency = <166000000>;
+				clock-frequency = <72000000>; //@60
 				hactive = <800>;
 				vactive = <1280>;
 				hsync-len = <10>;
-				hback-porch = <100>;
-				hfront-porch = <1580>;
-				vsync-len = <10>;
-				vback-porch = <25>;
+				hback-porch = <50>;
+				hfront-porch = <50>;
+				vsync-len = <18>;
+				vback-porch = <10>;
 				vfront-porch = <10>;
 				hsync-active = <0>;
 				vsync-active = <0>;
