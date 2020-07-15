@@ -147,6 +147,8 @@
 	wireless-wlan {
 		compatible = "wlan-platdata";
 		wifi_chip_type = "ap6212";
+		clocks = <&rk818 1>;
+		clock-names = "ext_clock";
 		sdio_vref = <3300>;
 		rockchip,grf = <&grf>;
 		WIFI,host_wake_irq = <&gpio0 RK_PA2 GPIO_ACTIVE_HIGH>;
@@ -615,8 +617,7 @@
 };
 
 &sdio {
-	clock-frequency = <50000000>;
-	clock-freq-min-max = <200000 50000000>;
+	max-frequency = <50000000>;
 	supports-sdio;
 	disable-wp;
 	cap-sd-highspeed;
