@@ -157,15 +157,11 @@
 
 	wireless-bluetooth {
 		compatible = "bluetooth-platdata";
-		//wifi-bt-power-toggle;
 		uart_rts_gpios = <&gpio0 RK_PC1 GPIO_ACTIVE_LOW>;
 		pinctrl-names = "default","rts_gpio";
 		pinctrl-0 = <&uart0_rts>;
 		pinctrl-1 = <&uart0_rts_gpio>;
-		//BT,power_gpio = <&gpio1 GPIO_B3 GPIO_ACTIVE_HIGH>;
-		BT,reset_gpio = <&gpio1 RK_PA3 GPIO_ACTIVE_HIGH>;
-		BT,wake_gpio = <&gpio1 RK_PB2 GPIO_ACTIVE_HIGH>;
-		BT,wake_host_irq = <&gpio1 RK_PB1 GPIO_ACTIVE_LOW>;
+		BT,power_gpio = <&gpio1 RK_PA3 GPIO_ACTIVE_HIGH>;
 		status = "okay";
 	};
 
