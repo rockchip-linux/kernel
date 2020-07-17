@@ -652,7 +652,7 @@ static int rfkill_rk_probe(struct platform_device *pdev)
     wake_lock_init(&(rfkill->bt_irq_wl), WAKE_LOCK_SUSPEND, "rfkill_rk_irq_wl");
 
     ret = rfkill_rk_setup_wake_irq(rfkill, 0);
-    if (ret) goto fail_gpio;
+    if (ret) goto fail_setup_wake_irq;
 
     DBG("setup rfkill\n");
 	rfkill->rfkill_dev = rfkill_alloc(pdata->name, &pdev->dev, pdata->type,
@@ -690,6 +690,8 @@ fail_alloc:
 
 	remove_proc_entry("btwrite", sleep_dir);
 	remove_proc_entry("lpm", sleep_dir);
+fail_setup_wake_irq:
+	wake_lock_destroy(&rfkill->bt_irq_wl);
 fail_gpio:
 
         g_rfkill = NULL;
@@ -730,7 +732,8 @@ static int rfkill_rk_remove(struct platform_device *pdev)
     if (gpio_is_valid(rfkill->pdata->poweron_gpio.io))
 		gpio_free(rfkill->pdata->poweron_gpio.io);
 	clk_disable_unprepare(rfkill->pdata->ext_clk);
-    g_rfkill = NULL;
+	wake_lock_destroy(&rfkill->bt_irq_wl);
+	g_rfkill = NULL;
 
 	return 0;
 }
