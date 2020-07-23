@@ -1,0 +1,60 @@
+Lontium LT9611 MIPI-DSI to HDMI bridge bindings
+
+Required properties:
+ - compatible: "lontium,lt9611"
+ - reg: i2c address of the bridge
+ - reset-gpios: a GPIO spec for the reset pin
+ - interrupts-extended: Specify the interrupts associated with external
+ - vdd-supply: Reference to the regulator powering the bridge 1.8V power supply pins
+ - vcc-supply: Reference to the regulator powering the bridge 3.3V power supply pins
+
+ptional properties:
+ - enable-gpios: a GPIO spec for the power supply enable control
+
+Example:
+
+&dsi {
+	status = "okay";
+
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		port@1 {
+			reg = <1>;
+			dsi_out_lt9611: endpoint {
+				remote-endpoint = <&lt9611_in_dsi>;
+			};
+		};
+	};
+
+};
+
+&i2c0 {
+	status = "okay";
+
+	lontium-lt9611@39 {
+		compatible = "lontium,lt9611";
+		status = "okay";
+		reg = <0x39>;
+		interrupts-extended = <&gpio0 RK_PB5 IRQ_TYPE_EDGE_FALLING>;
+		reset-gpios = <&gpio0 RK_PB6 GPIO_ACTIVE_HIGH>;
+		vdd-supply = <&lt9611_1v8>;
+		vcc-supply = <&lt9611_3v3>;
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+
+				lt9611_in_dsi: endpoint {
+					remote-endpoint = <&dsi_out_lt9611>;
+				};
+			};
+
+		};
+
+	};
+};
