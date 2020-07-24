@@ -188,12 +188,12 @@ static void fusb_set_pos_power(struct fusb30x_chip *chip, int max_vol,
 			break;
 		case 1:
 			/* Battery */
-			if ((CAP_VPDO_VOLTAGE(chip->rec_load[i]) * 50) <=
+			if ((CAP_VPDO_MAX_VOLTAGE(chip->rec_load[i]) * 50) <=
 			    max_vol &&
 			    (CAP_VPDO_CURRENT(chip->rec_load[i]) * 10) <=
 			    max_cur) {
 				chip->pos_power = i + 1;
-				tmp = CAP_VPDO_VOLTAGE(chip->rec_load[i]);
+				tmp = CAP_VPDO_MAX_VOLTAGE(chip->rec_load[i]);
 				chip->pd_output_vol = tmp * 50;
 				tmp = CAP_VPDO_CURRENT(chip->rec_load[i]);
 				chip->pd_output_cur = tmp * 10;
@@ -965,13 +965,14 @@ static void set_mesg(struct fusb30x_chip *chip, int cmd, int is_DMT)
 			switch (CAP_POWER_TYPE(chip->rec_load[chip->pos_power - 1])) {
 			case 0:
 				/* Fixed Supply */
-				chip->send_load[0] |= ((CAP_FPDO_VOLTAGE(chip->rec_load[chip->pos_power - 1]) << 10) & 0x3ff);
-				chip->send_load[0] |= (CAP_FPDO_CURRENT(chip->rec_load[chip->pos_power - 1]) & 0x3ff);
+				chip->send_load[0] |= CAP_FPDO_VOLTAGE(chip->rec_load[chip->pos_power - 1]) << 10;
+				chip->send_load[0] |= CAP_FPDO_CURRENT(chip->rec_load[chip->pos_power - 1]);
 				break;
 			case 1:
 				/* Battery */
-				chip->send_load[0] |= ((CAP_VPDO_VOLTAGE(chip->rec_load[chip->pos_power - 1]) << 10) & 0x3ff);
-				chip->send_load[0] |= (CAP_VPDO_CURRENT(chip->rec_load[chip->pos_power - 1]) & 0x3ff);
+				chip->send_load[0] |= CAP_VPDO_MAX_VOLTAGE(chip->rec_load[chip->pos_power - 1]) << 20;
+				chip->send_load[0] |= CAP_VPDO_MIN_VOLTAGE(chip->rec_load[chip->pos_power - 1]) << 10;
+				chip->send_load[0] |= CAP_VPDO_CURRENT(chip->rec_load[chip->pos_power - 1]);
 				break;
 			default:
 				/* not meet battery caps */
@@ -2529,7 +2530,7 @@ static void fusb_state_snk_evaluate_caps(struct fusb30x_chip *chip, u32 evt)
 			break;
 		case 1:
 			/* Battery */
-			if (CAP_VPDO_VOLTAGE(chip->rec_load[tmp]) <= 100)
+			if (CAP_VPDO_MAX_VOLTAGE(chip->rec_load[tmp]) <= 100)
 				chip->pos_power = tmp + 1;
 			break;
 		default:
