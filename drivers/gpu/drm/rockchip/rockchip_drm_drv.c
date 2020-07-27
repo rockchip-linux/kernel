@@ -654,6 +654,8 @@ static int update_state(struct drm_device *drm_dev,
 			return ret;
 		if (encoder_helper_funcs->mode_set)
 			encoder_helper_funcs->mode_set(encoder, mode, mode);
+
+		drm_bridge_mode_set(encoder->bridge, mode, mode);
 	}
 
 	primary_state = drm_atomic_get_plane_state(state, crtc->primary);
