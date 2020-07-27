@@ -96,8 +96,6 @@ static int rockchip_dp_poweron(struct analogix_dp_plat_data *plat_data)
 			dev_warn(dp->dev, "failed to enable vccio: %d\n", ret);
 	}
 
-	clk_prepare_enable(dp->pclk);
-
 	ret = rockchip_dp_pre_init(dp);
 	if (ret < 0) {
 		dev_err(dp->dev, "failed to dp pre init %d\n", ret);
@@ -110,8 +108,6 @@ static int rockchip_dp_poweron(struct analogix_dp_plat_data *plat_data)
 static int rockchip_dp_powerdown(struct analogix_dp_plat_data *plat_data)
 {
 	struct rockchip_dp_device *dp = to_dp(plat_data);
-
-	clk_disable_unprepare(dp->pclk);
 
 	if (dp->vccio_supply)
 		regulator_disable(dp->vccio_supply);
@@ -235,11 +231,7 @@ static int rockchip_dp_drm_encoder_loader_protect(struct drm_encoder *encoder,
 				dev_warn(dp->dev,
 					 "failed to enable vccio: %d\n", ret);
 		}
-
-		clk_prepare_enable(dp->pclk);
 	} else {
-		clk_disable_unprepare(dp->pclk);
-
 		if (dp->vccio_supply)
 			regulator_disable(dp->vccio_supply);
 
@@ -443,11 +435,29 @@ static int rockchip_dp_resume(struct device *dev)
 }
 #endif
 
+static int __maybe_unused rockchip_dp_runtime_suspend(struct device *dev)
+{
+	struct rockchip_dp_device *dp = dev_get_drvdata(dev);
+
+	clk_disable_unprepare(dp->pclk);
+
+	return 0;
+}
+
+static int __maybe_unused rockchip_dp_runtime_resume(struct device *dev)
+{
+	struct rockchip_dp_device *dp = dev_get_drvdata(dev);
+
+	return clk_prepare_enable(dp->pclk);
+}
+
 static const struct dev_pm_ops rockchip_dp_pm_ops = {
 #ifdef CONFIG_PM_SLEEP
 	.suspend_late = rockchip_dp_suspend,
 	.resume_early = rockchip_dp_resume,
 #endif
+	SET_RUNTIME_PM_OPS(rockchip_dp_runtime_suspend,
+			   rockchip_dp_runtime_resume, NULL)
 };
 
 static const struct rockchip_dp_chip_data rk3399_edp = {
