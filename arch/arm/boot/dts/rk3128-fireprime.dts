@@ -52,17 +52,6 @@
 		bootargs = "earlycon=uart8250,mmio32,0x20068000 earlyprintk console=ttyFIQ0 rw root=PARTUUID=614e0000-0000 rootwait";
 	};
 
-	codec_hdmi_sound: codec-hdmi-sound {
-		status = "okay";
-		compatible = "rockchip,multicodecs-card";
-		rockchip,card-name = "rockchip,codec-hdmi";
-		rockchip,format = "i2s";
-		rockchip,codec-hp-det;
-		rockchip,mclk-fs = <256>;
-		rockchip,cpu = <&i2s_8ch>;
-		rockchip,codec = <&codec>, <&hdmi>;
-	};
-
 	cpuinfo {
 		compatible = "rockchip,cpuinfo";
 		nvmem-cells = <&efuse_id>;
@@ -124,6 +113,40 @@
 		pinctrl-name = "default";
 		pinctrl-0 = <&wifi_enable_h>;
 		reset-gpios = <&gpio1 RK_PB3 GPIO_ACTIVE_LOW>;
+	};
+
+	sound: sound {
+		compatible = "simple-audio-card";
+		simple-audio-card,format = "i2s";
+		simple-audio-card,name = "rockchip,rk312x-codec";
+		simple-audio-card,mclk-fs = <256>;
+		simple-audio-card,widgets =
+			"Headphone", "Headphone Jack";
+		simple-audio-card,routing =
+			"Headphone Jack", "HPOL",
+			"Headphone Jack", "HPOR";
+
+		simple-audio-card,dai-link@0 {
+			format = "i2s";
+			cpu {
+				sound-dai = <&i2s_8ch 0>;
+			};
+
+			codec {
+				sound-dai = <&hdmi>;
+			};
+		};
+
+		simple-audio-card,dai-link@1 {
+			format = "i2s";
+			cpu {
+				sound-dai = <&i2s_8ch 1>;
+			};
+
+			codec {
+				sound-dai = <&codec>;
+			};
+		};
 	};
 
 	spdif_out: spdif-out {
