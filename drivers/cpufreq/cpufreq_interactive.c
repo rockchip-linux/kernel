@@ -1392,6 +1392,9 @@ void cpufreq_task_boost(int cpu, unsigned long util)
 	struct cpufreq_policy *policy = pcpu->policy;
 	unsigned long cap, min_util;
 
+	if (!speedchange_task)
+		return;
+
 	if (!down_read_trylock(&pcpu->enable_sem))
 		return;
 
