@@ -1656,7 +1656,7 @@ int mmc_set_signal_voltage(struct mmc_host *host, int signal_voltage, u32 ocr)
 	 * The card should drive cmd and dat[0:3] low immediately
 	 * after the response of cmd11, but wait 1 ms to be sure
 	 */
-	mmc_delay(1);
+	mmc_delay(10);
 	if (host->ops->card_busy && !host->ops->card_busy(host)) {
 		err = -EAGAIN;
 		goto power_cycle;
