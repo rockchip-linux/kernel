@@ -1747,14 +1747,6 @@ static int vop_plane_atomic_check(struct drm_plane *plane,
 	if (WARN_ON(!crtc_state))
 		return -EINVAL;
 
-	src->x1 = state->src_x;
-	src->y1 = state->src_y;
-	src->x2 = state->src_x + state->src_w;
-	src->y2 = state->src_y + state->src_h;
-	dest->x1 = state->crtc_x;
-	dest->y1 = state->crtc_y;
-	dest->x2 = state->crtc_x + state->crtc_w;
-	dest->y2 = state->crtc_y + state->crtc_h;
 	vop_plane_state->zpos = state->zpos;
 	vop_plane_state->blend_mode = state->pixel_blend_mode;
 
@@ -1773,6 +1765,9 @@ static int vop_plane_atomic_check(struct drm_plane *plane,
 
 	vop = to_vop(crtc);
 	vop_data = vop->data;
+
+	*src = state->src;
+	*dest = state->dst;
 
 	if (state->src_w >> 16 < 4 || state->src_h >> 16 < 4 ||
 	    state->crtc_w < 4 || state->crtc_h < 4) {
