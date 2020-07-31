@@ -2716,6 +2716,9 @@ static size_t vop_plane_line_bandwidth(struct drm_plane_state *pstate)
 
 	bandwidth = bandwidth * src_width / dest_width;
 	bandwidth = bandwidth * src_height / dest_height;
+	if (!win->phy->scl)
+		return bandwidth;
+
 	if (vskiplines == 2 && VOP_WIN_SCL_EXT_SUPPORT(vop, win, vsd_yrgb_gt2))
 		bandwidth /= 2;
 	else if (vskiplines == 4 &&
