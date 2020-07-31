@@ -62,6 +62,7 @@
 
 &fusb0 {
 	fusb302,role = "ROLE_MODE_DFP";
+	vbus-5v-gpios = <&gpio1 13 GPIO_ACTIVE_HIGH>;
 };
 
 &cdn_dp {
