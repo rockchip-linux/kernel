@@ -218,6 +218,7 @@ static void rk618_shutdown(struct i2c_client *client)
 {
 	struct rk618 *rk618 = i2c_get_clientdata(client);
 
+	disable_irq(client->irq);
 	rk618_power_off(rk618);
 	clk_disable_unprepare(rk618->clkin);
 }
