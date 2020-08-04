@@ -7,28 +7,69 @@
 	model = "AIO-3399-JD4 Board (Linux Opensource)";
 	compatible = "rockchip,rk3399-firefly", "rockchip,rk3399";
 
+	/delete-property/ rt5640-sound;
+
 	test-power {
 		status = "okay";
-	};
-	
-	rt5640-sound {
-		simple-audio-card,cpu {
-		        sound-dai = <&i2s1>;
-		};
-		simple-audio-card,codec {
-		        sound-dai = <&rt5640>;
-		};
 	};
 
 	fan_ctl: fan-ctl-regulator {
 		compatible = "regulator-fixed";
-        	enable-active-high;
-        	regulator-always-on;
+		enable-active-high;
+		regulator-always-on;
 		regulator-boot-on;
 		gpio = <&gpio3 10 GPIO_ACTIVE_HIGH>;
 		pinctrl-names = "default";
 		regulator-name = "fan_ctl";
-        	pinctrl-0 = <&fan_drv>;
+		pinctrl-0 = <&fan_drv>;
+	};
+
+	VCC5V0_HOST0_EN: VCC5V0-HOST0-EN {
+		compatible = "regulator-fixed";
+		enable-active-high;
+		regulator-always-on;
+		regulator-boot-on;
+		gpio = <&gpio1 3 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&vcc5v0_host0_en>;
+		regulator-name = "vcc5v0_host0";
+		status = "okay";
+	};
+
+	VCC5V0_HOST1_EN: VCC5V0-HOST1-EN {
+		compatible = "regulator-fixed";
+		enable-active-high;
+		regulator-always-on;
+		regulator-boot-on;
+		gpio = <&gpio1 0 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&vcc5v0_host1_en>;
+		regulator-name = "vcc5v0_host1";
+		status = "okay";
+	};
+
+	HUB20_PWR_EN: HUB20-PWR-EN {
+		compatible = "regulator-fixed";
+		enable-active-high;
+		regulator-always-on;
+		regulator-boot-on;
+		gpio = <&gpio0 8 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&hub20_pwr_en>;
+		regulator-name = "vcc5v0_hub20";
+		status = "okay";
+	};
+
+	HUB30_PWR_EN: HUB30-PWR-EN {
+		compatible = "regulator-fixed";
+		enable-active-high;
+		regulator-always-on;
+		regulator-boot-on;
+		gpio = <&gpio0 1 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&hub30_pwr_en>;
+		regulator-name = "vcc5v0_hub30";
+		status = "okay";
 	};
 };
 
@@ -37,12 +78,12 @@
 	rx_delay = <0x1E>;
 };
 
-&vcc_sd {
-	gpio = <&gpio1 22 GPIO_ACTIVE_HIGH>;
-};
-
 &hdmi_dp_sound {
 	status = "okay";
+};
+
+&i2c1 {
+	/delete-property/ rt5640;
 };
 
 &i2c2 {
@@ -61,14 +102,6 @@
 	};
 };
 
-&rt5640 {
-    hp-det-adc-value = <900>;
-    aux-det-adc-value = <900>;
-    hp-con-gpio = <&gpio3 16 GPIO_ACTIVE_HIGH>;
-    io-channels = <&saradc 3>,<&saradc 2>;
-    io-channel-names = "hp-det","aux-det";
-};
-
 &rt5640_hpcon{
     rockchip,pins = <3 16 RK_FUNC_GPIO &pcfg_pull_none>;
 };
@@ -80,18 +113,12 @@
 
 &spi1 {
 	dev-port = <0>;
-    	status = "okay";
-};
-
-&spi_wk2xxx {
     status = "okay";
-	reset-gpio = <&gpio1 2 GPIO_ACTIVE_HIGH>;
-	irq-gpio = <&gpio2 8 IRQ_TYPE_EDGE_FALLING>;
-	cs-gpio = <&gpio1 10 GPIO_ACTIVE_HIGH>;
+	/delete-property/ spi_wk2xxx;
 };
 
 &vcc3v3_3g {
-	gpio = <&gpio2 28 GPIO_ACTIVE_HIGH>;
+	/delete-property/ gpio;
 };
 
 &vcc3v3_pcie {
@@ -99,7 +126,7 @@
 };
 
 &pcie0 {
-	ep-gpios = <&gpio4 30 GPIO_ACTIVE_HIGH>;
+	/delete-property/ ep-gpios;
 };
 
 &uart4 {
@@ -144,6 +171,35 @@
 		};
 	};
 
+
+	hub_pwr_en {
+		// control VCC5V0_HOST3
+		hub20_pwr_en: hub20-pwr-en {
+			rockchip,pins =
+				<0 8 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+
+		// control VCC5V0_HOST0
+		hub30_pwr_en: hub30-pwr-en {
+			rockchip,pins =
+				<0 1 RK_FUNC_GPIO &pcfg_output_high>;
+		};
+	};
+
+	vcc_host_en {
+		// control VCC5V0_HOST3
+		vcc5v0_host0_en: vcc5v0-host0-en {
+			rockchip,pins =
+				<1 3 RK_FUNC_GPIO &pcfg_output_high>;
+		};
+
+		// control VCC5V0_HOST0
+		vcc5v0_host1_en: vcc5v0-host1-en {
+			rockchip,pins =
+				<1 0 RK_FUNC_GPIO &pcfg_output_high>;
+		};
+	};
+
 	pcie {
 		pcie_3g_drv: pcie-3g-drv {
 			rockchip,pins =
@@ -154,7 +210,7 @@
 	vcc_sd {
 		vcc_sd_h: vcc-sd-h {
 			rockchip,pins =
-				<1 22 RK_FUNC_GPIO &pcfg_pull_up>;
+				<4 30 RK_FUNC_GPIO &pcfg_pull_up>;
 		};
 	};
 
