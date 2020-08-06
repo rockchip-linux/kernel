@@ -10,7 +10,7 @@
 	test-power {
 		status = "okay";
 	};
-	
+
 	rt5640-sound {
 		simple-audio-card,cpu {
 		        sound-dai = <&i2s1>;
@@ -30,6 +30,19 @@
 		regulator-name = "fan_ctl";
         	pinctrl-0 = <&fan_drv>;
 	};
+
+	5801_PWR_EN: HUB20-PWR-EN {
+		compatible = "regulator-fixed";
+		enable-active-high;
+		regulator-always-on;
+		regulator-boot-on;
+		gpio = <&gpio0 2 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&5801_pwr_en>;
+		regulator-name = "vcc5v0_5801_en";
+		status = "okay";
+	};
+
 };
 
 &gmac {
@@ -135,6 +148,14 @@
 &pinctrl {
 	pinctrl-names = "default";
 	pinctrl-0 = <&host_hub_vcc>;
+
+	npu_pwr_en {
+		// control VCC5V0_HOST3
+		5801_pwr_en: 5801-pwr-en {
+			rockchip,pins =
+				<0 2 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+	};
 
 	host-hub-vcc {
 		host_hub_vcc: host-hub-vcc {
