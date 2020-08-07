@@ -82,10 +82,6 @@
 	status = "okay";
 };
 
-&i2c1 {
-	/delete-property/ rt5640;
-};
-
 &i2c2 {
 	status = "disabled";
 	i2c-scl-rising-time-ns = <300>;
@@ -100,10 +96,6 @@
 		poll_delay_ms = <30>;
 		layout = <1>;
 	};
-};
-
-&rt5640_hpcon{
-    rockchip,pins = <3 16 RK_FUNC_GPIO &pcfg_pull_none>;
 };
 
 &vcca1v8_codec {
@@ -127,6 +119,15 @@
 
 &pcie0 {
 	/delete-property/ ep-gpios;
+};
+
+&fiq_debugger {
+	rockchip,baudrate = <115200>;  /* Only 115200 and 1500000 */
+};
+
+
+&rt5640 {
+	status = "disabled";
 };
 
 &uart4 {
