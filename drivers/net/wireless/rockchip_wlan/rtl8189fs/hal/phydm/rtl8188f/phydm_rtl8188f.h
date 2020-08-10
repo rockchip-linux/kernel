@@ -13,13 +13,9 @@
  * more details.
  *
  *****************************************************************************/
-#ifndef	__ODM_RTL8188F_H__
+#ifndef __ODM_RTL8188F_H__
 #define __ODM_RTL8188F_H__
 
-s8
-odm_CCKRSSI_8188F(
-	u8	LNA_idx,
-	u8	VGA_idx
-);
+s8 phydm_cck_rssi_8188f(struct dm_struct *dm, u8 lna_idx, u8 vga_idx);
 
 #endif

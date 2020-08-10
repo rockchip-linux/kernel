@@ -17,7 +17,9 @@
 #define __RTW_RF_H_
 
 #define NumRates	(13)
-
+#define	B_MODE_RATE_NUM	(4)
+#define	G_MODE_RATE_NUM	(8)
+#define	G_MODE_BASIC_RATE_NUM	(3)
 /* slot time for 11g */
 #define SHORT_SLOT_TIME					9
 #define NON_SHORT_SLOT_TIME				20
@@ -90,8 +92,7 @@ enum	_REG_PREAMBLE_MODE {
 typedef enum _BAND_TYPE {
 	BAND_ON_2_4G = 0,
 	BAND_ON_5G = 1,
-	BAND_ON_BOTH = 2,
-	BAND_MAX = 3,
+	BAND_MAX,
 } BAND_TYPE, *PBAND_TYPE;
 
 extern const char *const _band_str[];
@@ -150,45 +151,6 @@ int rtw_ch2freq(int chan);
 int rtw_freq2ch(int freq);
 bool rtw_chbw_to_freq_range(u8 ch, u8 bw, u8 offset, u32 *hi, u32 *lo);
 
-#define RTW_MODULE_RTL8821AE_HMC_M2		BIT0	/* RTL8821AE(HMC + M.2) */
-#define RTW_MODULE_RTL8821AU			BIT1	/* RTL8821AU */
-#define RTW_MODULE_RTL8812AENF_NGFF		BIT2	/* RTL8812AENF(8812AE+8761)_NGFF */
-#define RTW_MODULE_RTL8812AEBT_HMC		BIT3	/* RTL8812AEBT(8812AE+8761)_HMC */
-#define RTW_MODULE_RTL8188EE_HMC_M2		BIT4	/* RTL8188EE(HMC + M.2) */
-#define RTW_MODULE_RTL8723BE_HMC_M2		BIT5	/* RTL8723BE(HMC + M.2) */
-#define RTW_MODULE_RTL8723BS_NGFF1216	BIT6	/* RTL8723BS(NGFF1216) */
-#define RTW_MODULE_RTL8192EEBT_HMC_M2	BIT7	/* RTL8192EEBT(8192EE+8761AU)_(HMC + M.2) */
-#define RTW_MODULE_RTL8723DE_NGFF1630	BIT8	/* RTL8723DE(NGFF1630) */
-#define RTW_MODULE_RTL8822BE			BIT9	/* RTL8822BE */
-#define RTW_MODULE_RTL8821CE			BIT10	/* RTL8821CE */
-
-#define IS_ALPHA2_NO_SPECIFIED(_alpha2) ((*((u16 *)(_alpha2))) == 0xFFFF)
-
-struct country_chplan {
-	char alpha2[2];
-	u8 chplan;
-#ifdef CONFIG_80211AC_VHT
-	u8 en_11ac;
-#endif
-#if RTW_DEF_MODULE_REGULATORY_CERT
-	u16 def_module_flags; /* RTW_MODULE_RTLXXX */
-#endif
-};
-
-#ifdef CONFIG_80211AC_VHT
-#define COUNTRY_CHPLAN_EN_11AC(_ent) ((_ent)->en_11ac)
-#else
-#define COUNTRY_CHPLAN_EN_11AC(_ent) 0
-#endif
-
-#if RTW_DEF_MODULE_REGULATORY_CERT
-#define COUNTRY_CHPLAN_DEF_MODULE_FALGS(_ent) ((_ent)->def_module_flags)
-#else
-#define COUNTRY_CHPLAN_DEF_MODULE_FALGS(_ent) 0
-#endif
-
-const struct country_chplan *rtw_get_chplan_from_country(const char *country_code);
-
 struct rf_ctl_t;
 
 typedef enum _REGULATION_TXPWR_LMT {
@@ -200,13 +162,14 @@ typedef enum _REGULATION_TXPWR_LMT {
 	TXPWR_LMT_KCC = 5,
 	TXPWR_LMT_ACMA = 6,
 	TXPWR_LMT_CHILE = 7,
-	TXPWR_LMT_WW = 8, /* smallest of all available limit, keep last */
+	TXPWR_LMT_MEXICO = 8,
+	TXPWR_LMT_WW = 9, /* smallest of all available limit, keep last */
 } REGULATION_TXPWR_LMT;
 
 extern const char *const _regd_str[];
 #define regd_str(regd) (((regd) > TXPWR_LMT_WW) ? _regd_str[TXPWR_LMT_WW] : _regd_str[(regd)])
 
-#ifdef CONFIG_TXPWR_LIMIT
+#if CONFIG_TXPWR_LIMIT
 struct regd_exc_ent {
 	_list list;
 	char country[2];

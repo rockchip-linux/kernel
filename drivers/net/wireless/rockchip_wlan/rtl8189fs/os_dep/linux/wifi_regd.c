@@ -255,9 +255,8 @@ static void _rtw_reg_apply_active_scan_flags(struct wiphy *wiphy,
 
 void rtw_regd_apply_flags(struct wiphy *wiphy)
 {
-	_adapter *padapter = wiphy_to_adapter(wiphy);
-	struct rf_ctl_t *rfctl = adapter_to_rfctl(padapter);
-	u8 channel_plan = rfctl->ChannelPlan;
+	struct dvobj_priv *dvobj = wiphy_to_dvobj(wiphy);
+	struct rf_ctl_t *rfctl = dvobj_to_rfctl(dvobj);
 	RT_CHANNEL_INFO *channel_set = rfctl->channel_set;
 	u8 max_chan_nums = rfctl->max_chan_nums;
 
@@ -292,7 +291,7 @@ void rtw_regd_apply_flags(struct wiphy *wiphy)
 
 		if (channel_set[i].ScanType == SCAN_PASSIVE
 			#if defined(CONFIG_DFS_MASTER)
-			&& rtw_odm_dfs_domain_unknown(padapter)
+			&& rtw_odm_dfs_domain_unknown(dvobj)
 			#endif
 		) {
 			#if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 14, 0))
@@ -306,7 +305,7 @@ void rtw_regd_apply_flags(struct wiphy *wiphy)
 		#ifdef CONFIG_DFS
 		if (rtw_is_dfs_ch(ch->hw_value)
 			#if defined(CONFIG_DFS_MASTER)
-			&& rtw_odm_dfs_domain_unknown(padapter)
+			&& rtw_odm_dfs_domain_unknown(dvobj)
 			#endif
 		) {
 			ch->flags |= IEEE80211_CHAN_RADAR;
@@ -389,17 +388,6 @@ static void _rtw_regd_init_wiphy(struct rtw_regulatory *reg, struct wiphy *wiphy
 	wiphy_apply_custom_regulatory(wiphy, regd);
 
 	rtw_regd_apply_flags(wiphy);
-}
-
-static struct country_code_to_enum_rd *_rtw_regd_find_country(u16 countrycode)
-{
-	int i;
-
-	for (i = 0; i < ARRAY_SIZE(allCountries); i++) {
-		if (allCountries[i].countrycode == countrycode)
-			return &allCountries[i];
-	}
-	return NULL;
 }
 
 int rtw_regd_init(struct wiphy *wiphy)

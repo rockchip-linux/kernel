@@ -2202,7 +2202,11 @@ static int isFileReadable(const char *path, u32 *sz)
 		ret = PTR_ERR(fp);
 	else {
 		oldfs = get_fs();
+		#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 1, 0))
+		set_fs(KERNEL_DS);
+		#else
 		set_fs(get_ds());
+		#endif
 
 		if (1 != readFile(fp, &buf, 1))
 			ret = PTR_ERR(fp);
@@ -2240,7 +2244,11 @@ static int retriveFromFile(const char *path, u8 *buf, u32 sz)
 			RTW_INFO("%s openFile path:%s fp=%p\n", __FUNCTION__, path , fp);
 
 			oldfs = get_fs();
+			#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 1, 0))
+			set_fs(KERNEL_DS);
+			#else
 			set_fs(get_ds());
+			#endif
 			ret = readFile(fp, buf, sz);
 			set_fs(oldfs);
 			closeFile(fp);
@@ -2275,7 +2283,11 @@ static int storeToFile(const char *path, u8 *buf, u32 sz)
 			RTW_INFO("%s openFile path:%s fp=%p\n", __FUNCTION__, path , fp);
 
 			oldfs = get_fs();
+			#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 1, 0))
+			set_fs(KERNEL_DS);
+			#else
 			set_fs(get_ds());
+			#endif
 			ret = writeFile(fp, buf, sz);
 			set_fs(oldfs);
 			closeFile(fp);
@@ -2327,6 +2339,25 @@ int rtw_is_file_readable_with_size(const char *path, u32 *sz)
 	/* Todo... */
 	return _FALSE;
 #endif
+}
+
+/*
+* Test if the specifi @param path is a readable file with valid size.
+* If readable, @param sz is got
+* @param path the path of the file to test
+* @return _TRUE or _FALSE
+*/
+int rtw_readable_file_sz_chk(const char *path, u32 sz)
+{
+	u32 fsz;
+
+	if (rtw_is_file_readable_with_size(path, &fsz) == _FALSE)
+		return _FALSE;
+
+	if (fsz > sz)
+		return _FALSE;
+	
+	return _TRUE;
 }
 
 /*
@@ -2886,7 +2917,6 @@ int rtw_blacklist_add(_queue *blist, const u8 *addr, u32 timeout_ms)
 
 	exit_critical_bh(&blist->lock);
 
-exit:
 	return (exist == _TRUE && timeout == _FALSE) ? RTW_ALREADY : (ent ? _SUCCESS : _FAIL);
 }
 
@@ -2918,7 +2948,6 @@ int rtw_blacklist_del(_queue *blist, const u8 *addr)
 
 	exit_critical_bh(&blist->lock);
 
-exit:
 	return exist == _TRUE ? _SUCCESS : RTW_ALREADY;
 }
 
@@ -2952,7 +2981,6 @@ int rtw_blacklist_search(_queue *blist, const u8 *addr)
 
 	exit_critical_bh(&blist->lock);
 
-exit:
 	return exist;
 }
 

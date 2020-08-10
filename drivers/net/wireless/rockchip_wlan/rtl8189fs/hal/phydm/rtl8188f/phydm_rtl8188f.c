@@ -23,36 +23,32 @@
 
 #if (RTL8188F_SUPPORT == 1)
 
-s8
-odm_CCKRSSI_8188F(
-	u8	LNA_idx,
-	u8	VGA_idx
-)
+s8 phydm_cck_rssi_8188f(struct dm_struct *dm, u8 lna_idx, u8 vga_idx)
 {
-	s8	rx_pwr_all = 0x00;
-	switch (LNA_idx) {
+	s8 rx_pwr_all = 0x00;
+	switch (lna_idx) {
 	case 7:
-		if (VGA_idx <= 27)
-			rx_pwr_all = -100 + 2 * (27 - VGA_idx);
+		if (vga_idx <= 27)
+			rx_pwr_all = -100 + 2 * (27 - vga_idx);
 		else
 			rx_pwr_all = -100;
 		break;
 
 	case 5:
-		rx_pwr_all = -74 + 2 * (21 - VGA_idx);
+		rx_pwr_all = -74 + 2 * (21 - vga_idx);
 		break;
 
 	case 3:
-		rx_pwr_all = -60 + 2 * (20 - VGA_idx);
+		rx_pwr_all = -60 + 2 * (20 - vga_idx);
 		break;
 
 	case 1:
-		rx_pwr_all = -44 + 2 * (19 - VGA_idx);
+		rx_pwr_all = -44 + 2 * (19 - vga_idx);
 		break;
 
 	default:
 		break;
 	}
-	return	rx_pwr_all;
+	return rx_pwr_all;
 }
 #endif

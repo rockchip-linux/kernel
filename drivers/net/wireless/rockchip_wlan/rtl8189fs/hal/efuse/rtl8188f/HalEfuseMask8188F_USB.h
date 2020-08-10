@@ -21,15 +21,15 @@
 ******************************************************************************/
 
 
-u2Byte
-EFUSE_GetArrayLen_MP_8188F_MUSB(VOID);
+u16
+EFUSE_GetArrayLen_MP_8188F_MUSB(void);
 
-VOID
+void
 EFUSE_GetMaskArray_MP_8188F_MUSB(
-	IN	OUT pu1Byte Array
+		u8 *Array
 );
 
 BOOLEAN
 EFUSE_IsAddressMasked_MP_8188F_MUSB(/* TC: Test Chip, MP: MP Chip */
-	IN   u2Byte  Offset
+		u16 Offset
 );

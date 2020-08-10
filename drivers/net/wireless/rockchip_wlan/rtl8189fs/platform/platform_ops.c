@@ -14,13 +14,13 @@
  *
  *****************************************************************************/
 #ifndef CONFIG_PLATFORM_OPS
-#include <linux/rfkill-wlan.h>
-extern unsigned int oob_irq;
 /*
  * Return:
  *	0:	power on successfully
  *	others: power on failed
  */
+#include <linux/rfkill-wlan.h>
+extern unsigned int oob_irq;
 int platform_wifi_power_on(void)
 {
 	int ret = 0;

@@ -46,14 +46,14 @@ u8 RSN_CIPHER_SUITE_WEP104[] = { 0x00, 0x0f, 0xac, 5 };
  * for adhoc-master to generate ie and provide supported-rate to fw
  * ----------------------------------------------------------- */
 
-static u8	WIFI_CCKRATES[] = {
+u8	WIFI_CCKRATES[] = {
 	(IEEE80211_CCK_RATE_1MB | IEEE80211_BASIC_RATE_MASK),
 	(IEEE80211_CCK_RATE_2MB | IEEE80211_BASIC_RATE_MASK),
 	(IEEE80211_CCK_RATE_5MB | IEEE80211_BASIC_RATE_MASK),
 	(IEEE80211_CCK_RATE_11MB | IEEE80211_BASIC_RATE_MASK)
 };
 
-static u8	WIFI_OFDMRATES[] = {
+u8	WIFI_OFDMRATES[] = {
 	(IEEE80211_OFDM_RATE_6MB),
 	(IEEE80211_OFDM_RATE_9MB),
 	(IEEE80211_OFDM_RATE_12MB),
@@ -127,6 +127,19 @@ int rtw_get_bit_value_from_ieee_value(u8 val)
 		i++;
 	}
 	return 0;
+}
+uint rtw_get_cckrate_size(u8 *rate, u32 rate_length)
+{
+	int i = 0;
+	while(i < rate_length){
+		RTW_DBG("%s, rate[%d]=%u\n", __FUNCTION__, i, rate[i]);
+		if (((rate[i] & 0x7f) == 2) || ((rate[i] & 0x7f) == 4) ||
+			((rate[i] & 0x7f) == 11)  || ((rate[i] & 0x7f) == 22))
+			i++;
+		else
+			break;
+	}
+	return i;
 }
 
 uint	rtw_is_cckrates_included(u8 *rate)
@@ -411,6 +424,72 @@ void rtw_set_supported_rate(u8 *SupportedRates, uint mode)
 	}
 }
 
+void rtw_filter_suppport_rateie(WLAN_BSSID_EX *pbss_network, u8 keep)
+{
+	u8 i, idx = 0, new_rate[NDIS_802_11_LENGTH_RATES_EX], *p;
+	int ret = 0;
+	uint iscck, isofdm, ie_orilen = 0, remain_len;
+	u8 *remain_ies;
+
+	p = rtw_get_ie(pbss_network->IEs + _BEACON_IE_OFFSET_, _SUPPORTEDRATES_IE_, &ie_orilen, (pbss_network->IELength - _BEACON_IE_OFFSET_));
+	if (!p)
+		return;
+
+	_rtw_memset(new_rate, 0, NDIS_802_11_LENGTH_RATES_EX);
+	for (i=0; i < ie_orilen; i++) {
+		iscck = rtw_is_cck_rate(p[i+2]);
+		isofdm= rtw_is_ofdm_rate(p[i+2]);
+		if (((keep == CCK) && iscck)
+			|| ((keep == OFDM) && isofdm))
+			new_rate[idx++]= rtw_is_basic_rate_ofdm(p[i+2]) ? p[i+2]|IEEE80211_BASIC_RATE_MASK : p[i+2];
+	}
+	/*	update rate ie	*/
+	p[1] = idx;
+	_rtw_memcpy(p+2, new_rate, idx);
+	/*	update remain ie & IELength*/
+	remain_ies = p + 2 + ie_orilen;
+	remain_len = pbss_network->IELength - (remain_ies - pbss_network->IEs);
+	_rtw_memmove(p+2+idx, remain_ies, remain_len);
+	pbss_network->IELength -= (ie_orilen - idx);
+}
+ 
+
+/*
+	Adjust those items by given wireless_mode
+		1. pbss_network->IELength
+		2. pbss_network->IE (SUPPORTRATE & EXT_SUPPORTRATE)
+		3. pbss_network->SupportedRates
+*/
+
+u8 rtw_update_rate_bymode(WLAN_BSSID_EX *pbss_network, u32 mode)
+{
+	u8 network_type, *p, *ie = pbss_network->IEs;
+	sint ie_len;
+	uint network_ielen = pbss_network->IELength;
+
+	if (mode == WIRELESS_11B) {
+		/*only keep CCK in support_rate IE and remove whole ext_support_rate IE*/
+		rtw_filter_suppport_rateie(pbss_network, CCK);
+		p = rtw_get_ie(ie + _BEACON_IE_OFFSET_, _EXT_SUPPORTEDRATES_IE_, &ie_len, pbss_network->IELength - _BEACON_IE_OFFSET_);
+		if (p) {
+			rtw_ies_remove_ie(ie , &network_ielen, _BEACON_IE_OFFSET_, _EXT_SUPPORTEDRATES_IE_, NULL, 0);
+			pbss_network->IELength -= ie_len;
+		}
+		network_type = WIRELESS_11B;
+	} else if ((mode & WIRELESS_11B) == 0) {
+		/* Remove CCK in support_rate IE */
+		rtw_filter_suppport_rateie(pbss_network, OFDM);
+		if (pbss_network->Configuration.DSConfig > 14)
+			network_type = WIRELESS_11A;
+		else
+			network_type = WIRELESS_11G;
+	} else
+		network_type = WIRELESS_11BG;		/*	do nothing	*/
+
+	rtw_set_supported_rate(pbss_network->SupportedRates, network_type);
+	return network_type;
+}
+
 uint	rtw_get_rateset_len(u8	*rateset)
 {
 	uint i = 0;
@@ -497,7 +576,7 @@ int rtw_generate_ie(struct registry_priv *pregistrypriv)
 
 #ifdef CONFIG_80211N_HT
 	/* HT Cap. */
-	if (((pregistrypriv->wireless_mode & WIRELESS_11_5N) || (pregistrypriv->wireless_mode & WIRELESS_11_24N))
+	if (is_supported_ht(pregistrypriv->wireless_mode)
 	    && (pregistrypriv->ht_enable == _TRUE)) {
 		/* todo: */
 	}
@@ -678,7 +757,6 @@ int rtw_parse_wpa_ie(u8 *wpa_ie, int wpa_ie_len, int *group_cipher, int *pairwis
 
 int rtw_rsne_info_parse(const u8 *ie, uint ie_len, struct rsne_info *info)
 {
-	int i;
 	const u8 *pos = ie;
 	u16 cnt;
 
@@ -820,7 +898,7 @@ exit:
 int rtw_get_wapi_ie(u8 *in_ie, uint in_len, u8 *wapi_ie, u16 *wapi_len)
 {
 	int len = 0;
-	u8 authmode, i;
+	u8 authmode;
 	uint	cnt;
 	u8 wapi_oui1[4] = {0x0, 0x14, 0x72, 0x01};
 	u8 wapi_oui2[4] = {0x0, 0x14, 0x72, 0x02};
@@ -863,7 +941,7 @@ int rtw_get_wapi_ie(u8 *in_ie, uint in_len, u8 *wapi_ie, u16 *wapi_len)
 
 int rtw_get_sec_ie(u8 *in_ie, uint in_len, u8 *rsn_ie, u16 *rsn_len, u8 *wpa_ie, u16 *wpa_len)
 {
-	u8 authmode, sec_idx, i;
+	u8 authmode, sec_idx;
 	u8 wpa_oui[4] = {0x0, 0x50, 0xf2, 0x01};
 	uint	cnt;
 
@@ -1465,6 +1543,7 @@ func_exit:
 	return res;
 }
 
+#include <linux/rfkill-wlan.h>
 extern char *rtw_initmac;
 /**
  * rtw_macaddr_cfg - Decide the mac address used
@@ -1500,7 +1579,11 @@ void rtw_macaddr_cfg(u8 *out, const u8 *hw_mac_addr)
 	/* Use the mac address stored in the Efuse */
 	if (hw_mac_addr) {
 		_rtw_memcpy(mac, hw_mac_addr, ETH_ALEN);
-		goto err_chk;
+	}
+
+	if (!rockchip_wifi_mac_addr(mac)) {
+		printk("rk-rtk get mac address from flash=[%02x:%02x:%02x:%02x:%02x:%02x]\n", mac[0], mac[1],
+				mac[2], mac[3], mac[4], mac[5]);
 	}
 
 err_chk:
@@ -1544,10 +1627,6 @@ void dump_ht_cap_ie_content(void *sel, const u8 *buf, u32 buf_len)
 
 void dump_ht_cap_ie(void *sel, const u8 *ie, u32 ie_len)
 {
-	const u8 *pos = ie;
-	u16 id;
-	u16 len;
-
 	const u8 *ht_cap_ie;
 	sint ht_cap_ielen;
 
@@ -1581,10 +1660,6 @@ void dump_ht_op_ie_content(void *sel, const u8 *buf, u32 buf_len)
 
 void dump_ht_op_ie(void *sel, const u8 *ie, u32 ie_len)
 {
-	const u8 *pos = ie;
-	u16 id;
-	u16 len;
-
 	const u8 *ht_op_ie;
 	sint ht_op_ielen;
 
@@ -1842,7 +1917,7 @@ u32 rtw_get_p2p_merged_ies_len(u8 *in_ie, u32 in_len)
 	PNDIS_802_11_VARIABLE_IEs	pIE;
 	u8 OUI[4] = { 0x50, 0x6f, 0x9a, 0x09 };
 	int i = 0;
-	int j = 0, len = 0;
+	int len = 0;
 
 	while (i < in_len) {
 		pIE = (PNDIS_802_11_VARIABLE_IEs)(in_ie + i);

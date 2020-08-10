@@ -30,32 +30,6 @@
 /*============================================================ */
 /* Global var */
 /*============================================================ */
-
-
-static VOID
-dm_CheckProtection(
-	IN	PADAPTER	Adapter
-)
-{
-#if 0
-	PMGNT_INFO		pMgntInfo = &(Adapter->MgntInfo);
-	u1Byte			CurRate, RateThreshold;
-
-	if (pMgntInfo->pHTInfo->bCurBW40MHz)
-		RateThreshold = MGN_MCS1;
-	else
-		RateThreshold = MGN_MCS3;
-
-	if (Adapter->TxStats.CurrentInitTxRate <= RateThreshold) {
-		pMgntInfo->bDmDisableProtect = TRUE;
-		dbg_print("Forced disable protect: %x\n", Adapter->TxStats.CurrentInitTxRate);
-	} else {
-		pMgntInfo->bDmDisableProtect = FALSE;
-		dbg_print("Enable protect: %x\n", Adapter->TxStats.CurrentInitTxRate);
-	}
-#endif
-}
-
 #ifdef CONFIG_SUPPORT_HW_WPS_PBC
 static void dm_CheckPbcGPIO(_adapter *padapter)
 {
@@ -114,9 +88,9 @@ static void dm_CheckPbcGPIO(_adapter *padapter)
 /* */
 /*	Created by Roger, 2010.03.05. */
 /* */
-VOID
+void
 dm_InterruptMigration(
-	IN	PADAPTER	Adapter
+		PADAPTER	Adapter
 )
 {
 	HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(Adapter);
@@ -187,9 +161,10 @@ dm_InterruptMigration(
 /* */
 /* Initialize GPIO setting registers */
 /* */
+#ifdef CONFIG_USB_HCI
 static void
 dm_InitGPIOSetting(
-	IN	PADAPTER	Adapter
+		PADAPTER	Adapter
 )
 {
 	PHAL_DATA_TYPE		pHalData = GET_HAL_DATA(Adapter);
@@ -201,6 +176,7 @@ dm_InitGPIOSetting(
 
 	rtw_write8(Adapter, REG_GPIO_MUXCFG, tmp1byte);
 }
+#endif
 /*============================================================ */
 /* functions */
 /*============================================================ */
@@ -224,7 +200,7 @@ static void Init_ODM_ComInfo_8188f(PADAPTER	Adapter)
 
 void
 rtl8188f_InitHalDm(
-	IN	PADAPTER	Adapter
+		PADAPTER	Adapter
 )
 {
 	PHAL_DATA_TYPE	pHalData = GET_HAL_DATA(Adapter);
@@ -237,14 +213,16 @@ rtl8188f_InitHalDm(
 }
 
 
-VOID
+void
 rtl8188f_HalDmWatchDog(
-	IN	PADAPTER	Adapter
+		PADAPTER	Adapter
 )
 {
 	BOOLEAN		bFwCurrentInPSMode = _FALSE;
 	u8 bFwPSAwake = _TRUE;
 	PHAL_DATA_TYPE	pHalData = GET_HAL_DATA(Adapter);
+	struct pwrctrl_priv *pwrpriv = adapter_to_pwrctl(Adapter);
+	u8 in_lps = _FALSE;
 
 #ifdef CONFIG_MP_INCLUDED
 	if (Adapter->registrypriv.mp_mode == 1 && Adapter->mppriv.mp_dm == 0) /* for MP power tracking */
@@ -255,7 +233,7 @@ rtl8188f_HalDmWatchDog(
 		goto skip_dm;
 
 #ifdef CONFIG_LPS
-	bFwCurrentInPSMode = adapter_to_pwrctl(Adapter)->bFwCurrentInPSMode;
+	bFwCurrentInPSMode = pwrpriv->bFwCurrentInPSMode;
 	rtw_hal_get_hwreg(Adapter, HW_VAR_FWLPS_RF_ON, &bFwPSAwake);
 #endif
 
@@ -273,7 +251,6 @@ rtl8188f_HalDmWatchDog(
 		/* */
 		/* Dynamically switch RTS/CTS protection. */
 		/* */
-		/*dm_CheckProtection(Adapter); */
 
 #ifdef CONFIG_PCI_HCI
 		/* 20100630 Joseph: Disable Interrupt Migration mechanism temporarily because it degrades Rx throughput. */
@@ -288,7 +265,13 @@ rtl8188f_HalDmWatchDog(
 #ifdef CONFIG_DISABLE_ODM
 	goto skip_dm;
 #endif
-	rtw_phydm_watchdog(Adapter);
+
+#ifdef CONFIG_LPS
+	if (pwrpriv->bLeisurePs && bFwCurrentInPSMode && pwrpriv->pwr_mode != PS_MODE_ACTIVE)
+		in_lps = _TRUE;
+#endif
+
+	rtw_phydm_watchdog(Adapter, in_lps);
 
 skip_dm:
 
@@ -305,7 +288,7 @@ skip_dm:
 	return;
 }
 
-void rtl8188f_init_dm_priv(IN PADAPTER Adapter)
+void rtl8188f_init_dm_priv(PADAPTER Adapter)
 {
 	PHAL_DATA_TYPE	pHalData = GET_HAL_DATA(Adapter);
 	struct dm_struct		*podmpriv = &pHalData->odmpriv;
@@ -314,7 +297,7 @@ void rtl8188f_init_dm_priv(IN PADAPTER Adapter)
 
 }
 
-void rtl8188f_deinit_dm_priv(IN PADAPTER Adapter)
+void rtl8188f_deinit_dm_priv(PADAPTER Adapter)
 {
 	PHAL_DATA_TYPE	pHalData = GET_HAL_DATA(Adapter);
 	struct dm_struct		*podmpriv = &pHalData->odmpriv;

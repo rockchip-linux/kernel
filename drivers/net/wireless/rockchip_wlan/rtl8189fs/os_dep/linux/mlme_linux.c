@@ -68,7 +68,13 @@ void rtw_os_indicate_connect(_adapter *adapter)
 #endif /* CONFIG_IOCTL_CFG80211 */
 
 	rtw_indicate_wx_assoc_event(adapter);
-	rtw_netif_carrier_on(adapter->pnetdev);
+
+#ifdef CONFIG_RTW_MESH
+#if CONFIG_RTW_MESH_CTO_MGATE_CARRIER
+	if (!rtw_mesh_cto_mgate_required(adapter))
+#endif
+#endif
+		rtw_netif_carrier_on(adapter->pnetdev);
 
 	if (adapter->pid[2] != 0)
 		rtw_signal_process(adapter->pid[2], SIGALRM);
@@ -97,7 +103,6 @@ void rtw_reset_securitypriv(_adapter *adapter)
 	u32	backupTKIPcountermeasure_time = 0;
 	/* add for CONFIG_IEEE80211W, none 11w also can use */
 	_irqL irqL;
-	struct mlme_ext_priv	*pmlmeext = &adapter->mlmeextpriv;
 
 	_enter_critical_bh(&adapter->security_key_mutex, &irqL);
 
@@ -379,9 +384,6 @@ int hostapd_mode_init(_adapter *padapter)
 
 	/* pnetdev->wireless_handlers = NULL; */
 
-#ifdef CONFIG_TCP_CSUM_OFFLOAD_TX
-	pnetdev->features |= NETIF_F_IP_CSUM;
-#endif
 
 
 

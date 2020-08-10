@@ -111,9 +111,13 @@ enum h2c_cmd {
 	H2C_AOAC_RSVDPAGE3 = 0x88,
 	H2C_P2P_OFFLOAD_RSVD_PAGE = 0x8A,
 	H2C_P2P_OFFLOAD = 0x8B,
-
+#ifdef CONFIG_FW_HANDLE_TXBCN
+	H2C_FW_BCN_OFFLOAD = 0xBA,
+#endif
 	H2C_RESET_TSF = 0xC0,
+#ifdef CONFIG_FW_CORRECT_BCN
 	H2C_BCNHWSEQ = 0xC5,
+#endif
 	H2C_CUSTOMER_STR_W1 = 0xC6,
 	H2C_CUSTOMER_STR_W2 = 0xC7,
 	H2C_CUSTOMER_STR_W3 = 0xC8,
@@ -123,7 +127,7 @@ enum h2c_cmd {
 	H2C_MAXID,
 };
 
-#define H2C_INACTIVE_PS_LEN		3
+#define H2C_INACTIVE_PS_LEN		4
 #define H2C_RSVDPAGE_LOC_LEN		5
 #ifdef CONFIG_FW_MULTI_PORT_SUPPORT
 #define H2C_DEFAULT_PORT_ID_LEN		2
@@ -140,7 +144,7 @@ enum h2c_cmd {
 #define H2C_PSTUNEPARAM_LEN			4
 #define H2C_MACID_CFG_LEN		7
 #define H2C_BTMP_OPER_LEN			5
-#define H2C_WOWLAN_LEN			6
+#define H2C_WOWLAN_LEN			7
 #define H2C_REMOTE_WAKE_CTRL_LEN	3
 #define H2C_AOAC_GLOBAL_INFO_LEN	2
 #define H2C_AOAC_RSVDPAGE_LOC_LEN	7
@@ -166,7 +170,11 @@ enum h2c_cmd {
 	#define H2C_MCC_IQK_PARAM_LEN		7
 #endif /* CONFIG_MCC_MODE */
 #ifdef CONFIG_LPS_PG
+#ifdef CONFIG_RTL8822C
+	#define H2C_LPS_PG_INFO_LEN		4
+#else
 	#define H2C_LPS_PG_INFO_LEN		2
+#endif
 	#define H2C_LPSPG_LEN			16
 #endif
 #ifdef CONFIG_LPS_POFF
@@ -190,29 +198,6 @@ enum h2c_cmd {
 
 
 #if defined(CONFIG_WOWLAN) || defined(CONFIG_AP_WOWLAN)
-/*
-* ARP packet
-*
-* LLC Header */
-#define GET_ARP_PKT_LLC_TYPE(__pHeader)					ReadLE2Byte(((u8 *)(__pHeader)) + 6)
-
-/* ARP element */
-#define GET_ARP_PKT_OPERATION(__pHeader)				ReadLE2Byte(((u8 *)(__pHeader)) + 6)
-#define GET_ARP_PKT_SENDER_MAC_ADDR(__pHeader, _val)	cp_mac_addr((u8 *)(_val), ((u8 *)(__pHeader))+8)
-#define GET_ARP_PKT_SENDER_IP_ADDR(__pHeader, _val)		cpIpAddr((u8 *)(_val), ((u8 *)(__pHeader))+14)
-#define GET_ARP_PKT_TARGET_MAC_ADDR(__pHeader, _val)	cp_mac_addr((u8 *)(_val), ((u8 *)(__pHeader))+18)
-#define GET_ARP_PKT_TARGET_IP_ADDR(__pHeader, _val)	cpIpAddr((u8 *)(_val), ((u8 *)(__pHeader))+24)
-
-#define SET_ARP_PKT_HW(__pHeader, __Value)					WriteLE2Byte(((u8 *)(__pHeader)) + 0, __Value)
-#define SET_ARP_PKT_PROTOCOL(__pHeader, __Value)			WriteLE2Byte(((u8 *)(__pHeader)) + 2, __Value)
-#define SET_ARP_PKT_HW_ADDR_LEN(__pHeader, __Value)			WriteLE1Byte(((u8 *)(__pHeader)) + 4, __Value)
-#define SET_ARP_PKT_PROTOCOL_ADDR_LEN(__pHeader, __Value)	WriteLE1Byte(((u8 *)(__pHeader)) + 5, __Value)
-#define SET_ARP_PKT_OPERATION(__pHeader, __Value)			WriteLE2Byte(((u8 *)(__pHeader)) + 6, __Value)
-#define SET_ARP_PKT_SENDER_MAC_ADDR(__pHeader, _val)	cp_mac_addr(((u8 *)(__pHeader))+8, (u8 *)(_val))
-#define SET_ARP_PKT_SENDER_IP_ADDR(__pHeader, _val)		cpIpAddr(((u8 *)(__pHeader))+14, (u8 *)(_val))
-#define SET_ARP_PKT_TARGET_MAC_ADDR(__pHeader, _val)	cp_mac_addr(((u8 *)(__pHeader))+18, (u8 *)(_val))
-#define SET_ARP_PKT_TARGET_IP_ADDR(__pHeader, _val)		cpIpAddr(((u8 *)(__pHeader))+24, (u8 *)(_val))
-
 #define FW_WOWLAN_FUN_EN				BIT(0)
 #define FW_WOWLAN_PATTERN_MATCH			BIT(1)
 #define FW_WOWLAN_MAGIC_PKT				BIT(2)
@@ -236,6 +221,9 @@ enum h2c_cmd {
 #define FW_ARP_EN						BIT(1)
 #define FW_REALWOWLAN_EN				BIT(5)
 #define FW_WOW_FW_UNICAST_EN			BIT(7)
+
+#define FW_IPS_DISABLE_BBRF		BIT(0)
+#define FW_IPS_WRC				BIT(1)
 
 #endif /* CONFIG_WOWLAN */
 
@@ -294,9 +282,12 @@ s32 rtw_hal_set_FwMediaStatusRpt_range_cmd(_adapter *adapter, bool opmode, bool 
 /* _DISCONNECT_DECISION_CMD_0x04 */
 #define SET_H2CCMD_DISCONDECISION_PARM_ENABLE(__pH2CCmd, __Value)		SET_BITS_TO_LE_1BYTE(__pH2CCmd, 0, 1, __Value)
 #define SET_H2CCMD_DISCONDECISION_PARM_ADOPT(__pH2CCmd, __Value)		SET_BITS_TO_LE_1BYTE(__pH2CCmd, 1, 1, __Value)
+#define SET_H2CCMD_DISCONDECISION_PARM_TRY_BCN_FAIL_EN(__pH2CCmd, __Value)		SET_BITS_TO_LE_1BYTE(__pH2CCmd, 2, 1, __Value)
+#define SET_H2CCMD_DISCONDECISION_PARM_DISCONNECT_EN(__pH2CCmd, __Value)		SET_BITS_TO_LE_1BYTE(__pH2CCmd, 3, 1, __Value)
 #define SET_H2CCMD_DISCONDECISION_PORT_NUM(__pH2CCmd, __Value)			SET_BITS_TO_LE_1BYTE(__pH2CCmd, 4, 3, __Value)
 #define SET_H2CCMD_DISCONDECISION_PARM_CHECK_PERIOD(__pH2CCmd, __Value)	SET_BITS_TO_LE_1BYTE(__pH2CCmd+1, 0, 8, __Value)
 #define SET_H2CCMD_DISCONDECISION_PARM_TRY_PKT_NUM(__pH2CCmd, __Value)	SET_BITS_TO_LE_1BYTE(__pH2CCmd+2, 0, 8, __Value)
+#define SET_H2CCMD_DISCONDECISION_PARM_TRY_OK_BCN(__pH2CCmd, __Value)	SET_BITS_TO_LE_1BYTE(__pH2CCmd+3, 0, 8, __Value)
 
 #ifdef CONFIG_RTW_CUSTOMER_STR
 #define RTW_CUSTOMER_STR_LEN 16
@@ -348,6 +339,22 @@ s32 rtw_hal_customer_str_write(_adapter *adapter, const u8 *cs);
 #define SET_H2CCMD_AP_WOW_PS_32K_EN(__pH2CCmd, __Value)		SET_BITS_TO_LE_1BYTE(__pH2CCmd, 1, 1, __Value)
 #define SET_H2CCMD_AP_WOW_PS_RF(__pH2CCmd, __Value)			SET_BITS_TO_LE_1BYTE(__pH2CCmd, 2, 1, __Value)
 #define SET_H2CCMD_AP_WOW_PS_DURATION(__pH2CCmd, __Value)	SET_BITS_TO_LE_1BYTE((__pH2CCmd)+1, 0, 8, __Value)
+
+/* INACTIVE_PS 0x27, duration unit is TBTT */
+#define SET_H2CCMD_INACTIVE_PS_EN(__pH2CCmd, __Value) \
+	SET_BITS_TO_LE_1BYTE(__pH2CCmd, 0, 1, __Value)
+#define SET_H2CCMD_INACTIVE_IGNORE_PS(__pH2CCmd, __Value) \
+	SET_BITS_TO_LE_1BYTE(__pH2CCmd, 1, 1, __Value)
+#define SET_H2CCMD_INACTIVE_PERIOD_SCAN_EN(__pH2CCmd, __Value) \
+	SET_BITS_TO_LE_1BYTE(__pH2CCmd, 2, 1, __Value)
+#define SET_H2CCMD_INACTIVE_DISBBRF(__pH2CCmd, __Value) \
+	SET_BITS_TO_LE_1BYTE(__pH2CCmd, 3, 1, __Value)
+#define SET_H2CCMD_INACTIVE_PS_FREQ(__pH2CCmd, __Value) \
+	SET_BITS_TO_LE_1BYTE(__pH2CCmd + 1, 0, 8, __Value)
+#define SET_H2CCMD_INACTIVE_PS_DURATION(__pH2CCmd, __Value) \
+	SET_BITS_TO_LE_1BYTE(__pH2CCmd + 2, 0, 8, __Value)
+#define SET_H2CCMD_INACTIVE_PS_PERIOD_SCAN_TIME(__pH2CCmd, __Value) \
+	SET_BITS_TO_LE_1BYTE(__pH2CCmd + 3, 0, 8, __Value)
 
 #ifdef CONFIG_LPS_POFF
 /*PARTIAL OFF Control 0x29*/
@@ -486,6 +493,9 @@ s32 rtw_hal_customer_str_write(_adapter *adapter, const u8 *cs);
 #define SET_H2CCMD_WOWLAN_UNIT_FOR_UPHY_DISABLE(__pH2CCmd, __Value)		SET_BITS_TO_LE_1BYTE((__pH2CCmd)+4, 3, 1, __Value)
 #define SET_H2CCMD_WOWLAN_TAKE_PDN_UPHY_DIS_EN(__pH2CCmd, __Value)		SET_BITS_TO_LE_1BYTE((__pH2CCmd)+4, 4, 1, __Value)
 #define SET_H2CCMD_WOWLAN_GPIO_INPUT_EN(__pH2CCmd, __Value)		SET_BITS_TO_LE_1BYTE((__pH2CCmd)+4, 5, 1, __Value)
+#define SET_H2CCMD_WOWLAN_DEV2HST_EN(__pH2CCmd, __Value) 	SET_BITS_TO_LE_1BYTE((__pH2CCmd)+4, 7, 1, __Value)
+#define SET_H2CCMD_WOWLAN_TIME_FOR_UPHY_DISABLE(__pH2CCmd, __Value) SET_BITS_TO_LE_1BYTE((__pH2CCmd)+5, 0, 8, __Value)
+#define SET_H2CCMD_WOWLAN_RISE_HST2DEV(__pH2CCmd, __Value) 	SET_BITS_TO_LE_1BYTE((__pH2CCmd)+6, 2, 1, __Value)
 
 /* _REMOTE_WAKEUP_CMD_0x81 */
 #define SET_H2CCMD_REMOTE_WAKECTRL_ENABLE(__pH2CCmd, __Value)		SET_BITS_TO_LE_1BYTE(__pH2CCmd, 0, 1, __Value)
@@ -552,13 +562,23 @@ s32 rtw_hal_customer_str_write(_adapter *adapter, const u8 *cs);
 #define SET_H2CCMD_LPSPG_MACID_SEARCH_EN(__pH2CCmd, __Value)	SET_BITS_TO_LE_1BYTE(__pH2CCmd, 3, 1, __Value)/*MACIDSearch_En*/
 #define SET_H2CCMD_LPSPG_TXSC_EN(__pH2CCmd, __Value)	SET_BITS_TO_LE_1BYTE(__pH2CCmd, 4, 1, __Value)/*TXSC_En*/
 #define SET_H2CCMD_LPSPG_MU_RATE_TB_EN(__pH2CCmd, __Value)	SET_BITS_TO_LE_1BYTE(__pH2CCmd, 5, 1, __Value)/*MURateTable_En*/
-#define SET_H2CCMD_LPSPG_LOC(__pH2CCmd, __Value)	SET_BITS_TO_LE_1BYTE(__pH2CCmd+1, 0, 8, __Value)/*Loc_LPS_PG*/
+#define SET_H2CCMD_LPSPG_LOC(__pH2CCmd, __Value)	SET_BITS_TO_LE_1BYTE((__pH2CCmd)+1, 0, 8, __Value)/*Loc_LPS_PG*/
+#define SET_H2CCMD_LPSPG_DPK_INFO_LOC(__pH2CCmd, __Value)	SET_BITS_TO_LE_1BYTE((__pH2CCmd)+2, 0, 8, __Value)/*Loc_LPS_PG_DPK_info*/
+#define SET_H2CCMD_LPSPG_IQK_INFO_LOC(__pH2CCmd, __Value)	SET_BITS_TO_LE_1BYTE((__pH2CCmd) + 3, 0, 8, __Value)/*Loc_IQK_result*/
 #endif
 
 #ifdef DBG_FW_DEBUG_MSG_PKT
 #define SET_H2CCMD_FW_DBG_MSG_PKT_EN(__pH2CCmd, __Value)	SET_BITS_TO_LE_1BYTE(__pH2CCmd, 0, 1, __Value)/*sniffer_dbg_en*/
 #define SET_H2CCMD_RSVDPAGE_LOC_FW_DBG_MSG_PKT(__pH2CCmd, __Value)	SET_BITS_TO_LE_1BYTE((__pH2CCmd)+1, 0, 8, __Value) /*loc_debug_packet*/
 #endif /*DBG_FW_DEBUG_MSG_PKT*/
+
+#ifdef DBG_RSVD_PAGE_CFG
+#define RSVD_PAGE_CFG(ops, v1, v2, v3)	\
+	RTW_INFO("=== [RSVD][%s]-NeedPage:%d, TotalPageNum:%d TotalPacketLen:%d ===\n",	\
+		ops, v1, v2, v3)
+#else
+#define RSVD_PAGE_CFG(ops, v1, v2, v3) do {} while (0)
+#endif
 
 /* ---------------------------------------------------------------------------------------------------------
  * -------------------------------------------    Structure    --------------------------------------------------
@@ -601,6 +621,21 @@ typedef struct _RSVDPAGE_LOC {
 	u8 loc_fw_dbg_msg_pkt;
 #endif /*DBG_FW_DEBUG_MSG_PKT*/
 } RSVDPAGE_LOC, *PRSVDPAGE_LOC;
+
+struct rsvd_page_cache_t {
+	char *name;
+	u8 loc;
+	u8 page_num;
+	u8 *data;
+	u32 size;
+};
+
+bool rsvd_page_cache_update_all(struct rsvd_page_cache_t *cache, u8 loc
+	, u8 txdesc_len, u32 page_size, u8 *info, u32 info_len);
+bool rsvd_page_cache_update_data(struct rsvd_page_cache_t *cache, u8 *info
+	, u32 info_len);
+void rsvd_page_cache_free_data(struct rsvd_page_cache_t *cache);
+void rsvd_page_cache_free(struct rsvd_page_cache_t *cache);
 
 #endif
 void dump_TX_FIFO(PADAPTER padapter, u8 page_num, u16 page_size);

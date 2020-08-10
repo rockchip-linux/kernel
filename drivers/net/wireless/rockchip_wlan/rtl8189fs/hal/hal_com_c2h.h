@@ -100,6 +100,8 @@ int c2h_mac_hidden_rpt_hdl(_adapter *adapter, u8 *data, u8 len);
 #define MAC_HIDDEN_RPT_2_LEN 5
 int c2h_mac_hidden_rpt_2_hdl(_adapter *adapter, u8 *data, u8 len);
 int hal_read_mac_hidden_rpt(_adapter *adapter);
+#else
+#define hal_read_mac_hidden_rpt(adapter) _SUCCESS
 #endif /* CONFIG_RTW_MAC_HIDDEN_RPT */
 
 /* C2H_DEFEATURE_DBG, 0x22 */

@@ -67,10 +67,10 @@ static	RF_SHADOW_T	RF_Shadow[RF6052_MAX_PATH][RF6052_MAX_REG];
  *
  * Note:		For RF type 0222D
  *---------------------------------------------------------------------------*/
-VOID
+void
 PHY_RF6052SetBandwidth8188F(
-	IN	PADAPTER				Adapter,
-	IN	enum channel_width		Bandwidth)	/*20M or 40M */
+		PADAPTER				Adapter,
+		enum channel_width		Bandwidth)	/*20M or 40M */
 {
 	HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(Adapter);
 
@@ -131,22 +131,9 @@ PHY_RF6052SetBandwidth8188F(
 
 }
 
-static VOID
-phy_RF6052_Config_HardCode(
-	IN	PADAPTER		Adapter
-)
-{
-
-	/* Set Default Bandwidth to 20M */
-	/*Adapter->HalFunc	.SetBWModeHandler(Adapter, CHANNEL_WIDTH_20); */
-
-	/* TODO: Set Default Channel to channel one for RTL8225 */
-
-}
-
 static int
 phy_RF6052_Config_ParaFile(
-	IN	PADAPTER		Adapter
+		PADAPTER		Adapter
 )
 {
 	u32					u4RegValue = 0;
@@ -270,7 +257,7 @@ phy_RF6052_Config_ParaFile_Fail:
 
 int
 PHY_RF6052_Config8188F(
-	IN	PADAPTER		Adapter)
+		PADAPTER		Adapter)
 {
 	HAL_DATA_TYPE				*pHalData = GET_HAL_DATA(Adapter);
 	int					rtStatus = _SUCCESS;

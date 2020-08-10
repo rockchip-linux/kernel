@@ -983,13 +983,6 @@ static void next_key(u8 *key, sint round);
 static void byte_sub(u8 *in, u8 *out);
 static void shift_row(u8 *in, u8 *out);
 static void mix_column(u8 *in, u8 *out);
-#ifndef PLATFORM_FREEBSD
-static void add_round_key(u8 *shiftrow_in,
-			  u8 *mcol_in,
-			  u8 *block_in,
-			  sint round,
-			  u8 *out);
-#endif /* PLATFORM_FREEBSD */
 static void aes128k128d(u8 *key, u8 *data, u8 *ciphertext);
 
 
@@ -1930,7 +1923,6 @@ u32	rtw_aes_decrypt(_adapter *padapter, u8 *precvframe)
 
 
 	sint		length;
-	u32	prwskeylen;
 	u8	*pframe, *prwskey;	/* , *payload,*iv */
 	struct	sta_info		*stainfo;
 	struct	rx_pkt_attrib	*prxattrib = &((union recv_frame *)precvframe)->u.hdr.attrib;
@@ -2140,6 +2132,7 @@ BIP_exit:
 #endif /* CONFIG_IEEE80211W */
 
 #ifndef PLATFORM_FREEBSD
+#if defined(CONFIG_TDLS)
 /* compress 512-bits */
 static int sha256_compress(struct sha256_state *md, unsigned char *buf)
 {
@@ -2320,7 +2313,9 @@ static u8 os_strlen(const char *s)
 		p++;
 	return p - s;
 }
+#endif
 
+#if defined(CONFIG_TDLS) || defined(CONFIG_RTW_MESH_AEK)
 static int os_memcmp(const void *s1, const void *s2, u8 n)
 {
 	const unsigned char *p1 = s1, *p2 = s2;
@@ -2338,6 +2333,7 @@ static int os_memcmp(const void *s1, const void *s2, u8 n)
 
 	return *p1 - *p2;
 }
+#endif
 
 /**
  * hmac_sha256_vector - HMAC-SHA256 over data vector (RFC 2104)
@@ -2348,6 +2344,7 @@ static int os_memcmp(const void *s1, const void *s2, u8 n)
  * @len: Lengths of the data blocks
  * @mac: Buffer for the hash (32 bytes)
  */
+#if defined(CONFIG_TDLS)
 static void hmac_sha256_vector(u8 *key, size_t key_len, size_t num_elem,
 			       u8 *addr[], size_t *len, u8 *mac)
 {
@@ -2409,6 +2406,7 @@ static void hmac_sha256_vector(u8 *key, size_t key_len, size_t num_elem,
 	_len[1] = 32;
 	sha256_vector(2, _addr, _len, mac);
 }
+#endif /* CONFIG_TDLS */
 #endif /* PLATFORM_FREEBSD */
 /**
  * sha256_prf - SHA256-based Pseudo-Random Function (IEEE 802.11r, 8.5.1.5.2)
@@ -2424,6 +2422,7 @@ static void hmac_sha256_vector(u8 *key, size_t key_len, size_t num_elem,
  * given key.
  */
 #ifndef PLATFORM_FREEBSD /* Baron */
+#if defined(CONFIG_TDLS)
 static void sha256_prf(u8 *key, size_t key_len, char *label,
 		       u8 *data, size_t data_len, u8 *buf, size_t buf_len)
 {
@@ -2460,6 +2459,7 @@ static void sha256_prf(u8 *key, size_t key_len, char *label,
 		counter++;
 	}
 }
+#endif
 #endif /* PLATFORM_FREEBSD Baron */
 
 /* AES tables*/
@@ -3084,7 +3084,7 @@ int aes_siv_decrypt(const u8 *key, const u8 *iv_crypt, size_t iv_c_len,
 #endif /* CONFIG_RTW_MESH_AEK */
 
 #ifdef CONFIG_TDLS
-void wpa_tdls_generate_tpk(_adapter *padapter, PVOID sta)
+void wpa_tdls_generate_tpk(_adapter *padapter, void *sta)
 {
 	struct sta_info *psta = (struct sta_info *)sta;
 	struct mlme_priv	*pmlmepriv = &padapter->mlmepriv;

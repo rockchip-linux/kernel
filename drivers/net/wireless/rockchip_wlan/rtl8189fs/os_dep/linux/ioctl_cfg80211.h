@@ -181,6 +181,17 @@ struct rtw_wdev_priv {
 	ATOMIC_T switch_ch_to;
 #endif
 
+#ifdef CONFIG_RTW_CFGVENDOR_RANDOM_MAC_OUI
+	u8 pno_mac_addr[ETH_ALEN];
+	u16 pno_scan_seq_num;
+#endif
+
+#ifdef CONFIG_RTW_CFGVEDNOR_RSSIMONITOR
+        s8 rssi_monitor_max;
+        s8 rssi_monitor_min;
+        u8 rssi_monitor_enable;
+#endif
+
 };
 
 bool rtw_cfg80211_is_connect_requested(_adapter *adapter);
@@ -373,8 +384,10 @@ void rtw_cfg80211_deinit_rfkill(struct wiphy *wiphy);
 #endif
 #endif
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0))
-#define rtw_cfg80211_notify_new_peer_candidate(wdev, addr, ie, ie_len, gfp) cfg80211_notify_new_peer_candidate(wdev_to_ndev(wdev), addr, ie, ie_len, gfp)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 0, 0))
+#define rtw_cfg80211_notify_new_peer_candidate(wdev, addr, ie, ie_len, sig_dbm, gfp) cfg80211_notify_new_peer_candidate(wdev_to_ndev(wdev), addr, ie, ie_len, sig_dbm, gfp)
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0))
+#define rtw_cfg80211_notify_new_peer_candidate(wdev, addr, ie, ie_len, sig_dbm, gfp) cfg80211_notify_new_peer_candidate(wdev_to_ndev(wdev), addr, ie, ie_len, gfp)
 #endif
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0))

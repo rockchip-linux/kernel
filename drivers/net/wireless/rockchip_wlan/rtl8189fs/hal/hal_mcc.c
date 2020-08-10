@@ -39,7 +39,6 @@ u8 mcc_switch_channel_policy_table[][7]={
 };
 
 const int mcc_max_policy_num = sizeof(mcc_switch_channel_policy_table) /sizeof(u8) /7;
-struct mi_state mcc_mstate;
 
 static void dump_iqk_val_table(PADAPTER padapter)
 {
@@ -211,6 +210,7 @@ void rtw_hal_mcc_restore_iqk_val(PADAPTER padapter)
 	u8 take_care_iqk = _FALSE;
 	struct dvobj_priv *dvobj = adapter_to_dvobj(padapter);
 	_adapter *iface = NULL;
+	struct mcc_adapter_priv *mccadapriv = NULL;
 	u8 i = 0;
 
 	rtw_hal_get_hwreg(padapter, HW_VAR_CH_SW_NEED_TO_TAKE_CARE_IQK_INFO, &take_care_iqk);
@@ -218,6 +218,10 @@ void rtw_hal_mcc_restore_iqk_val(PADAPTER padapter)
 		for (i = 0; i < dvobj->iface_nums; i++) {
 			iface = dvobj->padapters[i];
 			if (iface == NULL)
+				continue;
+
+			mccadapriv = &iface->mcc_adapterpriv;
+			if (mccadapriv->role == MCC_ROLE_MAX)
 				continue;
 
 			rtw_hal_ch_sw_iqk_info_restore(iface, CH_SW_USE_CASE_MCC);
@@ -363,15 +367,229 @@ static void rtw_hal_mcc_assign_tx_threshold(PADAPTER padapter)
 			break;
 		}
 		break;
+	default:
+		RTW_INFO(FUNC_ADPT_FMT": unknown role = %d\n"
+			, FUNC_ADPT_ARG(padapter), pmccadapriv->role);
+		break;
 	}
 }
+
+#ifdef CONFIG_MCC_PHYDM_OFFLOAD
+static void mcc_cfg_phdym_rf_ch (_adapter *adapter)
+{
+		struct mcc_adapter_priv *mccadapriv = &adapter->mcc_adapterpriv;
+		struct mlme_ext_priv *mlmeext = &adapter->mlmeextpriv;
+		HAL_DATA_TYPE *hal = GET_HAL_DATA(adapter);
+		struct dm_struct *dm = &hal->odmpriv;
+		struct _phydm_mcc_dm_ *mcc_dm = &dm->mcc_dm;
+		u8 order = 0;
+
+		set_channel_bwmode(adapter, mlmeext->cur_channel, mlmeext->cur_ch_offset, mlmeext->cur_bwmode);
+		order = mccadapriv->order;
+		mcc_dm->mcc_rf_channel[order] = phy_query_rf_reg(adapter, RF_PATH_A, 0x18, 0xffffffff);
+}
+
+static void mcc_cfg_phdym_update_macid (_adapter *adapter, u8 add, u8 mac_id)
+{
+		struct mcc_adapter_priv *mccadapriv = &adapter->mcc_adapterpriv;
+		struct mlme_ext_priv *mlmeext = &adapter->mlmeextpriv;
+		HAL_DATA_TYPE *hal = GET_HAL_DATA(adapter);
+		struct dm_struct *dm = &hal->odmpriv;
+		struct _phydm_mcc_dm_ *mcc_dm = &dm->mcc_dm;
+		u8 order = 0, i = 0;
+
+		order = mccadapriv->order;
+		if (add) {
+			for (i = 0; i < NUM_STA; i++) {
+				if (mcc_dm->sta_macid[order][i] == 0xff) {
+					mcc_dm->sta_macid[order][i] = mac_id;
+					break;
+				}
+			}
+		} else {
+			for (i = 0; i < NUM_STA; i++) {
+				if (mcc_dm->sta_macid[order][i] == mac_id) {
+					mcc_dm->sta_macid[order][i] = 0xff;
+					break;
+				}
+			}
+		}
+
+		
+}
+
+static void mcc_cfg_phdym_start(_adapter *adapter, u8 start)
+{
+	struct dvobj_priv *dvobj;
+	struct mcc_obj_priv *mccobjpriv;
+	HAL_DATA_TYPE *hal;
+	struct dm_struct *dm;
+	struct _phydm_mcc_dm_ *mcc_dm;
+	u8 rfk_forbidden = _TRUE;
+	u8 i = 0, j = 0;
+
+	dvobj = adapter_to_dvobj(adapter);
+	mccobjpriv = adapter_to_mccobjpriv(adapter);
+	hal = GET_HAL_DATA(adapter);
+	dm = &hal->odmpriv;
+	mcc_dm = &dm->mcc_dm;
+
+	if (start) {
+		#ifdef CONFIG_MCC_PHYDM_OFFLOAD
+		mcc_dm->mcc_status = mccobjpriv->mcc_phydm_offload;
+		#endif
+
+		rfk_forbidden = _TRUE;
+		halrf_cmn_info_set(dm, HALRF_CMNINFO_RFK_FORBIDDEN, rfk_forbidden);
+	} else {
+		rfk_forbidden = _FALSE;
+		halrf_cmn_info_set(dm, HALRF_CMNINFO_RFK_FORBIDDEN, rfk_forbidden);
+
+		#ifdef CONFIG_MCC_PHYDM_OFFLOAD
+		for(i = 0; i < MAX_MCC_NUM; i ++) {
+			for(j = 0; j < NUM_STA; j ++) {
+				if (mcc_dm->sta_macid[i][j] != 0xff)
+					/* clear all used value for mcc stop */
+					/* do nothing for mcc start due to phydm will init to 0xff */
+					mcc_dm->sta_macid[i][j] = 0xff;
+			}
+			mcc_dm->mcc_rf_channel[i] = 0xff;
+		}
+		mcc_dm->mcc_status = 0;
+		#endif
+	}
+}
+
+static void mcc_cfg_phdym_dump(_adapter *adapter, void *sel)
+{
+	HAL_DATA_TYPE *hal;
+	struct dm_struct *dm;
+	struct _phydm_mcc_dm_ *mcc_dm;
+	u8 rfk_forbidden = _TRUE;
+	u8 i = 0, j = 0;
+
+
+	hal = GET_HAL_DATA(adapter);
+	dm = &hal->odmpriv;
+	mcc_dm = &dm->mcc_dm;
+
+	rfk_forbidden = halrf_cmn_info_get(dm, HALRF_CMNINFO_RFK_FORBIDDEN);
+	RTW_PRINT_SEL(sel, "dump mcc dm info\n");
+	RTW_PRINT_SEL(sel, "mcc_status=%d\n", mcc_dm->mcc_status);
+	RTW_PRINT_SEL(sel, "rfk_forbidden=%d\n", rfk_forbidden);
+	for(i = 0; i < MAX_MCC_NUM; i ++) {
+
+		if (mcc_dm->mcc_rf_channel[i] != 0xff)
+			RTW_PRINT_SEL(sel, "mcc_dm->mcc_rf_channel[%d] = 0x%02x\n", i, mcc_dm->mcc_rf_channel[i]);
+		
+		for(j = 0; j < NUM_STA; j ++) {
+			if (mcc_dm->sta_macid[i][j] != 0xff)
+				RTW_PRINT_SEL(sel, "mcc_dm->sta_macid[%d][%d] = %d\n", i, j, mcc_dm->sta_macid[i][j]);
+		}
+	}
+}
+
+static void mcc_cfg_phdym_offload(_adapter *adapter, u8 enable)
+{
+	struct mcc_obj_priv *mccobjpriv = adapter_to_mccobjpriv(adapter);
+	_adapter *iface = NULL;
+	struct mcc_adapter_priv *mccadapriv = NULL;
+	HAL_DATA_TYPE *hal = NULL;
+	struct dm_struct *dm = NULL;
+	struct _phydm_mcc_dm_ *mcc_dm = NULL;
+	struct sta_priv *stapriv = NULL;
+	struct sta_info *sta = NULL;
+	struct wlan_network *cur_network = NULL;
+	_irqL irqL;
+	_list	*head = NULL, *list = NULL;
+	u8 i = 0;
+
+
+	hal = GET_HAL_DATA(adapter);
+	dm = &hal->odmpriv;
+	mcc_dm = &dm->mcc_dm;
+
+	/* due to phydm will rst related date, driver must set related data */
+	if (enable) {
+		for (i = 0; i < MAX_MCC_NUM; i++) {
+			iface = mccobjpriv->iface[i];
+			if (!iface)
+				continue;
+			stapriv = &iface->stapriv;
+			mccadapriv = &iface->mcc_adapterpriv;
+			switch (mccadapriv->role) {
+			case MCC_ROLE_STA:
+			case MCC_ROLE_GC:
+				cur_network = &iface->mlmepriv.cur_network;
+				sta = rtw_get_stainfo(stapriv, cur_network->network.MacAddress);
+				if (sta)
+					mcc_cfg_phdym_update_macid(iface, _TRUE, sta->cmn.mac_id);
+				break;
+			case MCC_ROLE_AP:
+			case MCC_ROLE_GO:
+				_enter_critical_bh(&stapriv->asoc_list_lock, &irqL);
+
+				head = &stapriv->asoc_list;
+				list = get_next(head);
+		
+				while ((rtw_end_of_queue_search(head, list)) == _FALSE) {
+					sta = LIST_CONTAINOR(list, struct sta_info, asoc_list);
+					list = get_next(list);
+					mcc_cfg_phdym_update_macid(iface, _TRUE, sta->cmn.mac_id);
+				}
+
+				_exit_critical_bh(&stapriv->asoc_list_lock, &irqL);
+				break;
+			default:
+				RTW_INFO("Unknown role\n");
+				rtw_warn_on(1);
+				break;
+			}
+			
+		}
+	}
+
+	mcc_dm->mcc_status = enable;
+}
+
+static void rtw_hal_mcc_cfg_phydm (_adapter *adapter, enum mcc_cfg_phydm_ops ops, void *data)
+{
+	switch (ops) {
+	case MCC_CFG_PHYDM_OFFLOAD:
+		mcc_cfg_phdym_offload(adapter, *(u8 *)data);
+		break;
+	case MCC_CFG_PHYDM_RF_CH:
+		mcc_cfg_phdym_rf_ch(adapter);
+		break;
+	case MCC_CFG_PHYDM_ADD_CLIENT:
+		mcc_cfg_phdym_update_macid(adapter, _TRUE, *(u8 *)data);
+		break;
+	case MCC_CFG_PHYDM_REMOVE_CLIENT:
+		mcc_cfg_phdym_update_macid(adapter, _FALSE, *(u8 *)data);
+		break;
+	case MCC_CFG_PHYDM_START:
+		mcc_cfg_phdym_start(adapter, _TRUE);
+		break;
+	case MCC_CFG_PHYDM_STOP:
+		mcc_cfg_phdym_start(adapter, _FALSE);
+		break;
+	case MCC_CFG_PHYDM_DUMP:
+		mcc_cfg_phdym_dump(adapter, data);
+		break;
+	case MCC_CFG_PHYDM_MAX:
+	default:
+		RTW_ERR("[MCC] rtw_hal_mcc_cfg_phydm ops error (%d)\n", ops);
+		break;
+
+	}
+}
+#endif
 
 static void rtw_hal_config_mcc_role_setting(PADAPTER padapter, u8 order)
 {
 	struct dvobj_priv	*pdvobjpriv = adapter_to_dvobj(padapter);
 	struct mcc_obj_priv *pmccobjpriv = &(pdvobjpriv->mcc_objpriv);
 	struct mcc_adapter_priv *pmccadapriv = &padapter->mcc_adapterpriv;
-	struct mlme_ext_priv *pmlmeext = &padapter->mlmeextpriv;
 	struct mlme_priv *pmlmepriv = &(padapter->mlmepriv);
 	struct wlan_network *cur_network = &(pmlmepriv->cur_network);
 	struct sta_priv *pstapriv = &padapter->stapriv;
@@ -382,6 +600,8 @@ static void rtw_hal_config_mcc_role_setting(PADAPTER padapter, u8 order)
 	u8 policy_index = 0;
 	u8 mcc_duration = 0;
 	u8 mcc_interval = 0;
+	u8 starting_ap_num = DEV_AP_STARTING_NUM(pdvobjpriv);
+	u8 ap_num = DEV_AP_NUM(pdvobjpriv);
 
 	policy_index = pmccobjpriv->policy_index;
 	mcc_duration = mcc_switch_channel_policy_table[pmccobjpriv->policy_index][MCC_DURATION_IDX]
@@ -389,8 +609,7 @@ static void rtw_hal_config_mcc_role_setting(PADAPTER padapter, u8 order)
 			- mcc_switch_channel_policy_table[pmccobjpriv->policy_index][MCC_GUARD_OFFSET1_IDX];
 	mcc_interval = mcc_switch_channel_policy_table[pmccobjpriv->policy_index][MCC_INTERVAL_IDX];
 
-	if (MSTATE_AP_STARTING_NUM(&mcc_mstate) == 0
-		&& MSTATE_AP_NUM(&mcc_mstate) == 0) {
+	if (starting_ap_num == 0 && ap_num == 0) {
 		pmccadapriv->order = order;
 
 		if (pmccadapriv->order == 0) {
@@ -411,6 +630,9 @@ static void rtw_hal_config_mcc_role_setting(PADAPTER padapter, u8 order)
 		if (psta) {
 			/* combine AP/GO macid and mgmt queue macid to bitmap */
 			pmccadapriv->mcc_macid_bitmap = BIT(psta->cmn.mac_id) | BIT(pmccadapriv->mgmt_queue_macid);
+			#ifdef CONFIG_MCC_PHYDM_OFFLOAD
+			rtw_hal_mcc_cfg_phydm(padapter, MCC_CFG_PHYDM_ADD_CLIENT, &psta->cmn.mac_id);
+			#endif
 		} else {
 			RTW_INFO(FUNC_ADPT_FMT":AP/GO station info is NULL\n", FUNC_ADPT_ARG(padapter));
 			rtw_warn_on(1);
@@ -431,6 +653,9 @@ static void rtw_hal_config_mcc_role_setting(PADAPTER padapter, u8 order)
 			if (psta) {
 				/* combine AP/GO macid and mgmt queue macid to bitmap */
 				pmccadapriv->mcc_macid_bitmap = BIT(psta->cmn.mac_id) | BIT(pmccadapriv->mgmt_queue_macid);
+				#ifdef CONFIG_MCC_PHYDM_OFFLOAD
+				rtw_hal_mcc_cfg_phydm(padapter, MCC_CFG_PHYDM_ADD_CLIENT, &psta->cmn.mac_id);
+				#endif
 			} else {
 				RTW_INFO(FUNC_ADPT_FMT":AP/GO station info is NULL\n", FUNC_ADPT_ARG(padapter));
 				rtw_warn_on(1);
@@ -455,6 +680,9 @@ static void rtw_hal_config_mcc_role_setting(PADAPTER padapter, u8 order)
 				psta = LIST_CONTAINOR(plist, struct sta_info, asoc_list);
 				plist = get_next(plist);
 				pmccadapriv->mcc_macid_bitmap |= BIT(psta->cmn.mac_id);
+				#ifdef CONFIG_MCC_PHYDM_OFFLOAD
+				rtw_hal_mcc_cfg_phydm(padapter, MCC_CFG_PHYDM_ADD_CLIENT, &psta->cmn.mac_id);
+				#endif
 			}
 
 			_exit_critical_bh(&pstapriv->asoc_list_lock, &irqL);
@@ -504,45 +732,49 @@ static void rtw_hal_config_mcc_role_setting(PADAPTER padapter, u8 order)
 	RTW_INFO("**********************************\n");
 
 	pmccobjpriv->iface[pmccadapriv->order] = padapter;
+	#ifdef CONFIG_MCC_PHYDM_OFFLOAD
+	rtw_hal_mcc_cfg_phydm(padapter, MCC_CFG_PHYDM_RF_CH, NULL);
+	#endif
 
 }
 
-static void rtw_hal_clear_mcc_macid(PADAPTER padapter)
-{
-	u16 media_status_rpt;
-	struct mcc_adapter_priv *pmccadapriv = &padapter->mcc_adapterpriv;
-
-	switch (pmccadapriv->role) {
-	case MCC_ROLE_STA:
-	case MCC_ROLE_GC:
-		break;
-	case MCC_ROLE_AP:
-	case MCC_ROLE_GO:
-	/* nothing to do */
-		break;
-	default:
-		RTW_INFO("Unknown role\n");
-		rtw_warn_on(1);
-		break;
-	}
-}
-
-static void rtw_hal_mcc_rqt_tsf(PADAPTER padapter)
+static void rtw_hal_mcc_rqt_tsf(PADAPTER padapter, u64 *out_tsf)
 {
 	struct dvobj_priv *dvobj = adapter_to_dvobj(padapter);
-	struct mcc_obj_priv *pmccobjpriv = &(dvobj->mcc_objpriv);
+	struct mcc_obj_priv *mccobjpriv = &(dvobj->mcc_objpriv);
+	PADAPTER order0_iface = NULL;
+	PADAPTER order1_iface = NULL;
+	struct submit_ctx *tsf_req_sctx = NULL;
+	enum _hw_port tsfx = MAX_HW_PORT;
+	enum _hw_port tsfy = MAX_HW_PORT;
 	u8 cmd[H2C_MCC_RQT_TSF_LEN] = {0};
 
-	rtw_sctx_init(&pmccobjpriv->mcc_tsf_req_sctx, MCC_EXPIRE_TIME);
+	_enter_critical_mutex(&mccobjpriv->mcc_tsf_req_mutex, NULL);
 
-	SET_H2CCMD_MCC_RQT_TSFX(cmd, pmccobjpriv->iface[0]->hw_port);
-	SET_H2CCMD_MCC_RQT_TSFY(cmd, pmccobjpriv->iface[1]->hw_port);
+	order0_iface = mccobjpriv->iface[0];
+	order1_iface = mccobjpriv->iface[1];
+
+	tsf_req_sctx = &mccobjpriv->mcc_tsf_req_sctx;
+	rtw_sctx_init(tsf_req_sctx, MCC_EXPIRE_TIME);
+	mccobjpriv->mcc_tsf_req_sctx_order = 0;
+	tsfx = rtw_hal_get_port(order0_iface);
+	tsfy = rtw_hal_get_port(order1_iface);
+
+	SET_H2CCMD_MCC_RQT_TSFX(cmd, tsfx);
+	SET_H2CCMD_MCC_RQT_TSFY(cmd, tsfy);
 
 	rtw_hal_fill_h2c_cmd(padapter, H2C_MCC_RQT_TSF, H2C_MCC_RQT_TSF_LEN, cmd);
 
-	if (!rtw_sctx_wait(&pmccobjpriv->mcc_tsf_req_sctx, __func__))
+	if (!rtw_sctx_wait(tsf_req_sctx, __func__))
 		RTW_INFO(FUNC_ADPT_FMT": wait for mcc tsf req C2H time out\n", FUNC_ADPT_ARG(padapter));
 
+	if (tsf_req_sctx->status  == RTW_SCTX_DONE_SUCCESS && out_tsf != NULL) {
+		out_tsf[0] = order0_iface->mcc_adapterpriv.tsf;
+		out_tsf[1] = order1_iface->mcc_adapterpriv.tsf;
+	}
+
+
+	_exit_critical_mutex(&mccobjpriv->mcc_tsf_req_mutex, NULL);
 }
 
 static u8 rtw_hal_mcc_check_start_time_is_valid(PADAPTER padapter, u8 case_num,
@@ -682,6 +914,8 @@ static void rtw_hal_mcc_decide_duration(PADAPTER padapter)
 			continue;
 
 		mccadapriv = &iface->mcc_adapterpriv;
+		if (mccadapriv->role == MCC_ROLE_MAX)
+			continue;
 
 		if (is_primary_adapter(iface))
 			mccadapriv->mcc_duration = duration_time;
@@ -695,15 +929,19 @@ static void rtw_hal_mcc_decide_duration(PADAPTER padapter)
 
 static u8 rtw_hal_mcc_update_timing_parameters(PADAPTER padapter, u8 force_update)
 {
+	struct dvobj_priv *dvobj = adapter_to_dvobj(padapter);
 	u8 need_update = _FALSE;
+	u8 starting_ap_num = DEV_AP_STARTING_NUM(dvobj);
+	u8 ap_num = DEV_AP_NUM(dvobj);
+
 
 	/* for STA+STA, modify policy table */
-	if (MSTATE_AP_STARTING_NUM(&mcc_mstate) == 0
-		&& MSTATE_AP_NUM(&mcc_mstate) == 0) {
+	if (starting_ap_num == 0 && ap_num == 0) {
 		struct dvobj_priv *dvobj = adapter_to_dvobj(padapter);
 		struct mcc_obj_priv *pmccobjpriv = &(dvobj->mcc_objpriv);
 		struct mcc_adapter_priv *pmccadapriv = NULL;
 		_adapter *iface = NULL;
+		u64 tsf[MAX_MCC_NUM] = {0};
 		u64 tsf0 = 0, tsf1 = 0;
 		u32 beaconperiod_0 = 0, beaconperiod_1 = 0, tsfdiff = 0;
 		s8 upper_bound_0 = 0, lower_bound_0 = 0;
@@ -713,14 +951,14 @@ static u8 rtw_hal_mcc_update_timing_parameters(PADAPTER padapter, u8 force_updat
 		u8 i = 0;
 		
 		/* query TSF */
-		rtw_hal_mcc_rqt_tsf(padapter);
+		rtw_hal_mcc_rqt_tsf(padapter, tsf);
 
 		/* selecet policy table according TSF diff */
-		tsf0 = pmccobjpriv->iface[0]->mcc_adapterpriv.tsf;
+		tsf0 = tsf[0];
 		beaconperiod_0 = pmccobjpriv->iface[0]->mlmepriv.cur_network.network.Configuration.BeaconPeriod;
 		tsf0 = rtw_modular64(tsf0, (beaconperiod_0 * TU));
 
-		tsf1 = pmccobjpriv->iface[1]->mcc_adapterpriv.tsf;
+		tsf1 = tsf[1];
 		beaconperiod_1 = pmccobjpriv->iface[1]->mlmepriv.cur_network.network.Configuration.BeaconPeriod;
 		tsf1 = rtw_modular64(tsf1, (beaconperiod_1 * TU));
 
@@ -865,6 +1103,9 @@ static u8 rtw_hal_mcc_update_timing_parameters(PADAPTER padapter, u8 force_updat
 				continue;
 
 			pmccadapriv = &iface->mcc_adapterpriv;
+			pmccadapriv = &iface->mcc_adapterpriv;
+			if (pmccadapriv->role == MCC_ROLE_MAX)
+				continue;
 #if 0
 			if (pmccadapriv->order == 0) {
 				pmccadapriv->mcc_duration = mcc_duration;
@@ -906,6 +1147,7 @@ static u8 rtw_hal_decide_mcc_role(PADAPTER padapter)
 			continue;
 
 		pmccadapriv = &iface->mcc_adapterpriv;
+		pwdinfo = &iface->wdinfo;
 
 		if (MLME_IS_GO(iface))
 			pmccadapriv->role = MCC_ROLE_GO;
@@ -913,28 +1155,28 @@ static u8 rtw_hal_decide_mcc_role(PADAPTER padapter)
 			pmccadapriv->role = MCC_ROLE_AP;
 		else if (MLME_IS_GC(iface))
 			pmccadapriv->role = MCC_ROLE_GC;
-		else if (MLME_IS_STA(iface))
-			pmccadapriv->role = MCC_ROLE_STA;
-		else {
-			pwdinfo = &iface->wdinfo;
-			pmlmepriv = &iface->mlmepriv;
-
-			RTW_INFO(FUNC_ADPT_FMT"\n", FUNC_ADPT_ARG(iface));
-			RTW_INFO("Unknown:P2P state:%d, mlme state:0x%2x, mlmext info state:0x%02x\n",
-				pwdinfo->role, pmlmepriv->fw_state, iface->mlmeextpriv.mlmext_info.state);
-			rtw_warn_on(1);
-			ret =  _FAIL;
-			goto exit;
+		else if (MLME_IS_STA(iface)) {
+			if (MLME_IS_LINKING(iface) || MLME_IS_ASOC(iface))
+				pmccadapriv->role = MCC_ROLE_STA;
+			else {
+				/* bypass non-linked/non-linking interface */
+				RTW_INFO(FUNC_ADPT_FMT" mlme state:0x%2x\n",
+					FUNC_ADPT_ARG(iface), MLME_STATE(iface));
+				continue;
+			}
+		} else {
+			/* bypass non-linked/non-linking interface */
+			RTW_INFO(FUNC_ADPT_FMT" P2P Role:%d, mlme state:0x%2x\n",
+				FUNC_ADPT_ARG(iface), pwdinfo->role, MLME_STATE(iface));
+			continue;
 		}
 
-		if (ret == _SUCCESS) {
-			if (padapter == iface) {
-				/* current adapter is order 0 */
-				rtw_hal_config_mcc_role_setting(iface, 0);
-			} else {
-				rtw_hal_config_mcc_role_setting(iface, order);
-				order ++;
-			}
+		if (padapter == iface) {
+			/* current adapter is order 0 */
+			rtw_hal_config_mcc_role_setting(iface, 0);
+		} else {
+			rtw_hal_config_mcc_role_setting(iface, order);
+			order ++;
 		}
 	}
 
@@ -1019,12 +1261,6 @@ void rtw_hal_mcc_upadate_chnl_bw(_adapter *padapter, u8 ch, u8 ch_offset, u8 bw,
 	}
 }
 
-#ifdef DBG_RSVD_PAGE_CFG
-#define RSVD_PAGE_CFG(ops, v1, v2, v3)	\
-	RTW_INFO("=== [RSVD][%s]-NeedPage:%d, TotalPageNum:%d TotalPacketLen:%d ===\n",	\
-		ops, v1, v2, v3)
-#endif
-
 u8 rtw_hal_dl_mcc_fw_rsvd_page(_adapter *adapter, u8 *pframe, u16 *index,
 	u8 tx_desc, u32 page_size, u8 *total_page_num, RSVDPAGE_LOC *rsvd_page_loc, u8 *page_num)
 {
@@ -1035,8 +1271,8 @@ u8 rtw_hal_dl_mcc_fw_rsvd_page(_adapter *adapter, u8 *pframe, u16 *index,
 	struct mlme_ext_info *pmlmeinfo = NULL;
 	struct mlme_ext_priv *pmlmeext = NULL;
 	struct hal_com_data *hal = GET_HAL_DATA(adapter);
+	struct mcc_adapter_priv *mccadapriv = NULL;
 	u8 ret = _SUCCESS, i = 0, j  =0, order = 0, CurtPktPageNum = 0;
-	u8 bssid[ETH_ALEN] = {0};
 	u8 *start = NULL;
 	u8 path = RF_PATH_A;
 
@@ -1045,8 +1281,8 @@ u8 rtw_hal_dl_mcc_fw_rsvd_page(_adapter *adapter, u8 *pframe, u16 *index,
 		if (!hal->RegIQKFWOffload)
 			RTW_WARN("[MCC] must enable FW IQK for New IC\n");
 #endif /* CONFIG_MCC_MODE_V2 */
-		/* Null data(interface number) + power index(interface number) + 1  */
-		*total_page_num += (2 * dvobj->iface_nums + 3);
+		*total_page_num += (2 * MAX_MCC_NUM+ 1);
+		RTW_INFO("[MCC] allocate mcc rsvd page num = %d\n", *total_page_num);
 		goto exit;
 	}
 
@@ -1061,37 +1297,35 @@ u8 rtw_hal_dl_mcc_fw_rsvd_page(_adapter *adapter, u8 *pframe, u16 *index,
 		if (iface == NULL)
 			continue;
 
-		order = iface->mcc_adapterpriv.order;
-		dvobj->mcc_objpriv.mcc_loc_rsvd_paga[order] = *total_page_num;
+		mccadapriv = &iface->mcc_adapterpriv;
+		if (mccadapriv->role == MCC_ROLE_MAX)
+			continue;
 
-		switch (iface->mcc_adapterpriv.role) {
+		order = mccadapriv->order;
+		pmccobjpriv->mcc_loc_rsvd_paga[order] = *total_page_num;
+
+		switch (mccadapriv->role) {
 		case MCC_ROLE_STA:
 		case MCC_ROLE_GC:
 			/* Build NULL DATA */
 			RTW_INFO("LocNull(order:%d): %d\n"
-				, order, dvobj->mcc_objpriv.mcc_loc_rsvd_paga[order]);
+				, order, pmccobjpriv->mcc_loc_rsvd_paga[order]);
 			len = 0;
-			pmlmeext = &iface->mlmeextpriv;
-			pmlmeinfo = &pmlmeext->mlmext_info;
-
-			_rtw_memcpy(bssid, get_my_bssid(&pmlmeinfo->network), ETH_ALEN);
 
 			rtw_hal_construct_NullFunctionData(iface
-				, &pframe[*index], &len, bssid, _FALSE, 0, 0, _FALSE);
+				, &pframe[*index], &len, _FALSE, 0, 0, _FALSE);
 			rtw_hal_fill_fake_txdesc(iface, &pframe[*index-tx_desc],
 				len, _FALSE, _FALSE, _FALSE);
 
 			CurtPktPageNum = (u8)PageNum(tx_desc + len, page_size);
 			*total_page_num += CurtPktPageNum;
 			*index += (CurtPktPageNum * page_size);
-			#ifdef DBG_RSVD_PAGE_CFG
 			RSVD_PAGE_CFG("LocNull", CurtPktPageNum, *total_page_num, *index);
-			#endif
 			break;
 		case MCC_ROLE_AP:
 			/* Bulid CTS */
 			RTW_INFO("LocCTS(order:%d): %d\n"
-				, order, dvobj->mcc_objpriv.mcc_loc_rsvd_paga[order]);
+				, order, pmccobjpriv->mcc_loc_rsvd_paga[order]);
 
 			len = 0;
 			rtw_hal_construct_CTS(iface, &pframe[*index], &len);
@@ -1101,12 +1335,14 @@ u8 rtw_hal_dl_mcc_fw_rsvd_page(_adapter *adapter, u8 *pframe, u16 *index,
 			CurtPktPageNum = (u8)PageNum(tx_desc + len, page_size);
 			*total_page_num += CurtPktPageNum;
 			*index += (CurtPktPageNum * page_size);
-			#ifdef DBG_RSVD_PAGE_CFG
 			RSVD_PAGE_CFG("LocCTS", CurtPktPageNum, *total_page_num, *index);
-			#endif
 			break;
 		case MCC_ROLE_GO:
 		/* To DO */
+			break;
+		default:
+			RTW_INFO(FUNC_ADPT_FMT": unknown role = %d\n"
+				, FUNC_ADPT_ARG(iface), mccadapriv->role);
 			break;
 		}
 	}
@@ -1134,7 +1370,7 @@ u8 rtw_hal_dl_mcc_fw_rsvd_page(_adapter *adapter, u8 *pframe, u16 *index,
 		_rtw_memset(start, 0, page_size);
 		pmccobjpriv->mcc_pwr_idx_rsvd_page[i] = *total_page_num;
 		RTW_INFO(ADPT_FMT" order:%d, pwr_idx_rsvd_page location[%d]: %d\n",
-			ADPT_ARG(iface), iface->mcc_adapterpriv.order,
+			ADPT_ARG(iface), mccadapriv->order,
 			i, pmccobjpriv->mcc_pwr_idx_rsvd_page[i]);
 
 		total_rate_offset = start;
@@ -1399,9 +1635,7 @@ u8 rtw_hal_dl_mcc_fw_rsvd_page(_adapter *adapter, u8 *pframe, u16 *index,
 			CurtPktPageNum = 1;
 			*total_page_num += CurtPktPageNum;
 			*index += (CurtPktPageNum * page_size);
-			#ifdef DBG_RSVD_PAGE_CFG
 			RSVD_PAGE_CFG("mcc_pwr_idx_rsvd_page", CurtPktPageNum, *total_page_num, *index);
-			#endif
 		}
 
 exit:
@@ -1427,12 +1661,17 @@ static void rtw_hal_set_fw_mcc_rsvd_page(PADAPTER padapter)
 	rtw_hal_set_hwreg(port0_iface, HW_VAR_H2C_FW_JOINBSSRPT, (u8 *)(&mstatus));
 
 	/* Re-Download beacon */
-	for (i = 0; i < dvobj->iface_nums; i++) {
+	for (i = 0; i < MAX_MCC_NUM; i++) {
 		iface = pmccobjpriv->iface[i];
+		if (iface == NULL)
+			continue;
+
 		pmccadapriv = &iface->mcc_adapterpriv;
+
 		if (pmccadapriv->role == MCC_ROLE_AP
-			|| pmccadapriv->role == MCC_ROLE_GO)
+			|| pmccadapriv->role == MCC_ROLE_GO) {
 			tx_beacon_hdl(iface, NULL);
+		}
 	}
 }
 
@@ -1470,14 +1709,14 @@ static void rtw_hal_set_mcc_time_setting_cmd(PADAPTER padapter)
 	struct mcc_adapter_priv *pmccadapriv = &padapter->mcc_adapterpriv;
 	struct mlme_priv *pmlmepriv = &(padapter->mlmepriv);
 	struct dvobj_priv *dvobj = adapter_to_dvobj(padapter);
-	struct mcc_obj_priv *pmccobjpriv = &(dvobj->mcc_objpriv);
+	struct mcc_obj_priv *mccobjpriv = &(dvobj->mcc_objpriv);
 	u8 cmd[H2C_MCC_TIME_SETTING_LEN] = {0};
 	u8 fw_eable = 1;
 	u8 swchannel_early_time = MCC_SWCH_FW_EARLY_TIME;
-	
+	u8 starting_ap_num = DEV_AP_STARTING_NUM(dvobj);
+	u8 ap_num = DEV_AP_NUM(dvobj);	
 
-	if (MSTATE_AP_STARTING_NUM(&mcc_mstate) == 0
-		&& MSTATE_AP_NUM(&mcc_mstate) == 0)
+	if (starting_ap_num == 0 && ap_num == 0)
 		/* For STA+GC/STA+STA, TSF of GC/STA does not need to sync from TSF of other STA/GC */
 		fw_eable = 0;
 	else
@@ -1485,12 +1724,22 @@ static void rtw_hal_set_mcc_time_setting_cmd(PADAPTER padapter)
 		fw_eable = 1;
 
 	if (fw_eable == 1) {
-		u8 policy_idx = pmccobjpriv->policy_index;
+		PADAPTER order0_iface = NULL;
+		PADAPTER order1_iface = NULL;
+		u8 policy_idx = mccobjpriv->policy_index;
 		u8 tsf_sync_offset = mcc_switch_channel_policy_table[policy_idx][MCC_TSF_SYNC_OFFSET_IDX];
 		u8 start_time_offset = mcc_switch_channel_policy_table[policy_idx][MCC_START_TIME_OFFSET_IDX];
 		u8 interval = mcc_switch_channel_policy_table[policy_idx][MCC_INTERVAL_IDX];
 		u8 guard_offset0 = mcc_switch_channel_policy_table[policy_idx][MCC_GUARD_OFFSET0_IDX];
 		u8 guard_offset1 = mcc_switch_channel_policy_table[policy_idx][MCC_GUARD_OFFSET1_IDX];
+		enum _hw_port tsf_bsae_port = MAX_HW_PORT;
+		enum _hw_port tsf_sync_port = MAX_HW_PORT;
+		order0_iface = mccobjpriv->iface[0];
+		order1_iface = mccobjpriv->iface[1];
+
+		tsf_bsae_port = rtw_hal_get_port(order1_iface);
+		tsf_sync_port = rtw_hal_get_port(order0_iface);
+		
 		/* FW set enable */
 		SET_H2CCMD_MCC_TIME_SETTING_FW_EN(cmd, fw_eable);
 		/* TSF Sync offset */
@@ -1502,13 +1751,13 @@ static void rtw_hal_set_mcc_time_setting_cmd(PADAPTER padapter)
 		/* Early time to inform driver by C2H before switch channel */
 		SET_H2CCMD_MCC_TIME_SETTING_EARLY_SWITCH_RPT(cmd, swchannel_early_time);
 		/* Port0 sync from Port1, not support multi-port */
-		SET_H2CCMD_MCC_TIME_SETTING_ORDER_BASE(cmd, HW_PORT1);
-		SET_H2CCMD_MCC_TIME_SETTING_ORDER_SYNC(cmd, HW_PORT0);
+		SET_H2CCMD_MCC_TIME_SETTING_ORDER_BASE(cmd, tsf_bsae_port);
+		SET_H2CCMD_MCC_TIME_SETTING_ORDER_SYNC(cmd, tsf_sync_port);
 	} else {
 		/* start time offset */
-		SET_H2CCMD_MCC_TIME_SETTING_START_TIME(cmd, pmccobjpriv->start_time);
+		SET_H2CCMD_MCC_TIME_SETTING_START_TIME(cmd, mccobjpriv->start_time);
 		/* interval */
-		SET_H2CCMD_MCC_TIME_SETTING_INTERVAL(cmd, pmccobjpriv->interval);
+		SET_H2CCMD_MCC_TIME_SETTING_INTERVAL(cmd, mccobjpriv->interval);
 		/* Early time to inform driver by C2H before switch channel */
 		SET_H2CCMD_MCC_TIME_SETTING_EARLY_SWITCH_RPT(cmd, swchannel_early_time);
 	}
@@ -1541,7 +1790,7 @@ static void rtw_hal_set_mcc_IQK_offload_cmd(PADAPTER padapter)
 	u8 rf_path_idx = 0, last_order = MAX_MCC_NUM - 1, last_rf_path_index = total_rf_path - 1;
 
 	/* by order, last order & last_rf_path_index must set ready bit = 1 */
-	for (i = 0; i < dvobj->iface_nums; i++) {
+	for (i = 0; i < MAX_MCC_NUM; i++) {
 		iface = pmccobjpriv->iface[i];
 		if (iface == NULL)
 			continue;
@@ -1623,6 +1872,9 @@ static void rtw_hal_set_mcc_macid_cmd(PADAPTER padapter)
 			continue;
 
 		pmccadapriv = &iface->mcc_adapterpriv;
+		if (pmccadapriv->role == MCC_ROLE_MAX)
+			continue;
+		
 		order = pmccadapriv->order;
 		bitmap = pmccadapriv->mcc_macid_bitmap;
 
@@ -1704,13 +1956,14 @@ static void rtw_hal_set_mcc_ctrl_cmd_v2(PADAPTER padapter, u8 stop)
 	u8 dis_sw_retry = 0, null_early_time=2, tsfx = 0, update_parm = 0;
 	struct dvobj_priv *dvobj = adapter_to_dvobj(padapter);
 	struct mcc_obj_priv *pmccobjpriv = &(dvobj->mcc_objpriv);
+	struct mcc_adapter_priv *mccadapriv = NULL;
 	struct mlme_ext_priv *pmlmeext = NULL;
 	struct mlme_ext_info *pmlmeinfo = NULL;
 	_adapter *iface = NULL;
 
 	RTW_INFO(FUNC_ADPT_FMT": stop=%d\n", FUNC_ADPT_ARG(padapter), stop);
 
-	for (i = 0; i < dvobj->iface_nums; i++) {
+	for (i = 0; i < MAX_MCC_NUM; i++) {
 		iface = pmccobjpriv->iface[i];
 		if (iface == NULL)
 			continue;
@@ -1720,10 +1973,11 @@ static void rtw_hal_set_mcc_ctrl_cmd_v2(PADAPTER padapter, u8 stop)
 				continue;
 		}
 
+		mccadapriv = &iface->mcc_adapterpriv;
+		order = mccadapriv->order;
 
-		order = iface->mcc_adapterpriv.order;
 		if (!stop)
-			totalnum = dvobj->iface_nums;
+			totalnum = MAX_MCC_NUM;
 		else
 			totalnum = 0xff; /* 0xff means stop */
 
@@ -1731,8 +1985,8 @@ static void rtw_hal_set_mcc_ctrl_cmd_v2(PADAPTER padapter, u8 stop)
 		center_ch = rtw_get_center_ch(pmlmeext->cur_channel, pmlmeext->cur_bwmode, pmlmeext->cur_ch_offset);
 		pri_ch_idx = get_pri_ch_idx_by_adapter(center_ch, pmlmeext->cur_channel, pmlmeext->cur_bwmode, pmlmeext->cur_ch_offset);
 		bw = pmlmeext->cur_bwmode;
-		duration = iface->mcc_adapterpriv.mcc_duration;
-		role = iface->mcc_adapterpriv.role;
+		duration = mccadapriv->mcc_duration;
+		role = mccadapriv->role;
 
 		incurch = _FALSE;
 		dis_sw_retry = _TRUE;
@@ -1752,10 +2006,10 @@ static void rtw_hal_set_mcc_ctrl_cmd_v2(PADAPTER padapter, u8 stop)
 			break;
 		}
 
-		null_early_time = iface->mcc_adapterpriv.null_early;
+		null_early_time = mccadapriv->null_early;
 
 		c2hrpt = MCC_C2H_REPORT_ALL_STATUS;
-		tsfx = iface->hw_port;
+		tsfx = rtw_hal_get_port(iface);
 		update_parm = 0;
 
 		SET_H2CCMD_MCC_CTRL_V2_ORDER(cmd, order);
@@ -1798,6 +2052,7 @@ static void rtw_hal_set_mcc_ctrl_cmd_v1(PADAPTER padapter, u8 stop)
 	u8 duration = 0, role = 0, incurch = 0, rfetype = 0, distxnull = 0, c2hrpt = 0, chscan = 0;
 	struct dvobj_priv *dvobj = adapter_to_dvobj(padapter);
 	struct mcc_obj_priv *pmccobjpriv = &(dvobj->mcc_objpriv);
+	struct mcc_adapter_priv *mccadapriv = NULL;
 	struct mlme_ext_priv *pmlmeext = NULL;
 	struct mlme_ext_info *pmlmeinfo = NULL;
 	HAL_DATA_TYPE *pHalData = GET_HAL_DATA(padapter);
@@ -1805,7 +2060,7 @@ static void rtw_hal_set_mcc_ctrl_cmd_v1(PADAPTER padapter, u8 stop)
 
 	RTW_INFO(FUNC_ADPT_FMT": stop=%d\n", FUNC_ADPT_ARG(padapter), stop);
 
-	for (i = 0; i < dvobj->iface_nums; i++) {
+	for (i = 0; i < MAX_MCC_NUM; i++) {
 		iface = pmccobjpriv->iface[i];
 		if (iface == NULL)
 			continue;
@@ -1815,10 +2070,11 @@ static void rtw_hal_set_mcc_ctrl_cmd_v1(PADAPTER padapter, u8 stop)
 				continue;
 		}
 
+		mccadapriv = &iface->mcc_adapterpriv;
+		order = mccadapriv->order;
 
-		order = iface->mcc_adapterpriv.order;
 		if (!stop)
-			totalnum = dvobj->iface_nums;
+			totalnum = MAX_MCC_NUM;
 		else
 			totalnum = 0xff; /* 0xff means stop */
 
@@ -1840,8 +2096,8 @@ static void rtw_hal_set_mcc_ctrl_cmd_v1(PADAPTER padapter, u8 stop)
 		} else
 			bw80sc = HAL_PRIME_CHNL_OFFSET_DONT_CARE;
 
-		duration = iface->mcc_adapterpriv.mcc_duration;
-		role = iface->mcc_adapterpriv.role;
+		duration = mccadapriv->mcc_duration;
+		role = mccadapriv->role;
 
 		incurch = _FALSE;
 
@@ -1908,6 +2164,56 @@ static void rtw_hal_set_mcc_ctrl_cmd(PADAPTER padapter, u8 stop)
 	#endif
 }
 
+static u8 check_mcc_support(PADAPTER adapter)
+{
+	struct dvobj_priv *dvobj = adapter_to_dvobj(adapter);
+	u8 sta_linked_num = DEV_STA_LD_NUM(dvobj);
+	u8 starting_ap_num = DEV_AP_STARTING_NUM(dvobj);
+	u8 ap_num = DEV_AP_NUM(dvobj);
+	u8 ret = _FAIL;
+
+	RTW_INFO("[MCC] sta_linked_num=%d, starting_ap_num=%d,ap_num=%d\n",
+		sta_linked_num, starting_ap_num, ap_num);
+
+	/* case for sta + sta case  */
+	if (sta_linked_num == MAX_MCC_NUM) {
+		ret = _SUCCESS;
+		goto exit;
+	}
+
+	/* case for starting AP + linked sta */
+	if ((starting_ap_num + sta_linked_num) == MAX_MCC_NUM) {
+		ret = _SUCCESS;
+		goto exit;
+	}
+
+	/* case for started AP + linked sta */
+	if ((ap_num + sta_linked_num) == MAX_MCC_NUM) {
+		ret = _SUCCESS;
+		goto exit;
+	}
+
+exit:
+		return ret;
+}
+
+static void rtw_hal_mcc_start_prehdl(PADAPTER padapter)
+{
+	struct dvobj_priv *dvobj = adapter_to_dvobj(padapter);
+	_adapter *iface = NULL;
+	struct mcc_adapter_priv *mccadapriv = NULL;
+	u8 i = 1;
+
+	for (i = 0; i < dvobj->iface_nums; i++) {
+		iface = dvobj->padapters[i];
+		if (iface == NULL)
+			continue;
+
+		mccadapriv = &iface->mcc_adapterpriv;
+		mccadapriv->role = MCC_ROLE_MAX;
+	}
+}
+
 static u8 rtw_hal_set_mcc_start_setting(PADAPTER padapter, u8 status)
 {
 	u8 ret = _SUCCESS, enable_tsf_auto_sync = _FALSE;
@@ -1920,14 +2226,12 @@ static u8 rtw_hal_set_mcc_start_setting(PADAPTER padapter, u8 status)
 		LeaveAllPowerSaveModeDirect(padapter);
 	}
 
-	if (dvobj->iface_nums > MAX_MCC_NUM) {
-		RTW_INFO("%s: current iface num(%d) > MAX_MCC_NUM(%d)\n", __func__, dvobj->iface_nums, MAX_MCC_NUM);
+	if (check_mcc_support(padapter) == _FAIL) {
 		ret = _FAIL;
 		goto exit;
 	}
 
-	/* update mi_state to decide STA+STA or AP+STA */
-	rtw_mi_status(padapter, &mcc_mstate);
+	rtw_hal_mcc_start_prehdl(padapter);
 
 	/* configure mcc switch channel setting */
 	rtw_hal_config_mcc_switch_channel_setting(padapter);
@@ -1958,8 +2262,13 @@ static u8 rtw_hal_set_mcc_start_setting(PADAPTER padapter, u8 status)
 	/* set mac id to fw */
 	rtw_hal_set_mcc_macid_cmd(padapter);
 
-	/* disable tsf auto sync */
-	rtw_hal_set_hwreg(padapter, HW_VAR_TSF_AUTO_SYNC, &enable_tsf_auto_sync);
+	if (dvobj->p0_tsf.sync_port != MAX_HW_PORT ) {
+		/* disable tsf auto sync */
+		RTW_INFO("[MCC] disable HW TSF sync\n");
+		rtw_hal_set_hwreg(padapter, HW_VAR_TSF_AUTO_SYNC, &enable_tsf_auto_sync);
+	} else {
+		RTW_INFO("[MCC] already disable HW TSF sync\n");
+	}
 
 	/* set mcc parameter  */
 	rtw_hal_set_mcc_ctrl_cmd(padapter, _FALSE);
@@ -1971,7 +2280,9 @@ exit:
 static void rtw_hal_set_mcc_stop_setting(PADAPTER padapter, u8 status)
 {
 	struct dvobj_priv *dvobj = adapter_to_dvobj(padapter);
+	struct mcc_obj_priv *mccobjpriv = &dvobj->mcc_objpriv;
 	_adapter *iface = NULL;
+	struct mcc_adapter_priv *mccadapriv = NULL;
 	u8 i = 0;
 	/*
 	 * when adapter disconnect, stop mcc mod
@@ -1981,10 +2292,13 @@ static void rtw_hal_set_mcc_stop_setting(PADAPTER padapter, u8 status)
 	switch (status) {
 	default:
 		/* let fw switch to other interface channel */
-		for (i = 0; i < dvobj->iface_nums; i++) {
-			iface = dvobj->padapters[i];
+		for (i = 0; i < MAX_MCC_NUM; i++) {
+			iface = mccobjpriv->iface[i];
 			if (iface == NULL)
 				continue;
+
+			mccadapriv = &iface->mcc_adapterpriv;
+
 			/* use other interface to set cmd */
 			if (iface != padapter) {
 				rtw_hal_set_mcc_ctrl_cmd(iface, _TRUE);
@@ -2020,81 +2334,87 @@ static void rtw_hal_mcc_stop_posthdl(PADAPTER padapter)
 {
 	struct dvobj_priv *dvobj = adapter_to_dvobj(padapter);
 	struct mcc_obj_priv *mccobjpriv = &(adapter_to_dvobj(padapter)->mcc_objpriv);
+	struct mcc_adapter_priv *mccadapriv = NULL;
 	_adapter *iface = NULL;
 	PHAL_DATA_TYPE hal;
-	struct dm_struct *p_dm_odm;
 	u8 i = 0;
 	u8 enable_rx_bar = _FALSE;
 
-	for (i = 0; i < dvobj->iface_nums; i++) {
-		iface = dvobj->padapters[i];
+	hal = GET_HAL_DATA(padapter);
+
+	for (i = 0; i < MAX_MCC_NUM; i++) {
+		iface = mccobjpriv->iface[i];
 		if (iface == NULL)
 			continue;
+
 		/* release network queue */
 		rtw_netif_wake_queue(iface->pnetdev);
-		iface->mcc_adapterpriv.mcc_tx_bytes_from_kernel = 0;
-		iface->mcc_adapterpriv.mcc_last_tx_bytes_from_kernel = 0;
-		iface->mcc_adapterpriv.mcc_tx_bytes_to_port = 0;
+		mccadapriv = &iface->mcc_adapterpriv;
+		mccadapriv->mcc_tx_bytes_from_kernel = 0;
+		mccadapriv->mcc_last_tx_bytes_from_kernel = 0;
+		mccadapriv->mcc_tx_bytes_to_port = 0;
 
-		if (iface->mcc_adapterpriv.role == MCC_ROLE_GO)
+		if (mccadapriv->role == MCC_ROLE_GO)
 			rtw_hal_mcc_remove_go_p2p_ie(iface);
 
 #ifdef CONFIG_TDLS
 		if (MLME_IS_STA(iface)) {
-			if (iface->mcc_adapterpriv.backup_tdls_en) {
+			if (mccadapriv->backup_tdls_en) {
 				rtw_enable_tdls_func(iface);
 				RTW_INFO("%s: Disable MCC, Enable TDLS\n", __func__);
-				iface->mcc_adapterpriv.backup_tdls_en = _FALSE;
+				mccadapriv->backup_tdls_en = _FALSE;
 			}
 		}
 #endif /* CONFIG_TDLS */
-	}
 
-	hal = GET_HAL_DATA(padapter);
-	p_dm_odm = &hal->odmpriv;
-	phydm_dm_early_init(p_dm_odm);
+		mccadapriv->role = MCC_ROLE_MAX;
+		mccobjpriv->iface[i] = NULL;
+	}
 
 	/* force switch channel */
 	hal->current_channel = 0;
 	hal->current_channel_bw = CHANNEL_WIDTH_MAX;
+	#ifdef CONFIG_MCC_PHYDM_OFFLOAD
+	rtw_hal_mcc_cfg_phydm(padapter, MCC_CFG_PHYDM_STOP, NULL);
+	#endif
 }
 
 static void rtw_hal_mcc_start_posthdl(PADAPTER padapter)
 {
 	struct dvobj_priv *dvobj = adapter_to_dvobj(padapter);
 	struct mcc_obj_priv *mccobjpriv = &(adapter_to_dvobj(padapter)->mcc_objpriv);
+	struct mcc_adapter_priv *mccadapriv = NULL;
+	struct pwrctrl_priv	*pwrpriv = adapter_to_pwrctl(padapter);
 	_adapter *iface = NULL;
-	PHAL_DATA_TYPE hal;
-	struct dm_struct *p_dm_odm;
-	struct _hal_rf_ *p_rf;
-	u32 support_ability = 0;
-	u8 i = 0;
+	u8 i = 0, order = 0;
 	u8 enable_rx_bar = _TRUE;
 
-	for (i = 0; i < dvobj->iface_nums; i++) {
-		iface = dvobj->padapters[i];
+	for (i = 0; i < MAX_MCC_NUM; i++) {
+		iface = mccobjpriv->iface[i];
 		if (iface == NULL)
 			continue;
-		iface->mcc_adapterpriv.mcc_tx_bytes_from_kernel = 0;
-		iface->mcc_adapterpriv.mcc_last_tx_bytes_from_kernel = 0;
-		iface->mcc_adapterpriv.mcc_tx_bytes_to_port = 0;
+
+		mccadapriv = &iface->mcc_adapterpriv;
+		if (mccadapriv->role == MCC_ROLE_MAX)
+			continue;
+		
+		mccadapriv->mcc_tx_bytes_from_kernel = 0;
+		mccadapriv->mcc_last_tx_bytes_from_kernel = 0;
+		mccadapriv->mcc_tx_bytes_to_port = 0;
 
 #ifdef CONFIG_TDLS
 		if (MLME_IS_STA(iface)) {
 			if (rtw_is_tdls_enabled(iface)) {
-				iface->mcc_adapterpriv.backup_tdls_en = _TRUE;
+				mccadapriv->backup_tdls_en = _TRUE;
 				rtw_disable_tdls_func(iface, _TRUE);
 				RTW_INFO("%s: Enable MCC, Disable TDLS\n", __func__);
 			}
 		}
 #endif /* CONFIG_TDLS */
 	}
-
-	hal = GET_HAL_DATA(padapter);
-	p_dm_odm = &hal->odmpriv;
-	p_rf = &(p_dm_odm->rf_table);
-	mccobjpriv->backup_phydm_ability = p_rf->rf_supportability;
-	p_rf->rf_supportability = p_rf->rf_supportability & (~HAL_RF_TX_PWR_TRACK) & (~HAL_RF_IQK);
+	#ifdef CONFIG_MCC_PHYDM_OFFLOAD
+	rtw_hal_mcc_cfg_phydm(padapter, MCC_CFG_PHYDM_START, NULL);
+	#endif
 }
 
 /*
@@ -2194,6 +2514,9 @@ static void rtw_hal_mcc_sw_ch_fw_notify_hdl(PADAPTER padapter)
 
 	for (i = 0; i < iface_num; i++) {
 		iface = pdvobjpriv->padapters[i];
+		if (iface == NULL)
+			continue;
+
 		if (cur_op_ch == iface->mlmeextpriv.cur_channel) {
 			cur_iface = iface;
 			cur_mccadapriv = &cur_iface->mcc_adapterpriv;
@@ -2289,6 +2612,9 @@ static void rtw_hal_mcc_update_noa_start_time_hdl(PADAPTER padapter, u8 buflen, 
 			continue;
 		
 		pmccadapriv = &iface->mcc_adapterpriv;
+		if (pmccadapriv->role == MCC_ROLE_MAX)
+			continue;
+
 		/* GO & channel match */
 		if (pmccadapriv->role == MCC_ROLE_GO) {
 			/* convert GO TBTT from FW to noa_start_time(TU convert to mircosecond) */
@@ -2314,29 +2640,143 @@ static void rtw_hal_mcc_update_noa_start_time_hdl(PADAPTER padapter, u8 buflen, 
 
 }
 
-static void rtw_hal_mcc_rpt_tsf_hdl(PADAPTER padapter, u8 buflen, u8 *tmpBuf)
+static u8 mcc_get_reg_hdl(PADAPTER adapter, const u8 *val)
 {
-	struct dvobj_priv *pdvobjpriv = adapter_to_dvobj(padapter);
-	struct mcc_obj_priv *pmccobjpriv = &(adapter_to_dvobj(padapter)->mcc_objpriv);
-	struct submit_ctx *mcc_tsf_req_sctx = &pmccobjpriv->mcc_tsf_req_sctx;
-	struct mcc_adapter_priv *pmccadapriv = NULL;
-	u8 iface_num = pdvobjpriv->iface_nums;
-	static u8 order = 0;
+	struct dvobj_priv *dvobj = adapter_to_dvobj(adapter);
+	struct mcc_obj_priv *mccobjpriv = &(dvobj->mcc_objpriv);
+	struct hal_com_data *hal = GET_HAL_DATA(adapter);
+	_adapter *cur_iface = NULL;
+	u8 ret = _SUCCESS;
+	u8 cur_order = 0;
 
-	pmccadapriv = &pmccobjpriv->iface[order]->mcc_adapterpriv;
-	pmccadapriv->tsf = RTW_GET_LE64(tmpBuf + 2);
+	u16 dbg_reg[DBG_MCC_REG_NUM] = {0x4d4,0x522,0xc50,0xe50};
+	u16 dbg_rf_reg[DBG_MCC_RF_REG_NUM] = {0x18};
+	u8 i;
+	u32 reg_val;
+	u8 path = 0, path_nums = 0;
 
-
-	if (0) {
-		RTW_INFO("TSF(order:%d):%llu\n", pmccadapriv->order, pmccadapriv->tsf);
+	if (!rtw_hal_check_mcc_status(adapter, MCC_STATUS_DOING_MCC)) {
+		ret = _FAIL;
+		goto exit;
 	}
 
-	if (pmccadapriv->order == (iface_num - 1)) {
-		rtw_sctx_done(&mcc_tsf_req_sctx);
-		order = 0;
-	} else
-		order ++;
+	if (!val)
+		cur_order = 0xff;
+	else
+		cur_order = *val;
+
+	if (cur_order >= MAX_MCC_NUM && cur_order != 0xff) {
+		RTW_ERR("%s: cur_order=%d\n", __func__, cur_order);
+		ret = _FAIL;
+		goto exit;
+	}
+
+	path_nums = hal->NumTotalRFPath;
+	if (cur_order == 0xff)
+		cur_iface = adapter;
+	else
+		cur_iface = mccobjpriv->iface[cur_order];
+
+	if (!cur_iface) {
+		RTW_ERR("%s: cur_iface = NULL,  cur_order=%d\n", __func__, cur_order);
+		ret = _FAIL;
+		goto exit;
+	}
+
+	_enter_critical_mutex(&mccobjpriv->mcc_dbg_reg_mutex, NULL);
+	if (!RTW_CANNOT_IO(adapter)) {
+		/* RTW_INFO("=================================\n");
+		RTW_INFO(ADPT_FMT": cur_order:%d\n", ADPT_ARG(cur_iface), cur_order); */
 		
+		for (i = 0; i < ARRAY_SIZE(dbg_reg); i++) {
+			reg_val = rtw_read32(adapter, dbg_reg[i]);
+			mccobjpriv->dbg_reg[i] = dbg_reg[i];
+			mccobjpriv->dbg_reg_val[i] = reg_val;
+			/* RTW_PRINT("REG_%X:0x%08x\n", dbg_reg[i], reg_val); */
+		}
+		for (i = 0; i < ARRAY_SIZE(dbg_rf_reg); i++) {
+			for (path = 0; path < path_nums; path++) {
+				reg_val = rtw_hal_read_rfreg(adapter, path, dbg_rf_reg[i], 0xffffffff);
+				/* RTW_PRINT("RF_PATH_%d_REG_%X:0x%08x\n",
+					path, dbg_rf_reg[i], reg_val); */
+				mccobjpriv->dbg_rf_reg[i] = dbg_rf_reg[i];
+				mccobjpriv->dbg_rf_reg_val[i][path] = reg_val;
+			}
+		}
+	}
+	_exit_critical_mutex(&mccobjpriv->mcc_dbg_reg_mutex, NULL);
+
+exit:
+	return ret;
+}
+
+static u8 mcc_get_reg_cmd(_adapter *adapter, u8 cur_order)
+{
+	struct cmd_obj *cmdobj;
+	struct drvextra_cmd_parm *pdrvextra_cmd_parm;
+	struct cmd_priv *pcmdpriv = &adapter->cmdpriv;
+	u8 *mcc_cur_order = NULL;
+	u8 res = _SUCCESS;
+
+	
+	cmdobj = (struct cmd_obj *)rtw_zmalloc(sizeof(struct cmd_obj));
+	if (cmdobj == NULL) {
+		res = _FAIL;
+		goto exit;
+	}
+
+	pdrvextra_cmd_parm = (struct drvextra_cmd_parm *)rtw_zmalloc(sizeof(struct drvextra_cmd_parm));
+	if (pdrvextra_cmd_parm == NULL) {
+		rtw_mfree((u8 *)cmdobj, sizeof(struct cmd_obj));
+		res = _FAIL;
+		goto exit;
+	}
+
+	mcc_cur_order = rtw_zmalloc(sizeof(u8));
+	if (mcc_cur_order == NULL) {
+		rtw_mfree((u8 *)cmdobj, sizeof(struct cmd_obj));
+		rtw_mfree((u8 *)pdrvextra_cmd_parm, sizeof(struct drvextra_cmd_parm));
+		res = _FAIL;
+		goto exit;
+	}
+
+	pdrvextra_cmd_parm->ec_id = MCC_CMD_WK_CID;
+	pdrvextra_cmd_parm->type = MCC_GET_DBG_REG_WK_CID;
+	pdrvextra_cmd_parm->size = 1;
+	pdrvextra_cmd_parm->pbuf = mcc_cur_order;
+
+	_rtw_memcpy(mcc_cur_order, &cur_order, 1);
+
+	init_h2fwcmd_w_parm_no_rsp(cmdobj, pdrvextra_cmd_parm, GEN_CMD_CODE(_Set_Drv_Extra));
+	res = rtw_enqueue_cmd(pcmdpriv, cmdobj);
+
+exit:
+	return res;
+}
+
+static void rtw_hal_mcc_rpt_tsf_hdl(PADAPTER padapter, u8 buflen, u8 *tmpBuf)
+{
+	struct dvobj_priv *dvobjpriv = adapter_to_dvobj(padapter);
+	struct mcc_obj_priv *mccobjpriv = &(adapter_to_dvobj(padapter)->mcc_objpriv);
+	struct submit_ctx *mcc_tsf_req_sctx = &mccobjpriv->mcc_tsf_req_sctx;
+	struct mcc_adapter_priv *mccadapriv = NULL;
+	_adapter *iface = NULL;
+	u8 order = 0;
+
+	order = mccobjpriv->mcc_tsf_req_sctx_order;
+	iface = mccobjpriv->iface[order];
+	mccadapriv = &iface->mcc_adapterpriv;
+	mccadapriv->tsf = RTW_GET_LE64(tmpBuf + 2);
+
+
+	if (0)
+		RTW_INFO(FUNC_ADPT_FMT" TSF(order:%d):0x%02llx\n", FUNC_ADPT_ARG(iface), mccadapriv->order, mccadapriv->tsf);
+
+	if (mccadapriv->order == (MAX_MCC_NUM - 1))
+		rtw_sctx_done(&mcc_tsf_req_sctx);
+	else
+		mccobjpriv->mcc_tsf_req_sctx_order ++;
+
 }
 
 /**
@@ -2359,6 +2799,7 @@ void rtw_hal_mcc_c2h_handler(PADAPTER padapter, u8 buflen, u8 *tmpBuf)
 		return;
 	}
 
+	_enter_critical_bh(&pmccobjpriv->mcc_lock, &irqL);
 	pmccobjpriv->mcc_c2h_status = tmpBuf[0];
 	pmccobjpriv->current_order = tmpBuf[1];
 	cur_adapter = pmccobjpriv->iface[pmccobjpriv->current_order];
@@ -2368,6 +2809,7 @@ void rtw_hal_mcc_c2h_handler(PADAPTER padapter, u8 buflen, u8 *tmpBuf)
 	rtw_set_oper_ch(cur_adapter, cur_ch);
 	rtw_set_oper_bw(cur_adapter, cur_bw);
 	rtw_set_oper_choffset(cur_adapter, cur_ch_offset);
+	_exit_critical_bh(&pmccobjpriv->mcc_lock, &irqL);
 
 	if (0)
 		RTW_INFO("%d,order:%d,TSF:0x%llx\n", tmpBuf[0], tmpBuf[1], RTW_GET_LE64(tmpBuf + 2));
@@ -2377,6 +2819,7 @@ void rtw_hal_mcc_c2h_handler(PADAPTER padapter, u8 buflen, u8 *tmpBuf)
 		_enter_critical_bh(&pmccobjpriv->mcc_lock, &irqL);
 		pmccobjpriv->cur_mcc_success_cnt++;
 		rtw_hal_mcc_upadate_chnl_bw(cur_adapter, cur_ch, cur_ch_offset, cur_bw, _FALSE);
+		mcc_get_reg_cmd(padapter, pmccobjpriv->current_order);
 		_exit_critical_bh(&pmccobjpriv->mcc_lock, &irqL);
 		break;
 	case MCC_RPT_TXNULL_FAIL:
@@ -2398,7 +2841,7 @@ void rtw_hal_mcc_c2h_handler(PADAPTER padapter, u8 buflen, u8 *tmpBuf)
 		pmccobjpriv->mcc_tolerance_time = MCC_TOLERANCE_TIME;
 		_exit_critical_bh(&pmccobjpriv->mcc_lock, &irqL);
 
-		RTW_INFO("[MCC] MCC ready (time:%d)\n", pmccobjpriv->mcc_launch_time);
+		RTW_INFO("[MCC] MCC ready\n");
 		rtw_sctx_done(&mcc_sctx);
 		break;
 	case MCC_RPT_SWICH_CHANNEL_NOTIFY:
@@ -2421,13 +2864,12 @@ void rtw_hal_mcc_c2h_handler(PADAPTER padapter, u8 buflen, u8 *tmpBuf)
 void rtw_hal_mcc_update_parameter(PADAPTER padapter, u8 force_update)
 {	
 	struct dvobj_priv *dvobj = adapter_to_dvobj(padapter);
-	struct mcc_obj_priv *pmccobjpriv = &(dvobj->mcc_objpriv);
+	struct mcc_obj_priv *mccobjpriv = &(dvobj->mcc_objpriv);
 	u8 cmd[H2C_MCC_TIME_SETTING_LEN] = {0};
 	u8 swchannel_early_time = MCC_SWCH_FW_EARLY_TIME;
+	u8 ap_num = DEV_AP_NUM(dvobj);	
 
-	rtw_mi_status(padapter, &mcc_mstate);
-
-	if (MSTATE_AP_NUM(&mcc_mstate) == 0) {
+	if (ap_num == 0) {
 		u8 need_update = _FALSE;
 		u8 start_time_offset = 0, interval = 0, duration = 0;
 
@@ -2436,9 +2878,9 @@ void rtw_hal_mcc_update_parameter(PADAPTER padapter, u8 force_update)
 		if (need_update == _FALSE)
 			return;
 		
-		start_time_offset = pmccobjpriv->start_time;
-		interval = pmccobjpriv->interval;
-		duration = pmccobjpriv->iface[0]->mcc_adapterpriv.mcc_duration;
+		start_time_offset = mccobjpriv->start_time;
+		interval = mccobjpriv->interval;
+		duration = mccobjpriv->iface[0]->mcc_adapterpriv.mcc_duration;
 
 		SET_H2CCMD_MCC_TIME_SETTING_START_TIME(cmd, start_time_offset);
 		SET_H2CCMD_MCC_TIME_SETTING_INTERVAL(cmd, interval);
@@ -2446,7 +2888,9 @@ void rtw_hal_mcc_update_parameter(PADAPTER padapter, u8 force_update)
 		SET_H2CCMD_MCC_TIME_SETTING_UPDATE(cmd, _TRUE);
 		SET_H2CCMD_MCC_TIME_SETTING_ORDER0_DURATION(cmd, duration);
 	} else {
-		u8 policy_idx = pmccobjpriv->policy_index;
+		PADAPTER order0_iface = NULL;
+		PADAPTER order1_iface = NULL;
+		u8 policy_idx = mccobjpriv->policy_index;
 		u8 duration = mcc_switch_channel_policy_table[policy_idx][MCC_DURATION_IDX];
 		u8 tsf_sync_offset = mcc_switch_channel_policy_table[policy_idx][MCC_TSF_SYNC_OFFSET_IDX];
 		u8 start_time_offset = mcc_switch_channel_policy_table[policy_idx][MCC_START_TIME_OFFSET_IDX];
@@ -2455,12 +2899,20 @@ void rtw_hal_mcc_update_parameter(PADAPTER padapter, u8 force_update)
 		u8 guard_offset1 = mcc_switch_channel_policy_table[policy_idx][MCC_GUARD_OFFSET1_IDX];
 		u8 order0_duration = 0;
 		u8 i = 0;
+		enum _hw_port tsf_bsae_port = MAX_HW_PORT;
+		enum _hw_port tsf_sync_port = MAX_HW_PORT;
 
 		RTW_INFO("%s: policy_idx=%d\n", __func__, policy_idx);
 
+		order0_iface = mccobjpriv->iface[0];
+		order1_iface = mccobjpriv->iface[1];
+
 		/* GO/AP is order 0, GC/STA is order 1 */
-		order0_duration = pmccobjpriv->iface[0]->mcc_adapterpriv.mcc_duration = interval - duration;
-		pmccobjpriv->iface[1]->mcc_adapterpriv.mcc_duration = duration;
+		order0_duration = order0_iface->mcc_adapterpriv.mcc_duration = interval - duration;
+		order0_iface->mcc_adapterpriv.mcc_duration = duration;
+
+		tsf_bsae_port = rtw_hal_get_port(order1_iface);
+		tsf_sync_port = rtw_hal_get_port(order0_iface);
 
 		/* update IE */
 		for (i = 0; i < dvobj->iface_nums; i++) {
@@ -2472,7 +2924,7 @@ void rtw_hal_mcc_update_parameter(PADAPTER padapter, u8 force_update)
 				continue;
 		
 			mccadapriv = &iface->mcc_adapterpriv;
-			if (mccadapriv == NULL)
+			if (mccadapriv->role == MCC_ROLE_MAX)
 				continue;
 			
 			if (mccadapriv->role == MCC_ROLE_GO)
@@ -2491,8 +2943,8 @@ void rtw_hal_mcc_update_parameter(PADAPTER padapter, u8 force_update)
 		/* Early time to inform driver by C2H before switch channel */
 		SET_H2CCMD_MCC_TIME_SETTING_EARLY_SWITCH_RPT(cmd, swchannel_early_time);
 		/* Port0 sync from Port1, not support multi-port */
-		SET_H2CCMD_MCC_TIME_SETTING_ORDER_BASE(cmd, HW_PORT1);
-		SET_H2CCMD_MCC_TIME_SETTING_ORDER_SYNC(cmd, HW_PORT0);
+		SET_H2CCMD_MCC_TIME_SETTING_ORDER_BASE(cmd, tsf_bsae_port);
+		SET_H2CCMD_MCC_TIME_SETTING_ORDER_SYNC(cmd, tsf_sync_port);
 		SET_H2CCMD_MCC_TIME_SETTING_UPDATE(cmd, _TRUE);
 		SET_H2CCMD_MCC_TIME_SETTING_ORDER0_DURATION(cmd, order0_duration);
 	}
@@ -2509,19 +2961,19 @@ void rtw_hal_mcc_sw_status_check(PADAPTER padapter)
 	struct dvobj_priv *dvobj = adapter_to_dvobj(padapter);
 	struct mcc_obj_priv *pmccobjpriv = &(dvobj->mcc_objpriv);
 	struct pwrctrl_priv	*pwrpriv = dvobj_to_pwrctl(dvobj);
+	struct mcc_adapter_priv *mccadapriv = NULL;
 	_adapter *iface = NULL;
 	u8 cur_cnt = 0, prev_cnt = 0, diff_cnt = 0, check_ret = _FAIL, threshold = 0;
 	u8 policy_idx = pmccobjpriv->policy_index;
 	u8 noa_enable = _FALSE;
 	u8 i = 0;
 	_irqL irqL;
+	u8 ap_num = DEV_AP_NUM(dvobj);	
 
 /* #define MCC_RESTART 1 */
 
 	if (!MCC_EN(padapter))
 		return;
-
-	rtw_mi_status(padapter, &mcc_mstate);
 
 	_enter_critical_mutex(&pmccobjpriv->mcc_mutex, NULL);
 
@@ -2530,13 +2982,20 @@ void rtw_hal_mcc_sw_status_check(PADAPTER padapter)
 		/* check noa enable or not */
 		for (i = 0; i < dvobj->iface_nums; i++) {
 			iface = dvobj->padapters[i];
+			if (iface == NULL)
+				continue;
+
+			mccadapriv = &iface->mcc_adapterpriv;
+			if (mccadapriv->role == MCC_ROLE_MAX)
+				continue;
+			
 			if (iface->wdinfo.p2p_ps_mode == P2P_PS_NOA) {
 				noa_enable = _TRUE;
 				break;
 			}
 		}		
 
-		if (!noa_enable && MSTATE_AP_NUM(&mcc_mstate) == 0)
+		if (!noa_enable && ap_num == 0)
 			rtw_hal_mcc_update_parameter(padapter, _FALSE);
 
 		threshold = pmccobjpriv->mcc_stop_threshold;
@@ -2602,10 +3061,11 @@ void rtw_hal_mcc_sw_status_check(PADAPTER padapter)
  */
 u8 rtw_hal_mcc_change_scan_flag(PADAPTER padapter, u8 *ch, u8 *bw, u8 *offset)
 {
-	u8 need_ch_setting_union = _TRUE, i = 0, flags = 0, role = 0;
+	u8 need_ch_setting_union = _TRUE, i = 0, flags = 0, back_op = _FALSE;
 	struct dvobj_priv *dvobj = adapter_to_dvobj(padapter);
-	struct mcc_adapter_priv *pmccadapriv = NULL;
-	struct mlme_ext_priv *pmlmeext = NULL;
+	struct mcc_adapter_priv *mccadapriv = NULL;
+	struct mlme_ext_priv *mlmeext = NULL;
+	_adapter *iface = NULL;
 
 	if (!MCC_EN(padapter))
 		goto exit;
@@ -2613,47 +3073,45 @@ u8 rtw_hal_mcc_change_scan_flag(PADAPTER padapter, u8 *ch, u8 *bw, u8 *offset)
 	if (!rtw_hal_check_mcc_status(padapter, MCC_STATUS_NEED_MCC))
 		goto exit;
 
+	/* disable PS_ANNC & TX_RESUME for all interface */
+	/* ToDo: TX_RESUME by interface in SCAN_BACKING_OP */
+	mlmeext = &padapter->mlmeextpriv;
+	
+	flags = mlmeext_scan_backop_flags(mlmeext);
+	if (mlmeext_chk_scan_backop_flags(mlmeext, SS_BACKOP_PS_ANNC))
+		flags &= ~SS_BACKOP_PS_ANNC;
+
+	if (mlmeext_chk_scan_backop_flags(mlmeext, SS_BACKOP_TX_RESUME))
+		flags &= ~SS_BACKOP_TX_RESUME;
+
+	mlmeext_assign_scan_backop_flags(mlmeext, flags);
+
 	for (i = 0; i < dvobj->iface_nums; i++) {
-		if (!dvobj->padapters[i])
-				continue;
+		iface = dvobj->padapters[i];
+		if (!iface)
+			continue;
 
-		pmlmeext = &dvobj->padapters[i]->mlmeextpriv;
-		pmccadapriv = &dvobj->padapters[i]->mcc_adapterpriv;
-		role = pmccadapriv->role;
+		mlmeext = &iface->mlmeextpriv;
 
-		switch (role) {
-		case MCC_ROLE_AP:
-		case MCC_ROLE_GO:
-			*ch = pmlmeext->cur_channel;
-			*bw = pmlmeext->cur_bwmode;
-			*offset = pmlmeext->cur_ch_offset;
-			need_ch_setting_union = _FALSE;
-			break;
-		case MCC_ROLE_STA:
-		case MCC_ROLE_GC:
-			if (dvobj->padapters[i] != padapter) {
-				*ch = pmlmeext->cur_channel;
-				*bw = pmlmeext->cur_bwmode;
-				*offset = pmlmeext->cur_ch_offset;
-				need_ch_setting_union = _FALSE;
-			}
-			break;
-		default:
-			RTW_INFO("unknown role\n");
-			rtw_warn_on(1);
-			break;
+		if (MLME_IS_GO(iface) || MLME_IS_AP(iface))
+			back_op = _TRUE;
+		else if (MLME_IS_GC(iface) && (iface != padapter))
+			/* switch to another linked interface(GO) to receive beacon to avoid no beacon disconnect */
+			back_op = _TRUE;
+		else if (MLME_IS_STA(iface) && MLME_IS_ASOC(iface) && (iface != padapter))
+			/* switch to another linked interface(STA) to receive beacon to avoid no beacon disconnect  */
+			back_op = _TRUE;
+		else {
+			/* bypass non-linked/non-linking interface/scan interface */
+			continue;
 		}
-
-		/* check other scan flag */
-		flags = mlmeext_scan_backop_flags(pmlmeext);
-		if (mlmeext_chk_scan_backop_flags(pmlmeext, SS_BACKOP_PS_ANNC))
-			flags &= ~SS_BACKOP_PS_ANNC;
-
-		if (mlmeext_chk_scan_backop_flags(pmlmeext, SS_BACKOP_TX_RESUME))
-			flags &= ~SS_BACKOP_TX_RESUME;
-
-		mlmeext_assign_scan_backop_flags(pmlmeext, flags);
-
+		
+		if (back_op) {
+			*ch = mlmeext->cur_channel;
+			*bw = mlmeext->cur_bwmode;
+			*offset = mlmeext->cur_ch_offset;
+			need_ch_setting_union = _FALSE;
+		}
 	}
 exit:
 	return need_ch_setting_union;
@@ -2726,6 +3184,7 @@ inline u8 rtw_hal_mcc_stop_tx_bytes_to_port(PADAPTER padapter)
 static void rtw_hal_mcc_assign_scan_flag(PADAPTER padapter, u8 scan_done)
 {
 	struct dvobj_priv *dvobj = adapter_to_dvobj(padapter);
+	struct mcc_adapter_priv *mccadapriv = NULL;
 	_adapter *iface = NULL;
 	struct mlme_ext_priv *pmlmeext = NULL;
 	u8 i = 0, flags;
@@ -2735,6 +3194,13 @@ static void rtw_hal_mcc_assign_scan_flag(PADAPTER padapter, u8 scan_done)
 
 	for (i = 0; i < dvobj->iface_nums; i++) {
 		iface = dvobj->padapters[i];
+		if (iface == NULL)
+			continue;
+
+		mccadapriv = &iface->mcc_adapterpriv;
+		if (mccadapriv->role == MCC_ROLE_MAX)
+			continue;
+
 		pmlmeext = &iface->mlmeextpriv;
 		if (is_client_associated_to_ap(iface)) {
 			flags = mlmeext_scan_backop_flags_sta(pmlmeext);
@@ -2952,56 +3418,100 @@ static void rtw_hal_mcc_dump_noa_content(void *sel, PADAPTER padapter)
 	RTW_PRINT_SEL(sel, "End to dump NoA Content\n");
 }
 
+static void mcc_dump_dbg_reg(void *sel, _adapter *adapter)
+{
+	struct mcc_obj_priv *mccobjpriv = adapter_to_mccobjpriv(adapter);
+	HAL_DATA_TYPE *hal = GET_HAL_DATA(adapter);
+	u8 i,j;
+	_irqL irqL;
+
+	_enter_critical_bh(&mccobjpriv->mcc_lock, &irqL);
+	RTW_PRINT_SEL(sel, "current order=%d\n", mccobjpriv->current_order);
+	_exit_critical_bh(&mccobjpriv->mcc_lock, &irqL);
+
+	_enter_critical_mutex(&mccobjpriv->mcc_dbg_reg_mutex, NULL);
+	for (i = 0; i < ARRAY_SIZE(mccobjpriv->dbg_reg); i++)
+			RTW_PRINT_SEL(sel, "REG_0x%X:0x%08x\n", mccobjpriv->dbg_reg[i], mccobjpriv->dbg_reg_val[i]);
+
+	for (i = 0; i < ARRAY_SIZE(mccobjpriv->dbg_rf_reg); i++) {
+		for (j = 0; j < hal->NumTotalRFPath; j++)
+			RTW_PRINT_SEL(sel, "RF_PATH_%d_REG_0x%X:0x%08x\n",
+				j, mccobjpriv->dbg_rf_reg[i], mccobjpriv->dbg_rf_reg_val[i][j]);
+	}
+	_exit_critical_mutex(&mccobjpriv->mcc_dbg_reg_mutex, NULL);
+}
+
+
 void rtw_hal_dump_mcc_info(void *sel, struct dvobj_priv *dvobj)
 {
-	struct mcc_obj_priv *pmccobjpriv = &(dvobj->mcc_objpriv);
-	struct mcc_adapter_priv *pmccadapriv = NULL;
-	_adapter *iface = NULL, *adapter = NULL;
+	struct mcc_obj_priv *mccobjpriv = &(dvobj->mcc_objpriv);
+	struct mcc_adapter_priv *mccadapriv = NULL;
+	_adapter *iface = NULL, *pri_adapter = NULL;
 	struct registry_priv *regpriv = NULL;
-	u8 i = 0;
+	HAL_DATA_TYPE *hal = NULL;
+	u8 i = 0, j = 0;
+	u64 tsf[MAX_MCC_NUM] = {0};
 
 	/* regpriv is common for all adapter */
-	adapter = dvobj_get_primary_adapter(dvobj);
+	pri_adapter = dvobj_get_primary_adapter(dvobj);
+	hal = GET_HAL_DATA(pri_adapter);
 
 	RTW_PRINT_SEL(sel, "**********************************************\n");
-	RTW_PRINT_SEL(sel, "en_mcc:%d\n", MCC_EN(adapter));
+	RTW_PRINT_SEL(sel, "en_mcc:%d\n", MCC_EN(pri_adapter));
 	RTW_PRINT_SEL(sel, "primary adapter("ADPT_FMT") duration:%d%c\n",
-		ADPT_ARG(dvobj_get_primary_adapter(dvobj)), pmccobjpriv->duration, 37);
-	RTW_PRINT_SEL(sel, "runtime duration:%s\n", pmccobjpriv->enable_runtime_duration ? "enable":"disable");
-	for (i = 0; i < dvobj->iface_nums; i++) {
-		iface = dvobj->padapters[i];
-		if (!iface)
-			continue;
+		ADPT_ARG(dvobj_get_primary_adapter(dvobj)), mccobjpriv->duration, 37);
+	RTW_PRINT_SEL(sel, "runtime duration:%s\n", mccobjpriv->enable_runtime_duration ? "enable":"disable");
+	RTW_PRINT_SEL(sel, "phydm offload:%s\n", mccobjpriv->mcc_phydm_offload ? "enable":"disable");
 
-		regpriv = &iface->registrypriv;
-		pmccadapriv = &iface->mcc_adapterpriv;
-		if (pmccadapriv) {
-			u8 p2p_ps_mode = iface->wdinfo.p2p_ps_mode;
+	if (rtw_hal_check_mcc_status(pri_adapter, MCC_STATUS_DOING_MCC)) {
+		rtw_hal_mcc_rqt_tsf(pri_adapter, tsf);
 
-			RTW_PRINT_SEL(sel, "adapter mcc info:\n");
-			RTW_PRINT_SEL(sel, "ifname:%s\n", ADPT_ARG(iface));
-			RTW_PRINT_SEL(sel, "order:%d\n", pmccadapriv->order);
-			RTW_PRINT_SEL(sel, "duration:%d\n", pmccadapriv->mcc_duration);
-			RTW_PRINT_SEL(sel, "target tx bytes:%d\n", pmccadapriv->mcc_target_tx_bytes_to_port);
-			RTW_PRINT_SEL(sel, "current TP:%d\n", pmccadapriv->mcc_tp);
-			RTW_PRINT_SEL(sel, "mgmt queue macid:%d\n", pmccadapriv->mgmt_queue_macid);
-			RTW_PRINT_SEL(sel, "macid bitmap:0x%02x\n", pmccadapriv->mcc_macid_bitmap);
-			RTW_PRINT_SEL(sel, "P2P NoA:%s\n\n", p2p_ps_mode == P2P_PS_NOA ? "enable":"disable");
-			RTW_PRINT_SEL(sel, "registry data:\n");
-			RTW_PRINT_SEL(sel, "ap target tx TP(BW:20M):%d Mbps\n", regpriv->rtw_mcc_ap_bw20_target_tx_tp);
-			RTW_PRINT_SEL(sel, "ap target tx TP(BW:40M):%d Mbps\n", regpriv->rtw_mcc_ap_bw40_target_tx_tp);
-			RTW_PRINT_SEL(sel, "ap target tx TP(BW:80M):%d Mbps\n", regpriv->rtw_mcc_ap_bw80_target_tx_tp);
-			RTW_PRINT_SEL(sel, "sta target tx TP(BW:20M):%d Mbps\n", regpriv->rtw_mcc_sta_bw20_target_tx_tp);
-			RTW_PRINT_SEL(sel, "sta target tx TP(BW:40M ):%d Mbps\n", regpriv->rtw_mcc_sta_bw40_target_tx_tp);
-			RTW_PRINT_SEL(sel, "sta target tx TP(BW:80M):%d Mbps\n", regpriv->rtw_mcc_sta_bw80_target_tx_tp);
-			RTW_PRINT_SEL(sel, "single tx criteria:%d Mbps\n", regpriv->rtw_mcc_single_tx_cri);
-			if (MLME_IS_GO(iface))
-				rtw_hal_mcc_dump_noa_content(sel, iface);
-			RTW_PRINT_SEL(sel, "**********************************************\n");
+		for (i = 0; i < MAX_MCC_NUM; i++) {
+			iface = mccobjpriv->iface[i];
+			if (!iface)
+				continue;
+
+			regpriv = &iface->registrypriv;
+			mccadapriv = &iface->mcc_adapterpriv;
+
+			if (mccadapriv) {
+				u8 p2p_ps_mode = iface->wdinfo.p2p_ps_mode;
+
+				RTW_PRINT_SEL(sel, "adapter mcc info:\n");
+				RTW_PRINT_SEL(sel, "ifname:%s\n", ADPT_ARG(iface));
+				RTW_PRINT_SEL(sel, "order:%d\n", mccadapriv->order);
+				RTW_PRINT_SEL(sel, "duration:%d\n", mccadapriv->mcc_duration);
+				RTW_PRINT_SEL(sel, "target tx bytes:%d\n", mccadapriv->mcc_target_tx_bytes_to_port);
+				RTW_PRINT_SEL(sel, "current TP:%d\n", mccadapriv->mcc_tp);
+				RTW_PRINT_SEL(sel, "mgmt queue macid:%d\n", mccadapriv->mgmt_queue_macid);
+				RTW_PRINT_SEL(sel, "macid bitmap:0x%02x\n", mccadapriv->mcc_macid_bitmap);
+				RTW_PRINT_SEL(sel, "P2P NoA:%s\n\n", p2p_ps_mode == P2P_PS_NOA ? "enable":"disable");
+				RTW_PRINT_SEL(sel, "registry data:\n");
+				RTW_PRINT_SEL(sel, "ap target tx TP(BW:20M):%d Mbps\n", regpriv->rtw_mcc_ap_bw20_target_tx_tp);
+				RTW_PRINT_SEL(sel, "ap target tx TP(BW:40M):%d Mbps\n", regpriv->rtw_mcc_ap_bw40_target_tx_tp);
+				RTW_PRINT_SEL(sel, "ap target tx TP(BW:80M):%d Mbps\n", regpriv->rtw_mcc_ap_bw80_target_tx_tp);
+				RTW_PRINT_SEL(sel, "sta target tx TP(BW:20M):%d Mbps\n", regpriv->rtw_mcc_sta_bw20_target_tx_tp);
+				RTW_PRINT_SEL(sel, "sta target tx TP(BW:40M ):%d Mbps\n", regpriv->rtw_mcc_sta_bw40_target_tx_tp);
+				RTW_PRINT_SEL(sel, "sta target tx TP(BW:80M):%d Mbps\n", regpriv->rtw_mcc_sta_bw80_target_tx_tp);
+				RTW_PRINT_SEL(sel, "single tx criteria:%d Mbps\n", regpriv->rtw_mcc_single_tx_cri);
+				RTW_PRINT_SEL(sel, "HW TSF=0x%llx\n", tsf[mccadapriv->order]);
+				if (MLME_IS_GO(iface))
+					rtw_hal_mcc_dump_noa_content(sel, iface);
+				RTW_PRINT_SEL(sel, "**********************************************\n");
+			}
 		}
+
+		mcc_dump_dbg_reg(sel, pri_adapter);
 	}
+
+	#ifdef CONFIG_MCC_PHYDM_OFFLOAD
+	RTW_PRINT_SEL(sel, "@@@@@@@@@@@@@@@@@@@@\n");
+	rtw_hal_mcc_cfg_phydm(pri_adapter, MCC_CFG_PHYDM_DUMP, sel);
+	RTW_PRINT_SEL(sel, "@@@@@@@@@@@@@@@@@@@@\n");
+	#endif
+	
 	RTW_PRINT_SEL(sel, "------------------------------------------\n");
-	RTW_PRINT_SEL(sel, "policy index:%d\n", pmccobjpriv->policy_index);
+	RTW_PRINT_SEL(sel, "policy index:%d\n", mccobjpriv->policy_index);	
 	RTW_PRINT_SEL(sel, "------------------------------------------\n");
 	RTW_PRINT_SEL(sel, "define data:\n");
 	RTW_PRINT_SEL(sel, "ap target tx TP(BW:20M):%d Mbps\n", MCC_AP_BW20_TARGET_TX_TP);
@@ -3154,11 +3664,17 @@ void rtw_hal_mcc_update_macid_bitmap(PADAPTER padapter, int mac_id, u8 add)
 		, ADPT_ARG(padapter), add ? "add" : "clear"
 		, mac_id, pmccadapriv->mcc_macid_bitmap);
 
-	if (add)
+	if (add) {
+		#ifdef CONFIG_MCC_PHYDM_OFFLOAD
+		rtw_hal_mcc_cfg_phydm(padapter, MCC_CFG_PHYDM_ADD_CLIENT, &mac_id);
+		#endif
 		pmccadapriv->mcc_macid_bitmap |= BIT(mac_id);
-	else
+	} else {
+		#ifdef CONFIG_MCC_PHYDM_OFFLOAD
+		rtw_hal_mcc_cfg_phydm(padapter, MCC_CFG_PHYDM_REMOVE_CLIENT, &mac_id);
+		#endif
 		pmccadapriv->mcc_macid_bitmap &= ~(BIT(mac_id));
-
+	}
 	rtw_hal_set_mcc_macid_cmd(padapter);
 }
 
@@ -3200,17 +3716,19 @@ void rtw_hal_mcc_parameter_init(PADAPTER padapter)
 		SET_MCC_EN_FLAG(padapter, padapter->registrypriv.en_mcc);
 		SET_MCC_DURATION(padapter, padapter->registrypriv.rtw_mcc_duration);
 		SET_MCC_RUNTIME_DURATION(padapter, padapter->registrypriv.rtw_mcc_enable_runtime_duration);
+		SET_MCC_PHYDM_OFFLOAD(padapter, padapter->registrypriv.rtw_mcc_phydm_offload);
 	}
 }
 
 
-u8 rtw_set_mcc_duration_hdl(PADAPTER adapter, u8 type, const u8 *val)
+static u8 set_mcc_duration_hdl(PADAPTER adapter, const u8 *val)
 {
 	struct dvobj_priv *dvobj = adapter_to_dvobj(adapter);
 	struct mcc_obj_priv *mccobjpriv = &(dvobj->mcc_objpriv);
 	_adapter *iface = NULL;
 	u8 duration = 50;
 	u8 ret = _SUCCESS, noa_enable = _FALSE, i = 0;
+	enum mcc_duration_setting type;
 
 	if (!mccobjpriv->enable_runtime_duration)
 		goto exit;
@@ -3226,10 +3744,11 @@ u8 rtw_set_mcc_duration_hdl(PADAPTER adapter, u8 type, const u8 *val)
 	}
 #endif /* CONFIG_P2P_PS */
 
-
+	type = val[0];
+	duration = val[1];
 
 	if (type == MCC_DURATION_MAPPING) {
-		switch (*val) {
+		switch (duration) {
 			/* 0 = fair scheduling */
 			case 0:
 				mccobjpriv->duration= 40;
@@ -3240,18 +3759,18 @@ u8 rtw_set_mcc_duration_hdl(PADAPTER adapter, u8 type, const u8 *val)
 			case 1:
 				mccobjpriv->duration= 70;
 				mccobjpriv->policy_index = 1;
-				mccobjpriv->mchan_sched_mode = MCC_FAVOE_STA;
+				mccobjpriv->mchan_sched_mode = MCC_FAVOR_STA;
 				break;
 			/* 2 = favor P2P*/
 			case 2:
 			default:
 				mccobjpriv->duration= 30;
 				mccobjpriv->policy_index = 0;
-				mccobjpriv->mchan_sched_mode = MCC_FAVOE_P2P;
+				mccobjpriv->mchan_sched_mode = MCC_FAVOR_P2P;
 				break;
 		}
 	} else {
-		mccobjpriv->duration = *val;
+		mccobjpriv->duration = duration;
 		rtw_hal_mcc_update_policy_table(adapter);
 	}
 
@@ -3271,40 +3790,142 @@ u8 rtw_set_mcc_duration_cmd(_adapter *adapter, u8 type, u8 val)
 	struct cmd_obj *cmdobj;
 	struct drvextra_cmd_parm *pdrvextra_cmd_parm;
 	struct cmd_priv *pcmdpriv = &adapter->cmdpriv;
-	u8 *mcc_duration = NULL;
-	u8 res = _FAIL;
+	u8 *buf = NULL;
+	u8 sz = 2;
+	u8 res = _SUCCESS;
 
 	
 	cmdobj = (struct cmd_obj *)rtw_zmalloc(sizeof(struct cmd_obj));
-	if (cmdobj == NULL)
+	if (cmdobj == NULL) {
+		res = _FAIL;
 		goto exit;
+	}
 
 	pdrvextra_cmd_parm = (struct drvextra_cmd_parm *)rtw_zmalloc(sizeof(struct drvextra_cmd_parm));
 	if (pdrvextra_cmd_parm == NULL) {
 		rtw_mfree((u8 *)cmdobj, sizeof(struct cmd_obj));
+		res = _FAIL;
 		goto exit;
 	}
 
-	mcc_duration = rtw_zmalloc(sizeof(u8));
-	if (mcc_duration == NULL) {
+	buf = rtw_zmalloc(sizeof(u8) * sz);
+	if (buf == NULL) {
 		rtw_mfree((u8 *)cmdobj, sizeof(struct cmd_obj));
 		rtw_mfree((u8 *)pdrvextra_cmd_parm, sizeof(struct drvextra_cmd_parm));
 		res = _FAIL;
 		goto exit;
 	}
 
-	pdrvextra_cmd_parm->ec_id = MCC_SET_DURATION_WK_CID;
-	pdrvextra_cmd_parm->type = type;
-	pdrvextra_cmd_parm->size = 1;
-	pdrvextra_cmd_parm->pbuf = mcc_duration;
+	pdrvextra_cmd_parm->ec_id = MCC_CMD_WK_CID;
+	pdrvextra_cmd_parm->type = MCC_SET_DURATION_WK_CID;
+	pdrvextra_cmd_parm->size = sz;
+	pdrvextra_cmd_parm->pbuf = buf;
 
-	_rtw_memcpy(mcc_duration, &val, 1);
+	_rtw_memcpy(buf, &type, 1);
+	_rtw_memcpy(buf + 1, &val, 1);
 
 	init_h2fwcmd_w_parm_no_rsp(cmdobj, pdrvextra_cmd_parm, GEN_CMD_CODE(_Set_Drv_Extra));
 	res = rtw_enqueue_cmd(pcmdpriv, cmdobj);
 
 exit:
 	return res;
+}
+
+#ifdef CONFIG_MCC_PHYDM_OFFLOAD
+static u8 mcc_phydm_offload_enable_hdl(_adapter *adapter, const u8 *val)
+{
+	struct mcc_obj_priv *mccobjpriv =  adapter_to_mccobjpriv(adapter);
+	u8 ret = _SUCCESS;
+	u8 enable = *val;
+
+	/*only modify driver parameter during non-mcc status */
+	if (!rtw_hal_check_mcc_status(adapter, MCC_STATUS_DOING_MCC)) {
+		mccobjpriv->mcc_phydm_offload = enable;
+	} else {
+		/*modify both driver & phydm parameter during mcc status */
+		mccobjpriv->mcc_phydm_offload = enable;
+		rtw_hal_mcc_cfg_phydm(adapter, MCC_CFG_PHYDM_OFFLOAD, &mccobjpriv->mcc_phydm_offload);
+	}
+
+	RTW_INFO("[MCC] phydm offload enable hdl(%d)\n", mccobjpriv->mcc_phydm_offload);
+
+	return ret;
+}
+
+u8 rtw_set_mcc_phydm_offload_enable_cmd(_adapter *adapter, u8 enable, u8 enqueue)
+{
+	u8 res = _SUCCESS;
+
+	if (enqueue) {
+		struct cmd_obj *cmdobj;
+		struct drvextra_cmd_parm *pdrvextra_cmd_parm;
+		struct cmd_priv *pcmdpriv = &adapter->cmdpriv;
+		u8 *mcc_phydm_offload_enable = NULL;
+
+		
+		cmdobj = (struct cmd_obj *)rtw_zmalloc(sizeof(struct cmd_obj));
+		if (cmdobj == NULL) {
+			res = _FAIL;
+			goto exit;
+		}
+
+		pdrvextra_cmd_parm = (struct drvextra_cmd_parm *)rtw_zmalloc(sizeof(struct drvextra_cmd_parm));
+		if (pdrvextra_cmd_parm == NULL) {
+			rtw_mfree((u8 *)cmdobj, sizeof(struct cmd_obj));
+			res = _FAIL;
+			goto exit;
+		}
+
+		mcc_phydm_offload_enable = rtw_zmalloc(sizeof(u8));
+		if (mcc_phydm_offload_enable == NULL) {
+			rtw_mfree((u8 *)cmdobj, sizeof(struct cmd_obj));
+			rtw_mfree((u8 *)pdrvextra_cmd_parm, sizeof(struct drvextra_cmd_parm));
+			res = _FAIL;
+			goto exit;
+		}
+
+		pdrvextra_cmd_parm->ec_id = MCC_CMD_WK_CID;
+		pdrvextra_cmd_parm->type = MCC_SET_PHYDM_OFFLOAD_WK_CID;
+		pdrvextra_cmd_parm->size = 1;
+		pdrvextra_cmd_parm->pbuf = mcc_phydm_offload_enable;
+
+		_rtw_memcpy(mcc_phydm_offload_enable, &enable, 1);
+		init_h2fwcmd_w_parm_no_rsp(cmdobj, pdrvextra_cmd_parm, GEN_CMD_CODE(_Set_Drv_Extra));
+		res = rtw_enqueue_cmd(pcmdpriv, cmdobj);
+	} else {
+		mcc_phydm_offload_enable_hdl(adapter, &enable);
+	}
+
+exit:
+	return res;
+}
+#endif
+
+u8 rtw_mcc_cmd_hdl(_adapter *adapter, u8 type, const u8 *val)
+{
+	struct mcc_obj_priv *mccobjpriv =  adapter_to_mccobjpriv(adapter);
+	u8 ret = _SUCCESS;
+
+	switch (type) {
+	case MCC_SET_DURATION_WK_CID:
+		set_mcc_duration_hdl(adapter, val);
+		break;
+	case MCC_GET_DBG_REG_WK_CID:
+		mcc_get_reg_hdl(adapter, val);
+		break;
+	#ifdef CONFIG_MCC_PHYDM_OFFLOAD
+	case MCC_SET_PHYDM_OFFLOAD_WK_CID:
+		mcc_phydm_offload_enable_hdl(adapter, val);
+		break;
+	#endif
+	default:
+		RTW_ERR("[MCC] rtw_mcc_cmd_hdl fail(%d)\n", type);
+		break;
+	}
+
+
+
+	return ret;
 }
 
 #endif /* CONFIG_MCC_MODE */

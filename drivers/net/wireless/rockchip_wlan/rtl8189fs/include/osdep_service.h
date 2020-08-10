@@ -28,6 +28,9 @@
 #define RTW_ALREADY				8
 #define RTW_RA_RESOLVING		9
 #define RTW_BMC_NO_NEED			10
+#define RTW_XBUF_UNAVAIL		11
+#define RTW_TX_BALANCE			12
+#define RTW_TX_WAIT_MORE_FRAME	13
 
 /* #define RTW_STATUS_TIMEDOUT -110 */
 
@@ -49,14 +52,17 @@
 	#include <linux/sched/types.h>
 #endif
 	#include <osdep_service_linux.h>
+	#include <drv_types_linux.h>
 #endif
 
 #ifdef PLATFORM_OS_XP
 	#include <osdep_service_xp.h>
+	#include <drv_types_xp.h>
 #endif
 
 #ifdef PLATFORM_OS_CE
 	#include <osdep_service_ce.h>
+	#include <drv_types_ce.h>
 #endif
 
 /* #include <rtw_byteorder.h> */
@@ -579,6 +585,7 @@ static inline int largest_bit(u32 bitmask)
 	return i;
 }
 
+#define rtw_abs(a) (a < 0 ? -a : a)
 #define rtw_min(a, b) ((a > b) ? b : a)
 #define rtw_is_range_a_in_b(hi_a, lo_a, hi_b, lo_b) (((hi_a) <= (hi_b)) && ((lo_a) >= (lo_b)))
 #define rtw_is_range_overlap(hi_a, lo_a, hi_b, lo_b) (((hi_a) > (lo_b)) && ((lo_a) < (hi_b)))
@@ -624,6 +631,7 @@ extern bool ATOMIC_INC_UNLESS(ATOMIC_T *v, int u);
 /* File operation APIs, just for linux now */
 extern int rtw_is_file_readable(const char *path);
 extern int rtw_is_file_readable_with_size(const char *path, u32 *sz);
+extern int rtw_readable_file_sz_chk(const char *path, u32 sz);
 extern int rtw_retrieve_from_file(const char *path, u8 *buf, u32 sz);
 extern int rtw_store_to_file(const char *path, u8 *buf, u32 sz);
 

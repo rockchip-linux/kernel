@@ -14,94 +14,61 @@
  *
  *****************************************************************************/
 
-#ifndef __HAL_PHY_RF_8188F_H__
-#define __HAL_PHY_RF_8188F_H__
+#ifndef __HALRF_8188F_H__
+#define __HALRF_8188F_H__
 
 /*--------------------------Define Parameters-------------------------------*/
-#define	IQK_DELAY_TIME_8188F		25		/* ms */
-#define	IQK_DEFERRED_TIME_8188F		4
-#define	index_mapping_NUM_8188F		15
-#define	AVG_THERMAL_NUM_8188F		4
-#define	RF_T_METER_8188F			0x42
+#define IQK_DELAY_TIME_8188F 25 /* ms */
+#define IQK_DEFERRED_TIME_8188F 4
+#define index_mapping_NUM_8188F 15
+#define AVG_THERMAL_NUM_8188F 4
+#define RF_T_METER_8188F 0x42
 
+void configure_txpower_track_8188f(struct txpwrtrack_cfg *config);
 
-void configure_txpower_track_8188f(
-	struct txpwrtrack_cfg	*config
-);
+void do_iqk_8188f(void *dm_void, u8 delta_thermal_index, u8 thermal_value,
+		  u8 threshold);
 
-void do_iqk_8188f(
-	void		*dm_void,
-	u8		delta_thermal_index,
-	u8		thermal_value,
-	u8		threshold
-);
-
-void
-odm_tx_pwr_track_set_pwr_8188f(
-	void		*dm_void,
-	enum pwrtrack_method	method,
-	u8				rf_path,
-	u8				channel_mapped_index
-);
+void odm_tx_pwr_track_set_pwr_8188f(void *dm_void, enum pwrtrack_method method,
+				    u8 rf_path, u8 channel_mapped_index);
 
 /* 1 7.	IQK */
 
-void
-phy_iq_calibrate_8188f(
-	void		*dm_void,
-	boolean	is_recovery);
-
+void phy_iq_calibrate_8188f(void *dm_void, boolean is_recovery);
 
 /*
  * LC calibrate
- *   */
-void
-phy_lc_calibrate_8188f(
-	void		*dm_void
-);
+ */
+void phy_lc_calibrate_8188f(void *dm_void);
 
+void _phy_save_adda_registers_8188f(
+	struct dm_struct *dm,
+	u32 *adda_reg,
+	u32 *adda_backup,
+	u32 register_num);
 
-void
-_phy_save_adda_registers_8188f(
-	struct dm_struct		*dm,
-	u32		*adda_reg,
-	u32		*adda_backup,
-	u32		register_num
-);
+void _phy_path_adda_on_8188f(
+	struct dm_struct *dm,
+	u32 *adda_reg,
+	boolean is_path_a_on,
+	boolean is2T);
 
-void
-_phy_path_adda_on_8188f(
-	struct dm_struct		*dm,
-	u32		*adda_reg,
-	boolean		is_path_a_on,
-	boolean		is2T
-);
+void _phy_mac_setting_calibration_8188f(
+	struct dm_struct *dm,
+	u32 *mac_reg,
+	u32 *mac_backup);
 
-void
-_phy_mac_setting_calibration_8188f(
-	struct dm_struct		*dm,
-	u32		*mac_reg,
-	u32		*mac_backup
-);
-
-
-void
-_phy_path_a_stand_by_8188f(
-	struct dm_struct		*dm
-);
+void _phy_path_a_stand_by_8188f(
+	struct dm_struct *dm);
 
 void phy_set_rf_path_switch_8188f(
 #if ((DM_ODM_SUPPORT_TYPE & ODM_AP) || (DM_ODM_SUPPORT_TYPE == ODM_CE))
-	struct dm_struct *dm,
+				  struct dm_struct *dm,
 #else
-	void *adapter,
+				  void *adapter,
 #endif
-	boolean is_main
-);
+				  boolean is_main);
 
-void phy_active_large_power_detection_8188f(
-	struct dm_struct		*dm
-);
+void phy_active_large_power_detection_8188f(struct dm_struct *dm);
 
-
-#endif	/*  #ifndef __HAL_PHY_RF_8188E_H__ */
+#endif /*#ifndef __HALRF_8188F_H__*/

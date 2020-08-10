@@ -17,11 +17,9 @@
 #define _WIFI_H_
 
 
-#ifdef BIT
-/* #error	"BIT define occurred earlier elsewhere!\n" */
-#undef BIT
+#ifndef BIT
+#define BIT(x)	(1 << (x))
 #endif
-#define BIT(x)	(1UL << (x))
 
 
 #define WLAN_ETHHDR_LEN		14
@@ -45,6 +43,7 @@
 #define WLAN_MAX_ETHFRM_LEN	1514
 #define WLAN_ETHHDR_LEN		14
 #define WLAN_WMM_LEN		24
+#define VENDOR_NAME_LEN		20
 
 #ifdef CONFIG_APPEND_VENDOR_IE_ENABLE
 #define WLAN_MAX_VENDOR_IE_LEN 255
@@ -54,6 +53,13 @@
 #define WIFI_PROBERESP_VENDOR_IE_BIT BIT(2)
 #define WIFI_ASSOCREQ_VENDOR_IE_BIT BIT(3)
 #define WIFI_ASSOCRESP_VENDOR_IE_BIT BIT(4)
+#ifdef CONFIG_P2P
+#define WIFI_P2P_PROBEREQ_VENDOR_IE_BIT BIT(5)
+#define WIFI_P2P_PROBERESP_VENDOR_IE_BIT BIT(6)
+#define WLAN_MAX_VENDOR_IE_MASK_MAX 7
+#else
+#define WLAN_MAX_VENDOR_IE_MASK_MAX 5
+#endif
 #endif
 
 #define P80211CAPTURE_VERSION	0x80211001
@@ -761,7 +767,6 @@ typedef	enum _ELEMENT_ID {
 				Below is the definition for WMM
 ------------------------------------------------------------------------------*/
 #define _WMM_IE_Length_				7  /* for WMM STA */
-#define _WMM_Para_Element_Length_		24
 
 
 /*-----------------------------------------------------------------------------
@@ -787,7 +792,7 @@ typedef	enum _ELEMENT_ID {
  * This structure refers to "HT BlockAckReq" as
  * described in 802.11n draft section 7.2.1.7.1
  */
-#if defined(PLATFORM_LINUX) || defined(CONFIG_RTL8712FW)
+#if defined(PLATFORM_LINUX)
 struct rtw_ieee80211_bar {
 	unsigned short frame_control;
 	unsigned short duration;
@@ -803,7 +808,7 @@ struct rtw_ieee80211_bar {
 #define IEEE80211_BAR_CTRL_CBMTID_COMPRESSED_BA  0x0004
 
 
-#if defined(PLATFORM_LINUX) || defined(CONFIG_RTL8712FW) || defined(PLATFORM_FREEBSD)
+#if defined(PLATFORM_LINUX) || defined(PLATFORM_FREEBSD)
 
 
 
@@ -882,72 +887,6 @@ struct ADDBA_request {
 
 #endif
 
-
-#ifdef PLATFORM_WINDOWS
-
-#pragma pack(1)
-
-struct rtw_ieee80211_ht_cap {
-	unsigned short	cap_info;
-	unsigned char	ampdu_params_info;
-	unsigned char	supp_mcs_set[16];
-	unsigned short	extended_ht_cap_info;
-	unsigned int		tx_BF_cap_info;
-	unsigned char	       antenna_selection_info;
-};
-
-
-struct ieee80211_ht_addt_info {
-	unsigned char	control_chan;
-	unsigned char		ht_param;
-	unsigned short	operation_mode;
-	unsigned short	stbc_param;
-	unsigned char		basic_set[16];
-};
-
-struct HT_caps_element {
-	union {
-		struct {
-			unsigned short	HT_caps_info;
-			unsigned char	AMPDU_para;
-			unsigned char	MCS_rate[16];
-			unsigned short	HT_ext_caps;
-			unsigned int	Beamforming_caps;
-			unsigned char	ASEL_caps;
-		} HT_cap_element;
-		unsigned char HT_cap[26];
-	};
-};
-
-struct HT_info_element {
-	unsigned char	primary_channel;
-	unsigned char	infos[5];
-	unsigned char	MCS_rate[16];
-};
-
-struct AC_param {
-	unsigned char		ACI_AIFSN;
-	unsigned char		CW;
-	unsigned short	TXOP_limit;
-};
-
-struct WMM_para_element {
-	unsigned char		QoS_info;
-	unsigned char		reserved;
-	struct AC_param	ac_param[4];
-};
-
-struct ADDBA_request {
-	unsigned char		dialog_token;
-	unsigned short	BA_para_set;
-	unsigned short	BA_timeout_value;
-	unsigned short	BA_starting_seqctrl;
-};
-
-
-#pragma pack()
-
-#endif
 
 typedef enum _HT_CAP_AMPDU_FACTOR {
 	MAX_AMPDU_FACTOR_8K		= 0,
@@ -1029,7 +968,7 @@ typedef enum _HT_CAP_AMPDU_DENSITY {
  * According to IEEE802.11n spec size varies from 8K to 64K (in powers of 2)
  */
 #define IEEE80211_MIN_AMPDU_BUF 0x8
-#define IEEE80211_MAX_AMPDU_BUF 0x40
+#define IEEE80211_MAX_AMPDU_BUF_HT 0x40
 
 
 /* Spatial Multiplexing Power Save Modes */

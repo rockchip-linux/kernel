@@ -27,6 +27,10 @@
 #include <rtl8822b_hal.h>	/* rtl8822bs_set_hal_ops() */
 #endif /* CONFIG_RTL8822B */
 
+#ifdef CONFIG_RTL8822C
+#include <rtl8822c_hal.h>
+#endif /* CONFIG_RTL8822C */
+
 #ifdef CONFIG_PLATFORM_INTEL_BYT
 #ifdef CONFIG_ACPI
 #include <linux/acpi.h>
@@ -81,9 +85,19 @@ static const struct sdio_device_id sdio_ids[] = {
 	{ SDIO_DEVICE(0x024c, 0xD724), .driver_data = RTL8723D},
 #endif
 
+#ifdef CONFIG_RTL8192F
+	{ SDIO_DEVICE(0x024c, 0x818C), .driver_data = RTL8192F},/*A CUT*/
+	{ SDIO_DEVICE(0x024c, 0xF192), .driver_data = RTL8192F},/*B CUT*/
+#endif /* CONFIG_RTL8192F */
+
 #ifdef CONFIG_RTL8821C
 	{SDIO_DEVICE(0x024C, 0xB821), .driver_data = RTL8821C},
 	{SDIO_DEVICE(0x024C, 0xC821), .driver_data = RTL8821C},
+#endif
+
+#ifdef CONFIG_RTL8822C
+	{SDIO_DEVICE(0x024c, 0xC822), .class = SDIO_CLASS_WLAN, .driver_data = RTL8822C},
+	{SDIO_DEVICE(0x024c, 0xD821), .class = SDIO_CLASS_WLAN, .driver_data = RTL8822C}, /* 8821DS */
 #endif
 
 #if defined(RTW_ENABLE_WIFI_CONTROL_FUNC) /* temporarily add this to accept all sdio wlan id */
@@ -96,6 +110,9 @@ MODULE_DEVICE_TABLE(sdio, sdio_ids);
 
 static int rtw_drv_init(struct sdio_func *func, const struct sdio_device_id *id);
 static void rtw_dev_remove(struct sdio_func *func);
+#ifdef CONFIG_SDIO_HOOK_DEV_SHUTDOWN
+static void rtw_dev_shutdown(struct device *dev);
+#endif
 static int rtw_sdio_resume(struct device *dev);
 static int rtw_sdio_suspend(struct device *dev);
 extern void rtw_dev_unload(PADAPTER padapter);
@@ -117,11 +134,14 @@ static struct sdio_drv_priv sdio_drvpriv = {
 	.r871xs_drv.remove = rtw_dev_remove,
 	.r871xs_drv.name = (char *)DRV_NAME,
 	.r871xs_drv.id_table = sdio_ids,
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29))
 	.r871xs_drv.drv = {
-		.pm = &rtw_sdio_pm_ops,
-	}
+#ifdef CONFIG_SDIO_HOOK_DEV_SHUTDOWN
+		.shutdown = rtw_dev_shutdown,
 #endif
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29))
+		.pm = &rtw_sdio_pm_ops,
+#endif
+	}
 };
 
 static struct rtw_if_operations sdio_ops = {
@@ -226,7 +246,7 @@ static u8 gpio_hostwakeup_alloc_irq(PADAPTER padapter)
 	status = IRQF_NO_SUSPEND;
 #endif
 
-	if (HIGH_ACTIVE)
+	if (HIGH_ACTIVE_DEV2HST)
 		status |= IRQF_TRIGGER_RISING;
 	else
 		status |= IRQF_TRIGGER_FALLING;
@@ -263,8 +283,11 @@ static void gpio_hostwakeup_free_irq(PADAPTER padapter)
 void dump_sdio_card_info(void *sel, struct dvobj_priv *dvobj)
 {
 	PSDIO_DATA psdio_data = &dvobj->intf_data;
+	struct mmc_card *card = psdio_data->card;
+	int i;
 
 	RTW_PRINT_SEL(sel, "== SDIO Card Info ==\n");
+	RTW_PRINT_SEL(sel, "  card: %p\n", card);
 	RTW_PRINT_SEL(sel, "  clock: %d Hz\n", psdio_data->clock);
 
 	RTW_PRINT_SEL(sel, "  timing spec: ");
@@ -324,6 +347,15 @@ void dump_sdio_card_info(void *sel, struct dvobj_priv *dvobj)
 	_RTW_PRINT_SEL(sel, "\n");
 
 	RTW_PRINT_SEL(sel, "  sd3_bus_mode: %s\n", (psdio_data->sd3_bus_mode) ? "TRUE" : "FALSE");
+
+	rtw_warn_on(card->sdio_funcs != sdio_get_num_of_func(dvobj));
+	RTW_PRINT_SEL(sel, "  func num: %u\n", card->sdio_funcs);
+	for (i = 0; card->sdio_func[i]; i++) {
+		RTW_PRINT_SEL(sel, "  func%u: %p%s\n"
+			, card->sdio_func[i]->num, card->sdio_func[i]
+			, psdio_data->func == card->sdio_func[i] ? " (*)" : "");
+	}
+
 	RTW_PRINT_SEL(sel, "================\n");
 }
 
@@ -359,8 +391,10 @@ u32 sdio_init(struct dvobj_priv *dvobj)
 	psdio_data->tx_block_mode = 1;
 	psdio_data->rx_block_mode = 1;
 
+	psdio_data->card = func->card;
 	psdio_data->timing = func->card->host->ios.timing;
 	psdio_data->clock = func->card->host->ios.clock;
+	psdio_data->func_number = func->card->sdio_funcs;
 
 	psdio_data->sd3_bus_mode = _FALSE;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0)
@@ -378,8 +412,6 @@ u32 sdio_init(struct dvobj_priv *dvobj)
 
 release:
 	sdio_release_host(func);
-
-exit:
 
 	if (err)
 		return _FAIL;
@@ -405,6 +437,11 @@ void sdio_deinit(struct dvobj_priv *dvobj)
 
 		sdio_release_host(func);
 	}
+}
+
+u8 sdio_get_num_of_func(struct dvobj_priv *dvobj)
+{
+	return dvobj->intf_data.func_number;
 }
 
 static void rtw_decide_chip_type_by_device_id(struct dvobj_priv *dvobj, const struct sdio_device_id  *pdid)
@@ -478,6 +515,21 @@ static void rtw_decide_chip_type_by_device_id(struct dvobj_priv *dvobj, const st
 		RTW_INFO("CHIP TYPE: RTL8821C\n");
 	}
 #endif
+
+#if defined(CONFIG_RTL8192F)
+	if (dvobj->chip_type == RTL8192F) {
+		dvobj->HardwareType = HARDWARE_TYPE_RTL8192FS;
+		RTW_INFO("CHIP TYPE: RTL8192F\n");
+	}
+#endif
+
+#if defined(CONFIG_RTL8822C)
+	if (dvobj->chip_type == RTL8822C) {
+		dvobj->HardwareType = HARDWARE_TYPE_RTL8822CS;
+		RTW_INFO("CHIP TYPE: RTL8822C\n");
+	}
+#endif
+
 }
 
 static struct dvobj_priv *sdio_dvobj_init(struct sdio_func *func, const struct sdio_device_id  *pdid)
@@ -588,6 +640,16 @@ u8 rtw_set_hal_ops(PADAPTER padapter)
 		if (rtl8821cs_set_hal_ops(padapter) == _FAIL)
 			return _FAIL;
 	}
+#endif
+
+#if defined(CONFIG_RTL8192F)
+	if (rtw_get_chip_type(padapter) == RTL8192F)
+		rtl8192fs_set_hal_ops(padapter);
+#endif
+
+#if defined(CONFIG_RTL8822C)
+	if (rtw_get_chip_type(padapter) == RTL8822C)
+		rtl8822cs_set_hal_ops(padapter);
 #endif
 
 	if (rtw_hal_ops_check(padapter) == _FAIL)
@@ -717,6 +779,9 @@ free_hal_data:
 
 free_adapter:
 	if (status != _SUCCESS && padapter) {
+		#ifdef RTW_HALMAC
+		rtw_halmac_deinit_adapter(dvobj);
+		#endif
 		rtw_vmfree((u8 *)padapter, sizeof(*padapter));
 		padapter = NULL;
 	}
@@ -976,6 +1041,23 @@ static void rtw_dev_remove(struct sdio_func *func)
 
 
 }
+
+#ifdef CONFIG_SDIO_HOOK_DEV_SHUTDOWN
+static void rtw_dev_shutdown(struct device *dev)
+{
+	struct sdio_func *func = dev_to_sdio_func(dev);
+
+	if (func == NULL)
+		return;
+
+	RTW_INFO("==> %s !\n", __func__);
+
+	rtw_dev_remove(func);
+
+	RTW_INFO("<== %s !\n", __func__);
+}
+#endif
+
 extern int pm_netdev_open(struct net_device *pnetdev, u8 bnormal);
 extern int pm_netdev_close(struct net_device *pnetdev, u8 bnormal);
 
@@ -1177,9 +1259,6 @@ int rtw_sdio_set_power(int on)
 }
 #endif /* CONFIG_PLATFORM_INTEL_BYT */
 
-//module_init(rtw_drv_entry);
-//module_exit(rtw_drv_halt);
-
 #include "rtw_version.h"
 #include <linux/rfkill-wlan.h>
 extern int get_wifi_chip_type(void);
@@ -1196,12 +1275,13 @@ int rockchip_wifi_init_module_rtkwifi(void)
     printk("=======================================================\n");
     printk("==== Launching Wi-Fi driver! (Powered by Rockchip) ====\n");
     printk("=======================================================\n");
-    printk("Realtek 8723DS SDIO WiFi driver (Powered by Rockchip,Ver %s) init.\n", DRIVERVERSION);
+    printk("Realtek 8189FS SDIO WiFi driver (Powered by Rockchip,Ver %s) init.\n", DRIVERVERSION);
 
     rockchip_wifi_power(1);
-    rockchip_wifi_set_carddetect(1);
-
+    rockchip_wifi_set_carddetect(1);    
+    
     return rtw_drv_entry();
+
 }
 
 void rockchip_wifi_exit_module_rtkwifi(void)
@@ -1214,12 +1294,13 @@ void rockchip_wifi_exit_module_rtkwifi(void)
     printk("=======================================================\n");
     printk("==== Dislaunching Wi-Fi driver! (Powered by Rockchip) ====\n");
     printk("=======================================================\n");
-    printk("Realtek 8723DS SDIO WiFi driver (Powered by Rockchip,Ver %s) init.\n", DRIVERVERSION);
+    printk("Realtek 8189FS SDIO WiFi driver (Powered by Rockchip,Ver %s) init.\n", DRIVERVERSION);
 
     rtw_drv_halt();
-
+    
     rockchip_wifi_set_carddetect(0);
     rockchip_wifi_power(0);
+
 }
 
 #ifdef CONFIG_WIFI_BUILD_MODULE
@@ -1234,3 +1315,4 @@ EXPORT_SYMBOL(rockchip_wifi_init_module_rtkwifi);
 EXPORT_SYMBOL(rockchip_wifi_exit_module_rtkwifi);
 #endif
 #endif
+

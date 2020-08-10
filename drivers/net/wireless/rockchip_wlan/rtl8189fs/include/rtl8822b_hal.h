@@ -24,7 +24,11 @@
 #ifdef CONFIG_SUPPORT_TRX_SHARED
 #define MAX_RECVBUF_SZ		46080	/* 45KB, TX: (256-64)KB */
 #else /* !CONFIG_SUPPORT_TRX_SHARED */
+#ifdef CONFIG_PCI_HCI
+#define MAX_RECVBUF_SZ		12288	/* 12KB */
+#else
 #define MAX_RECVBUF_SZ		24576	/* 24KB, TX: 256KB */
+#endif /* !CONFIG_PCI_HCI */
 #endif /* !CONFIG_SUPPORT_TRX_SHARED */
 
 /*
@@ -39,7 +43,7 @@
 #define REG_C2HEVT_MSG_NORMAL	0x1A0			/* hal_com.c */
 #define REG_C2HEVT_CLEAR	0x1AF			/* hal_com.c */
 #define REG_BCN_CTRL_1		REG_BCN_CTRL_CLINT0_8822B	/* hal_com.c */
-#define REG_TSFTR1		REG_FREERUN_CNT_8822B	/* hal_com.c */
+
 #define REG_WOWLAN_WAKE_REASON	0x01C7 /* hal_com.c */
 #define REG_GPIO_PIN_CTRL_2		REG_GPIO_EXT_CTRL_8822B		/* hal_com.c */
 
@@ -218,6 +222,7 @@ void rtl8822b_init_hal_spec(PADAPTER);				/* hal/hal_com.c */
 void rtl8822b_prepare_mp_txdesc(PADAPTER, struct mp_priv *);	/* rtw_mp.c */
 void rtl8822b_mp_config_rfpath(PADAPTER);			/* hal_mp.c */
 #endif
+void hw_var_set_dl_rsvd_page(PADAPTER adapter, u8 mstatus);
 
 #ifdef CONFIG_USB_HCI
 #include <rtl8822bu_hal.h>

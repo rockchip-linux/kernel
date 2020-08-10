@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 /******************************************************************************
  *
- * Copyright(c) 2007 - 2017 Realtek Corporation.
+ * Copyright(c) 2007 - 2018 Realtek Corporation.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
@@ -865,6 +865,13 @@ s32 sd_write(struct intf_hdl *pintfhdl, u32 addr, u32 cnt, void *pdata)
 
 #if 1
 /*#define RTW_SDIO_DUMP*/
+#ifdef RTW_SDIO_DUMP
+#define DUMP_LEN_LMT	0	/* buffer dump size limit */
+				/* unit: byte, 0 for no limit */
+#else 
+#define DUMP_LEN_LMT	32
+#endif
+#define GET_DUMP_LEN(len)	(DUMP_LEN_LMT ? MIN(len, DUMP_LEN_LMT) : len)
 
 /**
  *	Returns driver error code,
@@ -983,7 +990,7 @@ int __must_check rtw_sdio_raw_read(struct dvobj_priv *d, unsigned int addr,
 #ifdef RTW_SDIO_DUMP
 	print_hex_dump(KERN_DEBUG, "rtw_sdio: READ ",
 		       DUMP_PREFIX_OFFSET, 16, 1,
-		       buf, len, false);
+		       buf, GET_DUMP_LEN(len), false);
 #endif /* RTW_SDIO_DUMP */
 
 	if (WARN_ON(error)) {
@@ -998,7 +1005,7 @@ int __must_check rtw_sdio_raw_read(struct dvobj_priv *d, unsigned int addr,
 		dev_err(&func->dev, "rtw_sdio: READ from 0x%05x, %zu bytes\n", addr, len);
 		print_hex_dump(KERN_ERR, "rtw_sdio: READ ",
 			       DUMP_PREFIX_OFFSET, 16, 1,
-			       buf, len, false);
+			       buf, GET_DUMP_LEN(len), false);
 #endif /* !RTW_SDIO_DUMP */
 	}
 
@@ -1050,7 +1057,7 @@ int __must_check rtw_sdio_raw_write(struct dvobj_priv *d, unsigned int addr,
 	dev_dbg(&func->dev, "rtw_sdio: WRITE to 0x%05x\n", addr);
 	print_hex_dump(KERN_DEBUG, "rtw_sdio: WRITE ",
 		       DUMP_PREFIX_OFFSET, 16, 1,
-		       buf, len, false);
+		       buf, GET_DUMP_LEN(len), false);
 #endif /* RTW_SDIO_DUMP */
 
 	if (claim_needed)
@@ -1112,7 +1119,7 @@ int __must_check rtw_sdio_raw_write(struct dvobj_priv *d, unsigned int addr,
 		dev_err(&func->dev, "rtw_sdio: WRITE to 0x%05x, %zu bytes\n", addr, len);
 		print_hex_dump(KERN_ERR, "rtw_sdio: WRITE ",
 			       DUMP_PREFIX_OFFSET, 16, 1,
-			       buf, len, false);
+			       buf, GET_DUMP_LEN(len), false);
 #endif /* !RTW_SDIO_DUMP */
 	}
 

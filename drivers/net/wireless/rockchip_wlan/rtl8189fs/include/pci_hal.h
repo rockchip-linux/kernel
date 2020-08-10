@@ -28,6 +28,10 @@
 	void rtl8192ee_set_hal_ops(_adapter *padapter);
 #endif
 
+#if defined(CONFIG_RTL8192F)
+	void rtl8192fe_set_hal_ops(_adapter *padapter);
+#endif
+
 #ifdef CONFIG_RTL8723B
 	void rtl8723be_set_hal_ops(_adapter *padapter);
 #endif
@@ -42,6 +46,10 @@
 
 #ifdef CONFIG_RTL8822B
 	void rtl8822be_set_hal_ops(PADAPTER padapter);
+#endif
+
+#ifdef CONFIG_RTL8822C
+	void rtl8822ce_set_hal_ops(PADAPTER padapter);
 #endif
 
 u8 rtw_set_hal_ops(_adapter *padapter);
