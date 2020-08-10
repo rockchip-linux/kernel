@@ -1074,7 +1074,7 @@ odm_txpowertracking_thermal_meter_init(
 
 #if (RTL8192F_SUPPORT == 1)
 	if (GET_CHIP_VER(priv) == VERSION_8192F) {
-		cali_info->default_ofdm_index = 30;
+		cali_info->default_ofdm_index = (default_swing_index >= (OFDM_TABLE_SIZE_92D - 1)) ? 30 : default_swing_index;
 		cali_info->default_cck_index = 28;
 	}
 #endif
@@ -1120,7 +1120,6 @@ odm_txpowertracking_check(
 	/*  */
 	struct dm_struct		*dm = (struct dm_struct *)dm_void;
 	struct _hal_rf_				*rf = &(dm->rf_table);
-
 
 	if (!(rf->rf_supportability & HAL_RF_TX_PWR_TRACK))
 		return;
@@ -1205,16 +1204,49 @@ odm_txpowertracking_check_ap(
 	void		*dm_void
 )
 {
-	struct dm_struct		*dm = (struct dm_struct *)dm_void;
-#if (DM_ODM_SUPPORT_TYPE == ODM_AP)
-	struct rtl8192cd_priv	*priv		= dm->priv;
+	struct dm_struct *dm = (struct dm_struct *)dm_void;
+	struct _hal_rf_ *rf = &dm->rf_table;
+	struct _halrf_tssi_data *tssi = &rf->halrf_tssi_data;
 
-#if ((RTL8188E_SUPPORT == 1) || (RTL8192E_SUPPORT == 1) || (RTL8812A_SUPPORT == 1) || (RTL8881A_SUPPORT == 1) || (RTL8814A_SUPPORT == 1) || (RTL8197F_SUPPORT == 1) || (RTL8192F_SUPPORT == 1) || (RTL8198F_SUPPORT == 1))
-	if (dm->support_ic_type & (ODM_RTL8188E | ODM_RTL8192E | ODM_RTL8812 | ODM_RTL8881A | ODM_RTL8814A | ODM_RTL8197F | ODM_RTL8822B | ODM_RTL8821C | ODM_RTL8192F | ODM_RTL8198F))
+#if ((RTL8188E_SUPPORT == 1) || (RTL8192E_SUPPORT == 1) || (RTL8812A_SUPPORT == 1) || (RTL8881A_SUPPORT == 1) || (RTL8814A_SUPPORT == 1) || (RTL8197F_SUPPORT == 1) || (RTL8192F_SUPPORT == 1) || (RTL8198F_SUPPORT == 1) || (RTL8814B_SUPPORT == 1) || (RTL8812F_SUPPORT == 1) || (RTL8197G_SUPPORT == 1))
+	if (!dm->rf_calibrate_info.tm_trigger) {
+		if (dm->support_ic_type & (ODM_RTL8188E | ODM_RTL8192E | ODM_RTL8812 | ODM_RTL8881A | ODM_RTL8814A | ODM_RTL8197F | ODM_RTL8822B | ODM_RTL8821C | ODM_RTL8192F | ODM_RTL8198F)) {
+			odm_set_rf_reg(dm, RF_PATH_A, 0x42, (BIT(17) | BIT(16)), 0x3);
+		} else if (dm->support_ic_type & ODM_RTL8812F) {
+			odm_set_rf_reg(dm, RF_PATH_A, R_0x42, BIT(19), 0x01);
+			odm_set_rf_reg(dm, RF_PATH_A, R_0x42, BIT(19), 0x00);
+			odm_set_rf_reg(dm, RF_PATH_A, R_0x42, BIT(19), 0x01);
+			
+			odm_set_rf_reg(dm, RF_PATH_B, R_0x42, BIT(19), 0x01);
+			odm_set_rf_reg(dm, RF_PATH_B, R_0x42, BIT(19), 0x00);
+			odm_set_rf_reg(dm, RF_PATH_B, R_0x42, BIT(19), 0x01);
+		} else if (dm->support_ic_type & ODM_RTL8814B) {
+			odm_set_rf_reg(dm, RF_PATH_A, 0x42, BIT(17), 0x1);
+			odm_set_rf_reg(dm, RF_PATH_B, 0x42, BIT(17), 0x1);
+			odm_set_rf_reg(dm, RF_PATH_C, 0x42, BIT(17), 0x1);
+			odm_set_rf_reg(dm, RF_PATH_D, 0x42, BIT(17), 0x1);
+		} else if (dm->support_ic_type & ODM_RTL8197G) {
+			odm_set_rf_reg(dm, RF_PATH_A, RF_0x42, BIT(17), 0x1);
+			odm_set_rf_reg(dm, RF_PATH_A, RF_0x42, BIT(17), 0x0);
+			odm_set_rf_reg(dm, RF_PATH_A, RF_0x42, BIT(17), 0x1);
+
+			odm_set_rf_reg(dm, RF_PATH_B, RF_0x42, BIT(17), 0x1);
+			odm_set_rf_reg(dm, RF_PATH_B, RF_0x42, BIT(17), 0x0);
+			odm_set_rf_reg(dm, RF_PATH_B, RF_0x42, BIT(17), 0x1);
+		}
+
+		if (dm->support_ic_type & ODM_RTL8814B) {
+			ODM_delay_us(300);
+			odm_txpowertracking_callback_thermal_meter(dm);
+			tssi->thermal_trigger = 1;
+		}
+
+		dm->rf_calibrate_info.tm_trigger = 1;
+	} else {
 		odm_txpowertracking_callback_thermal_meter(dm);
-	else
-#endif
-	{
+		if (dm->support_ic_type & ODM_RTL8814B)
+			tssi->thermal_trigger = 0;
+		dm->rf_calibrate_info.tm_trigger = 0;
 	}
 #endif
 

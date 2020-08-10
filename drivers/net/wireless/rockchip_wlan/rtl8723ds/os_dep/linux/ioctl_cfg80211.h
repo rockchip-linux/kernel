@@ -186,12 +186,26 @@ struct rtw_wdev_priv {
 	u16 pno_scan_seq_num;
 #endif
 
-#ifdef CONFIG_RTW_CFGVEDNOR_RSSIMONITOR
+#ifdef CONFIG_RTW_CFGVENDOR_RSSIMONITOR
         s8 rssi_monitor_max;
         s8 rssi_monitor_min;
         u8 rssi_monitor_enable;
 #endif
 
+};
+
+enum external_auth_action {
+	EXTERNAL_AUTH_START,
+	EXTERNAL_AUTH_ABORT,
+};
+
+struct rtw_external_auth_params {
+	enum external_auth_action action;
+	u8 bssid[ETH_ALEN]__aligned(2);
+	struct cfg80211_ssid ssid;
+	unsigned int key_mgmt_suite;
+	u16 status;
+	u8 pmkid[PMKID_LEN];
 };
 
 bool rtw_cfg80211_is_connect_requested(_adapter *adapter);
@@ -226,6 +240,9 @@ struct rtw_wiphy_data {
 #if defined(RTW_DEDICATED_P2P_DEVICE)
 	struct wireless_dev *pd_wdev; /* P2P device wdev */
 #endif
+
+	s16 txpwr_total_lmt_mbm;
+	s16 txpwr_total_target_mbm;
 };
 
 #define rtw_wiphy_priv(wiphy) ((struct rtw_wiphy_data *)wiphy_priv(wiphy))
@@ -247,7 +264,8 @@ struct rtw_wiphy_data {
 #define FUNC_WIPHY_FMT "%s("WIPHY_FMT")"
 #define FUNC_WIPHY_ARG(wiphy) __func__, WIPHY_ARG(wiphy)
 
-#define SET_CFG80211_REPORT_MGMT(w, t, v) (w->report_mgmt |= (v ? BIT(t >> 4) : 0))
+#define SET_CFG80211_REPORT_MGMT(w, t, v) (w->report_mgmt |= BIT(t >> 4))
+#define CLR_CFG80211_REPORT_MGMT(w, t, v) (w->report_mgmt &= (~BIT(t >> 4)))
 #define GET_CFG80211_REPORT_MGMT(w, t) ((w->report_mgmt & BIT(t >> 4)) > 0)
 
 struct wiphy *rtw_wiphy_alloc(_adapter *padapter, struct device *dev);
@@ -268,6 +286,8 @@ int rtw_cfg80211_dev_res_alloc(struct dvobj_priv *dvobj);
 void rtw_cfg80211_dev_res_free(struct dvobj_priv *dvobj);
 int rtw_cfg80211_dev_res_register(struct dvobj_priv *dvobj);
 void rtw_cfg80211_dev_res_unregister(struct dvobj_priv *dvobj);
+s16 rtw_cfg80211_dev_get_total_txpwr_lmt_mbm(struct dvobj_priv *dvobj);
+s16 rtw_cfg80211_dev_get_total_txpwr_target_mbm(struct dvobj_priv *dvobj);
 
 void rtw_cfg80211_init_wdev_data(_adapter *padapter);
 void rtw_cfg80211_init_wiphy(_adapter *padapter);
@@ -320,6 +340,10 @@ void rtw_cfg80211_rx_action_p2p(_adapter *padapter, union recv_frame *rframe);
 void rtw_cfg80211_rx_action(_adapter *adapter, union recv_frame *rframe, const char *msg);
 void rtw_cfg80211_rx_mframe(_adapter *adapter, union recv_frame *rframe, const char *msg);
 void rtw_cfg80211_rx_probe_request(_adapter *padapter, union recv_frame *rframe);
+
+void rtw_cfg80211_external_auth_request(_adapter *padapter, union recv_frame *rframe);
+void rtw_cfg80211_external_auth_status(struct wiphy *wiphy, struct net_device *dev,
+	struct rtw_external_auth_params *params);
 
 int rtw_cfg80211_set_mgnt_wpsp2pie(struct net_device *net, char *buf, int len, int type);
 
@@ -384,12 +408,14 @@ void rtw_cfg80211_deinit_rfkill(struct wiphy *wiphy);
 #endif
 #endif
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0))
-#define rtw_cfg80211_notify_new_peer_candidate(wdev, addr, ie, ie_len, gfp) cfg80211_notify_new_peer_candidate(wdev_to_ndev(wdev), addr, ie, ie_len, gfp)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 0, 0))
+#define rtw_cfg80211_notify_new_peer_candidate(wdev, addr, ie, ie_len, sig_dbm, gfp) cfg80211_notify_new_peer_candidate(wdev_to_ndev(wdev), addr, ie, ie_len, sig_dbm, gfp)
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0))
+#define rtw_cfg80211_notify_new_peer_candidate(wdev, addr, ie, ie_len, sig_dbm, gfp) cfg80211_notify_new_peer_candidate(wdev_to_ndev(wdev), addr, ie, ie_len, gfp)
 #endif
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0))
-u8 rtw_cfg80211_ch_switch_notify(_adapter *adapter, u8 ch, u8 bw, u8 offset, u8 ht);
+u8 rtw_cfg80211_ch_switch_notify(_adapter *adapter, u8 ch, u8 bw, u8 offset, u8 ht, bool started);
 #endif
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 26)) && (LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0))
@@ -405,6 +431,13 @@ u8 rtw_cfg80211_ch_switch_notify(_adapter *adapter, u8 ch, u8 bw, u8 offset, u8 
 	(band == BAND_ON_2_4G) ? NL80211_BAND_2GHZ : \
 	(band == BAND_ON_5G) ? NL80211_BAND_5GHZ : NUM_NL80211_BANDS
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36))
+#define NL80211_TX_POWER_AUTOMATIC	TX_POWER_AUTOMATIC
+#define NL80211_TX_POWER_LIMITED	TX_POWER_LIMITED
+#define NL80211_TX_POWER_FIXED		TX_POWER_FIXED
+#endif
+
+#include "wifi_regd.h"
 #include "rtw_cfgvendor.h"
 
 #endif /* __IOCTL_CFG80211_H__ */

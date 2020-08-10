@@ -283,9 +283,9 @@ int rtw_os_recvbuf_resource_free(_adapter *padapter, struct recv_buf *precvbuf)
 
 }
 
-_pkt *rtw_os_alloc_msdu_pkt(union recv_frame *prframe, const u8 *da, const u8 *sa, u8 *msdu ,u16 msdu_len)
+_pkt *rtw_os_alloc_msdu_pkt(union recv_frame *prframe, const u8 *da, const u8 *sa
+	, u8 *msdu ,u16 msdu_len, enum rtw_rx_llc_hdl llc_hdl)
 {
-	u16	eth_type;
 	u8	*data_ptr;
 	_pkt *sub_skb;
 	struct rx_pkt_attrib *pattrib;
@@ -312,13 +312,7 @@ _pkt *rtw_os_alloc_msdu_pkt(union recv_frame *prframe, const u8 *da, const u8 *s
 		}
 	}
 
-	eth_type = RTW_GET_BE16(&sub_skb->data[6]);
-
-	if (sub_skb->len >= 8
-		&& ((_rtw_memcmp(sub_skb->data, rtw_rfc1042_header, SNAP_SIZE)
-				&& eth_type != ETH_P_AARP && eth_type != ETH_P_IPX)
-			|| _rtw_memcmp(sub_skb->data, rtw_bridge_tunnel_header, SNAP_SIZE))
-	) {
+	if (llc_hdl) {
 		/* remove RFC1042 or Bridge-Tunnel encapsulation and replace EtherType */
 		skb_pull(sub_skb, SNAP_SIZE);
 		_rtw_memcpy(skb_push(sub_skb, ETH_ALEN), sa, ETH_ALEN);
@@ -434,52 +428,8 @@ void rtw_os_recv_indicate_pkt(_adapter *padapter, _pkt *pkt, union recv_frame *r
 
 		DBG_COUNTER(padapter->rx_logs.os_indicate);
 
-		if (MLME_IS_AP(padapter)) {
-			_pkt *pskb2 = NULL;
-			struct sta_info *psta = NULL;
-			struct sta_priv *pstapriv = &padapter->stapriv;
-			int bmcast = IS_MCAST(ehdr->h_dest);
-
-			/* RTW_INFO("bmcast=%d\n", bmcast); */
-
-			if (_rtw_memcmp(ehdr->h_dest, adapter_mac_addr(padapter), ETH_ALEN) == _FALSE) {
-				/* RTW_INFO("not ap psta=%p, addr=%pM\n", psta, ehdr->h_dest); */
-
-				if (bmcast) {
-					psta = rtw_get_bcmc_stainfo(padapter);
-					pskb2 = rtw_skb_clone(pkt);
-				} else
-					psta = rtw_get_stainfo(pstapriv, ehdr->h_dest);
-
-				if (psta) {
-					struct net_device *pnetdev = (struct net_device *)padapter->pnetdev;
-
-					/* RTW_INFO("directly forwarding to the rtw_xmit_entry\n"); */
-
-					/* skb->ip_summed = CHECKSUM_NONE; */
-					pkt->dev = pnetdev;
-					#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 35))
-					skb_set_queue_mapping(pkt, rtw_recv_select_queue(pkt));
-					#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 35) */
-
-					_rtw_xmit_entry(pkt, pnetdev);
-
-					if (bmcast && (pskb2 != NULL)) {
-						pkt = pskb2;
-						DBG_COUNTER(padapter->rx_logs.os_indicate_ap_mcast);
-					} else {
-						DBG_COUNTER(padapter->rx_logs.os_indicate_ap_forward);
-						return;
-					}
-				}
-			} else { /* to APself */
-				/* RTW_INFO("to APSelf\n"); */
-				DBG_COUNTER(padapter->rx_logs.os_indicate_ap_self);
-			}
-		}
-
 #ifdef CONFIG_BR_EXT
-		if (check_fwstate(pmlmepriv, WIFI_STATION_STATE | WIFI_ADHOC_STATE) == _TRUE) {
+		if (!adapter_use_wds(padapter) && check_fwstate(pmlmepriv, WIFI_STATION_STATE | WIFI_ADHOC_STATE) == _TRUE) {
 			/* Insert NAT2.5 RX here! */
 			#if (LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 35))
 			br_port = padapter->pnetdev->br_port;
@@ -636,20 +586,15 @@ void rtw_hostapd_mlme_rx(_adapter *padapter, union recv_frame *precv_frame)
 }
 #endif /* CONFIG_HOSTAPD_MLME */
 
+#ifdef CONFIG_WIFI_MONITOR
+/* 
+   precv_frame: impossible to be NULL
+   precv_frame: free by caller
+ */
 int rtw_recv_monitor(_adapter *padapter, union recv_frame *precv_frame)
 {
 	int ret = _FAIL;
-	struct recv_priv *precvpriv;
-	_queue	*pfree_recv_queue;
 	_pkt *skb;
-	struct rx_pkt_attrib *pattrib;
-
-	if (NULL == precv_frame)
-		goto _recv_drop;
-
-	pattrib = &precv_frame->u.hdr.attrib;
-	precvpriv = &(padapter->recvpriv);
-	pfree_recv_queue = &(precvpriv->free_recv_queue);
 
 	skb = precv_frame->u.hdr.pkt;
 	if (skb == NULL) {
@@ -664,6 +609,7 @@ int rtw_recv_monitor(_adapter *padapter, union recv_frame *precv_frame)
 	skb->pkt_type = PACKET_OTHERHOST;
 	skb->protocol = htons(0x0019); /* ETH_P_80211_RAW */
 
+	/* send to kernel */
 	rtw_netif_rx(padapter->pnetdev, skb);
 
 	/* pointers to NULL before rtw_free_recvframe() */
@@ -672,14 +618,9 @@ int rtw_recv_monitor(_adapter *padapter, union recv_frame *precv_frame)
 	ret = _SUCCESS;
 
 _recv_drop:
-
-	/* enqueue back to free_recv_queue */
-	if (precv_frame)
-		rtw_free_recvframe(precv_frame, pfree_recv_queue);
-
 	return ret;
-
 }
+#endif /* CONFIG_WIFI_MONITOR */
 
 inline void rtw_rframe_set_os_pkt(union recv_frame *rframe)
 {
@@ -703,7 +644,6 @@ int rtw_recv_indicatepkt(_adapter *padapter, union recv_frame *precv_frame)
 
 	rtw_os_recv_indicate_pkt(padapter, precv_frame->u.hdr.pkt, precv_frame);
 
-_recv_indicatepkt_end:
 	precv_frame->u.hdr.pkt = NULL;
 	rtw_free_recvframe(precv_frame, pfree_recv_queue);
 	return _SUCCESS;
@@ -716,9 +656,8 @@ _recv_indicatepkt_drop:
 
 void rtw_os_read_port(_adapter *padapter, struct recv_buf *precvbuf)
 {
-	struct recv_priv *precvpriv = &padapter->recvpriv;
-
 #ifdef CONFIG_USB_HCI
+	struct recv_priv *precvpriv = &padapter->recvpriv;
 
 	precvbuf->ref_cnt--;
 

@@ -505,8 +505,12 @@ void odm_tx_pwr_track_set_pwr_8723d(void *dm_void, enum pwrtrack_method method,
 			}
 #endif
 
-			odm_set_tx_power_index_by_rate_section(dm, RF_PATH_A, *dm->channel, OFDM);
-			odm_set_tx_power_index_by_rate_section(dm, RF_PATH_A, *dm->channel, HT_MCS0_MCS7);
+			odm_set_tx_power_index_by_rate_section(dm, rf_path,
+							       *dm->channel,
+							       OFDM);
+			odm_set_tx_power_index_by_rate_section(dm, rf_path,
+							       *dm->channel,
+							       HT_MCS0_MCS7);
 			cali_info->modify_tx_agc_value_ofdm = cali_info->remnant_ofdm_swing_idx[RF_PATH_A];
 
 			if (final_cck_swing_index > pwr_tracking_limit_cck) {
@@ -585,7 +589,7 @@ void odm_tx_pwr_track_set_pwr_8723d(void *dm_void, enum pwrtrack_method method,
 			} else
 #endif
 
-				odm_set_tx_power_index_by_rate_section(dm, RF_PATH_A, *dm->channel, CCK);
+				odm_set_tx_power_index_by_rate_section(dm, rf_path, *dm->channel, CCK);
 
 			cali_info->modify_tx_agc_value_cck = cali_info->remnant_cck_swing_idx;
 		}
@@ -817,8 +821,9 @@ void configure_txpower_track_8723d(struct txpwrtrack_cfg *config)
 u8 phy_path_s1_iqk_8723d(struct dm_struct *dm, boolean config_path_s0)
 {
 	u32 reg_eac, reg_e94, reg_e9c, path_sel_bb;
-	u8 result = 0x00, ktime;
+	u8 result = 0x00, cnt;
 	u32 original_path, original_gnt;
+	u16 ktime;
 	RF_DBG(dm, DBG_RF_IQK, "[IQK]path S1 TXIQK!!\n");
 	RF_DBG(dm, DBG_RF_IQK, "[IQK]0x67 @S1 TXIQK = 0x%x\n",
 	       odm_get_mac_reg(dm, R_0x64, MASKBYTE3));
@@ -832,6 +837,10 @@ u8 phy_path_s1_iqk_8723d(struct dm_struct *dm, boolean config_path_s0)
 	/*IQK setting*/
 	/*leave IQK mode*/
 	odm_set_bb_reg(dm, R_0xe28, 0xffffff00, 0x000000);
+
+	for (cnt = 0; cnt < 100; cnt++) /*delay 1ms*/
+		ODM_delay_us(10);
+
 	/* --- \A7\EF\BCgTXIQK mode table ---*/
 	odm_set_rf_reg(dm, RF_PATH_A, RF_0xef, RFREGOFFSETMASK, 0x80000);
 	odm_set_rf_reg(dm, RF_PATH_A, RF_0x33, RFREGOFFSETMASK, 0x00004);
@@ -877,7 +886,10 @@ u8 phy_path_s1_iqk_8723d(struct dm_struct *dm, boolean config_path_s0)
 	/*backup path & GNT value */
 	original_path = odm_get_mac_reg(dm, REG_LTECOEX_PATH_CONTROL, MASKDWORD); /*save 0x70*/
 	odm_set_bb_reg(dm, REG_LTECOEX_CTRL, MASKDWORD, 0x800f0038);
-	ODM_delay_ms(1);
+
+	for (cnt = 0; cnt < 100; cnt++) /*delay 1ms*/
+		ODM_delay_us(10);
+
 	original_gnt = odm_get_bb_reg(dm, REG_LTECOEX_READ_DATA, MASKDWORD); /*save 0x38*/
 	RF_DBG(dm, DBG_RF_IQK, "[IQK]OriginalGNT = 0x%x\n", original_gnt);
 
@@ -888,7 +900,10 @@ u8 phy_path_s1_iqk_8723d(struct dm_struct *dm, boolean config_path_s0)
 #endif
 
 	odm_set_bb_reg(dm, REG_LTECOEX_CTRL, MASKDWORD, 0x800f0054);
-	ODM_delay_ms(1);
+
+	for (cnt = 0; cnt < 100; cnt++) /*delay 1ms*/
+		ODM_delay_us(10);
+
 	RF_DBG(dm, DBG_RF_IQK, "[IQK]GNT_BT @S1 TXIQK = 0x%x\n",
 	       odm_get_bb_reg(dm, REG_LTECOEX_READ_DATA, MASKDWORD));
 	RF_DBG(dm, DBG_RF_IQK, "[IQK]0x948 @S1 TXIQK = 0x%x\n",
@@ -904,8 +919,8 @@ u8 phy_path_s1_iqk_8723d(struct dm_struct *dm, boolean config_path_s0)
 #endif
 
 	ktime = 0;
-	while ((!odm_get_bb_reg(dm, R_0xeac, BIT(26))) && ktime < 10) {
-		ODM_delay_ms(1);
+	while ((!odm_get_bb_reg(dm, R_0xeac, BIT(26))) && ktime < 1000) {
+		ODM_delay_us(10);
 		ktime++;
 	}
 
@@ -921,6 +936,10 @@ u8 phy_path_s1_iqk_8723d(struct dm_struct *dm, boolean config_path_s0)
 
 	/*leave IQK mode*/
 	odm_set_bb_reg(dm, R_0xe28, 0xffffff00, 0x000000);
+
+	for (cnt = 0; cnt < 100; cnt++) /*delay 1ms*/
+		ODM_delay_us(10);
+
 	/*PA/PAD controlled by 0x0*/
 	odm_set_rf_reg(dm, RF_PATH_A, RF_0xdf, 0x800, 0x0);
 	odm_set_rf_reg(dm, RF_PATH_A, RF_0x1, BIT(0), 0x0);
@@ -952,7 +971,8 @@ u8 phy_path_s1_iqk_8723d(struct dm_struct *dm, boolean config_path_s0)
 u8 phy_path_s1_rx_iqk_8723d(struct dm_struct *dm, boolean config_path_s0)
 {
 	u32 reg_eac, reg_e94, reg_e9c, reg_ea4, u4tmp, tmp, path_sel_bb;
-	u8 result = 0x00, ktime;
+	u8 result = 0x00, cnt;
+	u16 ktime;
 	u32 original_path, original_gnt;
 
 	path_sel_bb = odm_get_bb_reg(dm, R_0x948, MASKDWORD);
@@ -1007,7 +1027,10 @@ u8 phy_path_s1_rx_iqk_8723d(struct dm_struct *dm, boolean config_path_s0)
 	/*backup path & GNT value */
 	original_path = odm_get_mac_reg(dm, REG_LTECOEX_PATH_CONTROL, MASKDWORD); /*save 0x70*/
 	odm_set_bb_reg(dm, REG_LTECOEX_CTRL, MASKDWORD, 0x800f0038);
-	ODM_delay_ms(1);
+
+	for (cnt = 0; cnt < 100; cnt++) /*delay 1ms*/
+		ODM_delay_us(10);
+
 	original_gnt = odm_get_bb_reg(dm, REG_LTECOEX_READ_DATA, MASKDWORD); /*save 0x38*/
 	RF_DBG(dm, DBG_RF_IQK, "[IQK]OriginalGNT = 0x%x\n", original_gnt);
 
@@ -1017,7 +1040,10 @@ u8 phy_path_s1_rx_iqk_8723d(struct dm_struct *dm, boolean config_path_s0)
 	odm_set_mac_reg(dm, REG_LTECOEX_PATH_CONTROL, BIT(26), 0x1);
 #endif
 	odm_set_bb_reg(dm, REG_LTECOEX_CTRL, MASKDWORD, 0x800f0054);
-	ODM_delay_ms(1);
+
+	for (cnt = 0; cnt < 100; cnt++) /*delay 1ms*/
+		ODM_delay_us(10);
+
 	RF_DBG(dm, DBG_RF_IQK, "[IQK]GNT_BT @S1 RXIQK1 = 0x%x\n",
 	       odm_get_bb_reg(dm, REG_LTECOEX_READ_DATA, MASKDWORD));
 	RF_DBG(dm, DBG_RF_IQK, "[IQK]0x948 @S1 RXIQK1 = 0x%x\n",
@@ -1033,8 +1059,8 @@ u8 phy_path_s1_rx_iqk_8723d(struct dm_struct *dm, boolean config_path_s0)
 #endif
 
 	ktime = 0;
-	while ((!odm_get_bb_reg(dm, R_0xeac, BIT(26))) && ktime < 10) {
-		ODM_delay_ms(1);
+	while ((!odm_get_bb_reg(dm, R_0xeac, BIT(26))) && ktime < 1000) {
+		ODM_delay_us(10);
 		ktime++;
 	}
 	reg_eac = odm_get_bb_reg(dm, R_0xeac, MASKDWORD);
@@ -1067,6 +1093,10 @@ u8 phy_path_s1_rx_iqk_8723d(struct dm_struct *dm, boolean config_path_s0)
 		/*reload RF path*/
 		odm_set_bb_reg(dm, R_0x948, MASKDWORD, path_sel_bb);
 		odm_set_bb_reg(dm, R_0xe28, 0xffffff00, 0x000000);
+
+		for (cnt = 0; cnt < 100; cnt++) /*delay 1ms*/
+			ODM_delay_us(10);
+
 		odm_set_rf_reg(dm, RF_PATH_A, RF_0xdf, 0x800, 0x0);
 		odm_set_rf_reg(dm, RF_PATH_A, RF_0x1, BIT(0), 0x0);
 		odm_set_rf_reg(dm, RF_PATH_A, RF_0x2, BIT(0), 0x0);
@@ -1099,6 +1129,10 @@ u8 phy_path_s1_rx_iqk_8723d(struct dm_struct *dm, boolean config_path_s0)
 
 	/*modify RXIQK mode table*/
 	odm_set_bb_reg(dm, R_0xe28, 0xffffff00, 0x000000);
+
+	for (cnt = 0; cnt < 100; cnt++) /*delay 1ms*/
+		ODM_delay_us(10);
+
 	odm_set_rf_reg(dm, RF_PATH_A, RF_0xef, 0x80000, 0x1);
 	odm_set_rf_reg(dm, RF_PATH_A, RF_0x33, RFREGOFFSETMASK, 0x00007);
 	odm_set_rf_reg(dm, RF_PATH_A, RF_0x3e, RFREGOFFSETMASK, 0x0005f);
@@ -1117,7 +1151,10 @@ u8 phy_path_s1_rx_iqk_8723d(struct dm_struct *dm, boolean config_path_s0)
 	/*backup path & GNT value */
 	original_path = odm_get_mac_reg(dm, REG_LTECOEX_PATH_CONTROL, MASKDWORD); /*save 0x70*/
 	odm_set_bb_reg(dm, REG_LTECOEX_CTRL, MASKDWORD, 0x800f0038);
-	ODM_delay_ms(1);
+
+	for (cnt = 0; cnt < 100; cnt++) /*delay 1ms*/
+		ODM_delay_us(10);
+
 	original_gnt = odm_get_bb_reg(dm, REG_LTECOEX_READ_DATA, MASKDWORD); /*save 0x38*/
 	RF_DBG(dm, DBG_RF_IQK, "[IQK]OriginalGNT = 0x%x\n", original_gnt);
 
@@ -1127,7 +1164,10 @@ u8 phy_path_s1_rx_iqk_8723d(struct dm_struct *dm, boolean config_path_s0)
 	odm_set_mac_reg(dm, REG_LTECOEX_PATH_CONTROL, BIT(26), 0x1);
 #endif
 	odm_set_bb_reg(dm, REG_LTECOEX_CTRL, MASKDWORD, 0x800f0054);
-	ODM_delay_ms(1);
+
+	for (cnt = 0; cnt < 100; cnt++) /*delay 1ms*/
+		ODM_delay_us(10);
+
 	RF_DBG(dm, DBG_RF_IQK, "[IQK]GNT_BT @S1 RXIQK2 = 0x%x\n",
 	       odm_get_bb_reg(dm, REG_LTECOEX_READ_DATA, MASKDWORD));
 	RF_DBG(dm, DBG_RF_IQK, "[IQK]0x948 @S1 RXIQK2 = 0x%x\n",
@@ -1139,8 +1179,8 @@ u8 phy_path_s1_rx_iqk_8723d(struct dm_struct *dm, boolean config_path_s0)
 	/*ODM_delay_ms(IQK_DELAY_TIME_8723D);*/
 
 	ktime = 0;
-	while ((!odm_get_bb_reg(dm, R_0xeac, BIT(26))) && ktime < 10) {
-		ODM_delay_ms(1);
+	while ((!odm_get_bb_reg(dm, R_0xeac, BIT(26))) && ktime < 1000) {
+		ODM_delay_us(10);
 		ktime++;
 	}
 
@@ -1155,6 +1195,10 @@ u8 phy_path_s1_rx_iqk_8723d(struct dm_struct *dm, boolean config_path_s0)
 
 	/*leave IQK mode*/
 	odm_set_bb_reg(dm, R_0xe28, 0xffffff00, 0x000000);
+
+	for (cnt = 0; cnt < 100; cnt++) /*delay 1ms*/
+		ODM_delay_us(10);
+
 	/*	PA/PAD controlled by 0x0*/
 	odm_set_rf_reg(dm, RF_PATH_A, RF_0xdf, 0x800, 0x0);
 	odm_set_rf_reg(dm, RF_PATH_A, RF_0x1, BIT(0), 0x0);
@@ -1190,7 +1234,8 @@ u8 phy_path_s1_rx_iqk_8723d(struct dm_struct *dm, boolean config_path_s0)
 u8 phy_path_s0_iqk_8723d(struct dm_struct *dm)
 {
 	u32 reg_e94_s0, reg_e9c_s0, reg_eac_s0, path_sel_bb;
-	u8 result = 0x00, ktime;
+	u8 result = 0x00, cnt;
+	u16 ktime;
 	u32 original_path, original_gnt;
 
 	RF_DBG(dm, DBG_RF_IQK, "path S0 TXIQK!\n");
@@ -1204,6 +1249,10 @@ u8 phy_path_s0_iqk_8723d(struct dm_struct *dm)
 #endif
 
 	odm_set_bb_reg(dm, R_0xe28, 0xffffff00, 0x000000);
+
+	for (cnt = 0; cnt < 100; cnt++) /*delay 1ms*/
+		ODM_delay_us(10);
+
 	/*modify TXIQK mode table*/
 	odm_set_rf_reg(dm, RF_PATH_A, RF_0xee, RFREGOFFSETMASK, 0x80000);
 	odm_set_rf_reg(dm, RF_PATH_A, RF_0x33, RFREGOFFSETMASK, 0x00004);
@@ -1247,7 +1296,10 @@ u8 phy_path_s0_iqk_8723d(struct dm_struct *dm)
 	/*backup path & GNT value */
 	original_path = odm_get_mac_reg(dm, REG_LTECOEX_PATH_CONTROL, MASKDWORD); /*save 0x70*/
 	odm_set_bb_reg(dm, REG_LTECOEX_CTRL, MASKDWORD, 0x800f0038);
-	ODM_delay_ms(1);
+
+	for (cnt = 0; cnt < 100; cnt++) /*delay 1ms*/
+		ODM_delay_us(10);
+
 	original_gnt = odm_get_bb_reg(dm, REG_LTECOEX_READ_DATA, MASKDWORD); /*save 0x38*/
 	RF_DBG(dm, DBG_RF_IQK, "[IQK]OriginalGNT = 0x%x\n", original_gnt);
 
@@ -1257,7 +1309,10 @@ u8 phy_path_s0_iqk_8723d(struct dm_struct *dm)
 	odm_set_mac_reg(dm, REG_LTECOEX_PATH_CONTROL, BIT(26), 0x1);
 #endif
 	odm_set_bb_reg(dm, REG_LTECOEX_CTRL, MASKDWORD, 0x800f0054);
-	ODM_delay_ms(1);
+
+	for (cnt = 0; cnt < 100; cnt++) /*delay 1ms*/
+		ODM_delay_us(10);
+
 	RF_DBG(dm, DBG_RF_IQK, "[IQK]GNT_BT @S0 TXIQK = 0x%x\n",
 	       odm_get_bb_reg(dm, REG_LTECOEX_READ_DATA, MASKDWORD));
 	RF_DBG(dm, DBG_RF_IQK, "[IQK]0x948 @S0 TXIQK = 0x%x\n",
@@ -1273,8 +1328,8 @@ u8 phy_path_s0_iqk_8723d(struct dm_struct *dm)
 #endif
 
 	ktime = 0;
-	while ((!odm_get_bb_reg(dm, R_0xeac, BIT(26))) && ktime < 10) {
-		ODM_delay_ms(1);
+	while ((!odm_get_bb_reg(dm, R_0xeac, BIT(26))) && ktime < 1000) {
+		ODM_delay_us(10);
 		ktime++;
 	}
 #if 1
@@ -1287,6 +1342,10 @@ u8 phy_path_s0_iqk_8723d(struct dm_struct *dm)
 	odm_set_bb_reg(dm, R_0x948, MASKDWORD, path_sel_bb);
 	/*leave IQK mode*/
 	odm_set_bb_reg(dm, R_0xe28, 0xffffff00, 0x000000);
+
+	for (cnt = 0; cnt < 100; cnt++) /*delay 1ms*/
+		ODM_delay_us(10);
+
 	/*PA/PAD controlled by 0x0*/
 	odm_set_rf_reg(dm, RF_PATH_A, RF_0xde, 0x800, 0x0);
 	odm_set_rf_reg(dm, RF_PATH_A, RF_0x2, BIT(0), 0x0);
@@ -1318,7 +1377,8 @@ u8 phy_path_s0_rx_iqk_8723d(struct dm_struct *dm, boolean config_path_s0)
 {
 	u32 reg_e94_s0, reg_e9c_s0, reg_ea4_s0, reg_eac_s0, tmp, u4tmp;
 	u32 path_sel_bb;
-	u8 result = 0x00, ktime;
+	u8 result = 0x00, cnt;
+	u16 ktime;
 	u32 original_path, original_gnt;
 
 	path_sel_bb = odm_get_bb_reg(dm, R_0x948, MASKDWORD);
@@ -1370,7 +1430,10 @@ u8 phy_path_s0_rx_iqk_8723d(struct dm_struct *dm, boolean config_path_s0)
 	/*backup path & GNT value */
 	original_path = odm_get_mac_reg(dm, REG_LTECOEX_PATH_CONTROL, MASKDWORD); /*save 0x70*/
 	odm_set_bb_reg(dm, REG_LTECOEX_CTRL, MASKDWORD, 0x800f0038);
-	ODM_delay_ms(1);
+
+	for (cnt = 0; cnt < 100; cnt++) /*delay 1ms*/
+		ODM_delay_us(10);
+
 	original_gnt = odm_get_bb_reg(dm, REG_LTECOEX_READ_DATA, MASKDWORD); /*save 0x38*/
 	RF_DBG(dm, DBG_RF_IQK, "[IQK]OriginalGNT = 0x%x\n", original_gnt);
 
@@ -1380,7 +1443,10 @@ u8 phy_path_s0_rx_iqk_8723d(struct dm_struct *dm, boolean config_path_s0)
 	odm_set_mac_reg(dm, REG_LTECOEX_PATH_CONTROL, BIT(26), 0x1);
 #endif
 	odm_set_bb_reg(dm, REG_LTECOEX_CTRL, MASKDWORD, 0x800f0054);
-	ODM_delay_ms(1);
+
+	for (cnt = 0; cnt < 100; cnt++) /*delay 1ms*/
+		ODM_delay_us(10);
+
 	RF_DBG(dm, DBG_RF_IQK, "[IQK]GNT_BT @S0 RXIQK1 = 0x%x\n",
 	       odm_get_bb_reg(dm, REG_LTECOEX_READ_DATA, MASKDWORD));
 	RF_DBG(dm, DBG_RF_IQK, "[IQK]0x948 @S0 RXIQK1 = 0x%x\n",
@@ -1393,8 +1459,8 @@ u8 phy_path_s0_rx_iqk_8723d(struct dm_struct *dm, boolean config_path_s0)
 	/*ODM_delay_ms(IQK_DELAY_TIME_8723D);*/
 #endif
 	ktime = 0;
-	while ((!odm_get_bb_reg(dm, R_0xeac, BIT(26))) && ktime < 10) {
-		ODM_delay_ms(1);
+	while ((!odm_get_bb_reg(dm, R_0xeac, BIT(26))) && ktime < 1000) {
+		ODM_delay_us(10);
 		ktime++;
 	}
 	reg_eac_s0 = odm_get_bb_reg(dm, R_0xeac, MASKDWORD);
@@ -1428,6 +1494,10 @@ u8 phy_path_s0_rx_iqk_8723d(struct dm_struct *dm, boolean config_path_s0)
 		/*reload RF path*/
 		odm_set_bb_reg(dm, R_0x948, MASKDWORD, path_sel_bb);
 		odm_set_bb_reg(dm, R_0xe28, 0xffffff00, 0x000000);
+
+		for (cnt = 0; cnt < 100; cnt++) /*delay 1ms*/
+			ODM_delay_us(10);
+
 		odm_set_rf_reg(dm, RF_PATH_A, RF_0xde, 0x800, 0x0);
 		odm_set_rf_reg(dm, RF_PATH_A, RF_0x2, BIT(0), 0x0);
 		odm_set_rf_reg(dm, RF_PATH_A, RF_0x1, BIT(0), 0x0);
@@ -1458,6 +1528,10 @@ u8 phy_path_s0_rx_iqk_8723d(struct dm_struct *dm, boolean config_path_s0)
 	odm_set_bb_reg(dm, R_0xe4c, MASKDWORD, 0x0046a8d1);
 
 	odm_set_bb_reg(dm, R_0xe28, 0xffffff00, 0x000000);
+
+	for (cnt = 0; cnt < 100; cnt++) /*delay 1ms*/
+		ODM_delay_us(10);
+
 	odm_set_rf_reg(dm, RF_PATH_A, RF_0xee, 0x80000, 0x1);
 	odm_set_rf_reg(dm, RF_PATH_A, RF_0x33, RFREGOFFSETMASK, 0x00007);
 	odm_set_rf_reg(dm, RF_PATH_A, RF_0x3e, RFREGOFFSETMASK, 0x0005f);
@@ -1474,7 +1548,10 @@ u8 phy_path_s0_rx_iqk_8723d(struct dm_struct *dm, boolean config_path_s0)
 	/*backup path & GNT value */
 	original_path = odm_get_mac_reg(dm, REG_LTECOEX_PATH_CONTROL, MASKDWORD); /*save 0x70*/
 	odm_set_bb_reg(dm, REG_LTECOEX_CTRL, MASKDWORD, 0x800f0038);
-	ODM_delay_ms(1);
+
+	for (cnt = 0; cnt < 100; cnt++) /*delay 1ms*/
+		ODM_delay_us(10);
+
 	original_gnt = odm_get_bb_reg(dm, REG_LTECOEX_READ_DATA, MASKDWORD); /*save 0x38*/
 	RF_DBG(dm, DBG_RF_IQK, "[IQK]OriginalGNT = 0x%x\n", original_gnt);
 
@@ -1484,7 +1561,10 @@ u8 phy_path_s0_rx_iqk_8723d(struct dm_struct *dm, boolean config_path_s0)
 	odm_set_mac_reg(dm, REG_LTECOEX_PATH_CONTROL, BIT(26), 0x1);
 #endif
 	odm_set_bb_reg(dm, REG_LTECOEX_CTRL, MASKDWORD, 0x800f0054);
-	ODM_delay_ms(1);
+
+	for (cnt = 0; cnt < 100; cnt++) /*delay 1ms*/
+		ODM_delay_us(10);
+
 	RF_DBG(dm, DBG_RF_IQK, "[IQK]GNT_BT @S0 RXIQK2 = 0x%x\n",
 	       odm_get_bb_reg(dm, REG_LTECOEX_READ_DATA, MASKDWORD));
 	RF_DBG(dm, DBG_RF_IQK, "[IQK]0x948 @S0 RXIQK2 = 0x%x\n",
@@ -1497,8 +1577,8 @@ u8 phy_path_s0_rx_iqk_8723d(struct dm_struct *dm, boolean config_path_s0)
 	/*ODM_delay_ms(IQK_DELAY_TIME_8723D);*/
 #endif
 	ktime = 0;
-	while ((!odm_get_bb_reg(dm, R_0xeac, BIT(26))) && ktime < 10) {
-		ODM_delay_ms(1);
+	while ((!odm_get_bb_reg(dm, R_0xeac, BIT(26))) && ktime < 1000) {
+		ODM_delay_us(1);
 		ktime++;
 	}
 #if 1
@@ -1512,6 +1592,9 @@ u8 phy_path_s0_rx_iqk_8723d(struct dm_struct *dm, boolean config_path_s0)
 
 	/*leave IQK mode*/
 	odm_set_bb_reg(dm, R_0xe28, 0xffffff00, 0x000000);
+
+	for (cnt = 0; cnt < 100; cnt++) /*delay 1ms*/
+		ODM_delay_us(10);
 
 	odm_set_rf_reg(dm, RF_PATH_A, RF_0xde, 0x800, 0x0);
 	odm_set_rf_reg(dm, RF_PATH_A, RF_0x2, BIT(0), 0x0);
@@ -1764,19 +1847,31 @@ void _phy_mac_setting_calibration_8723d(struct dm_struct *dm, u32 *mac_reg,
 
 void _phy_path_a_stand_by_8723d(struct dm_struct *dm)
 {
+	u8 cnt;
+
 	RF_DBG(dm, DBG_RF_IQK, "path-S1 standby mode!\n");
 	odm_set_bb_reg(dm, R_0xe28, 0xffffff00, 0x000000);
 #if 0
 	/*	odm_set_bb_reg(dm, R_0x840, MASKDWORD, 0x00010000);*/
 #endif
+
+	for (cnt = 0; cnt < 100; cnt++) /*delay 1ms*/
+		ODM_delay_us(10);
+
 	odm_set_rf_reg(dm, (enum rf_path)0x0, RF_0x0, RFREGOFFSETMASK, 0x10000);
 	odm_set_bb_reg(dm, R_0xe28, 0xffffff00, 0x808000);
 }
 
 void _phy_path_b_stand_by_8723d(struct dm_struct *dm)
 {
+	u8 cnt;
+
 	RF_DBG(dm, DBG_RF_IQK, "path-S0 standby mode!\n");
 	odm_set_bb_reg(dm, R_0xe28, 0xffffff00, 0x000000);
+
+	for (cnt = 0; cnt < 100; cnt++) /*delay 1ms*/
+		ODM_delay_us(10);
+
 	odm_set_rf_reg(dm, (enum rf_path)0x1, RF_0x0, RFREGOFFSETMASK, 0x10000);
 	odm_set_bb_reg(dm, R_0xe28, 0xffffff00, 0x808000);
 }
@@ -1792,7 +1887,7 @@ void _phy_pi_mode_switch_8723d(struct dm_struct *dm, boolean pi_mode)
 
 boolean
 phy_simularity_compare_8723d(struct dm_struct *dm, s32 result[][8], u8 c1,
-			     u8 c2)
+			     u8 c2, boolean is2t)
 {
 	u32 i, j, diff, simularity_bit_map, bound = 0;
 	u8 final_candidate[2] = {0xFF, 0xFF};
@@ -1802,14 +1897,13 @@ phy_simularity_compare_8723d(struct dm_struct *dm, s32 result[][8], u8 c1,
 	/*	bool		is2T = IS_92C_SERIAL( hal_data->version_id);*/
 	/*#else*/
 #endif
-	boolean is2T = true;
 #if 0
 	/*#endif*/
 #endif
 
 	s32 tmp1 = 0, tmp2 = 0;
 
-	if (is2T)
+	if (is2t)
 		bound = 8;
 	else
 		bound = 4;
@@ -1956,7 +2050,7 @@ void _phy_iq_calibrate_8723d(struct dm_struct *dm, s32 result[][8], u8 t,
 			     boolean is2T)
 {
 	u32 i;
-	u8 path_s1_ok = 0x0, path_s0_ok = 0x0;
+	u8 path_s1_ok = 0x0, path_s0_ok = 0x0, cnt;
 	u8 tmp0xc50 = (u8)odm_get_bb_reg(dm, R_0xc50, MASKBYTE0);
 	u8 tmp0xc58 = (u8)odm_get_bb_reg(dm, R_0xc58, MASKBYTE0);
 	u32 ADDA_REG[IQK_ADDA_REG_NUM] = {
@@ -2152,6 +2246,9 @@ void _phy_iq_calibrate_8723d(struct dm_struct *dm, s32 result[][8], u8 t,
 	RF_DBG(dm, DBG_RF_IQK, "IQK:Back to BB mode, load original value!\n");
 	odm_set_bb_reg(dm, R_0xe28, 0xffffff00, 0x000000);
 
+		for (cnt = 0; cnt < 100; cnt++) /*delay 1ms*/
+			ODM_delay_us(10);
+
 	if (t != 0) {
 		_phy_reload_adda_registers_8723d(dm, ADDA_REG, dm->rf_calibrate_info.ADDA_backup, IQK_ADDA_REG_NUM);
 		/* Reload MAC parameters*/
@@ -2179,6 +2276,7 @@ void _phy_lc_calibrate_8723d(struct dm_struct *dm, boolean is2T)
 {
 	u8 tmp_reg;
 	u32 lc_cal, cnt;
+	u16 i;
 
 	tmp_reg = odm_read_1byte(dm, 0xd03);
 	if ((tmp_reg & 0x70) != 0)
@@ -2192,8 +2290,11 @@ void _phy_lc_calibrate_8723d(struct dm_struct *dm, boolean is2T)
 	for (cnt = 0; cnt < 100; cnt++) {
 		if (odm_get_rf_reg(dm, RF_PATH_A, RF_CHNLBW, 0x8000) != 0x1)
 			break;
-		ODM_delay_ms(10);
+		for (i = 0; i < 1000; i++) /*delay 10ms*/
+			ODM_delay_us(10);
 	}
+	if (cnt == 100)
+		RF_DBG(dm, DBG_RF_LCK, "LCK time out\n");
 	/* Recover channel number*/
 	odm_set_rf_reg(dm, RF_PATH_A, RF_CHNLBW, RFREGOFFSETMASK, lc_cal);
 	/*Restore original situation*/
@@ -2209,7 +2310,7 @@ void phy_iq_calibrate_8723d(void *dm_void, boolean is_recovery)
 {
 	struct dm_struct *dm = (struct dm_struct *)dm_void;
 	s32 result[4][8];
-	u8 i, final_candidate, indexforchannel;
+	u8 i, final_candidate, indexforchannel, cnt;
 	boolean is_path_s1_ok, is_path_s0_ok;
 	s32 rege94_s1, rege9c_s1, regea4_s1, regeac_s1, rege94_s0, rege9c_s0, regea4_s0, regeac_s0, reg_tmp = 0;
 	s32 regc80, regc94, regc14, regca0, regcd0, regcd4, regcd8;
@@ -2279,7 +2380,10 @@ void phy_iq_calibrate_8723d(void *dm_void, boolean is_recovery)
 		/*backup path & GNT value */
 		original_path = odm_get_mac_reg(dm, REG_LTECOEX_PATH_CONTROL, MASKDWORD); /*save 0x70*/
 		odm_set_bb_reg(dm, REG_LTECOEX_CTRL, MASKDWORD, 0x800f0038);
-		ODM_delay_ms(1);
+
+		for (cnt = 0; cnt < 100; cnt++) /*delay 1ms*/
+			ODM_delay_us(10);
+
 		original_gnt = odm_get_bb_reg(dm, REG_LTECOEX_READ_DATA, MASKDWORD); /*save 0x38*/
 		RF_DBG(dm, DBG_RF_IQK, "[IQK]OriginalGNT = 0x%x\n",
 		       original_gnt);
@@ -2300,7 +2404,7 @@ void phy_iq_calibrate_8723d(void *dm_void, boolean is_recovery)
 		       odm_get_mac_reg(dm, R_0x64, MASKBYTE3));
 #endif
 		if (i == 1) {
-			is12simular = phy_simularity_compare_8723d(dm, result, 0, 1);
+			is12simular = phy_simularity_compare_8723d(dm, result, 0, 1, true);
 			if (is12simular) {
 				final_candidate = 0;
 				RF_DBG(dm, DBG_RF_IQK,
@@ -2311,7 +2415,7 @@ void phy_iq_calibrate_8723d(void *dm_void, boolean is_recovery)
 		}
 
 		if (i == 2) {
-			is13simular = phy_simularity_compare_8723d(dm, result, 0, 2);
+			is13simular = phy_simularity_compare_8723d(dm, result, 0, 2, true);
 			if (is13simular) {
 				final_candidate = 0;
 				RF_DBG(dm, DBG_RF_IQK,
@@ -2320,7 +2424,7 @@ void phy_iq_calibrate_8723d(void *dm_void, boolean is_recovery)
 
 				break;
 			}
-			is23simular = phy_simularity_compare_8723d(dm, result, 1, 2);
+			is23simular = phy_simularity_compare_8723d(dm, result, 1, 2, true);
 			if (is23simular) {
 				final_candidate = 1;
 				RF_DBG(dm, DBG_RF_IQK,

@@ -27,10 +27,10 @@
  * Creadted by Roger, 2011.01.31.
  *   */
 static void HalSdioGetCmdAddr8723DSdio(
-	IN	PADAPTER			padapter,
-	IN	u8				DeviceID,
-	IN	u32				Addr,
-	OUT	u32				*pCmdAddr
+		PADAPTER			padapter,
+		u8				DeviceID,
+		u32				Addr,
+		u32				*pCmdAddr
 )
 {
 	switch (DeviceID) {
@@ -888,7 +888,7 @@ DumpLoggedInterruptHistory8723Sdio(
 )
 {
 	HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(padapter);
-	u4Byte				DebugLevel = DBG_LOUD;
+	u32				DebugLevel = DBG_LOUD;
 
 	if (DBG_Var.DbgPrintIsr == 0)
 		return;
@@ -972,13 +972,18 @@ LogInterruptHistory8723Sdio(
 
 void
 DumpHardwareProfile8723Sdio(
-	IN	PADAPTER		padapter
+		PADAPTER		padapter
 )
 {
 	DumpLoggedInterruptHistory8723Sdio(padapter);
 }
 #endif
 
+#ifndef CMD52_ACCESS_HISR_RX_REQ_LEN
+#define CMD52_ACCESS_HISR_RX_REQ_LEN 0
+#endif
+
+#if CMD52_ACCESS_HISR_RX_REQ_LEN
 static s32 ReadInterrupt8723DSdio(PADAPTER padapter, u32 *phisr)
 {
 	u32 hisr, himr;
@@ -1008,7 +1013,7 @@ static s32 ReadInterrupt8723DSdio(PADAPTER padapter, u32 *phisr)
 
 	return _TRUE;
 }
-
+#endif /*#if CMD52_ACCESS_HISR_RX_REQ_LEN*/
 /*
  *	Description:
  *		Initialize SDIO Host Interrupt Mask configuration variables for future use.
@@ -1452,9 +1457,6 @@ static void sd_rxhandler(PADAPTER padapter, struct recv_buf *precvbuf)
 #endif /* CONFIG_RECV_THREAD_MODE */
 }
 
-#ifndef CMD52_ACCESS_HISR_RX_REQ_LEN
-#define CMD52_ACCESS_HISR_RX_REQ_LEN 0
-#endif
 
 #ifndef SD_INT_HDL_DIS_HIMR_RX_REQ
 #define SD_INT_HDL_DIS_HIMR_RX_REQ 1
@@ -1476,6 +1478,7 @@ static void restore_himr_8723d_sdio(_adapter *adapter)
 	SdioLocalCmd52Write1Byte(adapter, SDIO_REG_HIMR, *((u8 *)&himr));
 }
 #endif
+#ifdef CONFIG_RECV_THREAD_MODE
 static u32 sdio_recv_and_drop(PADAPTER padapter, u32 size)
 {
 	u32 readsz, blksz, bufsz;
@@ -1512,7 +1515,7 @@ static u32 sdio_recv_and_drop(PADAPTER padapter, u32 size)
 _exit:
 	return ret;
 }
-
+#endif
 void sd_recv(PADAPTER padapter)
 {
 	PHAL_DATA_TYPE phal = GET_HAL_DATA(padapter);
@@ -1599,17 +1602,14 @@ void sd_int_dpc(PADAPTER padapter)
 #ifdef CONFIG_SDIO_TX_ENABLE_AVAL_INT
 	if (phal->sdio_hisr & SDIO_HISR_AVAL) {
 		/* _irqL irql; */
-		u8	freepage[4];
+		u8 freepage[4];
 
 		_sdio_local_read(padapter, SDIO_REG_FREE_TXPG, 4, freepage);
-		/* _enter_critical_bh(&phal->SdioTxFIFOFreePageLock, &irql); */
-		/* _rtw_memcpy(phal->SdioTxFIFOFreePage, freepage, 4); */
-		/* _exit_critical_bh(&phal->SdioTxFIFOFreePageLock, &irql); */
-		/* RTW_INFO("SDIO_HISR_AVAL, Tx Free Page = 0x%x%x%x%x\n", */
-		/*	freepage[0], */
-		/*	freepage[1], */
-		/*	freepage[2], */
-		/*	freepage[3]); */
+		#ifdef DBG_TX_FREE_PAGE
+		RTW_INFO("SDIO_HISR_AVAL, Tx Free Page = H:%u, M:%u, L:%u, P:%u\n",
+			freepage[0], freepage[1], freepage[2], freepage[3]);
+		#endif
+
 		_rtw_up_sema(&(padapter->xmitpriv.xmit_sema));
 	}
 #endif

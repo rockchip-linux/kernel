@@ -543,7 +543,7 @@ static void rtl8723d_lps_poff_dynamic_file(PADAPTER padapter, u8 index, u8 isGK)
 		}
 
 		ret = rtl8723d_lps_poff_set_dynamic_file(ptkfile,
-				WCAMI, tgt_wdata);
+				REG_CAMWRITE, tgt_wdata);
 
 		if (!isGK) {
 			plps_poff_info->ConfLenForPTK += ret;
@@ -558,7 +558,7 @@ static void rtl8723d_lps_poff_dynamic_file(PADAPTER padapter, u8 index, u8 isGK)
 		}
 
 		ret = rtl8723d_lps_poff_set_dynamic_file(ptkfile,
-				RWCAM, tgt_cmd);
+				REG_CAMCMD, tgt_cmd);
 
 		if (!isGK)
 			plps_poff_info->ConfLenForPTK += ret;

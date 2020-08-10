@@ -247,9 +247,9 @@ void _rtw_phydm_acs_select_best_chan(_adapter *adapter)
 
 	for (ch_idx = 0; ch_idx < max_chan_nums; ch_idx++) {
 		if (pbss_nums[ch_idx])
-			pinterference_time[ch_idx] = (pclm_ratio[ch_idx] / 2) + pnhm_ratio[ch_idx];
+			pinterference_time[ch_idx] = (pclm_ratio[ch_idx] / 2) + (pnhm_ratio[ch_idx] / 2);
 		else
-			pinterference_time[ch_idx] = pclm_ratio[ch_idx] + pnhm_ratio[ch_idx];
+			pinterference_time[ch_idx] = (pclm_ratio[ch_idx] / 3) + ((pnhm_ratio[ch_idx] * 2) / 3);
 
 		if (rtw_get_ch_num_by_idx(adapter, ch_idx) < 14) {
 			if (pinterference_time[ch_idx] < min_itf_24g) {

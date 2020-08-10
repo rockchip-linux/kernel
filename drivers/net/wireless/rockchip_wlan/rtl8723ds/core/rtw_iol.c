@@ -25,7 +25,7 @@ struct xmit_frame	*rtw_IOL_accquire_xmit_frame(ADAPTER *adapter)
 	struct xmit_priv	*pxmitpriv = &(adapter->xmitpriv);
 
 #if 1
-	xmit_frame = rtw_alloc_xmitframe(pxmitpriv);
+	xmit_frame = rtw_alloc_xmitframe(pxmitpriv, 0);
 	if (xmit_frame == NULL) {
 		RTW_INFO("%s rtw_alloc_xmitframe return null\n", __FUNCTION__);
 		goto exit;
@@ -302,11 +302,9 @@ int _rtw_IOL_append_WD_cmd(struct xmit_frame *xmit_frame, u16 addr, u32 value)
 #ifdef DBG_IO
 int dbg_rtw_IOL_append_WB_cmd(struct xmit_frame *xmit_frame, u16 addr, u8 value, const char *caller, const int line)
 {
-	const struct rtw_io_sniff_ent *ent = match_write_sniff(xmit_frame->padapter, addr, 1, value);
-
-	if (ent) {
-		RTW_INFO("DBG_IO %s:%d IOL_WB(0x%04x, 0x%02x) %s\n"
-			, caller, line, addr, value, rtw_io_sniff_ent_get_tag(ent));
+	if (match_write_sniff(xmit_frame->padapter, addr, 1, value)) {
+		RTW_INFO("DBG_IO %s:%d IOL_WB(0x%04x, 0x%02x)\n"
+			, caller, line, addr, value);
 	}
 
 	return _rtw_IOL_append_WB_cmd(xmit_frame, addr, value);
@@ -314,11 +312,9 @@ int dbg_rtw_IOL_append_WB_cmd(struct xmit_frame *xmit_frame, u16 addr, u8 value,
 
 int dbg_rtw_IOL_append_WW_cmd(struct xmit_frame *xmit_frame, u16 addr, u16 value, const char *caller, const int line)
 {
-	const struct rtw_io_sniff_ent *ent = match_write_sniff(xmit_frame->padapter, addr, 2, value);
-
-	if (ent) {
-		RTW_INFO("DBG_IO %s:%d IOL_WW(0x%04x, 0x%04x) %s\n"
-			, caller, line, addr, value, rtw_io_sniff_ent_get_tag(ent));
+	if (match_write_sniff(xmit_frame->padapter, addr, 2, value)) {
+		RTW_INFO("DBG_IO %s:%d IOL_WW(0x%04x, 0x%04x)\n"
+			, caller, line, addr, value);
 	}
 
 	return _rtw_IOL_append_WW_cmd(xmit_frame, addr, value);
@@ -326,11 +322,9 @@ int dbg_rtw_IOL_append_WW_cmd(struct xmit_frame *xmit_frame, u16 addr, u16 value
 
 int dbg_rtw_IOL_append_WD_cmd(struct xmit_frame *xmit_frame, u16 addr, u32 value, const char *caller, const int line)
 {
-	const struct rtw_io_sniff_ent *ent = match_write_sniff(xmit_frame->padapter, addr, 4, value);
-
-	if (ent) {
-		RTW_INFO("DBG_IO %s:%d IOL_WD(0x%04x, 0x%08x) %s\n"
-			, caller, line, addr, value, rtw_io_sniff_ent_get_tag(ent));
+	if (match_write_sniff(xmit_frame->padapter, addr, 4, value)) {
+		RTW_INFO("DBG_IO %s:%d IOL_WD(0x%04x, 0x%08x)\n"
+			, caller, line, addr, value);
 	}
 
 	return _rtw_IOL_append_WD_cmd(xmit_frame, addr, value);

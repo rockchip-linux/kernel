@@ -96,6 +96,7 @@ const char *android_wifi_cmd_str[ANDROID_WIFI_CMD_MAX] = {
 /*	Private command for	P2P disable*/
 	"P2P_DISABLE",
 	"SET_AEK",
+	"EXT_AUTH_STATUS",
 	"DRIVER_VERSION"
 };
 
@@ -371,7 +372,7 @@ int rtw_android_get_rssi(struct net_device *net, char *command, int total_len)
 	struct	wlan_network	*pcur_network = &pmlmepriv->cur_network;
 	int bytes_written = 0;
 
-	if (check_fwstate(pmlmepriv, _FW_LINKED) == _TRUE) {
+	if (check_fwstate(pmlmepriv, WIFI_ASOC_STATE) == _TRUE) {
 		bytes_written += snprintf(&command[bytes_written], total_len, "%s rssi %d",
 			pcur_network->network.Ssid.Ssid, padapter->recvpriv.rssi);
 	}
@@ -663,8 +664,11 @@ int rtw_android_priv_cmd(struct net_device *net, struct ifreq *ifr, int cmd)
 		ret = -ENOMEM;
 		goto exit;
 	}
-
+	#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 0, 0))
+	if (!access_ok(priv_cmd.buf, priv_cmd.total_len)) {
+	#else
 	if (!access_ok(VERIFY_READ, priv_cmd.buf, priv_cmd.total_len)) {
+	#endif
 		RTW_INFO("%s: failed to access memory\n", __FUNCTION__);
 		ret = -EFAULT;
 		goto exit;
@@ -933,6 +937,12 @@ int rtw_android_priv_cmd(struct net_device *net, struct ifreq *ifr, int cmd)
 		break;
 #endif
 	
+	case ANDROID_WIFI_CMD_EXT_AUTH_STATUS: {
+		rtw_set_external_auth_status(padapter,
+			command + strlen("EXT_AUTH_STATUS "),
+			priv_cmd.total_len - strlen("EXT_AUTH_STATUS "));
+		break;
+	}
 	case ANDROID_WIFI_CMD_DRIVERVERSION: {
 		bytes_written = strlen(DRIVERVERSION);
 		snprintf(command, bytes_written + 1, DRIVERVERSION);
@@ -964,7 +974,7 @@ response:
 exit:
 	rtw_unlock_suspend();
 	if (command)
-		rtw_mfree(command, priv_cmd.total_len);
+		rtw_mfree(command, priv_cmd.total_len + 1);
 
 	return ret;
 }
@@ -1065,13 +1075,21 @@ int wifi_get_mac_addr(unsigned char *buf)
 #endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 35)) */
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)) || defined(COMPAT_KERNEL_RELEASE)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 18, 0))
+void *wifi_get_country_code(char *ccode, u32 flags)
+#else /* Linux kernel < 3.18 */
 void *wifi_get_country_code(char *ccode)
+#endif /* Linux kernel < 3.18 */
 {
 	RTW_INFO("%s\n", __FUNCTION__);
 	if (!ccode)
 		return NULL;
-	//if (wifi_control_data && wifi_control_data->get_country_code)
-	//	return wifi_control_data->get_country_code(ccode);
+	if (wifi_control_data && wifi_control_data->get_country_code)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 18, 0))
+		return wifi_control_data->get_country_code(ccode, flags);
+#else /* Linux kernel < 3.18 */
+		return wifi_control_data->get_country_code(ccode);
+#endif /* Linux kernel < 3.18 */
 	return NULL;
 }
 #endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)) */
@@ -1131,6 +1149,7 @@ extern PADAPTER g_test_adapter;
 
 static void shutdown_card(void)
 {
+	struct pwrctrl_priv *pwrpriv = adapter_to_pwrctl(g_test_adapter);
 	u32 addr;
 	u8 tmp8, cnt = 0;
 
@@ -1147,7 +1166,7 @@ static void shutdown_card(void)
 #ifdef CONFIG_GPIO_WAKEUP
 	/*default wake up pin change to BT*/
 	RTW_INFO("%s:default wake up pin change to BT\n", __FUNCTION__);
-	rtw_hal_switch_gpio_wl_ctrl(g_test_adapter, WAKEUP_GPIO_IDX, _FALSE);
+	rtw_hal_switch_gpio_wl_ctrl(g_test_adapter, pwrpriv->wowlan_gpio_index, _FALSE);
 #endif /* CONFIG_GPIO_WAKEUP */
 #endif /* CONFIG_WOWLAN */
 

@@ -19,9 +19,6 @@
 
 #define NUM_IOREQ		8
 
-#ifdef PLATFORM_WINDOWS
-	#define MAX_PROT_SZ	64
-#endif
 #ifdef PLATFORM_LINUX
 	#define MAX_PROT_SZ	(64-16)
 #endif
@@ -141,54 +138,14 @@ struct io_req {
 	u32	status;
 	u8	*pbuf;
 	_sema	sema;
-
-#ifdef PLATFORM_OS_CE
-#ifdef CONFIG_USB_HCI
-	/* URB handler for rtw_write_mem */
-	USB_TRANSFER usb_transfer_write_mem;
-#endif
-#endif
-
 	void (*_async_io_callback)(_adapter *padater, struct io_req *pio_req, u8 *cnxt);
 	u8 *cnxt;
-
-#ifdef PLATFORM_OS_XP
-	PMDL pmdl;
-	PIRP  pirp;
-
-#ifdef CONFIG_SDIO_HCI
-	PSDBUS_REQUEST_PACKET sdrp;
-#endif
-
-#endif
-
-
 };
 
 struct	intf_hdl {
-
-#if 0
-	u32	intf_option;
-	u32	bus_status;
-	u32	do_flush;
-	u8	*adapter;
-	u8	*intf_dev;
-	struct intf_priv	*pintfpriv;
-	u8	cnt;
-	void (*intf_hdl_init)(u8 *priv);
-	void (*intf_hdl_unload)(u8 *priv);
-	void (*intf_hdl_open)(u8 *priv);
-	void (*intf_hdl_close)(u8 *priv);
-	struct	_io_ops	io_ops;
-	/* u8 intf_status;//moved to struct intf_priv */
-	u16 len;
-	u16 done_len;
-#endif
 	_adapter *padapter;
 	struct dvobj_priv *pintf_dev;/*	pointer to &(padapter->dvobjpriv); */
-
 	struct _io_ops	io_ops;
-
 };
 
 struct reg_protocol_rd {
@@ -396,12 +353,13 @@ u32 _rtw_write_port_and_wait(_adapter *adapter, u32 addr, u32 cnt, u8 *pmem, int
 extern void _rtw_write_port_cancel(_adapter *adapter);
 
 #ifdef DBG_IO
-struct rtw_io_sniff_ent;
-const char *rtw_io_sniff_ent_get_tag(const struct rtw_io_sniff_ent *ent);
-const struct rtw_io_sniff_ent *match_read_sniff(_adapter *adapter, u32 addr, u16 len, u32 val);
-const struct rtw_io_sniff_ent *match_write_sniff(_adapter *adapter, u32 addr, u16 len, u32 val);
+u32 match_read_sniff(_adapter *adapter, u32 addr, u16 len, u32 val);
+u32 match_write_sniff(_adapter *adapter, u32 addr, u16 len, u32 val);
 bool match_rf_read_sniff_ranges(_adapter *adapter, u8 path, u32 addr, u32 mask);
 bool match_rf_write_sniff_ranges(_adapter *adapter, u8 path, u32 addr, u32 mask);
+
+void dbg_rtw_reg_read_monitor(_adapter *adapter, u32 addr, u32 len, u32 val, const char *caller, const int line);
+void dbg_rtw_reg_write_monitor(_adapter *adapter, u32 addr, u32 len, u32 val, const char *caller, const int line);
 
 extern u8 dbg_rtw_read8(_adapter *adapter, u32 addr, const char *caller, const int line);
 extern u16 dbg_rtw_read16(_adapter *adapter, u32 addr, const char *caller, const int line);
@@ -533,7 +491,6 @@ extern void free_io_queue(_adapter *adapter);
 extern void async_bus_io(struct io_queue *pio_q);
 extern void bus_sync_io(struct io_queue *pio_q);
 extern u32 _ioreq2rwmem(struct io_queue *pio_q);
-extern void dev_power_down(_adapter *Adapter, u8 bpwrup);
 
 /*
 #define RTL_R8(reg)		rtw_read8(padapter, reg)

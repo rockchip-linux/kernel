@@ -111,15 +111,6 @@ check_positive(
 	} else
 		return false;
 }
-static boolean
-check_negative(
-	struct dm_struct *dm,
-	const u32	condition1,
-	const u32	condition2
-)
-{
-	return true;
-}
 
 /******************************************************************************
 *                           radioa.TXT
@@ -363,7 +354,7 @@ odm_read_and_config_mp_8723d_radioa(struct dm_struct *dm)
 u32
 odm_get_version_mp_8723d_radioa(void)
 {
-		return 37;
+		return 40;
 }
 
 /******************************************************************************

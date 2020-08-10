@@ -30,32 +30,6 @@
 /* ************************************************************
  * Global var
  * ************************************************************ */
-
-
-static VOID
-dm_CheckProtection(
-	IN	PADAPTER	Adapter
-)
-{
-#if 0
-	PMGNT_INFO		pMgntInfo = &(Adapter->MgntInfo);
-	u1Byte			CurRate, RateThreshold;
-
-	if (pMgntInfo->pHTInfo->bCurBW40MHz)
-		RateThreshold = MGN_MCS1;
-	else
-		RateThreshold = MGN_MCS3;
-
-	if (Adapter->TxStats.CurrentInitTxRate <= RateThreshold) {
-		pMgntInfo->bDmDisableProtect = TRUE;
-		DbgPrint("Forced disable protect: %x\n", Adapter->TxStats.CurrentInitTxRate);
-	} else {
-		pMgntInfo->bDmDisableProtect = FALSE;
-		DbgPrint("Enable protect: %x\n", Adapter->TxStats.CurrentInitTxRate);
-	}
-#endif
-}
-
 #ifdef CONFIG_SUPPORT_HW_WPS_PBC
 static void dm_CheckPbcGPIO(_adapter *padapter)
 {
@@ -114,9 +88,9 @@ static void dm_CheckPbcGPIO(_adapter *padapter)
  *
  *	Created by Roger, 2010.03.05.
  *   */
-VOID
+void
 dm_InterruptMigration(
-	IN	PADAPTER	Adapter
+		PADAPTER	Adapter
 )
 {
 	HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(Adapter);
@@ -135,7 +109,7 @@ dm_InterruptMigration(
 	/* when interrupt migration is set before. 2010.03.05. */
 	/* */
 	if (!Adapter->registrypriv.wifi_spec &&
-	    (check_fwstate(pmlmepriv, _FW_LINKED) == _TRUE) &&
+	    (check_fwstate(pmlmepriv, WIFI_ASOC_STATE) == _TRUE) &&
 	    pmlmepriv->LinkDetectInfo.bHigherBusyTraffic) {
 		IntMtToSet = _TRUE;
 
@@ -188,9 +162,10 @@ dm_InterruptMigration(
 /*
  * Initialize GPIO setting registers
  *   */
+#ifdef CONFIG_USB_HCI
 static void
 dm_InitGPIOSetting(
-	IN	PADAPTER	Adapter
+		PADAPTER	Adapter
 )
 {
 	PHAL_DATA_TYPE		pHalData = GET_HAL_DATA(Adapter);
@@ -202,6 +177,7 @@ dm_InitGPIOSetting(
 
 	rtw_write8(Adapter, REG_GPIO_MUXCFG, tmp1byte);
 }
+#endif
 /* ************************************************************
  * functions
  * ************************************************************ */
@@ -218,14 +194,14 @@ static void Init_ODM_ComInfo_8723d(PADAPTER	Adapter)
 	fab_ver = ODM_TSMC;
 	cut_ver = GET_CVID_CUT_VERSION(pHalData->version_id);
 
-	RTW_INFO("%s(): fab_ver=%d cut_ver=%d\n", __func__, fab_ver, cut_ver);
+	RTW_INFO("%s(): Fv=%d Cv=%d\n", __func__, fab_ver, cut_ver);
 	odm_cmn_info_init(pDM_Odm, ODM_CMNINFO_FAB_VER, fab_ver);
 	odm_cmn_info_init(pDM_Odm, ODM_CMNINFO_CUT_VER, cut_ver);
 }
 
 void
 rtl8723d_InitHalDm(
-	IN	PADAPTER	Adapter
+		PADAPTER	Adapter
 )
 {
 	PHAL_DATA_TYPE	pHalData = GET_HAL_DATA(Adapter);
@@ -237,9 +213,9 @@ rtl8723d_InitHalDm(
 	rtw_phydm_init(Adapter);
 }
 
-VOID
+void
 rtl8723d_HalDmWatchDog(
-	IN	PADAPTER	Adapter
+		PADAPTER	Adapter
 )
 {
 	BOOLEAN		bFwCurrentInPSMode = _FALSE;
@@ -278,7 +254,6 @@ rtl8723d_HalDmWatchDog(
 		/* */
 		/* Dynamically switch RTS/CTS protection. */
 		/* */
-		/* dm_CheckProtection(Adapter); */
 
 #ifdef CONFIG_PCI_HCI
 		/* 20100630 Joseph: Disable Interrupt Migration mechanism temporarily because it degrades Rx throughput. */
@@ -316,7 +291,7 @@ skip_dm:
 	return;
 }
 
-void rtl8723d_init_dm_priv(IN PADAPTER Adapter)
+void rtl8723d_init_dm_priv(PADAPTER Adapter)
 {
 	PHAL_DATA_TYPE	pHalData = GET_HAL_DATA(Adapter);
 	struct dm_struct		*podmpriv = &pHalData->odmpriv;
@@ -326,7 +301,7 @@ void rtl8723d_init_dm_priv(IN PADAPTER Adapter)
 
 }
 
-void rtl8723d_deinit_dm_priv(IN PADAPTER Adapter)
+void rtl8723d_deinit_dm_priv(PADAPTER Adapter)
 {
 	PHAL_DATA_TYPE	pHalData = GET_HAL_DATA(Adapter);
 	struct dm_struct		*podmpriv = &pHalData->odmpriv;
