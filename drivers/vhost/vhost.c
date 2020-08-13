@@ -737,7 +737,7 @@ static int translate_desc(struct vhost_virtqueue *vq, u64 addr, u32 len,
 			  struct iovec iov[], int iov_size, int access);
 
 static int vhost_copy_to_user(struct vhost_virtqueue *vq, void *to,
-			      const void *from, unsigned size)
+			      void *from, unsigned size)
 {
 	int ret;
 
