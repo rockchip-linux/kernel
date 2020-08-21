@@ -3547,6 +3547,8 @@ static int vop_crtc_atomic_check(struct drm_crtc *crtc,
 
 		if (!pstate->visible)
 			pzpos[cnt].zpos = INT_MAX;
+		else if (!pstate->fb && plane->type == DRM_PLANE_TYPE_CURSOR)
+			pzpos[cnt].zpos = INT_MAX;
 		else
 			pzpos[cnt].zpos = plane_state->zpos;
 		pzpos[cnt++].win_id = win->win_id;
