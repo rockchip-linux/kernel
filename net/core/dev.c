@@ -5261,7 +5261,7 @@ static void flush_backlog(struct work_struct *work)
 	skb_queue_walk_safe(&sd->input_pkt_queue, skb, tmp) {
 		if (skb->dev->reg_state == NETREG_UNREGISTERING) {
 			__skb_unlink(skb, &sd->input_pkt_queue);
-			__skb_queue_tail(&sd->tofree_queue, skb);
+			dev_kfree_skb_irq(skb);
 			input_queue_head_incr(sd);
 		}
 	}
@@ -5271,14 +5271,11 @@ static void flush_backlog(struct work_struct *work)
 	skb_queue_walk_safe(&sd->process_queue, skb, tmp) {
 		if (skb->dev->reg_state == NETREG_UNREGISTERING) {
 			__skb_unlink(skb, &sd->process_queue);
-			__skb_queue_tail(&sd->tofree_queue, skb);
+			kfree_skb(skb);
 			input_queue_head_incr(sd);
 		}
 	}
-	if (!skb_queue_empty(&sd->tofree_queue))
-		raise_softirq_irqoff(NET_RX_SOFTIRQ);
 	local_bh_enable();
-
 }
 
 static void flush_all_backlogs(void)
