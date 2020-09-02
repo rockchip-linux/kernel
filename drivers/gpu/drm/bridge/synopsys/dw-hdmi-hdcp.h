@@ -19,6 +19,14 @@
 #define HDCP_PRIVATE_KEY_SIZE   280
 #define HDCP_KEY_SHA_SIZE       20
 
+enum dw_hdmi_hdcp_state {
+	DW_HDCP_DISABLED,
+	DW_HDCP_AUTH_START,
+	DW_HDCP_AUTH_SUCCESS,
+	DW_HDCP_AUTH_FAIL,
+	DW_HDCP_UNKNOWN,
+};
+
 struct hdcp_keys {
 	u8 KSV[8];
 	u8 devicekey[HDCP_PRIVATE_KEY_SIZE];
