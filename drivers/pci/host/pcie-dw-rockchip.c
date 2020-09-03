@@ -106,6 +106,7 @@ struct reset_bulk_data	{
 #define PCIE_PHY_LINKUP			BIT(0)
 #define PCIE_DATA_LINKUP		BIT(1)
 
+#define PCIE_PL_ORDER_RULE_CTRL_OFF	0x8B4
 #define PCIE_MISC_CONTROL_1_OFF		0x8BC
 #define PCIE_DBI_RO_WR_EN		(0x1 << 0)
 
@@ -750,6 +751,16 @@ static int rk_pcie_add_host(struct rk_pcie *rk_pcie,
 		dev_err(&pdev->dev, "failed to initialize host\n");
 		return ret;
 	}
+
+	/*
+	 * Disable order rule for CPL can't pass halted P queue.
+	 * Need to check producer-consumer model.
+	 * Just for RK1808 platform.
+	 */
+	if (of_device_is_compatible(pdev->dev.of_node,
+				    "rockchip,rk1808-pcie"))
+		rk_pcie_writel_dbi(rk_pcie, PCIE_PL_ORDER_RULE_CTRL_OFF,
+				   0xff00);
 
 	return 0;
 }
