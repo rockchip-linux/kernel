@@ -33,6 +33,31 @@
 		 status = "okay";
 
 	 };
+
+       	wdt_pwr: wdt-pwr {
+                compatible = "regulator-fixed";
+                enable-active-high;
+                gpio = <&gpio1 11 GPIO_ACTIVE_HIGH>;
+                pinctrl-names = "default";
+                pinctrl-0 = <&wdt_pwr_pin>;
+                regulator-name = "wdt_pwr";
+                regulator-always-on;
+                status = "okay";
+
+        };
+
+      	usb_net: usb-net {
+             compatible = "regulator-fixed";
+             enable-active-high;
+             gpio = <&gpio4 0 GPIO_ACTIVE_HIGH>;
+             pinctrl-names = "default";
+             pinctrl-0 = <&usb_net_ctl>;
+             regulator-name = "usb_net";
+             regulator-always-on;
+             status = "okay";
+
+     };
+
 };
 
 &pwm3 {
@@ -93,6 +118,9 @@
 	sensor@3c {
 		 status = "okay";
 		 compatible = "firefly,pc9202";
+		 sw-gpio = <&gpio4 21 GPIO_ACTIVE_HIGH>;
+	         pinctrl-names = "default";
+	         pinctrl-0 = <&wdt_ctl>;
 		 reg = <0x3c>;
 	};
 
@@ -287,7 +315,23 @@
 			rockchip,pins = <RK_GPIO1 1 RK_FUNC_GPIO &pcfg_pull_up>;
 		};
 	};
+	
+	wdt-pin {
+       		wdt_pwr_pin: wdt-pwr-pin {
+                       rockchip,pins = <RK_GPIO1 11 RK_FUNC_GPIO &pcfg_pull_up>;
+                };
 
+       		wdt_ctl: wdt-ctl {
+                       rockchip,pins = <RK_GPIO4 21 RK_FUNC_GPIO &pcfg_pull_up>;
+                };
+
+       };
+
+       usb_net_pwr {
+       		usb_net_ctl: usb-net-ctl {
+                       rockchip,pins = <RK_GPIO4 0 RK_FUNC_GPIO &pcfg_pull_up>;
+               };
+       };
 
 };
 

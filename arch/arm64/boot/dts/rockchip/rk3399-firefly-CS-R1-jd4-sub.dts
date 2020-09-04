@@ -25,6 +25,17 @@
 		status = "okay";
 	};
 
+	wdt_pwr: wdt-pwr {
+                compatible = "regulator-fixed";
+                enable-active-high;
+                gpio = <&gpio2 22 GPIO_ACTIVE_HIGH>;
+                pinctrl-names = "default";
+                pinctrl-0 = <&wdt_pwr_pin>;
+                regulator-name = "wdt_pwr";
+                regulator-always-on;
+                status = "okay";
+
+        };
 
 	NPU5801_PWR_EN: NPU5801-PWR-EN {
 		compatible = "regulator-fixed";
@@ -78,6 +89,18 @@
 	ep-gpios = <&gpio1 4 GPIO_ACTIVE_HIGH>;
 };
 
+&spi1 {
+	status = "okay";
+	max-freq = <48000000>;
+	dev-port = <0>;
+	spidev0: spidev@00 {
+		 status = "okay";
+		 //compatible = "linux,spidev";
+		 compatible = "jedec,spi-nor";
+		 reg = <0x00>;
+		 spi-max-frequency = <48000000>;
+	 };  
+};
 
 &i2c1 {
 	status = "okay";
@@ -98,6 +121,9 @@
 	sensor@3c {
 		 status = "okay";
 		 compatible = "firefly,pc9202";
+	         sw-gpio = <&gpio3 24 GPIO_ACTIVE_HIGH>;
+	         pinctrl-names = "default";
+	         pinctrl-0 = <&wdt_ctl>;
 		 reg = <0x3c>;
 	};
 
@@ -295,6 +321,17 @@
 				<0 2 RK_FUNC_GPIO &pcfg_pull_up>;
 		};
 	};
+
+       wdt-pin {
+       		wdt_pwr_pin: wdt-pwr-pin {
+                       rockchip,pins = <RK_GPIO2 22 RK_FUNC_GPIO &pcfg_pull_up>;
+                };
+
+       		wdt_ctl: wdt-ctl {
+                       rockchip,pins = <RK_GPIO3 24 RK_FUNC_GPIO &pcfg_pull_up>;
+                };
+
+       };
 
 };
 
