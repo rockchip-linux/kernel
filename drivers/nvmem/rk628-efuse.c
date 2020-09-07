@@ -281,7 +281,7 @@ static int __init rk628_efuse_probe(struct platform_device *pdev)
 	econfig.reg_read = match->data;
 	econfig.priv = efuse;
 	econfig.dev = efuse->dev;
-	nvmem = devm_nvmem_register(&econfig);
+	nvmem = devm_nvmem_register(efuse->dev, &econfig);
 	if (IS_ERR(nvmem))
 		return PTR_ERR(nvmem);
 
