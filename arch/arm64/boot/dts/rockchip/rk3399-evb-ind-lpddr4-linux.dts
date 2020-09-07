@@ -215,12 +215,12 @@
 
 &i2s0 {
 	#sound-dai-cells = <0>;
-	status = "okay";
+	status = "disabled";
 };
 
 &i2s1 {
 	#sound-dai-cells = <0>;
-	status = "disabled";
+	status = "okay";
 };
 
 &i2s2 {
