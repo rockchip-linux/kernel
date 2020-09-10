@@ -23,14 +23,22 @@
 #include <video/of_display_timing.h>
 #include <video/videomode.h>
 
+enum interface_type {
+	RGB_TX,
+	YUV_RX,
+	YUV_TX,
+};
+
 struct rk628_rgb {
 	struct drm_bridge base;
 	struct drm_connector connector;
 	struct drm_display_mode mode;
 	struct drm_panel *panel;
+	struct drm_bridge *bridge;
 	struct device *dev;
 	struct regmap *grf;
 	struct rk628 *parent;
+	enum interface_type interface_type;
 };
 
 static inline struct rk628_rgb *bridge_to_rgb(struct drm_bridge *b)
@@ -41,6 +49,25 @@ static inline struct rk628_rgb *bridge_to_rgb(struct drm_bridge *b)
 static inline struct rk628_rgb *connector_to_rgb(struct drm_connector *c)
 {
 	return container_of(c, struct rk628_rgb, connector);
+}
+
+static enum interface_type rk628_rgb_get_interface_type(struct rk628_rgb *rgb)
+{
+	struct device *dev = rgb->dev;
+	const char *str;
+	int ret;
+
+	ret = of_property_read_string(dev->of_node,
+				      "rockchip,interface-type", &str);
+	if (ret < 0)
+		return RGB_TX;
+
+	if (!strcmp(str, "yuv-rx"))
+		return YUV_RX;
+	else if (!strcmp(str, "yuv-tx"))
+		return YUV_TX;
+	else
+		return RGB_TX;
 }
 
 static struct drm_encoder *
@@ -92,20 +119,46 @@ static void rk628_rgb_bridge_enable(struct drm_bridge *bridge)
 {
 	struct rk628_rgb *rgb = bridge_to_rgb(bridge);
 
-	regmap_update_bits(rgb->grf, GRF_SYSTEM_CON0,
+	switch (rgb->interface_type) {
+	case YUV_RX:
+		regmap_write(rgb->grf, GRF_CSC_CTRL_CON, SW_Y2R_EN(1));
+		regmap_update_bits(rgb->grf, GRF_SYSTEM_CON0,
+				   SW_BT_DATA_OEN_MASK | SW_INPUT_MODE_MASK,
+				   SW_BT_DATA_OEN | SW_INPUT_MODE(INPUT_MODE_YUV));
+		break;
+	case YUV_TX:
+		regmap_write(rgb->grf, GRF_CSC_CTRL_CON, SW_R2Y_EN(1));
+		regmap_update_bits(rgb->grf, GRF_POST_PROC_CON,
+				   SW_DCLK_OUT_INV_EN, SW_DCLK_OUT_INV_EN);
+
+		regmap_update_bits(rgb->grf, GRF_SYSTEM_CON0,
+				   SW_BT_DATA_OEN_MASK | SW_OUTPUT_MODE_MASK,
+				   SW_OUTPUT_MODE(OUTPUT_MODE_YUV));
+		break;
+	case RGB_TX:
+	default:
+		regmap_update_bits(rgb->grf, GRF_SYSTEM_CON0,
 			   SW_BT_DATA_OEN_MASK | SW_OUTPUT_MODE_MASK,
 			   SW_OUTPUT_MODE(OUTPUT_MODE_RGB));
+		regmap_update_bits(rgb->grf, GRF_POST_PROC_CON,
+				   SW_DCLK_OUT_INV_EN, SW_DCLK_OUT_INV_EN);
+		break;
+	}
 
-	drm_panel_prepare(rgb->panel);
-	drm_panel_enable(rgb->panel);
+	if (rgb->panel) {
+		drm_panel_prepare(rgb->panel);
+		drm_panel_enable(rgb->panel);
+	}
 }
 
 static void rk628_rgb_bridge_disable(struct drm_bridge *bridge)
 {
 	struct rk628_rgb *rgb = bridge_to_rgb(bridge);
 
-	drm_panel_disable(rgb->panel);
-	drm_panel_unprepare(rgb->panel);
+	if (rgb->panel) {
+		drm_panel_disable(rgb->panel);
+		drm_panel_unprepare(rgb->panel);
+	}
 }
 
 static int rk628_rgb_bridge_attach(struct drm_bridge *bridge)
@@ -113,22 +166,60 @@ static int rk628_rgb_bridge_attach(struct drm_bridge *bridge)
 	struct rk628_rgb *rgb = bridge_to_rgb(bridge);
 	struct drm_connector *connector = &rgb->connector;
 	struct drm_device *drm = bridge->dev;
+	struct device *dev = rgb->dev;
 	int ret;
 
-	ret = drm_connector_init(drm, connector, &rk628_rgb_connector_funcs,
-				 DRM_MODE_CONNECTOR_DPI);
-	if (ret) {
-		dev_err(rgb->dev, "Failed to initialize connector with drm\n");
+	ret = drm_of_find_panel_or_bridge(dev->of_node, 1, -1,
+					  &rgb->panel, &rgb->bridge);
+	if (ret)
 		return ret;
-	}
 
-	drm_connector_helper_add(connector, &rk628_rgb_connector_helper_funcs);
-	drm_mode_connector_attach_encoder(connector, bridge->encoder);
+	if (rgb->interface_type == YUV_RX) {
+		if (!rgb->bridge) {
+			dev_err(dev, "yuv decoder failed to find bridge\n");
+			return -EPROBE_DEFER;
+		}
 
-	ret = drm_panel_attach(rgb->panel, connector);
-	if (ret) {
-		dev_err(rgb->dev, "Failed to attach panel\n");
-		return ret;
+		rgb->bridge->encoder = bridge->encoder;
+		ret = drm_bridge_attach(bridge->dev, rgb->bridge);
+		if (ret) {
+			dev_err(dev, "failed to attach bridge\n");
+			return ret;
+		}
+
+		bridge->next = rgb->bridge;
+	} else {
+		if (rgb->bridge) {
+			rgb->bridge->encoder = bridge->encoder;
+			ret = drm_bridge_attach(bridge->dev, rgb->bridge);
+			if (ret) {
+				dev_err(dev, "failed to attach bridge\n");
+				return ret;
+			}
+
+			bridge->next = rgb->bridge;
+		}
+
+		if (rgb->panel) {
+			ret = drm_connector_init(drm, connector,
+						 &rk628_rgb_connector_funcs,
+						 DRM_MODE_CONNECTOR_DPI);
+			if (ret) {
+				dev_err(rgb->dev,
+					"Failed to initialize connector with drm\n");
+				return ret;
+			}
+
+			drm_connector_helper_add(connector,
+						 &rk628_rgb_connector_helper_funcs);
+			drm_mode_connector_attach_encoder(connector,
+							  bridge->encoder);
+			ret = drm_panel_attach(rgb->panel, connector);
+			if (ret) {
+				dev_err(rgb->dev, "Failed to attach panel\n");
+				return ret;
+			}
+		}
 	}
 
 	return 0;
@@ -167,12 +258,8 @@ static int rk628_rgb_probe(struct platform_device *pdev)
 	rgb->dev = dev;
 	rgb->parent = rk628;
 	rgb->grf = rk628->grf;
+	rgb->interface_type = rk628_rgb_get_interface_type(rgb);
 	platform_set_drvdata(pdev, rgb);
-
-	ret = drm_of_find_panel_or_bridge(dev->of_node, 1, -1,
-					  &rgb->panel, NULL);
-	if (ret)
-		return ret;
 
 	rgb->base.funcs = &rk628_rgb_bridge_funcs;
 	rgb->base.of_node = dev->of_node;
