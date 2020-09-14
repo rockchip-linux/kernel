@@ -173,7 +173,7 @@ static int dwc3_gadget_resize_tx_fifos(struct dwc3 *dwc)
 	int		mdwidth;
 	u8		num;
 
-	if (!dwc->needs_fifo_resize)
+	if (!dwc->needs_fifo_resize || dwc->fifo_resize_status)
 		return 0;
 
 	mdwidth = DWC3_MDWIDTH(dwc->hwparams.hwparams0);
@@ -225,6 +225,8 @@ static int dwc3_gadget_resize_tx_fifos(struct dwc3 *dwc)
 
 		last_fifo_depth += (fifo_size & 0xffff);
 	}
+
+	dwc->fifo_resize_status = true;
 
 	return 0;
 }
@@ -798,7 +800,8 @@ static int dwc3_gadget_ep_enable(struct usb_ep *ep,
 	ret = __dwc3_gadget_ep_enable(dep, desc, ep->comp_desc, false, false);
 	spin_unlock_irqrestore(&dwc->lock, flags);
 
-	dwc3_gadget_resize_tx_fifos(dwc);
+	if (usb_endpoint_xfer_isoc(ep->desc))
+		dwc3_gadget_resize_tx_fifos(dwc);
 
 	return ret;
 }
@@ -1929,6 +1932,7 @@ static int dwc3_gadget_stop(struct usb_gadget *g)
 		goto out;
 	}
 	__dwc3_gadget_stop(dwc);
+	dwc->fifo_resize_status	= false;
 	dwc->gadget_driver	= NULL;
 	spin_unlock_irqrestore(&dwc->lock, flags);
 
