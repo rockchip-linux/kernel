@@ -800,7 +800,8 @@ static int dwc3_gadget_ep_enable(struct usb_ep *ep,
 	ret = __dwc3_gadget_ep_enable(dep, desc, ep->comp_desc, false, false);
 	spin_unlock_irqrestore(&dwc->lock, flags);
 
-	if (usb_endpoint_xfer_isoc(ep->desc))
+	if (usb_endpoint_xfer_isoc(ep->desc) &&
+	    usb_endpoint_maxp(ep->desc) >= 1024)
 		dwc3_gadget_resize_tx_fifos(dwc);
 
 	return ret;
