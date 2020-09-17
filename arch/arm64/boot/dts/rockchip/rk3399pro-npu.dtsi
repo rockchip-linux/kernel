@@ -39,6 +39,13 @@
 			operating-points-v2 = <&cpu0_opp_table>;
 			dynamic-power-coefficient = <74>;
 			#cooling-cells = <2>;
+			power-model {
+				compatible = "simple-power-model";
+				ref-leakage = <31>;
+				static-coefficient = <100000>;
+				ts = <597400 241050 (-2450) 70>;
+				thermal-zone = "soc-thermal";
+			};
 		};
 
 		cpu1: cpu@1 {
@@ -114,7 +121,6 @@
 			| RKPM_SLP_ARMOFF
 			| RKPM_SLP_PMU_PMUALIVE_32K
 			| RKPM_SLP_PMU_DIS_OSC
-			| RKPM_SLP_32K_EXT
 			)
 		>;
 		rockchip,wakeup-config = <
@@ -522,7 +528,7 @@
 		soc_thermal: soc-thermal {
 			polling-delay-passive = <20>; /* milliseconds */
 			polling-delay = <1000>; /* milliseconds */
-			sustainable-power = <527>; /* milliwatts */
+			sustainable-power = <977>; /* milliwatts */
 
 			thermal-sensors = <&tsadc 0>;
 
@@ -1076,9 +1082,10 @@
 
 		npu_power_model: power-model {
 			compatible = "simple-power-model";
-			static-coefficient = <342478>;
+			ref-leakage = <31>;
+			static-coefficient = <100000>;
 			dynamic-coefficient = <3080>;
-			ts = <32000 4700 (-80) 2>;
+			ts = <88610 303120 (-5000) 100>;
 			thermal-zone = "soc-thermal";
 		};
 	};
@@ -1125,10 +1132,10 @@
 		};
 		opp-792000000 {
 			opp-hz = /bits/ 64 <792000000>;
-			opp-microvolt = <825000 825000 880000>;
-			opp-microvolt-L0 = <825000 825000 880000>;
-			opp-microvolt-L1 = <800000 800000 880000>;
-			opp-microvolt-L2 = <775000 775000 880000>;
+			opp-microvolt = <850000 850000 880000>;
+			opp-microvolt-L0 = <850000 850000 880000>;
+			opp-microvolt-L1 = <825000 825000 880000>;
+			opp-microvolt-L2 = <800000 800000 880000>;
 		};
 	};
 

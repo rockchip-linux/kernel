@@ -525,6 +525,14 @@ config VIDEO_IMX258_EEPROM
 	help
 	  This driver supports IMX258 OTP load from eeprom.
 
+config VIDEO_IMX291
+	tristate "Sony imx291 sensor support"
+	depends on VIDEO_V4L2 && I2C
+	depends on MEDIA_CAMERA_SUPPORT
+	select V4L2_FWNODE
+	help
+	  This driver supports IMX291 cameras from Sony
+
 config VIDEO_IMX307
 	tristate "Sony imx307 sensor support"
 	depends on VIDEO_V4L2 && I2C
@@ -873,6 +881,15 @@ config VIDEO_AR0230
 	  This is a Video4Linux2 sensor-level driver for the Aptina
 	  AR0230 camera.
 
+config VIDEO_AR0330
+	tristate "Aptina AR0330 sensor support"
+	depends on VIDEO_V4L2 && I2C && MEDIA_CONTROLLER
+	depends on MEDIA_CAMERA_SUPPORT
+	select V4L2_FWNODE
+	help
+	  This is a Video4Linux2 sensor-level driver for the Aptina
+	  AR0330 camera.
+
 config VIDEO_SR030PC30
 	tristate "Siliconfile SR030PC30 sensor support"
 	depends on I2C && VIDEO_V4L2
@@ -888,6 +905,15 @@ config VIDEO_NOON010PC30
 	  This driver supports NOON010PC30 CIF camera from Siliconfile
 
 source "drivers/media/i2c/m5mols/Kconfig"
+
+config VIDEO_S5K4H8
+	tristate "Samsung S5K4H8 sensor support"
+	depends on VIDEO_V4L2 && I2C
+	depends on MEDIA_CAMERA_SUPPORT
+	select V4L2_FWNODE
+	help
+	  This is a V4L2 sensor-level driver for Samsung S5K4H8 8M
+	  camera sensor with an embedded SoC image signal processor.
 
 config VIDEO_S5K6AA
 	tristate "Samsung S5K6AAFX sensor support"
@@ -957,6 +983,15 @@ config VIDEO_GC0312
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called gc0312.
+
+config VIDEO_GC2053
+	tristate "GalaxyCore GC2053 sensor support"
+	depends on VIDEO_V4L2 && I2C && VIDEO_V4L2_SUBDEV_API
+	help
+	  Support for the GalaxyCore GC2053 sensor.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called gc2053.
 
 config VIDEO_GC2145
 	tristate "GalaxyCore GC2145 sensor support"
@@ -1094,6 +1129,23 @@ config VIDEO_XC7080_XC530
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called xc7080_xc530.
+
+config VIDEO_PS5268
+	tristate "PrimeSensor PS5268 sensor support"
+	depends on VIDEO_V4L2 && I2C && VIDEO_V4L2_SUBDEV_API
+	help
+	  Support for the PrimeSensor PS5268 sensor.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called PS5268.
+
+config VIDEO_HM2056
+	tristate "Himax hm2056 sensor support"
+	depends on VIDEO_V4L2 && I2C
+	depends on MEDIA_CAMERA_SUPPORT
+	select V4L2_FWNODE
+	help
+	  This driver supports hm2056 cameras from Himax
 
 config VIDEO_PREISP_DUMMY_SENSOR
 	tristate "Preisp dummy sensor support"

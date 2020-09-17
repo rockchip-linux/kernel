@@ -148,10 +148,10 @@
 			3               31
 		>;
 		rockchip,pvtm-voltage-sel = <
-			0        14300   0
-			14301    15000   1
-			15001    16000   2
-			16001    99999   3
+			0        15300   0
+			15301    16000   1
+			16001    17000   2
+			17001    99999   3
 		>;
 		rockchip,pvtm-freq = <408000>;
 		rockchip,pvtm-volt = <1000000>;
@@ -815,7 +815,7 @@
 	pwm3: pwm@ff680030 {
 		compatible = "rockchip,rk3288-pwm";
 		reg = <0x0 0xff680030 0x0 0x10>;
-		#pwm-cells = <2>;
+		#pwm-cells = <3>;
 		pinctrl-names = "active";
 		pinctrl-0 = <&pwm3_pin>;
 		clocks = <&cru PCLK_PWM>;

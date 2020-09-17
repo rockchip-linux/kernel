@@ -35,11 +35,11 @@
 			compatible = "rockchip,drm-logo";
 			reg = <0x0 0x0 0x0 0x0>;
 		};
-	};
 
-	ramoops_mem: ramoops_mem@110000 {
-		reg = <0x0 0x110000 0x0 0xf0000>;
-		reg-names = "ramoops_mem";
+		ramoops_mem: ramoops@110000 {
+			reg = <0x0 0x110000 0x0 0xf0000>;
+			reg-names = "ramoops_mem";
+		};
 	};
 
 	ramoops {

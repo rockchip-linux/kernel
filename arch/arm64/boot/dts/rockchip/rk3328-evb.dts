@@ -199,6 +199,19 @@
 		#clock-cells = <0>;
 	};
 
+	wireless-bluetooth {
+		compatible = "bluetooth-platdata";
+		clocks = <&rk805 1>;
+		clock-names = "ext_clock";
+		uart_rts_gpios = <&gpio1 10 GPIO_ACTIVE_LOW>;
+		pinctrl-names = "default", "rts_gpio";
+		pinctrl-0 = <&uart0_rts>;
+		pinctrl-1 = <&uart0_gpios>;
+		BT,power_gpio = <&gpio1 21 GPIO_ACTIVE_HIGH>;
+		BT,wake_host_irq = <&gpio1 26 GPIO_ACTIVE_HIGH>;
+		status = "okay";
+	};
+
 	wireless-wlan {
 		compatible = "wlan-platdata";
 		rockchip,grf = <&grf>;
@@ -209,6 +222,27 @@
 	};
 };
 
+&cif {
+	status = "okay";
+
+	port {
+		/* Parallel bus endpoint */
+		cif_para_in: endpoint {
+			remote-endpoint = <&cam_para_out1>;
+			bus-width = <8>;
+			hsync-active = <1>;
+			vsync-active = <0>;
+		};
+
+		/* MIPI CSI-2 endpoint */
+		/*
+		 * cif_mipi_in: endpoint {
+		 *	remote-endpoint = <&csi_host_output>;
+		 * };
+		 */
+	};
+};
+
 &codec {
 	#sound-dai-cells = <0>;
 	status = "okay";
@@ -216,6 +250,10 @@
 
 &cpu0 {
 	cpu-supply = <&vdd_arm>;
+};
+
+&dfi {
+	status = "okay";
 };
 
 &dmc {
@@ -292,6 +330,52 @@
 
 &hdmiphy {
 	status = "okay";
+};
+
+&i2c0 {
+	status = "okay";
+
+	gc2145: gc2145@3c {
+		status = "okay";
+		compatible = "galaxycore,gc2145";
+		reg = <0x3c>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&dvp_d2d9_m1>;
+
+		reset-gpios = <&gpio0 27 GPIO_ACTIVE_LOW>; /* gpio0 d3 */
+		/*
+		 * pwdn gpio:conflict with gpio of vcc_otg_vbus
+		 */
+		pwdn-gpios = <&gpio0 0 GPIO_ACTIVE_HIGH>;
+		rockchip,camera-module-index = <1>;
+		rockchip,camera-module-facing = "back";
+		rockchip,camera-module-name = "CMK-OT1055-FG1";
+		rockchip,camera-module-lens-name = "NC";
+
+		clocks = <&cru SCLK_CIF_OUT>;
+		clock-names = "xvclk";
+
+		port {
+			/* Parallel bus endpoint */
+			cam_para_out1: endpoint {
+				remote-endpoint = <&cif_para_in>;
+				bus-width = <8>;
+				hsync-active = <1>;
+				vsync-active = <0>;
+			};
+
+			/* MIPI CSI-2 endpoint */
+			/*
+			 * cam_mipi_out1: endpoint {
+			 *	remote-endpoint = <&mipi_sensor_input>;
+			 *	data-lanes = <1>;
+			 *	clock-lanes = <0>;
+			 *	clock-noncontinuous;
+			 * };
+			 */
+		};
+	};
 };
 
 &i2c1 {
@@ -484,6 +568,13 @@
 				<0 RK_PD3 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
+
+	wireless-bluetooth {
+		uart0_gpios: uart0-gpios {
+			rockchip,pins =
+				<1 10 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
 };
 
 &pwm3 {
@@ -597,6 +688,12 @@
 &rockchip_suspend {
 	status = "okay";
 	rockchip,virtual-poweroff = <1>;
+};
+
+&uart0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&uart0_xfer &uart0_cts>;
+	status = "okay";
 };
 
 &saradc {

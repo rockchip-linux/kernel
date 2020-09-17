@@ -33,5 +33,6 @@ obj-$(CONFIG_CEC_CORE) += cec/
 obj-y += common/ platform/ pci/ usb/ mmc/ firewire/ spi/
 obj-$(CONFIG_VIDEO_DEV) += radio/
 obj-$(CONFIG_CAMSYS_DRV) += video/rk_camsys/
+obj-$(CONFIG_RKPREISP_DRV) += video/rk_preisp/
 obj-$(CONFIG_ROCK_CHIP_SOC_CAMERA) += video/
 

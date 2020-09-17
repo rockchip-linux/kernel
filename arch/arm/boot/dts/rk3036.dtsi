@@ -417,6 +417,8 @@
 		interrupts = <GIC_SPI 9 IRQ_TYPE_LEVEL_HIGH>;
 		clocks = <&cru SCLK_SFC>, <&cru HCLK_SFC>;
 		clock-names = "clk_sfc", "hclk_sfc";
+		assigned-clocks = <&cru SCLK_SFC>;
+		assigned-clock-rates = <100000000>;
 		status = "disabled";
 	};
 
@@ -463,8 +465,6 @@
 		non-removable;
 		num-slots = <1>;
 		supports-emmc;
-		pinctrl-names = "default";
-		pinctrl-0 = <&emmc_clk &emmc_cmd &emmc_bus8>;
 		status = "disabled";
 	};
 
@@ -484,6 +484,16 @@
 		reset-names = "reset-m";
 		pinctrl-names = "default";
 		pinctrl-0 = <&i2s_bus>;
+		status = "disabled";
+	};
+
+	nandc: nandc@10500000 {
+		compatible = "rockchip,rk-nandc";
+		reg = <0x10500000 0x4000>;
+		interrupts = <GIC_SPI 18 IRQ_TYPE_LEVEL_HIGH>;
+		nandc_id = <0>;
+		clocks = <&cru SCLK_NANDC>, <&cru HCLK_NANDC>;
+		clock-names = "clk_nandc", "hclk_nandc";
 		status = "disabled";
 	};
 

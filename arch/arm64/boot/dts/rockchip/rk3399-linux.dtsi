@@ -60,7 +60,7 @@
 			reg = <0x0 0x0 0x0 0x0>;
 		};
 
-		ramoops_mem: region@110000 {
+		ramoops_mem: ramoops@110000 {
 			reg = <0x0 0x110000 0x0 0xf0000>;
 			reg-names = "ramoops_mem";
 		};
@@ -199,15 +199,6 @@
 			connect = <&vopl_out_edp>;
 		};
 	};
-};
-
-/* HACK: keep MALI version on linux */
-&gpu_power_model {
-	// for DDK r14.
-	voltage = <900>;
-	frequency = <500>;
-	static-power = <300>;
-	dynamic-power = <396>;
 };
 
 &pvtm {
