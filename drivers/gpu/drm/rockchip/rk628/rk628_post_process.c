@@ -225,6 +225,11 @@ static void rk628_post_process_bridge_pre_enable(struct drm_bridge *bridge)
 	reset_control_deassert(pp->rstc_vop);
 	udelay(10);
 
+	regmap_update_bits(pp->grf, GRF_SYSTEM_CON0, SW_VSYNC_POL_MASK,
+			   SW_VSYNC_POL(1));
+	regmap_update_bits(pp->grf, GRF_SYSTEM_CON0, SW_HSYNC_POL_MASK,
+			   SW_HSYNC_POL(1));
+
 	rk628_post_process_scaler_init(pp, src, dst);
 }
 
@@ -288,12 +293,25 @@ static int rk628_post_process_bridge_attach(struct drm_bridge *bridge)
 	return 0;
 }
 
+static bool
+rk628_post_process_bridge_mode_fixup(struct drm_bridge *bridge,
+				     const struct drm_display_mode *mode,
+				     struct drm_display_mode *adj)
+{
+	/* Fixup sync polarities, both hsync and vsync are active high */
+	adj->flags &= ~(DRM_MODE_FLAG_NHSYNC | DRM_MODE_FLAG_NVSYNC);
+	adj->flags |= (DRM_MODE_FLAG_PHSYNC | DRM_MODE_FLAG_PVSYNC);
+
+	return true;
+}
+
 static const struct drm_bridge_funcs rk628_post_process_bridge_funcs = {
 	.pre_enable = rk628_post_process_bridge_pre_enable,
 	.post_disable = rk628_post_process_bridge_post_disable,
 	.enable = rk628_post_process_bridge_enable,
 	.disable = rk628_post_process_bridge_disable,
 	.mode_set = rk628_post_process_bridge_mode_set,
+	.mode_fixup = rk628_post_process_bridge_mode_fixup,
 	.attach = rk628_post_process_bridge_attach,
 };
 
