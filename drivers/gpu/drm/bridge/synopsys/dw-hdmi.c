@@ -216,6 +216,7 @@ struct dw_hdmi {
 	struct drm_connector connector;
 	struct drm_encoder *encoder;
 	struct drm_bridge bridge;
+	struct drm_bridge *next_bridge;
 	struct platform_device *hdcp_dev;
 	enum dw_hdmi_devtype dev_type;
 	unsigned int version;
@@ -2522,6 +2523,27 @@ static void dw_hdmi_update_phy_mask(struct dw_hdmi *hdmi)
 		hdmi_writeb(hdmi, hdmi->phy_mask, HDMI_PHY_MASK0);
 }
 
+static int dw_hdmi_bridge_attach(struct drm_bridge *bridge)
+{
+	struct dw_hdmi *hdmi = bridge->driver_private;
+	int ret;
+
+	if (!hdmi->next_bridge)
+		return 0;
+
+	hdmi->next_bridge->encoder = bridge->encoder;
+
+	ret = drm_bridge_attach(bridge->dev, hdmi->next_bridge);
+	if (ret) {
+		DRM_ERROR("Failed to attach bridge with dw-hdmi\n");
+		return -EINVAL;
+	}
+
+	bridge->next = hdmi->next_bridge;
+
+	return 0;
+}
+
 static void dw_hdmi_bridge_mode_set(struct drm_bridge *bridge,
 				    struct drm_display_mode *orig_mode,
 				    struct drm_display_mode *mode)
@@ -2884,6 +2906,7 @@ static const struct drm_connector_helper_funcs dw_hdmi_connector_helper_funcs = 
 };
 
 static const struct drm_bridge_funcs dw_hdmi_bridge_funcs = {
+	.attach = dw_hdmi_bridge_attach,
 	.enable = dw_hdmi_bridge_enable,
 	.disable = dw_hdmi_bridge_disable,
 	.pre_enable = dw_hdmi_bridge_nop,
@@ -2997,8 +3020,10 @@ static irqreturn_t dw_hdmi_irq(int irq, void *dev_id)
 	check_hdmi_irq(hdmi, intr_stat, phy_int_pol);
 
 	hdmi_writeb(hdmi, intr_stat, HDMI_IH_PHY_STAT0);
-	hdmi_writeb(hdmi, ~(HDMI_IH_PHY_STAT0_HPD | HDMI_IH_PHY_STAT0_RX_SENSE),
-		    HDMI_IH_MUTE_PHY_STAT0);
+	if (!hdmi->next_bridge)
+		hdmi_writeb(hdmi, ~(HDMI_IH_PHY_STAT0_HPD |
+			    HDMI_IH_PHY_STAT0_RX_SENSE),
+			    HDMI_IH_MUTE_PHY_STAT0);
 
 	hdcp_stat = hdmi_readb(hdmi, HDMI_A_APIINTSTAT);
 	if (hdcp_stat) {
@@ -3204,19 +3229,59 @@ static void dw_hdmi_destroy_properties(struct dw_hdmi *hdmi)
 
 static int dw_hdmi_register(struct drm_device *drm, struct dw_hdmi *hdmi)
 {
+	struct device *dev = hdmi->dev;
 	struct drm_encoder *encoder = hdmi->encoder;
 	struct drm_bridge *bridge = &hdmi->bridge;
+	struct device_node *endpoint;
 	int ret;
 
 	bridge->driver_private = hdmi;
 	bridge->funcs = &dw_hdmi_bridge_funcs;
+
+	encoder->bridge = bridge;
+
+	endpoint = of_graph_get_endpoint_by_regs(dev->of_node, 1, -1);
+	if (endpoint && of_device_is_available(endpoint)) {
+		struct device_node *remote;
+
+		remote = of_graph_get_remote_port_parent(endpoint);
+		of_node_put(endpoint);
+		if (!remote || !of_device_is_available(remote)) {
+			of_node_put(remote);
+			return -ENODEV;
+		}
+
+		bridge->encoder = encoder;
+		ret = drm_bridge_add(bridge);
+		if (ret) {
+			dev_err(hdmi->dev, "failed to add bridge: %d\n", ret);
+			of_node_put(remote);
+			return ret;
+		}
+
+		hdmi->next_bridge = of_drm_find_bridge(remote);
+		of_node_put(remote);
+		if (!hdmi->next_bridge) {
+			dev_err(hdmi->dev, "can't find next bridge\n");
+			drm_bridge_remove(bridge);
+			return -EPROBE_DEFER;
+		}
+
+		ret = drm_bridge_attach(drm, bridge);
+		if (ret) {
+			dev_err(hdmi->dev, "can't attach bridge with drm\n");
+			return ret;
+		}
+
+		return 0;
+	}
+
 	ret = drm_bridge_attach(drm, bridge);
 	if (ret) {
 		DRM_ERROR("Failed to initialize bridge with drm\n");
 		return -EINVAL;
 	}
 
-	encoder->bridge = bridge;
 	hdmi->connector.polled = DRM_CONNECTOR_POLL_HPD;
 	hdmi->connector.port = hdmi->dev->of_node;
 
@@ -3597,7 +3662,7 @@ int dw_hdmi_bind(struct device *dev, struct device *master,
 	hdmi->encoder = encoder;
 	hdmi->disabled = true;
 	hdmi->rxsense = true;
-	hdmi->phy_mask = (u8)~(HDMI_PHY_HPD | HDMI_PHY_RX_SENSE);
+
 	hdmi->irq = irq;
 	hdmi->mc_clkdis = 0x7f;
 
@@ -3768,9 +3833,6 @@ int dw_hdmi_bind(struct device *dev, struct device *master,
 	/* Re-init HPD polarity */
 	hdmi_writeb(hdmi, HDMI_PHY_HPD | HDMI_PHY_RX_SENSE, HDMI_PHY_POL0);
 
-	/* Unmask HPD, clear transitory interrupts, then unmute */
-	hdmi_writeb(hdmi, hdmi->phy_mask, HDMI_PHY_MASK0);
-
 	if (hdmi->dev_type == RK3288_HDMI && hdmi->version == 0x200a)
 		hdmi->connector.ycbcr_420_allowed = false;
 	else
@@ -3780,13 +3842,24 @@ int dw_hdmi_bind(struct device *dev, struct device *master,
 	if (ret)
 		goto err_iahb;
 
+	if (!hdmi->next_bridge) {
+		hdmi->phy_mask = (u8)~(HDMI_PHY_HPD | HDMI_PHY_RX_SENSE);
 #ifdef CONFIG_SWITCH
-	hdmi->switchdev.name = "hdmi";
-	switch_dev_register(&hdmi->switchdev);
-#endif
+		hdmi->switchdev.name = "hdmi";
+		switch_dev_register(&hdmi->switchdev);
 
-	hdmi_writeb(hdmi, ~(HDMI_IH_PHY_STAT0_HPD | HDMI_IH_PHY_STAT0_RX_SENSE),
-		    HDMI_IH_MUTE_PHY_STAT0);
+#endif
+		hdmi_writeb(hdmi, ~(HDMI_IH_PHY_STAT0_HPD |
+			    HDMI_IH_PHY_STAT0_RX_SENSE),
+			    HDMI_IH_MUTE_PHY_STAT0);
+	} else {
+		hdmi->sink_is_hdmi = true;
+		hdmi->sink_has_audio = true;
+		hdmi->phy_mask = 0xff;
+	}
+
+	/* Unmask HPD, clear transitory interrupts, then unmute */
+	hdmi_writeb(hdmi, hdmi->phy_mask, HDMI_PHY_MASK0);
 
 	/* Unmute I2CM interrupts and reset HDMI DDC I2C master controller */
 	if (hdmi->i2c)
@@ -3911,11 +3984,13 @@ void dw_hdmi_unbind(struct device *dev, struct device *master, void *data)
 	if (hdmi->cec_notifier)
 		cec_notifier_put(hdmi->cec_notifier);
 
+	if (!hdmi->next_bridge) {
 #ifdef CONFIG_SWITCH
-	switch_dev_unregister(&hdmi->switchdev);
+		switch_dev_unregister(&hdmi->switchdev);
 #endif
-	dw_hdmi_destroy_properties(hdmi);
-	hdmi->connector.funcs->destroy(&hdmi->connector);
+		dw_hdmi_destroy_properties(hdmi);
+		hdmi->connector.funcs->destroy(&hdmi->connector);
+	}
 	hdmi->encoder->funcs->destroy(hdmi->encoder);
 
 	clk_disable_unprepare(hdmi->iahb_clk);
@@ -3941,12 +4016,14 @@ static void dw_hdmi_reg_initial(struct dw_hdmi *hdmi)
 			    HDMI_PHY_I2CM_CTLINT_ADDR_ARBITRATION_POL,
 			    HDMI_PHY_I2CM_CTLINT_ADDR);
 
-		hdmi_writeb(hdmi, HDMI_PHY_HPD | HDMI_PHY_RX_SENSE,
-			    HDMI_PHY_POL0);
-		hdmi_writeb(hdmi, hdmi->phy_mask, HDMI_PHY_MASK0);
-		hdmi_writeb(hdmi, ~(HDMI_IH_PHY_STAT0_HPD |
-			    HDMI_IH_PHY_STAT0_RX_SENSE),
-			    HDMI_IH_MUTE_PHY_STAT0);
+		if (!hdmi->next_bridge) {
+			hdmi_writeb(hdmi, HDMI_PHY_HPD | HDMI_PHY_RX_SENSE,
+				    HDMI_PHY_POL0);
+			hdmi_writeb(hdmi, hdmi->phy_mask, HDMI_PHY_MASK0);
+			hdmi_writeb(hdmi, ~(HDMI_IH_PHY_STAT0_HPD |
+				    HDMI_IH_PHY_STAT0_RX_SENSE),
+				    HDMI_IH_MUTE_PHY_STAT0);
+		}
 	}
 }
 
