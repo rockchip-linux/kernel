@@ -299,6 +299,19 @@
 		status = "disabled";
 	};
 
+	rk628_yuv: yuv {
+		compatible = "rockchip,rk628-yuv";
+		status = "disabled";
+	};
+
+	rk628_bt1120: bt1120 {
+		compatible = "rockchip,rk628-bt1120";
+		clocks = <&rk628_cru CGU_BT1120DEC>;
+		clock-names = "bt1120dec";
+		resets = <&rk628_cru RGU_BT1120DEC>;
+		status = "disabled";
+	};
+
 	rk628_post_process: post-process {
 		compatible = "rockchip,rk628-post-process";
 		clocks = <&rk628_cru CGU_SCLK_VOP>,
