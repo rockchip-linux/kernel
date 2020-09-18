@@ -86,6 +86,8 @@ static void dma_buf_release(struct dentry *dentry)
 	int dtor_ret = 0;
 
 	dmabuf = dentry->d_fsdata;
+	if (unlikely(!dmabuf))
+		return;
 
 	BUG_ON(dmabuf->vmapping_counter);
 
