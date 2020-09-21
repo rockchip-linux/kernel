@@ -13,6 +13,7 @@
 #include <linux/kernel_stat.h>
 #include <linux/interrupt.h>
 #include <linux/init.h>
+#include <linux/local_lock.h>
 #include <linux/mm.h>
 #include <linux/notifier.h>
 #include <linux/percpu.h>
@@ -92,26 +93,216 @@ static bool ksoftirqd_running(unsigned long pending)
 		!__kthread_should_park(tsk);
 }
 
+#ifdef CONFIG_TRACE_IRQFLAGS
+DEFINE_PER_CPU(int, hardirqs_enabled);
+DEFINE_PER_CPU(int, hardirq_context);
+EXPORT_PER_CPU_SYMBOL_GPL(hardirqs_enabled);
+EXPORT_PER_CPU_SYMBOL_GPL(hardirq_context);
+#endif
+
 /*
- * preempt_count and SOFTIRQ_OFFSET usage:
- * - preempt_count is changed by SOFTIRQ_OFFSET on entering or leaving
- *   softirq processing.
- * - preempt_count is changed by SOFTIRQ_DISABLE_OFFSET (= 2 * SOFTIRQ_OFFSET)
+ * SOFTIRQ_OFFSET usage:
+ *
+ * On !RT kernels 'count' is the preempt counter, on RT kernels this applies
+ * to a per CPU counter and to task::softirqs_disabled_cnt.
+ *
+ * - count is changed by SOFTIRQ_OFFSET on entering or leaving softirq
+ *   processing.
+ *
+ * - count is changed by SOFTIRQ_DISABLE_OFFSET (= 2 * SOFTIRQ_OFFSET)
  *   on local_bh_disable or local_bh_enable.
+ *
  * This lets us distinguish between whether we are currently processing
  * softirq and whether we just have bh disabled.
  */
+#ifdef CONFIG_PREEMPT_RT
+
+/*
+ * RT accounts for BH disabled sections in task::softirqs_disabled_cnt and
+ * also in per CPU softirq_ctrl::cnt. This is necessary to allow tasks in a
+ * softirq disabled section to be preempted.
+ *
+ * The per task counter is used for softirq_count(), in_softirq() and
+ * in_serving_softirqs() because these counts are only valid when the task
+ * holding softirq_ctrl::lock is running.
+ *
+ * The per CPU counter prevents pointless wakeups of ksoftirqd in case that
+ * the task which is in a softirq disabled section is preempted or blocks.
+ */
+struct softirq_ctrl {
+	local_lock_t	lock;
+	int		cnt;
+};
+
+static DEFINE_PER_CPU(struct softirq_ctrl, softirq_ctrl) = {
+	.lock	= INIT_LOCAL_LOCK(softirq_ctrl.lock),
+};
+
+void __local_bh_disable_ip(unsigned long ip, unsigned int cnt)
+{
+	unsigned long flags;
+	int newcnt;
+
+	WARN_ON_ONCE(in_irq());
+
+	/* First entry of a task into a BH disabled section? */
+	if (!current->softirq_disable_cnt) {
+		if (preemptible()) {
+			local_lock(&softirq_ctrl.lock);
+			rcu_read_lock();
+		} else {
+			DEBUG_LOCKS_WARN_ON(this_cpu_read(softirq_ctrl.cnt));
+		}
+	}
+
+	preempt_disable();
+	/*
+	 * Track the per CPU softirq disabled state. On RT this is per CPU
+	 * state to allow preemption of bottom half disabled sections.
+	 */
+	newcnt = this_cpu_add_return(softirq_ctrl.cnt, cnt);
+	/*
+	 * Reflect the result in the task state to prevent recursion on the
+	 * local lock and to make softirq_count() & al work.
+	 */
+	current->softirq_disable_cnt = newcnt;
+
+	if (IS_ENABLED(CONFIG_TRACE_IRQFLAGS) && newcnt == cnt) {
+		raw_local_irq_save(flags);
+		lockdep_softirqs_off(ip);
+		raw_local_irq_restore(flags);
+	}
+	preempt_enable();
+}
+EXPORT_SYMBOL(__local_bh_disable_ip);
+
+static void __local_bh_enable(unsigned int cnt, bool unlock)
+{
+	unsigned long flags;
+	int newcnt;
+
+	DEBUG_LOCKS_WARN_ON(current->softirq_disable_cnt !=
+			    this_cpu_read(softirq_ctrl.cnt));
+
+	preempt_disable();
+	if (IS_ENABLED(CONFIG_TRACE_IRQFLAGS) && softirq_count() == cnt) {
+		raw_local_irq_save(flags);
+		lockdep_softirqs_on(_RET_IP_);
+		raw_local_irq_restore(flags);
+	}
+
+	newcnt = this_cpu_sub_return(softirq_ctrl.cnt, cnt);
+	current->softirq_disable_cnt = newcnt;
+	preempt_enable();
+
+	if (!newcnt && unlock) {
+		rcu_read_unlock();
+		local_unlock(&softirq_ctrl.lock);
+	}
+}
+
+void __local_bh_enable_ip(unsigned long ip, unsigned int cnt)
+{
+	bool preempt_on = preemptible();
+	unsigned long flags;
+	u32 pending;
+	int curcnt;
+
+	WARN_ON_ONCE(in_irq());
+	lockdep_assert_irqs_enabled();
+
+	local_irq_save(flags);
+	curcnt = this_cpu_read(softirq_ctrl.cnt);
+
+	/*
+	 * If this is not reenabling soft interrupts, no point in trying to
+	 * run pending ones.
+	 */
+	if (curcnt != cnt)
+		goto out;
+
+	pending = local_softirq_pending();
+	if (!pending || ksoftirqd_running(pending))
+		goto out;
+
+	/*
+	 * If this was called from non preemptible context, wake up the
+	 * softirq daemon.
+	 */
+	if (!preempt_on) {
+		wakeup_softirqd();
+		goto out;
+	}
+
+	/*
+	 * Adjust softirq count to SOFTIRQ_OFFSET which makes
+	 * in_serving_softirq() become true.
+	 */
+	cnt = SOFTIRQ_OFFSET;
+	__local_bh_enable(cnt, false);
+	__do_softirq();
+
+out:
+	__local_bh_enable(cnt, preempt_on);
+	local_irq_restore(flags);
+}
+EXPORT_SYMBOL(__local_bh_enable_ip);
+
+/*
+ * Invoked from irq_enter_rcu() to prevent that tick_irq_enter()
+ * pointlessly wakes the softirq daemon. That's handled in __irq_exit_rcu().
+ * None of the above logic in the regular bh_disable/enable functions is
+ * required here.
+ */
+static inline void local_bh_disable_irq_enter(void)
+{
+	this_cpu_add(softirq_ctrl.cnt, SOFTIRQ_DISABLE_OFFSET);
+}
+
+static inline void local_bh_enable_irq_enter(void)
+{
+	this_cpu_sub(softirq_ctrl.cnt, SOFTIRQ_DISABLE_OFFSET);
+}
+
+/*
+ * Invoked from ksoftirqd_run() outside of the interrupt disabled section
+ * to acquire the per CPU local lock for reentrancy protection.
+ */
+static inline void ksoftirqd_run_begin(void)
+{
+	__local_bh_disable_ip(_RET_IP_, SOFTIRQ_OFFSET);
+	local_irq_disable();
+}
+
+/* Counterpart to ksoftirqd_run_begin() */
+static inline void ksoftirqd_run_end(void)
+{
+	__local_bh_enable(SOFTIRQ_OFFSET, true);
+	WARN_ON_ONCE(in_interrupt());
+	local_irq_enable();
+}
+
+static inline void softirq_handle_begin(void) { }
+static inline void softirq_handle_end(void) { }
+
+static inline void invoke_softirq(void)
+{
+	if (!this_cpu_read(softirq_ctrl.cnt))
+		wakeup_softirqd();
+}
+
+static inline bool should_wake_ksoftirqd(void)
+{
+	return !this_cpu_read(softirq_ctrl.cnt);
+}
+
+#else /* CONFIG_PREEMPT_RT */
 
 /*
  * This one is for softirq.c-internal use,
  * where hardirqs are disabled legitimately:
  */
 #ifdef CONFIG_TRACE_IRQFLAGS
-
-DEFINE_PER_CPU(int, hardirqs_enabled);
-DEFINE_PER_CPU(int, hardirq_context);
-EXPORT_PER_CPU_SYMBOL_GPL(hardirqs_enabled);
-EXPORT_PER_CPU_SYMBOL_GPL(hardirq_context);
 
 void __local_bh_disable_ip(unsigned long ip, unsigned int cnt)
 {
@@ -203,6 +394,67 @@ void __local_bh_enable_ip(unsigned long ip, unsigned int cnt)
 }
 EXPORT_SYMBOL(__local_bh_enable_ip);
 
+static inline void local_bh_disable_irq_enter(void)
+{
+	local_bh_disable();
+}
+
+static inline void local_bh_enable_irq_enter(void)
+{
+	_local_bh_enable();
+}
+
+static inline void softirq_handle_begin(void)
+{
+	__local_bh_disable_ip(_RET_IP_, SOFTIRQ_OFFSET);
+}
+
+static inline void softirq_handle_end(void)
+{
+	__local_bh_enable(SOFTIRQ_OFFSET);
+	WARN_ON_ONCE(in_interrupt());
+}
+
+static inline void ksoftirqd_run_begin(void)
+{
+	local_irq_disable();
+}
+
+static inline void ksoftirqd_run_end(void)
+{
+	local_irq_enable();
+}
+
+static inline void invoke_softirq(void)
+{
+	if (ksoftirqd_running(local_softirq_pending()))
+		return;
+
+	if (!force_irqthreads) {
+#ifdef CONFIG_HAVE_IRQ_EXIT_ON_IRQ_STACK
+		/*
+		 * We can safely execute softirq on the current stack if
+		 * it is the irq stack, because it should be near empty
+		 * at this stage.
+		 */
+		__do_softirq();
+#else
+		/*
+		 * Otherwise, irq_exit() is called on the task stack that can
+		 * be potentially deep already. So call softirq in its own stack
+		 * to prevent from any overrun.
+		 */
+		do_softirq_own_stack();
+#endif
+	} else {
+		wakeup_softirqd();
+	}
+}
+
+static inline bool should_wake_ksoftirqd(void) { return true; }
+
+#endif /* !CONFIG_PREEMPT_RT */
+
 /*
  * We restart softirq processing for at most MAX_SOFTIRQ_RESTART times,
  * but break the loop if need_resched() is set or after 2 ms.
@@ -272,7 +524,7 @@ asmlinkage __visible void __softirq_entry __do_softirq(void)
 	pending = local_softirq_pending();
 	account_irq_enter_time(current);
 
-	__local_bh_disable_ip(_RET_IP_, SOFTIRQ_OFFSET);
+	softirq_handle_begin();
 	in_hardirq = lockdep_softirq_start();
 
 restart:
@@ -307,8 +559,10 @@ restart:
 		pending >>= softirq_bit;
 	}
 
-	if (__this_cpu_read(ksoftirqd) == current)
+	if (!IS_ENABLED(CONFIG_PREEMPT_RT) &&
+	    __this_cpu_read(ksoftirqd) == current)
 		rcu_softirq_qs();
+
 	local_irq_disable();
 
 	pending = local_softirq_pending();
@@ -322,11 +576,11 @@ restart:
 
 	lockdep_softirq_end(in_hardirq);
 	account_irq_exit_time(current);
-	__local_bh_enable(SOFTIRQ_OFFSET);
-	WARN_ON_ONCE(in_interrupt());
+	softirq_handle_end();
 	current_restore_flags(old_flags, PF_MEMALLOC);
 }
 
+#ifndef CONFIG_PREEMPT_RT
 asmlinkage __visible void do_softirq(void)
 {
 	__u32 pending;
@@ -344,6 +598,7 @@ asmlinkage __visible void do_softirq(void)
 
 	local_irq_restore(flags);
 }
+#endif
 
 /**
  * irq_enter_rcu - Enter an interrupt context with RCU watching
@@ -355,9 +610,9 @@ void irq_enter_rcu(void)
 		 * Prevent raise_softirq from needlessly waking up ksoftirqd
 		 * here, as softirq will be serviced on return from interrupt.
 		 */
-		local_bh_disable();
+		local_bh_disable_irq_enter();
 		tick_irq_enter();
-		_local_bh_enable();
+		local_bh_enable_irq_enter();
 	}
 	__irq_enter();
 }
@@ -369,32 +624,6 @@ void irq_enter(void)
 {
 	rcu_irq_enter();
 	irq_enter_rcu();
-}
-
-static inline void invoke_softirq(void)
-{
-	if (ksoftirqd_running(local_softirq_pending()))
-		return;
-
-	if (!force_irqthreads) {
-#ifdef CONFIG_HAVE_IRQ_EXIT_ON_IRQ_STACK
-		/*
-		 * We can safely execute softirq on the current stack if
-		 * it is the irq stack, because it should be near empty
-		 * at this stage.
-		 */
-		__do_softirq();
-#else
-		/*
-		 * Otherwise, irq_exit() is called on the task stack that can
-		 * be potentially deep already. So call softirq in its own stack
-		 * to prevent from any overrun.
-		 */
-		do_softirq_own_stack();
-#endif
-	} else {
-		wakeup_softirqd();
-	}
 }
 
 static inline void tick_irq_exit(void)
@@ -466,7 +695,7 @@ inline void raise_softirq_irqoff(unsigned int nr)
 	 * Otherwise we wake up ksoftirqd to make sure we
 	 * schedule the softirq soon.
 	 */
-	if (!in_interrupt())
+	if (!in_interrupt() && should_wake_ksoftirqd())
 		wakeup_softirqd();
 }
 
@@ -644,18 +873,18 @@ static int ksoftirqd_should_run(unsigned int cpu)
 
 static void run_ksoftirqd(unsigned int cpu)
 {
-	local_irq_disable();
+	ksoftirqd_run_begin();
 	if (local_softirq_pending()) {
 		/*
 		 * We can safely run softirq on inline stack, as we are not deep
 		 * in the task stack here.
 		 */
 		__do_softirq();
-		local_irq_enable();
+		ksoftirqd_run_end();
 		cond_resched();
 		return;
 	}
-	local_irq_enable();
+	ksoftirqd_run_end();
 }
 
 #ifdef CONFIG_HOTPLUG_CPU

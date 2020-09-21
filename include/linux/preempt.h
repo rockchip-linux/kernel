@@ -77,10 +77,14 @@
 /* preempt_count() and related functions, depends on PREEMPT_NEED_RESCHED */
 #include <asm/preempt.h>
 
-#define hardirq_count()	(preempt_count() & HARDIRQ_MASK)
-#define softirq_count()	(preempt_count() & SOFTIRQ_MASK)
-#define irq_count()	(preempt_count() & (HARDIRQ_MASK | SOFTIRQ_MASK \
-				 | NMI_MASK))
+#define pc_nmi_count()		(preempt_count() & NMI_MASK)
+#define hardirq_count()		(preempt_count() & HARDIRQ_MASK)
+#ifdef CONFIG_PREEMPT_RT
+# define softirq_count()	(current->softirq_disable_cnt & SOFTIRQ_MASK)
+#else
+# define softirq_count()	(preempt_count() & SOFTIRQ_MASK)
+#endif
+#define irq_count()		(pc_nmi_count() | hardirq_count() | softirq_count())
 
 /*
  * Are we doing bottom half or hardware interrupt processing?
@@ -95,13 +99,12 @@
  * Note: due to the BH disabled confusion: in_softirq(),in_interrupt() really
  *       should not be used in new code.
  */
+#define in_nmi()		(pc_nmi_count())
 #define in_irq()		(hardirq_count())
-#define in_softirq()		(softirq_count())
 #define in_interrupt()		(irq_count())
+#define in_softirq()		(softirq_count())
 #define in_serving_softirq()	(softirq_count() & SOFTIRQ_OFFSET)
-#define in_nmi()		(preempt_count() & NMI_MASK)
-#define in_task()		(!(preempt_count() & \
-				   (NMI_MASK | HARDIRQ_MASK | SOFTIRQ_OFFSET)))
+#define in_task()		(!(irq_count() & (NMI_MASK | HARDIRQ_MASK | SOFTIRQ_OFFSET)))
 
 /*
  * The preempt_count offset after preempt_disable();
