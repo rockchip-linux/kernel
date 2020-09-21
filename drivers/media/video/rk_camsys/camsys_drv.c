@@ -58,6 +58,14 @@ static int camsys_i2c_write(camsys_i2c_info_t *i2cinfo, camsys_dev_t
 		}
 		bufp = (unsigned char *)camsys_dev->devmems.i2cmem->vir_base;
 	} else {
+		if ((i2cinfo->reg_size + i2cinfo->val_size) > 8 ||
+		     i2cinfo->reg_size <= 0 || i2cinfo->val_size <= 0) {
+			camsys_err("Input reg_size %d or val_size %d is invalid!",
+				   i2cinfo->reg_size, i2cinfo->val_size);
+			err = -EINVAL;
+			goto end;
+		}
+
 		for (i = 0; i < i2cinfo->reg_size; i++) {
 			buf[i] = (i2cinfo->reg_addr >>
 					((i2cinfo->reg_size-1-i)*8))&0xff;
@@ -101,6 +109,11 @@ camsys_i2c_info_t *i2cinfo, camsys_dev_t *camsys_dev)
 	adapter = i2c_get_adapter(i2cinfo->bus_num);
 	if (adapter == NULL) {
 		camsys_err("Get %d i2c adapter is failed!", i2cinfo->bus_num);
+		err = -EINVAL;
+		goto end;
+	}
+	if (i2cinfo->reg_size > 8 || i2cinfo->reg_size <= 0) {
+		camsys_err("Input reg_size %d is invalid!", i2cinfo->reg_size);
 		err = -EINVAL;
 		goto end;
 	}
