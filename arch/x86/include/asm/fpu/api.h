@@ -33,12 +33,18 @@ extern void fpregs_mark_activate(void);
 static inline void fpregs_lock(void)
 {
 	preempt_disable();
-	local_bh_disable();
+	/*
+	 * On RT disabling preemption is good enough because bottom halfs
+	 * are always running in thread context.
+	 */
+	if (!IS_ENABLED(CONFIG_PREEMPT_RT))
+		local_bh_disable();
 }
 
 static inline void fpregs_unlock(void)
 {
-	local_bh_enable();
+	if (!IS_ENABLED(CONFIG_PREEMPT_RT))
+		local_bh_enable();
 	preempt_enable();
 }
 
