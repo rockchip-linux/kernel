@@ -312,7 +312,7 @@ static void xhci_handle_stopped_cmd_ring(struct xhci_hcd *xhci,
 		if (i_cmd->status != COMP_COMMAND_ABORTED)
 			continue;
 
-		i_cmd->status = COMP_STOPPED;
+		i_cmd->status = COMP_COMMAND_RING_STOPPED;
 
 		xhci_dbg(xhci, "Turn aborted command %p to no-op\n",
 			 i_cmd->command_trb);
@@ -1401,7 +1401,7 @@ static void handle_cmd_completion(struct xhci_hcd *xhci,
 	cmd_comp_code = GET_COMP_CODE(le32_to_cpu(event->status));
 
 	/* If CMD ring stopped we own the trbs between enqueue and dequeue */
-	if (cmd_comp_code == COMP_STOPPED) {
+	if (cmd_comp_code == COMP_COMMAND_RING_STOPPED) {
 		complete_all(&xhci->cmd_ring_stop_completion);
 		return;
 	}
@@ -1457,8 +1457,8 @@ static void handle_cmd_completion(struct xhci_hcd *xhci,
 		break;
 	case TRB_CMD_NOOP:
 		/* Is this an aborted command turned to NO-OP? */
-		if (cmd->status == COMP_STOPPED)
-			cmd_comp_code = COMP_STOPPED;
+		if (cmd->status == COMP_COMMAND_RING_STOPPED)
+			cmd_comp_code = COMP_COMMAND_RING_STOPPED;
 		break;
 	case TRB_RESET_EP:
 		WARN_ON(slot_id != TRB_TO_SLOT_ID(
@@ -1726,7 +1726,8 @@ static void handle_port_status(struct xhci_hcd *xhci,
 		goto cleanup;
 	}
 
-	if (hcd->speed < HCD_USB3)
+	if (hcd->speed < HCD_USB3 ||
+	    ((portsc & PORT_PLC) && (portsc & PORT_PLS_MASK) == XDEV_INACTIVE))
 		xhci_test_and_clear_bit(xhci, port_array, faked_port_index,
 					PORT_PLC);
 

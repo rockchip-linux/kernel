@@ -117,7 +117,7 @@
 			reg = <0x0 0x0 0x0 0x0>;
 		};
 
-		ramoops_mem: region@110000 {
+		ramoops_mem: ramoops@110000 {
 			reg = <0x0 0x110000 0x0 0xf0000>;
 		};
 	};

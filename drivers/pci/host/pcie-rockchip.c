@@ -192,6 +192,7 @@
 #define AXI_WRAPPER_IO_WRITE			0x6
 #define AXI_WRAPPER_MEM_WRITE			0x2
 #define AXI_WRAPPER_CFG0			0xa
+#define AXI_WRAPPER_CFG1			0xb
 #define AXI_WRAPPER_NOR_MSG			0xc
 
 #define MAX_AXI_IB_ROOTPORT_REGION_NUM		3
@@ -217,6 +218,7 @@
 #define RC_REGION_0_ADDR_TRANS_H		0x00000000
 #define RC_REGION_0_ADDR_TRANS_L		0x00000000
 #define RC_REGION_0_PASS_BITS			(25 - 1)
+#define RC_REGION_0_TYPE_MASK			GENMASK(3, 0)
 #define MAX_AXI_WRAPPER_REGION_NUM		33
 
 #define PCIE_USER_RELINK 0x1
@@ -264,6 +266,7 @@ struct rockchip_pcie {
 	struct resource *io;
 	bool pcie_really_probed;
 	int in_remove;
+	int other_rw_disabled;
 };
 
 static u32 rockchip_pcie_read(struct rockchip_pcie *rockchip, u32 reg)
@@ -291,6 +294,26 @@ void rk_pcie_start_dma_3399(struct dma_trx_obj *obj)
 			    PCIE_APB_CORE_UDMA_BASE + 0x14 * chn + 0x00);
 }
 EXPORT_SYMBOL(rk_pcie_start_dma_3399);
+
+static void rockchip_pcie_cfg_configuration_accesses(
+		struct rockchip_pcie *rockchip, u32 type)
+{
+	u32 ob_desc_0;
+
+	/* Configuration Accesses for region 0 */
+	rockchip_pcie_write(rockchip, 0x0, PCIE_RC_BAR_CONF);
+
+	rockchip_pcie_write(rockchip,
+			    (RC_REGION_0_ADDR_TRANS_L + RC_REGION_0_PASS_BITS),
+			    PCIE_CORE_OB_REGION_ADDR0);
+	rockchip_pcie_write(rockchip, RC_REGION_0_ADDR_TRANS_H,
+			    PCIE_CORE_OB_REGION_ADDR1);
+	ob_desc_0 = rockchip_pcie_read(rockchip, PCIE_CORE_OB_REGION_DESC0);
+	ob_desc_0 &= ~(RC_REGION_0_TYPE_MASK);
+	ob_desc_0 |= (type | (0x1 << 23));
+	rockchip_pcie_write(rockchip, ob_desc_0, PCIE_CORE_OB_REGION_DESC0);
+	rockchip_pcie_write(rockchip, 0x0, PCIE_CORE_OB_REGION_DESC1);
+}
 
 static void rockchip_pcie_enable_bw_int(struct rockchip_pcie *rockchip)
 {
@@ -399,10 +422,17 @@ static int rockchip_pcie_rd_other_conf(struct rockchip_pcie *rockchip,
 	busdev = PCIE_ECAM_ADDR(bus->number, PCI_SLOT(devfn),
 				PCI_FUNC(devfn), where);
 
-	if (!IS_ALIGNED(busdev, size)) {
+	if (!IS_ALIGNED(busdev, size) || rockchip->other_rw_disabled) {
 		*val = 0;
 		return PCIBIOS_BAD_REGISTER_NUMBER;
 	}
+
+	if (bus->parent->number == rockchip->root_bus_nr)
+		rockchip_pcie_cfg_configuration_accesses(rockchip,
+				AXI_WRAPPER_CFG0);
+	else
+		rockchip_pcie_cfg_configuration_accesses(rockchip,
+				AXI_WRAPPER_CFG1);
 
 	if (size == 4) {
 		*val = readl(rockchip->reg_base + busdev);
@@ -428,8 +458,15 @@ static int rockchip_pcie_wr_other_conf(struct rockchip_pcie *rockchip,
 
 	busdev = PCIE_ECAM_ADDR(bus->number, PCI_SLOT(devfn),
 				PCI_FUNC(devfn), where);
-	if (!IS_ALIGNED(busdev, size))
+	if (!IS_ALIGNED(busdev, size) || rockchip->other_rw_disabled)
 		return PCIBIOS_BAD_REGISTER_NUMBER;
+
+	if (bus->parent->number == rockchip->root_bus_nr)
+		rockchip_pcie_cfg_configuration_accesses(rockchip,
+				AXI_WRAPPER_CFG0);
+	else
+		rockchip_pcie_cfg_configuration_accesses(rockchip,
+				AXI_WRAPPER_CFG1);
 
 	if (size == 4)
 		writel(val, rockchip->reg_base + busdev);
@@ -724,16 +761,6 @@ static int rockchip_pcie_init_port(struct rockchip_pcie *rockchip)
 		status &= ~PCIE_RC_CONFIG_LINK_CAP_L0S;
 		rockchip_pcie_write(rockchip, status, PCIE_RC_CONFIG_LINK_CAP);
 	}
-
-	rockchip_pcie_write(rockchip, 0x0, PCIE_RC_BAR_CONF);
-
-	rockchip_pcie_write(rockchip,
-			    (RC_REGION_0_ADDR_TRANS_L + RC_REGION_0_PASS_BITS),
-			    PCIE_CORE_OB_REGION_ADDR0);
-	rockchip_pcie_write(rockchip, RC_REGION_0_ADDR_TRANS_H,
-			    PCIE_CORE_OB_REGION_ADDR1);
-	rockchip_pcie_write(rockchip, 0x0080000a, PCIE_CORE_OB_REGION_DESC0);
-	rockchip_pcie_write(rockchip, 0x0, PCIE_CORE_OB_REGION_DESC1);
 
 	return 0;
 }
@@ -1292,6 +1319,8 @@ static int rockchip_cfg_atu(struct rockchip_pcie *rockchip)
 	int err;
 	int reg_no;
 
+	rockchip_pcie_cfg_configuration_accesses(rockchip, AXI_WRAPPER_CFG0);
+
 	for (reg_no = 0; reg_no < (rockchip->mem_size >> 20); reg_no++) {
 		err = rockchip_pcie_prog_ob_atu(rockchip, reg_no + 1,
 						AXI_WRAPPER_MEM_WRITE,
@@ -1306,8 +1335,6 @@ static int rockchip_cfg_atu(struct rockchip_pcie *rockchip)
 	}
 	/* Workaround for PCIe DMA transfer */
 	if (rockchip->dma_trx_enabled) {
-		rockchip_pcie_prog_ob_atu(rockchip, 0, AXI_WRAPPER_CFG0, 12,
-					  0x0, 0x0);
 		rockchip_pcie_prog_ob_atu(rockchip, 1, AXI_WRAPPER_MEM_WRITE,
 				32 - 1, rockchip->mem_reserve_start, 0x0);
 	}
@@ -1522,12 +1549,16 @@ static ssize_t pcie_reset_ep_store(struct device *dev,
 	if (err)
 		return err;
 
-	if (val == PCIE_USER_UNLINK)
+	if (val == PCIE_USER_UNLINK) {
+		rockchip->other_rw_disabled = 1;
 		rockchip_pcie_suspend_for_user(rockchip->dev);
-	else if (val == PCIE_USER_RELINK)
+	} else if (val == PCIE_USER_RELINK) {
+		rockchip->other_rw_disabled = 0;
 		rockchip_pcie_resume_for_user(rockchip->dev);
-	else
+	} else {
+		dev_err(dev, "unknown cmd %d\n", val);
 		return -EINVAL;
+	}
 
 	return size;
 }

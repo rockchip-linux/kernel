@@ -76,6 +76,11 @@ typedef struct camsys_mrv_clk_s {
 	struct clk      *pclk_dphy_ref;
 	struct clk      *pclk_dphytxrx;
 
+	struct reset_control *rst_isp1;
+	struct reset_control *rst_h_isp1;
+	struct reset_control *rst_isp0;
+	struct reset_control *rst_h_isp0;
+
 	struct mutex     lock;
 } camsys_mrv_clk_t;
 

@@ -2,9 +2,14 @@
 /*
  * GC2145 CMOS Image Sensor driver
  *
- * Copyright (C) 2018 Fuzhou Rockchip Electronics Co., Ltd.
- * V0.0X01.0X01 add enum_frame_interval function.
- * V0.0X01.0X02 add mipi svga 10fps.
+ *
+ * Copyright (C) 2017 Fuzhou Rockchip Electronics Co., Ltd.
+ *
+ * V0.0X01.0X01 add poweron function.
+ * V0.0X01.0X02 fix mclk issue when probe multiple camera.
+ * V0.0X01.0X03 fix gc2145 exposure issues.
+ * V0.0X01.0X04 add enum_frame_interval function.
+ * V0.0X01.0X05 fix gc2145 preview water ripple issue
  */
 
 #include <linux/clk.h>
@@ -36,9 +41,11 @@
 #include <media/v4l2-mediabus.h>
 #include <media/v4l2-subdev.h>
 
-#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x2)
+#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x5)
 #define DRIVER_NAME "gc2145"
 #define GC2145_PIXEL_RATE		(120 * 1000 * 1000)
+
+#define GC2145_EXPOSURE_CONTROL
 
 /*
  * GC2145 register definitions
@@ -59,6 +66,7 @@ struct sensor_register {
 struct gc2145_framesize {
 	u16 width;
 	u16 height;
+	u16 fps;
 	struct v4l2_fract max_fps;
 	u16 max_exp_lines;
 	const struct sensor_register *regs;
@@ -96,6 +104,7 @@ struct gc2145 {
 	unsigned int fps;
 	unsigned int xvclk_frequency;
 	struct clk *xvclk;
+	struct gpio_desc *power_gpio;
 	struct gpio_desc *pwdn_gpio;
 	struct gpio_desc *reset_gpio;
 	struct regulator_bulk_data supplies[GC2145_NUM_SUPPLIES];
@@ -108,6 +117,7 @@ struct gc2145 {
 	const struct gc2145_framesize *framesize_cfg;
 	unsigned int cfg_num;
 	int streaming;
+	bool			power_on;
 	u32 module_index;
 	const char *module_facing;
 	const char *module_name;
@@ -775,8 +785,8 @@ static const struct sensor_register gc2145_dvp_init_regs[] = {
 
 	/*frame rate 50Hz*/
 	{0xfe, 0x00},
-	{0x05, 0x01},
-	{0x06, 0x56},
+	{0x05, 0x02},
+	{0x06, 0x20},
 	{0x07, 0x00},
 	{0x08, 0x32},
 	{0xfe, 0x01},
@@ -839,9 +849,29 @@ static const struct sensor_register gc2145_dvp_init_regs[] = {
 
 /* Senor full resolution setting */
 static const struct sensor_register gc2145_dvp_full[] = {
+	//SENSORDB("GC2145_Sensor_2M"},
+	{0xfe, 0x00},
+	{0x05, 0x02},
+	{0x06, 0x20},
+	{0x07, 0x00},
+	{0x08, 0x50},
+	{0xfe, 0x01},
+	{0x25, 0x00},
+	{0x26, 0x6a},
+
+	{0x27, 0x04},
+	{0x28, 0xf8},
+	{0x29, 0x04},
+	{0x2a, 0xf8},
+	{0x2b, 0x04},
+	{0x2c, 0xf8},
+	{0x2d, 0x04},
+	{0x2e, 0xf8},
+
 	{0xfe, 0x00},
 	{0xfd, 0x00},
-	{0xfa, 0x00},
+	{0xfa, 0x11},
+	{0x18, 0x22},
 	/*crop window*/
 	{0xfe, 0x00},
 	{0x90, 0x01},
@@ -875,23 +905,28 @@ static const struct sensor_register gc2145_dvp_full[] = {
 	{0x08, 0x80},
 	{0x0a, 0x82},
 	{0xfe, 0x01},
-	{0x21, 0x04},
-	{0xfe, 0x00},
+	{0x21, 0x15}, //if 0xfa=11,then 0x21=15;
+	{0xfe, 0x00}, //else if 0xfa=00,then 0x21=04
 	{0x20, 0x15},
 	{0xfe, 0x00},
+
 	{REG_NULL, 0x00},
 };
 
 /* Preview resolution setting*/
 static const struct sensor_register gc2145_dvp_svga_30fps[] = {
+	/*frame rate 50Hz*/
 	{0xfe, 0x00},
 	{0x05, 0x02},
 	{0x06, 0x20},
 	{0x07, 0x00},
 	{0x08, 0xb8},
 	{0xfe, 0x01},
+	{0x13, 0x7b},
+	{0x18, 0x95},
 	{0x25, 0x01},
 	{0x26, 0xac},
+
 	{0x27, 0x05},
 	{0x28, 0x04},
 	{0x29, 0x05},
@@ -900,7 +935,9 @@ static const struct sensor_register gc2145_dvp_svga_30fps[] = {
 	{0x2c, 0x04},
 	{0x2d, 0x05},
 	{0x2e, 0x04},
+
 	{0x3c, 0x00},
+	{0x3d, 0x15},
 	{0xfe, 0x00},
 	{0xfe, 0x00},
 	{0xfa, 0x00},
@@ -954,15 +991,30 @@ static const struct sensor_register gc2145_dvp_svga_30fps[] = {
 
 /* Preview resolution setting*/
 static const struct sensor_register gc2145_dvp_svga_20fps[] = {
+	//SENSORDB("GC2145_Sensor_SVGA"},
 	{0xfe, 0x00},
 	{0x05, 0x02},
 	{0x06, 0x20},
-	{0x07, 0x03},
-	{0x08, 0x80},
+	{0x07, 0x00},
+	{0x08, 0x50},
+	{0xfe, 0x01},
+	{0x25, 0x00},
+	{0x26, 0xd4},
+
+	{0x27, 0x04},
+	{0x28, 0xf8},
+	{0x29, 0x04},
+	{0x2a, 0xf8},
+	{0x2b, 0x04},
+	{0x2c, 0xf8},
+	{0x2d, 0x04},
+	{0x2e, 0xf8},
+
+	{0xfe, 0x00},
 	{0xb6, 0x01},
-	{0xfd, 0x03},
+	{0xfd, 0x01},
 	{0xfa, 0x00},
-	{0x18, 0x42},
+	{0x18, 0x22},
 	/*crop window*/
 	{0xfe, 0x00},
 	{0x90, 0x01},
@@ -1655,24 +1707,24 @@ static const struct sensor_register gc2145_mipi_init_regs[] = {
 };
 
 static const struct sensor_register gc2145_mipi_full[] = {
+	/*SENSORDB("GC2145_Sensor_2M")*/
 	{0xfe, 0x00},
-	{0x05, 0x01},
-	{0x06, 0x56},
+	{0x05, 0x02},
+	{0x06, 0x20},
 	{0x07, 0x00},
-	{0x08, 0x32},
+	{0x08, 0x50},
 	{0xfe, 0x01},
 	{0x25, 0x00},
-	{0x26, 0xfa},
+	{0x26, 0x6a},
 
 	{0x27, 0x04},
-	{0x28, 0xe2},
+	{0x28, 0xf8},
 	{0x29, 0x04},
-	{0x2a, 0xe2},
+	{0x2a, 0xf8},
 	{0x2b, 0x04},
-	{0x2c, 0xe2},
+	{0x2c, 0xf8},
 	{0x2d, 0x04},
-	{0x2e, 0xe2},
-	{0xfe, 0x00},
+	{0x2e, 0xf8},
 
 	{0xfe, 0x00},
 	{0xfd, 0x00},
@@ -1732,81 +1784,31 @@ static const struct sensor_register gc2145_mipi_full[] = {
 	{REG_NULL, 0x00},
 };
 
-static const struct sensor_register gc2145_mipi_svga_10fps[] = {
-	/*frame rate 50Hz*/
-	{0xfe, 0x00},
-	{0x05, 0x04},
-	{0x06, 0x40},
-	{0x07, 0x07},
-	{0x08, 0x40},
-	{0xb6, 0x01},
-	{0xfd, 0x03},
-	{0xfa, 0x00},
-	{0x18, 0x42},
-	/*crop window*/
-	{0xfe, 0x00},
-	{0x90, 0x01},
-	{0x91, 0x00},
-	{0x92, 0x00},
-	{0x93, 0x00},
-	{0x94, 0x00},
-	{0x95, 0x02},
-	{0x96, 0x58},
-	{0x97, 0x03},
-	{0x98, 0x20},
-	{0x99, 0x11},
-	{0x9a, 0x06},
-	/*AWB*/
-	{0xfe, 0x00},
-	{0xec, 0x02},
-	{0xed, 0x02},
-	{0xee, 0x30},
-	{0xef, 0x48},
-	{0xfe, 0x02},
-	{0x9d, 0x08},
-	{0xfe, 0x01},
-	{0x74, 0x00},
-
-	{0xfe, 0x00},
-	{0x7e, 0x00},
-	{0x7f, 0x60},
-	{0xfe, 0x01},
-	{0xa0, 0x0b},
-	/*AEC*/
-	{0xfe, 0x01},
-	{0x01, 0x04},
-	{0x02, 0x60},
-	{0x03, 0x02},
-	{0x04, 0x48},
-	{0x05, 0x18},
-	{0x06, 0x50},
-	{0x07, 0x10},
-	{0x08, 0x38},
-	{0x0a, 0xc0},
-	{0x1b, 0x04},
-	{0x21, 0x04},
-	{0xfe, 0x00},
-	{0x20, 0x03},
-	{0xfe, 0x03},
-	{0x12, 0x40},
-	{0x13, 0x06},
-	{0x04, 0x01},
-	{0x05, 0x00},
-	{0xfe, 0x00},
-	{REG_NULL, 0x00},
-};
-
 static const struct sensor_register gc2145_mipi_svga_20fps[] = {
 	/*frame rate 50Hz*/
 	{0xfe, 0x00},
 	{0x05, 0x02},
 	{0x06, 0x20},
-	{0x07, 0x03},
-	{0x08, 0x80},
+	{0x07, 0x00},
+	{0x08, 0x50},
+	{0xfe, 0x01},
+	{0x25, 0x00},
+	{0x26, 0xd4},
+
+	{0x27, 0x04},
+	{0x28, 0xf8},
+	{0x29, 0x04},
+	{0x2a, 0xf8},
+	{0x2b, 0x04},
+	{0x2c, 0xf8},
+	{0x2d, 0x04},
+	{0x2e, 0xf8},
+
+	{0xfe, 0x00},
 	{0xb6, 0x01},
-	{0xfd, 0x03},
+	{0xfd, 0x01},
 	{0xfa, 0x00},
-	{0x18, 0x42},
+	{0x18, 0x22},
 	/*crop window*/
 	{0xfe, 0x00},
 	{0x90, 0x01},
@@ -1830,12 +1832,13 @@ static const struct sensor_register gc2145_mipi_svga_20fps[] = {
 	{0x9d, 0x08},
 	{0xfe, 0x01},
 	{0x74, 0x00},
-
+#if 0
 	{0xfe, 0x00},
 	{0x7e, 0x00},
 	{0x7f, 0x60},
 	{0xfe, 0x01},
 	{0xa0, 0x0b},
+#endif
 	/*AEC*/
 	{0xfe, 0x01},
 	{0x01, 0x04},
@@ -1846,8 +1849,8 @@ static const struct sensor_register gc2145_mipi_svga_20fps[] = {
 	{0x06, 0x50},
 	{0x07, 0x10},
 	{0x08, 0x38},
-	{0x0a, 0xc0},
-	{0x1b, 0x04},
+	{0x0a, 0x80},
+	//{0x1b, 0x04},
 	{0x21, 0x04},
 	{0xfe, 0x00},
 	{0x20, 0x03},
@@ -1871,11 +1874,11 @@ static const struct sensor_register gc2145_mipi_svga_30fps[] = {
 	{0x25, 0x01},
 	{0x26, 0xac},
 
-	{0x27, 0x05},/* 4e2 pad */
+	{0x27, 0x05},//4e2 pad
 	{0x28, 0x04},
-	{0x29, 0x05},/* 6d6 pad */
+	{0x29, 0x05},//6d6 pad
 	{0x2a, 0x04},
-	{0x2b, 0x05},/* 7d0 pad */
+	{0x2b, 0x05},//7d0 pad
 	{0x2c, 0x04},
 	{0x2d, 0x05},
 	{0x2e, 0x04},
@@ -1943,14 +1946,16 @@ static const struct gc2145_framesize gc2145_dvp_framesizes[] = {
 	{ /* SVGA */
 		.width		= 800,
 		.height		= 600,
+		.fps		= 16,
 		.max_fps = {
 			.numerator = 10000,
-			.denominator = 200000,
+			.denominator = 160000,
 		},
 		.regs		= gc2145_dvp_svga_20fps,
 	}, { /* SVGA */
 		.width		= 800,
 		.height		= 600,
+		.fps		= 30,
 		.max_fps = {
 			.numerator = 10000,
 			.denominator = 300000,
@@ -1959,9 +1964,10 @@ static const struct gc2145_framesize gc2145_dvp_framesizes[] = {
 	}, { /* FULL */
 		.width		= 1600,
 		.height		= 1200,
+		.fps		= 16,
 		.max_fps = {
 			.numerator = 10000,
-			.denominator = 200000,
+			.denominator = 160000,
 		},
 		.regs		= gc2145_dvp_full,
 	}
@@ -1971,22 +1977,16 @@ static const struct gc2145_framesize gc2145_mipi_framesizes[] = {
 	{ /* SVGA */
 		.width		= 800,
 		.height		= 600,
+		.fps		= 16,
 		.max_fps = {
 			.numerator = 10000,
-			.denominator = 100000,
-		},
-		.regs		= gc2145_mipi_svga_10fps,
-	}, { /* SVGA */
-		.width		= 800,
-		.height		= 600,
-		.max_fps = {
-			.numerator = 10000,
-			.denominator = 200000,
+			.denominator = 160000,
 		},
 		.regs		= gc2145_mipi_svga_20fps,
 	}, { /* SVGA */
 		.width		= 800,
 		.height		= 600,
+		.fps		= 30,
 		.max_fps = {
 			.numerator = 10000,
 			.denominator = 300000,
@@ -1995,9 +1995,10 @@ static const struct gc2145_framesize gc2145_mipi_framesizes[] = {
 	}, { /* FULL */
 		.width		= 1600,
 		.height		= 1200,
+		.fps		= 16,
 		.max_fps = {
 			.numerator = 10000,
-			.denominator = 100000,
+			.denominator = 160000,
 		},
 		.regs		= gc2145_mipi_full,
 	}
@@ -2233,8 +2234,7 @@ static void __gc2145_try_frame_size_fps(struct gc2145 *gc2145,
 		for (i = 0; i < gc2145->cfg_num; i++) {
 			if (fsize->width == match->width &&
 			    fsize->height == match->height &&
-			    fps >= DIV_ROUND_CLOSEST(fsize->max_fps.denominator,
-				fsize->max_fps.numerator))
+			    fps >= fsize->fps)
 				match = fsize;
 
 			fsize++;
@@ -2248,6 +2248,73 @@ static void __gc2145_try_frame_size_fps(struct gc2145 *gc2145,
 		*size = match;
 }
 
+#ifdef GC2145_EXPOSURE_CONTROL
+/*
+ * the function is called before sensor register setting in VIDIOC_S_FMT
+ */
+/* Row times = Hb + Sh_delay + win_width + 4*/
+
+static int gc2145_aec_ctrl(struct v4l2_subdev *sd,
+			  struct v4l2_mbus_framefmt *mf)
+{
+	struct i2c_client *client = v4l2_get_subdevdata(sd);
+	int ret = 0;
+	u8 value;
+	static unsigned int capture_fps = 82, capture_lines = 1296;
+	static unsigned int preview_fps = 164, preview_lines = 1296;
+	static unsigned int lines_10ms = 1;
+	static unsigned int shutter_h = 0x04, shutter_l = 0xe2;
+	static unsigned int cap = 0, shutter = 0x04e2;
+
+	dev_info(&client->dev, "%s enter\n", __func__);
+	if ((mf->width == 800 && mf->height == 600) && cap == 1) {
+		cap = 0;
+		ret = gc2145_write(client, 0xfe, 0x00);
+		ret |= gc2145_write(client, 0xb6, 0x00);
+		ret |= gc2145_write(client, 0x03, shutter_h);
+		ret |= gc2145_write(client, 0x04, shutter_l);
+		ret |= gc2145_write(client, 0x82, 0xfa);
+		ret |= gc2145_write(client, 0xb6, 0x01);
+		if (ret)
+			dev_err(&client->dev, "gc2145 reconfig failed!\n");
+	}
+	if (mf->width == 1600 && mf->height == 1200) {
+		cap = 1;
+		ret = gc2145_write(client, 0xfe, 0x00);
+		ret |= gc2145_write(client, 0xb6, 0x00);
+		ret |= gc2145_write(client, 0x82, 0xf8);
+
+		/*shutter calculate*/
+		ret |= gc2145_read(client, 0x03, &value);
+		shutter_h = value;
+		shutter = (value << 8);
+		ret |= gc2145_read(client, 0x04, &value);
+		shutter_l = value;
+		shutter |= (value & 0xff);
+		dev_info(&client->dev, "%s(%d) 800x600 shutter read(0x%04x)!\n",
+					__func__, __LINE__, shutter);
+		shutter = shutter * capture_lines / preview_lines;
+		shutter = shutter * capture_fps / preview_fps;
+		lines_10ms = capture_fps * capture_lines / 100 / 10;
+		if (shutter > lines_10ms) {
+			shutter = shutter + lines_10ms / 2;
+			shutter /= lines_10ms;
+			shutter *= lines_10ms;
+		}
+		if (shutter < 1)
+			shutter = 0x276;
+		dev_info(&client->dev, "%s(%d)lines_10ms(%d),cal(0x%08x)!\n",
+			  __func__, __LINE__, lines_10ms, shutter);
+
+		ret |= gc2145_write(client, 0x03, ((shutter >> 8) & 0x1f));
+		ret |= gc2145_write(client, 0x04, (shutter & 0xff));
+		if (ret)
+			dev_err(&client->dev, "full exp reconfig failed!\n");
+	}
+	return ret;
+}
+#endif
+
 static int gc2145_set_fmt(struct v4l2_subdev *sd,
 			  struct v4l2_subdev_pad_config *cfg,
 			  struct v4l2_subdev_format *fmt)
@@ -2257,9 +2324,8 @@ static int gc2145_set_fmt(struct v4l2_subdev *sd,
 	struct v4l2_mbus_framefmt *mf = &fmt->format;
 	const struct gc2145_framesize *size = NULL;
 	struct gc2145 *gc2145 = to_gc2145(sd);
-	int ret = 0;
 
-	dev_dbg(&client->dev, "%s enter\n", __func__);
+	dev_info(&client->dev, "%s enter\n", __func__);
 
 	__gc2145_try_frame_size_fps(gc2145, mf, &size, gc2145->fps);
 
@@ -2291,12 +2357,18 @@ static int gc2145_set_fmt(struct v4l2_subdev *sd,
 
 		gc2145->frame_size = size;
 		gc2145->format = fmt->format;
+
 	}
 
+#ifdef GC2145_EXPOSURE_CONTROL
+	if (gc2145->power_on)
+		gc2145_aec_ctrl(sd, mf);
+#endif
 	mutex_unlock(&gc2145->lock);
-	return ret;
+	return 0;
 }
 
+static int gc2145_init(struct v4l2_subdev *sd, u32 val);
 static int gc2145_s_stream(struct v4l2_subdev *sd, int on)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
@@ -2304,10 +2376,9 @@ static int gc2145_s_stream(struct v4l2_subdev *sd, int on)
 	int ret = 0;
 
 	dev_info(&client->dev, "%s: on: %d, %dx%d@%d\n", __func__, on,
-		gc2145->frame_size->width,
-		gc2145->frame_size->height,
-		DIV_ROUND_CLOSEST(gc2145->frame_size->max_fps.denominator,
-				  gc2145->frame_size->max_fps.numerator));
+				gc2145->frame_size->width,
+				gc2145->frame_size->height,
+				gc2145->frame_size->fps);
 
 	mutex_lock(&gc2145->lock);
 
@@ -2322,6 +2393,8 @@ static int gc2145_s_stream(struct v4l2_subdev *sd, int on)
 		gc2145->streaming = on;
 		goto unlock;
 	}
+	if (ret)
+		dev_err(&client->dev, "init error\n");
 
 	ret = gc2145_write_array(client, gc2145->frame_size->regs);
 	if (ret)
@@ -2408,7 +2481,8 @@ static int gc2145_g_frame_interval(struct v4l2_subdev *sd,
 	struct gc2145 *gc2145 = to_gc2145(sd);
 
 	mutex_lock(&gc2145->lock);
-	fi->interval = gc2145->frame_size->max_fps;
+	fi->interval.numerator = 10000;
+	fi->interval.denominator = gc2145->fps * 10000;
 	mutex_unlock(&gc2145->lock);
 
 	return 0;
@@ -2439,10 +2513,8 @@ static int gc2145_s_frame_interval(struct v4l2_subdev *sd,
 
 	if (gc2145->frame_size != size) {
 		dev_info(&client->dev, "%s match wxh@FPS is %dx%d@%d\n",
-			__func__, size->width, size->height,
-			DIV_ROUND_CLOSEST(size->max_fps.denominator,
-				size->max_fps.numerator));
-		ret = gc2145_write_array(client, size->regs);
+			   __func__, size->width, size->height, size->fps);
+		ret |= gc2145_write_array(client, size->regs);
 		if (ret)
 			goto unlock;
 		gc2145->frame_size = size;
@@ -2532,8 +2604,6 @@ static int gc2145_init(struct v4l2_subdev *sd, u32 val)
 
 	dev_info(&client->dev, "%s(%d)\n", __func__, __LINE__);
 
-	/* soft reset */
-	ret = gc2145_write(client, 0xfe, 0xf0);
 	if (gc2145->bus_cfg.bus_type == V4L2_MBUS_CSI2)
 		ret = gc2145_write_array(client, gc2145_mipi_init_regs);
 	else
@@ -2547,7 +2617,6 @@ static int gc2145_power(struct v4l2_subdev *sd, int on)
 	int ret;
 	struct gc2145 *gc2145 = to_gc2145(sd);
 	struct i2c_client *client = gc2145->client;
-	struct device *dev = &gc2145->client->dev;
 
 	dev_info(&client->dev, "%s(%d) on(%d)\n", __func__, __LINE__, on);
 	if (on) {
@@ -2558,12 +2627,14 @@ static int gc2145_power(struct v4l2_subdev *sd, int on)
 		ret = gc2145_init(sd, 0);
 		usleep_range(10000, 20000);
 		if (ret)
-			dev_err(dev, "init error\n");
+			dev_err(&client->dev, "init error\n");
+		gc2145->power_on = true;
 	} else {
 		if (!IS_ERR(gc2145->pwdn_gpio)) {
 			gpiod_set_value_cansleep(gc2145->pwdn_gpio, 1);
 			usleep_range(2000, 5000);
 		}
+		gc2145->power_on = false;
 	}
 	return 0;
 }
@@ -2662,6 +2733,11 @@ static int __gc2145_power_on(struct gc2145 *gc2145)
 	struct device *dev = &gc2145->client->dev;
 
 	dev_info(dev, "%s(%d)\n", __func__, __LINE__);
+	if (!IS_ERR(gc2145->power_gpio)) {
+		gpiod_set_value_cansleep(gc2145->power_gpio, 1);
+		usleep_range(2000, 5000);
+	}
+
 	if (!IS_ERR(gc2145->reset_gpio)) {
 		gpiod_set_value_cansleep(gc2145->reset_gpio, 0);
 		usleep_range(2000, 5000);
@@ -2682,7 +2758,7 @@ static int __gc2145_power_on(struct gc2145 *gc2145)
 
 	if (!IS_ERR(gc2145->supplies)) {
 		ret = regulator_bulk_enable(GC2145_NUM_SUPPLIES,
-					    gc2145->supplies);
+			gc2145->supplies);
 		if (ret < 0)
 			dev_info(dev, "Failed to enable regulators\n");
 
@@ -2705,7 +2781,7 @@ static int __gc2145_power_on(struct gc2145 *gc2145)
 			dev_info(dev, "Failed to enable xvclk\n");
 	}
 	usleep_range(7000, 10000);
-
+	gc2145->power_on = true;
 	return 0;
 }
 
@@ -2720,6 +2796,9 @@ static void __gc2145_power_off(struct gc2145 *gc2145)
 		gpiod_set_value_cansleep(gc2145->pwdn_gpio, 1);
 	if (!IS_ERR(gc2145->reset_gpio))
 		gpiod_set_value_cansleep(gc2145->reset_gpio, 0);
+	if (!IS_ERR(gc2145->power_gpio))
+		gpiod_set_value_cansleep(gc2145->power_gpio, 0);
+	gc2145->power_on = false;
 }
 
 static int gc2145_configure_regulators(struct gc2145 *gc2145)
@@ -2747,7 +2826,7 @@ static int gc2145_parse_of(struct gc2145 *gc2145)
 	}
 
 	ret = v4l2_fwnode_endpoint_parse(of_fwnode_handle(endpoint),
-					 &gc2145->bus_cfg);
+		&gc2145->bus_cfg);
 	if (ret) {
 		dev_err(dev, "Failed to parse endpoint\n");
 		of_node_put(endpoint);
@@ -2761,6 +2840,9 @@ static int gc2145_parse_of(struct gc2145 *gc2145)
 		gc2145->cfg_num = ARRAY_SIZE(gc2145_dvp_framesizes);
 	}
 
+	gc2145->power_gpio = devm_gpiod_get(dev, "power", GPIOD_OUT_LOW);
+	if (IS_ERR(gc2145->power_gpio))
+		dev_info(dev, "Failed to get power-gpios, maybe no use\n");
 	gc2145->pwdn_gpio = devm_gpiod_get(dev, "pwdn", GPIOD_OUT_LOW);
 	if (IS_ERR(gc2145->pwdn_gpio))
 		dev_info(dev, "Failed to get pwdn-gpios, maybe no use\n");
@@ -2786,9 +2868,9 @@ static int gc2145_probe(struct i2c_client *client,
 	int ret;
 
 	dev_info(dev, "driver version: %02x.%02x.%02x",
-		 DRIVER_VERSION >> 16,
-		 (DRIVER_VERSION & 0xff00) >> 8,
-		 DRIVER_VERSION & 0x00ff);
+		DRIVER_VERSION >> 16,
+		(DRIVER_VERSION & 0xff00) >> 8,
+		DRIVER_VERSION & 0x00ff);
 
 	gc2145 = devm_kzalloc(&client->dev, sizeof(*gc2145), GFP_KERNEL);
 	if (!gc2145)
@@ -2870,12 +2952,15 @@ static int gc2145_probe(struct i2c_client *client,
 	gc2145->frame_size = &gc2145->framesize_cfg[0];
 	gc2145->format.width = gc2145->framesize_cfg[0].width;
 	gc2145->format.height = gc2145->framesize_cfg[0].height;
-	gc2145->fps = DIV_ROUND_CLOSEST(gc2145->framesize_cfg[0].max_fps.denominator,
-			gc2145->framesize_cfg[0].max_fps.numerator);
+	gc2145->fps = gc2145->framesize_cfg[0].fps;
 
 	ret = gc2145_detect(gc2145);
-	if (ret < 0)
+	if (ret < 0) {
+		dev_info(&client->dev, "Check id  failed:\n"
+			  "check following information:\n"
+			  "Power/PowerDown/Reset/Mclk/I2cBus !!\n");
 		goto error;
+	}
 
 	memset(facing, 0, sizeof(facing));
 	if (strcmp(gc2145->module_facing, "back") == 0)
@@ -2891,7 +2976,7 @@ static int gc2145_probe(struct i2c_client *client,
 		goto error;
 
 	dev_info(&client->dev, "%s sensor driver registered !!\n", sd->name);
-
+	gc2145->power_on = false;
 	return 0;
 
 error:

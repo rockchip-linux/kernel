@@ -80,6 +80,14 @@ config DWMAC_ROCKCHIP
 	  This selects the Rockchip RK3288 SoC glue layer support for
 	  the stmmac device driver.
 
+config DWMAC_RK_AUTO_DELAYLINE
+	bool "Auto search rgmii delayline"
+	default n
+	depends on DWMAC_ROCKCHIP
+	help
+	  Auto search suitable rgmii delayline at first boot, and save it
+	  at vendor storage if success.
+
 config DWMAC_SOCFPGA
 	tristate "SOCFPGA dwmac support"
 	default ARCH_SOCFPGA

@@ -27,7 +27,7 @@
 	num-lanes = <4>;
 	pinctrl-names = "default";
 	pinctrl-0 = <&pcie_clkreqn_cpm>;
-	max-link-speed = <2>;
+	max-link-speed = <1>;
 	memory-region = <&dma_trans>;
 	busno = <0>;
 	rockchip,dma_trx_enabled = <1>;

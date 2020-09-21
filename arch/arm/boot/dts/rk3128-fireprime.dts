@@ -40,14 +40,34 @@
 
 /dts-v1/;
 #include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/input/rk-input.h>
 #include <dt-bindings/pinctrl/rockchip.h>
 #include <dt-bindings/pwm/pwm.h>
 #include "rk3128.dtsi"
-#include "rk312x-android.dtsi"
 
 / {
 	model = "Rockchip RK3128 Fireprime board";
 	compatible = "rockchip,rk3128";
+	chosen {
+		bootargs = "earlycon=uart8250,mmio32,0x20068000 earlyprintk console=ttyFIQ0 rw root=PARTUUID=614e0000-0000 rootwait";
+	};
+
+	codec_hdmi_sound: codec-hdmi-sound {
+		status = "okay";
+		compatible = "rockchip,multicodecs-card";
+		rockchip,card-name = "rockchip,codec-hdmi";
+		rockchip,format = "i2s";
+		rockchip,codec-hp-det;
+		rockchip,mclk-fs = <256>;
+		rockchip,cpu = <&i2s_8ch>;
+		rockchip,codec = <&codec>, <&hdmi>;
+	};
+
+	cpuinfo {
+		compatible = "rockchip,cpuinfo";
+		nvmem-cells = <&efuse_id>;
+		nvmem-cell-names = "id";
+	};
 
 	fiq-debugger {
 		compatible = "rockchip,fiq-debugger";
@@ -58,6 +78,92 @@
 		rockchip,irq-mode-enable = <1>;
 		rockchip,baudrate = <115200>;  /* Only 115200 and 1500000 */
 		interrupts = <GIC_SPI 127 IRQ_TYPE_LEVEL_LOW>;
+		status = "okay";
+	};
+
+	gpio-keys{
+		compatible = "gpio-keys";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		autorepeat;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pwrbtn>;
+
+		button@0 {
+			gpios = <&gpio3 23 GPIO_ACTIVE_LOW>;
+			linux,code = <116>;
+			label = "GPIO Key Power";
+			linux,input-type = <1>;
+			gpio-key,wakeup = <1>;
+			debounce-interval = <100>;
+		};
+	};
+
+	leds{
+		compatible = "gpio-leds";
+		power{
+			label = "firefly:blue:power";
+			linux,default-trigger = "ir-power-click";
+			gpios = <&gpio1 23 GPIO_ACTIVE_LOW>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&led_power>;
+			default-state = "on";
+		};
+		user {
+			label = "firefly:yellow:user";
+			linux,default-trigger = "ir-user-click";
+			gpios = <&gpio2 3 GPIO_ACTIVE_LOW>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&led_user>;
+			default-state = "off";
+		};
+	};
+
+	sdio_pwrseq: sdio-pwrseq{
+		compatible = "mmc-pwrseq-simple";
+		pinctrl-name = "default";
+		pinctrl-0 = <&wifi_enable_h>;
+		reset-gpios = <&gpio1 RK_PB3 GPIO_ACTIVE_LOW>;
+	};
+
+	spdif_out: spdif-out {
+		status = "okay";
+		compatible = "linux,spdif-dit";
+		#sound-dai-cells = <0>;
+	};
+
+	spdif-sound {
+		status = "okay";
+		compatible = "simple-audio-card";
+		simple-audio-card,name = "ROCKCHIP,SPDIF";
+		simple-audio-card,cpu {
+			sound-dai = <&spdif>;
+		};
+		simple-audio-card,codec {
+			sound-dai = <&spdif_out>;
+		};
+	};
+
+	wireless-wlan {
+		compatible = "wlan-platdata";
+		wifi_chip_type = "ap6212";
+		sdio_vref = <3300>;
+		rockchip,grf = <&grf>;
+		WIFI,host_wake_irq = <&gpio0 RK_PA2 GPIO_ACTIVE_HIGH>;
+		status = "okay";
+	};
+
+	wireless-bluetooth {
+		compatible = "bluetooth-platdata";
+		//wifi-bt-power-toggle;
+		uart_rts_gpios = <&gpio0 RK_PC1 GPIO_ACTIVE_LOW>;
+		pinctrl-names = "default","rts_gpio";
+		pinctrl-0 = <&uart0_rts>;
+		pinctrl-1 = <&uart0_rts_gpio>;
+		//BT,power_gpio = <&gpio1 GPIO_B3 GPIO_ACTIVE_HIGH>;
+		BT,reset_gpio = <&gpio1 RK_PA3 GPIO_ACTIVE_HIGH>;
+		BT,wake_gpio = <&gpio1 RK_PB2 GPIO_ACTIVE_HIGH>;
+		BT,wake_host_irq = <&gpio1 RK_PB1 GPIO_ACTIVE_LOW>;
 		status = "okay";
 	};
 
@@ -106,6 +212,15 @@
 		enable-active-high;
 	};
 
+	vcc_sdmmc: vcc-sdmmc{
+		compatible = "regulator-fixed";
+		gpio = <&gpio1 RK_PB6 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&sdmmc_pwren>;
+		regulator-name = "vcc_sdmmc";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+	};
 	xin32k: xin32k {
 		compatible = "fixed-clock";
 		clock-frequency = <32768>;
@@ -114,12 +229,41 @@
 	};
 };
 
-&cma_region {
-	/delete-property/ reg;
+&codec{
+	spk-ctl-gpios = <&gpio3 RK_PC5 GPIO_ACTIVE_HIGH>;
+	spk-mute-delay = <200>;
+	hp-mute-delay = <100>;
+	rk312x_for_mid = <0>;
+	is_rk3128 = <0>;
+	spk_volume = <25>;
+	hp_volume = <25>;
+	capture_volume = <26>;
+	gpio_debug = <1>;
+	codec_hp_det = <0>;
+	#sound-dai-cells = <0>;
+	status = "okay";
 };
 
 &cpu0 {
 	cpu-supply = <&vdd_arm>;
+};
+
+&dfi {
+	status = "okay";
+};
+
+&display_subsystem {
+	status = "okay";
+	route {
+		route_lvds: route-lvds {
+			status = "disabled";
+		};
+	};
+};
+
+&dmc {
+	center-supply = <&vdd_logic>;
+	status = "okay";
 };
 
 &emmc {
@@ -145,8 +289,26 @@
 	snps,reset-active-low;
 	snps,reset-delays-us = <0 10000 50000>;
 	snps,reset-gpio = <&gpio2 24 GPIO_ACTIVE_LOW>;
-	tx_delay = <0x30>;
-	rx_delay = <0x16>;
+	tx_delay = <0x1d>;
+	rx_delay = <0x10>;
+	status = "okay";
+};
+
+&gpu {
+	status = "okay";
+	mali-supply = <&vdd_logic>;
+};
+
+&hdmi {
+	#sound-dai-cells = <0>;
+	status = "okay";
+};
+
+&hevc {
+	status = "okay";
+};
+
+&hevc_mmu {
 	status = "okay";
 };
 
@@ -161,8 +323,10 @@
 		clock-output-names = "rk818-clkout1", "wifibt_32kin";
 		interrupt-parent = <&gpio3>;
 		interrupts = <22 IRQ_TYPE_LEVEL_LOW>;
+		pmic,stby-gpio = <&gpio0 RK_PD1 GPIO_ACTIVE_LOW>;
+		pmic,hold-gpio = <&gpio2 RK_PA0 GPIO_ACTIVE_HIGH>;
 		pinctrl-names = "default";
-		pinctrl-0 = <&pmic_int_l>;
+		pinctrl-0 = <&pmic_int_l &pmic_stby &pmic_hold>;
 		rockchip,system-power-controller;
 		wakeup-source;
 		#clock-cells = <1>;
@@ -207,9 +371,6 @@
 				regulator-name = "vcc_ddr";
 				regulator-always-on;
 				regulator-boot-on;
-				regulator-state-mem {
-					regulator-on-in-suspend;
-				};
 			};
 
 			vcc_io: DCDC_REG4 {
@@ -341,37 +502,26 @@
 				};
 			};
 		};
-
-		battery {
-			compatible = "rk818-battery";
-			ocv_table = <3400 3650 3693 3707 3731 3749 3760
-				     3770 3782 3796 3812 3829 3852 3882
-				     3915 3951 3981 4047 4086 4132 4182>;
-			design_capacity = <4000>;
-			design_qmax = <4000>;
-			bat_res = <100>;
-			max_input_current = <2000>;
-			max_chrg_current = <1400>;
-			max_chrg_voltage = <4200>;
-			sleep_enter_current = <300>;
-			sleep_exit_current = <300>;
-			power_off_thresd = <3400>;
-			zero_algorithm_vol = <3850>;
-			energy_mode = <0>;
-			fb_temperature = <105>;
-			sample_res = <20>;
-			max_soc_offset = <60>;
-			monitor_sec = <5>;
-			virtual_power = <1>;
-			power_dc2otg = <0>;
-		};
 	};
+};
+
+&i2s_8ch{
+	status = "okay";
+	#sound-dai-cells = <0>;
 };
 
 &pinctrl {
 	pmic {
 		pmic_int_l: pmic-int-l {
 			rockchip,pins = <RK_GPIO3 22 RK_FUNC_GPIO &pcfg_pull_default>;
+		};
+
+		pmic_stby: pmic-stby {
+			rockchip,pins = <RK_GPIO0 25 RK_FUNC_GPIO &pcfg_pull_default>;
+		};
+
+		pmic_hold: pmic-hold {
+			rockchip,pins = <RK_GPIO2 0 RK_FUNC_GPIO &pcfg_pull_default>;
 		};
 	};
 
@@ -384,27 +534,114 @@
 			rockchip,pins = <0 RK_PD6 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
+
+	led{
+		led_power: led-power {
+			rockchip,pins = <1 23 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+
+		led_user: led-user {
+			rockchip,pins = <2 3 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	buttons{
+		pwrbtn: pwrbtn{
+			rockchip,pins = <3 23 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	codec{
+		spk_ctl: spk-ctl{
+			rockchip,pins = <3 21 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	uart0{
+		uart0_rts_gpio: uart0-rts-gpio{
+			rockchip,pins = <0 RK_PC1 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	sdio-pwrseq{
+		wifi_enable_h: wifi-enable-h{
+			rockchip,pins = <1 RK_PB3 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+	};
+};
+
+&pwm3{
+	interrupts = <GIC_SPI 30 IRQ_TYPE_LEVEL_HIGH>;
+	compatible = "rockchip,remotectl-pwm";
+	pinctrl-names = "default";
+	remote_pwm_id = <3>;
+	handle_cpu_id = <0>;
+	remote_support_psci = <0>;
+	status = "okay";
+	ir_key1 {
+		rockchip,usercode = <0xff00>;
+		rockchip,key_table =
+			<0xeb   KEY_POWER>,
+			<0xec   KEY_COMPOSE>,
+			<0xfe   KEY_BACK>,
+			<0xb7   KEY_HOME>,
+			<0xa3   KEY_WWW>,
+			<0xf4   KEY_VOLUMEUP>,
+			<0xa7   KEY_VOLUMEDOWN>,
+			<0xf8   KEY_ENTER>,
+			<0xfc   KEY_UP>,
+			<0xfd   KEY_DOWN>,
+			<0xf1   KEY_LEFT>,
+			<0xe5   KEY_RIGHT>;
+	};
+};
+
+&saradc
+{
+	status = "okay";
 };
 
 &sdmmc {
 	cap-mmc-highspeed;
+	cap-sd-highspeed;
 	supports-sd;
+	vmmc-supply = <&vcc_sdmmc>;
 	broken-cd;
 	card-detect-delay = <800>;
 	ignore-pm-notify;
 	keep-power-in-suspend;
-	cd-gpios = <&gpio1 17 GPIO_ACTIVE_HIGH>; /* CD GPIO */
+	cd-gpios = <&gpio1 RK_PC1 GPIO_ACTIVE_HIGH>; /* CD GPIO */
 	status = "disabled";
 };
 
 &sdio {
-	cap-mmc-highspeed;
+	clock-frequency = <50000000>;
+	clock-freq-min-max = <200000 50000000>;
 	supports-sdio;
-	ignore-pm-notify;
-	keep-power-in-suspend;
-	non-removable;
+	disable-wp;
+	cap-sd-highspeed;
 	cap-sdio-irq;
-	status = "disabled";
+	keep-power-in-suspend;
+	pinctrl-names = "default";
+	pinctrl-0 = <&sdio_cmd &sdio_clk &sdio_bus4>;
+	mmc-pwrseq = <&sdio_pwrseq>;
+	non-removable;
+	sd-uhs-sdr104;
+	status = "okay";
+};
+
+&spdif{
+	compatible = "rockchip,rk3188-spdif";
+	status = "okay";
+	i2c-scl-rising-time-ns = <450>;
+	i2c-scl-falling-time-ns = <15>;
+	#sound-dai-cells = <0>;
+};
+
+&uart0{
+	pinctrl-names = "default";
+	pinctrl-0 = <&uart0_xfer &uart0_cts>;
+	status = "okay";
 };
 
 &u2phy {
@@ -438,5 +675,17 @@
 };
 
 &vop_mmu {
+	status = "okay";
+};
+
+&vpu {
+	status = "okay";
+};
+
+&vpu_combo {
+	status = "okay";
+};
+
+&vpu_mmu {
 	status = "okay";
 };

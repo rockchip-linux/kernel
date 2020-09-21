@@ -179,6 +179,8 @@
 			"aclk_isp0_noc", "aclk_isp0_wrapper",
 			"hclk_isp0_noc", "hclk_isp0_wrapper",
 			"clk_isp0", "pclk_dphyrx";
+		resets = <&cru SRST_H_ISP0>, <&cru SRST_ISP0>;
+		reset-names = "h_isp0", "isp0";
 		pinctrl-names =
 			"cif_clkout", "isp_dvp8bit0", "isp_mipi_fl",
 			"isp_mipi_fl_prefl", "isp_flash_as_gpio",
@@ -221,6 +223,8 @@
 			"pclk_dphy_ref", "pclk_isp1",
 			"pclk_dphyrx", "pclk_mipi_dsi",
 			"mipi_dphy_cfg";
+		resets = <&cru SRST_H_ISP1>, <&cru SRST_ISP1>;
+		reset-names = "h_isp1", "isp1";
 		pinctrl-names =
 			"cif_clkout", "isp_dvp8bit0", "isp_mipi_fl",
 			"isp_mipi_fl_prefl", "isp_flash_as_gpio",

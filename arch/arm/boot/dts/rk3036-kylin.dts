@@ -47,7 +47,7 @@
 	compatible = "rockchip,rk3036-kylin", "rockchip,rk3036";
 
 	chosen {
-		bootargs = "earlycon=uart8250,mmio32,0x20068000 console=ttyFIQ0 rw root=PARTUUID=7c0b0000-0000 rootfstype=ext4 rootwait";
+		bootargs = "earlycon=uart8250,mmio32,0x20068000 console=ttyFIQ0 rw root=PARTUUID=614e0000-0000 rootwait";
 	};
 
 	memory {
@@ -455,6 +455,10 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&sdmmc_clk>, <&sdmmc_cmd>, <&sdmmc_cd>, <&sdmmc_bus4>;
 	supports-sd;
+};
+
+&sfc {
+	status = "okay";
 };
 
 &uart0 {

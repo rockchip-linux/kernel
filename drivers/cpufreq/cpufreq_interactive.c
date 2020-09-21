@@ -1174,20 +1174,34 @@ static void cpufreq_interactive_input_event(struct input_handle *handle,
 	now = ktime_to_us(ktime_get());
 	for_each_online_cpu(i) {
 		pcpu = &per_cpu(cpuinfo, i);
-		if (!pcpu->policy)
+		if (!down_read_trylock(&pcpu->enable_sem))
 			continue;
+
+		if (!pcpu->governor_enabled) {
+			up_read(&pcpu->enable_sem);
+			continue;
+		}
+
+		if (!pcpu->policy) {
+			up_read(&pcpu->enable_sem);
+			continue;
+		}
 
 		if (have_governor_per_policy())
 			tunables = pcpu->policy->governor_data;
 		else
 			tunables = common_tunables;
-		if (!tunables)
+		if (!tunables) {
+			up_read(&pcpu->enable_sem);
 			continue;
+		}
 
 		endtime = now + tunables->touchboostpulse_duration_val;
 		if (endtime < (tunables->touchboostpulse_endtime +
-			       10 * USEC_PER_MSEC))
+			       10 * USEC_PER_MSEC)) {
+			up_read(&pcpu->enable_sem);
 			continue;
+		}
 		tunables->touchboostpulse_endtime = endtime;
 
 		spin_lock_irqsave(&pcpu->target_freq_lock, flags[1]);
@@ -1203,6 +1217,8 @@ static void cpufreq_interactive_input_event(struct input_handle *handle,
 		pcpu->loc_floor_val_time = ktime_to_us(ktime_get());
 
 		spin_unlock_irqrestore(&pcpu->target_freq_lock, flags[1]);
+
+		up_read(&pcpu->enable_sem);
 	}
 
 	spin_unlock_irqrestore(&speedchange_cpumask_lock, flags[0]);

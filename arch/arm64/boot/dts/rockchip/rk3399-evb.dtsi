@@ -41,6 +41,7 @@
  */
 
 #include <dt-bindings/pwm/pwm.h>
+#include <dt-bindings/soc/rockchip-io-domain.h>
 #include "rk3399.dtsi"
 #include "rk3399-opp.dtsi"
 
@@ -400,7 +401,28 @@
 
 &io_domains {
 	status = "okay";
-
+	/*
+	 * If the uboot use rkdevelop branch, the io-domain is not set
+	 * during uboot phase, it will cause the io voltage is not suit for
+	 * the hardware,maybe will damage the io of rk3399, so we add
+	 * uboot-set value to make sure the value is same with the kernel,
+	 * ofcause you must make sure firstly the value here is suit for your
+	 * hardware. The available value is defined in
+	 * include/dt-bindings/soc/rockchip-io-domain.h, they are
+	 * also list here for more convenient configuration:
+	 * bt656-supply: RK3399_BT656_VDD_1V8 or RK3399_BT656_VDD_3V3
+	 * audio-supply: RK3399_AUDIO_VDD_1V8 or RK3399_AUDIO_VDD_3V3
+	 * gpio1830-supply: RK3399_GPIO1833_VDD_1V8 or RK3399_GPIO1833_VDD_3V3
+	 * sdmmc-supply: don't need to configure because the voltage
+	 *                       is set in source code during runtime.
+	 * NOTE:
+	 * 1. The value in uboot-set must be enclosed in "()", otherwise will
+	 *     cause compile error.
+	 * 2. The uboot-set configuration must be cooperated with submit
+	 *     in u-boot.
+	 */
+	uboot-set = <(RK3399_BT656_VDD_1V8 | RK3399_AUDIO_VDD_1V8 |
+				RK3399_GPIO1833_VDD_3V3)>;
 	bt656-supply = <&vcc1v8_dvp>;
 	audio-supply = <&vcca1v8_codec>;
 	sdmmc-supply = <&vcc_sd>;
@@ -592,6 +614,18 @@
 
 &pmu_io_domains {
 	status = "okay";
+	/*
+	 * If the uboot use rkdevelop branch, the pmu_io_domain is not set
+	 * during uboot phase, it will cause the io voltage is not suit for
+	 * the hardware,maybe will damage the io of rk3399, so we add
+	 * uboot-set value to make sure the value is same with the kernel,
+	 * ofcause you must make sure firstly the value here is suit for your
+	 * hardware. The available value is defined in
+	 * include/dt-bindings/soc/rockchip-io-domain.h, they are
+	 * also list here for more convenient configuration:
+	 * pmu1830-supply: RK3399_PMU1830_VDD_1V8 or RK3399_PMU1830_VDD_3V0
+	 */
+	uboot-set = <RK3399_PMU1830_VDD_1V8>;
 	pmu1830-supply = <&vcc1v8_pmu>;
 };
 
