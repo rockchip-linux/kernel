@@ -504,7 +504,7 @@ static int rk628_gpio_get_direction(struct gpio_chip *chip, unsigned int offset)
 static int rk628_gpio_to_irq(struct gpio_chip *gc, unsigned offset)
 {
 	struct rk628_pin_bank *bank = gpiochip_get_data(gc);
-	unsigned int virq;
+	int virq;
 
 	if (!bank->domain)
 		return -ENXIO;
@@ -598,7 +598,7 @@ static int rk628_pinctrl_get_func_groups(struct pinctrl_dev *pctldev,
 
 static int rk628_calc_mux_offset(struct rk628_pctrl_info *pci, int mux, int reg, int offset)
 {
-	int val, orig;
+	int val = 0, orig;
 
 	switch (reg) {
 	case GRF_SYSTEM_CON3:
@@ -657,8 +657,6 @@ static int rk628_pinctrl_set_mux(struct pinctrl_dev *pctldev,
 	int offset = pci->groups[group_selector].pins[0] % BANK_OFFSET;
 	int reg = pci->groups[group_selector].iomux_base;
 
-
-	regmap_read(pci->grf_regmap, reg, &ret);
 	dev_dbg(pci->dev, "functions[%d]:%s mux=%s\n",
 		func_selector, pci->functions[func_selector].name,
 		mux ? "func" : "gpio");
@@ -741,6 +739,34 @@ static int rk628_pinconf_get(struct pinctrl_dev *pctldev,
 	return 0;
 }
 
+static struct rk628_pin_bank *rk628_pin_to_bank(struct rk628_pctrl_info *pci, int pin, int *index)
+{
+	int banks[] = { GPIO0_PINBASE,
+			GPIO1_PINBASE,
+			GPIO2_PINBASE,
+			GPIO3_PINBASE };
+	int i;
+
+	struct rk628_pin_bank *bank;
+
+	for (i = 3; i >= 0; i--) {
+		if (pin >= banks[i]) {
+			bank = pci->pin_banks + i;
+			break;
+		}
+	}
+
+	if (i < 0) {
+		dev_err(pci->dev, "pin%u is invalid pin number!\n", pin);
+		return NULL;
+	}
+
+	if (index)
+		*index = i;
+
+	return bank;
+}
+
 static int rk628_set_slew_rate(struct rk628_pctrl_info *pci, int pin, int speed)
 {
 	int gpio = pin - PINBASE;
@@ -764,7 +790,8 @@ static int rk628_set_slew_rate(struct rk628_pctrl_info *pci, int pin, int speed)
 	};
 
 
-	int i, val, ret, offset = 0xff;
+	int val, ret, offset = 0xff;
+	u32 i;
 
 	for (i = 0; i < sizeof(valid_gpio); i++) {
 		if (gpio == valid_gpio[i]) {
@@ -799,30 +826,20 @@ static int rk628_calc_pull_reg_and_value(struct rk628_pctrl_info *pci,
 					 int *reg,
 					 int *val)
 {
-	int banks[] = { GPIO0_PINBASE,
-			GPIO1_PINBASE,
-			GPIO2_PINBASE,
-			GPIO3_PINBASE };
 	int gpio2_regs[] = { GRF_GPIO2A_P_CON, GRF_GPIO2B_P_CON, GRF_GPIO2C_P_CON };
 	int gpio3_regs[] = { GRF_GPIO3A_P_CON, GRF_GPIO3B_P_CON };
 	int valid_pinnum[] = { 8, 8, 24, 13 };
-	int offset, i, bankbase;
+	int offset, i;
+	struct rk628_pin_bank *bank;
 
-	for (i = 3; i >= 0; i--) {
-		if (pin >= banks[i]) {
-			bankbase = banks[i];
-			break;
-		}
-	}
-
-	if (!bankbase) {
-		dev_err(pci->dev, "pin%u is invalid pin number!\n", pin);
+	bank = rk628_pin_to_bank(pci, pin, &i);
+	if (!bank) {
+		dev_err(pci->dev, "pin%u is invalid\n", pin);
 		return -EINVAL;
 	}
+	offset = pin - bank->pin_base;
 
-	offset = pin - banks[i];
-
-	switch (bankbase) {
+	switch (bank->pin_base) {
 	case GPIO0_PINBASE:
 		if (pull == RK628_GPIO_PULL_UP) {
 			dev_err(pci->dev, "pin%u don't support pull up!\n",
@@ -920,10 +937,6 @@ static int rk628_calc_strength_reg_and_value(struct rk628_pctrl_info *pci,
 					 int *reg,
 					 int *val)
 {
-	int banks[] = { GPIO0_PINBASE,
-			GPIO1_PINBASE,
-			GPIO2_PINBASE,
-			GPIO3_PINBASE };
 	int valid_pinnum[] = { 8, 8, 24, 9 };
 	int gpio_regs[][6] = {
 		{	GRF_GPIO0B_D_CON
@@ -940,23 +953,17 @@ static int rk628_calc_strength_reg_and_value(struct rk628_pctrl_info *pci,
 			GRF_GPIO3B_D_CON
 		}
 	};
-	int offset, i, bankbase;
+	int offset, i;
+	struct rk628_pin_bank *bank;
 
-	for (i = 3; i >= 0; i--) {
-		if (pin >= banks[i]) {
-			bankbase = banks[i];
-			break;
-		}
-	}
-
-	if (!bankbase) {
-		dev_err(pci->dev, "pin%u is invalid pin number!\n", pin);
+	bank = rk628_pin_to_bank(pci, pin, &i);
+	if (!bank) {
+		dev_err(pci->dev, "pin%u is invalid\n", pin);
 		return -EINVAL;
 	}
+	offset = pin - bank->pin_base;
 
-	offset = pin - banks[i];
-
-	switch (bankbase) {
+	switch (bank->pin_base) {
 	case GPIO0_PINBASE:
 	case GPIO1_PINBASE:
 		if (offset < valid_pinnum[i]) {
@@ -996,30 +1003,20 @@ static int rk628_calc_schmitt_reg_and_value(struct rk628_pctrl_info *pci,
 					 int *reg,
 					 int *val)
 {
-	int banks[] = { GPIO0_PINBASE,
-			GPIO1_PINBASE,
-			GPIO2_PINBASE,
-			GPIO3_PINBASE };
 	int gpio2_regs[] = {GRF_GPIO2A_SMT, GRF_GPIO2B_SMT, GRF_GPIO2C_SMT};
 	int gpio3_reg = GRF_GPIO3AB_SMT;
 	int valid_pinnum[] = { 0, 0, 24, 9 };
-	int offset, i, bankbase;
+	int offset, i;
+	struct rk628_pin_bank *bank;
 
-	for (i = 3; i >= 0; i--) {
-		if (pin >= banks[i]) {
-			bankbase = banks[i];
-			break;
-		}
-	}
-
-	if (!bankbase) {
-		dev_err(pci->dev, "pin%u is invalid pin number!\n", pin);
+	bank = rk628_pin_to_bank(pci, pin, &i);
+	if (!bank) {
+		dev_err(pci->dev, "pin%u is invalid\n", pin);
 		return -EINVAL;
 	}
+	offset = pin - bank->pin_base;
 
-	offset = pin - banks[i];
-
-	switch (bankbase) {
+	switch (bank->pin_base) {
 	case GPIO0_PINBASE:
 	case GPIO1_PINBASE:
 		break;
@@ -1144,6 +1141,18 @@ static int rk628_pinconf_set(struct pinctrl_dev *pctldev,
 		case PIN_CONFIG_INPUT_SCHMITT_ENABLE:
 			rk628_set_schmitt(pci, pin, arg);
 			break;
+		case PIN_CONFIG_OUTPUT:
+		{
+			struct rk628_pin_bank *bank;
+
+			bank = rk628_pin_to_bank(pci, pin, NULL);
+			if (!bank) {
+				dev_err(pci->dev, "pin%u is invalid\n", pin);
+				return -EINVAL;
+			}
+			rk628_gpio_direction_output(&bank->gpio_chip, pin - bank->pin_base, arg);
+			break;
+		}
 		default:
 			dev_err(pci->dev, "Properties not supported\n");
 			return 0;
@@ -1226,7 +1235,7 @@ static int rk628_pinctrl_parse_gpiobank(struct device *dev,
 	struct device_node *dev_np = dev->of_node;
 	struct device_node *cfg_np;
 	struct rk628_pin_bank *bank;
-	u32 i, count;
+	u32 i, count = 0;
 
 	for_each_child_of_node(dev_np, cfg_np) {
 		if (of_get_child_count(cfg_np))
@@ -1561,6 +1570,9 @@ static irqreturn_t rk628_irq_demux_thread(int irq, void *d)
 	high_bit = (pend >> 16);
 	ret = regmap_write(pci->regmap, bank->reg_base + GPIO_PORTS_EOI_L,
 			   (low_bit << 16) | low_bit);
+	if (ret)
+		dev_err(pci->dev, "regmap read failed! line=%d\n", __LINE__);
+
 	ret = regmap_write(pci->regmap, bank->reg_base + GPIO_PORTS_EOI_H,
 			   (high_bit << 16) | high_bit);
 	if (ret)
@@ -1589,7 +1601,8 @@ static int rk628_interrupts_register(struct platform_device *pdev,
 				     struct rk628_pctrl_info *pci)
 {
 	struct rk628_pin_bank *bank = pci->pin_banks;
-	int ret, i;
+	int ret;
+	u32 i;
 
 	for (i = 0; i < pci->nr_banks; ++i, ++bank) {
 		mutex_init(&bank->lock);
@@ -1729,6 +1742,7 @@ static int rk628_pinctrl_probe(struct platform_device *pdev)
 	}
 
 	rk628_interrupts_register(pdev, pci);
+
 	return 0;
 }
 
