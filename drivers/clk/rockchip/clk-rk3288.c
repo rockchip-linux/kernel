@@ -26,6 +26,7 @@
 #define RK3288_UART_FRAC_MAX_PRATE	600000000
 #define RK3288_I2S_FRAC_MAX_PRATE	600000000
 #define RK3288_SPDIF_FRAC_MAX_PRATE	600000000
+#define RK3288_DCLK_PARENT_MAX_PRATE	600000000
 
 enum rk3288_plls {
 	apll, dpll, cpll, gpll, npll,
@@ -442,9 +443,9 @@ static struct rockchip_clk_branch rk3288_clk_branches[] __initdata = {
 	COMPOSITE(DCLK_VOP0, "dclk_vop0", mux_pll_src_cpll_gpll_npll_p, 0,
 			RK3288_CLKSEL_CON(27), 0, 2, MFLAGS, 8, 8, DFLAGS,
 			RK3288_CLKGATE_CON(3), 1, GFLAGS),
-	COMPOSITE(DCLK_VOP1, "dclk_vop1", mux_pll_src_cpll_gpll_npll_p, 0,
+	COMPOSITE_DCLK(DCLK_VOP1, "dclk_vop1", mux_pll_src_cpll_gpll_npll_p, CLK_SET_RATE_PARENT | CLK_SET_RATE_NO_REPARENT,
 			RK3288_CLKSEL_CON(29), 6, 2, MFLAGS, 8, 8, DFLAGS,
-			RK3288_CLKGATE_CON(3), 3, GFLAGS),
+			RK3288_CLKGATE_CON(3), 3, GFLAGS, RK3288_DCLK_PARENT_MAX_PRATE),
 
 	COMPOSITE_NODIV(SCLK_EDP_24M, "sclk_edp_24m", mux_edp_24m_p, 0,
 			RK3288_CLKSEL_CON(28), 15, 1, MFLAGS,
