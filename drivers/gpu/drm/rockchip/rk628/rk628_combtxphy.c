@@ -395,9 +395,6 @@ static int rk628_combtxphy_probe(struct platform_device *pdev)
 	struct phy *phy;
 	int ret;
 
-	if (!of_device_is_available(dev->of_node))
-		return -ENODEV;
-
 	combtxphy = devm_kzalloc(dev, sizeof(*combtxphy), GFP_KERNEL);
 	if (!combtxphy)
 		return -ENOMEM;
@@ -425,6 +422,9 @@ static int rk628_combtxphy_probe(struct platform_device *pdev)
 		dev_err(dev, "failed to allocate register map: %d\n", ret);
 		return ret;
 	}
+
+	regmap_write(combtxphy->regmap, COMBTXPHY_CON0,
+		     SW_TX_IDLE(0x3ff) | SW_TX_PD(0x3ff) | SW_PD_PLL);
 
 	phy = devm_phy_create(dev, NULL, &rk628_combtxphy_ops);
 	if (IS_ERR(phy)) {
