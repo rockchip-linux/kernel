@@ -116,7 +116,7 @@ static const struct clk_gate_data rk628_clk_gates[] = {
 
 	GATE(CGU_PCLK_TXPHY_CON, CNAME("pclk_txphy_con"), CNAME("pclk_logic"),
 	     CRU_GATE_CON02, 3,
-	     0),
+	     CLK_IGNORE_UNUSED),
 	GATE(CGU_PCLK_EFUSE, CNAME("pclk_efuse"), CNAME("pclk_logic"),
 	     CRU_GATE_CON00, 5,
 	     0),
