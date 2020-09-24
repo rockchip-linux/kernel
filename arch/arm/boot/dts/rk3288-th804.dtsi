@@ -601,24 +601,24 @@
 	status = "disabled";
 };
 
-&dsi0_in_vopl {
+&dsi0_in_vopb {
 	status = "disabled";
 };
 
-&dsi0_in_vopb {
+&dsi0_in_vopl {
 	status = "okay";
 };
 
 &route_dsi0 {
-	connect = <&vopb_out_dsi0>;
-	status = "okay";
-};
-
-&hdmi_in_vopl {
+	connect = <&vopl_out_dsi0>;
 	status = "okay";
 };
 
 &hdmi_in_vopb {
+	status = "okay";
+};
+
+&hdmi_in_vopl {
 	status = "disabled";
 };
 
@@ -630,7 +630,7 @@
 };
 
 &route_hdmi {
-	connect = <&vopl_out_hdmi>;
+	connect = <&vopb_out_hdmi>;
 	status = "okay";
 };
 
