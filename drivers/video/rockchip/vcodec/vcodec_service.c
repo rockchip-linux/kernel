@@ -51,6 +51,7 @@
 
 #include <linux/dma-iommu.h>
 #include <linux/dma-buf.h>
+#include <linux/kernel.h>
 #include <linux/rockchip-iovmm.h>
 #include <video/rk_vpu_service.h>
 #include <soc/rockchip/pm_domains.h>
@@ -1473,10 +1474,15 @@ static struct vpu_reg *reg_init(struct vpu_subdev_data *data,
 		return NULL;
 	}
 
-	if (copy_from_user(&extra_info, (u8 *)src + size, extra_size)) {
-		vpu_err("error: copy_from_user failed\n");
-		kfree(reg);
-		return NULL;
+	if (extra_size > 0) {
+		int extra_info_max_size = sizeof(extra_info);
+
+		extra_size = min(extra_info_max_size, extra_size);
+		if (copy_from_user(&extra_info, (u8 *)src + size, extra_size)) {
+			vpu_err("error: copy_from_user failed\n");
+			kfree(reg);
+			return NULL;
+		}
 	}
 
 	mutex_lock(&pservice->reset_lock);
