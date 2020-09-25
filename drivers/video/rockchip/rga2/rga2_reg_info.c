@@ -1143,8 +1143,12 @@ void RGA_MSG_2_RGA2_MSG(struct rga_req *req_rga, struct rga2_req *req)
                 case 0: //dst = 0
                     break;
                 case 1: //dst = src
+                    req->alpha_mode_0 = 0x0A1A;
+                    req->alpha_mode_1 = 0x0A1A;
                     break;
                 case 2: //dst = dst
+                    req->alpha_mode_0 = 0x1A0A;
+                    req->alpha_mode_1 = 0x1A0A;
                     break;
                 case 3: //dst = (256*sc + (256 - sa)*dc) >> 8
                     if((req_rga->alpha_rop_mode & 3) == 0) {
@@ -1167,6 +1171,8 @@ void RGA_MSG_2_RGA2_MSG(struct rga_req *req_rga, struct rga2_req *req)
                     req->alpha_mode_1 = alpha_mode_1;
                     break;
                 case 4: //dst = (sc*(256-da) + 256*dc) >> 8
+                    req->alpha_mode_0 = 0x1232;
+                    req->alpha_mode_1 = 0x1232;
                     break;
                 case 5: //dst = (da*sc) >> 8
                     break;
@@ -1353,8 +1359,12 @@ void RGA_MSG_2_RGA2_MSG_32(struct rga_req_32 *req_rga, struct rga2_req *req)
                 case 0: //dst = 0
                     break;
                 case 1: //dst = src
+                    req->alpha_mode_0 = 0x0A1A;
+                    req->alpha_mode_1 = 0x0A1A;
                     break;
                 case 2: //dst = dst
+                    req->alpha_mode_0 = 0x1A0A;
+                    req->alpha_mode_1 = 0x1A0A;
                     break;
                 case 3: //dst = (256*sc + (256 - sa)*dc) >> 8
                     if((req_rga->alpha_rop_mode & 3) == 0) {
@@ -1377,6 +1387,8 @@ void RGA_MSG_2_RGA2_MSG_32(struct rga_req_32 *req_rga, struct rga2_req *req)
                     req->alpha_mode_1 = alpha_mode_1;
                     break;
                 case 4: //dst = (sc*(256-da) + 256*dc) >> 8
+                    req->alpha_mode_0 = 0x1232;
+                    req->alpha_mode_1 = 0x1232;
                     break;
                 case 5: //dst = (da*sc) >> 8
                     break;
