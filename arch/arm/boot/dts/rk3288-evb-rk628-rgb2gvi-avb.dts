@@ -1,0 +1,238 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+// Copyright (c) 2020 Fuzhou Rockchip Electronics Co., Ltd
+
+/dts-v1/;
+#include "rk3288-evb-rk628.dtsi"
+
+/ {
+	model = "Rockchip RK3288 EVB EXT RK628 Board";
+	compatible = "rockchip,rk3288-evb-ext-rk628", "rockchip,rk3288";
+
+	chosen {
+		bootargs = "clk_ignore_unused rootdelay=1 earlycon=uart8250,mmio32,0xff690000 vmalloc=496M swiotlb=1 console=ttyFIQ0 androidboot.baseband=N/A androidboot.veritymode=enforcing androidboot.hardware=rk30board androidboot.console=ttyFIQ0 init=/init kpti=0";
+	};
+
+	vcc_lcd1: vcc-lcd1 {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc_lcd1";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		regulator-boot-on;
+		gpio = <&gpio7 RK_PB0 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+		vin-supply = <&vcc_io>;
+	};
+
+	panel {
+		compatible = "simple-panel";
+		backlight = <&backlight>;
+		power-supply = <&vcc_lcd1>;
+		prepare-delay-ms = <20>;
+		enable-gpios = <&gpio7 21 GPIO_ACTIVE_HIGH>;
+		enable-delay-ms = <200>;
+		disable-delay-ms = <20>;
+		unprepare-delay-ms = <20>;
+		bus-format = <MEDIA_BUS_FMT_RGB888_1X24>;
+		width-mm = <136>;
+		height-mm = <217>;
+		status = "okay";
+
+		display-timings {
+			native-mode = <&timing>;
+
+			timing: timing {
+				clock-frequency = <594000000>;
+				hactive = <3840>;
+				vactive = <2160>;
+				hback-porch = <296>;
+				hfront-porch = <176>;
+				vback-porch = <72>;
+				vfront-porch = <8>;
+				hsync-len = <88>;
+				vsync-len = <12>;
+				hsync-active = <0>;
+				vsync-active = <0>;
+				de-active = <0>;
+				pixelclk-active = <0>;
+			};
+		};
+
+		port {
+			panel_in_gvi: endpoint {
+				remote-endpoint = <&gvi_out_panel>;
+			};
+		};
+	};
+};
+
+&backlight {
+	enable-gpios = <&gpio7 2 GPIO_ACTIVE_HIGH>;
+};
+
+&rk628 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&test_clkout>;
+	assigned-clocks = <&cru SCLK_TESTOUT_SRC>;
+	assigned-clock-parents = <&xin24m>;
+};
+
+&rk628_combtxphy {
+	status = "okay";
+};
+
+&rk628_gvi {
+	status = "okay";
+	rockchip,lane-num = <8>;
+	/* rockchip,division-mode; */
+
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		port@0 {
+			reg = <0>;
+
+			gvi_in_process: endpoint {
+				remote-endpoint = <&process_out_gvi>;
+			};
+		};
+
+		port@1 {
+			reg = <1>;
+
+			gvi_out_panel: endpoint {
+				remote-endpoint = <&panel_in_gvi>;
+			};
+		};
+	};
+};
+
+&rk628_combtxphy {
+	status = "okay";
+};
+
+&rk628_post_process {
+	pinctrl-names = "default";
+	pinctrl-0 = <&rk628_vop_pins>, <&rk628_gvi_hpd_pins>, <&rk628_gvi_lock_pins>;
+	status = "okay";
+
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		port@0 {
+			reg = <0>;
+
+			post_process_in_rgb: endpoint {
+				remote-endpoint = <&rgb_out_post_process>;
+			};
+		};
+
+		port@1 {
+			reg = <1>;
+
+			process_out_gvi: endpoint {
+				remote-endpoint = <&gvi_in_process>;
+			};
+		};
+	};
+
+	display-timings {
+		native-mode = <&timing0>;
+
+		timing0: timing0 {
+			clock-frequency = <148500000>;
+			hactive = <1920>;
+			vactive = <1080>;
+			hback-porch = <148>;
+			hfront-porch = <88>;
+			vback-porch = <36>;
+			vfront-porch = <4>;
+			hsync-len = <44>;
+			vsync-len = <5>;
+			hsync-active = <0>;
+			vsync-active = <0>;
+			de-active = <0>;
+			pixelclk-active = <0>;
+		};
+#if 0
+		timing1: timing-3840-1080 {
+			clock-frequency = <297000000>;
+			hactive = <3840>;
+			vactive = <1080>;
+			hback-porch = <296>;
+			hfront-porch = <176>;
+			vback-porch = <36>;
+			vfront-porch = <4>;
+			hsync-len = <88>;
+			vsync-len = <4>;
+			hsync-active = <0>;
+			vsync-active = <0>;
+			de-active = <0>;
+			pixelclk-active = <0>;
+		};
+
+		timing2: timing-3840-2160 {
+			clock-frequency = <594000000>;
+			hactive = <3840>;
+			vactive = <2160>;
+			hback-porch = <296>;
+			hfront-porch = <176>;
+			vback-porch = <72>;
+			vfront-porch = <8>;
+			hsync-len = <88>;
+			vsync-len = <10>;
+			hsync-active = <1>;
+			vsync-active = <1>;
+			de-active = <0>;
+			pixelclk-active = <0>;
+		};
+#endif
+	};
+};
+
+&rk628_xin_osc0_func {
+	compatible = "fixed-factor-clock";
+	clocks = <&cru SCLK_TESTOUT>;
+	clock-mult = <1>;
+	clock-div = <1>;
+};
+
+&rgb {
+	status = "okay";
+
+	ports {
+		port@1 {
+			reg = <1>;
+
+			rgb_out_post_process: endpoint {
+				remote-endpoint = <&post_process_in_rgb>;
+			};
+		};
+	};
+};
+
+&video_phy {
+	status = "okay";
+};
+
+&rgb_in_vopl {
+	status = "disabled";
+};
+
+&rgb_in_vopb {
+	status = "okay";
+};
+
+&route_rgb {
+	connect = <&vopl_out_rgb>;
+	status = "disabled";
+};
+
+&pinctrl {
+	test {
+		test_clkout: test-clkout {
+			rockchip,pins = <0 17 RK_FUNC_1 &pcfg_pull_none>;
+		};
+	};
+};
