@@ -30,6 +30,7 @@ struct rk628_post_process {
 	struct reset_control *rstc_decoder;
 	struct reset_control *rstc_clk_rx;
 	struct reset_control *rstc_vop;
+	struct rk628 *parent;
 };
 
 static inline struct rk628_post_process *bridge_to_pp(struct drm_bridge *bridge)
@@ -260,11 +261,12 @@ static void rk628_post_process_bridge_mode_set(struct drm_bridge *bridge,
 					       struct drm_display_mode *adj)
 {
 	struct rk628_post_process *pp = bridge_to_pp(bridge);
+	struct rk628 *rk628 = pp->parent;
 
 	drm_mode_copy(&pp->src_mode, adj);
 
-	if (pp->bridge->driver_private)
-		drm_mode_copy(&pp->dst_mode, pp->bridge->driver_private);
+	if (drm_mode_validate_basic(&rk628->dst_mode) == MODE_OK)
+		drm_mode_copy(&pp->dst_mode, &rk628->dst_mode);
 	else
 		drm_mode_copy(&pp->dst_mode, &pp->src_mode);
 }
@@ -315,6 +317,62 @@ static const struct drm_bridge_funcs rk628_post_process_bridge_funcs = {
 	.attach = rk628_post_process_bridge_attach,
 };
 
+/**
+ * rk628_scaler_add_src_mode - add source mode for scaler
+ * @rk628: parent device
+ * @connector: DRM connector
+ * If need scale, call the function at last of get_modes.
+ */
+int rk628_scaler_add_src_mode(struct rk628 *rk628,
+			      struct drm_connector *connector)
+{
+	struct drm_display_mode *pmode;
+	struct drm_display_mode *dst;
+	int found = 0;
+
+	if (!rk628 || !connector)
+		return 0;
+
+	if (drm_mode_validate_basic(&rk628->src_mode) != MODE_OK)
+		return 0;
+
+	list_for_each_entry(pmode, &connector->probed_modes, head) {
+		if (pmode->type & DRM_MODE_TYPE_PREFERRED) {
+			drm_mode_copy(&rk628->dst_mode, pmode);
+			drm_mode_copy(pmode, &rk628->src_mode);
+			pmode->type |= DRM_MODE_TYPE_PREFERRED;
+			found = 1;
+			break;
+		}
+	}
+	if (found) {
+		dst = drm_mode_duplicate(connector->dev, &rk628->dst_mode);
+		dst->type &= ~DRM_MODE_TYPE_PREFERRED;
+		drm_mode_probed_add(connector, dst);
+		return 1;
+	}
+
+	return 0;
+}
+EXPORT_SYMBOL(rk628_scaler_add_src_mode);
+
+/**
+ * rk628_mode_copy - rk628 mode copy
+ * @rk628: parent device
+ * @dst: dst mode
+ * @src: src mode
+ * Call the function at mode_set, replace drm_mode_copy.
+ */
+void rk628_mode_copy(struct rk628 *rk628, struct drm_display_mode *dst,
+		     struct drm_display_mode *src)
+{
+	if (drm_mode_validate_basic(&rk628->dst_mode) == MODE_OK)
+		drm_mode_copy(dst, &rk628->dst_mode);
+	else
+		drm_mode_copy(dst, src);
+}
+EXPORT_SYMBOL(rk628_mode_copy);
+
 static int rk628_post_process_probe(struct platform_device *pdev)
 {
 	struct rk628 *rk628 = dev_get_drvdata(pdev->dev.parent);
@@ -332,6 +390,7 @@ static int rk628_post_process_probe(struct platform_device *pdev)
 	pp->dev = dev;
 	pp->grf = rk628->grf;
 	platform_set_drvdata(pdev, pp);
+	pp->parent = rk628;
 
 	pp->sclk_vop = devm_clk_get(dev, "sclk_vop");
 	if (IS_ERR(pp->sclk_vop)) {
@@ -375,6 +434,8 @@ static int rk628_post_process_probe(struct platform_device *pdev)
 		dev_err(dev, "failed to add bridge\n");
 		return ret;
 	}
+
+	of_get_drm_display_mode(dev->of_node, &rk628->src_mode, 0);
 
 	return 0;
 }

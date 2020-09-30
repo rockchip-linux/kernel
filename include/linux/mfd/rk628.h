@@ -14,6 +14,8 @@
 #include <linux/irq.h>
 #include <linux/irqdomain.h>
 
+#include <drm/drm_crtc_helper.h>
+
 #define UPDATE(x, h, l)		(((x) << (l)) & GENMASK((h), (l)))
 #define HIWORD_UPDATE(v, h, l)	(((v) << (l)) | (GENMASK((h), (l)) << 16))
 
@@ -224,6 +226,13 @@ struct rk628 {
 	struct gpio_desc *reset_gpio;
 	struct gpio_desc *enable_gpio;
 	struct rk628_irq_chip_data *irq_data;
+	struct drm_display_mode src_mode;
+	struct drm_display_mode dst_mode;
 };
+
+int rk628_scaler_add_src_mode(struct rk628 *rk628,
+			      struct drm_connector *connector);
+void rk628_mode_copy(struct rk628 *rk628, struct drm_display_mode *dst,
+		     struct drm_display_mode *src);
 
 #endif
