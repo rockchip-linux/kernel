@@ -1161,7 +1161,7 @@
 			compatible = "rockchip,rk3399-pmu-pvtm";
 			clocks = <&pmucru SCLK_PVTM_PMU>;
 			clock-names = "pmu";
-			resets = <&cru SRST_PVTM>;
+			resets = <&pmucru SRST_PVTM>;
 			reset-names = "pmu";
 			status = "disabled";
 		};
