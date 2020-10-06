@@ -211,7 +211,7 @@ static void __write_rt_lock(struct rt_rw_lock *lock)
 		raw_spin_unlock_irqrestore(&m->wait_lock, flags);
 
 		if (atomic_read(&lock->readers) != 0)
-			schedule();
+			preempt_schedule_lock();
 
 		raw_spin_lock_irqsave(&m->wait_lock, flags);
 

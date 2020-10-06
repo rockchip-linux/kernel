@@ -1067,7 +1067,7 @@ void __sched rt_spin_lock_slowlock_locked(struct rt_mutex *lock,
 		raw_spin_unlock_irqrestore(&lock->wait_lock, flags);
 
 		if (top_waiter != waiter || adaptive_wait(lock, lock_owner))
-			schedule();
+			preempt_schedule_lock();
 
 		raw_spin_lock_irqsave(&lock->wait_lock, flags);
 
