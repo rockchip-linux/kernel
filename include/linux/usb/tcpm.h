@@ -127,7 +127,10 @@ struct tcpc_config {
  *		automatically if a connection is established.
  * @try_role:	Optional; called to set a preferred role
  * @pd_transmit:Called to transmit PD message
- * @mux:	Pointer to multiplexer data
+ * @enable_frs:
+ *		Optional; Called to enable/disable PD 3.0 fast role swap.
+ *		Enabling frs is accessory dependent as not all PD3.0
+ *		accessories support fast role swap.
  */
 struct tcpc_dev {
 	const struct tcpc_config *config;
@@ -153,6 +156,7 @@ struct tcpc_dev {
 	int (*try_role)(struct tcpc_dev *dev, int role);
 	int (*pd_transmit)(struct tcpc_dev *dev, enum tcpm_transmit_type type,
 			   const struct pd_message *msg);
+	int (*enable_frs)(struct tcpc_dev *dev, bool enable);
 };
 
 struct tcpm_port;
@@ -168,6 +172,8 @@ int tcpm_update_sink_capabilities(struct tcpm_port *port, const u32 *pdo,
 
 void tcpm_vbus_change(struct tcpm_port *port);
 void tcpm_cc_change(struct tcpm_port *port);
+void tcpm_sink_frs(struct tcpm_port *port);
+void tcpm_sourcing_vbus(struct tcpm_port *port);
 void tcpm_pd_receive(struct tcpm_port *port,
 		     const struct pd_message *msg);
 void tcpm_pd_transmit_complete(struct tcpm_port *port,
