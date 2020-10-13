@@ -1704,6 +1704,129 @@ SYSCALL_DEFINE3(syslog, int, type, char __user *, buf, int, len)
 }
 
 /*
+ * The per-cpu sprint buffers are used with interrupts disabled, so each CPU
+ * only requires 2 buffers: for non-NMI and NMI contexts. Recursive printk()
+ * calls are handled by the global sprint buffers.
+ */
+#define SPRINT_CTX_DEPTH 2
+
+/* Static sprint buffers for early boot (only 1 CPU) and recursion. */
+static DECLARE_BITMAP(sprint_global_buffer_map, SPRINT_CTX_DEPTH);
+static char sprint_global_buffer[SPRINT_CTX_DEPTH][PREFIX_MAX + LOG_LINE_MAX];
+
+struct sprint_buffers {
+	char		buf[SPRINT_CTX_DEPTH][PREFIX_MAX + LOG_LINE_MAX];
+	atomic_t	index;
+};
+
+static DEFINE_PER_CPU(struct sprint_buffers, percpu_sprint_buffers);
+
+/*
+ * Acquire an unused buffer, returning its index. If no buffer is
+ * available, @count is returned.
+ */
+static int _get_sprint_buf(unsigned long *map, int count)
+{
+	int index;
+
+	do {
+		index = find_first_zero_bit(map, count);
+		if (index == count)
+			break;
+	/*
+	 * Guarantee map changes are ordered for the other CPUs.
+	 * Pairs with clear_bit() in _put_sprint_buf().
+	 */
+	} while (test_and_set_bit(index, map));
+
+	return index;
+}
+
+/* Mark the buffer @index as unused. */
+static void _put_sprint_buf(unsigned long *map, unsigned int count, unsigned int index)
+{
+	/*
+	 * Guarantee map changes are ordered for the other CPUs.
+	 * Pairs with test_and_set_bit() in _get_sprint_buf().
+	 */
+	clear_bit(index, map);
+}
+
+/*
+ * Get a buffer sized PREFIX_MAX+LOG_LINE_MAX for sprinting. On success, @id
+ * is set and interrupts are disabled. @id is used to put back the buffer.
+ *
+ * @id is non-negative for per-cpu buffers, negative for global buffers.
+ */
+static char *get_sprint_buf(int *id, unsigned long *flags)
+{
+	struct sprint_buffers *bufs;
+	unsigned int index;
+	unsigned int cpu;
+
+	local_irq_save(*flags);
+	cpu = get_cpu();
+
+	if (printk_percpu_data_ready()) {
+
+		/*
+		 * First try with per-cpu pool. Note that the last
+		 * buffer is reserved for NMI context.
+		 */
+		bufs = per_cpu_ptr(&percpu_sprint_buffers, cpu);
+		index = atomic_read(&bufs->index);
+		if (index < (SPRINT_CTX_DEPTH - 1) ||
+		    (in_nmi() && index < SPRINT_CTX_DEPTH)) {
+			atomic_set(&bufs->index, index + 1);
+			*id = cpu;
+			return &bufs->buf[index][0];
+		}
+	}
+
+	/*
+	 * Fallback to global pool.
+	 *
+	 * The global pool will only ever be used if per-cpu data is not ready
+	 * yet or printk recurses. Recursion will not occur unless printk is
+	 * having internal issues.
+	 */
+	index = _get_sprint_buf(sprint_global_buffer_map, SPRINT_CTX_DEPTH);
+	if (index != SPRINT_CTX_DEPTH) {
+		/* Convert to global buffer representation. */
+		*id = -index - 1;
+		return &sprint_global_buffer[index][0];
+	}
+
+	/* Failed to get a buffer. */
+	put_cpu();
+	local_irq_restore(*flags);
+	return NULL;
+}
+
+/* Put back an sprint buffer and restore interrupts. */
+static void put_sprint_buf(int id, unsigned long flags)
+{
+	struct sprint_buffers *bufs;
+	unsigned int index;
+	unsigned int cpu;
+
+	if (id >= 0) {
+		cpu = id;
+		bufs = per_cpu_ptr(&percpu_sprint_buffers, cpu);
+		index = atomic_read(&bufs->index);
+		atomic_set(&bufs->index, index - 1);
+	} else {
+		/* Convert from global buffer representation. */
+		index = -id - 1;
+		_put_sprint_buf(sprint_global_buffer_map,
+				SPRINT_CTX_DEPTH, index);
+	}
+
+	put_cpu();
+	local_irq_restore(flags);
+}
+
+/*
  * Special console_lock variants that help to reduce the risk of soft-lockups.
  * They allow to pass console_lock to another printk() call using a busy wait.
  */
@@ -1941,16 +2064,23 @@ int vprintk_store(int facility, int level,
 		  const struct dev_printk_info *dev_info,
 		  const char *fmt, va_list args)
 {
-	static char textbuf[LOG_LINE_MAX];
-	char *text = textbuf;
 	size_t text_len;
 	enum log_flags lflags = 0;
+	unsigned long irqflags;
+	int sprint_id;
+	char *text;
+	int ret;
+
+	/* No buffer is available if printk has recursed too much. */
+	text = get_sprint_buf(&sprint_id, &irqflags);
+	if (!text)
+		return 0;
 
 	/*
 	 * The printf needs to come first; we need the syslog
 	 * prefix which might be passed-in as a parameter.
 	 */
-	text_len = vscnprintf(text, sizeof(textbuf), fmt, args);
+	text_len = vscnprintf(text, LOG_LINE_MAX, fmt, args);
 
 	/* mark and strip a trailing newline */
 	if (text_len && text[text_len-1] == '\n') {
@@ -1983,7 +2113,10 @@ int vprintk_store(int facility, int level,
 	if (dev_info)
 		lflags |= LOG_NEWLINE;
 
-	return log_output(facility, level, lflags, dev_info, text, text_len);
+	ret = log_output(facility, level, lflags, dev_info, text, text_len);
+
+	put_sprint_buf(sprint_id, irqflags);
+	return ret;
 }
 
 asmlinkage int vprintk_emit(int facility, int level,
