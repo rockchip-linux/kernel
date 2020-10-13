@@ -35,6 +35,7 @@ enum lvds_link_type {
 	LVDS_DUAL_LINK_ODD_EVEN_PIXELS,
 	LVDS_DUAL_LINK_EVEN_ODD_PIXELS,
 	LVDS_DUAL_LINK_LEFT_RIGHT_PIXELS,
+	LVDS_DUAL_LINK_RIGHT_LEFT_PIXELS,
 };
 
 struct rk628_lvds {
@@ -91,6 +92,8 @@ static enum lvds_link_type rk628_lvds_get_link_type(struct rk628_lvds *lvds)
 		return LVDS_DUAL_LINK_EVEN_ODD_PIXELS;
 	else if (!strcmp(str, "dual-link-left-right-pixels"))
 		return LVDS_DUAL_LINK_LEFT_RIGHT_PIXELS;
+	else if (!strcmp(str, "dual-link-right-left-pixels"))
+		return LVDS_DUAL_LINK_RIGHT_LEFT_PIXELS;
 	else
 		return LVDS_SINGLE_LINK;
 }
@@ -172,6 +175,13 @@ static void rk628_lvds_bridge_enable(struct drm_bridge *bridge)
 		break;
 	case LVDS_DUAL_LINK_LEFT_RIGHT_PIXELS:
 		val = SW_LVDS_CON_CHASEL(1) | SW_LVDS_CON_STARTSEL(0) |
+		      SW_LVDS_CON_DUAL_SEL(1);
+		regmap_update_bits(lvds->grf, GRF_POST_PROC_CON,
+				   SW_SPLIT_EN, SW_SPLIT_EN);
+		bus_width = COMBTXPHY_MODULEA_EN | COMBTXPHY_MODULEB_EN;
+		break;
+	case LVDS_DUAL_LINK_RIGHT_LEFT_PIXELS:
+		val = SW_LVDS_CON_CHASEL(1) | SW_LVDS_CON_STARTSEL(1) |
 		      SW_LVDS_CON_DUAL_SEL(1);
 		regmap_update_bits(lvds->grf, GRF_POST_PROC_CON,
 				   SW_SPLIT_EN, SW_SPLIT_EN);
