@@ -3342,7 +3342,7 @@ EXPORT_SYMBOL_GPL(kmsg_dump_get_line);
  * read.
  */
 bool kmsg_dump_get_buffer(struct kmsg_dumper *dumper, bool syslog,
-			  char *buf, size_t size, size_t *len)
+			  char *buf, size_t size, size_t *len_out)
 {
 	struct printk_info info;
 	unsigned int line_count;
@@ -3350,11 +3350,9 @@ bool kmsg_dump_get_buffer(struct kmsg_dumper *dumper, bool syslog,
 	unsigned long flags;
 	u64 seq;
 	u64 next_seq;
-	size_t l = 0;
+	size_t len = 0;
 	bool ret = false;
 	bool time = printk_time;
-
-	prb_rec_init_rd(&r, &info, buf, size);
 
 	if (!dumper->active || !buf || !size)
 		goto out;
@@ -3371,48 +3369,51 @@ bool kmsg_dump_get_buffer(struct kmsg_dumper *dumper, bool syslog,
 		goto out;
 	}
 
-	/* calculate length of entire buffer */
-	seq = dumper->cur_seq;
-	while (prb_read_valid_info(prb, seq, &info, &line_count)) {
-		if (r.info->seq >= dumper->next_seq)
+	/*
+	 * Find first record that fits, including all following records,
+	 * into the user-provided buffer for this dump.
+	 */
+
+	prb_for_each_info(dumper->cur_seq, prb, seq, &info, &line_count) {
+		if (info.seq >= dumper->next_seq)
 			break;
-		l += get_record_print_text_size(&info, line_count, true, time);
-		seq = r.info->seq + 1;
+		len += get_record_print_text_size(&info, line_count, true, time);
 	}
 
-	/* move first record forward until length fits into the buffer */
-	seq = dumper->cur_seq;
-	while (l >= size && prb_read_valid_info(prb, seq,
-						&info, &line_count)) {
-		if (r.info->seq >= dumper->next_seq)
+	/*
+	 * Move first record forward until length fits into the buffer. This
+	 * is a best effort attempt. If @dumper->next_seq is reached because
+	 * the ringbuffer is wrapping too fast, just start filling the buffer
+	 * from there.
+	 */
+	prb_for_each_info(dumper->cur_seq, prb, seq, &info, &line_count) {
+		if (len <= size || info.seq >= dumper->next_seq)
 			break;
-		l -= get_record_print_text_size(&info, line_count, true, time);
-		seq = r.info->seq + 1;
+		len -= get_record_print_text_size(&info, line_count, true, time);
 	}
 
-	/* last message in next interation */
+	/* Keep track of the last message for the next interation. */
 	next_seq = seq;
 
-	/* actually read text into the buffer now */
-	l = 0;
-	while (prb_read_valid(prb, seq, &r)) {
+	prb_rec_init_rd(&r, &info, buf, size);
+
+	len = 0;
+	prb_for_each_record(seq, prb, seq, &r) {
 		if (r.info->seq >= dumper->next_seq)
 			break;
 
-		l += record_print_text(&r, syslog, time);
+		len += record_print_text(&r, syslog, time);
 
-		/* adjust record to store to remaining buffer space */
-		prb_rec_init_rd(&r, &info, buf + l, size - l);
-
-		seq = r.info->seq + 1;
+		/* Adjust record to store to remaining buffer space. */
+		prb_rec_init_rd(&r, &info, buf + len, size - len);
 	}
 
 	dumper->next_seq = next_seq;
 	ret = true;
 	logbuf_unlock_irqrestore(flags);
 out:
-	if (len)
-		*len = l;
+	if (len_out)
+		*len_out = len;
 	return ret;
 }
 EXPORT_SYMBOL_GPL(kmsg_dump_get_buffer);
