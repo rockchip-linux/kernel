@@ -44,6 +44,7 @@
 #include <linux/irq_work.h>
 #include <linux/ctype.h>
 #include <linux/uio.h>
+#include <linux/clocksource.h>
 #include <linux/sched/clock.h>
 #include <linux/sched/debug.h>
 #include <linux/sched/task_stack.h>
@@ -77,6 +78,9 @@ EXPORT_SYMBOL(ignore_console_lock_warning);
  */
 int oops_in_progress;
 EXPORT_SYMBOL(oops_in_progress);
+
+/* Set to enable sync mode. Once set, it is never cleared. */
+static bool sync_mode;
 
 /*
  * console_sem protects the console_drivers list, and also
@@ -370,11 +374,12 @@ static u64 syslog_seq;
 static size_t syslog_partial;
 static bool syslog_time;
 
-/* All 3 protected by @console_sem. */
-/* the next printk record to write to the console */
-static u64 console_seq;
+/* Both protected by @console_sem. */
 static u64 exclusive_console_stop_seq;
 static unsigned long console_dropped;
+
+/* the next printk record to write to the console */
+static atomic64_t console_seq = ATOMIC64_INIT(0);
 
 /* the next printk record to read after the last 'clear' command */
 static atomic64_t clear_seq = ATOMIC64_INIT(0);
@@ -1767,6 +1772,110 @@ static inline void printk_delay(int level)
 	}
 }
 
+static bool kernel_sync_mode(void)
+{
+	return (oops_in_progress || sync_mode);
+}
+
+static bool console_can_sync(struct console *con)
+{
+	if (!(con->flags & CON_ENABLED))
+		return false;
+	if (con->write_atomic && kernel_sync_mode())
+		return true;
+	return false;
+}
+
+static bool call_sync_console_driver(struct console *con, const char *text, size_t text_len)
+{
+	if (!(con->flags & CON_ENABLED))
+		return false;
+	if (con->write_atomic && kernel_sync_mode())
+		con->write_atomic(con, text, text_len);
+	else
+		return false;
+
+	return true;
+}
+
+static bool any_console_can_sync(void)
+{
+	struct console *con;
+
+	for_each_console(con) {
+		if (console_can_sync(con))
+			return true;
+	}
+	return false;
+}
+
+static bool have_atomic_console(void)
+{
+	struct console *con;
+
+	for_each_console(con) {
+		if (!(con->flags & CON_ENABLED))
+			continue;
+		if (con->write_atomic)
+			return true;
+	}
+	return false;
+}
+
+static bool print_sync(struct console *con, char *buf, size_t buf_size, u64 *seq)
+{
+	struct printk_info info;
+	struct printk_record r;
+	size_t text_len;
+
+	prb_rec_init_rd(&r, &info, buf, buf_size);
+
+	if (!prb_read_valid(prb, *seq, &r))
+		return false;
+
+	text_len = record_print_text(&r, console_msg_format & MSG_FORMAT_SYSLOG, printk_time);
+
+	if (!call_sync_console_driver(con, buf, text_len))
+		return false;
+
+	*seq = r.info->seq;
+
+	touch_softlockup_watchdog_sync();
+	clocksource_touch_watchdog();
+	rcu_cpu_stall_reset();
+	touch_nmi_watchdog();
+
+	if (text_len)
+		printk_delay(r.info->level);
+
+	return true;
+}
+
+static void print_sync_until(u64 seq, struct console *con, char *buf, size_t buf_size)
+{
+	unsigned int flags;
+	u64 printk_seq;
+
+	if (!con) {
+		for_each_console(con) {
+			if (console_can_sync(con))
+				print_sync_until(seq, con, buf, buf_size);
+		}
+		return;
+	}
+
+	console_atomic_lock(&flags);
+	for (;;) {
+		printk_seq = atomic64_read(&console_seq);
+		if (printk_seq >= seq)
+			break;
+		if (!print_sync(con, buf, buf_size, &printk_seq))
+			break;
+		atomic64_set(&console_seq, printk_seq + 1);
+	}
+	console_atomic_unlock(flags);
+}
+
 /*
  * Special console_lock variants that help to reduce the risk of soft-lockups.
  * They allow to pass console_lock to another printk() call using a busy wait.
@@ -1941,6 +2050,8 @@ static void call_console_drivers(const char *ext_text, size_t ext_len,
 		if (!cpu_online(smp_processor_id()) &&
 		    !(con->flags & CON_ANYTIME))
 			continue;
+		if (kernel_sync_mode())
+			continue;
 		if (con->flags & CON_EXTENDED)
 			con->write(con, ext_text, ext_len);
 		else {
@@ -1964,6 +2075,7 @@ int vprintk_store(int facility, int level,
 	const u32 caller_id = printk_caller_id();
 	struct prb_reserved_entry e;
 	enum log_flags lflags = 0;
+	bool final_commit = false;
 	unsigned long irqflags;
 	struct printk_record r;
 	u16 trunc_msg_len = 0;
@@ -2027,6 +2139,7 @@ int vprintk_store(int facility, int level,
 			if (lflags & LOG_NEWLINE) {
 				r.info->flags |= LOG_NEWLINE;
 				prb_final_commit(&e);
+				final_commit = true;
 			} else {
 				prb_commit(&e);
 			}
@@ -2068,10 +2181,15 @@ int vprintk_store(int facility, int level,
 		prb_commit(&e);
 	} else {
 		prb_final_commit(&e);
+		final_commit = true;
 	}
 
 	ret = text_len + trunc_msg_len;
 out:
+	/* only the kernel may perform synchronous printing */
+	if (facility == 0 && final_commit && any_console_can_sync())
+		print_sync_until(seq + 1, NULL, text, PREFIX_MAX + LOG_LINE_MAX);
+
 	put_sprint_buf(sprint_id, irqflags);
 	return ret;
 }
@@ -2176,7 +2294,7 @@ EXPORT_SYMBOL(printk);
 #define prb_first_valid_seq(rb)		0
 
 static u64 syslog_seq;
-static u64 console_seq;
+static atomic64_t console_seq = ATOMI64_INIT(0);
 static u64 exclusive_console_stop_seq;
 static unsigned long console_dropped;
 
@@ -2460,6 +2578,8 @@ static int have_callable_console(void)
  */
 static inline int can_use_console(void)
 {
+	if (kernel_sync_mode())
+		return false;
 	return cpu_online(raw_smp_processor_id()) || have_callable_console();
 }
 
@@ -2485,6 +2605,7 @@ void console_unlock(void)
 	bool do_cond_resched, retry;
 	struct printk_info info;
 	struct printk_record r;
+	u64 seq;
 
 	if (console_suspended) {
 		up_console_sem();
@@ -2528,12 +2649,14 @@ again:
 
 		printk_safe_enter_irqsave(flags);
 skip:
-		if (!prb_read_valid(prb, console_seq, &r))
+		seq = atomic64_read(&console_seq);
+		if (!prb_read_valid(prb, seq, &r))
 			break;
 
-		if (console_seq != r.info->seq) {
-			console_dropped += r.info->seq - console_seq;
-			console_seq = r.info->seq;
+		if (seq != r.info->seq) {
+			console_dropped += r.info->seq - seq;
+			atomic64_set(&console_seq, r.info->seq);
+			seq = r.info->seq;
 		}
 
 		if (suppress_message_printing(r.info->level)) {
@@ -2542,13 +2665,13 @@ skip:
 			 * directly to the console when we received it, and
 			 * record that has level above the console loglevel.
 			 */
-			console_seq++;
+			atomic64_set(&console_seq, seq + 1);
 			goto skip;
 		}
 
 		/* Output to all consoles once old messages replayed. */
 		if (unlikely(exclusive_console &&
-			     console_seq >= exclusive_console_stop_seq)) {
+			     seq >= exclusive_console_stop_seq)) {
 			exclusive_console = NULL;
 		}
 
@@ -2569,7 +2692,7 @@ skip:
 		len = record_print_text(&r,
 				console_msg_format & MSG_FORMAT_SYSLOG,
 				printk_time);
-		console_seq++;
+		atomic64_set(&console_seq, seq + 1);
 
 		/*
 		 * While actively printing out messages, if another printk()
@@ -2604,7 +2727,7 @@ skip:
 	 * there's a new owner and the console_unlock() from them will do the
 	 * flush, no worries.
 	 */
-	retry = prb_read_valid(prb, console_seq, NULL);
+	retry = prb_read_valid(prb, atomic64_read(&console_seq), NULL);
 	printk_safe_exit_irqrestore(flags);
 
 	if (retry && console_trylock())
@@ -2669,7 +2792,7 @@ void console_flush_on_panic(enum con_flush_mode mode)
 	console_may_schedule = 0;
 
 	if (mode == CONSOLE_REPLAY_ALL)
-		console_seq = prb_first_valid_seq(prb);
+		atomic64_set(&console_seq, prb_first_valid_seq(prb));
 	console_unlock();
 }
 
@@ -2904,8 +3027,8 @@ void register_console(struct console *newcon)
 		 * ignores console_lock.
 		 */
 		exclusive_console = newcon;
-		exclusive_console_stop_seq = console_seq;
-		console_seq = syslog_seq;
+		exclusive_console_stop_seq = atomic64_read(&console_seq);
+		atomic64_set(&console_seq, syslog_seq);
 		syslog_unlock_irqrestore(flags);
 	}
 	console_unlock();
@@ -3272,6 +3395,18 @@ EXPORT_SYMBOL_GPL(kmsg_dump_reason_str);
 void kmsg_dump(enum kmsg_dump_reason reason)
 {
 	struct kmsg_dumper *dumper;
+
+	if (!oops_in_progress) {
+		/*
+		 * If atomic consoles are available, activate kernel sync mode
+		 * to make sure any final messages are visible. The trailing
+		 * printk message is important to flush any pending messages.
+		 */
+		if (have_atomic_console()) {
+			sync_mode = true;
+			pr_info("enabled sync mode\n");
+		}
+	}
 
 	rcu_read_lock();
 	list_for_each_entry_rcu(dumper, &dump_list, list) {
