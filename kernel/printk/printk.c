@@ -355,48 +355,22 @@ enum log_flags {
 	LOG_CONT	= 8,	/* text is a fragment of a continuation line */
 };
 
-/*
- * The logbuf_lock protects kmsg buffer, indices, counters.  This can be taken
- * within the scheduler's rq lock. It must be released before calling
- * console_unlock() or anything else that might wake up a process.
- */
-DEFINE_RAW_SPINLOCK(logbuf_lock);
-
-/*
- * Helper macros to lock/unlock logbuf_lock and switch between
- * printk-safe/unsafe modes.
- */
-#define logbuf_lock_irq()				\
-	do {						\
-		printk_safe_enter_irq();		\
-		raw_spin_lock(&logbuf_lock);		\
-	} while (0)
-
-#define logbuf_unlock_irq()				\
-	do {						\
-		raw_spin_unlock(&logbuf_lock);		\
-		printk_safe_exit_irq();			\
-	} while (0)
-
-#define logbuf_lock_irqsave(flags)			\
-	do {						\
-		printk_safe_enter_irqsave(flags);	\
-		raw_spin_lock(&logbuf_lock);		\
-	} while (0)
-
-#define logbuf_unlock_irqrestore(flags)		\
-	do {						\
-		raw_spin_unlock(&logbuf_lock);		\
-		printk_safe_exit_irqrestore(flags);	\
-	} while (0)
+/* The syslog_lock protects syslog_* variables. */
+DEFINE_RAW_SPINLOCK(syslog_lock);
+#define syslog_lock_irq() raw_spin_lock_irq(&syslog_lock)
+#define syslog_unlock_irq() raw_spin_unlock_irq(&syslog_lock)
+#define syslog_lock_irqsave(flags) raw_spin_lock_irqsave(&syslog_lock, flags)
+#define syslog_unlock_irqrestore(flags) raw_spin_unlock_irqrestore(&syslog_lock, flags)
 
 #ifdef CONFIG_PRINTK
 DECLARE_WAIT_QUEUE_HEAD(log_wait);
+/* All 3 protected by @syslog_lock. */
 /* the next printk record to read by syslog(READ) or /proc/kmsg */
 static u64 syslog_seq;
 static size_t syslog_partial;
 static bool syslog_time;
 
+/* All 3 protected by @console_sem. */
 /* the next printk record to write to the console */
 static u64 console_seq;
 static u64 exclusive_console_stop_seq;
@@ -766,27 +740,22 @@ static ssize_t devkmsg_read(struct file *file, char __user *buf,
 	if (ret)
 		return ret;
 
-	logbuf_lock_irq();
 	if (!prb_read_valid(prb, user->seq, r)) {
 		if (file->f_flags & O_NONBLOCK) {
 			ret = -EAGAIN;
-			logbuf_unlock_irq();
 			goto out;
 		}
 
-		logbuf_unlock_irq();
 		ret = wait_event_interruptible(log_wait,
 					prb_read_valid(prb, user->seq, r));
 		if (ret)
 			goto out;
-		logbuf_lock_irq();
 	}
 
 	if (user->seq < prb_first_valid_seq(prb)) {
 		/* our last seen message is gone, return error and reset */
 		user->seq = prb_first_valid_seq(prb);
 		ret = -EPIPE;
-		logbuf_unlock_irq();
 		goto out;
 	}
 
@@ -796,7 +765,6 @@ static ssize_t devkmsg_read(struct file *file, char __user *buf,
 				  &r->info->dev_info);
 
 	user->seq = r->info->seq + 1;
-	logbuf_unlock_irq();
 
 	if (len > count) {
 		ret = -EINVAL;
@@ -831,7 +799,6 @@ static loff_t devkmsg_llseek(struct file *file, loff_t offset, int whence)
 	if (offset)
 		return -ESPIPE;
 
-	logbuf_lock_irq();
 	switch (whence) {
 	case SEEK_SET:
 		/* the first record */
@@ -852,7 +819,6 @@ static loff_t devkmsg_llseek(struct file *file, loff_t offset, int whence)
 	default:
 		ret = -EINVAL;
 	}
-	logbuf_unlock_irq();
 	return ret;
 }
 
@@ -866,7 +832,6 @@ static __poll_t devkmsg_poll(struct file *file, poll_table *wait)
 
 	poll_wait(file, &log_wait, wait);
 
-	logbuf_lock_irq();
 	if (prb_read_valid(prb, user->seq, NULL)) {
 		/* return error when data has vanished underneath us */
 		if (user->seq < prb_first_valid_seq(prb))
@@ -874,7 +839,6 @@ static __poll_t devkmsg_poll(struct file *file, poll_table *wait)
 		else
 			ret = EPOLLIN|EPOLLRDNORM;
 	}
-	logbuf_unlock_irq();
 
 	return ret;
 }
@@ -907,9 +871,7 @@ static int devkmsg_open(struct inode *inode, struct file *file)
 	prb_rec_init_rd(&user->record, &user->info,
 			&user->text_buf[0], sizeof(user->text_buf));
 
-	logbuf_lock_irq();
 	user->seq = prb_first_valid_seq(prb);
-	logbuf_unlock_irq();
 
 	file->private_data = user;
 	return 0;
@@ -1117,7 +1079,6 @@ void __init setup_log_buf(int early)
 	struct printk_record r;
 	size_t new_descs_size;
 	size_t new_infos_size;
-	unsigned long flags;
 	char *new_log_buf;
 	unsigned int free;
 	u64 seq;
@@ -1175,8 +1136,6 @@ void __init setup_log_buf(int early)
 		 new_descs, ilog2(new_descs_count),
 		 new_infos);
 
-	logbuf_lock_irqsave(flags);
-
 	log_buf_len = new_log_buf_len;
 	log_buf = new_log_buf;
 	new_log_buf_len = 0;
@@ -1191,8 +1150,6 @@ void __init setup_log_buf(int early)
 	 * appear during the transition to the dynamic buffer.
 	 */
 	prb = &printk_rb_dynamic;
-
-	logbuf_unlock_irqrestore(flags);
 
 	if (seq != prb_next_seq(&printk_rb_static)) {
 		pr_err("dropped %llu messages\n",
@@ -1469,9 +1426,9 @@ static int syslog_print(char __user *buf, int size)
 		size_t n;
 		size_t skip;
 
-		logbuf_lock_irq();
+		syslog_lock_irq();
 		if (!prb_read_valid(prb, syslog_seq, &r)) {
-			logbuf_unlock_irq();
+			syslog_unlock_irq();
 			break;
 		}
 		if (r.info->seq != syslog_seq) {
@@ -1500,7 +1457,7 @@ static int syslog_print(char __user *buf, int size)
 			syslog_partial += n;
 		} else
 			n = 0;
-		logbuf_unlock_irq();
+		syslog_unlock_irq();
 
 		if (!n)
 			break;
@@ -1525,6 +1482,7 @@ static int syslog_print_all(char __user *buf, int size, bool clear)
 	struct printk_info info;
 	unsigned int line_count;
 	struct printk_record r;
+	u64 newest_seq;
 	u64 clr_seq;
 	char *text;
 	int len = 0;
@@ -1536,19 +1494,30 @@ static int syslog_print_all(char __user *buf, int size, bool clear)
 		return -ENOMEM;
 
 	time = printk_time;
-	logbuf_lock_irq();
 	clr_seq = atomic64_read(&clear_seq);
 
 	/*
 	 * Find first record that fits, including all following records,
 	 * into the user-provided buffer for this dump.
 	 */
+
 	prb_for_each_info(clr_seq, prb, seq, &info, &line_count)
 		len += get_record_print_text_size(&info, line_count, true, time);
 
-	/* move first record forward until length fits into the buffer */
+	/*
+	 * Keep track of the latest in case new records are coming in fast
+	 * and overwriting the older records.
+	 */
+	newest_seq = seq;
+
+	/*
+	 * Move first record forward until length fits into the buffer. This
+	 * is a best effort attempt. If @newest_seq is reached because the
+	 * ringbuffer is wrapping too fast, just start filling the buffer
+	 * from there.
+	 */
 	prb_for_each_info(clr_seq, prb, seq, &info, &line_count) {
-		if (len <= size)
+		if (len <= size || info.seq > newest_seq)
 			break;
 		len -= get_record_print_text_size(&info, line_count, true, time);
 	}
@@ -1566,12 +1535,10 @@ static int syslog_print_all(char __user *buf, int size, bool clear)
 			break;
 		}
 
-		logbuf_unlock_irq();
 		if (copy_to_user(buf + len, text, textlen))
 			len = -EFAULT;
 		else
 			len += textlen;
-		logbuf_lock_irq();
 
 		if (len < 0)
 			break;
@@ -1579,7 +1546,6 @@ static int syslog_print_all(char __user *buf, int size, bool clear)
 
 	if (clear)
 		atomic64_set(&clear_seq, seq);
-	logbuf_unlock_irq();
 
 	kfree(text);
 	return len;
@@ -1587,9 +1553,7 @@ static int syslog_print_all(char __user *buf, int size, bool clear)
 
 static void syslog_clear(void)
 {
-	logbuf_lock_irq();
 	atomic64_set(&clear_seq, prb_next_seq(prb));
-	logbuf_unlock_irq();
 }
 
 int do_syslog(int type, char __user *buf, int len, int source)
@@ -1597,6 +1561,7 @@ int do_syslog(int type, char __user *buf, int len, int source)
 	bool clear = false;
 	static int saved_console_loglevel = LOGLEVEL_DEFAULT;
 	int error;
+	u64 seq;
 
 	error = check_syslog_permissions(type, source);
 	if (error)
@@ -1614,8 +1579,11 @@ int do_syslog(int type, char __user *buf, int len, int source)
 			return 0;
 		if (!access_ok(buf, len))
 			return -EFAULT;
+		syslog_lock_irq();
+		seq = syslog_seq;
+		syslog_unlock_irq();
 		error = wait_event_interruptible(log_wait,
-				prb_read_valid(prb, syslog_seq, NULL));
+				prb_read_valid(prb, seq, NULL));
 		if (error)
 			return error;
 		error = syslog_print(buf, len);
@@ -1663,7 +1631,7 @@ int do_syslog(int type, char __user *buf, int len, int source)
 		break;
 	/* Number of chars in the log buffer */
 	case SYSLOG_ACTION_SIZE_UNREAD:
-		logbuf_lock_irq();
+		syslog_lock_irq();
 		if (syslog_seq < prb_first_valid_seq(prb)) {
 			/* messages are gone, move to first one */
 			syslog_seq = prb_first_valid_seq(prb);
@@ -1690,7 +1658,7 @@ int do_syslog(int type, char __user *buf, int len, int source)
 			}
 			error -= syslog_partial;
 		}
-		logbuf_unlock_irq();
+		syslog_unlock_irq();
 		break;
 	/* Size of the log buffer */
 	case SYSLOG_ACTION_SIZE_BUFFER:
@@ -2065,7 +2033,6 @@ static size_t log_output(int facility, int level, enum log_flags lflags,
 			 dev_info, text, text_len);
 }
 
-/* Must be called under logbuf_lock. */
 int vprintk_store(int facility, int level,
 		  const struct dev_printk_info *dev_info,
 		  const char *fmt, va_list args)
@@ -2131,7 +2098,6 @@ asmlinkage int vprintk_emit(int facility, int level,
 {
 	int printed_len;
 	bool in_sched = false;
-	unsigned long flags;
 
 	/* Suppress unimportant messages after panic happens */
 	if (unlikely(suppress_printk))
@@ -2146,9 +2112,7 @@ asmlinkage int vprintk_emit(int facility, int level,
 	printk_delay();
 
 	/* This stops the holder of console_sem just where we want him */
-	logbuf_lock_irqsave(flags);
 	printed_len = vprintk_store(facility, level, dev_info, fmt, args);
-	logbuf_unlock_irqrestore(flags);
 
 	/* If called from the scheduler, we can not call up(). */
 	if (!in_sched) {
@@ -2580,7 +2544,6 @@ again:
 		size_t len;
 
 		printk_safe_enter_irqsave(flags);
-		raw_spin_lock(&logbuf_lock);
 skip:
 		if (!prb_read_valid(prb, console_seq, &r))
 			break;
@@ -2624,7 +2587,6 @@ skip:
 				console_msg_format & MSG_FORMAT_SYSLOG,
 				printk_time);
 		console_seq++;
-		raw_spin_unlock(&logbuf_lock);
 
 		/*
 		 * While actively printing out messages, if another printk()
@@ -2651,8 +2613,6 @@ skip:
 
 	console_locked = 0;
 
-	raw_spin_unlock(&logbuf_lock);
-
 	up_console_sem();
 
 	/*
@@ -2661,9 +2621,7 @@ skip:
 	 * there's a new owner and the console_unlock() from them will do the
 	 * flush, no worries.
 	 */
-	raw_spin_lock(&logbuf_lock);
 	retry = prb_read_valid(prb, console_seq, NULL);
-	raw_spin_unlock(&logbuf_lock);
 	printk_safe_exit_irqrestore(flags);
 
 	if (retry && console_trylock())
@@ -2727,13 +2685,8 @@ void console_flush_on_panic(enum con_flush_mode mode)
 	console_trylock();
 	console_may_schedule = 0;
 
-	if (mode == CONSOLE_REPLAY_ALL) {
-		unsigned long flags;
-
-		logbuf_lock_irqsave(flags);
+	if (mode == CONSOLE_REPLAY_ALL)
 		console_seq = prb_first_valid_seq(prb);
-		logbuf_unlock_irqrestore(flags);
-	}
 	console_unlock();
 }
 
@@ -2957,11 +2910,7 @@ void register_console(struct console *newcon)
 		nr_ext_console_drivers++;
 
 	if (newcon->flags & CON_PRINTBUFFER) {
-		/*
-		 * console_unlock(); will print out the buffered messages
-		 * for us.
-		 */
-		logbuf_lock_irqsave(flags);
+		syslog_lock_irqsave(flags);
 		/*
 		 * We're about to replay the log buffer.  Only do this to the
 		 * just-registered console to avoid excessive message spam to
@@ -2974,7 +2923,7 @@ void register_console(struct console *newcon)
 		exclusive_console = newcon;
 		exclusive_console_stop_seq = console_seq;
 		console_seq = syslog_seq;
-		logbuf_unlock_irqrestore(flags);
+		syslog_unlock_irqrestore(flags);
 	}
 	console_unlock();
 	console_sysfs_notify();
@@ -3340,7 +3289,6 @@ EXPORT_SYMBOL_GPL(kmsg_dump_reason_str);
 void kmsg_dump(enum kmsg_dump_reason reason)
 {
 	struct kmsg_dumper *dumper;
-	unsigned long flags;
 
 	rcu_read_lock();
 	list_for_each_entry_rcu(dumper, &dump_list, list) {
@@ -3360,10 +3308,7 @@ void kmsg_dump(enum kmsg_dump_reason reason)
 		/* initialize iterator with data about the stored records */
 		dumper->active = true;
 
-		logbuf_lock_irqsave(flags);
-		dumper->cur_seq = atomic64_read(&clear_seq);
-		dumper->next_seq = prb_next_seq(prb);
-		logbuf_unlock_irqrestore(flags);
+		kmsg_dump_rewind_nolock(dumper);
 
 		/* invoke dumper which will iterate over records */
 		dumper->dump(dumper, reason);
@@ -3450,14 +3395,7 @@ out:
 bool kmsg_dump_get_line(struct kmsg_dumper *dumper, bool syslog,
 			char *line, size_t size, size_t *len)
 {
-	unsigned long flags;
-	bool ret;
-
-	logbuf_lock_irqsave(flags);
-	ret = kmsg_dump_get_line_nolock(dumper, syslog, line, size, len);
-	logbuf_unlock_irqrestore(flags);
-
-	return ret;
+	return kmsg_dump_get_line_nolock(dumper, syslog, line, size, len);
 }
 EXPORT_SYMBOL_GPL(kmsg_dump_get_line);
 
@@ -3486,7 +3424,6 @@ bool kmsg_dump_get_buffer(struct kmsg_dumper *dumper, bool syslog,
 	struct printk_info info;
 	unsigned int line_count;
 	struct printk_record r;
-	unsigned long flags;
 	u64 seq;
 	u64 next_seq;
 	size_t len = 0;
@@ -3496,17 +3433,14 @@ bool kmsg_dump_get_buffer(struct kmsg_dumper *dumper, bool syslog,
 	if (!dumper->active || !buf || !size)
 		goto out;
 
-	logbuf_lock_irqsave(flags);
 	if (dumper->cur_seq < prb_first_valid_seq(prb)) {
 		/* messages are gone, move to first available one */
 		dumper->cur_seq = prb_first_valid_seq(prb);
 	}
 
 	/* last entry */
-	if (dumper->cur_seq >= dumper->next_seq) {
-		logbuf_unlock_irqrestore(flags);
+	if (dumper->cur_seq >= dumper->next_seq)
 		goto out;
-	}
 
 	/*
 	 * Find first record that fits, including all following records,
@@ -3549,7 +3483,6 @@ bool kmsg_dump_get_buffer(struct kmsg_dumper *dumper, bool syslog,
 
 	dumper->next_seq = next_seq;
 	ret = true;
-	logbuf_unlock_irqrestore(flags);
 out:
 	if (len_out)
 		*len_out = len;
@@ -3564,8 +3497,6 @@ EXPORT_SYMBOL_GPL(kmsg_dump_get_buffer);
  * Reset the dumper's iterator so that kmsg_dump_get_line() and
  * kmsg_dump_get_buffer() can be called again and used multiple
  * times within the same dumper.dump() callback.
- *
- * The function is similar to kmsg_dump_rewind(), but grabs no locks.
  */
 void kmsg_dump_rewind_nolock(struct kmsg_dumper *dumper)
 {
@@ -3583,11 +3514,7 @@ void kmsg_dump_rewind_nolock(struct kmsg_dumper *dumper)
  */
 void kmsg_dump_rewind(struct kmsg_dumper *dumper)
 {
-	unsigned long flags;
-
-	logbuf_lock_irqsave(flags);
 	kmsg_dump_rewind_nolock(dumper);
-	logbuf_unlock_irqrestore(flags);
 }
 EXPORT_SYMBOL_GPL(kmsg_dump_rewind);
 
