@@ -1037,9 +1037,6 @@ static inline void log_buf_add_cpu(void) {}
 
 static void __init set_percpu_data_ready(void)
 {
-	printk_safe_init();
-	/* Make sure we set this flag only after printk_safe() init is done */
-	barrier();
 	__printk_percpu_data_ready = true;
 }
 
