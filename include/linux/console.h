@@ -141,6 +141,7 @@ static inline int con_debug_leave(void)
 struct console {
 	char	name[16];
 	void	(*write)(struct console *, const char *, unsigned);
+	void	(*write_atomic)(struct console *, const char *, unsigned);
 	int	(*read)(struct console *, char *, unsigned);
 	struct tty_driver *(*device)(struct console *, int *);
 	void	(*unblank)(void);
@@ -229,5 +230,8 @@ extern void console_init(void);
 /* For deferred console takeover */
 void dummycon_register_output_notifier(struct notifier_block *nb);
 void dummycon_unregister_output_notifier(struct notifier_block *nb);
+
+extern void console_atomic_lock(unsigned int *flags);
+extern void console_atomic_unlock(unsigned int flags);
 
 #endif /* _LINUX_CONSOLE_H */
