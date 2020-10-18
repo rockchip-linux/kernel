@@ -267,10 +267,8 @@ static void rockchip_snd_xfer_sync_reset(struct rk_i2s_tdm_dev *i2s_tdm)
 
 	tx_id = i2s_tdm->tx_reset_id;
 	rx_id = i2s_tdm->rx_reset_id;
-	if (tx_id < 0 || rx_id < 0) {
-		dev_err(i2s_tdm->dev, "invalid reset id\n");
+	if (tx_id < 0 || rx_id < 0)
 		return;
-	}
 
 	tx_bank = tx_id / 16;
 	tx_offset = tx_id % 16;
@@ -355,6 +353,16 @@ static void rockchip_snd_txrxctrl(struct snd_pcm_substream *substream,
 	spin_unlock(&i2s_tdm->lock);
 }
 
+static void rockchip_snd_reset(struct reset_control *rc)
+{
+	if (IS_ERR(rc))
+		return;
+
+	reset_control_assert(rc);
+	udelay(1);
+	reset_control_deassert(rc);
+}
+
 static void rockchip_snd_txctrl(struct rk_i2s_tdm_dev *i2s_tdm, int on)
 {
 	unsigned int val = 0;
@@ -388,9 +396,7 @@ static void rockchip_snd_txctrl(struct rk_i2s_tdm_dev *i2s_tdm, int on)
 			retry--;
 			if (!retry) {
 				dev_warn(i2s_tdm->dev, "reset tx\n");
-				reset_control_assert(i2s_tdm->tx_reset);
-				udelay(1);
-				reset_control_deassert(i2s_tdm->tx_reset);
+				rockchip_snd_reset(i2s_tdm->tx_reset);
 				break;
 			}
 		}
@@ -430,9 +436,7 @@ static void rockchip_snd_rxctrl(struct rk_i2s_tdm_dev *i2s_tdm, int on)
 			retry--;
 			if (!retry) {
 				dev_warn(i2s_tdm->dev, "reset rx\n");
-				reset_control_assert(i2s_tdm->rx_reset);
-				udelay(1);
-				reset_control_deassert(i2s_tdm->rx_reset);
+				rockchip_snd_reset(i2s_tdm->rx_reset);
 				break;
 			}
 		}
@@ -1497,11 +1501,7 @@ static int rockchip_i2s_tdm_probe(struct platform_device *pdev)
 			return -ENOENT;
 
 		i2s_tdm->tx_reset_id = of_i2s_resetid_get(node, "tx-m");
-		if (i2s_tdm->tx_reset_id < 0)
-			return -EINVAL;
 		i2s_tdm->rx_reset_id = of_i2s_resetid_get(node, "rx-m");
-		if (i2s_tdm->rx_reset_id < 0)
-			return -EINVAL;
 	}
 
 	i2s_tdm->tx_reset = devm_reset_control_get(&pdev->dev, "tx-m");
