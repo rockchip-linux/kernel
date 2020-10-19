@@ -1755,6 +1755,8 @@ static bool console_can_sync(struct console *con)
 		return false;
 	if (con->write_atomic && kernel_sync_mode())
 		return true;
+	if (con->write_atomic && (con->flags & CON_HANDOVER) && !con->thread)
+		return true;
 	if (con->write && (con->flags & CON_BOOT) && !con->thread)
 		return true;
 	return false;
@@ -1765,6 +1767,8 @@ static bool call_sync_console_driver(struct console *con, const char *text, size
 	if (!(con->flags & CON_ENABLED))
 		return false;
 	if (con->write_atomic && kernel_sync_mode())
+		con->write_atomic(con, text, text_len);
+	else if (con->write_atomic && (con->flags & CON_HANDOVER) && !con->thread)
 		con->write_atomic(con, text, text_len);
 	else if (con->write && (con->flags & CON_BOOT) && !con->thread)
 		con->write(con, text, text_len);
@@ -2641,8 +2645,10 @@ void register_console(struct console *newcon)
 	 * the real console are the same physical device, it's annoying to
 	 * see the beginning boot messages twice
 	 */
-	if (bcon && ((newcon->flags & (CON_CONSDEV | CON_BOOT)) == CON_CONSDEV))
+	if (bcon && ((newcon->flags & (CON_CONSDEV | CON_BOOT)) == CON_CONSDEV)) {
 		newcon->flags &= ~CON_PRINTBUFFER;
+		newcon->flags |= CON_HANDOVER;
+	}
 
 	/*
 	 *	Put this console in the list - keep the
