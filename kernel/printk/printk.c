@@ -60,7 +60,6 @@
 #include "printk_ringbuffer.h"
 #include "console_cmdline.h"
 #include "braille.h"
-#include "internal.h"
 
 int console_printk[4] = {
 	CONSOLE_LOGLEVEL_DEFAULT,	/* console_loglevel */
@@ -230,19 +229,7 @@ static int nr_ext_console_drivers;
 
 static int __down_trylock_console_sem(unsigned long ip)
 {
-	int lock_failed;
-	unsigned long flags;
-
-	/*
-	 * Here and in __up_console_sem() we need to be in safe mode,
-	 * because spindump/WARN/etc from under console ->lock will
-	 * deadlock in printk()->down_trylock_console_sem() otherwise.
-	 */
-	printk_safe_enter_irqsave(flags);
-	lock_failed = down_trylock(&console_sem);
-	printk_safe_exit_irqrestore(flags);
-
-	if (lock_failed)
+	if (down_trylock(&console_sem))
 		return 1;
 	mutex_acquire(&console_lock_dep_map, 0, 1, ip);
 	return 0;
@@ -251,13 +238,9 @@ static int __down_trylock_console_sem(unsigned long ip)
 
 static void __up_console_sem(unsigned long ip)
 {
-	unsigned long flags;
-
 	mutex_release(&console_lock_dep_map, ip);
 
-	printk_safe_enter_irqsave(flags);
 	up(&console_sem);
-	printk_safe_exit_irqrestore(flags);
 }
 #define up_console_sem() __up_console_sem(_RET_IP_)
 
@@ -2027,6 +2010,16 @@ int vprintk_default(const char *fmt, va_list args)
 }
 EXPORT_SYMBOL_GPL(vprintk_default);
 
+__printf(1, 0) int vprintk_func(const char *fmt, va_list args)
+{
+#ifdef CONFIG_KGDB_KDB
+	/* Allow to pass printk() to kdb but avoid a recursion. */
+	if (unlikely(kdb_trap_printk && kdb_printf_cpu < 0))
+		return vkdb_printf(KDB_MSGSRC_PRINTK, fmt, args);
+#endif
+	return vprintk_default(fmt, args);
+}
+
 asmlinkage int vprintk(const char *fmt, va_list args)
 {
 	return vprintk_func(fmt, args);
@@ -3034,18 +3027,9 @@ void wake_up_klogd(void)
 	preempt_enable();
 }
 
-void defer_console_output(void)
-{
-}
-
 int vprintk_deferred(const char *fmt, va_list args)
 {
-	int r;
-
-	r = vprintk_emit(0, LOGLEVEL_SCHED, NULL, fmt, args);
-	defer_console_output();
-
-	return r;
+	return vprintk_emit(0, LOGLEVEL_DEFAULT, NULL, fmt, args);
 }
 
 int printk_deferred(const char *fmt, ...)
