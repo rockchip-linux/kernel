@@ -4,7 +4,6 @@
  */
 
 /dts-v1/;
-#include <dt-bindings/clock/rk618-cru.h>
 #include "rk3368-808.dtsi"
 
 / {
@@ -41,186 +40,154 @@
 &i2c2 {
 	status = "okay";
 
-	rk618@50 {
-		compatible = "rockchip,rk618";
+	rk618: rk618@50 {
 		reg = <0x50>;
 		interrupt-parent = <&gpio1>;
 		interrupts = <12 IRQ_TYPE_LEVEL_HIGH>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&i2s_8ch_mclk>;
-		clocks = <&cru SCLK_I2S_8CH_OUT>;
-		clock-names = "clkin";
 		assigned-clocks = <&cru SCLK_I2S_8CH_OUT>;
 		assigned-clock-rates = <11289600>;
 		reset-gpios = <&gpio1 RK_PB5 GPIO_ACTIVE_LOW>;
 		status = "okay";
+	};
+};
 
-		rk618_cru: cru {
-			compatible = "rockchip,rk618-cru";
-			clocks = <&cru SCLK_I2S_8CH_OUT>, <&cru DCLK_VOP>;
-			clock-names = "clkin", "lcdc0_dclkp";
-			assigned-clocks = <&rk618_cru SCALER_PLLIN_CLK>,
-					  <&rk618_cru VIF_PLLIN_CLK>,
-					  <&rk618_cru SCALER_CLK>,
-					  <&rk618_cru VIF0_PRE_CLK>,
-					  <&rk618_cru CODEC_CLK>,
-					  <&rk618_cru DITHER_CLK>;
-			assigned-clock-parents = <&cru SCLK_I2S_8CH_OUT>,
-						 <&rk618_cru LCDC0_CLK>,
-						 <&rk618_cru SCALER_PLL_CLK>,
-						 <&rk618_cru VIF_PLL_CLK>,
-						 <&cru SCLK_I2S_8CH_OUT>,
-						 <&rk618_cru VIF0_CLK>;
-			#clock-cells = <1>;
-			status = "okay";
+#include <arm/rk618.dtsi>
+
+&rk618_clkin {
+	clocks = <&cru SCLK_I2S_8CH_OUT>;
+};
+
+&rk618_lcdc0_dclkp {
+	clocks = <&cru DCLK_VOP>;
+};
+
+&rk618_dsi {
+	status = "okay";
+
+	panel@0 {
+		compatible = "simple-panel-dsi";
+		reg = <0>;
+		backlight = <&backlight>;
+		power-supply = <&vcc_lcd>;
+		prepare-delay-ms = <120>;
+		enable-delay-ms = <120>;
+		disable-delay-ms = <120>;
+		unprepare-delay-ms = <120>;
+
+		dsi,flags = <(MIPI_DSI_MODE_VIDEO |
+			      MIPI_DSI_MODE_VIDEO_BURST |
+			      MIPI_DSI_MODE_LPM |
+			      MIPI_DSI_MODE_EOT_PACKET)>;
+		dsi,format = <MIPI_DSI_FMT_RGB888>;
+		dsi,lanes = <4>;
+
+		display-timings {
+			native-mode = <&timing>;
+
+			timing: timing {
+				clock-frequency = <160000000>;
+				hactive = <1200>;
+				vactive = <1920>;
+				hback-porch = <60>;
+				hfront-porch = <80>;
+				vback-porch = <25>;
+				vfront-porch = <35>;
+				hsync-len = <1>;
+				vsync-len = <1>;
+				hsync-active = <0>;
+				vsync-active = <0>;
+				de-active = <0>;
+				pixelclk-active = <0>;
+			};
 		};
+	};
 
-		hdmi {
-			compatible = "rockchip,rk618-hdmi";
-			clocks = <&rk618_cru HDMI_CLK>;
-			clock-names = "hdmi";
-			assigned-clocks = <&rk618_cru HDMI_CLK>;
-			assigned-clock-parents = <&rk618_cru VIF0_CLK>;
-			status = "okay";
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
 
-			ports {
-				#address-cells = <1>;
-				#size-cells = <0>;
+		port@0 {
+			reg = <0>;
 
-				port@0 {
-					reg = <0>;
+			dsi_in_scaler: endpoint {
+				remote-endpoint = <&scaler_out_dsi>;
+			};
+		};
+	};
+};
 
-					hdmi_in_vif: endpoint {
-						remote-endpoint = <&vif_out_hdmi>;
-					};
-				};
+&rk618_vif {
+	status = "okay";
 
-				port@1 {
-					reg = <1>;
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
 
-					hdmi_out_scaler: endpoint {
-						remote-endpoint = <&scaler_in_hdmi>;
-					};
-				};
+		port@0 {
+			reg = <0>;
+
+			vif_in_rgb: endpoint {
+				remote-endpoint = <&rgb_out_vif>;
 			};
 		};
 
-		scaler {
-			compatible = "rockchip,rk618-scaler";
-			clocks = <&rk618_cru SCALER_CLK>,
-				 <&rk618_cru VIF0_CLK>,
-				 <&rk618_cru DITHER_CLK>;
-			clock-names = "scaler", "vif", "dither";
-			status = "okay";
+		port@1 {
+			reg = <1>;
 
-			ports {
-				#address-cells = <1>;
-				#size-cells = <0>;
+			vif_out_hdmi: endpoint {
+				remote-endpoint = <&hdmi_in_vif>;
+			};
+		};
+	};
+};
 
-				port@0 {
-					reg = <0>;
+&rk618_hdmi {
+	status = "okay";
 
-					scaler_in_hdmi: endpoint {
-						remote-endpoint = <&hdmi_out_scaler>;
-					};
-				};
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
 
-				port@1 {
-					reg = <1>;
+		port@0 {
+			reg = <0>;
 
-					scaler_out_dsi: endpoint {
-						remote-endpoint = <&dsi_in_scaler>;
-					};
-				};
+			hdmi_in_vif: endpoint {
+				remote-endpoint = <&vif_out_hdmi>;
 			};
 		};
 
-		vif {
-			compatible = "rockchip,rk618-vif";
-			clocks = <&rk618_cru VIF0_CLK>,
-				 <&rk618_cru VIF0_PRE_CLK>;
-			clock-names = "vif", "vif_pre";
-			status = "okay";
+		port@1 {
+			reg = <1>;
 
-			ports {
-				#address-cells = <1>;
-				#size-cells = <0>;
+			hdmi_out_scaler: endpoint {
+				remote-endpoint = <&scaler_in_hdmi>;
+			};
+		};
+	};
+};
 
-				port@0 {
-					reg = <0>;
+&rk618_scaler {
+	status = "okay";
 
-					vif_in_rgb: endpoint {
-						remote-endpoint = <&rgb_out_vif>;
-					};
-				};
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
 
-				port@1 {
-					reg = <1>;
+		port@0 {
+			reg = <0>;
 
-					vif_out_hdmi: endpoint {
-						remote-endpoint = <&hdmi_in_vif>;
-					};
-				};
+			scaler_in_hdmi: endpoint {
+				remote-endpoint = <&hdmi_out_scaler>;
 			};
 		};
 
-		dsi {
-			compatible = "rockchip,rk618-dsi";
-			clocks = <&rk618_cru MIPI_CLK>;
-			clock-names = "dsi";
-			#address-cells = <1>;
-			#size-cells = <0>;
-			status = "okay";
+		port@1 {
+			reg = <1>;
 
-			ports {
-				#address-cells = <1>;
-				#size-cells = <0>;
-
-				port@0 {
-					reg = <0>;
-
-					dsi_in_scaler: endpoint {
-						remote-endpoint = <&scaler_out_dsi>;
-					};
-				};
-			};
-
-			panel@0 {
-				compatible = "simple-panel-dsi";
-				reg = <0>;
-				backlight = <&backlight>;
-				power-supply = <&vcc_lcd>;
-				prepare-delay-ms = <120>;
-				enable-delay-ms = <120>;
-				disable-delay-ms = <120>;
-				unprepare-delay-ms = <120>;
-
-				dsi,flags = <(MIPI_DSI_MODE_VIDEO |
-					      MIPI_DSI_MODE_VIDEO_BURST |
-					      MIPI_DSI_MODE_LPM |
-					      MIPI_DSI_MODE_EOT_PACKET)>;
-				dsi,format = <MIPI_DSI_FMT_RGB888>;
-				dsi,lanes = <4>;
-
-				display-timings {
-					native-mode = <&timing>;
-
-					timing: timing {
-						clock-frequency = <160000000>;
-						hactive = <1200>;
-						vactive = <1920>;
-						hback-porch = <60>;
-						hfront-porch = <80>;
-						vback-porch = <25>;
-						vfront-porch = <35>;
-						hsync-len = <1>;
-						vsync-len = <1>;
-						hsync-active = <0>;
-						vsync-active = <0>;
-						de-active = <0>;
-						pixelclk-active = <0>;
-					};
-				};
+			scaler_out_dsi: endpoint {
+				remote-endpoint = <&dsi_in_scaler>;
 			};
 		};
 	};
@@ -265,6 +232,5 @@
 };
 
 &route_rgb {
-	/delete-property/ logo,uboot;
-	status = "okay";
+	status = "disabled";
 };
