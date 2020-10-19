@@ -151,6 +151,8 @@ struct console {
 	short	flags;
 	short	index;
 	int	cflag;
+	atomic64_t printk_seq;
+	struct task_struct *thread;
 	void	*data;
 	struct	 console *next;
 };
