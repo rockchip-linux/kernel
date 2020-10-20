@@ -49,6 +49,7 @@
 #include <linux/sched/clock.h>
 #include <linux/sched/debug.h>
 #include <linux/sched/task_stack.h>
+#include <linux/kdb.h>
 
 #include <linux/uaccess.h>
 #include <asm/sections.h>
@@ -339,11 +340,11 @@ enum log_flags {
 };
 
 /* The syslog_lock protects syslog_* variables. */
-DEFINE_RAW_SPINLOCK(syslog_lock);
-#define syslog_lock_irq() raw_spin_lock_irq(&syslog_lock)
-#define syslog_unlock_irq() raw_spin_unlock_irq(&syslog_lock)
-#define syslog_lock_irqsave(flags) raw_spin_lock_irqsave(&syslog_lock, flags)
-#define syslog_unlock_irqrestore(flags) raw_spin_unlock_irqrestore(&syslog_lock, flags)
+static DEFINE_SPINLOCK(syslog_lock);
+#define syslog_lock_irq() spin_lock_irq(&syslog_lock)
+#define syslog_unlock_irq() spin_unlock_irq(&syslog_lock)
+#define syslog_lock_irqsave(flags) spin_lock_irqsave(&syslog_lock, flags)
+#define syslog_unlock_irqrestore(flags) spin_unlock_irqrestore(&syslog_lock, flags)
 
 #ifdef CONFIG_PRINTK
 DECLARE_WAIT_QUEUE_HEAD(log_wait);
@@ -398,7 +399,7 @@ static struct printk_ringbuffer *prb = &printk_rb_static;
  */
 static bool __printk_percpu_data_ready __read_mostly;
 
-bool printk_percpu_data_ready(void)
+static bool printk_percpu_data_ready(void)
 {
 	return __printk_percpu_data_ready;
 }
@@ -1862,9 +1863,10 @@ static inline u32 printk_caller_id(void)
 		0x80000000 + raw_smp_processor_id();
 }
 
-int vprintk_store(int facility, int level,
-		  const struct dev_printk_info *dev_info,
-		  const char *fmt, va_list args)
+__printf(4, 0)
+static int vprintk_store(int facility, int level,
+			 const struct dev_printk_info *dev_info,
+			 const char *fmt, va_list args)
 {
 	const u32 caller_id = printk_caller_id();
 	struct prb_reserved_entry e;
@@ -2008,13 +2010,14 @@ asmlinkage int vprintk_emit(int facility, int level,
 }
 EXPORT_SYMBOL(vprintk_emit);
 
-int vprintk_default(const char *fmt, va_list args)
+ __printf(1, 0)
+static int vprintk_default(const char *fmt, va_list args)
 {
 	return vprintk_emit(0, LOGLEVEL_DEFAULT, NULL, fmt, args);
 }
-EXPORT_SYMBOL_GPL(vprintk_default);
 
-__printf(1, 0) int vprintk_func(const char *fmt, va_list args)
+__printf(1, 0)
+static int vprintk_func(const char *fmt, va_list args)
 {
 #ifdef CONFIG_KGDB_KDB
 	/* Allow to pass printk() to kdb but avoid a recursion. */
@@ -2327,34 +2330,6 @@ int is_console_locked(void)
 	return console_locked;
 }
 EXPORT_SYMBOL(is_console_locked);
-
-/*
- * Check if we have any console that is capable of printing while cpu is
- * booting or shutting down. Requires console_sem.
- */
-static int have_callable_console(void)
-{
-	struct console *con;
-
-	for_each_console(con)
-		if ((con->flags & CON_ENABLED) &&
-				(con->flags & CON_ANYTIME))
-			return 1;
-
-	return 0;
-}
-
-/*
- * Can we actually use the console at this time on this cpu?
- *
- * Console drivers may assume that per-cpu resources have been allocated. So
- * unless they're explicitly marked as being able to cope (CON_ANYTIME) don't
- * call them until this CPU is officially up.
- */
-static inline int can_use_console(void)
-{
-	return cpu_online(raw_smp_processor_id()) || have_callable_console();
-}
 
 /**
  * console_unlock - unlock the console system
@@ -3033,7 +3008,8 @@ void wake_up_klogd(void)
 	preempt_enable();
 }
 
-int vprintk_deferred(const char *fmt, va_list args)
+__printf(1, 0)
+static int vprintk_deferred(const char *fmt, va_list args)
 {
 	return vprintk_emit(0, LOGLEVEL_DEFAULT, NULL, fmt, args);
 }
@@ -3470,7 +3446,7 @@ static bool __prb_trylock(struct prb_cpulock *cpu_lock,
  *
  * It is safe to call this function from any context and state.
  */
-void prb_lock(struct prb_cpulock *cpu_lock, unsigned int *cpu_store)
+static void prb_lock(struct prb_cpulock *cpu_lock, unsigned int *cpu_store)
 {
 	for (;;) {
 		if (__prb_trylock(cpu_lock, cpu_store))
@@ -3488,7 +3464,7 @@ void prb_lock(struct prb_cpulock *cpu_lock, unsigned int *cpu_store)
  *
  * It is safe to call this function from any context and state.
  */
-void prb_unlock(struct prb_cpulock *cpu_lock, unsigned int cpu_store)
+static void prb_unlock(struct prb_cpulock *cpu_lock, unsigned int cpu_store)
 {
 	unsigned long *flags;
 	unsigned int cpu;
