@@ -43,6 +43,7 @@
 #include <linux/pm_opp.h>
 #include <linux/pm_runtime.h>
 #include <linux/iopoll.h>
+#include <linux/nospec.h>
 
 #include <linux/regulator/consumer.h>
 #include <linux/rockchip/grf.h>
@@ -1454,6 +1455,8 @@ static struct vpu_reg *reg_init(struct vpu_subdev_data *data,
 		extra_size = size - data->reg_size;
 		size = data->reg_size;
 	}
+	session->type = array_index_nospec(session->type, VPU_TYPE_BUTT);
+
 	reg->session = session;
 	reg->data = data;
 	reg->type = session->type;
