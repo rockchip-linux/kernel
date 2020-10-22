@@ -111,6 +111,7 @@ struct rockchip_efuse_chip {
 	struct clk *clk;
 	struct clk *sclk;
 	phys_addr_t phys;
+	struct mutex mutex;
 };
 
 static void rk1808_efuse_timing_init(void __iomem *base)
@@ -160,17 +161,18 @@ static int rockchip_rk1808_efuse_read(void *context, unsigned int offset,
 	u8 *buf;
 	int ret, i = 0;
 
+	mutex_lock(&efuse->mutex);
+
 	ret = clk_prepare_enable(efuse->clk);
 	if (ret < 0) {
 		dev_err(efuse->dev, "failed to prepare/enable efuse pclk\n");
-		return ret;
+		goto out;
 	}
 
 	ret = clk_prepare_enable(efuse->sclk);
 	if (ret < 0) {
-		clk_disable_unprepare(efuse->clk);
 		dev_err(efuse->dev, "failed to prepare/enable efuse sclk\n");
-		return ret;
+		goto err_sclk;
 	}
 
 	addr_start = rounddown(offset, RK1808_NBYTES) / RK1808_NBYTES;
@@ -207,8 +209,11 @@ err:
 	rk1808_efuse_timing_deinit(efuse->base);
 	kfree(buf);
 nomem:
-	clk_disable_unprepare(efuse->clk);
 	clk_disable_unprepare(efuse->sclk);
+err_sclk:
+	clk_disable_unprepare(efuse->clk);
+out:
+	mutex_unlock(&efuse->mutex);
 
 	return ret;
 }
@@ -631,6 +636,8 @@ static int __init rockchip_efuse_probe(struct platform_device *pdev)
 		efuse->sclk = efuse->clk;
 	if (IS_ERR(efuse->sclk))
 		return PTR_ERR(efuse->sclk);
+
+	mutex_init(&efuse->mutex);
 
 	efuse->dev = &pdev->dev;
 	if (of_property_read_u32_index(dev->of_node,
