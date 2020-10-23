@@ -475,6 +475,7 @@ static int rockchip_init_temp_opp_table(struct monitor_dev_info *info)
 		if (IS_ERR(opp)) {
 			ret = PTR_ERR(opp);
 			kfree(info->opp_table);
+			info->opp_table = NULL;
 			goto unlock;
 		}
 		info->opp_table[i].rate = opp->rate;
