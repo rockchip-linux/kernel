@@ -650,6 +650,18 @@ DECLARE_TRACE(sched_update_nr_running_tp,
 	TP_PROTO(struct rq *rq, int change),
 	TP_ARGS(rq, change));
 
+DECLARE_TRACE(sched_migrate_disable_tp,
+	      TP_PROTO(struct task_struct *p),
+	      TP_ARGS(p));
+
+DECLARE_TRACE(sched_migrate_enable_tp,
+	      TP_PROTO(struct task_struct *p),
+	      TP_ARGS(p));
+
+DECLARE_TRACE(sched_migrate_pull_tp,
+	      TP_PROTO(struct task_struct *p),
+	      TP_ARGS(p));
+
 #endif /* _TRACE_SCHED_H */
 
 /* This part must be outside protection */

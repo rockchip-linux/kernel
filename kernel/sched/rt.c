@@ -1877,7 +1877,12 @@ retry:
 		struct task_struct *push_task = NULL;
 		int cpu;
 
-		if (!pull || rq->push_busy)
+		if (!pull)
+			return 0;
+
+		trace_sched_migrate_pull_tp(next_task);
+
+		if (rq->push_busy)
 			return 0;
 
 		cpu = find_lowest_rq(rq->curr);
@@ -2223,6 +2228,7 @@ static void pull_rt_task(struct rq *this_rq)
 				goto skip;
 
 			if (is_migration_disabled(p)) {
+				trace_sched_migrate_pull_tp(p);
 				push_task = get_push_task(src_rq);
 			} else {
 				deactivate_task(src_rq, p, 0);

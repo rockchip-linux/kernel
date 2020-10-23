@@ -2272,6 +2272,7 @@ static void pull_dl_task(struct rq *this_rq)
 				goto skip;
 
 			if (is_migration_disabled(p)) {
+				trace_sched_migrate_pull_tp(p);
 				push_task = get_push_task(src_rq);
 			} else {
 				deactivate_task(src_rq, p, 0);
