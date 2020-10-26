@@ -370,6 +370,7 @@ int dw_pcie_host_init(struct pcie_port *pp)
 	if (!bridge)
 		return -ENOMEM;
 
+	pp->bridge = bridge;
 	ret = devm_of_pci_get_host_bridge_resources(dev, 0, 0xff,
 					&bridge->windows, &pp->io_base);
 	if (ret)
@@ -555,12 +556,12 @@ static int dw_pcie_rd_other_conf(struct pcie_port *pp, struct pci_bus *bus,
 		va_cfg_base = pp->va_cfg1_base;
 	}
 
-	dw_pcie_prog_outbound_atu(pci, PCIE_ATU_REGION_INDEX1,
+	dw_pcie_prog_outbound_atu(pci, 0,
 				  type, cpu_addr,
 				  busdev, cfg_size);
 	ret = dw_pcie_read(va_cfg_base + where, size, val);
-	if (pci->num_viewport <= 2)
-		dw_pcie_prog_outbound_atu(pci, PCIE_ATU_REGION_INDEX1,
+	if (!ret && pci->io_cfg_atu_shared)
+		dw_pcie_prog_outbound_atu(pci, 0,
 					  PCIE_ATU_TYPE_IO, pp->io_base,
 					  pp->io_bus_addr, pp->io_size);
 
@@ -594,13 +595,12 @@ static int dw_pcie_wr_other_conf(struct pcie_port *pp, struct pci_bus *bus,
 		va_cfg_base = pp->va_cfg1_base;
 	}
 
-	dw_pcie_prog_outbound_atu(pci, PCIE_ATU_REGION_INDEX1,
+	dw_pcie_prog_outbound_atu(pci, 0,
 				  type, cpu_addr,
 				  busdev, cfg_size);
 	ret = dw_pcie_write(va_cfg_base + where, size, val);
-	if (pci->num_viewport <= 2)
-		dw_pcie_prog_outbound_atu(pci, PCIE_ATU_REGION_INDEX1,
-					  PCIE_ATU_TYPE_IO, pp->io_base,
+	if (!ret && pci->io_cfg_atu_shared)
+		dw_pcie_prog_outbound_atu(pci, 0, PCIE_ATU_TYPE_IO, pp->io_base,
 					  pp->io_bus_addr, pp->io_size);
 
 	return ret;
@@ -674,6 +674,8 @@ void dw_pcie_setup_rc(struct pcie_port *pp)
 {
 	u32 val, ctrl, num_ctrls;
 	struct dw_pcie *pci = to_dw_pcie_from_pp(pp);
+	int atu_idx = 0;
+	struct resource_entry *entry, *tmp;
 
 	dw_pcie_setup(pci);
 
@@ -725,15 +727,34 @@ void dw_pcie_setup_rc(struct pcie_port *pp)
 		pci->iatu_unroll_enabled = dw_pcie_iatu_unroll_enabled(pci);
 		dev_dbg(pci->dev, "iATU unroll: %s\n",
 			pci->iatu_unroll_enabled ? "enabled" : "disabled");
+	}
 
-		dw_pcie_prog_outbound_atu(pci, PCIE_ATU_REGION_INDEX0,
-					  PCIE_ATU_TYPE_MEM, pp->mem_base,
-					  pp->mem_bus_addr, pp->mem_size);
-		if (pci->num_viewport > 2)
-			dw_pcie_prog_outbound_atu(pci, PCIE_ATU_REGION_INDEX2,
+	/* Get last memory resource entry */
+	resource_list_for_each_entry_safe(entry, tmp, &pp->bridge->windows) {
+		if (resource_type(entry->res) != IORESOURCE_MEM)
+			continue;
+
+		if (pci->num_viewport <= ++atu_idx)
+			break;
+
+		dw_pcie_prog_outbound_atu(pci, atu_idx,
+					  PCIE_ATU_TYPE_MEM, entry->res->start,
+					  entry->res->start - entry->offset,
+					  resource_size(entry->res));
+	}
+
+	if (pp->io_size) {
+		if (pci->num_viewport > ++atu_idx)
+			dw_pcie_prog_outbound_atu(pci, atu_idx,
 						  PCIE_ATU_TYPE_IO, pp->io_base,
 						  pp->io_bus_addr, pp->io_size);
+		else
+			pci->io_cfg_atu_shared = true;
 	}
+
+	if (pci->num_viewport <= atu_idx)
+		dev_warn(pci->dev, "Resources exceed number of ATU entries (%d)",
+			 pci->num_viewport);
 
 	dw_pcie_wr_own_conf(pp, PCI_BASE_ADDRESS_0, 4, 0);
 
