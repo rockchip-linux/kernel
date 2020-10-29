@@ -726,7 +726,7 @@ static int cdn_dp_enable(struct cdn_dp_device *dp)
 	}
 
 	/* Enable hdcp if it's desired */
-	if (dp->connector.state->content_protection ==
+	if (dp->connector.state && dp->connector.state->content_protection ==
 	    DRM_MODE_CONTENT_PROTECTION_DESIRED)
 		ret = cdn_dp_start_hdcp1x_auth(dp);
 
