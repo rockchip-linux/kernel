@@ -11,7 +11,10 @@
 
 #include "rkflash_blk.h"
 #include "rkflash_debug.h"
+#include "sfc_nand.h"
 #include "sfc_nand_mtd.h"
+
+#ifdef CONFIG_RK_SFC_NAND_MTD
 
 static struct mtd_partition nand_parts[MAX_PART_COUNT];
 
@@ -21,7 +24,7 @@ static inline struct snand_mtd_dev *mtd_to_priv(struct mtd_info *ptr_mtd)
 		offsetof(struct snand_mtd_dev, mtd));
 }
 
-static int sfc_nand_erase_mtd(struct mtd_info *mtd, u32 addr)
+int sfc_nand_erase_mtd(struct mtd_info *mtd, u32 addr)
 {
 	return sfc_nand_erase_block(0, addr >> mtd->writesize_shift);
 }
@@ -118,7 +121,7 @@ static int sfc_nand_read_mtd(struct mtd_info *mtd, loff_t from,
 	return ret ? ret : max_bitflips;
 }
 
-static int sfc_nand_isbad_mtd(struct mtd_info *mtd, loff_t ofs)
+int sfc_nand_isbad_mtd(struct mtd_info *mtd, loff_t ofs)
 {
 	int ret;
 	struct snand_mtd_dev *p_dev = mtd_to_priv(mtd);
@@ -204,8 +207,6 @@ out:
 
 	return ret;
 }
-
-#include "sfc_nand_mtd_bbt.c"
 
 static int sfc_erase_mtd(struct mtd_info *mtd, struct erase_info *instr)
 {
@@ -405,3 +406,5 @@ error_out:
 
 	return ret;
 }
+
+#endif
