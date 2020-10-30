@@ -110,6 +110,8 @@ static inline void local_lock_acquire(local_lock_t *l) { }
 static inline void local_lock_release(local_lock_t *l) { }
 #endif /* !CONFIG_DEBUG_LOCK_ALLOC */
 
+#ifdef CONFIG_PREEMPT_RT
+
 #define __local_lock(lock)					\
 	do {							\
 		migrate_disable();				\
@@ -121,8 +123,6 @@ static inline void local_lock_release(local_lock_t *l) { }
 		local_lock_release(this_cpu_ptr(lock));		\
 		migrate_enable();				\
 	} while (0)
-
-#ifdef CONFIG_PREEMPT_RT
 
 #define __local_lock_irq(lock)					\
 	do {							\
@@ -150,6 +150,18 @@ static inline void local_lock_release(local_lock_t *l) { }
 	} while (0)
 
 #else
+
+#define __local_lock(lock)					\
+	do {							\
+		preempt_disable();				\
+		local_lock_acquire(this_cpu_ptr(lock));		\
+	} while (0)
+
+#define __local_unlock(lock)					\
+	do {							\
+		local_lock_release(this_cpu_ptr(lock));		\
+		preempt_enable();				\
+	} while (0)
 
 #define __local_lock_irq(lock)					\
 	do {							\

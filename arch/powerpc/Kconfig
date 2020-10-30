@@ -411,7 +411,8 @@ menu "Kernel options"
 
 config HIGHMEM
 	bool "High memory support"
-	depends on PPC32 && !PREEMPT_RT
+	depends on PPC32
+	select KMAP_LOCAL
 
 source "kernel/Kconfig.hz"
 

@@ -33,8 +33,6 @@ extern unsigned long highstart_pfn, highend_pfn;
 #define kmap_prot __pgprot(SRMMU_ET_PTE | SRMMU_PRIV | SRMMU_CACHE)
 extern pte_t *pkmap_page_table;
 
-void kmap_init(void) __init;
-
 /*
  * Right now we initialize only a single pte table. It can be extended
  * easily, subsequent pte tables have to be allocated in one physical
@@ -52,6 +50,11 @@ void kmap_init(void) __init;
 #define PKMAP_END (PKMAP_ADDR(LAST_PKMAP))
 
 #define flush_cache_kmaps()	flush_cache_all()
+
+/* FIXME: Use __flush_tlb_one(vaddr) instead of flush_cache_all() -- Anton */
+#define arch_kmap_local_post_map(vaddr, pteval)	flush_cache_all()
+#define arch_kmap_local_post_unmap(vaddr)	flush_cache_all()
+
 
 #endif /* __KERNEL__ */
 
