@@ -139,7 +139,10 @@ static inline void kunmap(struct page *page)
  */
 static inline void *kmap_atomic_prot(struct page *page, pgprot_t prot)
 {
-	preempt_disable();
+	if (IS_ENABLED(CONFIG_PREEMPT_RT))
+		migrate_disable();
+	else
+		preempt_disable();
 	pagefault_disable();
 	return __kmap_local_page_prot(page, prot);
 }
@@ -151,7 +154,10 @@ static inline void *kmap_atomic(struct page *page)
 
 static inline void *kmap_atomic_pfn(unsigned long pfn)
 {
-	preempt_disable();
+	if (IS_ENABLED(CONFIG_PREEMPT_RT))
+		migrate_disable();
+	else
+		preempt_disable();
 	pagefault_disable();
 	return __kmap_local_pfn_prot(pfn, kmap_prot);
 }
@@ -245,7 +251,10 @@ static inline void kunmap(struct page *page)
 
 static inline void *kmap_atomic(struct page *page)
 {
-	preempt_disable();
+	if (IS_ENABLED(CONFIG_PREEMPT_RT))
+		migrate_disable();
+	else
+		preempt_disable();
 	pagefault_disable();
 	return page_address(page);
 }
@@ -301,7 +310,10 @@ do {								\
 	BUILD_BUG_ON(__same_type((__addr), struct page *));	\
 	__kunmap_atomic(__addr);				\
 	pagefault_enable();					\
-	preempt_enable();					\
+	if (IS_ENABLED(CONFIG_PREEMPT_RT))			\
+		migrate_enable();				\
+	else							\
+		preempt_enable();				\
 } while (0)
 
 #define kunmap_local(__addr)					\
