@@ -644,9 +644,12 @@ bool blk_mq_complete_request_remote(struct request *rq)
 	} else {
 		if (rq->q->nr_hw_queues > 1)
 			return false;
+
+		preempt_disable();
 		cpu_list = this_cpu_ptr(&blk_cpu_done);
 		if (llist_add(&rq->ipi_list, cpu_list))
 			raise_softirq(BLOCK_SOFTIRQ);
+		preempt_enable();
 	}
 
 	return true;
