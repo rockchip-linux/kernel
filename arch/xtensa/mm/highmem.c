@@ -31,13 +31,13 @@ static inline void kmap_waitqueues_init(void)
 
 static inline enum fixed_addresses kmap_idx(int type, unsigned long color)
 {
-	return (type + KM_TYPE_NR * smp_processor_id()) * DCACHE_N_COLORS +
+	return (type + KM_MAX_IDX * smp_processor_id()) * DCACHE_N_COLORS +
 		color;
 }
 
 enum fixed_addresses kmap_local_map_idx(int type, unsigned long pfn)
 {
-	return kmap_idx(type, DCACHE_ALIAS(pfn << PAGE_SHIFT);
+	return kmap_idx(type, DCACHE_ALIAS(pfn << PAGE_SHIFT));
 }
 
 enum fixed_addresses kmap_local_unmap_idx(int type, unsigned long addr)

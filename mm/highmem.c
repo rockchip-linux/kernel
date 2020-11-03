@@ -30,7 +30,6 @@
 #include <linux/kgdb.h>
 #include <asm/tlbflush.h>
 #include <linux/vmalloc.h>
-#include <asm/fixmap.h>
 
 /*
  * Virtual_count is not a pure "count".
@@ -105,7 +104,7 @@ static inline wait_queue_head_t *get_pkmap_wait_queue_head(unsigned int color)
 atomic_long_t _totalhigh_pages __read_mostly;
 EXPORT_SYMBOL(_totalhigh_pages);
 
-unsigned int nr_free_highpages (void)
+unsigned int __nr_free_highpages (void)
 {
 	struct zone *zone;
 	unsigned int pages = 0;
@@ -142,7 +141,7 @@ pte_t * pkmap_page_table;
 		do { spin_unlock(&kmap_lock); (void)(flags); } while (0)
 #endif
 
-struct page *kmap_to_page(void *vaddr)
+struct page *__kmap_to_page(void *vaddr)
 {
 	unsigned long addr = (unsigned long)vaddr;
 
@@ -153,7 +152,7 @@ struct page *kmap_to_page(void *vaddr)
 
 	return virt_to_page(addr);
 }
-EXPORT_SYMBOL(kmap_to_page);
+EXPORT_SYMBOL(__kmap_to_page);
 
 static void flush_all_zero_pkmaps(void)
 {
@@ -195,10 +194,7 @@ static void flush_all_zero_pkmaps(void)
 		flush_tlb_kernel_range(PKMAP_ADDR(0), PKMAP_ADDR(LAST_PKMAP));
 }
 
-/**
- * kmap_flush_unused - flush all unused kmap mappings in order to remove stray mappings
- */
-void kmap_flush_unused(void)
+void __kmap_flush_unused(void)
 {
 	lock_kmap();
 	flush_all_zero_pkmaps();
@@ -367,13 +363,24 @@ EXPORT_SYMBOL(kunmap_high);
 
 #ifdef CONFIG_KMAP_LOCAL
 
+#include <asm/kmap_size.h>
+
+/*
+ * With DEBUG_HIGHMEM the stack depth is doubled and every second
+ * slot is unused which acts as a guard page
+ */
+#ifdef CONFIG_DEBUG_HIGHMEM
+# define KM_INCR	2
+#else
+# define KM_INCR	1
+#endif
+
 static inline int kmap_local_idx_push(void)
 {
-	int idx = current->kmap_ctrl.idx++;
-
 	WARN_ON_ONCE(in_irq() && !irqs_disabled());
-	BUG_ON(idx >= KM_TYPE_NR);
-	return idx;
+	current->kmap_ctrl.idx += KM_INCR;
+	BUG_ON(current->kmap_ctrl.idx >= KM_MAX_IDX);
+	return current->kmap_ctrl.idx - 1;
 }
 
 static inline int kmap_local_idx(void)
@@ -383,7 +390,7 @@ static inline int kmap_local_idx(void)
 
 static inline void kmap_local_idx_pop(void)
 {
-	current->kmap_ctrl.idx--;
+	current->kmap_ctrl.idx -= KM_INCR;
 	BUG_ON(current->kmap_ctrl.idx < 0);
 }
 
@@ -400,11 +407,11 @@ static inline void kmap_local_idx_pop(void)
 #endif
 
 #ifndef arch_kmap_local_map_idx
-#define arch_kmap_local_map_idx(type, pfn)	kmap_local_calc_idx(type)
+#define arch_kmap_local_map_idx(idx, pfn)	kmap_local_calc_idx(idx)
 #endif
 
 #ifndef arch_kmap_local_unmap_idx
-#define arch_kmap_local_unmap_idx(type, vaddr)	kmap_local_calc_idx(type)
+#define arch_kmap_local_unmap_idx(idx, vaddr)	kmap_local_calc_idx(idx)
 #endif
 
 #ifndef arch_kmap_local_high_get
@@ -423,9 +430,9 @@ static inline void kmap_high_unmap_local(unsigned long vaddr)
 #endif
 }
 
-static inline int kmap_local_calc_idx(int type)
+static inline int kmap_local_calc_idx(int idx)
 {
-	return type + KM_TYPE_NR * smp_processor_id();
+	return idx + KM_MAX_IDX * smp_processor_id();
 }
 
 static pte_t *__kmap_pte;
@@ -443,6 +450,11 @@ void *__kmap_local_pfn_prot(unsigned long pfn, pgprot_t prot)
 	unsigned long vaddr;
 	int idx;
 
+	/*
+	 * Disable migration so resulting virtual address is stable
+	 * accross preemption.
+	 */
+	migrate_disable();
 	preempt_disable();
 	idx = arch_kmap_local_map_idx(kmap_local_idx_push(), pfn);
 	vaddr = __fix_to_virt(FIX_KMAP_BEGIN + idx);
@@ -498,6 +510,7 @@ void kunmap_local_indexed(void *vaddr)
 	current->kmap_ctrl.pteval[kmap_local_idx()] = __pte(0);
 	kmap_local_idx_pop();
 	preempt_enable();
+	migrate_enable();
 }
 EXPORT_SYMBOL(kunmap_local_indexed);
 
@@ -523,6 +536,11 @@ void __kmap_local_sched_out(void)
 		unsigned long addr;
 		int idx;
 
+		/* With debug all even slots are unmapped and act as guard */
+		if (IS_ENABLED(CONFIG_DEBUG_HIGHMEM) && !(i & 0x01)) {
+			WARN_ON_ONCE(!pte_none(pteval));
+			continue;
+		}
 		if (WARN_ON_ONCE(pte_none(pteval)))
 			continue;
 
@@ -554,6 +572,11 @@ void __kmap_local_sched_in(void)
 		unsigned long addr;
 		int idx;
 
+		/* With debug all even slots are unmapped and act as guard */
+		if (IS_ENABLED(CONFIG_DEBUG_HIGHMEM) && !(i & 0x01)) {
+			WARN_ON_ONCE(!pte_none(pteval));
+			continue;
+		}
 		if (WARN_ON_ONCE(pte_none(pteval)))
 			continue;
 

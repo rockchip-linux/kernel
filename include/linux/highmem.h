@@ -11,6 +11,119 @@
 
 #include <asm/cacheflush.h>
 
+#include "highmem-internal.h"
+
+/**
+ * kmap - Map a page for long term usage
+ * @page:	Pointer to the page to be mapped
+ *
+ * Returns: The virtual address of the mapping
+ *
+ * Can only be invoked from preemptible task context because on 32bit
+ * systems with CONFIG_HIGHMEM enabled this function might sleep.
+ *
+ * For systems with CONFIG_HIGHMEM=n and for pages in the low memory area
+ * this returns the virtual address of the direct kernel mapping.
+ *
+ * The returned virtual address is globally visible and valid up to the
+ * point where it is unmapped via kunmap(). The pointer can be handed to
+ * other contexts.
+ *
+ * For highmem pages on 32bit systems this can be slow as the mapping space
+ * is limited and protected by a global lock. In case that there is no
+ * mapping slot available the function blocks until a slot is released via
+ * kunmap().
+ */
+static inline void *kmap(struct page *page);
+
+/**
+ * kunmap - Unmap the virtual address mapped by kmap()
+ * @addr:	Virtual address to be unmapped
+ *
+ * Counterpart to kmap(). A NOOP for CONFIG_HIGHMEM=n and for mappings of
+ * pages in the low memory area.
+ */
+static inline void kunmap(struct page *page);
+
+/**
+ * kmap_to_page - Get the page for a kmap'ed address
+ * @addr:	The address to look up
+ *
+ * Returns: The page which is mapped to @addr.
+ */
+static inline struct page *kmap_to_page(void *addr);
+
+/**
+ * kmap_flush_unused - Flush all unused kmap mappings in order to
+ *		       remove stray mappings
+ */
+static inline void kmap_flush_unused(void);
+
+/**
+ * kmap_local_page - Map a page for temporary usage
+ * @page:	Pointer to the page to be mapped
+ *
+ * Returns: The virtual address of the mapping
+ *
+ * Can be invoked from any context.
+ *
+ * Requires careful handling when nesting multiple mappings because the map
+ * management is stack based. The unmap has to be in the reverse order of
+ * the map operation:
+ *
+ * addr1 = kmap_local_page(page1);
+ * addr2 = kmap_local_page(page2);
+ * ...
+ * kunmap_local(addr2);
+ * kunmap_local(addr1);
+ *
+ * Unmapping addr1 before addr2 is invalid and causes malfunction.
+ *
+ * Contrary to kmap() mappings the mapping is only valid in the context of
+ * the caller and cannot be handed to other contexts.
+ *
+ * On CONFIG_HIGHMEM=n kernels and for low memory pages this returns the
+ * virtual address of the direct mapping. Only real highmem pages are
+ * temporarily mapped.
+ *
+ * While it is significantly faster than kmap() for the higmem case it
+ * comes with restrictions about the pointer validity. Only use when really
+ * necessary.
+ *
+ * On HIGHMEM enabled systems mapping a highmem page has the side effect of
+ * disabling migration in order to keep the virtual address stable across
+ * preemption. No caller of kmap_local_page() can rely on this side effect.
+ */
+static inline void *kmap_local_page(struct page *page);
+
+/**
+ * kmap_atomic - Atomically map a page for temporary usage - Deprecated!
+ * @page:	Pointer to the page to be mapped
+ *
+ * Returns: The virtual address of the mapping
+ *
+ * Effectively a wrapper around kmap_local_page() which disables pagefaults
+ * and preemption.
+ *
+ * Do not use in new code. Use kmap_local_page() instead.
+ */
+static inline void *kmap_atomic(struct page *page);
+
+/**
+ * kunmap_atomic - Unmap the virtual address mapped by kmap_atomic()
+ * @addr:	Virtual address to be unmapped
+ *
+ * Counterpart to kmap_atomic().
+ *
+ * Effectively a wrapper around kunmap_local() which additionally undoes
+ * the side effects of kmap_atomic(), i.e. reenabling pagefaults and
+ * preemption.
+ */
+
+/* Highmem related interfaces for management code */
+static inline unsigned int nr_free_highpages(void);
+static inline unsigned long totalhigh_pages(void);
+
 #ifndef ARCH_HAS_FLUSH_ANON_PAGE
 static inline void flush_anon_page(struct vm_area_struct *vma, struct page *page, unsigned long vmaddr)
 {
@@ -28,300 +141,6 @@ static inline void invalidate_kernel_vmap_range(void *vaddr, int size)
 {
 }
 #endif
-
-#include <asm/kmap_types.h>
-
-/*
- * Outside of CONFIG_HIGHMEM to support X86 32bit iomap_atomic() cruft.
- */
-#ifdef CONFIG_KMAP_LOCAL
-void *__kmap_local_pfn_prot(unsigned long pfn, pgprot_t prot);
-void *__kmap_local_page_prot(struct page *page, pgprot_t prot);
-void kunmap_local_indexed(void *vaddr);
-void kmap_local_fork(struct task_struct *tsk);
-void __kmap_local_sched_out(void);
-void __kmap_local_sched_in(void);
-static inline void kmap_assert_nomap(void)
-{
-	DEBUG_LOCKS_WARN_ON(current->kmap_ctrl.idx);
-}
-#else
-static inline void kmap_local_fork(struct task_struct *tsk) { }
-static inline void kmap_assert_nomap(void) { }
-#endif
-
-#ifdef CONFIG_HIGHMEM
-#include <asm/highmem.h>
-
-#ifndef ARCH_HAS_KMAP_FLUSH_TLB
-static inline void kmap_flush_tlb(unsigned long addr) { }
-#endif
-
-#ifndef kmap_prot
-#define kmap_prot PAGE_KERNEL
-#endif
-
-void *kmap_high(struct page *page);
-static inline void *kmap(struct page *page)
-{
-	void *addr;
-
-	might_sleep();
-	if (!PageHighMem(page))
-		addr = page_address(page);
-	else
-		addr = kmap_high(page);
-	kmap_flush_tlb((unsigned long)addr);
-	return addr;
-}
-
-void kunmap_high(struct page *page);
-
-static inline void kunmap(struct page *page)
-{
-	might_sleep();
-	if (!PageHighMem(page))
-		return;
-	kunmap_high(page);
-}
-
-/*
- * For highmem systems it is required to temporarily map pages
- * which reside in the portion of memory which is not covered
- * by the permanent kernel mapping.
- *
- * This comes in three flavors:
- *
- * 1) kmap/kunmap:
- *
- *    An interface to acquire longer term mappings with no restrictions
- *    on preemption and migration. This comes with an overhead as the
- *    mapping space is restricted and protected by a global lock. It
- *    also requires global TLB invalidation when the kmap pool wraps.
- *
- *    kmap() might block when the mapping space is fully utilized until a
- *    slot becomes available. Only callable from preemptible thread
- *    context.
- *
- * 2) kmap_local.*()/kunmap_local.*()
- *
- *    An interface to acquire short term mappings. Can be invoked from any
- *    context including interrupts. The mapping is per thread, CPU local
- *    and not globaly visible. It can only be used in the context which
- *    acquried the mapping. Nesting kmap_local.*() and kmap_atomic.*()
- *    mappings is allowed to a certain extent (up to KMAP_TYPE_NR).
- *
- *    Nested kmap_local.*() and kunmap_local.*() invocations have to be
- *    strictly ordered because the map implementation is stack based.
- *
- *    kmap_local.*() disables migration, but keeps preemption enabled. It's
- *    valid to take pagefaults in a kmap_local region unless the context in
- *    which the local kmap is acquired does not allow it for other reasons.
- *
- *    If a task holding local kmaps is preempted, the maps are removed on
- *    context switch and restored when the task comes back on the CPU. As
- *    the maps are strictly CPU local it is guaranteed that the task stays
- *    on the CPU and the CPU cannot be unplugged until the local kmaps are
- *    released.
- *
- * 3) kmap_atomic.*()/kunmap_atomic.*()
- *
- *    Based on the same mechanism as kmap local. Atomic kmap disables
- *    preemption and pagefaults. Only use if absolutely required, use
- *    the corresponding kmap_local variant if possible.
- *
- * Local and atomic kmaps are faster than kmap/kunmap, but impose
- * restrictions. Only use them when required.
- *
- * For !HIGHMEM enabled systems the kmap flavours are not doing any mapping
- * operation and kmap() won't sleep, but the kmap local and atomic variants
- * still disable migration resp. pagefaults and preemption.
- */
-static inline void *kmap_atomic_prot(struct page *page, pgprot_t prot)
-{
-	if (IS_ENABLED(CONFIG_PREEMPT_RT))
-		migrate_disable();
-	else
-		preempt_disable();
-	pagefault_disable();
-	return __kmap_local_page_prot(page, prot);
-}
-
-static inline void *kmap_atomic(struct page *page)
-{
-	return kmap_atomic_prot(page, kmap_prot);
-}
-
-static inline void *kmap_atomic_pfn(unsigned long pfn)
-{
-	if (IS_ENABLED(CONFIG_PREEMPT_RT))
-		migrate_disable();
-	else
-		preempt_disable();
-	pagefault_disable();
-	return __kmap_local_pfn_prot(pfn, kmap_prot);
-}
-
-static inline void __kunmap_atomic(void *addr)
-{
-	kunmap_local_indexed(addr);
-}
-
-static inline void *kmap_local_page_prot(struct page *page, pgprot_t prot)
-{
-	migrate_disable();
-	return __kmap_local_page_prot(page, prot);
-}
-
-static inline void *kmap_local_page(struct page *page)
-{
-	return kmap_local_page_prot(page, kmap_prot);
-}
-
-static inline void *kmap_local_pfn(unsigned long pfn)
-{
-	migrate_disable();
-	return __kmap_local_pfn_prot(pfn, kmap_prot);
-}
-
-static inline void __kunmap_local(void *vaddr)
-{
-	kunmap_local_indexed(vaddr);
-}
-
-/* declarations for linux/mm/highmem.c */
-unsigned int nr_free_highpages(void);
-extern atomic_long_t _totalhigh_pages;
-static inline unsigned long totalhigh_pages(void)
-{
-	return (unsigned long)atomic_long_read(&_totalhigh_pages);
-}
-
-static inline void totalhigh_pages_inc(void)
-{
-	atomic_long_inc(&_totalhigh_pages);
-}
-
-static inline void totalhigh_pages_dec(void)
-{
-	atomic_long_dec(&_totalhigh_pages);
-}
-
-static inline void totalhigh_pages_add(long count)
-{
-	atomic_long_add(count, &_totalhigh_pages);
-}
-
-static inline void totalhigh_pages_set(long val)
-{
-	atomic_long_set(&_totalhigh_pages, val);
-}
-
-void kmap_flush_unused(void);
-
-struct page *kmap_to_page(void *addr);
-
-#else /* CONFIG_HIGHMEM */
-
-static inline unsigned int nr_free_highpages(void) { return 0; }
-
-static inline struct page *kmap_to_page(void *addr)
-{
-	return virt_to_page(addr);
-}
-
-static inline unsigned long totalhigh_pages(void) { return 0UL; }
-
-static inline void *kmap(struct page *page)
-{
-	might_sleep();
-	return page_address(page);
-}
-
-static inline void kunmap_high(struct page *page)
-{
-}
-
-static inline void kunmap(struct page *page)
-{
-#ifdef ARCH_HAS_FLUSH_ON_KUNMAP
-	kunmap_flush_on_unmap(page_address(page));
-#endif
-}
-
-static inline void *kmap_atomic(struct page *page)
-{
-	if (IS_ENABLED(CONFIG_PREEMPT_RT))
-		migrate_disable();
-	else
-		preempt_disable();
-	pagefault_disable();
-	return page_address(page);
-}
-
-static inline void *kmap_atomic_prot(struct page *page, pgprot_t prot)
-{
-	return kmap_atomic(page);
-}
-
-static inline void *kmap_atomic_pfn(unsigned long pfn)
-{
-	return kmap_atomic(pfn_to_page(pfn));
-}
-
-static inline void __kunmap_local(void *addr)
-{
-#ifdef ARCH_HAS_FLUSH_ON_KUNMAP
-	kunmap_flush_on_unmap(addr);
-#endif
-}
-
-static inline void __kunmap_atomic(void *addr)
-{
-	__kunmap_local(addr);
-}
-
-static inline void *kmap_local_page(struct page *page)
-{
-	migrate_disable();
-	return page_address(page);
-}
-
-static inline void *kmap_local_page_prot(struct page *page, pgprot_t prot)
-{
-	return kmap_local_page(page);
-}
-
-static inline void *kmap_local_pfn(unsigned long pfn)
-{
-	return kmap_local_page(pfn_to_page(pfn));
-}
-
-#define kmap_flush_unused()	do {} while(0)
-
-#endif /* CONFIG_HIGHMEM */
-
-/*
- * Prevent people trying to call kunmap_atomic() as if it were kunmap()
- * kunmap_atomic() should get the return value of kmap_atomic, not the page.
- */
-#define kunmap_atomic(__addr)					\
-do {								\
-	BUILD_BUG_ON(__same_type((__addr), struct page *));	\
-	__kunmap_atomic(__addr);				\
-	pagefault_enable();					\
-	if (IS_ENABLED(CONFIG_PREEMPT_RT))			\
-		migrate_enable();				\
-	else							\
-		preempt_enable();				\
-} while (0)
-
-#define kunmap_local(__addr)					\
-do {								\
-	BUILD_BUG_ON(__same_type((__addr), struct page *));	\
-	__kunmap_local(__addr);					\
-	migrate_enable();					\
-} while (0)
 
 /* when CONFIG_HIGHMEM is not set these will be plain clear/copy_page */
 #ifndef clear_user_highpage

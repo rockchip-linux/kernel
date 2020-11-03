@@ -5,7 +5,6 @@
 #define _ASM_HIGHMEM_H
 
 #include <asm/proc-fns.h>
-#include <asm/kmap_types.h>
 #include <asm/fixmap.h>
 
 /*
@@ -57,7 +56,7 @@ extern void kmap_init(void);
 		__nds32__isb();					\
 	} while (0)
 
-#define arch_kmap_local_pre_unmap(vaddr, pte)			\
+#define arch_kmap_local_pre_unmap(vaddr)			\
 	do {							\
 		__nds32__tlbop_inv(vaddr);			\
 		__nds32__isb();					\
