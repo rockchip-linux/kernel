@@ -200,6 +200,26 @@
 	};
 };
 
+&i2c2 {
+	status = "okay";
+	i2c-scl-rising-time-ns = <275>;
+	i2c-scl-falling-time-ns = <16>;
+	clock-frequency = <400000>;
+
+	ltr507als: ltr507@3a {
+		status = "okay";
+		compatible = "ltr507als";
+		reg = <0x3a>;
+		rockchip,pwr-gpio = <&gpio3 RK_PA0 GPIO_ACTIVE_HIGH>;
+		irq-gpios = <&gpio0 RK_PC0 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&ltr507_irq_gpios>;
+
+		interrupt-parent = <&gpio0>;
+		interrupts = <16 IRQ_TYPE_LEVEL_HIGH>;
+	};
+};
+
 &spi0 {
 	status = "okay";
 	//assigned-clocks = <&cru SCLK_SPI0>;
@@ -277,4 +297,11 @@
 				<0 RK_PA0 1 &pcfg_pull_none>;
 		};
 	};
+	ltr507als_gpio {
+		ltr507_irq_gpios: ltr507-irq-gpios {
+			rockchip,pins =
+				<0 RK_PC0 0 &pcfg_pull_up>;
+		};
+	};
 };
+
