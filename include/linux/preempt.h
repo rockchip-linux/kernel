@@ -302,6 +302,9 @@ do { \
 #define preempt_check_resched_rt()		barrier()
 #define preemptible()				0
 
+#define preempt_lazy_disable()			barrier()
+#define preempt_lazy_enable()			barrier()
+
 #endif /* CONFIG_PREEMPT_COUNT */
 
 #ifdef MODULE
