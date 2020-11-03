@@ -9,4 +9,5 @@ obj-$(CONFIG_DRM_ROCKCHIP_RK628) += rk628_combtxphy.o \
 				    rk628_lvds.o \
 				    rk628_post_process.o \
 				    rk628_rgb.o \
-				    rk628_hdmi.o
+				    rk628_hdmi.o \
+				    rk628_hdmirx.o
