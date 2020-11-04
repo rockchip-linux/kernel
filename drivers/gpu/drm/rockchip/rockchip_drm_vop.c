@@ -289,6 +289,9 @@ struct vop {
 	struct vop_win win[];
 };
 
+static void vop_tv_config_update(struct drm_crtc *crtc,
+				 struct drm_crtc_state *old_crtc_state);
+
 static void vop_lock(struct vop *vop)
 {
 	mutex_lock(&vop->vop_lock);
@@ -2633,7 +2636,7 @@ static void vop_update_csc(struct drm_crtc *crtc)
 	/*
 	 * Background color is 10bit depth if vop version >= 3.5
 	 */
-	if (!is_yuv_output(s->bus_format))
+	if (!is_yuv_output(s->bus_format) || !VOP_CTRL_SUPPORT(vop, overlay_mode))
 		val = 0;
 	else if (VOP_MAJOR(vop->version) == 3 && VOP_MINOR(vop->version) == 8 &&
 		 s->hdr.pre_overlay)
@@ -2873,7 +2876,8 @@ static void vop_crtc_enable(struct drm_crtc *crtc)
 
 	clk_set_rate(vop->dclk, adjusted_mode->crtc_clock * 1000);
 
-
+	if (!VOP_CTRL_SUPPORT(vop, overlay_mode))
+		vop_tv_config_update(crtc, &s->base);
 	vop_cfg_done(vop);
 
 	enable_irq(vop->irq);
