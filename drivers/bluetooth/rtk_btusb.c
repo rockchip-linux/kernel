@@ -46,8 +46,8 @@
 #define SET_WAKEUP_DEVICE 0
 
 
-static spinlock_t queue_lock;
-static spinlock_t running_flag_lock;
+static DEFINE_SPINLOCK(queue_lock);
+static DEFINE_SPINLOCK(running_flag_lock);
 static volatile uint16_t    driver_state = 0;
 
 #if SUSPNED_DW_FW
@@ -4479,8 +4479,6 @@ static int btusb_probe(struct usb_interface *intf, const struct usb_device_id *i
     data->udev = udev;
     data->intf = intf;
 
-    spin_lock_init(&queue_lock);
-    spin_lock_init(&running_flag_lock);
     spin_lock_init(&data->lock);
 
     INIT_WORK(&data->work, btusb_work);
