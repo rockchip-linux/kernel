@@ -39,6 +39,20 @@
 	status = "okay";
 };
 
+&xin_osc0_func {
+	compatible = "fixed-factor-clock";
+	clocks = <&cru SCLK_TESTOUT>;
+	clock-mult = <1>;
+	clock-div = <1>;
+};
+
+&rk628 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&test_clkout>;
+	assigned-clocks = <&cru SCLK_TESTOUT_SRC>;
+	assigned-clock-parents = <&xin24m>;
+};
+
 &rk628_hdmi {
 	status = "okay";
 
@@ -113,4 +127,12 @@
 &route_rgb {
 	connect = <&vopl_out_rgb>;
 	status = "disabled";
+};
+
+&pinctrl {
+	test {
+		test_clkout: test-clkout {
+			rockchip,pins = <0 17 RK_FUNC_1 &pcfg_pull_none>;
+		};
+	};
 };
