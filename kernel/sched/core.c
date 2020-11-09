@@ -2281,8 +2281,10 @@ static int affine_move_task(struct rq *rq, struct task_struct *p, struct rq_flag
 	 *
 	 * Either way, we really should have a @pending here.
 	 */
-	if (WARN_ON_ONCE(!pending))
+	if (WARN_ON_ONCE(!pending)) {
+		task_rq_unlock(rq, p, rf);
 		return -EINVAL;
+	}
 
 	if (flags & SCA_MIGRATE_ENABLE) {
 
