@@ -653,6 +653,9 @@ PHY_QueryRFReg8188E(
 	//u8	RFWaitCounter = 0;
 	//_irqL	irqL;
 
+        if (eRFPath >= MAX_RF_PATH)
+                return 0;
+
 #if (DISABLE_BB_RF == 1)
 	return 0;
 #endif

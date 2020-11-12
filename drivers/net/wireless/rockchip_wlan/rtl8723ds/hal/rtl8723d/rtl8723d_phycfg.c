@@ -331,6 +331,9 @@ PHY_QueryRFReg_8723D(
 {
 	u32 Original_Value, Readback_Value, BitShift;
 
+        if (eRFPath >= MAX_RF_PATH)
+                return 0;
+
 #if (DISABLE_BB_RF == 1)
 	return 0;
 #endif
