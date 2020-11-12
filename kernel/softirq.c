@@ -158,7 +158,7 @@ void __local_bh_disable_ip(unsigned long ip, unsigned int cnt)
 	unsigned long flags;
 	int newcnt;
 
-	WARN_ON_ONCE(in_irq());
+	WARN_ON_ONCE(in_hardirq());
 
 	/* First entry of a task into a BH disabled section? */
 	if (!current->softirq_disable_cnt) {
@@ -314,11 +314,10 @@ static inline bool should_wake_ksoftirqd(void)
 #else /* CONFIG_PREEMPT_RT */
 
 /*
- * This one is for softirq.c-internal use,
- * where hardirqs are disabled legitimately:
+ * This one is for softirq.c-internal use, where hardirqs are disabled
+ * legitimately:
  */
 #ifdef CONFIG_TRACE_IRQFLAGS
-
 void __local_bh_disable_ip(unsigned long ip, unsigned int cnt)
 {
 	unsigned long flags;
@@ -440,6 +439,11 @@ static inline void ksoftirqd_run_end(void)
 	local_irq_enable();
 }
 
+static inline bool should_wake_ksoftirqd(void)
+{
+	return true;
+}
+
 static inline void invoke_softirq(void)
 {
 	if (ksoftirqd_running(local_softirq_pending()))
@@ -466,7 +470,23 @@ static inline void invoke_softirq(void)
 	}
 }
 
-static inline bool should_wake_ksoftirqd(void) { return true; }
+asmlinkage __visible void do_softirq(void)
+{
+	__u32 pending;
+	unsigned long flags;
+
+	if (in_interrupt())
+		return;
+
+	local_irq_save(flags);
+
+	pending = local_softirq_pending();
+
+	if (pending && !ksoftirqd_running(pending))
+		do_softirq_own_stack();
+
+	local_irq_restore(flags);
+}
 
 #endif /* !CONFIG_PREEMPT_RT */
 
@@ -594,26 +614,6 @@ restart:
 	softirq_handle_end();
 	current_restore_flags(old_flags, PF_MEMALLOC);
 }
-
-#ifndef CONFIG_PREEMPT_RT
-asmlinkage __visible void do_softirq(void)
-{
-	__u32 pending;
-	unsigned long flags;
-
-	if (in_interrupt())
-		return;
-
-	local_irq_save(flags);
-
-	pending = local_softirq_pending();
-
-	if (pending && !ksoftirqd_running(pending))
-		do_softirq_own_stack();
-
-	local_irq_restore(flags);
-}
-#endif
 
 /**
  * irq_enter_rcu - Enter an interrupt context with RCU watching
