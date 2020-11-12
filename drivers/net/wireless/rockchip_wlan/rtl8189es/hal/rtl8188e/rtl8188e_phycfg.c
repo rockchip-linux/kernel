@@ -718,6 +718,9 @@ PHY_SetRFReg8188E(
 	u32		Original_Value, BitShift;
 	//_irqL	irqL;
 
+	if (eRFPath >= MAX_RF_PATH)
+		return;
+
 #if (DISABLE_BB_RF == 1)
 	return;
 #endif
