@@ -10,6 +10,7 @@
 #include <linux/device.h>
 #include <linux/delay.h>
 #include <linux/of.h>
+#include <linux/of_gpio.h>
 #include <linux/of_platform.h>
 #include <linux/clk.h>
 #include <linux/mfd/syscon.h>
@@ -39,6 +40,7 @@ struct rk_codec_digital_priv {
 	struct clk *pclk;
 	bool pwmout;
 	bool sync;
+	struct gpio_desc *pa_ctl;
 	struct reset_control *rc;
 	const struct rk_codec_digital_soc_data *data;
 };
@@ -65,6 +67,11 @@ static const char * const dac_hpf_cutoff_text[] = {
 
 static SOC_ENUM_SINGLE_DECL(dac_hpf_cutoff_enum, DACHPF, 4,
 			    dac_hpf_cutoff_text);
+
+static const char * const pa_ctl[] = {"Off", "On"};
+
+static const struct soc_enum pa_enum =
+	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(pa_ctl), pa_ctl);
 
 static int rk_codec_digital_adc_vol_get(struct snd_kcontrol *kcontrol,
 					struct snd_ctl_elem_value *ucontrol)
@@ -207,6 +214,34 @@ static int rk_codec_digital_dac_vol_put(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
+static int rk_codec_digital_dac_pa_get(struct snd_kcontrol *kcontrol,
+			struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_component *component = snd_soc_kcontrol_component(kcontrol);
+	struct rk_codec_digital_priv *rcd = snd_soc_component_get_drvdata(component);
+
+	if (!rcd || !rcd->pa_ctl)
+		return -EINVAL;
+
+	ucontrol->value.enumerated.item[0] = gpiod_get_value(rcd->pa_ctl);
+
+	return 0;
+}
+
+static int rk_codec_digital_dac_pa_put(struct snd_kcontrol *kcontrol,
+			struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_component *component = snd_soc_kcontrol_component(kcontrol);
+	struct rk_codec_digital_priv *rcd = snd_soc_component_get_drvdata(component);
+
+	if (!rcd || !rcd->pa_ctl)
+		return -EINVAL;
+
+	gpiod_set_value(rcd->pa_ctl, ucontrol->value.enumerated.item[0]);
+
+	return 0;
+}
+
 static const struct snd_kcontrol_new rk_codec_digital_snd_controls[] = {
 	SOC_SINGLE_EXT_TLV("ADCL0 Digital Volume",
 			   ADCVOLL0, 0, 0X1fe, 0,
@@ -244,6 +279,9 @@ static const struct snd_kcontrol_new rk_codec_digital_snd_controls[] = {
 
 	SOC_ENUM("DAC HPF Cutoff", dac_hpf_cutoff_enum),
 	SOC_SINGLE("DAC HPF Switch", DACHPF, 0, 1, 0),
+	SOC_ENUM_EXT("Power Amplifier", pa_enum,
+		     rk_codec_digital_dac_pa_get,
+		     rk_codec_digital_dac_pa_put),
 };
 
 static void rk_codec_digital_reset(struct rk_codec_digital_priv *rcd)
@@ -981,6 +1019,17 @@ static int rk_codec_digital_platform_probe(struct platform_device *pdev)
 		regmap_update_bits(rcd->regmap, DACPWM_CTRL,
 				   ACDCDIG_DACPWM_CTRL_PWM_MODE_MASK,
 				   ACDCDIG_DACPWM_CTRL_PWM_MODE_0);
+
+	rcd->pa_ctl = devm_gpiod_get_optional(&pdev->dev, "pa-ctl",
+					       GPIOD_OUT_LOW);
+
+	if (!rcd->pa_ctl) {
+		dev_info(&pdev->dev, "no need pa-ctl gpio\n");
+	} else if (IS_ERR(rcd->pa_ctl)) {
+		ret = PTR_ERR(rcd->pa_ctl);
+		dev_err(&pdev->dev, "fail to request gpio pa-ctl\n");
+		goto err_suspend;
+	}
 
 	ret = devm_snd_soc_register_component(&pdev->dev, &soc_codec_dev_rcd,
 					      rcd_dai, ARRAY_SIZE(rcd_dai));
