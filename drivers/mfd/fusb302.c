@@ -1692,8 +1692,8 @@ static void fusb_state_attach_wait_source(struct fusb30x_chip *chip, u32 evt)
 					set_state(chip, attached_source);
 			} else {
 				set_state_unattached(chip);
-				return;
 			}
+			return;
 		}
 
 		chip->timer_mux = 2;
