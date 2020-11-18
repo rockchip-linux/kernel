@@ -727,6 +727,10 @@ static int dwc3_core_init(struct dwc3 *dwc)
 	if (dwc->tx_ipgap_linecheck_dis_quirk)
 		reg |= DWC3_GUCTL1_TX_IPGAP_LINECHECK_DIS;
 
+	if (dwc->maximum_speed == USB_SPEED_HIGH ||
+	    dwc->maximum_speed == USB_SPEED_FULL)
+		reg |= DWC3_GUCTL1_DEV_FORCE_20_CLK_FOR_30_CLK;
+
 	dwc3_writel(dwc->regs, DWC3_GUCTL1, reg);
 
 	if (dwc->grxthrcfg[0] > 0) {
