@@ -1059,9 +1059,6 @@ static int gsl_ts_suspend(struct device *dev)
 	input_mt_sync(ts->input);
 	#endif
 	input_sync(ts->input);
-	msleep(10);
-	report_data(ts, 1, 1, 10, 1);
-	input_sync(ts->input);
 #endif
 	ts->flag_activated = false;
 
