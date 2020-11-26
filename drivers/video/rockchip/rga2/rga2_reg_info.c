@@ -483,12 +483,24 @@ static void RGA2_set_reg_dst_info(u8 *base, struct rga2_req *msg)
 			y_ld_addr = yrgb_addr + (msg->dst.act_h - 1) * (d_stride);
 			y_rt_addr = yrgb_addr + (msg->dst.act_w * 2 - 1);
 			y_rd_addr = y_ld_addr + (msg->dst.act_w * 2 - 1);
+			u_ld_addr = 0;
+			u_rt_addr = 0;
+			u_rd_addr = 0;
+			v_ld_addr = 0;
+			v_rt_addr = 0;
+			v_rd_addr = 0;
 		} else {
 			y_ld_addr = (RK_U32)msg->dst.yrgb_addr +
 			((msg->dst.y_offset + (msg->dst.act_h -1)) * d_stride) +
 			msg->dst.x_offset;
 			y_rt_addr = yrgb_addr + (msg->dst.act_w * 2 - 1);
 			y_rd_addr = y_ld_addr + (msg->dst.act_w - 1);
+			u_ld_addr = 0;
+			u_rt_addr = 0;
+			u_rd_addr = 0;
+			v_ld_addr = 0;
+			v_rt_addr = 0;
+			v_rd_addr = 0;
 		}
 	}
     if(rot_90_flag == 0)
