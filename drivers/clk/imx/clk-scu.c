@@ -9,7 +9,6 @@
 #include <linux/clk-provider.h>
 #include <linux/err.h>
 #include <linux/slab.h>
-#include <linux/module.h>
 
 #include "clk-scu.h"
 
@@ -133,7 +132,6 @@ int imx_clk_scu_init(void)
 {
 	return imx_scu_get_handle(&ccm_ipc_handle);
 }
-EXPORT_SYMBOL_GPL(imx_clk_scu_init);
 
 /*
  * clk_scu_recalc_rate - Get clock rate for a SCU clock
@@ -389,5 +387,3 @@ struct clk_hw *__imx_clk_scu(const char *name, const char * const *parents,
 
 	return hw;
 }
-EXPORT_SYMBOL_GPL(__imx_clk_scu);
-MODULE_LICENSE("GPL");

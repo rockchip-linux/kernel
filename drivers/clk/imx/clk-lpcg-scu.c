@@ -115,4 +115,3 @@ struct clk_hw *imx_clk_lpcg_scu(const char *name, const char *parent_name,
 
 	return hw;
 }
-EXPORT_SYMBOL_GPL(imx_clk_lpcg_scu);
