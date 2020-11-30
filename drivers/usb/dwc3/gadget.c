@@ -192,9 +192,8 @@ static int dwc3_gadget_resize_tx_fifos(struct dwc3 *dwc)
 		int	tmp;
 
 		if (!(dep->flags & DWC3_EP_ENABLED))
-			continue;
-
-		if (usb_endpoint_xfer_bulk(dep->endpoint.desc))
+			mult = 2;
+		else if (usb_endpoint_xfer_bulk(dep->endpoint.desc))
 			mult = 3;
 		else if (usb_endpoint_xfer_isoc(dep->endpoint.desc))
 			mult = 6;
