@@ -394,7 +394,9 @@ struct zswap_comp {
 	u8 *dstmem;
 };
 
-static DEFINE_PER_CPU(struct zswap_comp, zswap_comp);
+static DEFINE_PER_CPU(struct zswap_comp, zswap_comp) = {
+	.lock = INIT_LOCAL_LOCK(lock),
+};
 
 static int zswap_dstmem_prepare(unsigned int cpu)
 {
