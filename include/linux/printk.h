@@ -45,6 +45,7 @@ static inline const char *printk_skip_headers(const char *buffer)
 }
 
 #define CONSOLE_EXT_LOG_MAX	8192
+#define CONSOLE_LOG_MAX		1024
 
 /* printk's without a loglevel use this.. */
 #define MESSAGE_LOGLEVEL_DEFAULT CONFIG_MESSAGE_LOGLEVEL_DEFAULT
@@ -474,6 +475,8 @@ extern int kptr_restrict;
 #define pr_debug_once(fmt, ...)					\
 	no_printk(KERN_DEBUG pr_fmt(fmt), ##__VA_ARGS__)
 #endif
+
+bool pr_flush(bool may_sleep, int timeout_ms, bool reset_on_progress);
 
 /*
  * ratelimited messages with local ratelimit_state,
