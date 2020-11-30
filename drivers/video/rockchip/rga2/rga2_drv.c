@@ -54,7 +54,7 @@
 #include "rga2_mmu_info.h"
 #include "RGA2_API.h"
 
-#if defined(CONFIG_ION_ROCKCHIP)
+#if IS_ENABLED(CONFIG_ION_ROCKCHIP) && (LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0))
 #include <linux/rockchip_ion.h>
 #endif
 
