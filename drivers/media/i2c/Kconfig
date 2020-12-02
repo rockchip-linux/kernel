@@ -1829,6 +1829,16 @@ config VIDEO_I2C
 	  To compile this driver as a module, choose M here: the
 	  module will be called video-i2c
 
+config VIDEO_NVP6158
+	tristate "NEXTCHIP nvp6158 driver support"
+	depends on VIDEO_V4L2 && I2C
+	---help---
+	  Support for the Nextchip NVP6158 multi channels digital decode to
+	  BT656/BT1120 bridge.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called nvp6158_drv.
+
 config VIDEO_NVP6188
 	tristate "NEXTCHIP nvp6188 driver support"
 	depends on I2C && VIDEO_V4L2 && VIDEO_V4L2_SUBDEV_API
