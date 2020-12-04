@@ -164,18 +164,18 @@ void __local_bh_disable_ip(unsigned long ip, unsigned int cnt)
 	if (!current->softirq_disable_cnt) {
 		if (preemptible()) {
 			local_lock(&softirq_ctrl.lock);
+			/* Required to meet the RCU bottomhalf requirements. */
 			rcu_read_lock();
 		} else {
 			DEBUG_LOCKS_WARN_ON(this_cpu_read(softirq_ctrl.cnt));
 		}
 	}
 
-	preempt_disable();
 	/*
 	 * Track the per CPU softirq disabled state. On RT this is per CPU
 	 * state to allow preemption of bottom half disabled sections.
 	 */
-	newcnt = this_cpu_add_return(softirq_ctrl.cnt, cnt);
+	newcnt = __this_cpu_add_return(softirq_ctrl.cnt, cnt);
 	/*
 	 * Reflect the result in the task state to prevent recursion on the
 	 * local lock and to make softirq_count() & al work.
@@ -187,7 +187,6 @@ void __local_bh_disable_ip(unsigned long ip, unsigned int cnt)
 		lockdep_softirqs_off(ip);
 		raw_local_irq_restore(flags);
 	}
-	preempt_enable();
 }
 EXPORT_SYMBOL(__local_bh_disable_ip);
 
@@ -199,16 +198,14 @@ static void __local_bh_enable(unsigned int cnt, bool unlock)
 	DEBUG_LOCKS_WARN_ON(current->softirq_disable_cnt !=
 			    this_cpu_read(softirq_ctrl.cnt));
 
-	preempt_disable();
 	if (IS_ENABLED(CONFIG_TRACE_IRQFLAGS) && softirq_count() == cnt) {
 		raw_local_irq_save(flags);
 		lockdep_softirqs_on(_RET_IP_);
 		raw_local_irq_restore(flags);
 	}
 
-	newcnt = this_cpu_sub_return(softirq_ctrl.cnt, cnt);
+	newcnt = __this_cpu_sub_return(softirq_ctrl.cnt, cnt);
 	current->softirq_disable_cnt = newcnt;
-	preempt_enable();
 
 	if (!newcnt && unlock) {
 		rcu_read_unlock();
@@ -264,22 +261,6 @@ out:
 EXPORT_SYMBOL(__local_bh_enable_ip);
 
 /*
- * Invoked from irq_enter_rcu() to prevent that tick_irq_enter()
- * pointlessly wakes the softirq daemon. That's handled in __irq_exit_rcu().
- * None of the above logic in the regular bh_disable/enable functions is
- * required here.
- */
-static inline void local_bh_disable_irq_enter(void)
-{
-	this_cpu_add(softirq_ctrl.cnt, SOFTIRQ_DISABLE_OFFSET);
-}
-
-static inline void local_bh_enable_irq_enter(void)
-{
-	this_cpu_sub(softirq_ctrl.cnt, SOFTIRQ_DISABLE_OFFSET);
-}
-
-/*
  * Invoked from ksoftirqd_run() outside of the interrupt disabled section
  * to acquire the per CPU local lock for reentrancy protection.
  */
@@ -300,15 +281,15 @@ static inline void ksoftirqd_run_end(void)
 static inline void softirq_handle_begin(void) { }
 static inline void softirq_handle_end(void) { }
 
-static inline void invoke_softirq(void)
-{
-	if (!this_cpu_read(softirq_ctrl.cnt))
-		wakeup_softirqd();
-}
-
 static inline bool should_wake_ksoftirqd(void)
 {
 	return !this_cpu_read(softirq_ctrl.cnt);
+}
+
+static inline void invoke_softirq(void)
+{
+	if (should_wake_ksoftirqd())
+		wakeup_softirqd();
 }
 
 #else /* CONFIG_PREEMPT_RT */
@@ -407,16 +388,6 @@ void __local_bh_enable_ip(unsigned long ip, unsigned int cnt)
 	preempt_check_resched();
 }
 EXPORT_SYMBOL(__local_bh_enable_ip);
-
-static inline void local_bh_disable_irq_enter(void)
-{
-	local_bh_disable();
-}
-
-static inline void local_bh_enable_irq_enter(void)
-{
-	_local_bh_enable();
-}
 
 static inline void softirq_handle_begin(void)
 {
@@ -557,10 +528,10 @@ asmlinkage __visible void __softirq_entry __do_softirq(void)
 	current->flags &= ~PF_MEMALLOC;
 
 	pending = local_softirq_pending();
-	account_irq_enter_time(current);
 
 	softirq_handle_begin();
 	in_hardirq = lockdep_softirq_start();
+	account_softirq_enter(current);
 
 restart:
 	/* Reset the pending bitmask before enabling irqs */
@@ -609,8 +580,8 @@ restart:
 		wakeup_softirqd();
 	}
 
+	account_softirq_exit(current);
 	lockdep_softirq_end(in_hardirq);
-	account_irq_exit_time(current);
 	softirq_handle_end();
 	current_restore_flags(old_flags, PF_MEMALLOC);
 }
@@ -620,16 +591,12 @@ restart:
  */
 void irq_enter_rcu(void)
 {
-	if (is_idle_task(current) && !in_interrupt()) {
-		/*
-		 * Prevent raise_softirq from needlessly waking up ksoftirqd
-		 * here, as softirq will be serviced on return from interrupt.
-		 */
-		local_bh_disable_irq_enter();
+	__irq_enter_raw();
+
+	if (is_idle_task(current) && (irq_count() == HARDIRQ_OFFSET))
 		tick_irq_enter();
-		local_bh_enable_irq_enter();
-	}
-	__irq_enter();
+
+	account_hardirq_enter(current);
 }
 
 /**
@@ -661,7 +628,7 @@ static inline void __irq_exit_rcu(void)
 #else
 	lockdep_assert_irqs_disabled();
 #endif
-	account_irq_exit_time(current);
+	account_hardirq_exit(current);
 	preempt_count_sub(HARDIRQ_OFFSET);
 	if (!in_interrupt() && local_softirq_pending())
 		invoke_softirq();
