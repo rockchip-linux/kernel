@@ -487,7 +487,11 @@ static int mt7621_spi_probe(struct platform_device *pdev)
 
 	mt7621_spi_reset(rs, 0);
 
-	return spi_register_master(master);
+	ret = spi_register_master(master);
+	if (ret)
+		clk_disable_unprepare(clk);
+
+	return ret;
 }
 
 static int mt7621_spi_remove(struct platform_device *pdev)
