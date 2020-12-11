@@ -2159,10 +2159,8 @@
 		compatible = "rockchip,rk3399-edp";
 		reg = <0x0 0xff970000 0x0 0x8000>;
 		interrupts = <GIC_SPI 10 IRQ_TYPE_LEVEL_HIGH 0>;
-		clocks = <&cru PCLK_EDP>, <&cru PCLK_EDP_CTRL>, <&cru PCLK_VIO_GRF>;
-		clock-names = "dp", "pclk", "grf";
-		pinctrl-names = "default";
-		pinctrl-0 = <&edp_hpd>;
+		clocks = <&cru PCLK_EDP_CTRL>;
+		clock-names = "dp";
 		power-domains = <&power RK3399_PD_EDP>;
 		resets = <&cru SRST_P_EDP_CTRL>;
 		reset-names = "dp";
@@ -2172,7 +2170,8 @@
 		ports {
 			#address-cells = <1>;
 			#size-cells = <0>;
-			edp_in: port@0 {
+
+			port@0 {
 				reg = <0>;
 				#address-cells = <1>;
 				#size-cells = <0>;
