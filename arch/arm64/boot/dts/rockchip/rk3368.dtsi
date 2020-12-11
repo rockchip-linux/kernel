@@ -1157,16 +1157,6 @@
 		#address-cells = <1>;
 		#size-cells = <1>;
 
-		edp_phy: edp-phy {
-			compatible = "rockchip,rk3368-dp-phy";
-			clocks = <&cru SCLK_EDP_24M>;
-			clock-names = "24m";
-			resets = <&cru SRST_EDP_24M>;
-			reset-names = "edp_24m";
-			#phy-cells = <0>;
-			status = "disabled";
-		};
-
 		io_domains: io-domains {
 			compatible = "rockchip,rk3368-io-voltage-domain";
 			status = "disabled";
@@ -1640,23 +1630,21 @@
 		compatible = "rockchip,rk3368-edp";
 		reg = <0x0 0xff970000 0x0 0x8000>;
 		interrupts = <GIC_SPI 105 IRQ_TYPE_LEVEL_HIGH>;
-		clocks = <&cru SCLK_EDP>, <&cru PCLK_EDP_CTRL>;
+		clocks = <&cru SCLK_EDP_24M>, <&cru PCLK_EDP_CTRL>;
 		clock-names = "dp", "pclk";
-		resets = <&cru SRST_EDP>;
-		reset-names = "dp";
+		assigned-clocks = <&cru SCLK_EDP_24M>;
+		assigned-clock-parents = <&xin24m>;
+		resets = <&cru SRST_EDP_24M>, <&cru SRST_EDP>;
+		reset-names = "dp", "apb";
 		power-domains = <&power RK3368_PD_VIO>;
 		rockchip,grf = <&grf>;
-		phys = <&edp_phy>;
-		phy-names = "dp";
-		pinctrl-names = "default";
-		pinctrl-0 = <&edp_hpd>;
 		status = "disabled";
 
 		ports {
 			#address-cells = <1>;
 			#size-cells = <0>;
 
-			edp_in: port@0 {
+			port@0 {
 				reg = <0>;
 
 				edp_in_vop: endpoint {
