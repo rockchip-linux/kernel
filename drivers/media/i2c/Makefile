@@ -103,6 +103,7 @@ obj-$(CONFIG_VIDEO_IR_I2C)  += ir-kbd-i2c.o
 obj-$(CONFIG_VIDEO_ML86V7667)	+= ml86v7667.o
 obj-$(CONFIG_VIDEO_OV2659)	+= ov2659.o
 obj-$(CONFIG_VIDEO_TC35874X)	+= tc35874x.o
+obj-$(CONFIG_VIDEO_RK628_CSI)	+= rk628_csi.o
 obj-$(CONFIG_VIDEO_OV5647)	+= ov5647.o
 obj-$(CONFIG_VIDEO_JX_H65)	+= jx_h65.o
 obj-$(CONFIG_VIDEO_IMX214)	+= imx214.o
