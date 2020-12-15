@@ -129,10 +129,10 @@ static
 struct drm_connector *find_connector_by_bridge(struct drm_device *drm_dev,
 					       struct device_node *node)
 {
-	struct device_node *np_encoder, *np_connector = NULL;
+	struct device_node *np_encoder;
+	struct drm_bridge *bridge;
 	struct drm_encoder *encoder;
 	struct drm_connector *connector = NULL;
-	struct device_node *port, *endpoint;
 	bool encoder_bridge = false;
 	bool found_connector = false;
 
@@ -149,33 +149,17 @@ struct drm_connector *find_connector_by_bridge(struct drm_device *drm_dev,
 		dev_err(drm_dev->dev, "can't found encoder bridge!\n");
 		goto err_put_encoder;
 	}
-	port = of_graph_get_port_by_id(np_encoder, 1);
-	if (!port) {
-		dev_err(drm_dev->dev, "can't found port point!\n");
-		goto err_put_encoder;
-	}
-	for_each_available_child_of_node(port, endpoint) {
-		np_connector = of_graph_get_remote_port_parent(endpoint);
-		if (!np_connector) {
-			dev_err(drm_dev->dev,
-				"can't found connector node, please init!\n");
-			goto err_put_port;
-		}
-		if (!of_device_is_available(np_connector)) {
-			of_node_put(np_connector);
-			np_connector = NULL;
-			continue;
-		} else {
+
+	bridge = encoder->bridge;
+	while (bridge) {
+		if (!bridge->next)
 			break;
-		}
-	}
-	if (!np_connector) {
-		dev_err(drm_dev->dev, "can't found available connector node!\n");
-		goto err_put_port;
+
+		bridge = bridge->next;
 	}
 
 	drm_for_each_connector(connector, drm_dev) {
-		if (connector->port == np_connector) {
+		if (connector->port == bridge->of_node) {
 			found_connector = true;
 			break;
 		}
@@ -184,9 +168,6 @@ struct drm_connector *find_connector_by_bridge(struct drm_device *drm_dev,
 	if (!found_connector)
 		connector = NULL;
 
-	of_node_put(np_connector);
-err_put_port:
-	of_node_put(port);
 err_put_encoder:
 	of_node_put(np_encoder);
 
