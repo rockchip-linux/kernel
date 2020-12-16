@@ -231,6 +231,8 @@ static int rk628_lvds_bridge_attach(struct drm_bridge *bridge)
 	struct drm_device *drm = bridge->dev;
 	int ret;
 
+	connector->port = lvds->dev->of_node;
+
 	ret = drm_connector_init(drm, connector, &rk628_lvds_connector_funcs,
 				 DRM_MODE_CONNECTOR_LVDS);
 	if (ret) {
