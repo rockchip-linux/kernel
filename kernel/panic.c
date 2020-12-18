@@ -177,11 +177,27 @@ static void panic_print_sys_info(void)
 void panic(const char *fmt, ...)
 {
 	static char buf[1024];
+	va_list args2;
 	va_list args;
 	long i, i_next = 0, len;
 	int state = 0;
 	int old_cpu, this_cpu;
 	bool _crash_kexec_post_notifiers = crash_kexec_post_notifiers;
+
+	console_verbose();
+	pr_emerg("Kernel panic - not syncing:\n");
+	va_start(args2, fmt);
+	va_copy(args, args2);
+	vprintk(fmt, args2);
+	va_end(args2);
+#ifdef CONFIG_DEBUG_BUGVERBOSE
+	/*
+	 * Avoid nested stack-dumping if a panic occurs during oops processing
+	 */
+	if (!test_taint(TAINT_DIE) && oops_in_progress <= 1)
+		dump_stack();
+#endif
+	pr_flush(1000, true);
 
 	/*
 	 * Disable local interrupts. This will prevent panic_smp_self_stop
@@ -213,23 +229,12 @@ void panic(const char *fmt, ...)
 	if (old_cpu != PANIC_CPU_INVALID && old_cpu != this_cpu)
 		panic_smp_self_stop();
 
-	console_verbose();
 	bust_spinlocks(1);
-	va_start(args, fmt);
 	len = vscnprintf(buf, sizeof(buf), fmt, args);
 	va_end(args);
 
 	if (len && buf[len - 1] == '\n')
 		buf[len - 1] = '\0';
-
-	pr_emerg("Kernel panic - not syncing: %s\n", buf);
-#ifdef CONFIG_DEBUG_BUGVERBOSE
-	/*
-	 * Avoid nested stack-dumping if a panic occurs during oops processing
-	 */
-	if (!test_taint(TAINT_DIE) && oops_in_progress <= 1)
-		dump_stack();
-#endif
 
 	/*
 	 * If kgdb is enabled, give it a chance to run before we stop all
@@ -554,6 +559,7 @@ static void print_oops_end_marker(void)
 {
 	init_oops_id();
 	pr_warn("---[ end trace %016llx ]---\n", (unsigned long long)oops_id);
+	pr_flush(1000, true);
 }
 
 /*

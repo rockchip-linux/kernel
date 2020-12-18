@@ -205,6 +205,7 @@ enum bug_trap_type report_bug(unsigned long bugaddr, struct pt_regs *regs)
 	else
 		pr_crit("Kernel BUG at %pB [verbose debug info unavailable]\n",
 			(void *)bugaddr);
+	pr_flush(1000, true);
 
 	return BUG_TRAP_TYPE_BUG;
 }

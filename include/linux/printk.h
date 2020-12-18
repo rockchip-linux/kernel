@@ -476,7 +476,7 @@ extern int kptr_restrict;
 	no_printk(KERN_DEBUG pr_fmt(fmt), ##__VA_ARGS__)
 #endif
 
-bool pr_flush(bool may_sleep, int timeout_ms, bool reset_on_progress);
+bool pr_flush(int timeout_ms, bool reset_on_progress);
 
 /*
  * ratelimited messages with local ratelimit_state,
