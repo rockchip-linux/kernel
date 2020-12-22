@@ -140,7 +140,7 @@ static int rk817_shutdown_prepare(struct rk808 *rk808)
 
 	/* close rtc int when power off */
 	regmap_update_bits(rk808->regmap,
-			   RK817_INT_STS_MSK_REG1,
+			   RK817_INT_STS_MSK_REG0,
 			   (0x3 << 5), (0x3 << 5));
 	regmap_update_bits(rk808->regmap,
 			   RK817_RTC_INT_REG,
