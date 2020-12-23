@@ -1,0 +1,57 @@
+* Nextchip NVP6158 AHD to BT656/BT1120 decoder
+
+Required Properties:
+- compatible: should be "nvp6158-v4l2"
+- clocks: reference to the Single 27M Oscillator.
+- clock-names: should be "xvclk".
+- pwr-gpios: High active nvp6158 power gpio
+- pwr2-gpios: High active ahd camera power gpio
+- pwdn-gpios: High active nvp6158 pwdn gpio
+- pwdn2-gpios: High active ahd camera pwdn gpio
+- rst-gpios: High active nvp6158 reset gpio
+- rst2-gpios: High active ahd camera reset gpio
+Optional Properties:
+- rockchip,dvp_mode: BT656 or BT1120 or BT656_TEST
+- rockchip,channel_nums: channel nums, 1/2/4
+- rockchip,dual_edge: dual edge, 0/1
+
+NVP6158 device address 0x30(7bit);
+The device node must contain one 'port' child node for its digital output
+video port, in accordance with the video interface bindings defined in
+Documentation/devicetree/bindings/media/video-interfaces.txt.
+
+Example:
+
+&i2c1 {
+	status = "okay";
+
+	nvp6158: nvp6158@30 {
+		compatible = "nvp6158-v4l2";
+		status = "okay";
+		reg = <0x30>;
+		clocks = <&cru CLK_CIF_OUT>;
+		clock-names = "xvclk";
+		power-domains = <&power RK3568_PD_VI>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&cif_clk &cif_dvp_clk &cif_dvp_bus8 &cif_dvp_bus16>;
+		pwr-gpios = <&gpio4 RK_PB2 GPIO_ACTIVE_HIGH>;
+		pwr2-gpios = <&gpio4 RK_PB1 GPIO_ACTIVE_HIGH>;
+		rst-gpios = <&gpio4 RK_PB5 GPIO_ACTIVE_HIGH>;
+		/*rst2-gpios = <&gpio2 RK_PC5 GPIO_ACTIVE_HIGH>;*/
+		/*pwdn-gpios = <&gpio4 RK_PA6 GPIO_ACTIVE_HIGH>;*/
+		/*pwdn2-gpios = <&gpio4 RK_PA6 GPIO_ACTIVE_HIGH>;*/
+		rockchip,camera-module-index = <0>;
+		rockchip,camera-module-facing = "back";
+		rockchip,camera-module-name = "default";
+		rockchip,camera-module-lens-name = "default";
+		rockchip,dvp_mode = "BT1120"; //BT656 or BT1120 or BT656_TEST
+		rockchip,channel_nums = <4>; //channel nums, 1/2/4
+		rockchip,dual_edge = <1>; // pclk dual edge, 0/1
+		rockchip,default_rect= <1920 1080>; // default resolution
+		port {
+			nvp6158_out: endpoint {
+				remote-endpoint = <&dvp_in_bcam1>;
+			};
+		};
+	};
+};
