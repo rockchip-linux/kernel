@@ -4,7 +4,6 @@
  */
 
 /dts-v1/;
-#include <dt-bindings/clock/rk618-cru.h>
 #include "px30-ad-r35-mb.dtsi"
 
 / {
@@ -53,68 +52,26 @@
 	auto-freq-en = <0>;
 };
 
-&i2c0 {
+&rk618_lvds {
 	status = "okay";
 
-	rk618@50 {
-		compatible = "rockchip,rk618";
-		reg = <0x50>;
-		interrupt-parent = <&gpio2>;
-		interrupts = <12 IRQ_TYPE_LEVEL_HIGH>;
-		pinctrl-names = "default";
-		pinctrl-0 = <&i2s1_2ch_mclk>;
-		clocks = <&cru SCLK_I2S1_OUT>;
-		clock-names = "clkin";
-		assigned-clocks = <&cru SCLK_I2S1_OUT>;
-		assigned-clock-rates = <12000000>;
-		reset-gpios = <&gpio0 RK_PA0 GPIO_ACTIVE_LOW>;
-		status = "okay";
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
 
-		clock: cru {
-			compatible = "rockchip,rk618-cru";
-			clocks = <&cru SCLK_I2S1_OUT>, <&cru DCLK_VOPL>;
-			clock-names = "clkin", "lcdc0_dclkp";
-			assigned-clocks = <&clock SCALER_PLLIN_CLK>,
-					  <&clock VIF_PLLIN_CLK>,
-					  <&clock SCALER_CLK>,
-					  <&clock VIF0_PRE_CLK>,
-					  <&clock CODEC_CLK>,
-					  <&clock DITHER_CLK>;
-			assigned-clock-parents = <&cru SCLK_I2S1_OUT>,
-						 <&clock LCDC0_CLK>,
-						 <&clock SCALER_PLL_CLK>,
-						 <&clock VIF_PLL_CLK>,
-						 <&cru SCLK_I2S1_OUT>,
-						 <&clock VIF0_CLK>;
-			#clock-cells = <1>;
-			status = "okay";
+		port@0 {
+			reg = <0>;
+
+			lvds_in_rgb: endpoint {
+				remote-endpoint = <&rgb_out_lvds>;
+			};
 		};
 
-		lvds {
-			compatible = "rockchip,rk618-lvds";
-			clocks = <&clock LVDS_CLK>;
-			clock-names = "lvds";
-			status = "okay";
+		port@1 {
+			reg = <1>;
 
-			ports {
-				#address-cells = <1>;
-				#size-cells = <0>;
-
-				port@0 {
-					reg = <0>;
-
-					lvds_in_rgb: endpoint {
-						remote-endpoint = <&rgb_out_lvds>;
-					};
-				};
-
-				port@1 {
-					reg = <1>;
-
-					lvds_out_panel: endpoint {
-						remote-endpoint = <&panel_in_lvds>;
-					};
-				};
+			lvds_out_panel: endpoint {
+				remote-endpoint = <&panel_in_lvds>;
 			};
 		};
 	};
