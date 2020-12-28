@@ -293,8 +293,6 @@
 		clock-frequency = <32768>;
 		clock-output-names = "xin32k";
 		#clock-cells = <0>;
-		pinctrl-names = "default";
-		pinctrl-0 = <&clkin_32k>;
 	};
 
 	pcie0: pcie@fc400000 {
@@ -645,15 +643,12 @@
 		#reset-cells = <1>;
 
 		assigned-clocks =
-			<&cru SCLK_32K_IOE>,
 			<&cru PLL_GPLL>, <&cru PLL_CPLL>,
 			<&cru PLL_PPLL>, <&cru ARMCLK>,
 			<&cru MSCLK_PERI>, <&cru LSCLK_PERI>,
 			<&cru HSCLK_BUS_PRE>, <&cru MSCLK_BUS_PRE>,
 			<&cru LSCLK_BUS_PRE>;
-		assigned-clock-parents = <&xin32k>;
 		assigned-clock-rates =
-			<32768>,
 			<1188000000>, <1000000000>,
 			<100000000>, <816000000>,
 			<200000000>, <100000000>,

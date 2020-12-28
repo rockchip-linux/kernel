@@ -208,8 +208,17 @@
 	wireless_wlan: wireless-wlan {
 		compatible = "wlan-platdata";
 		rockchip,grf = <&grf>;
+		/*
+		 * Note:
+		 * Set clk_32k_ioe iomux, clock rate and parent, finally
+		 * intent to set pull normal for clk32k_io/gpio0_c2(aw13)
+		 * A normal state is better for 32k clock signal quality.
+		 */
 		pinctrl-names = "default";
-		pinctrl-0 = <&wifi_wake_host>;
+		pinctrl-0 = <&wifi_wake_host &clkin_32k>;
+		assigned-clocks = <&cru SCLK_32K_IOE>;
+		assigned-clock-rates = <32768>;
+		assigned-clock-parents = <&xin32k>;
 		wifi_chip_type = "ap6212";
 		WIFI,host_wake_irq = <&gpio4 RK_PC1 GPIO_ACTIVE_HIGH>;
 		status = "okay";
