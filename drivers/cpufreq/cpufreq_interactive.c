@@ -60,6 +60,7 @@ struct cpufreq_interactive_cpuinfo {
 	int governor_enabled;
 	int cpu;
 	unsigned int task_boost_freq;
+	unsigned long task_boost_util;
 	u64 task_boos_endtime;
 	struct irq_work irq_work;
 };
@@ -1341,32 +1342,6 @@ static void rockchip_cpufreq_policy_init(struct cpufreq_policy *policy)
 		*tunables = backup_tunables[index];
 }
 
-static void task_boost_irq_work(struct irq_work *irq_work)
-{
-	struct cpufreq_interactive_cpuinfo *pcpu;
-	unsigned long flags[2];
-
-	pcpu = container_of(irq_work, struct cpufreq_interactive_cpuinfo, irq_work);
-	if (!down_read_trylock(&pcpu->enable_sem))
-		return;
-
-	if (!pcpu->governor_enabled || !pcpu->policy)
-		goto out;
-
-	spin_lock_irqsave(&speedchange_cpumask_lock, flags[0]);
-	spin_lock_irqsave(&pcpu->target_freq_lock, flags[1]);
-	if (pcpu->target_freq < pcpu->task_boost_freq) {
-		pcpu->target_freq = pcpu->task_boost_freq;
-		cpumask_set_cpu(pcpu->cpu, &speedchange_cpumask);
-		wake_up_process(speedchange_task);
-	}
-	spin_unlock_irqrestore(&pcpu->target_freq_lock, flags[1]);
-	spin_unlock_irqrestore(&speedchange_cpumask_lock, flags[0]);
-
-out:
-	up_read(&pcpu->enable_sem);
-}
-
 static unsigned int get_freq_for_util(struct cpufreq_policy *policy, unsigned long util)
 {
 	struct cpufreq_frequency_table *pos;
@@ -1385,19 +1360,20 @@ static unsigned int get_freq_for_util(struct cpufreq_policy *policy, unsigned lo
 	return freq;
 }
 
-void cpufreq_task_boost(int cpu, unsigned long util)
+static void task_boost_irq_work(struct irq_work *irq_work)
 {
 	struct cpufreq_interactive_tunables *tunables;
-	struct cpufreq_interactive_cpuinfo *pcpu = &per_cpu(cpuinfo, cpu);
-	struct cpufreq_policy *policy = pcpu->policy;
-	unsigned long cap, min_util;
+	struct cpufreq_interactive_cpuinfo *pcpu;
+	struct cpufreq_policy *policy;
+	unsigned long flags[2];
+	u64 now, prev_boos_endtime;
+	unsigned int boost_freq;
 
-	if (!speedchange_task)
-		return;
-
+	pcpu = container_of(irq_work, struct cpufreq_interactive_cpuinfo, irq_work);
 	if (!down_read_trylock(&pcpu->enable_sem))
 		return;
 
+	policy = pcpu->policy;
 	if (!pcpu->governor_enabled || !policy)
 		goto out;
 
@@ -1405,30 +1381,48 @@ void cpufreq_task_boost(int cpu, unsigned long util)
 		goto out;
 
 	if (have_governor_per_policy())
-		tunables = pcpu->policy->governor_data;
+		tunables = policy->governor_data;
 	else
 		tunables = common_tunables;
 	if (!tunables)
 		goto out;
 
-	min_util = util + (util >> 2);
-	cap = capacity_curr_of(cpu);
-	if (min_util > cap) {
-		u64 now = ktime_to_us(ktime_get());
-		u64 prev_boos_endtime = pcpu->task_boos_endtime;
-		unsigned int boost_freq;
+	now = ktime_to_us(ktime_get());
+	prev_boos_endtime = pcpu->task_boos_endtime;
+	pcpu->task_boos_endtime = now + tunables->timer_rate;
+	boost_freq = get_freq_for_util(policy, pcpu->task_boost_util);
+	if ((now < prev_boos_endtime) && (boost_freq <= pcpu->task_boost_freq))
+		goto out;
+	pcpu->task_boost_freq = boost_freq;
 
-		pcpu->task_boos_endtime = now + tunables->timer_rate;
-		boost_freq = get_freq_for_util(policy, min_util);
-		if ((now < prev_boos_endtime) && (boost_freq <= pcpu->task_boost_freq))
-			goto out;
-		pcpu->task_boost_freq = boost_freq;
-
-		irq_work_queue(&pcpu->irq_work);
+	spin_lock_irqsave(&speedchange_cpumask_lock, flags[0]);
+	spin_lock_irqsave(&pcpu->target_freq_lock, flags[1]);
+	if (pcpu->target_freq < pcpu->task_boost_freq) {
+		pcpu->target_freq = pcpu->task_boost_freq;
+		cpumask_set_cpu(pcpu->cpu, &speedchange_cpumask);
+		wake_up_process(speedchange_task);
 	}
+	spin_unlock_irqrestore(&pcpu->target_freq_lock, flags[1]);
+	spin_unlock_irqrestore(&speedchange_cpumask_lock, flags[0]);
 
 out:
 	up_read(&pcpu->enable_sem);
+}
+
+void cpufreq_task_boost(int cpu, unsigned long util)
+{
+	struct cpufreq_interactive_cpuinfo *pcpu = &per_cpu(cpuinfo, cpu);
+	unsigned long cap, min_util;
+
+	if (!speedchange_task)
+		return;
+
+	min_util = util + (util >> 2);
+	cap = capacity_curr_of(cpu);
+	if (min_util > cap) {
+		pcpu->task_boost_util = min_util;
+		irq_work_queue(&pcpu->irq_work);
+	}
 }
 #endif
 
