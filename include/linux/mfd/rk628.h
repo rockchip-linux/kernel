@@ -28,6 +28,8 @@
 #define SW_ADAPTER_I2CSLADR(x)		UPDATE(x, 24, 22)
 #define SW_EDID_MODE_MASK		BIT(21)
 #define SW_EDID_MODE(x)			UPDATE(x, 21, 21)
+#define SW_I2S_DATA_OEN_MASK		BIT(10)
+#define SW_I2S_DATA_OEN(x)		UPDATE(x, 10, 10)
 #define SW_BT_DATA_OEN_MASK		BIT(9)
 #define SW_BT_DATA_OEN			BIT(9)
 #define SW_EFUSE_HDCP_EN_MASK		BIT(8)
