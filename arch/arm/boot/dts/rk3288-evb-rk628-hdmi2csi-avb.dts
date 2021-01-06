@@ -11,6 +11,13 @@
 	chosen {
 		bootargs = "rootwait earlycon=uart8250,mmio32,0xff690000 vmalloc=496M swiotlb=1 console=ttyFIQ0 androidboot.baseband=N/A androidboot.veritymode=enforcing androidboot.hardware=rk30board androidboot.console=ttyFIQ0 init=/init kpti=0 androidboot.selinux=permissive";
 	};
+
+	hdmiin-sound {
+		compatible = "rockchip,rockchip-rt5651-rk628-sound";
+		rockchip,cpu = <&i2s>;
+		rockchip,codec = <&rt5651>;
+		status = "okay";
+	};
 };
 
 &firmware_android {
@@ -33,10 +40,6 @@
 			fsmgr_flags = "wait,avb";
 		};
 	};
-};
-
-&sound {
-	status = "okay";
 };
 
 &video_phy {
