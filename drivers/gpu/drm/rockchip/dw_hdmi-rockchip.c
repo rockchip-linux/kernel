@@ -1322,6 +1322,7 @@ static int dw_hdmi_rockchip_bind(struct device *dev, struct device *master,
 	hdmi->dev = &pdev->dev;
 	hdmi->dev_type = plat_data->dev_type;
 	encoder = &hdmi->encoder;
+	encoder->port = hdmi->dev->of_node;
 
 	irq = platform_get_irq(pdev, 0);
 	if (irq < 0)
