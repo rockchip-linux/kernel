@@ -504,10 +504,12 @@ static void rk628_gvi_bridge_disable(struct drm_bridge *bridge)
 static int rk628_gvi_bridge_attach(struct drm_bridge *bridge)
 {
 	struct rk628_gvi *gvi = bridge_to_gvi(bridge);
+	struct device *dev = gvi->dev;
 	struct drm_connector *connector = &gvi->connector;
 	struct drm_device *drm = bridge->dev;
 	int ret;
 
+	connector->port = dev->of_node;
 	ret = drm_connector_init(drm, connector, &rk628_gvi_connector_funcs,
 				 DRM_MODE_CONNECTOR_LVDS);
 	if (ret) {

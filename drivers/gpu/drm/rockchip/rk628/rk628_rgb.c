@@ -276,6 +276,7 @@ static int rk628_rgb_bridge_attach(struct drm_bridge *bridge)
 		}
 
 		if (rgb->panel) {
+			connector->port = dev->of_node;
 			ret = drm_connector_init(drm, connector,
 						 &rk628_rgb_connector_funcs,
 						 DRM_MODE_CONNECTOR_DPI);
