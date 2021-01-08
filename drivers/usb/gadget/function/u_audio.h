@@ -22,10 +22,9 @@
 #include <linux/usb/composite.h>
 
 #define UAC_VOLUME_CUR			0x0000
-#define UAC_VOLUME_RES			0x0080 /* 0.5 dB */
-#define UAC_VOLUME_MAX			0x1900 /* 25 dB */
-#define UAC_VOLUME_MIN			0xE700 /* -25 dB */
-#define UAC_VOLUME_NEGATIVE_INFINITY	0x8000
+#define UAC_VOLUME_RES			0x0001 /* 1/256 dB */
+#define UAC_VOLUME_MAX			0x7FFF /* +127.9961 dB */
+#define UAC_VOLUME_MIN			0x8001 /* -127.9961 dB */
 #define UAC_MAX_RATES 10
 struct uac_params {
 	/* playback */
