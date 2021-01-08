@@ -436,9 +436,7 @@ stop_critical_timing(unsigned long ip, unsigned long parent_ip)
 /* start and stop critical timings used to for stoppage (in idle) */
 void start_critical_timings(void)
 {
-	int pc = preempt_count();
-
-	if (preempt_trace(pc) || irq_trace())
+	if (preempt_trace(preempt_count()) || irq_trace())
 		start_critical_timing(CALLER_ADDR0, CALLER_ADDR1);
 }
 EXPORT_SYMBOL_GPL(start_critical_timings);
@@ -446,9 +444,7 @@ NOKPROBE_SYMBOL(start_critical_timings);
 
 void stop_critical_timings(void)
 {
-	int pc = preempt_count();
-
-	if (preempt_trace(pc) || irq_trace())
+	if (preempt_trace(preempt_count()) || irq_trace())
 		stop_critical_timing(CALLER_ADDR0, CALLER_ADDR1);
 }
 EXPORT_SYMBOL_GPL(stop_critical_timings);
@@ -607,18 +603,14 @@ static void irqsoff_tracer_stop(struct trace_array *tr)
  */
 void tracer_hardirqs_on(unsigned long a0, unsigned long a1)
 {
-	unsigned int pc = preempt_count();
-
-	if (!preempt_trace(pc) && irq_trace())
+	if (!preempt_trace(preempt_count()) && irq_trace())
 		stop_critical_timing(a0, a1);
 }
 NOKPROBE_SYMBOL(tracer_hardirqs_on);
 
 void tracer_hardirqs_off(unsigned long a0, unsigned long a1)
 {
-	unsigned int pc = preempt_count();
-
-	if (!preempt_trace(pc) && irq_trace())
+	if (!preempt_trace(preempt_count()) && irq_trace())
 		start_critical_timing(a0, a1);
 }
 NOKPROBE_SYMBOL(tracer_hardirqs_off);
@@ -659,17 +651,13 @@ static struct tracer irqsoff_tracer __read_mostly =
 #ifdef CONFIG_PREEMPT_TRACER
 void tracer_preempt_on(unsigned long a0, unsigned long a1)
 {
-	int pc = preempt_count();
-
-	if (preempt_trace(pc) && !irq_trace())
+	if (preempt_trace(preempt_count()) && !irq_trace())
 		stop_critical_timing(a0, a1);
 }
 
 void tracer_preempt_off(unsigned long a0, unsigned long a1)
 {
-	int pc = preempt_count();
-
-	if (preempt_trace(pc) && !irq_trace())
+	if (preempt_trace(preempt_count()) && !irq_trace())
 		start_critical_timing(a0, a1);
 }
 
