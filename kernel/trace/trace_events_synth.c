@@ -504,7 +504,7 @@ static notrace void trace_event_raw_event_synth(void *__data,
 		}
 	}
 
-	trace_event_buffer_commit__(&fbuffer);
+	trace_event_buffer_commit(&fbuffer);
 out:
 	ring_buffer_nest_end(buffer);
 }
@@ -1494,7 +1494,7 @@ __synth_event_trace_start(struct trace_event_file *file,
 static inline void
 __synth_event_trace_end(struct synth_event_trace_state *trace_state)
 {
-	trace_event_buffer_commit__(&trace_state->fbuffer);
+	trace_event_buffer_commit(&trace_state->fbuffer);
 
 	ring_buffer_nest_end(trace_state->buffer);
 }

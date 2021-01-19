@@ -25,7 +25,7 @@ trace_inject_entry(struct trace_event_file *file, void *rec, int len)
 	if (entry) {
 		memcpy(entry, rec, len);
 		written = len;
-		trace_event_buffer_commit__(&fbuffer);
+		trace_event_buffer_commit(&fbuffer);
 	}
 	rcu_read_unlock_sched();
 

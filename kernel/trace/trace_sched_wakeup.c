@@ -116,7 +116,6 @@ static int wakeup_graph_entry(struct ftrace_graph_ent *trace)
 {
 	struct trace_array *tr = wakeup_trace;
 	struct trace_array_cpu *data;
-	unsigned long flags;
 	unsigned int trace_ctx;
 	int ret = 0;
 
@@ -135,7 +134,6 @@ static int wakeup_graph_entry(struct ftrace_graph_ent *trace)
 	if (!func_prolog_preempt_disable(tr, &data, &trace_ctx))
 		return 0;
 
-	local_save_flags(flags);
 	ret = __trace_graph_entry(tr, trace, trace_ctx);
 	atomic_dec(&data->disabled);
 	preempt_enable_notrace();
@@ -147,7 +145,6 @@ static void wakeup_graph_return(struct ftrace_graph_ret *trace)
 {
 	struct trace_array *tr = wakeup_trace;
 	struct trace_array_cpu *data;
-	unsigned long flags;
 	unsigned int trace_ctx;
 
 	ftrace_graph_addr_finish(trace);
@@ -155,7 +152,6 @@ static void wakeup_graph_return(struct ftrace_graph_ret *trace)
 	if (!func_prolog_preempt_disable(tr, &data, &trace_ctx))
 		return;
 
-	local_save_flags(flags);
 	__trace_graph_return(tr, trace, trace_ctx);
 	atomic_dec(&data->disabled);
 
@@ -456,8 +452,6 @@ probe_wakeup_sched_switch(void *ignore, bool preempt,
 	if (next != wakeup_task)
 		return;
 
-	trace_ctx = tracing_gen_ctx_flags();
-
 	/* disable local data, not wakeup_cpu data */
 	cpu = raw_smp_processor_id();
 	disabled = atomic_inc_return(&per_cpu_ptr(wakeup_trace->array_buffer.data, cpu)->disabled);
@@ -465,6 +459,8 @@ probe_wakeup_sched_switch(void *ignore, bool preempt,
 		goto out;
 
 	local_irq_save(flags);
+	trace_ctx = _tracing_gen_ctx_flags(flags);
+
 	arch_spin_lock(&wakeup_lock);
 
 	/* We could race with grabbing wakeup_lock */
@@ -528,7 +524,6 @@ probe_wakeup(void *ignore, struct task_struct *p)
 {
 	struct trace_array_cpu *data;
 	int cpu = smp_processor_id();
-	unsigned long flags;
 	long disabled;
 	unsigned int trace_ctx;
 
@@ -551,10 +546,11 @@ probe_wakeup(void *ignore, struct task_struct *p)
 	    (!dl_task(p) && (p->prio >= wakeup_prio || p->prio >= current->prio)))
 		return;
 
-	trace_ctx = tracing_gen_ctx_flags();
 	disabled = atomic_inc_return(&per_cpu_ptr(wakeup_trace->array_buffer.data, cpu)->disabled);
 	if (unlikely(disabled != 1))
 		goto out;
+
+	trace_ctx = tracing_gen_ctx_flags();
 
 	/* interrupts should be off from try_to_wake_up */
 	arch_spin_lock(&wakeup_lock);
@@ -581,8 +577,6 @@ probe_wakeup(void *ignore, struct task_struct *p)
 		tracing_dl = 0;
 
 	wakeup_task = get_task_struct(p);
-
-	local_save_flags(flags);
 
 	data = per_cpu_ptr(wakeup_trace->array_buffer.data, wakeup_cpu);
 	data->preempt_timestamp = ftrace_now(cpu);

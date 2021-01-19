@@ -37,7 +37,7 @@ probe_likely_condition(struct ftrace_likely_data *f, int val, int expect)
 	struct ring_buffer_event *event;
 	struct trace_branch *entry;
 	unsigned long flags;
-	unsigned int pc;
+	unsigned int trace_ctx;
 	const char *p;
 
 	if (current->trace_recursion & TRACE_BRANCH_BIT)

@@ -154,14 +154,12 @@ static inline void tracing_generic_entry_update(struct trace_entry *entry,
 						unsigned short type,
 						unsigned int trace_ctx)
 {
-	struct task_struct *tsk = current;
-
 	entry->preempt_count		= trace_ctx & 0xff;
 	entry->migrate_disable		= (trace_ctx >> 8) & 0xff;
 	entry->preempt_lazy_count	= (trace_ctx >> 16) & 0xff;
-	entry->pid			= (tsk) ? tsk->pid : 0;
+	entry->pid			= current->pid;
 	entry->type			= type;
-	entry->flags =			trace_ctx >> 24;
+	entry->flags			= trace_ctx >> 24;
 }
 
 unsigned int _tracing_gen_ctx_flags(unsigned long irqflags);
@@ -256,7 +254,7 @@ void *trace_event_buffer_reserve(struct trace_event_buffer *fbuffer,
 				  struct trace_event_file *trace_file,
 				  unsigned long len);
 
-void trace_event_buffer_commit__(struct trace_event_buffer *fbuffer);
+void trace_event_buffer_commit(struct trace_event_buffer *fbuffer);
 
 enum {
 	TRACE_EVENT_FL_FILTERED_BIT,
