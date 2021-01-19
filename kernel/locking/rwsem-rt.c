@@ -166,6 +166,17 @@ void __down_read(struct rw_semaphore *sem)
 	WARN_ON_ONCE(ret);
 }
 
+int __down_read_interruptible(struct rw_semaphore *sem)
+{
+	int ret;
+
+	ret = __down_read_common(sem, TASK_INTERRUPTIBLE);
+	if (likely(!ret))
+		return ret;
+	WARN_ONCE(ret != -EINTR, "Unexpected state: %d\n", ret);
+	return -EINTR;
+}
+
 int __down_read_killable(struct rw_semaphore *sem)
 {
 	int ret;
