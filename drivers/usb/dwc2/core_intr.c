@@ -311,6 +311,7 @@ static void dwc2_handle_conn_id_status_change_intr(struct dwc2_hsotg *hsotg)
  */
 static void dwc2_handle_session_req_intr(struct dwc2_hsotg *hsotg)
 {
+	u32 dctl;
 	int ret;
 
 	/* Clear interrupt */
@@ -332,6 +333,13 @@ static void dwc2_handle_session_req_intr(struct dwc2_hsotg *hsotg)
 		 * established
 		 */
 		dwc2_hsotg_disconnect(hsotg);
+
+		hsotg->rst_completed = 0;
+
+		dctl = dwc2_readl(hsotg->regs + DCTL);
+		if (!(dctl & DCTL_SFTDISCON))
+			mod_timer(&hsotg->rst_complete_timer, jiffies +
+				  msecs_to_jiffies(DWC2_WAIT_RESET_TIMEOUT));
 	}
 }
 

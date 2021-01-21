@@ -747,6 +747,7 @@ struct dwc2_hregs_backup {
  * @wf_otg:             Work object for handling Connector ID Status Change
  *                      interrupt
  * @wkp_timer:          Timer object for handling Wakeup Detected interrupt
+ * @rst_complete_timer  Timer object for a reset is detected on the USB
  * @lx_state:           Lx state of connected device
  * @gregs_backup: Backup of global registers during suspend
  * @dregs_backup: Backup of device registers during suspend
@@ -887,6 +888,7 @@ struct dwc2_hsotg {
 	struct workqueue_struct *wq_otg;
 	struct work_struct wf_otg;
 	struct timer_list wkp_timer;
+	struct timer_list rst_complete_timer;
 	enum dwc2_lx_state lx_state;
 	struct dwc2_gregs_backup gr_backup;
 	struct dwc2_dregs_backup dr_backup;
@@ -999,9 +1001,11 @@ struct dwc2_hsotg {
 	enum dwc2_ep0_state ep0_state;
 	u8 test_mode;
 
+#define DWC2_WAIT_RESET_TIMEOUT	3000 /* milliseconds */
 	struct usb_gadget gadget;
 	unsigned int enabled:1;
 	unsigned int connected:1;
+	unsigned int rst_completed:1;
 	struct dwc2_hsotg_ep *eps_in[MAX_EPS_CHANNELS];
 	struct dwc2_hsotg_ep *eps_out[MAX_EPS_CHANNELS];
 	u32 g_using_dma;
