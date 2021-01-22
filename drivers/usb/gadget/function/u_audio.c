@@ -573,7 +573,7 @@ int u_audio_start_playback(struct g_audio *audio_dev)
 {
 	struct snd_uac_chip *uac = audio_dev->uac;
 	struct usb_gadget *gadget = audio_dev->gadget;
-	struct device *dev = &gadget->dev;
+	struct device *dev = audio_dev->device;
 	struct usb_request *req;
 	struct usb_ep *ep;
 	struct uac_rtd_params *prm;
@@ -668,6 +668,10 @@ EXPORT_SYMBOL_GPL(u_audio_fu_set_cmd);
 
 int u_audio_fu_get_cmd(struct usb_audio_control *con, u8 cmd)
 {
+	struct g_audio *audio_dev = (struct g_audio *)con->context;
+
+	dev_dbg(audio_dev->device, "GET_CMD con %s cmd %d data %d\n",
+		con->name, cmd, (int16_t)con->data[cmd]);
 	return con->data[cmd];
 }
 EXPORT_SYMBOL_GPL(u_audio_fu_get_cmd);
@@ -676,8 +680,6 @@ static void g_audio_work(struct work_struct *data)
 {
 	struct g_audio *audio = container_of(data, struct g_audio, work);
 	struct uac_params *params = &audio->params;
-	struct usb_gadget *gadget = audio->gadget;
-	struct device *dev = &gadget->dev;
 	char *uac_event[4]  = { NULL, NULL, NULL, NULL };
 	char str[19];
 	signed short volume;
@@ -753,8 +755,8 @@ static void g_audio_work(struct work_struct *data)
 		audio->usb_state[i] = false;
 		kobject_uevent_env(&audio->device->kobj, KOBJ_CHANGE,
 				   uac_event);
-		dev_dbg(dev, "%s: sent uac uevent %s %s %s\n", __func__,
-			uac_event[0], uac_event[1], uac_event[2]);
+		dev_dbg(audio->device, "%s: sent uac uevent %s %s %s\n",
+			__func__, uac_event[0], uac_event[1], uac_event[2]);
 	}
 }
 
@@ -776,7 +778,7 @@ static void ppm_calculate_work(struct work_struct *data)
 
 	if (g_audio->fn->time_last &&
 	    time_now - g_audio->fn->time_last > 1500000000ULL)
-		dev_warn(&gadget->dev, "PPM work scheduled too slow!\n");
+		dev_warn(g_audio->device, "PPM work scheduled too slow!\n");
 
 	g_audio->fn->time_last = time_now;
 
@@ -789,7 +791,7 @@ static void ppm_calculate_work(struct work_struct *data)
 	 */
 	if (gadget->state != USB_STATE_CONFIGURED) {
 		memset(g_audio->fn, 0, sizeof(*g_audio->fn));
-		dev_dbg(&gadget->dev, "Disconnect. frame number is cleared\n");
+		dev_dbg(g_audio->device, "Disconnect. frame number is cleared\n");
 		goto out;
 	}
 
@@ -834,7 +836,7 @@ static void ppm_calculate_work(struct work_struct *data)
 	ppm_sum = ppm_sum - ppms[cnt] + ppm;
 	ppms[cnt] = ppm;
 
-	dev_dbg(&g_audio->gadget->dev,
+	dev_dbg(g_audio->device,
 		"frame %u msec %u ppm_calc %d ppm_avage(%d) %d\n",
 		fn_msec, clk_msec, ppm, CLK_PPM_GROUP_SIZE,
 		ppm_sum / CLK_PPM_GROUP_SIZE);
