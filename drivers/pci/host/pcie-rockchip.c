@@ -1404,10 +1404,6 @@ static int rockchip_pcie_suspend_for_user(struct device *dev)
 	struct rockchip_pcie *rockchip = dev_get_drvdata(dev);
 	int ret;
 
-	/* disable ltssm */
-	rockchip_pcie_write(rockchip, PCIE_CLIENT_LINK_TRAIN_DISABLE,
-			    PCIE_CLIENT_CONFIG);
-
 	/* disable core and cli int since we don't need to ack PME_ACK */
 	rockchip_pcie_write(rockchip, (PCIE_CLIENT_INT_CLI << 16) |
 			    PCIE_CLIENT_INT_CLI, PCIE_CLIENT_INT_MASK);
@@ -1418,6 +1414,10 @@ static int rockchip_pcie_suspend_for_user(struct device *dev)
 		rockchip_pcie_enable_interrupts(rockchip);
 		return ret;
 	}
+
+	/* disable ltssm */
+	rockchip_pcie_write(rockchip, PCIE_CLIENT_LINK_TRAIN_DISABLE,
+			    PCIE_CLIENT_CONFIG);
 
 	phy_power_off(rockchip->phy);
 	phy_exit(rockchip->phy);
