@@ -26,6 +26,7 @@
 #include <linux/smpboot.h>
 #include <linux/tick.h>
 #include <linux/irq.h>
+#include <linux/wait_bit.h>
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/irq.h>
@@ -150,7 +151,7 @@ static DEFINE_PER_CPU(struct softirq_ctrl, softirq_ctrl) = {
  */
 bool local_bh_blocked(void)
 {
-	return this_cpu_read(softirq_ctrl.cnt) != 0;
+	return __this_cpu_read(softirq_ctrl.cnt) != 0;
 }
 
 void __local_bh_disable_ip(unsigned long ip, unsigned int cnt)
@@ -224,7 +225,7 @@ void __local_bh_enable_ip(unsigned long ip, unsigned int cnt)
 	lockdep_assert_irqs_enabled();
 
 	local_irq_save(flags);
-	curcnt = this_cpu_read(softirq_ctrl.cnt);
+	curcnt = __this_cpu_read(softirq_ctrl.cnt);
 
 	/*
 	 * If this is not reenabling soft interrupts, no point in trying to
@@ -743,6 +744,16 @@ void __tasklet_hi_schedule(struct tasklet_struct *t)
 }
 EXPORT_SYMBOL(__tasklet_hi_schedule);
 
+static inline bool tasklet_clear_sched(struct tasklet_struct *t)
+{
+	if (test_and_clear_bit(TASKLET_STATE_SCHED, &t->state)) {
+		wake_up_var(&t->state);
+		return true;
+	}
+
+	return false;
+}
+
 static void tasklet_action_common(struct softirq_action *a,
 				  struct tasklet_head *tl_head,
 				  unsigned int softirq_nr)
@@ -762,8 +773,7 @@ static void tasklet_action_common(struct softirq_action *a,
 
 		if (tasklet_trylock(t)) {
 			if (!atomic_read(&t->count)) {
-				if (!test_and_clear_bit(TASKLET_STATE_SCHED,
-							&t->state))
+				if (!tasklet_clear_sched(t))
 					BUG();
 				if (t->use_callback)
 					t->callback(t);
@@ -819,8 +829,11 @@ void tasklet_init(struct tasklet_struct *t,
 EXPORT_SYMBOL(tasklet_init);
 
 #if defined(CONFIG_SMP) || defined(CONFIG_PREEMPT_RT)
-
-void tasklet_unlock_wait(struct tasklet_struct *t)
+/*
+ * Do not use in new code. There is no real reason to invoke this from
+ * atomic contexts.
+ */
+void tasklet_unlock_spin_wait(struct tasklet_struct *t)
 {
 	while (test_bit(TASKLET_STATE_RUN, &(t)->state)) {
 		if (IS_ENABLED(CONFIG_PREEMPT_RT)) {
@@ -838,7 +851,7 @@ void tasklet_unlock_wait(struct tasklet_struct *t)
 		}
 	}
 }
-EXPORT_SYMBOL(tasklet_unlock_wait);
+EXPORT_SYMBOL(tasklet_unlock_spin_wait);
 #endif
 
 void tasklet_kill(struct tasklet_struct *t)
@@ -846,28 +859,30 @@ void tasklet_kill(struct tasklet_struct *t)
 	if (in_interrupt())
 		pr_notice("Attempt to kill tasklet from interrupt\n");
 
-	while (test_and_set_bit(TASKLET_STATE_SCHED, &t->state)) {
-		do {
-			if (IS_ENABLED(CONFIG_PREEMPT_RT)) {
-				/*
-				 * Prevent a live lock when current
-				 * preempted soft interrupt processing or
-				 * prevents ksoftirqd from running. If the
-				 * tasklet runs on a different CPU then
-				 * this has no effect other than doing the
-				 * BH disable/enable dance for nothing.
-				 */
-				local_bh_disable();
-				local_bh_enable();
-			} else {
-				yield();
-			}
-		} while (test_bit(TASKLET_STATE_SCHED, &t->state));
-	}
+	while (test_and_set_bit(TASKLET_STATE_SCHED, &t->state))
+		wait_var_event(&t->state, !test_bit(TASKLET_STATE_SCHED, &t->state));
+
 	tasklet_unlock_wait(t);
-	clear_bit(TASKLET_STATE_SCHED, &t->state);
+	tasklet_clear_sched(t);
 }
 EXPORT_SYMBOL(tasklet_kill);
+
+#ifdef CONFIG_SMP
+void tasklet_unlock(struct tasklet_struct *t)
+{
+	smp_mb__before_atomic();
+	clear_bit(TASKLET_STATE_RUN, &t->state);
+	smp_mb__after_atomic();
+	wake_up_var(&t->state);
+}
+EXPORT_SYMBOL_GPL(tasklet_unlock);
+
+void tasklet_unlock_wait(struct tasklet_struct *t)
+{
+	wait_var_event(&t->state, !test_bit(TASKLET_STATE_RUN, &t->state));
+}
+EXPORT_SYMBOL_GPL(tasklet_unlock_wait);
+#endif
 
 void __init softirq_init(void)
 {
