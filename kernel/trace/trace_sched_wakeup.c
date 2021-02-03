@@ -75,7 +75,7 @@ func_prolog_preempt_disable(struct trace_array *tr,
 	if (likely(!wakeup_task))
 		return 0;
 
-	*trace_ctx = tracing_gen_ctx_flags();
+	*trace_ctx = tracing_gen_ctx();
 	preempt_disable_notrace();
 
 	cpu = raw_smp_processor_id();
@@ -459,7 +459,7 @@ probe_wakeup_sched_switch(void *ignore, bool preempt,
 		goto out;
 
 	local_irq_save(flags);
-	trace_ctx = _tracing_gen_ctx_flags(flags);
+	trace_ctx = tracing_gen_ctx_flags(flags);
 
 	arch_spin_lock(&wakeup_lock);
 
@@ -550,7 +550,7 @@ probe_wakeup(void *ignore, struct task_struct *p)
 	if (unlikely(disabled != 1))
 		goto out;
 
-	trace_ctx = tracing_gen_ctx_flags();
+	trace_ctx = tracing_gen_ctx();
 
 	/* interrupts should be off from try_to_wake_up */
 	arch_spin_lock(&wakeup_lock);

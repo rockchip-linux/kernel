@@ -266,7 +266,7 @@ void *trace_event_buffer_reserve(struct trace_event_buffer *fbuffer,
 	 * interested in the preempt_count at the time the tracepoint was
 	 * hit, we need to subtract one to offset the increment.
 	 */
-	fbuffer->trace_ctx = tracing_gen_ctx_flags_dect();
+	fbuffer->trace_ctx = tracing_gen_ctx_dec();
 	fbuffer->trace_file = trace_file;
 
 	fbuffer->event =
@@ -3681,7 +3681,7 @@ function_test_events_call(unsigned long ip, unsigned long parent_ip,
 	long disabled;
 	int cpu;
 
-	trace_ctx = tracing_gen_ctx_flags();
+	trace_ctx = tracing_gen_ctx();
 	preempt_disable_notrace();
 	cpu = raw_smp_processor_id();
 	disabled = atomic_inc_return(&per_cpu(ftrace_test_event_disable, cpu));

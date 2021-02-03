@@ -321,7 +321,7 @@ static void ftrace_syscall_enter(void *data, struct pt_regs *regs, long id)
 
 	size = sizeof(*entry) + sizeof(unsigned long) * sys_data->nb_args;
 
-	trace_ctx = tracing_gen_ctx_flags();
+	trace_ctx = tracing_gen_ctx();
 
 	buffer = tr->array_buffer.buffer;
 	event = trace_buffer_lock_reserve(buffer,
@@ -365,7 +365,7 @@ static void ftrace_syscall_exit(void *data, struct pt_regs *regs, long ret)
 	if (!sys_data)
 		return;
 
-	trace_ctx = tracing_gen_ctx_flags();
+	trace_ctx = tracing_gen_ctx();
 
 	buffer = tr->array_buffer.buffer;
 	event = trace_buffer_lock_reserve(buffer,

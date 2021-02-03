@@ -1018,7 +1018,7 @@ int __trace_puts(unsigned long ip, const char *str, int size)
 
 	alloc = sizeof(*entry) + size + 2; /* possible \n added */
 
-	trace_ctx = tracing_gen_ctx_flags();
+	trace_ctx = tracing_gen_ctx();
 	buffer = global_trace.array_buffer.buffer;
 	ring_buffer_nest_start(buffer);
 	event = __trace_buffer_lock_reserve(buffer, TRACE_PRINT, alloc,
@@ -1068,7 +1068,7 @@ int __trace_bputs(unsigned long ip, const char *str)
 	if (unlikely(tracing_selftest_running || tracing_disabled))
 		return 0;
 
-	trace_ctx = tracing_gen_ctx_flags();
+	trace_ctx = tracing_gen_ctx();
 	buffer = global_trace.array_buffer.buffer;
 
 	ring_buffer_nest_start(buffer);
@@ -2587,19 +2587,12 @@ static unsigned short migration_disable_value(void)
 #endif
 }
 
-unsigned int _tracing_gen_ctx_flags(unsigned long irqflags)
+unsigned int tracing_gen_ctx_irq_test(unsigned int irqs_status)
 {
-	unsigned int trace_flags = 0;
+	unsigned int trace_flags = irqs_status;
 	unsigned int pc;
 
 	pc = preempt_count();
-
-#ifdef CONFIG_TRACE_IRQFLAGS_SUPPORT
-	if (irqs_disabled_flags(irqflags))
-		trace_flags |= TRACE_FLAG_IRQS_OFF;
-#else
-	trace_flags |= TRACE_FLAG_IRQS_NOSUPPORT;
-#endif
 
 	if (pc & NMI_MASK)
 		trace_flags |= TRACE_FLAG_NMI;
@@ -2617,33 +2610,6 @@ unsigned int _tracing_gen_ctx_flags(unsigned long irqflags)
 		(migration_disable_value() & 0xff) << 8 |
 		(preempt_lazy_count() & 0xff) << 16 |
 		(trace_flags << 24);
-}
-
-unsigned int tracing_gen_ctx_flags(void)
-{
-	unsigned long irqflags;
-
-#ifdef CONFIG_TRACE_IRQFLAGS_SUPPORT
-	local_save_flags(irqflags);
-#else
-	irqflags = 0;
-#endif
-	return _tracing_gen_ctx_flags(irqflags);
-}
-
-unsigned int tracing_gen_ctx_flags_dect(void)
-{
-	unsigned int trace_ctx;
-
-	trace_ctx = tracing_gen_ctx_flags();
-
-	/*
-	 * Subtract one from the preeption counter if preemption is enabled,
-	 * see trace_event_buffer_reserve()for details.
-	 */
-	if (IS_ENABLED(CONFIG_PREEMPTION))
-		trace_ctx--;
-	return trace_ctx;
 }
 
 struct ring_buffer_event *
@@ -3090,7 +3056,7 @@ void trace_dump_stack(int skip)
 	skip++;
 #endif
 	__ftrace_trace_stack(global_trace.array_buffer.buffer,
-			     tracing_gen_ctx_flags(), skip, NULL);
+			     tracing_gen_ctx(), skip, NULL);
 }
 EXPORT_SYMBOL_GPL(trace_dump_stack);
 
@@ -3286,7 +3252,7 @@ int trace_vbprintk(unsigned long ip, const char *fmt, va_list args)
 	/* Don't pollute graph traces with trace_vprintk internals */
 	pause_graph_tracing();
 
-	trace_ctx = tracing_gen_ctx_flags();
+	trace_ctx = tracing_gen_ctx();
 	preempt_disable_notrace();
 
 	tbuffer = get_trace_buf();
@@ -3348,7 +3314,7 @@ __trace_array_vprintk(struct trace_buffer *buffer,
 	/* Don't pollute graph traces with trace_vprintk internals */
 	pause_graph_tracing();
 
-	trace_ctx = tracing_gen_ctx_flags();
+	trace_ctx = tracing_gen_ctx();
 	preempt_disable_notrace();
 
 
@@ -6718,7 +6684,7 @@ tracing_mark_write(struct file *filp, const char __user *ubuf,
 
 	buffer = tr->array_buffer.buffer;
 	event = __trace_buffer_lock_reserve(buffer, TRACE_PRINT, size,
-					    tracing_gen_ctx_flags());
+					    tracing_gen_ctx());
 	if (unlikely(!event))
 		/* Ring buffer disabled, return as if not open for write */
 		return -EBADF;
@@ -6797,7 +6763,7 @@ tracing_mark_raw_write(struct file *filp, const char __user *ubuf,
 
 	buffer = tr->array_buffer.buffer;
 	event = __trace_buffer_lock_reserve(buffer, TRACE_RAW_DATA, size,
-					    tracing_gen_ctx_flags());
+					    tracing_gen_ctx());
 	if (!event)
 		/* Ring buffer disabled, return as if not open for write */
 		return -EBADF;

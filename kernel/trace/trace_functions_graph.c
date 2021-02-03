@@ -173,7 +173,7 @@ int trace_graph_entry(struct ftrace_graph_ent *trace)
 	data = per_cpu_ptr(tr->array_buffer.data, cpu);
 	disabled = atomic_inc_return(&data->disabled);
 	if (likely(disabled == 1)) {
-		trace_ctx = _tracing_gen_ctx_flags(flags);
+		trace_ctx = tracing_gen_ctx_flags(flags);
 		ret = __trace_graph_entry(tr, trace, trace_ctx);
 	} else {
 		ret = 0;
@@ -253,7 +253,7 @@ void trace_graph_return(struct ftrace_graph_ret *trace)
 	data = per_cpu_ptr(tr->array_buffer.data, cpu);
 	disabled = atomic_inc_return(&data->disabled);
 	if (likely(disabled == 1)) {
-		trace_ctx = _tracing_gen_ctx_flags(flags);
+		trace_ctx = tracing_gen_ctx_flags(flags);
 		__trace_graph_return(tr, trace, trace_ctx);
 	}
 	atomic_dec(&data->disabled);

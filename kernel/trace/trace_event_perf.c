@@ -422,7 +422,7 @@ void perf_trace_buf_update(void *record, u16 type)
 {
 	struct trace_entry *entry = record;
 
-	tracing_generic_entry_update(entry, type, tracing_gen_ctx_flags());
+	tracing_generic_entry_update(entry, type, tracing_gen_ctx());
 }
 NOKPROBE_SYMBOL(perf_trace_buf_update);
 

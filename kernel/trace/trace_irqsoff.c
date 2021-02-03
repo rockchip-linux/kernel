@@ -148,7 +148,7 @@ irqsoff_tracer_call(unsigned long ip, unsigned long parent_ip,
 	if (!func_prolog_dec(tr, &data, &flags))
 		return;
 
-	trace_ctx = _tracing_gen_ctx_flags(flags);
+	trace_ctx = tracing_gen_ctx_flags(flags);
 
 	trace_function(tr, ip, parent_ip, trace_ctx);
 
@@ -198,7 +198,7 @@ static int irqsoff_graph_entry(struct ftrace_graph_ent *trace)
 	if (!func_prolog_dec(tr, &data, &flags))
 		return 0;
 
-	trace_ctx = _tracing_gen_ctx_flags(flags);
+	trace_ctx = tracing_gen_ctx_flags(flags);
 	ret = __trace_graph_entry(tr, trace, trace_ctx);
 	atomic_dec(&data->disabled);
 
@@ -217,7 +217,7 @@ static void irqsoff_graph_return(struct ftrace_graph_ret *trace)
 	if (!func_prolog_dec(tr, &data, &flags))
 		return;
 
-	trace_ctx = _tracing_gen_ctx_flags(flags);
+	trace_ctx = tracing_gen_ctx_flags(flags);
 	__trace_graph_return(tr, trace, trace_ctx);
 	atomic_dec(&data->disabled);
 }
@@ -331,7 +331,7 @@ check_critical_timing(struct trace_array *tr,
 	T1 = ftrace_now(cpu);
 	delta = T1-T0;
 
-	trace_ctx = tracing_gen_ctx_flags();
+	trace_ctx = tracing_gen_ctx();
 
 	if (!report_latency(tr, delta))
 		goto out;
@@ -393,7 +393,7 @@ start_critical_timing(unsigned long ip, unsigned long parent_ip)
 	data->preempt_timestamp = ftrace_now(cpu);
 	data->critical_start = parent_ip ? : ip;
 
-	__trace_function(tr, ip, parent_ip, tracing_gen_ctx_flags());
+	__trace_function(tr, ip, parent_ip, tracing_gen_ctx());
 
 	per_cpu(tracing_cpu, cpu) = 1;
 
@@ -426,7 +426,7 @@ stop_critical_timing(unsigned long ip, unsigned long parent_ip)
 
 	atomic_inc(&data->disabled);
 
-	trace_ctx = tracing_gen_ctx_flags();
+	trace_ctx = tracing_gen_ctx();
 	__trace_function(tr, ip, parent_ip, trace_ctx);
 	check_critical_timing(tr, data, parent_ip ? : ip, cpu);
 	data->critical_start = 0;

@@ -203,7 +203,7 @@ static int parse_entry(char *str, struct trace_event_call *call, void **pentry)
 		return -ENOMEM;
 
 	tracing_generic_entry_update(entry, call->event.type,
-				     tracing_gen_ctx_flags());
+				     tracing_gen_ctx());
 
 	while ((len = parse_field(str, call, &field, &val)) > 0) {
 		if (is_function_field(field))

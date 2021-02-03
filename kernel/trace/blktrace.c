@@ -79,7 +79,7 @@ static void trace_note(struct blk_trace *bt, pid_t pid, int action,
 
 	if (blk_tracer) {
 		buffer = blk_tr->array_buffer.buffer;
-		trace_ctx = _tracing_gen_ctx_flags(0);
+		trace_ctx = tracing_gen_ctx_flags(0);
 		event = trace_buffer_lock_reserve(buffer, TRACE_BLK,
 						  sizeof(*t) + len + cgid_len,
 						  trace_ctx);
@@ -253,7 +253,7 @@ static void __blk_add_trace(struct blk_trace *bt, sector_t sector, int bytes,
 		tracing_record_cmdline(current);
 
 		buffer = blk_tr->array_buffer.buffer;
-		trace_ctx = _tracing_gen_ctx_flags(0);
+		trace_ctx = tracing_gen_ctx_flags(0);
 		event = trace_buffer_lock_reserve(buffer, TRACE_BLK,
 						  sizeof(*t) + pdu_len + cgid_len,
 						  trace_ctx);
