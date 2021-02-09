@@ -367,7 +367,8 @@ again:
 				if (preempt_count() == 0)
 					preempt_schedule_irq();
 			} else if (unlikely(*ti_flagsp & _TIF_NEED_RESCHED_LAZY)) {
-				if (current_thread_info()->preempt_lazy_count == 0)
+				if ((preempt_count() == 0) &&
+				    (current_thread_info()->preempt_lazy_count == 0))
 					preempt_schedule_irq();
 			}
 		}
