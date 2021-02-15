@@ -565,15 +565,12 @@ void blk_mq_end_request(struct request *rq, blk_status_t error)
 }
 EXPORT_SYMBOL(blk_mq_end_request);
 
-static void blk_complete_reqs(struct llist_head *cpu_list)
+static void blk_complete_reqs(struct llist_head *list)
 {
-	struct llist_node *entry;
-	struct request *rq, *rq_next;
+	struct llist_node *entry = llist_reverse_order(llist_del_all(list));
+	struct request *rq, *next;
 
-	entry = llist_del_all(cpu_list);
-	entry = llist_reverse_order(entry);
-
-	llist_for_each_entry_safe(rq, rq_next, entry, ipi_list)
+	llist_for_each_entry_safe(rq, next, entry, ipi_list)
 		rq->q->mq_ops->complete(rq);
 }
 
@@ -619,9 +616,34 @@ static inline bool blk_mq_complete_need_ipi(struct request *rq)
 	return cpu_online(rq->mq_ctx->cpu);
 }
 
+static void blk_mq_complete_send_ipi(struct request *rq)
+{
+	struct llist_head *list;
+	unsigned int cpu;
+
+	cpu = rq->mq_ctx->cpu;
+	list = &per_cpu(blk_cpu_done, cpu);
+	if (llist_add(&rq->ipi_list, list)) {
+		rq->csd.func = __blk_mq_complete_request_remote;
+		rq->csd.info = rq;
+		rq->csd.flags = 0;
+		smp_call_function_single_async(cpu, &rq->csd);
+	}
+}
+
+static void blk_mq_raise_softirq(struct request *rq)
+{
+	struct llist_head *list;
+
+	preempt_disable();
+	list = this_cpu_ptr(&blk_cpu_done);
+	if (llist_add(&rq->ipi_list, list))
+		raise_softirq(BLOCK_SOFTIRQ);
+	preempt_enable();
+}
+
 bool blk_mq_complete_request_remote(struct request *rq)
 {
-	struct llist_head *cpu_list;
 	WRITE_ONCE(rq->state, MQ_RQ_COMPLETE);
 
 	/*
@@ -632,27 +654,15 @@ bool blk_mq_complete_request_remote(struct request *rq)
 		return false;
 
 	if (blk_mq_complete_need_ipi(rq)) {
-		unsigned int cpu;
-
-		cpu = rq->mq_ctx->cpu;
-		cpu_list = &per_cpu(blk_cpu_done, cpu);
-		if (llist_add(&rq->ipi_list, cpu_list)) {
-			rq->csd.func = __blk_mq_complete_request_remote;
-			rq->csd.flags = 0;
-			smp_call_function_single_async(cpu, &rq->csd);
-		}
-	} else {
-		if (rq->q->nr_hw_queues > 1)
-			return false;
-
-		preempt_disable();
-		cpu_list = this_cpu_ptr(&blk_cpu_done);
-		if (llist_add(&rq->ipi_list, cpu_list))
-			raise_softirq(BLOCK_SOFTIRQ);
-		preempt_enable();
+		blk_mq_complete_send_ipi(rq);
+		return true;
 	}
 
-	return true;
+	if (rq->q->nr_hw_queues == 1) {
+		blk_mq_raise_softirq(rq);
+		return true;
+	}
+	return false;
 }
 EXPORT_SYMBOL_GPL(blk_mq_complete_request_remote);
 
