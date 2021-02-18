@@ -2606,6 +2606,11 @@ unsigned int tracing_gen_ctx_irq_test(unsigned int irqs_status)
 	if (test_preempt_need_resched())
 		trace_flags |= TRACE_FLAG_PREEMPT_RESCHED;
 
+#ifdef CONFIG_PREEMPT_LAZY
+	if (need_resched_lazy())
+		trace_flags |= TRACE_FLAG_NEED_RESCHED_LAZY;
+#endif
+
 	return (pc & 0xff) |
 		(migration_disable_value() & 0xff) << 8 |
 		(preempt_lazy_count() & 0xff) << 16 |
