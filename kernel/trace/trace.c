@@ -2750,7 +2750,7 @@ trace_event_buffer_lock_reserve(struct trace_buffer **current_rb,
 	    (entry = this_cpu_read(trace_buffered_event))) {
 		/* Try to use the per cpu buffer first */
 		val = this_cpu_inc_return(trace_buffered_event_cnt);
-		if (val == 1) {
+		if ((len < (PAGE_SIZE - sizeof(*entry))) && val == 1) {
 			trace_event_setup(entry, type, trace_ctx);
 			entry->array[0] = len;
 			return entry;
@@ -2758,8 +2758,8 @@ trace_event_buffer_lock_reserve(struct trace_buffer **current_rb,
 		this_cpu_dec(trace_buffered_event_cnt);
 	}
 
-	entry = __trace_buffer_lock_reserve(*current_rb, type, len,
-					    trace_ctx);
+	entry = __trace_buffer_lock_reserve(*current_rb,
+					    type, len, trace_ctx);
 	/*
 	 * If tracing is off, but we have triggers enabled
 	 * we still need to look at the event data. Use the temp_buffer
