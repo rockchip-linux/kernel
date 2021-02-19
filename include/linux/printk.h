@@ -45,7 +45,12 @@ static inline const char *printk_skip_headers(const char *buffer)
 }
 
 #define CONSOLE_EXT_LOG_MAX	8192
-#define CONSOLE_LOG_MAX		1024
+
+/*
+ * The maximum size of a record formatted for console printing
+ * (i.e. with the prefix prepended to every line).
+ */
+#define CONSOLE_LOG_MAX		4096
 
 /* printk's without a loglevel use this.. */
 #define MESSAGE_LOGLEVEL_DEFAULT CONFIG_MESSAGE_LOGLEVEL_DEFAULT

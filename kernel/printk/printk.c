@@ -371,7 +371,9 @@ static struct latched_seq clear_seq = {
 #else
 #define PREFIX_MAX		32
 #endif
-#define LOG_LINE_MAX		(CONSOLE_LOG_MAX - PREFIX_MAX)
+
+/* the maximum size allowed to be reserved for a record */
+#define LOG_LINE_MAX		(1024 - PREFIX_MAX)
 
 #define LOG_LEVEL(v)		((v) & 0x07)
 #define LOG_FACILITY(v)		((v) >> 3 & 0xff)
@@ -414,7 +416,7 @@ static bool printk_percpu_data_ready(void)
 }
 
 /* Must be called under syslog_lock. */
-void latched_seq_write(struct latched_seq *ls, u64 val)
+static void latched_seq_write(struct latched_seq *ls, u64 val)
 {
 	raw_write_seqcount_latch(&ls->latch);
 	ls->val[0] = val;
@@ -423,7 +425,7 @@ void latched_seq_write(struct latched_seq *ls, u64 val)
 }
 
 /* Can be called from any context. */
-u64 latched_seq_read_nolock(struct latched_seq *ls)
+static u64 latched_seq_read_nolock(struct latched_seq *ls)
 {
 	unsigned int seq;
 	unsigned int idx;
@@ -718,9 +720,9 @@ static ssize_t devkmsg_read(struct file *file, char __user *buf,
 			goto out;
 	}
 
-	if (atomic64_read(&user->seq) < prb_first_valid_seq(prb)) {
+	if (r->info->seq != atomic64_read(&user->seq)) {
 		/* our last seen message is gone, return error and reset */
-		atomic64_set(&user->seq, prb_first_valid_seq(prb));
+		atomic64_set(&user->seq, r->info->seq);
 		ret = -EPIPE;
 		goto out;
 	}
@@ -791,6 +793,7 @@ static loff_t devkmsg_llseek(struct file *file, loff_t offset, int whence)
 static __poll_t devkmsg_poll(struct file *file, poll_table *wait)
 {
 	struct devkmsg_user *user = file->private_data;
+	struct printk_info info;
 	__poll_t ret = 0;
 
 	if (!user)
@@ -798,9 +801,9 @@ static __poll_t devkmsg_poll(struct file *file, poll_table *wait)
 
 	poll_wait(file, &log_wait, wait);
 
-	if (prb_read_valid(prb, atomic64_read(&user->seq), NULL)) {
+	if (prb_read_valid_info(prb, atomic64_read(&user->seq), &info, NULL)) {
 		/* return error when data has vanished underneath us */
-		if (atomic64_read(&user->seq) < prb_first_valid_seq(prb))
+		if (info.seq != atomic64_read(&user->seq))
 			ret = EPOLLIN|EPOLLRDNORM|EPOLLERR|EPOLLPRI;
 		else
 			ret = EPOLLIN|EPOLLRDNORM;
@@ -1390,6 +1393,50 @@ static size_t get_record_print_text_size(struct printk_info *info,
 	return ((prefix_len * line_count) + info->text_len + 1);
 }
 
+/*
+ * Beginning with @start_seq, find the first record where it and all following
+ * records up to (but not including) @max_seq fit into @size.
+ *
+ * @max_seq is simply an upper bound and does not need to exist. If the caller
+ * does not require an upper bound, -1 can be used for @max_seq.
+ */
+static u64 find_first_fitting_seq(u64 start_seq, u64 max_seq, size_t size,
+				  bool syslog, bool time)
+{
+	struct printk_info info;
+	unsigned int line_count;
+	size_t len = 0;
+	u64 seq;
+
+	/* Determine the size of the records up to @max_seq. */
+	prb_for_each_info(start_seq, prb, seq, &info, &line_count) {
+		if (info.seq >= max_seq)
+			break;
+		len += get_record_print_text_size(&info, line_count, syslog, time);
+	}
+
+	/*
+	 * Adjust the upper bound for the next loop to avoid subtracting
+	 * lengths that were never added.
+	 */
+	if (seq < max_seq)
+		max_seq = seq;
+
+	/*
+	 * Move first record forward until length fits into the buffer. Ignore
+	 * newest messages that were not counted in the above cycle. Messages
+	 * might appear and get lost in the meantime. This is a best effort
+	 * that prevents an infinite loop that could occur with a retry.
+	 */
+	prb_for_each_info(start_seq, prb, seq, &info, &line_count) {
+		if (len <= size || info.seq >= max_seq)
+			break;
+		len -= get_record_print_text_size(&info, line_count, syslog, time);
+	}
+
+	return seq;
+}
+
 static int syslog_print(char __user *buf, int size)
 {
 	struct printk_info info;
@@ -1461,10 +1508,7 @@ static int syslog_print(char __user *buf, int size)
 static int syslog_print_all(char __user *buf, int size, bool clear)
 {
 	struct printk_info info;
-	unsigned int line_count;
 	struct printk_record r;
-	u64 newest_seq;
-	u64 clr_seq;
 	char *text;
 	int len = 0;
 	u64 seq;
@@ -1475,28 +1519,12 @@ static int syslog_print_all(char __user *buf, int size, bool clear)
 		return -ENOMEM;
 
 	time = printk_time;
-	clr_seq = latched_seq_read_nolock(&clear_seq);
-
 	/*
 	 * Find first record that fits, including all following records,
 	 * into the user-provided buffer for this dump.
 	 */
-
-	prb_for_each_info(clr_seq, prb, seq, &info, &line_count)
-		len += get_record_print_text_size(&info, line_count, true, time);
-
-	/*
-	 * Move first record forward until length fits into the buffer. Ignore
-	 * newest messages that were not counted in the above cycle. Messages
-	 * might appear and get lost in the meantime. This is the best effort
-	 * that prevents an infinite loop.
-	 */
-	newest_seq = seq;
-	prb_for_each_info(clr_seq, prb, seq, &info, &line_count) {
-		if (len <= size || info.seq > newest_seq)
-			break;
-		len -= get_record_print_text_size(&info, line_count, true, time);
-	}
+	seq = find_first_fitting_seq(latched_seq_read_nolock(&clear_seq), -1,
+				     size, true, time);
 
 	prb_rec_init_rd(&r, &info, text, CONSOLE_LOG_MAX);
 
@@ -1537,12 +1565,24 @@ static void syslog_clear(void)
 	spin_unlock_irq(&syslog_lock);
 }
 
+/* Return a consistent copy of @syslog_seq. */
+static u64 read_syslog_seq_irq(void)
+{
+	u64 seq;
+
+	spin_lock_irq(&syslog_lock);
+	seq = syslog_seq;
+	spin_unlock_irq(&syslog_lock);
+
+	return seq;
+}
+
 int do_syslog(int type, char __user *buf, int len, int source)
 {
+	struct printk_info info;
 	bool clear = false;
 	static int saved_console_loglevel = LOGLEVEL_DEFAULT;
 	int error;
-	u64 seq;
 
 	error = check_syslog_permissions(type, source);
 	if (error)
@@ -1561,13 +1601,8 @@ int do_syslog(int type, char __user *buf, int len, int source)
 		if (!access_ok(buf, len))
 			return -EFAULT;
 
-		/* Get a consistent copy of @syslog_seq. */
-		spin_lock_irq(&syslog_lock);
-		seq = syslog_seq;
-		spin_unlock_irq(&syslog_lock);
-
 		error = wait_event_interruptible(log_wait,
-				prb_read_valid(prb, seq, NULL));
+				prb_read_valid(prb, read_syslog_seq_irq(), NULL));
 		if (error)
 			return error;
 		error = syslog_print(buf, len);
@@ -1616,9 +1651,14 @@ int do_syslog(int type, char __user *buf, int len, int source)
 	/* Number of chars in the log buffer */
 	case SYSLOG_ACTION_SIZE_UNREAD:
 		spin_lock_irq(&syslog_lock);
-		if (syslog_seq < prb_first_valid_seq(prb)) {
+		if (!prb_read_valid_info(prb, syslog_seq, &info, NULL)) {
+			/* No unread messages. */
+			spin_unlock_irq(&syslog_lock);
+			return 0;
+		}
+		if (info.seq != syslog_seq) {
 			/* messages are gone, move to first one */
-			syslog_seq = prb_first_valid_seq(prb);
+			syslog_seq = info.seq;
 			syslog_partial = 0;
 		}
 		if (source == SYSLOG_FROM_PROC) {
@@ -1630,7 +1670,6 @@ int do_syslog(int type, char __user *buf, int len, int source)
 			error = prb_next_seq(prb) - syslog_seq;
 		} else {
 			bool time = syslog_partial ? syslog_time : printk_time;
-			struct printk_info info;
 			unsigned int line_count;
 			u64 seq;
 
@@ -1711,17 +1750,6 @@ static bool call_sync_console_driver(struct console *con, const char *text, size
 	return true;
 }
 
-static bool any_console_can_sync(void)
-{
-	struct console *con;
-
-	for_each_console(con) {
-		if (console_can_sync(con))
-			return true;
-	}
-	return false;
-}
-
 static bool have_atomic_console(void)
 {
 	struct console *con;
@@ -1768,14 +1796,6 @@ static void print_sync_until(struct console *con, u64 seq)
 {
 	unsigned int flags;
 	u64 printk_seq;
-
-	if (!con) {
-		for_each_console(con) {
-			if (console_can_sync(con))
-				print_sync_until(con, seq);
-		}
-		return;
-	}
 
 	console_atomic_lock(&flags);
 	for (;;) {
@@ -2041,8 +2061,14 @@ static int vprintk_store(int facility, int level,
 	ret = text_len + trunc_msg_len;
 out:
 	/* only the kernel may perform synchronous printing */
-	if (facility == 0 && final_commit && any_console_can_sync())
-		print_sync_until(NULL, seq + 1);
+	if (facility == 0 && final_commit) {
+		struct console *con;
+
+		for_each_console(con) {
+			if (console_can_sync(con))
+				print_sync_until(con, seq + 1);
+		}
+	}
 
 	printk_exit_irqrestore(irqflags);
 	return ret;
@@ -2267,20 +2293,14 @@ static void console_try_thread(struct console *con)
 	 * The printing threads have not been started yet. If this console
 	 * can print synchronously, print all unprinted messages.
 	 */
-
 	if (console_can_sync(con))
 		print_sync_until(con, prb_next_seq(prb));
 }
 
 #else /* CONFIG_PRINTK */
 
-#define printk_time		false
-
-#define prb_read_valid(rb, seq, r)	false
 #define prb_first_valid_seq(rb)		0
 #define prb_next_seq(rb)		0
-
-#define kernel_sync_mode()	false
 
 #define console_try_thread(con)
 
@@ -3191,6 +3211,7 @@ EXPORT_SYMBOL_GPL(kmsg_dump_reason_str);
  */
 void kmsg_dump(enum kmsg_dump_reason reason)
 {
+	struct kmsg_dumper_iter iter;
 	struct kmsg_dumper *dumper;
 
 	if (!oops_in_progress) {
@@ -3214,7 +3235,6 @@ void kmsg_dump(enum kmsg_dump_reason reason)
 	rcu_read_lock();
 	list_for_each_entry_rcu(dumper, &dump_list, list) {
 		enum kmsg_dump_reason max_reason = dumper->max_reason;
-		struct kmsg_dumper dumper_copy;
 
 		/*
 		 * If client has not provided a specific max_reason, default
@@ -3227,25 +3247,19 @@ void kmsg_dump(enum kmsg_dump_reason reason)
 		if (reason > max_reason)
 			continue;
 
-		/*
-		 * Invoke a copy of the dumper to iterate over the records.
-		 * This allows kmsg_dump() to be called simultaneously on
-		 * multiple CPUs.
-		 */
+		/* initialize iterator with data about the stored records */
+		iter.active = true;
+		kmsg_dump_rewind(&iter);
 
-		memcpy(&dumper_copy, dumper, sizeof(dumper_copy));
-		INIT_LIST_HEAD(&dumper_copy.list);
-		dumper_copy.active = true;
-
-		kmsg_dump_rewind_nolock(&dumper_copy);
-		dumper_copy.dump(&dumper_copy, reason);
+		/* invoke dumper which will iterate over records */
+		dumper->dump(dumper, reason, &iter);
 	}
 	rcu_read_unlock();
 }
 
 /**
- * kmsg_dump_get_line_nolock - retrieve one kmsg log line (unlocked version)
- * @dumper: registered kmsg dumper
+ * kmsg_dump_get_line - retrieve one kmsg log line
+ * @iter: kmsg dumper iterator
  * @syslog: include the "<4>" prefixes
  * @line: buffer to copy the line to
  * @size: maximum size of the buffer
@@ -3259,11 +3273,9 @@ void kmsg_dump(enum kmsg_dump_reason reason)
  *
  * A return value of FALSE indicates that there are no more records to
  * read.
- *
- * The function is similar to kmsg_dump_get_line(), but grabs no locks.
  */
-bool kmsg_dump_get_line_nolock(struct kmsg_dumper *dumper, bool syslog,
-			       char *line, size_t size, size_t *len)
+bool kmsg_dump_get_line(struct kmsg_dumper_iter *iter, bool syslog,
+			char *line, size_t size, size_t *len)
 {
 	struct printk_info info;
 	unsigned int line_count;
@@ -3273,16 +3285,16 @@ bool kmsg_dump_get_line_nolock(struct kmsg_dumper *dumper, bool syslog,
 
 	prb_rec_init_rd(&r, &info, line, size);
 
-	if (!dumper->active)
+	if (!iter->active)
 		goto out;
 
 	/* Read text or count text lines? */
 	if (line) {
-		if (!prb_read_valid(prb, dumper->cur_seq, &r))
+		if (!prb_read_valid(prb, iter->cur_seq, &r))
 			goto out;
 		l = record_print_text(&r, syslog, printk_time);
 	} else {
-		if (!prb_read_valid_info(prb, dumper->cur_seq,
+		if (!prb_read_valid_info(prb, iter->cur_seq,
 					 &info, &line_count)) {
 			goto out;
 		}
@@ -3291,41 +3303,18 @@ bool kmsg_dump_get_line_nolock(struct kmsg_dumper *dumper, bool syslog,
 
 	}
 
-	dumper->cur_seq = r.info->seq + 1;
+	iter->cur_seq = r.info->seq + 1;
 	ret = true;
 out:
 	if (len)
 		*len = l;
 	return ret;
 }
-
-/**
- * kmsg_dump_get_line - retrieve one kmsg log line
- * @dumper: registered kmsg dumper
- * @syslog: include the "<4>" prefixes
- * @line: buffer to copy the line to
- * @size: maximum size of the buffer
- * @len: length of line placed into buffer
- *
- * Start at the beginning of the kmsg buffer, with the oldest kmsg
- * record, and copy one record into the provided buffer.
- *
- * Consecutive calls will return the next available record moving
- * towards the end of the buffer with the youngest messages.
- *
- * A return value of FALSE indicates that there are no more records to
- * read.
- */
-bool kmsg_dump_get_line(struct kmsg_dumper *dumper, bool syslog,
-			char *line, size_t size, size_t *len)
-{
-	return kmsg_dump_get_line_nolock(dumper, syslog, line, size, len);
-}
 EXPORT_SYMBOL_GPL(kmsg_dump_get_line);
 
 /**
  * kmsg_dump_get_buffer - copy kmsg log lines
- * @dumper: registered kmsg dumper
+ * @iter: kmsg dumper iterator
  * @syslog: include the "<4>" prefixes
  * @buf: buffer to copy the line to
  * @size: maximum size of the buffer
@@ -3342,11 +3331,10 @@ EXPORT_SYMBOL_GPL(kmsg_dump_get_line);
  * A return value of FALSE indicates that there are no more records to
  * read.
  */
-bool kmsg_dump_get_buffer(struct kmsg_dumper *dumper, bool syslog,
+bool kmsg_dump_get_buffer(struct kmsg_dumper_iter *iter, bool syslog,
 			  char *buf, size_t size, size_t *len_out)
 {
 	struct printk_info info;
-	unsigned int line_count;
 	struct printk_record r;
 	u64 seq;
 	u64 next_seq;
@@ -3354,49 +3342,40 @@ bool kmsg_dump_get_buffer(struct kmsg_dumper *dumper, bool syslog,
 	bool ret = false;
 	bool time = printk_time;
 
-	if (!dumper->active || !buf || !size)
+	if (!iter->active || !buf || !size)
 		goto out;
 
-	if (dumper->cur_seq < prb_first_valid_seq(prb)) {
-		/* messages are gone, move to first available one */
-		dumper->cur_seq = prb_first_valid_seq(prb);
+	if (prb_read_valid_info(prb, iter->cur_seq, &info, NULL)) {
+		if (info.seq != iter->cur_seq) {
+			/* messages are gone, move to first available one */
+			iter->cur_seq = info.seq;
+		}
 	}
 
 	/* last entry */
-	if (dumper->cur_seq >= dumper->next_seq)
+	if (iter->cur_seq >= iter->next_seq)
 		goto out;
 
 	/*
 	 * Find first record that fits, including all following records,
-	 * into the user-provided buffer for this dump.
+	 * into the user-provided buffer for this dump. Pass in size-1
+	 * because this function (by way of record_print_text()) will
+	 * not write more than size-1 bytes of text into @buf.
 	 */
-
-	prb_for_each_info(dumper->cur_seq, prb, seq, &info, &line_count) {
-		if (info.seq >= dumper->next_seq)
-			break;
-		len += get_record_print_text_size(&info, line_count, syslog, time);
-	}
+	seq = find_first_fitting_seq(iter->cur_seq, iter->next_seq,
+				     size - 1, syslog, time);
 
 	/*
-	 * Move first record forward until length fits into the buffer. Ignore
-	 * newest messages that were not counted in the above cycle. Messages
-	 * might appear and get lost in the meantime. This is the best effort
-	 * that prevents an infinite loop.
+	 * Next kmsg_dump_get_buffer() invocation will dump block of
+	 * older records stored right before this one.
 	 */
-	prb_for_each_info(dumper->cur_seq, prb, seq, &info, &line_count) {
-		if (len <= size || info.seq >= dumper->next_seq)
-			break;
-		len -= get_record_print_text_size(&info, line_count, syslog, time);
-	}
-
-	/* Keep track of the last message for the next iteration. */
 	next_seq = seq;
 
 	prb_rec_init_rd(&r, &info, buf, size);
 
 	len = 0;
 	prb_for_each_record(seq, prb, seq, &r) {
-		if (r.info->seq >= dumper->next_seq)
+		if (r.info->seq >= iter->next_seq)
 			break;
 
 		len += record_print_text(&r, syslog, time);
@@ -3405,7 +3384,7 @@ bool kmsg_dump_get_buffer(struct kmsg_dumper *dumper, bool syslog,
 		prb_rec_init_rd(&r, &info, buf + len, size - len);
 	}
 
-	dumper->next_seq = next_seq;
+	iter->next_seq = next_seq;
 	ret = true;
 out:
 	if (len_out)
@@ -3415,32 +3394,17 @@ out:
 EXPORT_SYMBOL_GPL(kmsg_dump_get_buffer);
 
 /**
- * kmsg_dump_rewind_nolock - reset the iterator (unlocked version)
- * @dumper: registered kmsg dumper
- *
- * Reset the dumper's iterator so that kmsg_dump_get_line() and
- * kmsg_dump_get_buffer() can be called again and used multiple
- * times within the same dumper.dump() callback.
- *
- * The function is similar to kmsg_dump_rewind(), but grabs no locks.
- */
-void kmsg_dump_rewind_nolock(struct kmsg_dumper *dumper)
-{
-	dumper->cur_seq = latched_seq_read_nolock(&clear_seq);
-	dumper->next_seq = prb_next_seq(prb);
-}
-
-/**
  * kmsg_dump_rewind - reset the iterator
- * @dumper: registered kmsg dumper
+ * @iter: kmsg dumper iterator
  *
  * Reset the dumper's iterator so that kmsg_dump_get_line() and
  * kmsg_dump_get_buffer() can be called again and used multiple
  * times within the same dumper.dump() callback.
  */
-void kmsg_dump_rewind(struct kmsg_dumper *dumper)
+void kmsg_dump_rewind(struct kmsg_dumper_iter *iter)
 {
-	kmsg_dump_rewind_nolock(dumper);
+	iter->cur_seq = latched_seq_read_nolock(&clear_seq);
+	iter->next_seq = prb_next_seq(prb);
 }
 EXPORT_SYMBOL_GPL(kmsg_dump_rewind);
 
