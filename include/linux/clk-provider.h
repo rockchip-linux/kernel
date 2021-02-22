@@ -695,6 +695,10 @@ void clk_hw_unregister_fixed_factor(struct clk_hw *hw);
  * @lock:	register lock
  *
  * Clock with adjustable fractional divider affecting its output frequency.
+ *
+ * Flags:
+ * CLK_FRAC_DIVIDER_NO_LIMIT - not need to follow the 20 times limit on
+ *	fractional divider
  */
 struct clk_fractional_divider {
 	struct clk_hw	hw;
@@ -714,6 +718,8 @@ struct clk_fractional_divider {
 };
 
 #define to_clk_fd(_hw) container_of(_hw, struct clk_fractional_divider, hw)
+
+#define CLK_FRAC_DIVIDER_NO_LIMIT		BIT(2)
 
 extern const struct clk_ops clk_fractional_divider_ops;
 struct clk *clk_register_fractional_divider(struct device *dev,
