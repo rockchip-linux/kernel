@@ -1,0 +1,75 @@
+* techpoint,tpxxxx Decoder
+
+Required Properties:
+- compatible: should be "techpoint,tpxxxx"
+- clocks: reference to the 27M xvclk input clock.
+- clock-names: should be "xvclk".
+- dovdd-supply: Digital I/O voltage supply, 1.8 volts
+- avdd-supply: Analog voltage supply, 3.3 volts
+- dvdd-supply: Digital core voltage supply, 1.2 volts
+- reset-gpios: Low active reset gpio
+- pwdn-gpios: High active power-down gpio
+
+Attention:
+techpoint device address (7bit)
+techpoint + evb reuse the power bus
+
+Example:
+&i2c1 {
+	status = "okay";
+
+	// BT1120
+	tp9930: tp9930@45 {
+		compatible = "techpoint,tp9930";
+		reg = <0x45>;
+		clocks = <&cru CLK_MIPICSI_OUT>;
+		clock-names = "xvclk";
+		avdd-supply = <&vcc_avdd>;
+		dovdd-supply = <&vcc_dovdd>;
+		dvdd-supply = <&vcc_dvdd>;
+		power-domains = <&power RV1126_PD_VI>;
+		pinctrl-names = "rockchip,camera_default";
+		pinctrl-0 = <&mipicsi_clk0 &cifm0_bt1120_ctl>;
+		rockchip,grf = <&grf>;
+		reset-gpios = <&gpio3 RK_PC4 GPIO_ACTIVE_LOW>;
+		power-gpios = <&gpio2 RK_PA2 GPIO_ACTIVE_HIGH>;
+		rockchip,camera-module-index = <0>;
+		rockchip,camera-module-facing = "back";
+		rockchip,camera-module-name = "default";
+		rockchip,camera-module-lens-name = "default";
+		port {
+			cam_para_out1: endpoint {
+				remote-endpoint = <&cif_para_in>;
+				bus-width = <16>;
+				pclk-sample = <1>;
+			};
+		};
+	};
+
+	// MIPI
+	tp2855: tp2855@44 {
+		compatible = "techpoint,tp2855";
+		reg = <0x44>;
+		clocks = <&cru CLK_MIPICSI_OUT>;
+		clock-names = "xvclk";
+		avdd-supply = <&vcc_avdd>;
+		dovdd-supply = <&vcc_dovdd>;
+		dvdd-supply = <&vcc_dvdd>;
+		power-domains = <&power RV1126_PD_VI>;
+		pinctrl-names = "rockchip,camera_default";
+		pinctrl-0 = <&mipicsi_clk0>;
+		reset-gpios = <&gpio3 RK_PC4 GPIO_ACTIVE_LOW>;
+		power-gpios = <&gpio2 RK_PA2 GPIO_ACTIVE_HIGH>;
+		rockchip,camera-module-index = <1>;
+		rockchip,camera-module-facing = "front";
+		rockchip,camera-module-name = "tp2855";
+		rockchip,camera-module-lens-name = "tp2855";
+
+		port {
+			ucam_out0: endpoint {
+				remote-endpoint = <&mipi_in_ucam0>;
+				data-lanes = <1 2 3 4>;
+			};
+		};
+	};
+};
