@@ -343,6 +343,9 @@ static long rkispp_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 	case RKISPP_CMD_GET_TNRBUF_FD:
 		ret = rkispp_get_tnrbuf_fd(ispp_dev, (struct rkispp_buf_idxfd *)arg);
 		break;
+	case RKISPP_CMD_GET_NRBUF_FD:
+		ret = rkispp_get_nrbuf_fd(ispp_dev, (struct rkispp_buf_idxfd *)arg);
+		break;
 	case RKISPP_CMD_TRIGGER_MODE:
 		rkispp_set_trigger_mode(ispp_dev, (struct rkispp_trigger_mode *)arg);
 		break;
