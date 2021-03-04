@@ -15,6 +15,7 @@
 
 #include <linux/clk.h>
 #include <linux/dmaengine.h>
+#include <linux/gpio.h>
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/platform_device.h>
@@ -23,6 +24,11 @@
 #include <linux/scatterlist.h>
 
 #define DRIVER_NAME "rockchip-spi"
+
+#define ROCKCHIP_SPI_CLR_BITS(reg, bits) \
+		writel_relaxed(readl_relaxed(reg) & ~(bits), reg)
+#define ROCKCHIP_SPI_SET_BITS(reg, bits) \
+		writel_relaxed(readl_relaxed(reg) | (bits), reg)
 
 /* SPI register offsets */
 #define ROCKCHIP_SPI_CTRLR0			0x0000
@@ -144,6 +150,8 @@
 /* max sclk of driver strength 4mA */
 #define IO_DRIVER_4MA_MAX_SCLK_OUT	24000000
 
+#define ROCKCHIP_SPI_MAX_CS_NUM			4
+
 enum rockchip_ssi_type {
 	SSI_MOTO_SPI = 0,
 	SSI_TI_SSP,
@@ -194,6 +202,10 @@ struct rockchip_spi {
 	struct rockchip_spi_dma_data dma_rx;
 	struct rockchip_spi_dma_data dma_tx;
 	struct pinctrl_state *high_speed_state;
+
+	bool cs_asserted[ROCKCHIP_SPI_MAX_CS_NUM];
+
+	bool gpio_requested;
 };
 
 static inline void spi_enable_chip(struct rockchip_spi *rs, int enable)
@@ -259,37 +271,33 @@ static inline u32 rx_max(struct rockchip_spi *rs)
 
 static void rockchip_spi_set_cs(struct spi_device *spi, bool enable)
 {
-	u32 ser;
 	struct spi_master *master = spi->master;
 	struct rockchip_spi *rs = spi_master_get_devdata(master);
+	bool cs_asserted = spi->mode & SPI_CS_HIGH ? enable : !enable;
 
-	pm_runtime_get_sync(rs->dev);
+	/* Return immediately for no-op */
+	if (cs_asserted == rs->cs_asserted[spi->chip_select])
+		return;
 
-	ser = readl_relaxed(rs->regs + ROCKCHIP_SPI_SER) & SER_MASK;
+	if (cs_asserted) {
+		/* Keep things powered as long as CS is asserted */
+		pm_runtime_get_sync(rs->dev);
 
-	/*
-	 * drivers/spi/spi.c:
-	 * static void spi_set_cs(struct spi_device *spi, bool enable)
-	 * {
-	 *		if (spi->mode & SPI_CS_HIGH)
-	 *			enable = !enable;
-	 *
-	 *		if (spi->cs_gpio >= 0)
-	 *			gpio_set_value(spi->cs_gpio, !enable);
-	 *		else if (spi->master->set_cs)
-	 *		spi->master->set_cs(spi, !enable);
-	 * }
-	 *
-	 * Note: enable(rockchip_spi_set_cs) = !enable(spi_set_cs)
-	 */
-	if (!enable)
-		ser |= 1 << spi->chip_select;
-	else
-		ser &= ~(1 << spi->chip_select);
+		if (gpio_is_valid(spi->cs_gpio))
+			ROCKCHIP_SPI_SET_BITS(rs->regs + ROCKCHIP_SPI_SER, 1);
+		else
+			ROCKCHIP_SPI_SET_BITS(rs->regs + ROCKCHIP_SPI_SER, BIT(spi->chip_select));
+	} else {
+		if (gpio_is_valid(spi->cs_gpio))
+			ROCKCHIP_SPI_CLR_BITS(rs->regs + ROCKCHIP_SPI_SER, 1);
+		else
+			ROCKCHIP_SPI_CLR_BITS(rs->regs + ROCKCHIP_SPI_SER, BIT(spi->chip_select));
 
-	writel_relaxed(ser, rs->regs + ROCKCHIP_SPI_SER);
+		/* Drop reference from when we first asserted CS */
+		pm_runtime_put(rs->dev);
+	}
 
-	pm_runtime_put_sync(rs->dev);
+	rs->cs_asserted[spi->chip_select] = cs_asserted;
 }
 
 static int rockchip_spi_prepare_message(struct spi_master *master,
@@ -678,6 +686,49 @@ static bool rockchip_spi_can_dma(struct spi_master *master,
 	return (xfer->len > rs->fifo_len);
 }
 
+static int rockchip_spi_setup(struct spi_device *spi)
+{
+
+	int ret = -EINVAL;
+	struct spi_master *master = spi->master;
+	struct rockchip_spi *rs = spi_master_get_devdata(master);
+
+	if (spi->cs_gpio == -ENOENT)
+		return 0;
+
+	if (!rs->gpio_requested && gpio_is_valid(spi->cs_gpio)) {
+		ret = gpio_request_one(spi->cs_gpio,
+				       (spi->mode & SPI_CS_HIGH) ?
+				       GPIOF_OUT_INIT_LOW : GPIOF_OUT_INIT_HIGH,
+				       dev_name(&spi->dev));
+		if (ret)
+			dev_err(&spi->dev, "can't request chipselect gpio %d\n",
+				spi->cs_gpio);
+		else
+			rs->gpio_requested = true;
+	} else {
+		if (gpio_is_valid(spi->cs_gpio)) {
+			int mode = ((spi->mode & SPI_CS_HIGH) ? 0 : 1);
+
+			ret = gpio_direction_output(spi->cs_gpio, mode);
+			if (ret)
+				dev_err(&spi->dev, "chipselect gpio %d setup failed (%d)\n",
+					spi->cs_gpio, ret);
+		}
+	}
+
+	return ret;
+}
+
+static void rockchip_spi_cleanup(struct spi_device *spi)
+{
+	struct spi_master *master = spi->master;
+	struct rockchip_spi *rs = spi_master_get_devdata(master);
+
+	if (rs->gpio_requested)
+		gpio_free(spi->cs_gpio);
+}
+
 static int rockchip_spi_probe(struct platform_device *pdev)
 {
 	int ret = 0;
@@ -759,6 +810,8 @@ static int rockchip_spi_probe(struct platform_device *pdev)
 	master->bits_per_word_mask = SPI_BPW_MASK(16) | SPI_BPW_MASK(8);
 
 	master->set_cs = rockchip_spi_set_cs;
+	master->setup = rockchip_spi_setup;
+	master->cleanup = rockchip_spi_cleanup;
 	master->prepare_message = rockchip_spi_prepare_message;
 	master->unprepare_message = rockchip_spi_unprepare_message;
 	master->transfer_one = rockchip_spi_transfer_one;
