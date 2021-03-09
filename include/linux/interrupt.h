@@ -663,6 +663,7 @@ static inline int tasklet_trylock(struct tasklet_struct *t)
 void tasklet_unlock(struct tasklet_struct *t);
 void tasklet_unlock_wait(struct tasklet_struct *t);
 void tasklet_unlock_spin_wait(struct tasklet_struct *t);
+
 #else
 static inline int tasklet_trylock(struct tasklet_struct *t) { return 1; }
 static inline void tasklet_unlock(struct tasklet_struct *t) { }
@@ -693,8 +694,8 @@ static inline void tasklet_disable_nosync(struct tasklet_struct *t)
 }
 
 /*
- * Do not use in new code. There is no real reason to invoke this from
- * atomic contexts.
+ * Do not use in new code. Disabling tasklets from atomic contexts is
+ * error prone and should be avoided.
  */
 static inline void tasklet_disable_in_atomic(struct tasklet_struct *t)
 {

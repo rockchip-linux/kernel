@@ -830,8 +830,8 @@ EXPORT_SYMBOL(tasklet_init);
 
 #if defined(CONFIG_SMP) || defined(CONFIG_PREEMPT_RT)
 /*
- * Do not use in new code. There is no real reason to invoke this from
- * atomic contexts.
+ * Do not use in new code. Waiting for tasklets from atomic contexts is
+ * error prone and should be avoided.
  */
 void tasklet_unlock_spin_wait(struct tasklet_struct *t)
 {
