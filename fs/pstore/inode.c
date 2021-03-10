@@ -37,6 +37,11 @@
 #include <linux/spinlock.h>
 #include <linux/uaccess.h>
 
+#ifdef CONFIG_PSTORE_MCU_LOG
+#include <linux/pstore_ram.h>
+#include <linux/io.h>
+#endif
+
 #include "internal.h"
 
 #define	PSTORE_NAMELEN	64
@@ -139,7 +144,42 @@ static ssize_t pstore_file_read(struct file *file, char __user *userbuf,
 {
 	struct seq_file *sf = file->private_data;
 	struct pstore_private *ps = sf->private;
+#ifdef CONFIG_PSTORE_MCU_LOG
+	struct pstore_record *record = ps->record;
+	struct ramoops_context *cxt = record->psi->data;
+	struct persistent_ram_zone *prz;
+	struct persistent_ram_buffer *buffer;
+	char *log_tmp;
+	size_t size, start, n;
 
+	if (ps->record->type == PSTORE_TYPE_MCU_LOG) {
+
+		if (!cxt)
+			return count;
+
+		prz = cxt->mcu_przs[record->id];
+
+		if (!prz)
+			return count;
+
+		buffer = prz->buffer;
+		if (!buffer)
+			return count;
+
+		size = atomic_read(&buffer->size);
+		start = atomic_read(&buffer->start);
+
+		log_tmp = kmalloc(size, GFP_KERNEL);
+		if (!log_tmp)
+			return count;
+		memcpy_fromio(log_tmp, &buffer->data[start], size - start);
+		memcpy_fromio(log_tmp + size - start, &buffer->data[0], start);
+
+		n = simple_read_from_buffer(userbuf, count, ppos, log_tmp, size);
+		kfree(log_tmp);
+		return n;
+	}
+#endif
 	if (ps->record->type == PSTORE_TYPE_FTRACE)
 		return seq_read(file, userbuf, count, ppos);
 	return simple_read_from_buffer(userbuf, count, ppos,
@@ -372,6 +412,11 @@ int pstore_mkfile(struct dentry *root, struct pstore_record *record)
 		scnprintf(name, sizeof(name), "powerpc-opal-%s-%llu",
 			  record->psi->name, record->id);
 		break;
+#ifdef CONFIG_PSTORE_MCU_LOG
+	case PSTORE_TYPE_MCU_LOG:
+		scnprintf(name, sizeof(name), "mcu-log-%llu", record->id);
+		break;
+#endif
 	case PSTORE_TYPE_UNKNOWN:
 		scnprintf(name, sizeof(name), "unknown-%s-%llu",
 			  record->psi->name, record->id);

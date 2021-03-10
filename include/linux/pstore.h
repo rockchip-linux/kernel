@@ -44,6 +44,9 @@ enum pstore_type_id {
 	PSTORE_TYPE_PPC_COMMON	= 6,
 	PSTORE_TYPE_PMSG	= 7,
 	PSTORE_TYPE_PPC_OPAL	= 8,
+#ifdef CONFIG_PSTORE_MCU_LOG
+	PSTORE_TYPE_MCU_LOG	= 9,
+#endif
 	PSTORE_TYPE_UNKNOWN	= 255
 };
 
@@ -196,7 +199,9 @@ struct pstore_info {
 #define PSTORE_FLAGS_CONSOLE	(1 << 1)
 #define PSTORE_FLAGS_FTRACE	(1 << 2)
 #define PSTORE_FLAGS_PMSG	(1 << 3)
-
+#ifdef CONFIG_PSTORE_MCU_LOG
+#define PSTORE_FLAGS_MCU_LOG	(1 << 4)
+#endif
 extern int pstore_register(struct pstore_info *);
 extern void pstore_unregister(struct pstore_info *);
 

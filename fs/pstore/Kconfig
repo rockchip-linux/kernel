@@ -165,3 +165,11 @@ config PSTORE_RAM
 	  "ramoops.ko".
 
 	  For more information, see Documentation/admin-guide/ramoops.rst.
+
+config PSTORE_MCU_LOG
+	bool "Print mcu log by linux"
+	depends on PSTORE
+	help
+	  When your soc has several mcu, you can get their log by cat command
+	  through linux shell
+	  If unsure, say N.

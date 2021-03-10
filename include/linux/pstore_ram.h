@@ -23,6 +23,7 @@
 #include <linux/kernel.h>
 #include <linux/list.h>
 #include <linux/types.h>
+#include <linux/pstore.h>
 
 /*
  * Choose whether access to the RAM zone requires locking or not.  If a zone
@@ -33,6 +34,13 @@
 
 struct persistent_ram_buffer;
 struct rs_control;
+
+struct persistent_ram_buffer {
+	uint32_t    sig;
+	atomic_t    start;
+	atomic_t    size;
+	uint8_t     data[0];
+};
 
 struct persistent_ram_ecc_info {
 	int block_size;
@@ -61,6 +69,42 @@ struct persistent_ram_zone {
 
 	char *old_log;
 	size_t old_log_size;
+};
+
+struct ramoops_context {
+	struct persistent_ram_zone **dprzs;	/* Oops dump zones */
+	struct persistent_ram_zone *cprz;	/* Console zone */
+	struct persistent_ram_zone **fprzs;	/* Ftrace zones */
+	struct persistent_ram_zone *mprz;	/* PMSG zone */
+#ifdef CONFIG_PSTORE_MCU_LOG
+	struct persistent_ram_zone **mcu_przs;	/* MCU log zones */
+#endif
+	phys_addr_t phys_addr;
+	unsigned long size;
+	unsigned int memtype;
+	size_t record_size;
+	size_t console_size;
+	size_t ftrace_size;
+	size_t pmsg_size;
+#ifdef CONFIG_PSTORE_MCU_LOG
+	size_t mcu_log_size;
+#endif
+	int dump_oops;
+	u32 flags;
+	struct persistent_ram_ecc_info ecc_info;
+	unsigned int max_dump_cnt;
+	unsigned int dump_write_cnt;
+	/* _read_cnt need clear on ramoops_pstore_open */
+	unsigned int dump_read_cnt;
+	unsigned int console_read_cnt;
+	unsigned int max_ftrace_cnt;
+	unsigned int ftrace_read_cnt;
+	unsigned int pmsg_read_cnt;
+#ifdef CONFIG_PSTORE_MCU_LOG
+	unsigned int mcu_log_read_cnt;
+	unsigned int max_mcu_log_cnt;
+#endif
+	struct pstore_info pstore;
 };
 
 struct persistent_ram_zone *persistent_ram_new(phys_addr_t start, size_t size,
@@ -97,6 +141,10 @@ struct ramoops_platform_data {
 	unsigned long	console_size;
 	unsigned long	ftrace_size;
 	unsigned long	pmsg_size;
+#ifdef CONFIG_PSTORE_MCU_LOG
+	unsigned long	mcu_log_size;
+	unsigned long	max_mcu_log_cnt;
+#endif
 	int		dump_oops;
 	u32		flags;
 	struct persistent_ram_ecc_info ecc_info;
