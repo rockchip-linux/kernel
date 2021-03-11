@@ -697,7 +697,7 @@ static struct nvp6188_mode supported_modes[] = {
 			.denominator = 250000,
 		},
 		.global_reg_list = common_setting_1458M_regs,
-		.mipi_freq_idx = 1,
+		.mipi_freq_idx = 0,
 		.bpp = 8,
 		.vc[PAD0] = V4L2_MBUS_CSI2_CHANNEL_0,
 		.vc[PAD1] = V4L2_MBUS_CSI2_CHANNEL_1,
