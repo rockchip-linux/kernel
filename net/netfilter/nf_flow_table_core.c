@@ -394,9 +394,6 @@ static int nf_flow_nat_port_tcp(struct sk_buff *skb, unsigned int thoff,
 {
 	struct tcphdr *tcph;
 
-	if (skb_try_make_writable(skb, thoff + sizeof(*tcph)))
-		return -1;
-
 	tcph = (void *)(skb_network_header(skb) + thoff);
 	inet_proto_csum_replace2(&tcph->check, skb, port, new_port, false);
 
@@ -407,9 +404,6 @@ static int nf_flow_nat_port_udp(struct sk_buff *skb, unsigned int thoff,
 				__be16 port, __be16 new_port)
 {
 	struct udphdr *udph;
-
-	if (skb_try_make_writable(skb, thoff + sizeof(*udph)))
-		return -1;
 
 	udph = (void *)(skb_network_header(skb) + thoff);
 	if (udph->check || skb->ip_summed == CHECKSUM_PARTIAL) {
@@ -446,9 +440,6 @@ int nf_flow_snat_port(const struct flow_offload *flow,
 	struct flow_ports *hdr;
 	__be16 port, new_port;
 
-	if (skb_try_make_writable(skb, thoff + sizeof(*hdr)))
-		return -1;
-
 	hdr = (void *)(skb_network_header(skb) + thoff);
 
 	switch (dir) {
@@ -476,9 +467,6 @@ int nf_flow_dnat_port(const struct flow_offload *flow,
 {
 	struct flow_ports *hdr;
 	__be16 port, new_port;
-
-	if (skb_try_make_writable(skb, thoff + sizeof(*hdr)))
-		return -1;
 
 	hdr = (void *)(skb_network_header(skb) + thoff);
 
