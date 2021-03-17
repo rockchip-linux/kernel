@@ -635,6 +635,10 @@ int pm_suspend(suspend_state_t state)
 		return -EINVAL;
 
 	pr_info("suspend entry (%s)\n", mem_sleep_labels[state]);
+
+	if (state == PM_SUSPEND_MEM_LITE || state == PM_SUSPEND_MEM_ULTRA)
+		state = PM_SUSPEND_MEM;
+
 	error = enter_state(state);
 	if (error) {
 		suspend_stats.fail++;
