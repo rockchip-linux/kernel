@@ -1050,9 +1050,13 @@ static int rk817_reboot_notifier_handler(struct notifier_block *nb,
 					 unsigned long action, void *cmd)
 {
 	struct rk817_reboot_data_t *data;
-	int ret;
 	struct device *dev;
 	int value, power_en_active0, power_en_active1;
+	int ret, i;
+	const char *pmic_rst_reg_only_cmd[] = {
+		"loader", "bootloader", "fastboot", "recovery",
+		"ums", "panic", "watchdog", "charge",
+	};
 
 	data = container_of(nb, struct rk817_reboot_data_t, reboot_notifier);
 	dev = &data->rk808->i2c->dev;
@@ -1082,18 +1086,36 @@ static int rk817_reboot_notifier_handler(struct notifier_block *nb,
 		dev_info(dev, "reboot: not restore POWER_EN\n");
 	}
 
-	if (action != SYS_RESTART)
+	if (action != SYS_RESTART || !cmd)
 		return NOTIFY_OK;
 
-	if (!cmd || !strlen(cmd) || !strcmp(cmd, "normal"))
-		return NOTIFY_OK;
+	/*
+	 * When system restart, there are two rst actions of PMIC sleep if
+	 * board hardware support:
+	 *
+	 *	0b'00: reset the PMIC itself completely.
+	 *	0b'01: reset the 'RST' related register only.
+	 *
+	 * In the case of 0b'00, PMIC reset itself which triggers SoC NPOR-reset
+	 * at the same time, so the command: reboot load/bootload/recovery, etc
+	 * is not effect any more.
+	 *
+	 * Here we check if this reboot cmd is what we expect for 0b'01.
+	 */
+	for (i = 0; i < ARRAY_SIZE(pmic_rst_reg_only_cmd); i++) {
+		if (!strcmp(cmd, pmic_rst_reg_only_cmd[i])) {
+			ret = regmap_update_bits(data->rk808->regmap,
+						 RK817_SYS_CFG(3),
+						 RK817_RST_FUNC_MSK,
+						 RK817_RST_FUNC_REG);
+			if (ret)
+				dev_err(dev, "reboot: force RK817_RST_FUNC_REG error!\n");
+			else
+				dev_info(dev, "reboot: force RK817_RST_FUNC_REG ok!\n");
+			break;
+		}
+	}
 
-	ret = regmap_update_bits(data->rk808->regmap, RK817_SYS_CFG(3),
-				 RK817_RST_FUNC_MSK, RK817_RST_FUNC_REG);
-	if (ret)
-		dev_err(dev, "reboot: force RK817_RST_FUNC_REG error!\n");
-	else
-		dev_info(dev, "reboot: force RK817_RST_FUNC_REG ok!\n");
 	return NOTIFY_OK;
 }
 
