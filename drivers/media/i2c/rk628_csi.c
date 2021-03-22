@@ -44,16 +44,12 @@ MODULE_PARM_DESC(debug, "debug level (0-3)");
 #define EDID_NUM_BLOCKS_MAX 		2
 #define EDID_BLOCK_SIZE 		128
 
-// #define SUPPORT_4K30
-#ifdef SUPPORT_4K30
-#define RK628_CSI_LINK_FREQ		400000000
-#define RK628_CSI_PIXEL_RATE		600000000
-#define MIPI_CSITX_DATARATE_MBPS	1250
-#else
-#define RK628_CSI_LINK_FREQ		350000000
-#define RK628_CSI_PIXEL_RATE		300000000
-#define MIPI_CSITX_DATARATE_MBPS	750
-#endif
+#define RK628_CSI_LINK_FREQ_LOW		350000000
+#define RK628_CSI_LINK_FREQ_HIGH	400000000
+#define RK628_CSI_PIXEL_RATE_LOW	300000000
+#define RK628_CSI_PIXEL_RATE_HIGH	600000000
+#define MIPI_DATARATE_MBPS_LOW		750
+#define MIPI_DATARATE_MBPS_HIGH		1250
 
 #define POLL_INTERVAL_MS		1000
 #define MODETCLK_CNT_NUM		1000
@@ -136,7 +132,8 @@ struct rk628_csi_mode {
 };
 
 static const s64 link_freq_menu_items[] = {
-	RK628_CSI_LINK_FREQ,
+	RK628_CSI_LINK_FREQ_LOW,
+	RK628_CSI_LINK_FREQ_HIGH,
 };
 
 static const struct v4l2_dv_timings_cap rk628_csi_timings_cap = {
@@ -169,22 +166,22 @@ static u8 edid_init_data[] = {
 	0x00, 0x14, 0x78, 0x01, 0xFF, 0x1D, 0x00, 0x0A,
 	0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x01, 0x7B,
 
-	0x02, 0x03, 0x1B, 0x71, 0x48, 0x5F, 0x90, 0x04,
-	0x02, 0x01, 0x11, 0x22, 0x1F, 0x23, 0x09, 0x07,
-	0x01, 0x83, 0x01, 0x00, 0x00, 0x65, 0x03, 0x0C,
-	0x00, 0x10, 0x00, 0x8C, 0x0A, 0xD0, 0x8A, 0x20,
-	0xE0, 0x2D, 0x10, 0x10, 0x3E, 0x96, 0x00, 0x13,
-	0x8E, 0x21, 0x00, 0x00, 0x1E, 0xD8, 0x09, 0x80,
-	0xA0, 0x20, 0xE0, 0x2D, 0x10, 0x10, 0x60, 0xA2,
-	0x00, 0xC4, 0x8E, 0x21, 0x00, 0x00, 0x18, 0x8C,
-	0x0A, 0xD0, 0x90, 0x20, 0x40, 0x31, 0x20, 0x0C,
-	0x40, 0x55, 0x00, 0x48, 0x39, 0x00, 0x00, 0x00,
-	0x18, 0x01, 0x1D, 0x80, 0x18, 0x71, 0x38, 0x2D,
-	0x40, 0x58, 0x2C, 0x45, 0x00, 0xC0, 0x6C, 0x00,
-	0x00, 0x00, 0x18, 0x01, 0x1D, 0x80, 0x18, 0x71,
-	0x1C, 0x16, 0x20, 0x58, 0x2C, 0x25, 0x00, 0xC0,
-	0x6C, 0x00, 0x00, 0x00, 0x18, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xB7,
+	0x02, 0x03, 0x1A, 0x71, 0x47, 0x5F, 0x90, 0x22,
+	0x04, 0x11, 0x02, 0x01, 0x23, 0x09, 0x07, 0x01,
+	0x83, 0x01, 0x00, 0x00, 0x65, 0x03, 0x0C, 0x00,
+	0x10, 0x00, 0x8C, 0x0A, 0xD0, 0x8A, 0x20, 0xE0,
+	0x2D, 0x10, 0x10, 0x3E, 0x96, 0x00, 0x13, 0x8E,
+	0x21, 0x00, 0x00, 0x1E, 0xD8, 0x09, 0x80, 0xA0,
+	0x20, 0xE0, 0x2D, 0x10, 0x10, 0x60, 0xA2, 0x00,
+	0xC4, 0x8E, 0x21, 0x00, 0x00, 0x18, 0x8C, 0x0A,
+	0xD0, 0x90, 0x20, 0x40, 0x31, 0x20, 0x0C, 0x40,
+	0x55, 0x00, 0x48, 0x39, 0x00, 0x00, 0x00, 0x18,
+	0x01, 0x1D, 0x80, 0x18, 0x71, 0x38, 0x2D, 0x40,
+	0x58, 0x2C, 0x45, 0x00, 0xC0, 0x6C, 0x00, 0x00,
+	0x00, 0x18, 0x01, 0x1D, 0x80, 0x18, 0x71, 0x1C,
+	0x16, 0x20, 0x58, 0x2C, 0x25, 0x00, 0xC0, 0x6C,
+	0x00, 0x00, 0x00, 0x18, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xD8,
 };
 
 static u8 hdcp_key_data[] = {
@@ -248,8 +245,9 @@ static int rk628_csi_s_dv_timings(struct v4l2_subdev *sd,
 static int rk628_csi_s_edid(struct v4l2_subdev *sd,
 				struct v4l2_subdev_edid *edid);
 static int mipi_dphy_power_on(struct rk628_csi *csi);
+static int mipi_dphy_reset(struct rk628_csi *csi);
 static void mipi_dphy_power_off(struct rk628_csi *csi);
-static void mipi_dphy_init(struct rk628_csi *csi);
+static void mipi_dphy_init_hsfreqrange(struct rk628_csi *csi);
 static int rk628_hdmirx_phy_power_on(struct v4l2_subdev *sd);
 static int rk628_hdmirx_phy_setup(struct v4l2_subdev *sd);
 static void rk628_hdmirx_controller_setup(struct v4l2_subdev *sd);
@@ -798,39 +796,31 @@ static void rk628_post_process_setup(struct v4l2_subdev *sd)
 
 static void rk628_csi_set_csi(struct v4l2_subdev *sd)
 {
-	int ret;
 	struct rk628_csi *csi = to_csi(sd);
 	u8 video_fmt;
 	u8 lanes = csi->csi_lanes_in_use;
 	u8 lane_num;
 	u8 dphy_lane_en;
-	u32 wc_usrdef, bus_width, val;
-
-	wc_usrdef = csi->timings.bt.width * 2;
-	csi->lane_mbps = MIPI_CSITX_DATARATE_MBPS;
+	u32 wc_usrdef, val;
 
 	lane_num = lanes - 1;
 	dphy_lane_en = (1 << (lanes + 1)) - 1;
-	bus_width =  csi->lane_mbps << 8;
-	bus_width |= COMBTXPHY_MODULEA_EN;
-	v4l2_dbg(1, debug, sd, "%s mipi bitrate:%llu mbps\n", __func__,
-			csi->lane_mbps);
+	wc_usrdef = csi->timings.bt.width * 2;
 
 	rk62_csi_reset(sd);
 	rk628_post_process_setup(sd);
-	phy_set_bus_width(csi->txphy, bus_width);
-	ret = phy_set_mode(csi->txphy, PHY_MODE_VIDEO_MIPI);
-	if (ret) {
-		v4l2_err(sd, "failed to set phy mode: %d\n", ret);
-		return;
+
+	if (csi->txphy_pwron) {
+		v4l2_dbg(1, debug, sd,
+			"%s: txphy already power on, power off\n", __func__);
+		mipi_dphy_power_off(csi);
+		csi->txphy_pwron = false;
 	}
 
-	if (csi->txphy_pwron == false) {
-		mipi_dphy_power_on(csi);
-		csi->txphy_pwron = true;
-		v4l2_dbg(2, debug, sd, "%s: txphy power on!\n", __func__);
-		usleep_range(5000, 5000);
-	}
+	mipi_dphy_power_on(csi);
+	csi->txphy_pwron = true;
+	v4l2_dbg(2, debug, sd, "%s: txphy power on!\n", __func__);
+	usleep_range(1000, 1500);
 
 	regmap_update_bits(csi->csi_regmap, CSITX_CSITX_EN,
 			VOP_UV_SWAP_MASK |
@@ -1242,6 +1232,9 @@ static void rk628_csi_initial_setup(struct v4l2_subdev *sd)
 	rk628_csi_set_hdmi_hdcp(sd, csi->enable_hdcp);
 	rk628_hdmirx_audio_setup(sd);
 
+	mipi_dphy_reset(csi);
+	mipi_dphy_power_on(csi);
+	csi->txphy_pwron = true;
 	if (tx_5v_power_present(sd)) {
 		rk628_hdmirx_controller_setup(sd);
 		ret = rk628_hdmirx_phy_setup(sd);
@@ -1649,6 +1642,25 @@ static int rk628_csi_set_fmt(struct v4l2_subdev *sd,
 	csi->mbus_fmt_code = format->format.code;
 	mode = rk628_csi_find_best_fit(format);
 	csi->cur_mode = mode;
+
+	if ((mode->width == 3840) && (mode->height == 2160)) {
+		v4l2_dbg(1, debug, sd,
+			"%s res wxh:%dx%d, link freq:%llu, pixrate:%u\n",
+			__func__, mode->width, mode->height,
+			link_freq_menu_items[1], RK628_CSI_PIXEL_RATE_HIGH);
+		__v4l2_ctrl_s_ctrl(csi->link_freq, 1);
+		__v4l2_ctrl_s_ctrl_int64(csi->pixel_rate,
+			RK628_CSI_PIXEL_RATE_HIGH);
+	} else {
+		v4l2_dbg(1, debug, sd,
+			"%s res wxh:%dx%d, link freq:%llu, pixrate:%u\n",
+			__func__, mode->width, mode->height,
+			link_freq_menu_items[0], RK628_CSI_PIXEL_RATE_LOW);
+		__v4l2_ctrl_s_ctrl(csi->link_freq, 0);
+		__v4l2_ctrl_s_ctrl_int64(csi->pixel_rate,
+			RK628_CSI_PIXEL_RATE_LOW);
+	}
+
 	enable_stream(sd, false);
 	rk628_csi_set_csi(sd);
 
@@ -1949,7 +1961,7 @@ static inline void mipi_dphy_rstz_deassert(struct rk628_csi *csi)
 	udelay(1);
 }
 
-static void mipi_dphy_init(struct rk628_csi *csi)
+static void mipi_dphy_init_hsfreqrange(struct rk628_csi *csi)
 {
 	const struct {
 		unsigned long max_lane_mbps;
@@ -1980,9 +1992,9 @@ static void mipi_dphy_init(struct rk628_csi *csi)
 	testif_write(csi, 0x44, HSFREQRANGE(hsfreqrange));
 }
 
-static int mipi_dphy_power_on(struct rk628_csi *csi)
+static int mipi_dphy_reset(struct rk628_csi *csi)
 {
-	unsigned int val, mask;
+	u32 val, mask;
 	int ret;
 
 	mipi_dphy_enableclk_deassert(csi);
@@ -1995,31 +2007,53 @@ static int mipi_dphy_power_on(struct rk628_csi *csi)
 		     FORCETXSTOPMODE_MASK | FORCERXMODE_MASK,
 		     FORCETXSTOPMODE(0) | FORCERXMODE(0));
 	udelay(1);
-
 	testif_testclr_deassert(csi);
-	mipi_dphy_init(csi);
-
 	mipi_dphy_enableclk_assert(csi);
 	mipi_dphy_shutdownz_deassert(csi);
 	mipi_dphy_rstz_deassert(csi);
 	usleep_range(1500, 2000);
 
-	phy_power_on(csi->txphy);
-
-	ret = regmap_read_poll_timeout(csi->csi_regmap, CSITX_CSITX_STATUS1,
-				       val, val & DPHY_PLL_LOCK, 0, 1000);
-	if (ret < 0) {
-		dev_err(csi->dev, "PHY is not locked\n");
-		return ret;
-	}
-
-	usleep_range(100, 200);
 	mask = STOPSTATE_CLK | STOPSTATE_LANE0;
 	ret = regmap_read_poll_timeout(csi->csi_regmap, CSITX_CSITX_STATUS1,
 				       val, (val & mask) == mask,
 				       0, 1000);
 	if (ret < 0) {
 		dev_err(csi->dev, "lane module is not in stop state\n");
+		return ret;
+	}
+
+	return 0;
+}
+
+static int mipi_dphy_power_on(struct rk628_csi *csi)
+{
+	unsigned int val;
+	u32 bus_width;
+	int ret;
+	struct v4l2_subdev *sd = &csi->sd;
+
+	if ((csi->timings.bt.width == 3840) &&
+			(csi->timings.bt.height == 2160)) {
+		csi->lane_mbps = MIPI_DATARATE_MBPS_HIGH;
+	} else {
+		csi->lane_mbps = MIPI_DATARATE_MBPS_LOW;
+	}
+
+	bus_width =  csi->lane_mbps << 8;
+	bus_width |= COMBTXPHY_MODULEA_EN;
+	v4l2_dbg(1, debug, sd, "%s mipi bitrate:%llu mbps\n", __func__,
+			csi->lane_mbps);
+	phy_set_bus_width(csi->txphy, bus_width);
+	phy_set_mode(csi->txphy, PHY_MODE_VIDEO_MIPI);
+
+	mipi_dphy_init_hsfreqrange(csi);
+	usleep_range(1500, 2000);
+	phy_power_on(csi->txphy);
+
+	ret = regmap_read_poll_timeout(csi->csi_regmap, CSITX_CSITX_STATUS1,
+				       val, val & DPHY_PLL_LOCK, 0, 1000);
+	if (ret < 0) {
+		dev_err(csi->dev, "PHY is not locked\n");
 		return ret;
 	}
 
@@ -2030,9 +2064,6 @@ static int mipi_dphy_power_on(struct rk628_csi *csi)
 
 static void mipi_dphy_power_off(struct rk628_csi *csi)
 {
-	mipi_dphy_enableclk_deassert(csi);
-	mipi_dphy_shutdownz_assert(csi);
-	mipi_dphy_rstz_assert(csi);
 	phy_power_off(csi->txphy);
 }
 
@@ -2268,8 +2299,10 @@ static int rk628_csi_probe_of(struct rk628_csi *csi)
 		return ret;
 	}
 
-	gpiod_set_value(csi->power_gpio, 1);
-	usleep_range(500, 500);
+	if (csi->power_gpio) {
+		gpiod_set_value(csi->power_gpio, 1);
+		usleep_range(500, 510);
+	}
 
 	csi->plugin_det_gpio = devm_gpiod_get_optional(dev, "plugin-det",
 						    GPIOD_IN);
@@ -2510,8 +2543,8 @@ static int rk628_csi_probe(struct platform_device *pdev)
 			ARRAY_SIZE(link_freq_menu_items) - 1,
 			0, link_freq_menu_items);
 	csi->pixel_rate = v4l2_ctrl_new_std(&csi->hdl, NULL,
-			V4L2_CID_PIXEL_RATE, 0, RK628_CSI_PIXEL_RATE, 1,
-			RK628_CSI_PIXEL_RATE);
+			V4L2_CID_PIXEL_RATE, 0, RK628_CSI_PIXEL_RATE_HIGH, 1,
+			RK628_CSI_PIXEL_RATE_HIGH);
 	csi->detect_tx_5v_ctrl = v4l2_ctrl_new_std(&csi->hdl,
 			&rk628_csi_ctrl_ops, V4L2_CID_DV_RX_POWER_PRESENT,
 			0, 1, 0, 0);
