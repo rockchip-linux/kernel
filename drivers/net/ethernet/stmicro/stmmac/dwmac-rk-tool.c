@@ -1216,7 +1216,9 @@ static int dwmac_rk_loopback_run(struct stmmac_priv *priv,
 	/* wait for phy and controller ready */
 	usleep_range(100000, 200000);
 
-	dwmac_rk_init(ndev, lb_priv);
+	ret = dwmac_rk_init(ndev, lb_priv);
+	if (ret)
+		goto exit_init;
 	dwmac_rk_set_loopback(priv, lb_priv->type, lb_priv->speed, true);
 
 	if (lb_priv->scan) {
@@ -1240,6 +1242,7 @@ out:
 	dwmac_rk_release(ndev, lb_priv);
 	dwmac_rk_set_loopback(priv, lb_priv->type, lb_priv->speed, false);
 
+exit_init:
 	if (ndev_up)
 		ndev->netdev_ops->ndo_open(ndev);
 
