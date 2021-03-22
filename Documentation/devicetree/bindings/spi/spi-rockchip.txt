@@ -6,8 +6,9 @@ and display controllers using the SPI communication interface.
 Required Properties:
 
 - compatible: should be one of the following.
+    "rockchip,px30-spi" for px30 SoCs.
     "rockchip,rv1108-spi" for rv1108 SoCs.
-    "rockchip,px30-spi", "rockchip,rk3066-spi" for px30 SoCs.
+    "rockchip,rv1126-spi" for rv1126 SoCs.
     "rockchip,rk3036-spi" for rk3036 SoCs.
     "rockchip,rk3066-spi" for rk3066 SoCs.
     "rockchip,rk3188-spi" for rk3188 SoCs.
@@ -15,6 +16,7 @@ Required Properties:
     "rockchip,rk3288-spi" for rk3288 SoCs.
     "rockchip,rk3368-spi" for rk3368 SoCs.
     "rockchip,rk3399-spi" for rk3399 SoCs.
+    "rockchip,rk3568-spi" for rk3568 SoCs.
 - reg: physical base address of the controller and length of memory mapped
        region.
 - interrupts: The interrupt number to the cpu. The interrupt specifier format
