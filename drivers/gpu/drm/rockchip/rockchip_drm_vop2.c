@@ -2575,7 +2575,8 @@ static int vop2_plane_atomic_check(struct drm_plane *plane, struct drm_plane_sta
 
 		offset = (src->x1 >> 16) * fb->format->bpp[1] / hsub / 8;
 		offset += (src->y1 >> 16) * fb->pitches[1] / vsub;
-
+		if (vpstate->ymirror_en && !vpstate->afbc_en)
+			offset += fb->pitches[1] * ((state->src_h >> 16) - 2)  / vsub;
 		dma_addr = rockchip_fb_get_dma_addr(fb, 1);
 		dma_addr += offset + fb->offsets[1];
 		vpstate->uv_mst = dma_addr;
