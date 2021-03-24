@@ -1056,6 +1056,7 @@ struct dwc3_scratchpad_array {
  *			false otherwise.
  * @en_runtime: true when need runtime PM management. For example, RK3399 need
  *			reset dwc3 and usb3phy to support typec interface.
+ * @uwk_en: true when enable usb wakeup from host resume signal.
  * @imod_interval: set the interrupt moderation interval in 250ns
  *                 increments or 0 to disable.
  */
@@ -1251,6 +1252,7 @@ struct dwc3 {
 	unsigned		fifo_resize_status:1;
 	unsigned		drd_connected:1;
 	unsigned		en_runtime:1;
+	unsigned		uwk_en:1;
 
 	u16			imod_interval;
 };
@@ -1453,6 +1455,8 @@ int dwc3_gadget_set_link_state(struct dwc3 *dwc, enum dwc3_link_state state);
 int dwc3_send_gadget_ep_cmd(struct dwc3_ep *dep, unsigned cmd,
 		struct dwc3_gadget_ep_cmd_params *params);
 int dwc3_send_gadget_generic_command(struct dwc3 *dwc, unsigned cmd, u32 param);
+void dwc3_gadget_disable_irq(struct dwc3 *dwc);
+void dwc3_gadget_enable_irq(struct dwc3 *dwc);
 #else
 static inline int dwc3_gadget_init(struct dwc3 *dwc)
 { return 0; }
@@ -1472,6 +1476,10 @@ static inline int dwc3_send_gadget_ep_cmd(struct dwc3_ep *dep, unsigned cmd,
 static inline int dwc3_send_gadget_generic_command(struct dwc3 *dwc,
 		int cmd, u32 param)
 { return 0; }
+static inline void dwc3_gadget_enable_irq(struct dwc3 *dwc)
+{ }
+static inline void dwc3_gadget_disable_irq(struct dwc3 *dwc)
+{ }
 #endif
 
 #if IS_ENABLED(CONFIG_USB_DWC3_DUAL_ROLE)
