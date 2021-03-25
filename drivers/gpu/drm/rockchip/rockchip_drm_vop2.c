@@ -1866,9 +1866,14 @@ static int vop2_wb_encoder_atomic_check(struct drm_encoder *encoder,
 
 	wb_state->vp_id = vp->id;
 	wb_state->yrgb_addr = rockchip_fb_get_dma_addr(fb, 0);
+	/*
+	 * uv address must follow yrgb address without gap.
+	 * the fb->offsets is include stride, so we should
+	 * not use it.
+	 */
 	if (fb->format->is_yuv) {
-		wb_state->uv_addr = rockchip_fb_get_dma_addr(fb, 1);
-		wb_state->uv_addr += fb->offsets[1];
+		wb_state->uv_addr = wb_state->yrgb_addr;
+		wb_state->uv_addr += DIV_ROUND_UP(fb->width * fb->format->bpp[0], 8) * fb->height;
 	}
 
 	return 0;
