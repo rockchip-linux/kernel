@@ -2600,6 +2600,7 @@ static void vop2_plane_atomic_disable(struct drm_plane *plane, struct drm_plane_
 	spin_lock(&vop2->reg_lock);
 
 	vop2_win_disable(win);
+	VOP_WIN_SET(vop2, win, yuv_clip, 0);
 
 #if defined(CONFIG_ROCKCHIP_DRM_DEBUG)
 	kfree(vpstate->planlist);
@@ -2671,6 +2672,7 @@ static void vop2_plane_atomic_update(struct drm_plane *plane, struct drm_plane_s
 	struct vop2_video_port *vp = to_vop2_video_port(crtc);
 	struct vop2_plane_state *vpstate = to_vop2_plane_state(pstate);
 	struct drm_display_mode *adjusted_mode = &crtc->state->adjusted_mode;
+	struct rockchip_crtc_state *vcstate = to_rockchip_crtc_state(crtc->state);
 	struct vop2 *vop2 = win->vop2;
 	struct drm_framebuffer *fb = pstate->fb;
 	uint32_t bpp = fb->format->bpp[0];
@@ -2866,6 +2868,9 @@ static void vop2_plane_atomic_update(struct drm_plane *plane, struct drm_plane_s
 		VOP_CLUSTER_SET(vop2, win, lb_mode, lb_mode);
 		VOP_CLUSTER_SET(vop2, win, enable, 1);
 	}
+	if (vcstate->output_if & VOP_OUTPUT_IF_BT1120 ||
+	    vcstate->output_if & VOP_OUTPUT_IF_BT656)
+		VOP_WIN_SET(vop2, win, yuv_clip, 1);
 	spin_unlock(&vop2->reg_lock);
 
 	vop2->is_iommu_needed = true;

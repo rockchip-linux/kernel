@@ -509,6 +509,7 @@ struct vop2_win_regs {
 	struct vop_reg uv_mst;
 	struct vop_reg yrgb_vir;
 	struct vop_reg uv_vir;
+	struct vop_reg yuv_clip;
 	struct vop_reg lb_mode;
 	struct vop_reg y2r_en;
 	struct vop_reg r2y_en;
