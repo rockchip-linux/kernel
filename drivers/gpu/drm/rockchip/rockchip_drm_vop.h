@@ -193,6 +193,7 @@ struct vop_ctrl {
 	struct vop_reg sw_uv_offset_en;
 	struct vop_reg dsp_out_yuv;
 	struct vop_reg dsp_data_swap;
+	struct vop_reg yuv_clip;
 	struct vop_reg dsp_ccir656_avg;
 	struct vop_reg dsp_black;
 	struct vop_reg dsp_blank;

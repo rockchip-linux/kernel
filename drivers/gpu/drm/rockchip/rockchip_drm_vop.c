@@ -3005,6 +3005,7 @@ static void vop_crtc_atomic_enable(struct drm_crtc *crtc,
 			VOP_CTRL_SET(vop, bt1120_en, 1);
 			yc_swap = is_yc_swap(s->bus_format);
 			VOP_CTRL_SET(vop, bt1120_yc_swap, yc_swap);
+			VOP_CTRL_SET(vop, yuv_clip, 1);
 		}
 		break;
 	case DRM_MODE_CONNECTOR_eDP:
