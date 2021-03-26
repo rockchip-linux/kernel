@@ -1123,16 +1123,16 @@ static void nvp6188_get_vc_fmt_inf(struct nvp6188 *nvp6188,
 				inf->height[ch] = 720;
 				inf->fps[ch] = 30;
 			break;
-			case NVP_RESO_1080P_PAL_VALUE:
-				inf->width[ch] = 1920;
-				inf->height[ch] = 1080;
-				inf->fps[ch] = 25;
-			break;
 			case NVP_RESO_1080P_NSTC_VALUE:
-			default:
 				inf->width[ch] = 1920;
 				inf->height[ch] = 1080;
 				inf->fps[ch] = 30;
+			break;
+			case NVP_RESO_1080P_PAL_VALUE:
+			default:
+				inf->width[ch] = 1920;
+				inf->height[ch] = 1080;
+				inf->fps[ch] = 25;
 			break;
 		}
 	}
