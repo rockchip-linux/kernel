@@ -989,20 +989,16 @@ irq_forced_thread_fn(struct irq_desc *desc, struct irqaction *action)
 	irqreturn_t ret;
 
 	local_bh_disable();
+	if (!IS_ENABLED(CONFIG_PREEMPT_RT_BASE))
+		local_irq_disable();
 	ret = action->thread_fn(action->irq, action->dev_id);
 	if (ret == IRQ_HANDLED)
 		atomic_inc(&desc->threads_handled);
 
 	irq_finalize_oneshot(desc, action);
-	/*
-	 * Interrupts which have real time requirements can be set up
-	 * to avoid softirq processing in the thread handler. This is
-	 * safe as these interrupts do not raise soft interrupts.
-	 */
-	if (irq_settings_no_softirq_call(desc))
-		_local_bh_enable();
-	else
-		local_bh_enable();
+	if (!IS_ENABLED(CONFIG_PREEMPT_RT_BASE))
+		local_irq_enable();
+	local_bh_enable();
 	return ret;
 }
 
