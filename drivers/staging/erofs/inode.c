@@ -48,6 +48,12 @@ static struct page *read_inode(struct inode *inode, unsigned int *ofs)
 	v1 = page_address(page) + *ofs;
 	ifmt = le16_to_cpu(v1->i_advise);
 
+	if (ifmt & ~EROFS_I_ALL) {
+		errln("unsupported i_format %u of nid %llu", ifmt, vi->nid);
+		err = -EOPNOTSUPP;
+		goto err_out;
+	}
+
 	vi->data_mapping_mode = __inode_data_mapping(ifmt);
 	if (unlikely(vi->data_mapping_mode >= EROFS_INODE_LAYOUT_MAX)) {
 		errln("unknown data mapping mode %u of nid %llu",
