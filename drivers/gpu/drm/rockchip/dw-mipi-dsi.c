@@ -1094,10 +1094,17 @@ static void dw_mipi_dsi_encoder_disable(struct drm_encoder *encoder)
 
 	if (dsi->panel)
 		drm_panel_disable(dsi->panel);
+
+	if (dsi->pdata->soc_type == RK3568)
+		vop2_standby(encoder->crtc, 1);
+
 	dw_mipi_dsi_disable(dsi);
 	if (dsi->panel)
 		drm_panel_unprepare(dsi->panel);
 	dw_mipi_dsi_post_disable(dsi);
+
+	if (dsi->pdata->soc_type == RK3568)
+		vop2_standby(encoder->crtc, 0);
 }
 
 static void dw_mipi_dsi_vop_routing(struct dw_mipi_dsi *dsi)
@@ -1331,10 +1338,18 @@ static void dw_mipi_dsi_encoder_enable(struct drm_encoder *encoder)
 		     dsi->lane_mbps, dsi->slave ? dsi->lanes * 2 : dsi->lanes);
 
 	dw_mipi_dsi_vop_routing(dsi);
+
+	if (dsi->pdata->soc_type == RK3568)
+		vop2_standby(encoder->crtc, 1);
+
 	dw_mipi_dsi_pre_enable(dsi);
 	if (dsi->panel)
 		drm_panel_prepare(dsi->panel);
 	dw_mipi_dsi_enable(dsi);
+
+	if (dsi->pdata->soc_type == RK3568)
+		vop2_standby(encoder->crtc, 0);
+
 	if (dsi->panel)
 		drm_panel_enable(dsi->panel);
 }
