@@ -71,6 +71,7 @@ struct rockchip_drm_mode_set {
 	struct drm_connector *connector;
 	struct drm_crtc *crtc;
 	struct drm_display_mode *mode;
+	int clock;
 	int hdisplay;
 	int vdisplay;
 	int vrefresh;
@@ -461,6 +462,9 @@ of_parse_display_resource(struct drm_device *drm_dev, struct device_node *route)
 	if (!set)
 		return NULL;
 
+	if (!of_property_read_u32(route, "video,clock", &val))
+		set->clock = val;
+
 	if (!of_property_read_u32(route, "video,hdisplay", &val))
 		set->hdisplay = val;
 
@@ -680,7 +684,8 @@ static int setup_initial_state(struct drm_device *drm_dev,
 	}
 
 	list_for_each_entry(mode, &connector->modes, head) {
-		if (mode->hdisplay == set->hdisplay &&
+		if (mode->clock == set->clock &&
+		    mode->hdisplay == set->hdisplay &&
 		    mode->vdisplay == set->vdisplay &&
 		    mode->crtc_hsync_end == set->crtc_hsync_end &&
 		    mode->crtc_vsync_end == set->crtc_vsync_end &&
