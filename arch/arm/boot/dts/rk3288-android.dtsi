@@ -50,6 +50,13 @@
 		bootargs = "earlycon=uart8250,mmio32,0xff690000 vmalloc=496M";
 	};
 
+	aliases {
+		mmc0 = &sdmmc;
+		mmc1 = &sdio0;
+		mmc2 = &emmc;
+		mmc3 = &sdio1;
+	};
+
 	cpuinfo {
 		compatible = "rockchip,cpuinfo";
 		nvmem-cells = <&efuse_id>;
