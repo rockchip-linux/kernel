@@ -1399,7 +1399,9 @@ static const char *const rv1126_cru_critical_clocks[] __initconst = {
 #if IS_ENABLED(CONFIG_USB_EHCI_HCD_PLATFORM) || IS_ENABLED(CONFIG_USB_OHCI_HCD_PLATFORM)
 	"clk_usbhost_utmi_ohci",
 #endif
-#if IS_ENABLED(CONFIG_ROCKCHIP_MPP_VDPU2) || IS_ENABLED(CONFIG_ROCKCHIP_MPP_RKVDEC)
+#if IS_ENABLED(CONFIG_ROCKCHIP_MPP_VDPU2) || \
+    IS_ENABLED(CONFIG_ROCKCHIP_MPP_RKVDEC) || \
+    IS_ENABLED(CONFIG_ROCKCHIP_MPP_VEPU2)
 	"aclk_pdjpeg_niu",
 	"hclk_pdjpeg_niu",
 	"aclk_pdvdec_niu",
