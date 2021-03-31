@@ -579,8 +579,6 @@ static void dw_hdmi_rockchip_encoder_enable(struct drm_encoder *encoder)
 	if (WARN_ON(!crtc || !crtc->state))
 		return;
 
-	hdmi->mode_changed = false;
-
 	if (hdmi->phy)
 		phy_set_bus_width(hdmi->phy, hdmi->phy_bus_width);
 
@@ -860,8 +858,7 @@ dw_hdmi_rockchip_encoder_atomic_check(struct drm_encoder *encoder,
 	s->bus_format = bus_format;
 	hdmi->bus_format = s->bus_format;
 
-	if (crtc_state->mode_changed == true)
-		hdmi->mode_changed = true;
+	hdmi->mode_changed = crtc_state->mode_changed;
 
 	if (hdmi->enc_out_encoding == V4L2_YCBCR_ENC_BT2020)
 		s->color_space = V4L2_COLORSPACE_BT2020;
