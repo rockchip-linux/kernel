@@ -117,7 +117,7 @@ static int kbase_platform_rk_init(struct kbase_device *kbdev)
 		ret = -ENOMEM;
 		goto err_wq;
 	}
-	INIT_DEFERRABLE_WORK(&platform->work, rk_pm_power_off_delay_work);
+	INIT_DELAYED_WORK(&platform->work, rk_pm_power_off_delay_work);
 
 	wake_lock_init(&platform->wake_lock, WAKE_LOCK_SUSPEND, "gpu");
 
