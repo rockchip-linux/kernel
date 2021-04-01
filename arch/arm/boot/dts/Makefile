@@ -548,6 +548,7 @@ dtb-$(CONFIG_ARCH_ROCKCHIP) += \
 	rk3288-evb-android-rk818-mipi.dtb \
 	rk3288-evb-android-rk818-mipi-edp.dtb \
 	rk3288-evb-rk628-hdmi2csi-avb.dtb \
+	rk3288-evb-rk628-hdmi2dsi-avb.dtb \
 	rk3288-evb-rk628-hdmi2gvi-avb.dtb \
 	rk3288-evb-rk628-rgb2dsi-avb.dtb \
 	rk3288-evb-rk628-rgb2gvi-avb.dtb \
