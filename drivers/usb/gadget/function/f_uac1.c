@@ -408,10 +408,10 @@ static void uac_cs_attr_sample_rate(struct usb_ep *ep, struct usb_request *req)
 
 	val = buf[0] | (buf[1] << 8) | (buf[2] << 16);
 
-	if (uac1->ctl_id == (USB_DIR_IN | 1)) {
+	if (uac1->ctl_id == agdev->in_ep->address) {
 		opts->p_srate_active = val;
 		u_audio_set_playback_srate(agdev, opts->p_srate_active);
-	} else if (uac1->ctl_id == (USB_DIR_OUT | 1)) {
+	} else if (uac1->ctl_id == agdev->out_ep->address) {
 		opts->c_srate_active = val;
 		u_audio_set_capture_srate(agdev, opts->c_srate_active);
 	}
