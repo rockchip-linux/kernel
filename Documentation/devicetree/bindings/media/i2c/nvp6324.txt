@@ -1,0 +1,48 @@
+* Nextchip NVP6324 AHD to MIPI CSI2 decoder
+
+Required Properties:
+- compatible: should be "jaguar1-v4l2"
+- clocks: reference to the Single 27M Oscillator.
+- clock-names: should be "xvclk".
+- pd-gpios: High active nvp6324 powerdown gpio
+- pd2-gpios: High active ahd camera  powerdown gpio
+- rst-gpios: High active nvp6324 reset gpio
+- rst2-gpios: High active ahd camera reset gpio
+
+Optional Properties:
+- rockchip,default_rect= <1920 1080>; // default resolution
+
+NVP6324 device address 0x30(7bit);
+The device node must contain one 'port' child node for its digital output
+video port, in accordance with the video interface bindings defined in
+Documentation/devicetree/bindings/media/video-interfaces.txt.
+
+Example:
+
+&i2c4 {
+	status = "okay";
+
+	jaguar1: jaguar1@30 {
+		compatible = "jaguar1-v4l2";
+		status = "okay";
+		reg = <0x30>;
+		clocks = <&cru CLK_CAM0_OUT>;
+		clock-names = "xvclk";
+		power-domains = <&power RK3568_PD_VI>;
+		pd-gpios = <&gpio4 RK_PB4 GPIO_ACTIVE_HIGH>;
+		/*pd2-gpios = <&gpio4 RK_PB5 GPIO_ACTIVE_HIGH>;*/
+		rst-gpios = <&gpio3 RK_PB6 GPIO_ACTIVE_HIGH>;
+		/*rst2-gpios = <&gpio2 RK_PC5 GPIO_ACTIVE_HIGH>;*/
+		rockchip,camera-module-index = <0>;
+		rockchip,camera-module-facing = "back";
+		rockchip,camera-module-name = "jaguar1";
+		rockchip,camera-module-lens-name = "jaguar1";
+		rockchip,default_rect= <1920 1080>; // default resolution
+		port {
+			n4_out: endpoint {
+				remote-endpoint = <&mipi_in_ucam3>;
+				data-lanes = <1 2 3 4>;
+			};
+		};
+	};
+};
