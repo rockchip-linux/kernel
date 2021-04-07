@@ -399,6 +399,7 @@ static long dma_buf_ioctl(struct file *file,
 {
 	struct dma_buf *dmabuf;
 	struct dma_buf_sync sync;
+	struct dma_buf_sync_partial sync_p;
 	enum dma_data_direction dir;
 	int ret;
 
@@ -444,6 +445,44 @@ static long dma_buf_ioctl(struct file *file,
 	case DMA_BUF_SET_NAME_A:
 	case DMA_BUF_SET_NAME_B:
 		return dma_buf_set_name(dmabuf, (const char __user *)arg);
+
+	case DMA_BUF_IOCTL_SYNC_PARTIAL:
+		if (copy_from_user(&sync_p, (void __user *) arg, sizeof(sync_p)))
+			return -EFAULT;
+
+		if (sync_p.len == 0)
+			return -EINVAL;
+
+		if (sync_p.len > dmabuf->size || sync_p.offset > dmabuf->size - sync_p.len)
+			return -EINVAL;
+
+		if (sync_p.flags & ~DMA_BUF_SYNC_VALID_FLAGS_MASK)
+			return -EINVAL;
+
+		switch (sync_p.flags & DMA_BUF_SYNC_RW) {
+		case DMA_BUF_SYNC_READ:
+			dir = DMA_FROM_DEVICE;
+			break;
+		case DMA_BUF_SYNC_WRITE:
+			dir = DMA_TO_DEVICE;
+			break;
+		case DMA_BUF_SYNC_RW:
+			dir = DMA_BIDIRECTIONAL;
+			break;
+		default:
+			return -EINVAL;
+		}
+
+		if (sync_p.flags & DMA_BUF_SYNC_END)
+			ret = dma_buf_end_cpu_access_partial(dmabuf, dir,
+							     sync_p.offset,
+							     sync_p.len);
+		else
+			ret = dma_buf_begin_cpu_access_partial(dmabuf, dir,
+							       sync_p.offset,
+							       sync_p.len);
+
+		return ret;
 
 	default:
 		return -ENOTTY;
