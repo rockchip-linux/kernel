@@ -388,6 +388,14 @@
 	};
 };
 
+&rkisp_vir1 {
+	status = "okay";
+};
+
+&rkispp_vir1 {
+	status = "okay";
+};
+
 &rkvenc {
 	venc-supply = <&vdd_npu_vepu>;
 };
