@@ -712,6 +712,14 @@ static int rk817_bat_field_write(struct rk817_battery_device *battery,
 	return regmap_field_write(battery->rmap_fields[field_id], val);
 }
 
+static bool rk817_is_bat_exist(struct rk817_battery_device *battery)
+{
+	if (battery->chip_id == RK817_ID)
+		return rk817_bat_field_read(battery, BAT_EXS) ? true : false;
+
+	return true;
+}
+
 /*cal_offset: current offset value*/
 static int rk817_bat_get_coffset(struct rk817_battery_device *battery)
 {
@@ -1866,6 +1874,8 @@ static int rk817_bat_parse_dt(struct rk817_battery_device *battery)
 	ret = of_property_read_u32(np, "virtual_power", &pdata->bat_mode);
 	if (ret < 0)
 		dev_err(dev, "virtual_power missing!\n");
+	if (!rk817_is_bat_exist(battery))
+		battery->pdata->bat_mode = MODE_VIRTUAL;
 
 	ret = of_property_read_u32(np, "bat_res", &pdata->bat_res);
 	if (ret < 0)
