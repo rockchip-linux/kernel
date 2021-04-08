@@ -1721,6 +1721,17 @@ config VIDEO_SC500AI
 	  To compile this driver as a module, choose M here: the
 	  module will be called SC500AI.
 
+config VIDEO_SP250A
+	tristate "Superpix SP250A sensor support"
+	depends on I2C && VIDEO_V4L2 && VIDEO_V4L2_SUBDEV_API
+	depends on MEDIA_CAMERA_SUPPORT
+	select V4L2_FWNODE
+	help
+	  Support for the SmartSens SP250A sensor.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called SP250A.
+
 comment "Flash devices"
 
 config VIDEO_ADP1653
