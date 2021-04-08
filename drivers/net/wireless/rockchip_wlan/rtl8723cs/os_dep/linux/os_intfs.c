@@ -1158,6 +1158,7 @@ uint loadparam(_adapter *padapter)
 	uint status = _SUCCESS;
 	struct registry_priv  *registry_par = &padapter->registrypriv;
 
+	_rtw_memset(&padapter->registrypriv, 0, sizeof(padapter->registrypriv));
 
 #ifdef CONFIG_RTW_DEBUG
 	if (rtw_drv_log_level >= _DRV_MAX_)
@@ -1179,6 +1180,7 @@ uint loadparam(_adapter *padapter)
 		rtw_wireless_mode &= ~WIRELESS_11B;
 #endif
 	registry_par->wireless_mode = (u8)rtw_wireless_mode;
+	RTW_INFO("%s:%d registry_par->wireless_mode:%d \n", __FUNCTION__, __LINE__, registry_par->wireless_mode);
 
 	if (IsSupported24G(registry_par->wireless_mode) && (!is_supported_5g(registry_par->wireless_mode))
 	    && (registry_par->channel > 14))

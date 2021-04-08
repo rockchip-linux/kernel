@@ -461,8 +461,7 @@ enum btc_wl2bt_scoreboard {
 	BTC_SCBD_TDMA		= BIT(9),
 	BTC_SCBD_FIX2M		= BIT(10),
 	BTC_SCBD_MAILBOX_DBG	= BIT(14),
-	BTC_SCBD_ALL		= 0xffff,
-	BTC_SCBD_ALL_32BIT	= 0xffffffff
+	BTC_SCBD_ALL		= 0xffffffff
 };
 
 enum btc_bt2wl_scoreboard {
@@ -545,9 +544,7 @@ static const char *const coex_mode_string[] = {
 	"5G",
 	"2G-P2P-GO",
 	"2G-P2P-GC",
-	"BT-MR",
-	"2G1RFREE",
-	"unknow"
+	"BT-MR"
 };
 
 enum btc_bt_state_cnt {
@@ -874,8 +871,6 @@ struct btc_coex_sta {
 	u16	bt_reg_rf_9;
 	u16	wl_txlimit;
 
-	u32	score_board_BW_32bit;
-	u32	score_board_WB_32bit;
 	u32	hi_pri_tx;
 	u32	hi_pri_rx;
 	u32	lo_pri_tx;
@@ -1485,24 +1480,13 @@ typedef u4Byte
 	IN 	PVOID			pBtcContext,
 	IN	u2Byte			reg_addr
 	);
-typedef u2Byte
-(*BFP_BTC_R_SCBD)(
-	IN 	PVOID			pBtcContext,
-	IN	pu2Byte			score_board_val
-	);
 typedef u4Byte
-(*BFP_BTC_R_SCBD_32BIT)(
+(*BFP_BTC_R_SCBD)(
 	IN 	PVOID			pBtcContext,
 	IN	pu4Byte			score_board_val
 	);
 typedef VOID
 (*BFP_BTC_W_SCBD)(
-	IN 	PVOID			pBtcContext,
-	IN	u2Byte			bitpos,
-	IN	BOOLEAN			state
-	);
-typedef VOID
-(*BFP_BTC_W_SCBD_32BIT)(
 	IN 	PVOID			pBtcContext,
 	IN	u4Byte			bitpos,
 	IN	BOOLEAN			state
@@ -1820,10 +1804,7 @@ struct btc_coexist {
 	BFP_BTC_R_LINDIRECT		btc_read_linderct;
 	BFP_BTC_W_LINDIRECT		btc_write_linderct;
 	BFP_BTC_R_SCBD			btc_read_scbd;
-	BFP_BTC_R_SCBD_32BIT	btc_read_scbd_32bit;
 	BFP_BTC_W_SCBD			btc_write_scbd;
-	BFP_BTC_W_SCBD_32BIT	btc_write_scbd_32bit;
-
 	/* read/write bb related */
 	BFP_BTC_SET_BB_REG	btc_set_bb_reg;
 	BFP_BTC_GET_BB_REG	btc_get_bb_reg;

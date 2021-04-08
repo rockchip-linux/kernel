@@ -9823,6 +9823,11 @@ static int rtw_cfg80211_init_wiphy_band(_adapter *padapter, struct wiphy *wiphy)
 		rtw_cfg80211_init_ht_capab(padapter, &band->ht_cap, BAND_ON_2_4G, rf_type);
 		#endif
 	}
+	else
+	{
+		RTW_INFO("%s: %d not supported24G mode: %d\n", __FUNCTION__, __LINE__, padapter->registrypriv.wireless_mode);
+		goto exit;
+	}
 #if CONFIG_IEEE80211_BAND_5GHZ
 	if (is_supported_5g(padapter->registrypriv.wireless_mode)) {
 		band = wiphy->bands[NL80211_BAND_5GHZ] = rtw_spt_band_alloc(BAND_ON_5G);

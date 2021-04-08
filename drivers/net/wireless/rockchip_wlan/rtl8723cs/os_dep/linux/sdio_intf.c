@@ -1190,8 +1190,8 @@ extern int pm_netdev_close(struct net_device *pnetdev, u8 bnormal);
 
 static int rtw_sdio_suspend(struct device *dev)
 {
-	struct sdio_func *func = dev_to_sdio_func(dev);
-	struct dvobj_priv *psdpriv;
+	struct sdio_func *func = NULL;
+	struct dvobj_priv *psdpriv = NULL;
 	struct pwrctrl_priv *pwrpriv = NULL;
 	_adapter *padapter = NULL;
 	struct debug_priv *pdbgpriv = NULL;
@@ -1203,7 +1203,11 @@ static int rtw_sdio_suspend(struct device *dev)
 #endif
 
 	if (dev == NULL)
-		goto exit;
+		goto exit_1;
+
+	func = dev_to_sdio_func(dev);
+	if(func == NULL)
+		goto exit_1;
 
 	psdpriv = sdio_get_drvdata(func);
 	if (psdpriv == NULL)
@@ -1225,6 +1229,7 @@ static int rtw_sdio_suspend(struct device *dev)
 
 	ret = rtw_suspend_common(padapter);
 
+exit:
 #ifdef CONFIG_RTW_SDIO_PM_KEEP_POWER
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 34))
 	/* Android 4.0 don't support WIFI close power */
@@ -1240,12 +1245,12 @@ static int rtw_sdio_suspend(struct device *dev)
 			pdbgpriv->dbg_suspend_error_cnt++;
 		return -ENOSYS;
 	} else {
-		RTW_INFO("cmd: suspend with MMC_PM_KEEP_POWER\n");
+		RTW_ERR("cmd: suspend with MMC_PM_KEEP_POWER\n");
 		sdio_set_host_pm_flags(func, MMC_PM_KEEP_POWER);
 	}
 #endif
 #endif
-exit:
+exit_1:
 	return ret;
 }
 int rtw_resume_process(_adapter *padapter)

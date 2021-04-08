@@ -2329,23 +2329,7 @@ void halbtcoutsrc_WriteLIndirectReg(void *pBtcContext, u16 reg_addr, u32 bit_mas
 	}
 }
 
-u16 halbtcoutsrc_Read_scbd(void *pBtcContext, u16* score_board_val)
-{
-	PBTC_COEXIST btc = (PBTC_COEXIST)pBtcContext;
-	struct btc_coex_sta *coex_sta = &btc->coex_sta;
-	const struct btc_chip_para *chip_para = btc->chip_para;
-
-	if (!chip_para->scbd_support)
-		return 0;
-
-	*score_board_val = (btc->btc_read_2byte(btc, chip_para->scbd_reg))
-								& 0x7fff;
-	coex_sta->score_board_BW = *score_board_val;
-
-	return coex_sta->score_board_BW;
-}
-
-u32 halbtcoutsrc_Read_scbd_32bit(void *pBtcContext, u32* score_board_val)
+u32 halbtcoutsrc_Read_scbd(void *pBtcContext, u32* score_board_val)
 {
 	PBTC_COEXIST btc = (PBTC_COEXIST)pBtcContext;
 	struct btc_coex_sta *coex_sta = &btc->coex_sta;
@@ -2356,17 +2340,18 @@ u32 halbtcoutsrc_Read_scbd_32bit(void *pBtcContext, u32* score_board_val)
 
 	*score_board_val = (btc->btc_read_4byte(btc, chip_para->scbd_reg))
 								& 0x7fffffff;
-	coex_sta->score_board_BW_32bit = *score_board_val;
+	coex_sta->score_board_BW = *score_board_val;
 
-	return coex_sta->score_board_BW_32bit;
+	return coex_sta->score_board_BW;
 }
 
-void halbtcoutsrc_Write_scbd(void *pBtcContext, u16 bitpos, u8 state)
+void halbtcoutsrc_Write_scbd(void *pBtcContext, u32 bitpos, u8 state)
 {
 	PBTC_COEXIST btc = (PBTC_COEXIST)pBtcContext;
 	struct btc_coex_sta *coex_sta = &btc->coex_sta;
 	const struct btc_chip_para *chip_para = btc->chip_para;
-	u16 val = 0x2;
+	u32 val = 0x2;
+	u8* btc_dbg_buf = &gl_btc_trace_buf[0];
 
 	if (!chip_para->scbd_support)
 		return;
@@ -2390,52 +2375,19 @@ void halbtcoutsrc_Write_scbd(void *pBtcContext, u16 bitpos, u8 state)
 
 	if (val != coex_sta->score_board_WB) {
 		coex_sta->score_board_WB = val;
-		val = val | 0x8000;
 
-		btc->btc_write_2byte(btc, chip_para->scbd_reg, val);
-
-		RTW_DBG("[BTC], write scoreboard 0x%x\n", val);
-	} else {
-		RTW_DBG("[BTC], return for nochange\n");
-	}
-}
-
-void halbtcoutsrc_Write_scbd_32bit(void *pBtcContext, u32 bitpos, u8 state)
-{
-	PBTC_COEXIST btc = (PBTC_COEXIST)pBtcContext;
-	struct btc_coex_sta *coex_sta = &btc->coex_sta;
-	const struct btc_chip_para *chip_para = btc->chip_para;
-	u32 val = 0x2;
-
-	if (!chip_para->scbd_support)
-		return;
-
-	val = val | coex_sta->score_board_WB;
-
-	/* for 8822b, Scoreboard[10]: 0: CQDDR off, 1: CQDDR on
-	 * for 8822c, Scoreboard[10]: 0: CQDDR on, 1:CQDDR fix 2M
-	 */
-	if (!btc->chip_para->new_scbd10_def && (bitpos & BTC_SCBD_FIX2M)) {
-		if (state)
-			val = val & (~BTC_SCBD_FIX2M);
+		if(chip_para->scbd_bit_num == BTC_SCBD_32_BIT)
+			val = val | 0x80000000;
 		else
-			val = val | BTC_SCBD_FIX2M;
-	} else {
-		if (state)
-			val = val | bitpos;
-		else
-			val = val & (~bitpos);
-	}
-
-	if (val != coex_sta->score_board_WB_32bit) {
-		coex_sta->score_board_WB_32bit = val;
-		val = val | 0x80000000;
-
+			val = val | 0x8000;
+		
 		btc->btc_write_4byte(btc, chip_para->scbd_reg, val);
-
-		RTW_DBG("[BTC], write scoreboard 0x%x\n", val);
+		
+		BTC_SPRINTF(btc_dbg_buf, BT_TMP_BUF_SIZE,
+			    "[BTCoex], write scoreboard 0x%x\n", val);
 	} else {
-		RTW_DBG("[BTC], return for nochange\n");
+		BTC_SPRINTF(btc_dbg_buf, BT_TMP_BUF_SIZE,
+			    "[BTCoex], %s: return for nochange\n", __func__);
 	}
 }
 
@@ -3259,13 +3211,11 @@ u8 EXhalbtcoutsrc_BindBtCoexWithAdapter(void *padapter)
 		pBtCoexist->chip_para = &btc_chip_para_8192f;
 	}
 #endif
-#ifdef PLATFORM_LINUX
 #ifdef CONFIG_RTL8723F
 	else if (IS_HARDWARE_TYPE_8723F(padapter)) {
 			pBtCoexist->chip_type = BTC_CHIP_RTL8723F;
 			pBtCoexist->chip_para = &btc_chip_para_8723f;
 		}
-#endif
 #endif
 	else {
 		pBtCoexist->chip_type = BTC_CHIP_UNDEF;
@@ -3341,9 +3291,7 @@ u8 EXhalbtcoutsrc_InitlizeVariables(void *padapter)
 	pBtCoexist->btc_write_linderct = halbtcoutsrc_WriteLIndirectReg;
 
 	pBtCoexist->btc_read_scbd = halbtcoutsrc_Read_scbd;
-	pBtCoexist->btc_read_scbd_32bit = halbtcoutsrc_Read_scbd_32bit;
 	pBtCoexist->btc_write_scbd = halbtcoutsrc_Write_scbd;
-	pBtCoexist->btc_write_scbd_32bit = halbtcoutsrc_Write_scbd_32bit;
 
 	pBtCoexist->btc_set_bb_reg = halbtcoutsrc_SetBbReg;
 	pBtCoexist->btc_get_bb_reg = halbtcoutsrc_GetBbReg;
