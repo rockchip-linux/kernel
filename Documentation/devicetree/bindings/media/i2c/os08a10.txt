@@ -1,0 +1,53 @@
+* Omnivision os08a10 MIPI CSI-2 sensor
+
+Required Properties:
+- compatible: should be "ovti,os08a10"
+- clocks: reference to the 24M xvclk input clock.
+- clock-names: should be "xvclk".
+- dovdd-supply: Digital I/O voltage supply, 1.8 volts
+- avdd-supply: Analog voltage supply, 2.8 volts
+- dvdd-supply: Digital core voltage supply, 1.2 volts
+- power-gpios : High active reset gpio
+- reset-gpios: High active reset gpio
+- pwdn-gpios: High active reset gpio
+
+Attention:
+os08a10 device address 0x36(7bit) or 0x10(7bit) is decided by SID pin;
+
+The device node must contain one 'port' child node for its digital output
+video port, in accordance with the video interface bindings defined in
+Documentation/devicetree/bindings/media/video-interfaces.txt.
+
+Example:
+//RK356x Board
+&i2c4 {
+	status = "okay";
+
+	os08a10: os08a10@36 {
+		status = "okay";
+		compatible = "ovti,os08a10";
+		reg = <0x36>;
+		clocks = <&cru CLK_CIF_OUT>;
+		clock-names = "xvclk";
+		power-domains = <&power RK3568_PD_VI>;
+		avdd-supply = <&vcc_avdd>;
+		dovdd-supply = <&vcc_dovdd>;
+		dvdd-supply = <&vcc_dvdd>;
+		//pinctrl-names = "rockchip,camera_default", "rockchip,camera_sleep";
+		//pinctrl-0 = <&cam_clkout0>;
+		//pinctrl-1 = <&cam_sleep>;
+		power-gpios = <&gpio0 RK_PB6 GPIO_ACTIVE_HIGH>;
+		reset-gpios = <&gpio4 RK_PB1 GPIO_ACTIVE_HIGH>;
+		pwdn-gpios = <&gpio4 RK_PB7 GPIO_ACTIVE_HIGH>;
+		rockchip,camera-module-index = <0>;
+		rockchip,camera-module-facing = "back";
+		rockchip,camera-module-name = "RS-8MTP659";
+		rockchip,camera-module-lens-name = "default";
+		port {
+			os08a10_out: endpoint {
+				remote-endpoint = <&mipi_in_ucam2>;
+				data-lanes = <1 2 3 4>;
+			};
+		};
+	};
+};
