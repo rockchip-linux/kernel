@@ -1609,6 +1609,17 @@ config VIDEO_JX_H65
 	  To compile this driver as a module, choose M here: the
 	  module will be called jx_h65.
 
+config VIDEO_JX_K04
+	tristate "SOI JX_K04 sensor support"
+	depends on I2C && VIDEO_V4L2 && VIDEO_V4L2_SUBDEV_API
+	depends on MEDIA_CAMERA_SUPPORT
+	select V4L2_FWNODE
+	help
+	  Support for the SOI JX_K04 sensor.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called jx_k04.
+
 config VIDEO_SC031GS
 	tristate "SmartSens SC031GS sensor support"
 	depends on I2C && VIDEO_V4L2 && VIDEO_V4L2_SUBDEV_API
