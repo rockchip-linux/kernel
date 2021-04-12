@@ -200,6 +200,17 @@ static int fan53555_set_suspend_disable(struct regulator_dev *rdev)
 				  VSEL_BUCK_EN, 0);
 }
 
+static int fan53555_resume(struct regulator_dev *rdev)
+{
+	int ret;
+
+	ret = fan53555_set_suspend_enable(rdev);
+	if (ret)
+		return ret;
+
+	return regulator_suspend_enable(rdev, PM_SUSPEND_MEM);
+}
+
 static int fan53555_set_enable(struct regulator_dev *rdev)
 {
 	struct fan53555_device_info *di = rdev_get_drvdata(rdev);
@@ -352,6 +363,7 @@ static const struct regulator_ops fan53555_regulator_ops = {
 	.set_ramp_delay = fan53555_set_ramp,
 	.set_suspend_enable = fan53555_set_suspend_enable,
 	.set_suspend_disable = fan53555_set_suspend_disable,
+	.resume = fan53555_resume,
 };
 
 static int fan53555_voltages_setup_fairchild(struct fan53555_device_info *di)
