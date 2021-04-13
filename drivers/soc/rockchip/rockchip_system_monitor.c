@@ -1494,6 +1494,12 @@ static int rockchip_eink_devfs_notifier(struct notifier_block *nb,
 	case EBC_OFF:
 		rockchip_set_system_status(SYS_STATUS_LOW_POWER);
 		break;
+	case EBC_FB_BLANK:
+		rockchip_set_system_status(SYS_STATUS_SUSPEND);
+		break;
+	case EBC_FB_UNBLANK:
+		rockchip_clear_system_status(SYS_STATUS_SUSPEND);
+		break;
 	default:
 		break;
 	}
