@@ -126,7 +126,7 @@
 		clocks = <&cru PLL_APLL>;
 		rockchip,bin-scaling-sel = <
 			0	5
-			1	9
+			1	18
 		>;
 		rockchip,bin-voltage-sel = <
 			1	0
@@ -189,7 +189,6 @@
 		opp-1296000000 {
 			opp-hz = /bits/ 64 <1296000000>;
 			opp-microvolt = <875000 875000 1000000>;
-			opp-microvolt-L0 = <925000 925000 1000000>;
 			opp-microvolt-L1 = <875000 875000 1000000>;
 			opp-microvolt-L2 = <875000 875000 1000000>;
 			opp-microvolt-L3 = <850000 850000 1000000>;
@@ -199,7 +198,6 @@
 		opp-1416000000 {
 			opp-hz = /bits/ 64 <1416000000>;
 			opp-microvolt = <925000 925000 1000000>;
-			opp-microvolt-L0 = <975000 975000 1000000>;
 			opp-microvolt-L1 = <925000 925000 1000000>;
 			opp-microvolt-L2 = <925000 925000 1000000>;
 			opp-microvolt-L3 = <900000 900000 1000000>;
@@ -2239,7 +2237,7 @@
 		clocks = <&pmucru PLL_GPLL>;
 		rockchip,bin-scaling-sel = <
 			0	37
-			1	40
+			1	43
 		>;
 		rockchip,bin-voltage-sel = <
 			1	0
@@ -2261,7 +2259,6 @@
 		opp-500000000 {
 			opp-hz = /bits/ 64 <500000000>;
 			opp-microvolt = <750000 750000 1000000>;
-			opp-microvolt-L0 = <800000 800000 1000000>;
 		};
 		opp-594000000 {
 			opp-hz = /bits/ 64 <594000000>;
@@ -2474,27 +2471,27 @@
 		opp-200000000 {
 			opp-hz = /bits/ 64 <200000000>;
 			opp-microvolt = <750000 750000 1000000>;
-			opp-microvolt-L0 = <775000 775000 1000000>;
+			opp-microvolt-L0 = <800000 800000 1000000>;
 		};
 		opp-300000000 {
 			opp-hz = /bits/ 64 <300000000>;
 			opp-microvolt = <750000 750000 1000000>;
-			opp-microvolt-L0 = <775000 775000 1000000>;
+			opp-microvolt-L0 = <800000 800000 1000000>;
 		};
 		opp-396000000 {
 			opp-hz = /bits/ 64 <396000000>;
 			opp-microvolt = <750000 750000 1000000>;
-			opp-microvolt-L0 = <775000 775000 1000000>;
+			opp-microvolt-L0 = <800000 800000 1000000>;
 		};
 		opp-500000000 {
 			opp-hz = /bits/ 64 <500000000>;
 			opp-microvolt = <750000 750000 1000000>;
-			opp-microvolt-L0 = <775000 775000 1000000>;
+			opp-microvolt-L0 = <800000 800000 1000000>;
 		};
 		opp-600000000 {
 			opp-hz = /bits/ 64 <600000000>;
 			opp-microvolt = <750000 750000 1000000>;
-			opp-microvolt-L0 = <775000 775000 1000000>;
+			opp-microvolt-L0 = <800000 800000 1000000>;
 		};
 		opp-700000000 {
 			opp-hz = /bits/ 64 <700000000>;
