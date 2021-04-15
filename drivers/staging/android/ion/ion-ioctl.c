@@ -13,6 +13,7 @@
 union ion_ioctl_arg {
 	struct ion_allocation_data allocation;
 	struct ion_heap_query query;
+	struct ion_phys_data phys;
 };
 
 static int validate_ioctl_arg(unsigned int cmd, union ion_ioctl_arg *arg)
@@ -85,6 +86,9 @@ long ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	}
 	case ION_IOC_HEAP_QUERY:
 		ret = ion_query_heaps(&data.query);
+		break;
+	case ION_IOC_GET_PHYS:
+		ret = ion_get_phys(&data.phys);
 		break;
 	default:
 		return -ENOTTY;

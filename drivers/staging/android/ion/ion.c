@@ -746,6 +746,31 @@ out:
 	return ret;
 }
 
+int ion_get_phys(struct ion_phys_data *phys)
+{
+	struct dma_buf *dmabuf;
+	struct ion_buffer *buffer;
+
+	if (IS_ERR_OR_NULL(phys))
+		return -EINVAL;
+
+	dmabuf = dma_buf_get(phys->fd);
+	if (IS_ERR_OR_NULL(dmabuf))
+		return -ENOENT;
+
+	phys->paddr = (__u64)-1;
+	buffer = dmabuf->priv;
+	if (!IS_ERR_OR_NULL(buffer) &&
+	    (buffer->heap->type == ION_HEAP_TYPE_SYSTEM_CONTIG ||
+	     buffer->heap->type == ION_HEAP_TYPE_DMA ||
+	     buffer->heap->type == ION_HEAP_TYPE_CARVEOUT))
+		phys->paddr = sg_phys(buffer->sg_table->sgl);
+
+	dma_buf_put(dmabuf);
+
+	return 0;
+}
+
 static const struct file_operations ion_fops = {
 	.owner          = THIS_MODULE,
 	.unlocked_ioctl = ion_ioctl,

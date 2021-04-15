@@ -130,4 +130,13 @@ struct ion_heap_query {
 #define ION_IOC_HEAP_QUERY     _IOWR(ION_IOC_MAGIC, 8, \
 					struct ion_heap_query)
 
+struct ion_phys_data {
+	__u32 fd;
+	__u32 padding;
+	__u64 paddr;
+};
+
+#define ION_IOC_GET_PHYS	_IOWR(ION_IOC_MAGIC, 9, \
+					struct ion_phys_data)
+
 #endif /* _UAPI_LINUX_ION_H */
