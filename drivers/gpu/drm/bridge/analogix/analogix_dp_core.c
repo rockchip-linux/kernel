@@ -1147,6 +1147,22 @@ analogix_dp_detect(struct drm_connector *connector, bool force)
 	return status;
 }
 
+static int
+analogix_dp_atomic_connector_get_property(struct drm_connector *connector,
+				      const struct drm_connector_state *state,
+				      struct drm_property *property,
+				      uint64_t *val)
+{
+	struct analogix_dp_device *dp = to_dp(connector);
+	const struct analogix_dp_property_ops *ops = dp->plat_data->property_ops;
+
+	if (ops && ops->get_property)
+		return ops->get_property(connector, state, property,
+					 val, dp->plat_data);
+	else
+		return -EINVAL;
+}
+
 static const struct drm_connector_funcs analogix_dp_connector_funcs = {
 	.fill_modes = drm_helper_probe_single_connector_modes,
 	.detect = analogix_dp_detect,
@@ -1154,6 +1170,7 @@ static const struct drm_connector_funcs analogix_dp_connector_funcs = {
 	.reset = drm_atomic_helper_connector_reset,
 	.atomic_duplicate_state = drm_atomic_helper_connector_duplicate_state,
 	.atomic_destroy_state = drm_atomic_helper_connector_destroy_state,
+	.atomic_get_property = analogix_dp_atomic_connector_get_property,
 };
 
 static int analogix_dp_bridge_attach(struct drm_bridge *bridge)
@@ -1169,6 +1186,8 @@ static int analogix_dp_bridge_attach(struct drm_bridge *bridge)
 	}
 
 	if (!dp->plat_data->skip_connector) {
+		const struct analogix_dp_property_ops *ops = dp->plat_data->property_ops;
+
 		connector = &dp->connector;
 		connector->polled = DRM_CONNECTOR_POLL_HPD;
 
@@ -1183,6 +1202,9 @@ static int analogix_dp_bridge_attach(struct drm_bridge *bridge)
 		drm_connector_helper_add(connector,
 					 &analogix_dp_connector_helper_funcs);
 		drm_connector_attach_encoder(connector, encoder);
+
+		if (ops && ops->attach_properties)
+			ops->attach_properties(connector);
 	}
 
 	/*

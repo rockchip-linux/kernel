@@ -37,6 +37,16 @@ static inline bool is_rockchip(enum analogix_dp_devtype type)
 	}
 }
 
+struct analogix_dp_plat_data;
+struct analogix_dp_property_ops {
+	int (*attach_properties)(struct drm_connector *connector);
+	int (*get_property)(struct drm_connector *connector,
+			    const struct drm_connector_state *state,
+			    struct drm_property *property,
+			    u64 *val,
+			    struct analogix_dp_plat_data *data);
+};
+
 struct analogix_dp_plat_data {
 	enum analogix_dp_devtype dev_type;
 	struct drm_panel *panel;
@@ -52,6 +62,8 @@ struct analogix_dp_plat_data {
 		      struct drm_connector *);
 	int (*get_modes)(struct analogix_dp_plat_data *,
 			 struct drm_connector *);
+	/* Vendor Property support */
+	const struct analogix_dp_property_ops *property_ops;
 };
 
 int analogix_dp_psr_enabled(struct analogix_dp_device *dp);
