@@ -85,6 +85,7 @@ struct cdn_dp_device {
 	bool active;
 	bool suspended;
 	bool use_fw_training;
+	u8 id;
 
 	const struct firmware *fw;	/* cdn dp firmware */
 	unsigned int fw_version;	/* cdn fw version */

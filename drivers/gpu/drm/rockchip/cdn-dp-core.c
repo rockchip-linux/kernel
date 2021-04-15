@@ -252,6 +252,24 @@ static void cdn_dp_connector_destroy(struct drm_connector *connector)
 	drm_connector_cleanup(connector);
 }
 
+static int
+cdn_dp_atomic_connector_get_property(struct drm_connector *connector,
+				     const struct drm_connector_state *state,
+				     struct drm_property *property,
+				     uint64_t *val)
+{
+	struct cdn_dp_device *dp = connector_to_dp(connector);
+	struct rockchip_drm_private *private = connector->dev->dev_private;
+
+	if (property == private->connector_id_prop) {
+		*val = dp->id;
+		return 0;
+	}
+
+	DRM_ERROR("failed to get rockchip CDN DP property\n");
+	return -EINVAL;
+}
+
 static const struct drm_connector_funcs cdn_dp_atomic_connector_funcs = {
 	.detect = cdn_dp_connector_detect,
 	.destroy = cdn_dp_connector_destroy,
@@ -259,6 +277,7 @@ static const struct drm_connector_funcs cdn_dp_atomic_connector_funcs = {
 	.reset = drm_atomic_helper_connector_reset,
 	.atomic_duplicate_state = drm_atomic_helper_connector_duplicate_state,
 	.atomic_destroy_state = drm_atomic_helper_connector_destroy_state,
+	.atomic_get_property = cdn_dp_atomic_connector_get_property,
 };
 
 static int cdn_dp_connector_get_modes(struct drm_connector *connector)
@@ -1175,6 +1194,7 @@ static int cdn_dp_bind(struct device *dev, struct device *master, void *data)
 	struct drm_connector *connector;
 	struct cdn_dp_port *port;
 	struct drm_device *drm_dev = data;
+	struct rockchip_drm_private *private = drm_dev->dev_private;
 	int ret, i;
 
 	ret = cdn_dp_parse_dt(dp);
@@ -1230,6 +1250,7 @@ static int cdn_dp_bind(struct device *dev, struct device *master, void *data)
 		DRM_ERROR("failed to attach connector and encoder\n");
 		goto err_free_connector;
 	}
+	drm_object_attach_property(&connector->base, private->connector_id_prop, 0);
 
 	for (i = 0; i < dp->ports; i++) {
 		port = dp->port[i];
@@ -1317,11 +1338,16 @@ static int cdn_dp_probe(struct platform_device *pdev)
 	struct cdn_dp_device *dp;
 	struct extcon_dev *extcon;
 	struct phy *phy;
-	int i;
+	int i, id;
 
 	dp = devm_kzalloc(dev, sizeof(*dp), GFP_KERNEL);
 	if (!dp)
 		return -ENOMEM;
+	id = of_alias_get_id(dev->of_node, "dp");
+	if (id < 0)
+		id = 0;
+
+	dp->id = id;
 	dp->dev = dev;
 
 	match = of_match_node(cdn_dp_dt_ids, pdev->dev.of_node);
