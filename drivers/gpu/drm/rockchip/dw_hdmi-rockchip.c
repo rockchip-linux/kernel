@@ -116,6 +116,7 @@ struct rockchip_hdmi {
 	bool unsupported_yuv_input;
 	bool unsupported_deep_color;
 	bool mode_changed;
+	u8 id;
 
 	unsigned long bus_format;
 	unsigned long output_bus_format;
@@ -984,6 +985,7 @@ dw_hdmi_rockchip_attach_properties(struct drm_connector *connector,
 {
 	struct rockchip_hdmi *hdmi = (struct rockchip_hdmi *)data;
 	struct drm_property *prop;
+	struct rockchip_drm_private *private = connector->dev->dev_private;
 
 	switch (color) {
 	case MEDIA_BUS_FMT_RGB101010_1X30:
@@ -1099,6 +1101,7 @@ dw_hdmi_rockchip_attach_properties(struct drm_connector *connector,
 	prop = connector->dev->mode_config.hdr_output_metadata_property;
 	if (version >= 0x211a)
 		drm_object_attach_property(&connector->base, prop, 0);
+	drm_object_attach_property(&connector->base, private->connector_id_prop, 0);
 }
 
 static void
@@ -1199,6 +1202,7 @@ dw_hdmi_rockchip_get_property(struct drm_connector *connector,
 	struct rockchip_hdmi *hdmi = (struct rockchip_hdmi *)data;
 	struct drm_display_info *info = &connector->display_info;
 	struct drm_mode_config *config = &connector->dev->mode_config;
+	struct rockchip_drm_private *private = connector->dev->dev_private;
 
 	if (property == hdmi->color_depth_property) {
 		*val = hdmi->colordepth;
@@ -1243,6 +1247,9 @@ dw_hdmi_rockchip_get_property(struct drm_connector *connector,
 		return 0;
 	} else if (property == hdmi->colorimetry_property) {
 		*val = hdmi->colorimetry;
+		return 0;
+	} else if (property == private->connector_id_prop) {
+		*val = hdmi->id;
 		return 0;
 	}
 
@@ -1480,7 +1487,7 @@ static int dw_hdmi_rockchip_bind(struct device *dev, struct device *master,
 	struct drm_device *drm = data;
 	struct drm_encoder *encoder;
 	struct rockchip_hdmi *hdmi;
-	int ret;
+	int ret, id;
 
 	if (!pdev->dev.of_node)
 		return -ENODEV;
@@ -1495,6 +1502,10 @@ static int dw_hdmi_rockchip_bind(struct device *dev, struct device *master,
 	if (!plat_data)
 		return -ENOMEM;
 
+	id = of_alias_get_id(dev->of_node, "hdmi");
+	if (id < 0)
+		id = 0;
+	hdmi->id = id;
 	hdmi->dev = &pdev->dev;
 	hdmi->chip_data = plat_data->phy_data;
 	plat_data->phy_data = hdmi;
