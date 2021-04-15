@@ -132,12 +132,31 @@ static inline struct rockchip_lvds *encoder_to_lvds(struct drm_encoder *e)
 	return container_of(e, struct rockchip_lvds, encoder);
 }
 
+static int
+rockchip_lvds_atomic_connector_get_property(struct drm_connector *connector,
+					    const struct drm_connector_state *state,
+					    struct drm_property *property,
+					    uint64_t *val)
+{
+	struct rockchip_lvds *lvds = connector_to_lvds(connector);
+	struct rockchip_drm_private *private = connector->dev->dev_private;
+
+	if (property == private->connector_id_prop) {
+		*val = lvds->id;
+		return 0;
+	}
+
+	DRM_ERROR("failed to get rockchip LVDS property\n");
+	return -EINVAL;
+}
+
 static const struct drm_connector_funcs rockchip_lvds_connector_funcs = {
 	.fill_modes = drm_helper_probe_single_connector_modes,
 	.destroy = drm_connector_cleanup,
 	.reset = drm_atomic_helper_connector_reset,
 	.atomic_duplicate_state = drm_atomic_helper_connector_duplicate_state,
 	.atomic_destroy_state = drm_atomic_helper_connector_destroy_state,
+	.atomic_get_property = rockchip_lvds_atomic_connector_get_property,
 };
 
 static int rockchip_lvds_connector_get_modes(struct drm_connector *connector)
@@ -381,6 +400,8 @@ static int rockchip_lvds_bind(struct device *dev, struct device *master,
 	drm_encoder_helper_add(encoder, &rockchip_lvds_encoder_helper_funcs);
 
 	if (lvds->panel) {
+		struct rockchip_drm_private *private = drm_dev->dev_private;
+
 		ret = drm_connector_init(drm_dev, connector,
 					 &rockchip_lvds_connector_funcs,
 					 DRM_MODE_CONNECTOR_LVDS);
@@ -409,6 +430,7 @@ static int rockchip_lvds_bind(struct device *dev, struct device *master,
 		lvds->sub_dev.connector = &lvds->connector;
 		lvds->sub_dev.of_node = lvds->dev->of_node;
 		rockchip_drm_register_sub_dev(&lvds->sub_dev);
+		drm_object_attach_property(&connector->base, private->connector_id_prop, 0);
 	} else {
 		ret = drm_bridge_attach(encoder, lvds->bridge, NULL);
 		if (ret) {
