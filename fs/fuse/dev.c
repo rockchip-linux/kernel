@@ -1938,7 +1938,8 @@ static ssize_t fuse_dev_do_write(struct fuse_dev *fud,
 		char *path = (char *)req->out.args[0].value;
 
 		path[req->out.args[0].size - 1] = 0;
-		req->out.h.error = kern_path(path, 0, req->out.canonical_path);
+		if (req->out.h.error != -ENOSYS)
+			req->out.h.error = kern_path(path, 0, req->out.canonical_path);
 	}
 
 	spin_lock(&fpq->lock);
