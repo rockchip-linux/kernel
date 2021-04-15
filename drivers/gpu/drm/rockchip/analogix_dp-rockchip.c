@@ -75,6 +75,7 @@ struct rockchip_dp_device {
 	struct drm_display_mode  mode;
 
 	int			 num_clks;
+	u8 id;
 	struct clk_bulk_data	 *clks;
 	struct regmap            *grf;
 	struct reset_control     *rst;
@@ -345,6 +346,39 @@ static int rockchip_dp_drm_encoder_loader_protect(struct drm_encoder *encoder,
 	return 0;
 }
 
+static int rockchip_dp_get_property(struct drm_connector *connector,
+				    const struct drm_connector_state *state,
+				    struct drm_property *property,
+				    u64 *val,
+				    struct analogix_dp_plat_data *data)
+{
+	struct drm_encoder *encoder = data->encoder;
+	struct rockchip_dp_device *dp = to_dp(encoder);
+	struct rockchip_drm_private *private = connector->dev->dev_private;
+
+	if (property == private->connector_id_prop) {
+		*val = dp->id;
+		return 0;
+	}
+
+	DRM_ERROR("failed to get rockchip analogic dp property\n");
+	return -EINVAL;
+}
+
+static int rockchip_dp_attach_properties(struct drm_connector *connector)
+{
+	struct rockchip_drm_private *private = connector->dev->dev_private;
+
+	drm_object_attach_property(&connector->base, private->connector_id_prop, 0);
+
+	return 0;
+}
+
+static const struct analogix_dp_property_ops rockchip_dp_encoder_property_ops = {
+	.get_property = rockchip_dp_get_property,
+	.attach_properties = rockchip_dp_attach_properties,
+};
+
 static struct drm_encoder_helper_funcs rockchip_dp_encoder_helper_funcs = {
 	.mode_fixup = rockchip_dp_drm_encoder_mode_fixup,
 	.mode_set = rockchip_dp_drm_encoder_mode_set,
@@ -469,6 +503,7 @@ static int rockchip_dp_bind(struct device *dev, struct device *master,
 	dp->plat_data.power_on_end = rockchip_dp_poweron_end;
 	dp->plat_data.power_off = rockchip_dp_powerdown;
 	dp->plat_data.get_modes = rockchip_dp_get_modes;
+	dp->plat_data.property_ops = &rockchip_dp_encoder_property_ops;
 
 	ret = rockchip_drm_psr_register(&dp->encoder, analogix_dp_psr_set);
 	if (ret < 0)
@@ -536,7 +571,7 @@ static int rockchip_dp_probe(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	struct drm_panel *panel = NULL;
 	struct rockchip_dp_device *dp;
-	int ret;
+	int ret, id;
 
 	ret = drm_of_find_panel_or_bridge(dev->of_node, 1, 0, &panel, NULL);
 	if (ret < 0 && ret != -ENODEV)
@@ -546,6 +581,10 @@ static int rockchip_dp_probe(struct platform_device *pdev)
 	if (!dp)
 		return -ENOMEM;
 
+	id = of_alias_get_id(dev->of_node, "edp");
+	if (id < 0)
+		id = 0;
+	dp->id = id;
 	dp->dev = dev;
 	dp->adp = ERR_PTR(-ENODEV);
 	dp->plat_data.panel = panel;
