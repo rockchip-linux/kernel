@@ -116,7 +116,7 @@
 
 &rk628_gvi {
 	pinctrl-names = "default";
-	pinctrl-0 = <&gvi_hpd_pins>, <&gvi_lock_pins>;
+	pinctrl-0 = <&rk628_gvi_hpd_pins>, <&rk628_gvi_lock_pins>;
 	status = "okay";
 	rockchip,lane-num = <8>;
 	/* rockchip,division-mode; */

@@ -129,7 +129,7 @@
 
 &rk628_post_process {
 	pinctrl-names = "default";
-	pinctrl-0 = <&vop_pins>, <&gvi_hpd_pins>, <&gvi_lock_pins>;
+	pinctrl-0 = <&rk628_vop_pins>, <&rk628_gvi_hpd_pins>, <&rk628_gvi_lock_pins>;
 	status = "okay";
 
 	ports {
