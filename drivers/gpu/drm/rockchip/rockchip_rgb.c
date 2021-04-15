@@ -64,6 +64,7 @@ struct rockchip_rgb_funcs {
 };
 
 struct rockchip_rgb {
+	u8 id;
 	struct device *dev;
 	struct drm_panel *panel;
 	struct drm_bridge *bridge;
@@ -92,6 +93,24 @@ rockchip_rgb_connector_detect(struct drm_connector *connector, bool force)
 	return connector_status_connected;
 }
 
+static int
+rockchip_rgb_atomic_connector_get_property(struct drm_connector *connector,
+					   const struct drm_connector_state *state,
+					   struct drm_property *property,
+					   uint64_t *val)
+{
+	struct rockchip_rgb *rgb = connector_to_rgb(connector);
+	struct rockchip_drm_private *private = connector->dev->dev_private;
+
+	if (property == private->connector_id_prop) {
+		*val = rgb->id;
+		return 0;
+	}
+
+	DRM_ERROR("failed to get rockchip RGB property\n");
+	return -EINVAL;
+}
+
 static const struct drm_connector_funcs rockchip_rgb_connector_funcs = {
 	.dpms = drm_helper_connector_dpms,
 	.detect = rockchip_rgb_connector_detect,
@@ -100,6 +119,7 @@ static const struct drm_connector_funcs rockchip_rgb_connector_funcs = {
 	.reset = drm_atomic_helper_connector_reset,
 	.atomic_duplicate_state = drm_atomic_helper_connector_duplicate_state,
 	.atomic_destroy_state = drm_atomic_helper_connector_destroy_state,
+	.atomic_get_property = rockchip_rgb_atomic_connector_get_property,
 };
 
 static int rockchip_rgb_connector_get_modes(struct drm_connector *connector)
@@ -282,6 +302,8 @@ static int rockchip_rgb_bind(struct device *dev, struct device *master,
 	drm_encoder_helper_add(encoder, &rockchip_rgb_encoder_helper_funcs);
 
 	if (rgb->panel) {
+		struct rockchip_drm_private *private = drm_dev->dev_private;
+
 		connector = &rgb->connector;
 		connector->interlace_allowed = true;
 		ret = drm_connector_init(drm_dev, connector,
@@ -311,6 +333,7 @@ static int rockchip_rgb_bind(struct device *dev, struct device *master,
 		}
 		rgb->sub_dev.connector = &rgb->connector;
 		rgb->sub_dev.of_node = rgb->dev->of_node;
+		drm_object_attach_property(&connector->base, private->connector_id_prop, 0);
 		rockchip_drm_register_sub_dev(&rgb->sub_dev);
 	} else {
 		rgb->bridge->encoder = encoder;
@@ -356,12 +379,17 @@ static int rockchip_rgb_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct rockchip_rgb *rgb;
-	int ret;
+	int ret, id;
 
 	rgb = devm_kzalloc(&pdev->dev, sizeof(*rgb), GFP_KERNEL);
 	if (!rgb)
 		return -ENOMEM;
 
+	id = of_alias_get_id(dev->of_node, "rgb");
+	if (id < 0)
+		id = 0;
+
+	rgb->id = id;
 	rgb->dev = dev;
 	rgb->funcs = of_device_get_match_data(dev);
 	platform_set_drvdata(pdev, rgb);
