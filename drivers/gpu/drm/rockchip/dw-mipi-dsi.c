@@ -1479,12 +1479,31 @@ static void dw_mipi_dsi_drm_connector_destroy(struct drm_connector *connector)
 	drm_connector_cleanup(connector);
 }
 
+static int
+dw_mipi_dsi_atomic_connector_get_property(struct drm_connector *connector,
+					  const struct drm_connector_state *state,
+					  struct drm_property *property,
+					  uint64_t *val)
+{
+	struct dw_mipi_dsi *dsi = con_to_dsi(connector);
+	struct rockchip_drm_private *private = connector->dev->dev_private;
+
+	if (property == private->connector_id_prop) {
+		*val = dsi->id;
+		return 0;
+	}
+
+	DRM_ERROR("failed to get rockchip dsi property\n");
+	return -EINVAL;
+}
+
 static const struct drm_connector_funcs dw_mipi_dsi_atomic_connector_funcs = {
 	.fill_modes = drm_helper_probe_single_connector_modes,
 	.destroy = dw_mipi_dsi_drm_connector_destroy,
 	.reset = drm_atomic_helper_connector_reset,
 	.atomic_duplicate_state = drm_atomic_helper_connector_duplicate_state,
 	.atomic_destroy_state = drm_atomic_helper_connector_destroy_state,
+	.atomic_get_property = dw_mipi_dsi_atomic_connector_get_property,
 };
 
 static int dw_mipi_dsi_dual_channel_probe(struct dw_mipi_dsi *dsi)
@@ -1559,6 +1578,8 @@ static int dw_mipi_dsi_bind(struct device *dev, struct device *master,
 	drm_encoder_helper_add(encoder, &dw_mipi_dsi_encoder_helper_funcs);
 
 	if (dsi->panel) {
+		struct rockchip_drm_private *private = drm->dev_private;
+
 		ret = drm_connector_init(drm, connector, &dw_mipi_dsi_atomic_connector_funcs,
 				   DRM_MODE_CONNECTOR_DSI);
 		if (ret) {
@@ -1581,6 +1602,7 @@ static int dw_mipi_dsi_bind(struct device *dev, struct device *master,
 		dsi->sub_dev.connector = &dsi->connector;
 		dsi->sub_dev.of_node = dev->of_node;
 		rockchip_drm_register_sub_dev(&dsi->sub_dev);
+		drm_object_attach_property(&connector->base, private->connector_id_prop, 0);
 	} else {
 		dsi->bridge->driver_private = &dsi->host;
 		dsi->bridge->encoder = encoder;
