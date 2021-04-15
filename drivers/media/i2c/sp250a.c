@@ -5,6 +5,9 @@
  * Copyright (C) 2021 Rockchip Electronics Co., Ltd.
  *
  * V0.0X01.0X00 init version
+ * V0.0X01.0X01
+ * 1. adjust power on/off sequence
+ * 2. add some debug info
  */
 
 #include <linux/clk.h>
@@ -24,7 +27,7 @@
 #include <media/v4l2-subdev.h>
 #include <linux/pinctrl/consumer.h>
 
-#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x00)
+#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x01)
 
 #ifndef V4L2_CID_DIGITAL_GAIN
 #define V4L2_CID_DIGITAL_GAIN		V4L2_CID_GAIN
@@ -51,7 +54,7 @@
 
 #define SP250A_REG_EXPOSURE_H		0x03
 #define SP250A_REG_EXPOSURE_L		0x04
-#define SP250A_FETCH_HIGH_BYTE_EXP(VAL) (((VAL) >> 8) & 0x3F)	/* 6 Bits */
+#define SP250A_FETCH_HIGH_BYTE_EXP(VAL) (((VAL) >> 8) & 0xFF)	/* 8 Bits */
 #define SP250A_FETCH_LOW_BYTE_EXP(VAL) ((VAL) & 0xFF)	/* 8 Bits */
 #define	SP250A_EXPOSURE_MIN		4
 #define	SP250A_EXPOSURE_STEP		1
@@ -652,7 +655,7 @@ static int __sp250a_power_on(struct sp250a *sp250a)
 		return ret;
 	}
 	if (!IS_ERR(sp250a->reset_gpio))
-		gpiod_set_value_cansleep(sp250a->reset_gpio, 1);
+		gpiod_set_value_cansleep(sp250a->reset_gpio, 0);
 
 	ret = regulator_bulk_enable(SP250A_NUM_SUPPLIES, sp250a->supplies);
 	if (ret < 0) {
@@ -660,13 +663,13 @@ static int __sp250a_power_on(struct sp250a *sp250a)
 		goto disable_clk;
 	}
 
-	usleep_range(1000, 1100);
-	if (!IS_ERR(sp250a->reset_gpio))
-		gpiod_set_value_cansleep(sp250a->reset_gpio, 1);
-
 	usleep_range(500, 1000);
 	if (!IS_ERR(sp250a->pwdn_gpio))
 		gpiod_set_value_cansleep(sp250a->pwdn_gpio, 0);
+
+	usleep_range(1000, 1100);
+	if (!IS_ERR(sp250a->reset_gpio))
+		gpiod_set_value_cansleep(sp250a->reset_gpio, 1);
 
 	/* 8192 cycles prior to first SCCB transaction */
 	delay_us = sp250a_cal_delay(8192);
@@ -684,11 +687,11 @@ static void __sp250a_power_off(struct sp250a *sp250a)
 {
 	int ret = 0;
 
-	if (!IS_ERR(sp250a->pwdn_gpio))
-		gpiod_set_value_cansleep(sp250a->pwdn_gpio, 1);
 	clk_disable_unprepare(sp250a->xvclk);
 	if (!IS_ERR(sp250a->reset_gpio))
 		gpiod_set_value_cansleep(sp250a->reset_gpio, 0);
+	if (!IS_ERR(sp250a->pwdn_gpio))
+		gpiod_set_value_cansleep(sp250a->pwdn_gpio, 1);
 	if (!IS_ERR_OR_NULL(sp250a->pins_sleep)) {
 		ret = pinctrl_select_state(sp250a->pinctrl,
 					   sp250a->pins_sleep);
@@ -848,6 +851,7 @@ static int sp250a_set_ctrl(struct v4l2_ctrl *ctrl)
 
 	switch (ctrl->id) {
 	case V4L2_CID_EXPOSURE:
+		dev_dbg(&client->dev, "set exposure value 0x%x\n", ctrl->val);
 		/* 4 least significant bits of expsoure are fractional part */
 		ret = sp250a_write_reg(sp250a->client,
 					SP250A_REG_SET_PAGE,
@@ -863,9 +867,11 @@ static int sp250a_set_ctrl(struct v4l2_ctrl *ctrl)
 					0x01);
 		break;
 	case V4L2_CID_ANALOGUE_GAIN:
+		dev_dbg(&client->dev, "set analog gain value 0x%x\n", ctrl->val);
 		ret = sp250a_set_gain_reg(sp250a, ctrl->val);
 		break;
 	case V4L2_CID_VBLANK:
+		dev_dbg(&client->dev, "set vb value 0x%x\n", ctrl->val);
 		ret = sp250a_write_reg(sp250a->client,
 					SP250A_REG_SET_PAGE,
 					SP250A_SET_PAGE_ONE);
