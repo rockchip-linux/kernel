@@ -39,7 +39,7 @@
 	status = "okay";
 };
 
-&xin_osc0_func {
+&rk628_xin_osc0_func {
 	compatible = "fixed-factor-clock";
 	clocks = <&cru SCLK_TESTOUT>;
 	clock-mult = <1>;
