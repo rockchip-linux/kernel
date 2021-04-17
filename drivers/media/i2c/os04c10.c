@@ -33,8 +33,8 @@
 #define V4L2_CID_DIGITAL_GAIN		V4L2_CID_GAIN
 #endif
 
-#define MIPI_FREQ_192M			192000000
-#define PIXEL_RATE_WITH_192M		(MIPI_FREQ_192M * 2 * 2 / 10)
+#define MIPI_FREQ_384M			384000000
+#define PIXEL_RATE_WITH_384M		(MIPI_FREQ_384M * 2 * 2 / 10)
 
 #define OS04C10_XVCLK_FREQ		24000000
 
@@ -476,7 +476,7 @@ static const struct os04c10_mode supported_modes[] = {
 };
 
 static const s64 link_freq_menu_items[] = {
-	MIPI_FREQ_192M,
+	MIPI_FREQ_384M,
 };
 
 static int __os04c10_power_on(struct os04c10 *os04c10);
@@ -633,7 +633,7 @@ static int os04c10_set_fmt(struct v4l2_subdev *sd,
 		if (mode->hdr_mode == NO_HDR) {
 			if (mode->bus_fmt == MEDIA_BUS_FMT_SBGGR10_1X10) {
 				dst_link_freq = 0;
-				dst_pixel_rate = PIXEL_RATE_WITH_192M;
+				dst_pixel_rate = PIXEL_RATE_WITH_384M;
 			}
 		}
 		__v4l2_ctrl_s_ctrl_int64(os04c10->pixel_rate,
@@ -1299,11 +1299,11 @@ static int os04c10_initialize_controls(struct os04c10 *os04c10)
 
 	if (os04c10->cur_mode->bus_fmt == MEDIA_BUS_FMT_SBGGR10_1X10) {
 		dst_link_freq = 0;
-		dst_pixel_rate = PIXEL_RATE_WITH_192M;
+		dst_pixel_rate = PIXEL_RATE_WITH_384M;
 	}
 	/* pixel rate = link frequency * 2 * lanes / BITS_PER_SAMPLE */
 	os04c10->pixel_rate = v4l2_ctrl_new_std(handler, NULL, V4L2_CID_PIXEL_RATE,
-						0, PIXEL_RATE_WITH_192M, 1, dst_pixel_rate);
+						0, PIXEL_RATE_WITH_384M, 1, dst_pixel_rate);
 
 	__v4l2_ctrl_s_ctrl(os04c10->link_freq, dst_link_freq);
 
