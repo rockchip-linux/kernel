@@ -740,6 +740,8 @@ static int es7202_probe(struct snd_soc_component *component)
 		es7202_write(ES7202_RESET_REG00, 0x01, i2c_ctl[cnt]);
 		es7202_write(ES7202_CLK_EN_REG03, 0x03, i2c_ctl[cnt]);
 		es7202_write(ES7202_BIAS_VMID_REG11, 0x2E, i2c_ctl[cnt]);
+
+		es7202_multi_chips_update_bits(ES7202_PDM_INF_CTL_REG07, 0x03, 0x00);
 	}
 	return ret;
 }
