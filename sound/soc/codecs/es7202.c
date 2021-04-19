@@ -568,7 +568,7 @@ static struct snd_soc_dai_driver es7202_dai1 = {
 	.capture = {
 		.stream_name = "Capture",
 		.channels_min = 1,
-		.channels_max = 2,
+		.channels_max = 4,
 		.rates = es7202_RATES,
 		.formats = SNDRV_PCM_FMTBIT_S16_LE,
 	},
@@ -582,7 +582,7 @@ static struct snd_soc_dai_driver es7202_dai2 = {
 	.capture = {
 		.stream_name = "Capture",
 		.channels_min = 1,
-		.channels_max = 2,
+		.channels_max = 6,
 		.rates = es7202_RATES,
 		.formats = SNDRV_PCM_FMTBIT_S16_LE,
 	},
@@ -596,7 +596,7 @@ static struct snd_soc_dai_driver es7202_dai3 = {
 	.capture = {
 		.stream_name = "Capture",
 		.channels_min = 1,
-		.channels_max = 2,
+		.channels_max = 8,
 		.rates = es7202_RATES,
 		.formats = SNDRV_PCM_FMTBIT_S16_LE,
 	},
@@ -610,7 +610,7 @@ static struct snd_soc_dai_driver es7202_dai4 = {
 	.capture = {
 		.stream_name = "Capture",
 		.channels_min = 1,
-		.channels_max = 2,
+		.channels_max = 10,
 		.rates = es7202_RATES,
 		.formats = SNDRV_PCM_FMTBIT_S16_LE,
 	},
@@ -624,7 +624,7 @@ static struct snd_soc_dai_driver es7202_dai5 = {
 	.capture = {
 		.stream_name = "Capture",
 		.channels_min = 1,
-		.channels_max = 2,
+		.channels_max = 12,
 		.rates = es7202_RATES,
 		.formats = SNDRV_PCM_FMTBIT_S16_LE,
 	},
@@ -638,7 +638,7 @@ static struct snd_soc_dai_driver es7202_dai6 = {
 	.capture = {
 		.stream_name = "Capture",
 		.channels_min = 1,
-		.channels_max = 2,
+		.channels_max = 14,
 		.rates = es7202_RATES,
 		.formats = SNDRV_PCM_FMTBIT_S16_LE,
 	},
@@ -652,7 +652,7 @@ static struct snd_soc_dai_driver es7202_dai7 = {
 	.capture = {
 		.stream_name = "Capture",
 		.channels_min = 1,
-		.channels_max = 2,
+		.channels_max = 16,
 		.rates = es7202_RATES,
 		.formats = SNDRV_PCM_FMTBIT_S16_LE,
 	},
