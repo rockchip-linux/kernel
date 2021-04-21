@@ -40,6 +40,7 @@ struct rk_codec_digital_priv {
 	struct clk *pclk;
 	bool pwmout;
 	bool sync;
+	unsigned int pa_ctl_delay_ms;
 	struct gpio_desc *pa_ctl;
 	struct reset_control *rc;
 	const struct rk_codec_digital_soc_data *data;
@@ -739,11 +740,29 @@ static int rk_codec_digital_hw_params(struct snd_pcm_substream *substream,
 	return 0;
 }
 
+static int rk_codec_digital_pcm_startup(struct snd_pcm_substream *substream,
+					struct snd_soc_dai *dai)
+{
+	struct rk_codec_digital_priv *rcd =
+		snd_soc_component_get_drvdata(dai->component);
+
+	if (rcd && rcd->pa_ctl) {
+		gpiod_set_value_cansleep(rcd->pa_ctl, 1);
+		if (rcd->pa_ctl_delay_ms)
+			msleep(rcd->pa_ctl_delay_ms);
+	}
+
+	return 0;
+}
+
 static void rk_codec_digital_pcm_shutdown(struct snd_pcm_substream *substream,
 					  struct snd_soc_dai *dai)
 {
 	struct rk_codec_digital_priv *rcd =
 		snd_soc_component_get_drvdata(dai->component);
+
+	if (rcd && rcd->pa_ctl)
+		gpiod_set_value_cansleep(rcd->pa_ctl, 0);
 
 	if (rcd->sync) {
 		if (!snd_soc_component_is_active(dai->component)) {
@@ -793,6 +812,7 @@ static void rk_codec_digital_pcm_shutdown(struct snd_pcm_substream *substream,
 static const struct snd_soc_dai_ops rcd_dai_ops = {
 	.hw_params = rk_codec_digital_hw_params,
 	.set_fmt = rk_codec_digital_set_dai_fmt,
+	.startup = rk_codec_digital_pcm_startup,
 	.shutdown = rk_codec_digital_pcm_shutdown,
 };
 
@@ -969,6 +989,9 @@ static int rk_codec_digital_platform_probe(struct platform_device *pdev)
 	rcd->grf = syscon_regmap_lookup_by_phandle(np, "rockchip,grf");
 	rcd->pwmout = of_property_read_bool(np, "rockchip,pwm-output-mode");
 	rcd->sync = of_property_read_bool(np, "rockchip,clk-sync-mode");
+	if (of_property_read_u32(np, "rockchip,pa-ctl-delay-ms",
+				 &rcd->pa_ctl_delay_ms))
+		rcd->pa_ctl_delay_ms = 0;
 
 	rcd->rc = devm_reset_control_get(&pdev->dev, "reset");
 
