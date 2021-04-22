@@ -20,6 +20,8 @@ Optional properties:
   sync mode.
 - rockchip,pwm-output-mode: This is a boolean property, if present, output pwm
   to drive spk.
+- rockchip,pa-ctl-delay-ms: The unsigned inter property, if present, will delay
+  enable power amplifier with specified milliseconds.
 - pa-ctl-gpios: The gpio of Power Amplifier Controller.
 
 Example:
