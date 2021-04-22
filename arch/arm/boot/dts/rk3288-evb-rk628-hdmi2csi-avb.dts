@@ -82,6 +82,11 @@
 
 &rk628_csi {
 	status = "okay";
+	/*
+	 * If the hpd output level is inverted on the circuit,
+	 * the following configuration needs to be enabled.
+	 */
+	/* hpd-output-inverted; */
 	plugin-det-gpios = <&gpio0 13 GPIO_ACTIVE_HIGH>;
 	power-gpios = <&gpio0 17 GPIO_ACTIVE_HIGH>;
 	rockchip,camera-module-index = <0>;
