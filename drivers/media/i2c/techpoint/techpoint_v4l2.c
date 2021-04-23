@@ -570,6 +570,9 @@ static long techpoint_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 					    (struct rkmodule_vicap_reset_info *)
 					    arg);
 		break;
+	case RKMODULE_SET_QUICK_STREAM:
+		techpoint_set_quick_stream(techpoint, *((u32 *)arg));
+		break;
 	default:
 		ret = -ENOTTY;
 		break;
@@ -590,6 +593,7 @@ static long techpoint_compat_ioctl32(struct v4l2_subdev *sd,
 	struct rkmodule_vc_hotplug_info *vc_hp_inf;
 	struct rkmodule_vicap_reset_info *vicap_rst_inf;
 	int *stream_seq;
+	u32 stream;
 	long ret = 0;
 
 	switch (cmd) {
@@ -690,6 +694,11 @@ static long techpoint_compat_ioctl32(struct v4l2_subdev *sd,
 		if (!ret)
 			ret = copy_to_user(up, stream_seq, sizeof(*stream_seq));
 		kfree(stream_seq);
+		break;
+	case RKMODULE_SET_QUICK_STREAM:
+		ret = copy_from_user(&stream, up, sizeof(u32));
+		if (!ret)
+			ret = techpoint_ioctl(sd, cmd, &stream);
 		break;
 	default:
 		ret = -ENOIOCTLCMD;

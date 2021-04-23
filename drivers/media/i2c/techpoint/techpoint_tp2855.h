@@ -37,5 +37,6 @@ int tp2855_get_all_input_status(struct i2c_client *client, u8 *detect_status);
 int tp2855_set_channel_reso(struct i2c_client *client, int ch,
 			    enum techpoint_support_reso reso);
 int tp2855_get_channel_reso(struct i2c_client *client, int ch);
+int tp2855_set_quick_stream(struct i2c_client *client, u32 stream);
 
 #endif // _TECHPOINT_TP2855_H

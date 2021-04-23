@@ -26,6 +26,7 @@ void techpoint_get_vc_fmt_inf(struct techpoint *techpoint,
 			      struct rkmodule_vc_fmt_info *inf);
 void techpoint_get_vc_hotplug_inf(struct techpoint *techpoint,
 				  struct rkmodule_vc_hotplug_info *inf);
+void techpoint_set_quick_stream(struct techpoint *techpoint, u32 stream);
 
 int techpoint_initialize_devices(struct techpoint *techpoint);
 int techpoint_start_video_stream(struct techpoint *techpoint);

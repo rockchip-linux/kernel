@@ -431,3 +431,16 @@ int tp2855_get_channel_reso(struct i2c_client *client, int ch)
 
 	return reso;
 }
+
+int tp2855_set_quick_stream(struct i2c_client *client, u32 stream)
+{
+	if (stream) {
+		techpoint_write_reg(client, 0x40, 0x8);
+		techpoint_write_reg(client, 0x23, 0x0);
+	} else {
+		techpoint_write_reg(client, 0x40, 0x8);
+		techpoint_write_reg(client, 0x23, 0x2);
+	}
+
+	return 0;
+}

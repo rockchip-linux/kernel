@@ -365,6 +365,13 @@ void techpoint_get_vc_hotplug_inf(struct techpoint *techpoint,
 	up(&reg_sem);
 }
 
+void techpoint_set_quick_stream(struct techpoint *techpoint, u32 stream)
+{
+	if (techpoint->chip_id == CHIP_TP2855) {
+		tp2855_set_quick_stream(techpoint->client, stream);
+	}
+}
+
 int techpoint_start_video_stream(struct techpoint *techpoint)
 {
 	int ret = 0;
