@@ -159,6 +159,11 @@ struct rockchip_logo {
 	int count;
 };
 
+struct loader_cubic_lut {
+	bool enable;
+	u32 offset;
+};
+
 /*
  * Rockchip drm private structure.
  *
@@ -202,6 +207,10 @@ struct rockchip_drm_private {
 	 * ignore restore_fbdev_mode_atomic when in logo on state
 	 */
 	bool loader_protect;
+
+	dma_addr_t cubic_lut_dma_addr;
+	void *cubic_lut_kvaddr;
+	struct loader_cubic_lut cubic_lut[ROCKCHIP_MAX_CRTC];
 };
 
 #ifndef MODULE

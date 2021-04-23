@@ -329,9 +329,13 @@ static int init_loader_memory(struct drm_device *drm_dev)
 	phys_addr_t start, size;
 	u32 pg_size = PAGE_SIZE;
 	struct resource res;
-	int ret;
+	int ret, idx;
 
-	node = of_parse_phandle(np, "logo-memory-region", 0);
+	idx = of_property_match_string(np, "memory-region-names", "drm-logo");
+	if (idx >= 0)
+		node = of_parse_phandle(np, "memory-region", idx);
+	else
+		node = of_parse_phandle(np, "logo-memory-region", 0);
 	if (!node)
 		return -ENOMEM;
 
@@ -364,6 +368,33 @@ static int init_loader_memory(struct drm_device *drm_dev)
 	logo->size = size;
 	logo->count = 1;
 	private->logo = logo;
+
+	idx = of_property_match_string(np, "memory-region-names", "drm-cubic-lut");
+	if (idx < 0)
+		return 0;
+
+	node = of_parse_phandle(np, "memory-region", idx);
+	if (!node)
+		return -ENOMEM;
+
+	ret = of_address_to_resource(node, 0, &res);
+	if (ret)
+		return ret;
+	start = ALIGN_DOWN(res.start, pg_size);
+	size = resource_size(&res);
+	if (!size)
+		return 0;
+
+	private->cubic_lut_kvaddr = phys_to_virt(start);
+	if (private->domain) {
+		ret = iommu_map(private->domain, start, start, ALIGN(size, pg_size),
+				IOMMU_WRITE | IOMMU_READ);
+		if (ret) {
+			dev_err(drm_dev->dev, "failed to create 1v1 mapping for cubic lut\n");
+			goto err_free_logo;
+		}
+	}
+	private->cubic_lut_dma_addr = start;
 
 	return 0;
 
@@ -431,6 +462,7 @@ get_framebuffer_by_node(struct drm_device *drm_dev, struct device_node *node)
 static struct rockchip_drm_mode_set *
 of_parse_display_resource(struct drm_device *drm_dev, struct device_node *route)
 {
+	struct rockchip_drm_private *private = drm_dev->dev_private;
 	struct rockchip_drm_mode_set *set;
 	struct device_node *connect;
 	struct drm_framebuffer *fb;
@@ -497,6 +529,11 @@ of_parse_display_resource(struct drm_device *drm_dev, struct device_node *route)
 
 	if (!of_property_read_u32(route, "overscan,bottom_margin", &val))
 		set->bottom_margin = val;
+
+	if (!of_property_read_u32(route, "cubic_lut,offset", &val)) {
+		private->cubic_lut[crtc->index].enable = true;
+		private->cubic_lut[crtc->index].offset = val;
+	}
 
 	set->ratio = 1;
 	if (!of_property_read_string(route, "logo,mode", &string) &&
