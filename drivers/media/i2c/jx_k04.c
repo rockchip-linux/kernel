@@ -5,6 +5,7 @@
  * Copyright (C) 2020 Rockchip Electronics Co., Ltd.
  *
  * V0.0X01.0X01 init version.
+ * V0.0X01.0X02 fix upload wrong pixelrate bug.
  */
 
 #include <linux/clk.h>
@@ -27,7 +28,7 @@
 #include <linux/version.h>
 #include <linux/rk-camera-module.h>
 
-#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x01)
+#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x02)
 
 #ifndef V4L2_CID_DIGITAL_GAIN
 #define V4L2_CID_DIGITAL_GAIN		V4L2_CID_GAIN
@@ -133,6 +134,8 @@ struct jx_k04 {
 	struct v4l2_ctrl	*digi_gain;
 	struct v4l2_ctrl	*hblank;
 	struct v4l2_ctrl	*vblank;
+	struct v4l2_ctrl	*pixel_rate;
+	struct v4l2_ctrl	*link_freq;
 	struct v4l2_ctrl	*test_pattern;
 	struct mutex		mutex;
 	bool			streaming;
@@ -140,7 +143,6 @@ struct jx_k04 {
 	const struct jx_k04_mode *cur_mode;
 	unsigned int	lane_num;
 	unsigned int	cfg_num;
-	unsigned int	pixel_rate;
 	u32			module_index;
 	const char		*module_facing;
 	const char		*module_name;
@@ -286,7 +288,7 @@ static const struct jx_k04_mode supported_modes[] = {
 			.denominator = 300000,
 		},
 		.exp_def = 0x001f,
-		.hts_def = 0x0190,
+		.hts_def = 0x0190 * 4,
 		.vts_def = 0x05dc,
 		.reg_list = jx_k04_2560x1440_30fps_regs,
 		.hdr_mode = NO_HDR,
@@ -295,10 +297,10 @@ static const struct jx_k04_mode supported_modes[] = {
 };
 
 /* pixel rate = link frequency * 2 * lanes / BITS_PER_SAMPLE */
-#define MIPI_FREQ		180000000
-#define JX_K04_PIXEL_RATE		(MIPI_FREQ * 2 * JX_K04_LANES / 10)
+#define JX_K04_MIPI_FREQ		180000000
+#define JX_K04_PIXEL_RATE		(JX_K04_MIPI_FREQ * 2 * JX_K04_LANES / 10)
 static const s64 link_freq_menu_items[] = {
-	MIPI_FREQ
+	JX_K04_MIPI_FREQ
 };
 
 static const char * const jx_k04_test_pattern_menu[] = {
@@ -1059,10 +1061,10 @@ static int jx_k04_initialize_controls(struct jx_k04 *jx_k04)
 {
 	const struct jx_k04_mode *mode;
 	struct v4l2_ctrl_handler *handler;
-	struct v4l2_ctrl *ctrl;
 	s64 exposure_max, vblank_def;
 	u32 h_blank;
 	int ret;
+	u64 dst_link_freq = 0;
 
 	handler = &jx_k04->ctrl_handler;
 	mode = jx_k04->cur_mode;
@@ -1072,14 +1074,16 @@ static int jx_k04_initialize_controls(struct jx_k04 *jx_k04)
 		return ret;
 	handler->lock = &jx_k04->mutex;
 
-	ctrl = v4l2_ctrl_new_int_menu(handler, NULL, V4L2_CID_LINK_FREQ,
-				      0, 0, link_freq_menu_items);
+	jx_k04->link_freq = v4l2_ctrl_new_int_menu(handler, NULL,
+		V4L2_CID_LINK_FREQ,
+		1, 0, link_freq_menu_items);
 
-	if (ctrl)
-		ctrl->flags |= V4L2_CTRL_FLAG_READ_ONLY;
+	jx_k04->pixel_rate = v4l2_ctrl_new_std(handler, NULL,
+		V4L2_CID_PIXEL_RATE,
+		0, JX_K04_PIXEL_RATE,
+		1, JX_K04_PIXEL_RATE);
 
-	v4l2_ctrl_new_std(handler, NULL, V4L2_CID_PIXEL_RATE,
-			  0, jx_k04->pixel_rate, 1, jx_k04->pixel_rate);
+	__v4l2_ctrl_s_ctrl(jx_k04->link_freq, dst_link_freq);
 
 	h_blank = mode->hts_def - mode->width;
 	jx_k04->hblank = v4l2_ctrl_new_std(handler, NULL, V4L2_CID_HBLANK,
