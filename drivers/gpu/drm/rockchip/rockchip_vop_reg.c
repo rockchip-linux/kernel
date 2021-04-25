@@ -520,7 +520,7 @@ static const uint32_t vop_csc_r2y_bt601[] = {
 };
 
 static const uint32_t vop_csc_r2y_bt601_12_235[] = {
-	0x02040107, 0xff680064, 0x01c2fed6, 0xffb7fe87,
+	0x02040107, 0xff680064, 0x01c2fed6, 0xfe8701c2,
 	0x0000ffb7, 0x00010200, 0x00080200, 0x00080200,
 };
 
