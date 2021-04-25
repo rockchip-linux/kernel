@@ -1064,7 +1064,7 @@ static void rk628_csi_delayed_work_audio(struct work_struct *work)
 
 	/* fout=128*fs=ftmds*N/CTS */
 	regmap_read(csi->hdmirx_regmap, HDMI_RX_HDMI_CKM_RESULT, &clkrate);
-	clkrate = clkrate & 0xfff;
+	clkrate = clkrate & 0xffff;
 	/* tmdsclk = (clkrate/1000) * 49500000 */
 	tmdsclk = clkrate * (49500000 / 1000);
 	regmap_read(csi->hdmirx_regmap, HDMI_RX_PDEC_ACR_CTS, &cts_decoded);
@@ -1073,6 +1073,8 @@ static void rk628_csi_delayed_work_audio(struct work_struct *work)
 	if (cts_decoded != 0) {
 		fs_audio = div_u64((tmdsclk * n_decoded), cts_decoded);
 		fs_audio = div_u64(fs_audio, 128);
+		fs_audio = div_u64(fs_audio + 50, 100);
+		fs_audio *= 100;
 	}
 	v4l2_dbg(2, debug, sd,
 		"%s: clkrate:%d tmdsclk:%llu, n_decoded:%d, cts_decoded:%d, fs_audio:%llu\n",
