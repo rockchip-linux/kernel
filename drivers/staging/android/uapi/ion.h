@@ -48,6 +48,12 @@ enum ion_heap_type {
  */
 #define ION_FLAG_CACHED 1
 
+/*
+ * mappings of this buffer should be limit to 32bits, ion will add GFP_DMA32
+ * when the buffer allocates pages from system
+ */
+#define ION_FLAG_DMA32 4
+
 /**
  * DOC: Ion Userspace API
  *
