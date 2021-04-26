@@ -85,6 +85,11 @@ struct rockchip_drm_mode_set {
 	int top_margin;
 	int bottom_margin;
 
+	unsigned int brightness;
+	unsigned int contrast;
+	unsigned int saturation;
+	unsigned int hue;
+
 	bool mode_changed;
 	int ratio;
 };
@@ -530,6 +535,26 @@ of_parse_display_resource(struct drm_device *drm_dev, struct device_node *route)
 	if (!of_property_read_u32(route, "overscan,bottom_margin", &val))
 		set->bottom_margin = val;
 
+	if (!of_property_read_u32(route, "bcsh,brightness", &val))
+		set->brightness = val;
+	else
+		set->brightness = 50;
+
+	if (!of_property_read_u32(route, "bcsh,contrast", &val))
+		set->contrast = val;
+	else
+		set->contrast = 50;
+
+	if (!of_property_read_u32(route, "bcsh,saturation", &val))
+		set->saturation = val;
+	else
+		set->saturation = 50;
+
+	if (!of_property_read_u32(route, "bcsh,hue", &val))
+		set->hue = val;
+	else
+		set->hue = 50;
+
 	if (!of_property_read_u32(route, "cubic_lut,offset", &val)) {
 		private->cubic_lut[crtc->index].enable = true;
 		private->cubic_lut[crtc->index].offset = val;
@@ -744,6 +769,10 @@ static int setup_initial_state(struct drm_device *drm_dev,
 		goto error_conn;
 	}
 
+	conn_state->tv.brightness = set->brightness;
+	conn_state->tv.contrast = set->contrast;
+	conn_state->tv.saturation = set->saturation;
+	conn_state->tv.hue = set->hue;
 	set->mode = mode;
 	crtc_state = drm_atomic_get_crtc_state(state, crtc);
 	if (IS_ERR(crtc_state)) {
