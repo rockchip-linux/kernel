@@ -7,7 +7,8 @@
 
 #include <linux/anon_inodes.h>
 #include <linux/debugfs.h>
-#include <linux/device.h>
+#include <linux/of_device.h>
+#include <linux/platform_device.h>
 #include <linux/dma-buf.h>
 #include <linux/err.h>
 #include <linux/export.h>
@@ -34,6 +35,8 @@
 #include "ion.h"
 
 static struct ion_device *internal_dev;
+static struct device *ion_dev;
+
 static int heap_id;
 static atomic_long_t total_heap_bytes;
 
@@ -115,6 +118,25 @@ static struct ion_buffer *ion_buffer_create(struct ion_heap *heap,
 
 	INIT_LIST_HEAD(&buffer->attachments);
 	mutex_init(&buffer->lock);
+
+	if (IS_ENABLED(CONFIG_ION_FORCE_DMA_SYNC)) {
+		struct scatterlist *sg;
+		struct sg_table *table = buffer->sg_table;
+		int i;
+
+		/*
+		 * this will set up dma addresses for the sglist -- it is not
+		 * technically correct as per the dma api -- a specific
+		 * device isn't really taking ownership here.  However, in
+		 * practice on our systems the only dma_address space is
+		 * physical addresses.
+		 */
+		for_each_sg(table->sgl, sg, table->nents, i) {
+			sg_dma_address(sg) = sg_phys(sg);
+			sg_dma_len(sg) = sg->length;
+		}
+	}
+
 	mutex_lock(&dev->buffer_lock);
 	ion_buffer_add(dev, buffer);
 	mutex_unlock(&dev->buffer_lock);
@@ -462,12 +484,9 @@ static int ion_dma_buf_begin_cpu_access(struct dma_buf *dmabuf,
 					enum dma_data_direction direction)
 {
 	struct ion_buffer *buffer = dmabuf->priv;
-	void *vaddr;
 	struct ion_dma_buf_attachment *a;
+	void *vaddr;
 	int ret = 0;
-
-	if (!(buffer->flags & ION_FLAG_CACHED))
-		return 0;
 
 	/*
 	 * TODO: Move this elsewhere because we don't always need a vaddr
@@ -483,15 +502,26 @@ static int ion_dma_buf_begin_cpu_access(struct dma_buf *dmabuf,
 	}
 
 	mutex_lock(&buffer->lock);
+	if (IS_ENABLED(CONFIG_ION_FORCE_DMA_SYNC)) {
+		struct device *dev = ion_dev;
+		struct sg_table *table = buffer->sg_table;
+
+		if (dev) {
+			dma_sync_sg_for_cpu(dev, table->sgl, table->nents,
+					    direction);
+			goto unlock;
+		}
+	}
+
 	list_for_each_entry(a, &buffer->attachments, list) {
 		if (!a->mapped)
 			continue;
 		dma_sync_sg_for_cpu(a->dev, a->table->sgl, a->table->nents,
 				    direction);
 	}
-
 unlock:
 	mutex_unlock(&buffer->lock);
+
 	return ret;
 }
 
@@ -501,9 +531,6 @@ static int ion_dma_buf_end_cpu_access(struct dma_buf *dmabuf,
 	struct ion_buffer *buffer = dmabuf->priv;
 	struct ion_dma_buf_attachment *a;
 
-	if (!(buffer->flags & ION_FLAG_CACHED))
-		return 0;
-
 	if (buffer->heap->ops->map_kernel) {
 		mutex_lock(&buffer->lock);
 		ion_buffer_kmap_put(buffer);
@@ -511,6 +538,19 @@ static int ion_dma_buf_end_cpu_access(struct dma_buf *dmabuf,
 	}
 
 	mutex_lock(&buffer->lock);
+	if (IS_ENABLED(CONFIG_ION_FORCE_DMA_SYNC)) {
+		struct device *dev = ion_dev;
+		struct sg_table *table = buffer->sg_table;
+
+		if (dev) {
+			dma_sync_sg_for_device(dev, table->sgl, table->nents,
+					       direction);
+			mutex_unlock(&buffer->lock);
+
+			return 0;
+		}
+	}
+
 	list_for_each_entry(a, &buffer->attachments, list) {
 		if (!a->mapped)
 			continue;
@@ -628,6 +668,15 @@ int ion_alloc(size_t len, unsigned int heap_id_mask, unsigned int flags)
 
 	if (IS_ERR(buffer))
 		return PTR_ERR(buffer);
+
+	if (IS_ENABLED(CONFIG_ION_FORCE_DMA_SYNC)) {
+		struct device *dev = ion_dev;
+		struct sg_table *table = buffer->sg_table;
+
+		if (dev)
+			dma_sync_sg_for_device(dev, table->sgl, table->nents,
+					       DMA_BIDIRECTIONAL);
+	}
 
 	get_task_comm(task_comm, current->group_leader);
 
@@ -894,6 +943,29 @@ static const struct file_operations ion_heaps_operations = {
 };
 #endif
 
+static const struct platform_device_info ion_dev_info = {
+	.name		= "ion",
+	.id		= PLATFORM_DEVID_AUTO,
+	.dma_mask	= DMA_BIT_MASK(32),
+};
+
+static void ion_device_register(void)
+{
+	struct platform_device *pdev;
+	int ret;
+
+	pdev = platform_device_register_full(&ion_dev_info);
+	if (pdev) {
+		ret = of_dma_configure(&pdev->dev, NULL, true);
+		if (ret) {
+			platform_device_unregister(pdev);
+			pdev = NULL;
+		}
+	}
+
+	ion_dev = pdev ? &pdev->dev : NULL;
+}
+
 static int ion_device_create(void)
 {
 	struct ion_device *idev;
@@ -929,6 +1001,8 @@ static int ion_device_create(void)
 	init_rwsem(&idev->lock);
 	plist_head_init(&idev->heaps);
 	internal_dev = idev;
+	ion_device_register();
+
 	return 0;
 
 err_sysfs:
