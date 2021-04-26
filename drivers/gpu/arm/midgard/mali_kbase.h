@@ -595,13 +595,13 @@ int kbase_io_history_resize(struct kbase_io_history *h, u16 new_size);
 
 #else /* CONFIG_DEBUG_FS */
 
-#define kbase_io_history_init(...) ((int)0)
+#define midgard_kbase_io_history_init(...) ((int)0)
 
-#define kbase_io_history_term CSTD_NOP
+#define midgard_kbase_io_history_term CSTD_NOP
 
-#define kbase_io_history_dump CSTD_NOP
+#define midgard_kbase_io_history_dump CSTD_NOP
 
-#define kbase_io_history_resize CSTD_NOP
+#define midgard_kbase_io_history_resize CSTD_NOP
 
 #endif /* CONFIG_DEBUG_FS */
 

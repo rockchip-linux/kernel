@@ -43,7 +43,7 @@ void kbasep_regs_history_debugfs_init(struct kbase_device *kbdev);
 
 #else /* CONFIG_DEBUG_FS */
 
-#define kbasep_regs_history_debugfs_init CSTD_NOP
+#define midgard_kbasep_regs_history_debugfs_init CSTD_NOP
 
 #endif /* CONFIG_DEBUG_FS */
 
