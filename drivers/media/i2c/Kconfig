@@ -1357,6 +1357,14 @@ config VIDEO_S5KGM1SP
 	  This is a V4L2 sensor driver for Samsung S5KGM1SP raw
 	  camera sensor.
 
+config VIDEO_S5K4H7YX
+	tristate "Samsung S5K4H7YX sensor support"
+	depends on MEDIA_CAMERA_SUPPORT
+	depends on I2C && VIDEO_V4L2 && VIDEO_V4L2_SUBDEV_API
+	help
+	  This is a V4L2 sensor driver for Samsung S5K4H7YX raw
+	  camera sensor.
+
 config VIDEO_S5K4ECGX
 	tristate "Samsung S5K4ECGX sensor support"
 	depends on I2C && VIDEO_V4L2 && VIDEO_V4L2_SUBDEV_API
