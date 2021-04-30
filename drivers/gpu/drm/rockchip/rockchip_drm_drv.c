@@ -1820,6 +1820,26 @@ static int rockchip_drm_gem_dmabuf_end_cpu_access(struct dma_buf *dma_buf,
 	return rockchip_gem_prime_end_cpu_access(obj, dir);
 }
 
+static int rockchip_drm_gem_begin_cpu_access_partial(
+	struct dma_buf *dma_buf,
+	enum dma_data_direction dir,
+	unsigned int offset, unsigned int len)
+{
+	struct drm_gem_object *obj = dma_buf->priv;
+
+	return rockchip_gem_prime_begin_cpu_access_partial(obj, dir, offset, len);
+}
+
+static int rockchip_drm_gem_end_cpu_access_partial(
+	struct dma_buf *dma_buf,
+	enum dma_data_direction dir,
+	unsigned int offset, unsigned int len)
+{
+	struct drm_gem_object *obj = dma_buf->priv;
+
+	return rockchip_gem_prime_end_cpu_access_partial(obj, dir, offset, len);
+}
+
 static const struct dma_buf_ops rockchip_drm_gem_prime_dmabuf_ops = {
 	.attach = drm_gem_map_attach,
 	.detach = drm_gem_map_detach,
@@ -1833,6 +1853,8 @@ static const struct dma_buf_ops rockchip_drm_gem_prime_dmabuf_ops = {
 	.vunmap = drm_gem_dmabuf_vunmap,
 	.begin_cpu_access = rockchip_drm_gem_dmabuf_begin_cpu_access,
 	.end_cpu_access = rockchip_drm_gem_dmabuf_end_cpu_access,
+	.begin_cpu_access_partial = rockchip_drm_gem_begin_cpu_access_partial,
+	.end_cpu_access_partial = rockchip_drm_gem_end_cpu_access_partial,
 };
 
 #ifdef CONFIG_ARCH_ROCKCHIP
