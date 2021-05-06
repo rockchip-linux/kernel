@@ -11265,6 +11265,7 @@ void wl_terminate_event_handler(void)
 
 	if (cfg) {
 		wl_destroy_event_handler(cfg);
+		wl_flush_eq(cfg);
 	}
 }
 
@@ -12673,7 +12674,7 @@ static s32 wl_event_handler(void *data)
 	while (down_interruptible (&tsk->sema) == 0) {
 		SMP_RD_BARRIER_DEPENDS();
 		if (tsk->terminated) {
-			DHD_EVENT_WAKE_LOCK(cfg->pub);
+			DHD_EVENT_WAKE_UNLOCK(cfg->pub);
 			break;
 		}
 		while ((e = wl_deq_event(cfg))) {
@@ -12707,7 +12708,7 @@ static s32 wl_event_handler(void *data)
 fail:
 			wl_put_event(e);
 		}
-		DHD_EVENT_WAKE_LOCK(cfg->pub);
+		DHD_EVENT_WAKE_UNLOCK(cfg->pub);
 	}
 	WL_ERR(("was terminated\n"));
 	complete_and_exit(&tsk->completed, 0);

@@ -400,6 +400,9 @@ typedef struct dhd_pub {
 
 	/* Internal dhd items */
 	bool up;		/* Driver up/down (to OS) */
+#ifdef WL_CFG80211
+	spinlock_t up_lock;	/* Synchronization with CFG80211 down */
+#endif
 	bool txoff;		/* Transmit flow-controlled */
 	bool dongle_reset;  /* TRUE = DEVRESET put dongle into reset */
 	enum dhd_bus_state busstate;
