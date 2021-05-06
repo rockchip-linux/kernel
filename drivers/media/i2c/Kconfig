@@ -1799,6 +1799,18 @@ config VIDEO_SP250A
 	  To compile this driver as a module, choose M here: the
 	  module will be called SP250A.
 
+config VIDEO_HYNIX_HI556
+	tristate "Hynix HI556 sensor support"
+	depends on VIDEO_V4L2 && I2C && MEDIA_CONTROLLER
+	depends on MEDIA_CAMERA_SUPPORT
+	select V4L2_FWNODE
+	help
+	  This is a Video4Linux2 sensor driver for the Hynix
+	  HI556 camera.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called hynix_hi556.
+
 comment "Flash devices"
 
 config VIDEO_ADP1653
