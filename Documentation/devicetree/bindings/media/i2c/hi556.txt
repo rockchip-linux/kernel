@@ -1,0 +1,54 @@
+* Hynix hi556 MIPI CSI-2 sensor
+
+Required Properties:
+- compatible: should be "hynix,hi556"
+- clocks: reference to the 24M xvclk input clock.
+- clock-names: should be "xvclk".
+- dovdd-supply: Digital I/O voltage supply, 1.8 or 2.8 volts
+- avdd-supply: Analog voltage supply, 2.8 volts
+- dvdd-supply: Digital core voltage supply, 1.2 volts
+- power-gpios : High active reset gpio
+- reset-gpios: High active reset gpio
+- pwdn-gpios: High active reset gpio
+Optional Properties:
+- flash-leds : attached led node
+- lens-focus : attached vcm for focus
+
+Attention:
+hi556 device address 0x20(7bit) or 0x28(7bit) is decided by I2C_ID_SEL pin;
+
+The device node must contain one 'port' child node for its digital output
+video port, in accordance with the video interface bindings defined in
+Documentation/devicetree/bindings/media/video-interfaces.txt.
+
+Example:
+//RK356x Board
+&i2c4 {
+	status = "okay";
+
+	hi556: hi556@20 {
+		status = "okay";
+		compatible = "hynix,hi556";
+		reg = <0x20>;
+		clocks = <&cru CLK_CIF_OUT>;
+		clock-names = "xvclk";
+		power-domains = <&power RK3568_PD_VI>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&cam_clkout0>;
+		power-gpios = <&gpio0 RK_PC1 GPIO_ACTIVE_HIGH>;
+		reset-gpios = <&gpio4 RK_PA7 GPIO_ACTIVE_HIGH>;
+		pwdn-gpios = <&gpio4 RK_PB2 GPIO_ACTIVE_HIGH>;
+		rockchip,camera-module-index = <0>;
+		rockchip,camera-module-facing = "back";
+		rockchip,camera-module-name = "KYT-8607-V1.0";
+		rockchip,camera-module-lens-name = "default";
+		flash-leds = <&flash_rgb13h>;
+		lens-focus = <&dw9714>;
+		port {
+			hi556_out: endpoint {
+				remote-endpoint = <&mipi_in_hi556>;
+				data-lanes = <1 2>;
+			};
+		};
+	};
+};
