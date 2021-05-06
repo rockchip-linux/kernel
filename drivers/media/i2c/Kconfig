@@ -1811,6 +1811,18 @@ config VIDEO_HYNIX_HI556
 	  To compile this driver as a module, choose M here: the
 	  module will be called hynix_hi556.
 
+config VIDEO_HYNIX_HI846
+	tristate "Hynix HI846 sensor support"
+	depends on VIDEO_V4L2 && I2C && MEDIA_CONTROLLER
+	depends on MEDIA_CAMERA_SUPPORT
+	select V4L2_FWNODE
+	help
+	  This is a Video4Linux2 sensor driver for the Hynix
+	  HI846 camera.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called hynix_hi846.
+
 comment "Flash devices"
 
 config VIDEO_ADP1653
