@@ -172,8 +172,7 @@ static int dwc3_gadget_resize_tx_fifos(struct dwc3 *dwc)
 	 * during controller transfer data, it may cause controller
 	 * run into abnormal and unrecoverable state.
 	 */
-	if (!dwc->needs_fifo_resize || dwc->fifo_resize_status ||
-	    dwc->gadget.speed > USB_SPEED_HIGH)
+	if (!dwc->needs_fifo_resize || dwc->fifo_resize_status)
 		return 0;
 
 	num_in_eps = DWC3_NUM_IN_EPS(&dwc->hwparams);
@@ -208,7 +207,10 @@ static int dwc3_gadget_resize_tx_fifos(struct dwc3 *dwc)
 			}
 
 			mult = 1;
-			maxpacket = 64;
+			if (dwc->gadget.speed <= USB_SPEED_HIGH)
+				maxpacket = 64;
+			else
+				maxpacket = 512;
 			break;
 		case USB_ENDPOINT_XFER_ISOC:
 			if (!dep->endpoint.caps.type_iso) {
@@ -222,9 +224,15 @@ static int dwc3_gadget_resize_tx_fifos(struct dwc3 *dwc)
 			 * to get better performance and more compliance
 			 * with bus latency.
 			 */
-			mult = dep->endpoint.mult;
-			mult = mult > 0 ? mult * 2 : 3;
 			maxpacket = dep->endpoint.maxpacket;
+			if (dwc->gadget.speed <= USB_SPEED_HIGH)
+				mult = dep->endpoint.mult;
+			else
+				mult = dep->endpoint.mult *
+				       dep->endpoint.maxburst;
+			mult = mult > 0 ? mult * 2 : 3;
+			if (mult > 6)
+				mult = 6;
 			break;
 		case USB_ENDPOINT_XFER_BULK:
 			if (!dep->endpoint.caps.type_bulk) {
@@ -238,7 +246,16 @@ static int dwc3_gadget_resize_tx_fifos(struct dwc3 *dwc)
 			 * better transmission performance.
 			 */
 			mult = 3;
-			maxpacket = 512;
+			if (dwc->gadget.speed <= USB_SPEED_HIGH) {
+				maxpacket = 512;
+			} else {
+				if (dep->endpoint.maxburst > mult) {
+					mult = dep->endpoint.maxburst;
+					if (mult > 6)
+						mult = 6;
+				}
+				maxpacket = 1024;
+			}
 			break;
 		case USB_ENDPOINT_XFER_INT:
 			/* Bulk endpoints handle interrupt transfers. */
