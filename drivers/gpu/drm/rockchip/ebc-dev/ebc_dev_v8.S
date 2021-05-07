@@ -426,15 +426,15 @@ get_auto_image:
 	.type	ebc_open, %function
 ebc_open:
 .LFB2826:
-	.loc 1 1362 0
+	.loc 1 1361 0
 	.cfi_startproc
 .LVL30:
-	.loc 1 1366 0
+	.loc 1 1365 0
 	mov	w0, 0
 .LVL31:
-	.loc 1 1363 0
+	.loc 1 1362 0
 	str	xzr, [x1, 104]
-	.loc 1 1366 0
+	.loc 1 1365 0
 	ret
 	.cfi_endproc
 .LFE2826:
@@ -444,22 +444,22 @@ ebc_open:
 	.type	ebc_exit, %function
 ebc_exit:
 .LFB2845:
-	.loc 1 1908 0
+	.loc 1 1907 0
 	.cfi_startproc
 	stp	x29, x30, [sp, -16]!
 	.cfi_def_cfa_offset 16
 	.cfi_offset 29, -16
 	.cfi_offset 30, -8
-	.loc 1 1909 0
+	.loc 1 1908 0
 	adrp	x0, .LANCHOR1
 	add	x0, x0, :lo12:.LANCHOR1
-	.loc 1 1908 0
+	.loc 1 1907 0
 	add	x29, sp, 0
 	.cfi_def_cfa_register 29
-	.loc 1 1909 0
+	.loc 1 1908 0
 	bl	platform_driver_unregister
 .LVL32:
-	.loc 1 1910 0
+	.loc 1 1909 0
 	ldp	x29, x30, [sp], 16
 	.cfi_restore 30
 	.cfi_restore 29
@@ -474,7 +474,7 @@ ebc_exit:
 	.type	ebc_resume, %function
 ebc_resume:
 .LFB2843:
-	.loc 1 1870 0
+	.loc 1 1869 0
 	.cfi_startproc
 .LVL33:
 	stp	x29, x30, [sp, -32]!
@@ -492,7 +492,7 @@ ebc_resume:
 	ldr	x19, [x0, 184]
 .LBE803:
 .LBE802:
-	.loc 1 1874 0
+	.loc 1 1873 0
 	ldr	x1, [x19, 16]
 .LBB804:
 .LBB805:
@@ -505,15 +505,15 @@ ebc_resume:
 .LVL35:
 .LBE805:
 .LBE804:
-	.loc 1 1875 0
+	.loc 1 1874 0
 	str	wzr, [x19, 788]
-	.loc 1 1876 0
+	.loc 1 1875 0
 	ldr	x0, [x19, 272]
 	adrp	x1, .LC0
 	add	x1, x1, :lo12:.LC0
 	bl	_dev_info
 .LVL36:
-	.loc 1 1879 0
+	.loc 1 1878 0
 	ldr	x19, [sp, 16]
 	mov	w0, 0
 	ldp	x29, x30, [sp], 32
@@ -581,27 +581,27 @@ ebc_vdd_power_timeout:
 	.type	ebc_remove, %function
 ebc_remove:
 .LFB2841:
-	.loc 1 1846 0
+	.loc 1 1845 0
 	.cfi_startproc
 .LVL40:
 	stp	x29, x30, [sp, -16]!
 	.cfi_def_cfa_offset 16
 	.cfi_offset 29, -16
 	.cfi_offset 30, -8
-	.loc 1 1847 0
+	.loc 1 1846 0
 	adrp	x0, .LANCHOR1
 .LVL41:
 	add	x0, x0, :lo12:.LANCHOR1
-	.loc 1 1846 0
+	.loc 1 1845 0
 	add	x29, sp, 0
 	.cfi_def_cfa_register 29
-	.loc 1 1847 0
-	add	x0, x0, 224
 	.loc 1 1846 0
-	.loc 1 1847 0
+	add	x0, x0, 224
+	.loc 1 1845 0
+	.loc 1 1846 0
 	bl	misc_deregister
 .LVL42:
-	.loc 1 1850 0
+	.loc 1 1849 0
 	mov	w0, 0
 	ldp	x29, x30, [sp], 16
 	.cfi_restore 30
@@ -632,36 +632,28 @@ ebc_mmap:
 	.loc 1 1349 0
 	bl	ebc_phy_buf_base_get
 .LVL44:
-	.loc 1 1353 0
+	.loc 1 1352 0
 	lsr	x2, x0, 12
 	.loc 1 1350 0
-	mov	x7, -29
-	.loc 1 1351 0
 	mov	x6, 16384
-	ldp	x4, x5, [x19, 72]
-	.loc 1 1350 0
-	movk	x7, 0xff9f, lsl 48
-	.loc 1 1353 0
-	ldp	x1, x3, [x19]
-	.loc 1 1351 0
-	movk	x6, 0x404, lsl 16
-	.loc 1 1350 0
-	and	x4, x4, x7
-	.loc 1 1351 0
-	orr	x5, x5, x6
-	.loc 1 1350 0
-	orr	x4, x4, 27021597764222976
-	.loc 1 1351 0
-	stp	x4, x5, [x19, 72]
-	.loc 1 1353 0
-	sub	x3, x3, x1
+	.loc 1 1352 0
 	mov	x0, x19
+	.loc 1 1350 0
+	ldp	x4, x5, [x19, 72]
+	movk	x6, 0x404, lsl 16
+	.loc 1 1352 0
+	ldp	x1, x3, [x19]
+	.loc 1 1350 0
+	orr	x5, x5, x6
+	str	x5, [x19, 80]
+	.loc 1 1352 0
+	sub	x3, x3, x1
 	bl	remap_pfn_range
 .LVL45:
-	.loc 1 1356 0
+	.loc 1 1355 0
 	cmp	w0, 0
 	mov	w1, -11
-	.loc 1 1359 0
+	.loc 1 1358 0
 	ldr	x19, [sp, 16]
 .LVL46:
 	csel	w0, w0, w1, eq
@@ -2542,32 +2534,32 @@ ebc_lut_update:
 	.type	ebc_state_read, %function
 ebc_state_read:
 .LFB2833:
-	.loc 1 1468 0
+	.loc 1 1467 0
 	.cfi_startproc
 .LVL232:
 	stp	x29, x30, [sp, -16]!
 	.cfi_def_cfa_offset 16
 	.cfi_offset 29, -16
 	.cfi_offset 30, -8
-	.loc 1 1469 0
-	adrp	x3, .LANCHOR0
 	.loc 1 1468 0
+	adrp	x3, .LANCHOR0
+	.loc 1 1467 0
 	mov	x0, x2
 .LVL233:
-	.loc 1 1469 0
+	.loc 1 1468 0
 	adrp	x1, .LC14
 .LVL234:
-	.loc 1 1468 0
+	.loc 1 1467 0
 	add	x29, sp, 0
 	.cfi_def_cfa_register 29
-	.loc 1 1469 0
+	.loc 1 1468 0
 	ldr	x2, [x3, #:lo12:.LANCHOR0]
 .LVL235:
 	add	x1, x1, :lo12:.LC14
 	ldr	w2, [x2, 616]
 	bl	sprintf
 .LVL236:
-	.loc 1 1470 0
+	.loc 1 1469 0
 	sxtw	x0, w0
 	ldp	x29, x30, [sp], 16
 	.cfi_restore 30
@@ -2582,7 +2574,7 @@ ebc_state_read:
 	.type	ebc_version_read, %function
 ebc_version_read:
 .LFB2832:
-	.loc 1 1459 0
+	.loc 1 1458 0
 	.cfi_startproc
 .LVL237:
 	stp	x29, x30, [sp, -16]!
@@ -2591,22 +2583,22 @@ ebc_version_read:
 	.cfi_offset 30, -8
 	mov	x0, x2
 .LVL238:
-	.loc 1 1460 0
+	.loc 1 1459 0
 	adrp	x1, .LC16
 .LVL239:
 	adrp	x2, .LC15
 .LVL240:
-	.loc 1 1459 0
+	.loc 1 1458 0
 	add	x29, sp, 0
 	.cfi_def_cfa_register 29
-	.loc 1 1460 0
-	add	x2, x2, :lo12:.LC15
 	.loc 1 1459 0
-	.loc 1 1460 0
+	add	x2, x2, :lo12:.LC15
+	.loc 1 1458 0
+	.loc 1 1459 0
 	add	x1, x1, :lo12:.LC16
 	bl	sprintf
 .LVL241:
-	.loc 1 1461 0
+	.loc 1 1460 0
 	sxtw	x0, w0
 	ldp	x29, x30, [sp], 16
 	.cfi_restore 30
@@ -2621,27 +2613,27 @@ ebc_version_read:
 	.type	pmic_vcom_read, %function
 pmic_vcom_read:
 .LFB2830:
-	.loc 1 1423 0
+	.loc 1 1422 0
 	.cfi_startproc
 .LVL242:
 	stp	x29, x30, [sp, -32]!
 	.cfi_def_cfa_offset 32
 	.cfi_offset 29, -32
 	.cfi_offset 30, -24
-	.loc 1 1424 0
+	.loc 1 1423 0
 	adrp	x0, .LANCHOR0
 .LVL243:
-	.loc 1 1423 0
+	.loc 1 1422 0
 	add	x29, sp, 0
 	.cfi_def_cfa_register 29
-	.loc 1 1427 0
+	.loc 1 1426 0
 	ldr	x0, [x0, #:lo12:.LANCHOR0]
-	.loc 1 1423 0
+	.loc 1 1422 0
 	str	x19, [sp, 16]
 	.cfi_offset 19, -16
-	.loc 1 1423 0
+	.loc 1 1422 0
 	mov	x19, x2
-	.loc 1 1427 0
+	.loc 1 1426 0
 	ldr	x1, [x0, 16]
 .LVL244:
 .LBB1025:
@@ -2653,14 +2645,14 @@ pmic_vcom_read:
 .LVL245:
 .LBE1026:
 .LBE1025:
-	.loc 1 1429 0
+	.loc 1 1428 0
 	mov	w2, w0
 	adrp	x1, .LC14
 	mov	x0, x19
 	add	x1, x1, :lo12:.LC14
 	bl	sprintf
 .LVL246:
-	.loc 1 1430 0
+	.loc 1 1429 0
 	sxtw	x0, w0
 	ldr	x19, [sp, 16]
 .LVL247:
@@ -2678,20 +2670,20 @@ pmic_vcom_read:
 	.type	pmic_temp_read, %function
 pmic_temp_read:
 .LFB2829:
-	.loc 1 1409 0
+	.loc 1 1408 0
 	.cfi_startproc
 .LVL248:
 	stp	x29, x30, [sp, -48]!
 	.cfi_def_cfa_offset 48
 	.cfi_offset 29, -48
 	.cfi_offset 30, -40
-	.loc 1 1410 0
+	.loc 1 1409 0
 	adrp	x0, .LANCHOR0
 .LVL249:
-	.loc 1 1409 0
+	.loc 1 1408 0
 	add	x29, sp, 0
 	.cfi_def_cfa_register 29
-	.loc 1 1413 0
+	.loc 1 1412 0
 	ldr	x0, [x0, #:lo12:.LANCHOR0]
 .LBB1027:
 .LBB1028:
@@ -2700,11 +2692,11 @@ pmic_temp_read:
 .LVL250:
 .LBE1028:
 .LBE1027:
-	.loc 1 1409 0
+	.loc 1 1408 0
 	stp	x19, x20, [sp, 16]
 	.cfi_offset 19, -32
 	.cfi_offset 20, -24
-	.loc 1 1409 0
+	.loc 1 1408 0
 	adrp	x19, __stack_chk_guard
 	add	x19, x19, :lo12:__stack_chk_guard
 	mov	x20, x2
@@ -2712,7 +2704,7 @@ pmic_temp_read:
 	str	x2, [x29, 40]
 	mov	x2,0
 .LVL251:
-	.loc 1 1413 0
+	.loc 1 1412 0
 	ldr	x2, [x0, 16]
 .LBB1030:
 .LBB1029:
@@ -2723,14 +2715,14 @@ pmic_temp_read:
 .LVL252:
 .LBE1029:
 .LBE1030:
-	.loc 1 1415 0
+	.loc 1 1414 0
 	ldr	w2, [x29, 36]
 	adrp	x1, .LC14
 	mov	x0, x20
 	add	x1, x1, :lo12:.LC14
 	bl	sprintf
 .LVL253:
-	.loc 1 1416 0
+	.loc 1 1415 0
 	ldr	x2, [x29, 40]
 	ldr	x1, [x19]
 	eor	x1, x2, x1
@@ -2759,25 +2751,25 @@ pmic_temp_read:
 	.type	pmic_name_read, %function
 pmic_name_read:
 .LFB2828:
-	.loc 1 1398 0
+	.loc 1 1397 0
 	.cfi_startproc
 .LVL257:
 	stp	x29, x30, [sp, -16]!
 	.cfi_def_cfa_offset 16
 	.cfi_offset 29, -16
 	.cfi_offset 30, -8
-	.loc 1 1399 0
-	adrp	x3, .LANCHOR0
 	.loc 1 1398 0
+	adrp	x3, .LANCHOR0
+	.loc 1 1397 0
 	mov	x0, x2
 .LVL258:
-	.loc 1 1401 0
+	.loc 1 1400 0
 	adrp	x1, .LC16
 .LVL259:
-	.loc 1 1398 0
+	.loc 1 1397 0
 	add	x29, sp, 0
 	.cfi_def_cfa_register 29
-	.loc 1 1401 0
+	.loc 1 1400 0
 	ldr	x2, [x3, #:lo12:.LANCHOR0]
 .LVL260:
 	add	x1, x1, :lo12:.LC16
@@ -2785,7 +2777,7 @@ pmic_name_read:
 	add	x2, x2, 8
 	bl	sprintf
 .LVL261:
-	.loc 1 1402 0
+	.loc 1 1401 0
 	sxtw	x0, w0
 	ldp	x29, x30, [sp], 16
 	.cfi_restore 30
@@ -2800,17 +2792,17 @@ pmic_name_read:
 	.type	pmic_vcom_write, %function
 pmic_vcom_write:
 .LFB2831:
-	.loc 1 1435 0
+	.loc 1 1434 0
 	.cfi_startproc
 .LVL262:
 	stp	x29, x30, [sp, -64]!
 	.cfi_def_cfa_offset 64
 	.cfi_offset 29, -64
 	.cfi_offset 30, -56
-	.loc 1 1436 0
+	.loc 1 1435 0
 	adrp	x0, .LANCHOR0
 .LVL263:
-	.loc 1 1435 0
+	.loc 1 1434 0
 	add	x29, sp, 0
 	.cfi_def_cfa_register 29
 	stp	x19, x20, [sp, 16]
@@ -2820,37 +2812,37 @@ pmic_vcom_write:
 	stp	x21, x22, [sp, 32]
 	.cfi_offset 21, -32
 	.cfi_offset 22, -24
-	.loc 1 1435 0
+	.loc 1 1434 0
 	add	x1, x19, :lo12:__stack_chk_guard
 .LVL264:
 	mov	x21, x2
-	.loc 1 1436 0
+	.loc 1 1435 0
 	ldr	x22, [x0, #:lo12:.LANCHOR0]
 .LVL265:
-	.loc 1 1435 0
+	.loc 1 1434 0
 	ldr	x2, [x1]
 	str	x2, [x29, 56]
 	mov	x2,0
 .LVL266:
 	mov	x20, x3
-	.loc 1 1439 0
+	.loc 1 1438 0
 	add	x2, x29, 52
 	mov	w1, 0
 	mov	x0, x21
 	bl	kstrtouint
 .LVL267:
-	.loc 1 1440 0
+	.loc 1 1439 0
 	cbnz	w0, .L237
 .LVL268:
-	.loc 1 1444 0
+	.loc 1 1443 0
 	ldr	w1, [x29, 52]
 	ldr	x0, [x22, 16]
 	bl	ebc_pmic_set_vcom
 .LVL269:
-	.loc 1 1445 0
+	.loc 1 1444 0
 	cbnz	w0, .L238
 .L230:
-	.loc 1 1451 0
+	.loc 1 1450 0
 	add	x19, x19, :lo12:__stack_chk_guard
 	mov	x0, x20
 .LVL270:
@@ -2875,36 +2867,36 @@ pmic_vcom_write:
 	.p2align 3
 .L237:
 	.cfi_restore_state
-	.loc 1 1441 0
+	.loc 1 1440 0
 	ldr	x0, [x22]
 	adrp	x1, .LC17
 	mov	x2, x21
 	add	x1, x1, :lo12:.LC17
-	.loc 1 1442 0
+	.loc 1 1441 0
 	mov	x20, -1
 .LVL273:
-	.loc 1 1441 0
+	.loc 1 1440 0
 	bl	_dev_err
 .LVL274:
-	.loc 1 1442 0
+	.loc 1 1441 0
 	b	.L230
 .LVL275:
 	.p2align 3
 .L238:
-	.loc 1 1446 0
+	.loc 1 1445 0
 	ldr	x0, [x22]
 	adrp	x1, .LC18
-	.loc 1 1447 0
+	.loc 1 1446 0
 	mov	x20, -1
 .LVL276:
-	.loc 1 1446 0
+	.loc 1 1445 0
 	add	x1, x1, :lo12:.LC18
 	bl	_dev_err
 .LVL277:
-	.loc 1 1447 0
+	.loc 1 1446 0
 	b	.L230
 .L239:
-	.loc 1 1451 0
+	.loc 1 1450 0
 	bl	__stack_chk_fail
 .LVL278:
 	.cfi_endproc
@@ -2915,7 +2907,7 @@ pmic_vcom_write:
 	.type	waveform_version_read, %function
 waveform_version_read:
 .LFB2827:
-	.loc 1 1387 0
+	.loc 1 1386 0
 	.cfi_startproc
 .LVL279:
 	stp	x29, x30, [sp, -32]!
@@ -2926,19 +2918,19 @@ waveform_version_read:
 	.cfi_def_cfa_register 29
 	str	x19, [sp, 16]
 	.cfi_offset 19, -16
-	.loc 1 1387 0
+	.loc 1 1386 0
 	mov	x19, x2
-	.loc 1 1388 0
+	.loc 1 1387 0
 	bl	epd_lut_get_wf_version
 .LVL280:
-	.loc 1 1390 0
+	.loc 1 1389 0
 	mov	x2, x0
 	adrp	x1, .LC16
 	mov	x0, x19
 	add	x1, x1, :lo12:.LC16
 	bl	sprintf
 .LVL281:
-	.loc 1 1391 0
+	.loc 1 1390 0
 	sxtw	x0, w0
 	ldr	x19, [sp, 16]
 .LVL282:
@@ -2956,23 +2948,23 @@ waveform_version_read:
 	.type	ebc_init, %function
 ebc_init:
 .LFB2844:
-	.loc 1 1903 0
+	.loc 1 1902 0
 	.cfi_startproc
 	stp	x29, x30, [sp, -16]!
 	.cfi_def_cfa_offset 16
 	.cfi_offset 29, -16
 	.cfi_offset 30, -8
-	.loc 1 1904 0
+	.loc 1 1903 0
 	mov	x1, 0
 	adrp	x0, .LANCHOR1
 	add	x0, x0, :lo12:.LANCHOR1
-	.loc 1 1903 0
+	.loc 1 1902 0
 	add	x29, sp, 0
 	.cfi_def_cfa_register 29
-	.loc 1 1904 0
+	.loc 1 1903 0
 	bl	__platform_driver_register
 .LVL283:
-	.loc 1 1905 0
+	.loc 1 1904 0
 	ldp	x29, x30, [sp], 16
 	.cfi_restore 30
 	.cfi_restore 29
@@ -4465,7 +4457,7 @@ ebc_power_set.part.3:
 	.type	ebc_probe, %function
 ebc_probe:
 .LFB2840:
-	.loc 1 1738 0
+	.loc 1 1737 0
 	.cfi_startproc
 .LVL408:
 	stp	x29, x30, [sp, -208]!
@@ -4479,15 +4471,15 @@ ebc_probe:
 	movk	w2, 0x60, lsl 16
 .LBE1280:
 .LBE1279:
-	.loc 1 1738 0
+	.loc 1 1737 0
 	add	x29, sp, 0
 	.cfi_def_cfa_register 29
 	stp	x19, x20, [sp, 16]
 	.cfi_offset 19, -192
 	.cfi_offset 20, -184
-	.loc 1 1739 0
-	add	x20, x0, 16
 	.loc 1 1738 0
+	add	x20, x0, 16
+	.loc 1 1737 0
 	stp	x23, x24, [sp, 48]
 	.cfi_offset 23, -160
 	.cfi_offset 24, -152
@@ -4503,7 +4495,7 @@ ebc_probe:
 	.cfi_offset 26, -136
 	.cfi_offset 27, -128
 	.cfi_offset 28, -120
-	.loc 1 1738 0
+	.loc 1 1737 0
 	ldr	x1, [x0]
 	str	x1, [x29, 200]
 	mov	x1,0
@@ -4516,30 +4508,30 @@ ebc_probe:
 .LVL410:
 .LBE1281:
 .LBE1282:
-	.loc 1 1750 0
+	.loc 1 1749 0
 	cbz	x0, .L442
-	.loc 1 1754 0
+	.loc 1 1753 0
 	adrp	x25, .LANCHOR0
 	mov	x19, x0
-	.loc 1 1756 0
+	.loc 1 1755 0
 	adrp	x1, .LC22
 	mov	w2, 0
-	.loc 1 1754 0
+	.loc 1 1753 0
 	str	x0, [x25, #:lo12:.LANCHOR0]
-	.loc 1 1756 0
+	.loc 1 1755 0
 	add	x1, x1, :lo12:.LC22
 	ldr	x0, [x20, 752]
-	.loc 1 1753 0
+	.loc 1 1752 0
 	str	x20, [x19]
-	.loc 1 1756 0
+	.loc 1 1755 0
 	bl	of_parse_phandle
 .LVL411:
-	.loc 1 1757 0
+	.loc 1 1756 0
 	cbz	x0, .L485
-	.loc 1 1762 0
+	.loc 1 1761 0
 	bl	of_find_device_by_node
 .LVL412:
-	.loc 1 1764 0
+	.loc 1 1763 0
 	cbz	x0, .L401
 .LBB1283:
 .LBB1284:
@@ -4550,27 +4542,27 @@ ebc_probe:
 .LBE1285:
 .LBE1284:
 .LBE1283:
-	.loc 1 1767 0
+	.loc 1 1766 0
 	str	x0, [x19, 8]
-	.loc 1 1768 0
+	.loc 1 1767 0
 	cbz	x0, .L401
-	.loc 1 1770 0
+	.loc 1 1769 0
 	adrp	x1, frame_done_callback
 	add	x1, x1, :lo12:frame_done_callback
 	str	x1, [x0, 104]
-	.loc 1 1772 0
+	.loc 1 1771 0
 	mov	w2, 0
 	adrp	x1, .LC24
 	add	x1, x1, :lo12:.LC24
 	ldr	x0, [x20, 752]
 	bl	of_parse_phandle
 .LVL414:
-	.loc 1 1773 0
+	.loc 1 1772 0
 	cbz	x0, .L486
-	.loc 1 1778 0
+	.loc 1 1777 0
 	bl	of_find_i2c_device_by_node
 .LVL415:
-	.loc 1 1780 0
+	.loc 1 1779 0
 	cbz	x0, .L487
 .LBB1286:
 .LBB1287:
@@ -4581,16 +4573,16 @@ ebc_probe:
 .LBE1288:
 .LBE1287:
 .LBE1286:
-	.loc 1 1784 0
+	.loc 1 1783 0
 	str	x0, [x19, 16]
-	.loc 1 1785 0
+	.loc 1 1784 0
 	cbz	x0, .L488
-	.loc 1 1791 0
+	.loc 1 1790 0
 	add	x21, x19, 184
 .LVL417:
-	.loc 1 1793 0
+	.loc 1 1792 0
 	add	x22, x19, 24
-	.loc 1 1791 0
+	.loc 1 1790 0
 	str	x20, [x21, 88]
 .LBB1289:
 .LBB1290:
@@ -4605,7 +4597,7 @@ ebc_probe:
 .LBE1291:
 .LBE1290:
 .LBE1289:
-	.loc 1 1793 0
+	.loc 1 1792 0
 	str	x20, [x19, 24]
 .LBB1388:
 .LBB1384:
@@ -4619,7 +4611,7 @@ ebc_probe:
 .LBE1300:
 .LBE1384:
 .LBE1388:
-	.loc 1 1794 0
+	.loc 1 1793 0
 	ldr	x2, [x19, 8]
 .LBB1389:
 .LBB1385:
@@ -4633,7 +4625,7 @@ ebc_probe:
 .LBE1301:
 .LBE1385:
 .LBE1389:
-	.loc 1 1795 0
+	.loc 1 1794 0
 	stp	x2, x0, [x22, 8]
 .LBB1390:
 .LBB1386:
@@ -4980,51 +4972,51 @@ ebc_probe:
 .LBE1369:
 .LBE1386:
 .LBE1390:
-	.loc 1 1803 0
+	.loc 1 1802 0
 	ldr	w0, [x22, 88]
 .LBB1391:
 .LBB1392:
-	.loc 1 1540 0
+	.loc 1 1539 0
 	mov	w2, 0
 .LBE1392:
 .LBE1391:
-	.loc 1 1803 0
+	.loc 1 1802 0
 	str	w0, [x21, 52]
-	.loc 1 1804 0
+	.loc 1 1803 0
 	ldr	w1, [x22, 84]
 	str	w1, [x21, 56]
-	.loc 1 1805 0
+	.loc 1 1804 0
 	mul	w0, w0, w1
 .LBB1420:
 .LBB1415:
-	.loc 1 1540 0
+	.loc 1 1539 0
 	adrp	x1, .LC33
 	add	x1, x1, :lo12:.LC33
 .LBE1415:
 .LBE1420:
-	.loc 1 1805 0
+	.loc 1 1804 0
 	lsr	w3, w0, 1
-	.loc 1 1806 0
+	.loc 1 1805 0
 	lsr	w0, w0, 2
 	stp	w3, w0, [x21, 20]
 .LBB1421:
 .LBB1416:
-	.loc 1 1531 0
+	.loc 1 1530 0
 	ldr	x26, [x19]
 .LVL438:
-	.loc 1 1540 0
+	.loc 1 1539 0
 	ldr	x0, [x26, 752]
 	bl	of_parse_phandle
 .LVL439:
-	.loc 1 1541 0
+	.loc 1 1540 0
 	cbz	x0, .L443
-	.loc 1 1544 0
+	.loc 1 1543 0
 	add	x2, x29, 104
 	mov	w1, 0
 	bl	of_address_to_resource
 .LVL440:
 	mov	w24, w0
-	.loc 1 1546 0
+	.loc 1 1545 0
 	cbnz	w0, .L490
 .LBB1393:
 .LBB1394:
@@ -5033,9 +5025,9 @@ ebc_probe:
 	ldp	x1, x2, [x29, 104]
 .LBE1394:
 .LBE1393:
-	.loc 1 1551 0
+	.loc 1 1550 0
 	str	x1, [x19, 184]
-	.loc 1 1554 0
+	.loc 1 1553 0
 	mov	x3, 1
 	mov	x0, x26
 .LBB1396:
@@ -5045,16 +5037,16 @@ ebc_probe:
 	sub	x2, x2, x1
 .LBE1395:
 .LBE1396:
-	.loc 1 1552 0
+	.loc 1 1551 0
 	str	w2, [x21, 16]
-	.loc 1 1554 0
+	.loc 1 1553 0
 	sxtw	x2, w2
 	bl	devm_memremap
 .LVL441:
 	str	x0, [x21, 8]
-	.loc 1 1556 0
+	.loc 1 1555 0
 	cbz	x0, .L414
-	.loc 1 1564 0
+	.loc 1 1563 0
 	mov	x1, x0
 	ldr	w2, [x21, 16]
 	ldr	x0, [x19, 184]
@@ -5062,11 +5054,11 @@ ebc_probe:
 	mov	w3, 2097152
 	bl	ebc_buf_init
 .LVL442:
-	.loc 1 1565 0
+	.loc 1 1564 0
 	cbnz	w0, .L414
-	.loc 1 1570 0
+	.loc 1 1569 0
 	ldr	x0, [x21, 8]
-	.loc 1 1571 0
+	.loc 1 1570 0
 	mov	x5, 1048576
 	str	x5, [x22, 40]
 .LBB1397:
@@ -5075,13 +5067,13 @@ ebc_probe:
 	mov	w2, 32960
 .LBE1398:
 .LBE1397:
-	.loc 1 1570 0
+	.loc 1 1569 0
 	add	x6, x0, 10485760
 	str	x6, [x22, 24]
 	add	x4, x0, 11534336
-	.loc 1 1576 0
+	.loc 1 1575 0
 	add	x1, x0, 12582912
-	.loc 1 1572 0
+	.loc 1 1571 0
 	ldr	x3, [x19, 184]
 .LBB1402:
 .LBB1399:
@@ -5090,18 +5082,18 @@ ebc_probe:
 	mov	x0, x26
 .LBE1399:
 .LBE1402:
-	.loc 1 1572 0
+	.loc 1 1571 0
 	add	x7, x3, 10485760
 	str	x7, [x22, 32]
-	.loc 1 1573 0
+	.loc 1 1572 0
 	str	x6, [x21, 176]
-	.loc 1 1572 0
-	add	x3, x3, 11534336
 	.loc 1 1571 0
+	add	x3, x3, 11534336
+	.loc 1 1570 0
 	str	x5, [x22, 64]
-	.loc 1 1572 0
+	.loc 1 1571 0
 	stp	x4, x3, [x22, 48]
-	.loc 1 1576 0
+	.loc 1 1575 0
 	str	x1, [x21, 112]
 .LBB1403:
 .LBB1400:
@@ -5109,7 +5101,7 @@ ebc_probe:
 	ldrsw	x1, [x21, 20]
 .LBE1400:
 .LBE1403:
-	.loc 1 1573 0
+	.loc 1 1572 0
 	str	x4, [x21, 184]
 .LBB1404:
 .LBB1401:
@@ -5118,9 +5110,9 @@ ebc_probe:
 .LVL443:
 .LBE1401:
 .LBE1404:
-	.loc 1 1579 0
+	.loc 1 1578 0
 	str	x0, [x21, 128]
-	.loc 1 1580 0
+	.loc 1 1579 0
 	cbz	x0, .L414
 .LBB1405:
 .LBB1406:
@@ -5133,9 +5125,9 @@ ebc_probe:
 .LVL444:
 .LBE1406:
 .LBE1405:
-	.loc 1 1582 0
+	.loc 1 1581 0
 	str	x0, [x21, 136]
-	.loc 1 1583 0
+	.loc 1 1582 0
 	cbz	x0, .L414
 .LBB1407:
 .LBB1408:
@@ -5148,9 +5140,9 @@ ebc_probe:
 .LVL445:
 .LBE1408:
 .LBE1407:
-	.loc 1 1585 0
+	.loc 1 1584 0
 	str	x0, [x21, 144]
-	.loc 1 1586 0
+	.loc 1 1585 0
 	cbz	x0, .L414
 .LBB1409:
 .LBB1410:
@@ -5163,11 +5155,11 @@ ebc_probe:
 .LVL446:
 .LBE1410:
 .LBE1409:
-	.loc 1 1588 0
+	.loc 1 1587 0
 	str	x0, [x21, 152]
-	.loc 1 1589 0
+	.loc 1 1588 0
 	cbz	x0, .L414
-	.loc 1 1593 0
+	.loc 1 1592 0
 	ldp	w1, w2, [x22, 84]
 .LBB1411:
 .LBB1412:
@@ -5175,7 +5167,7 @@ ebc_probe:
 	mov	x0, x26
 .LBE1412:
 .LBE1411:
-	.loc 1 1593 0
+	.loc 1 1592 0
 	mul	w1, w1, w2
 .LBB1414:
 .LBB1413:
@@ -5187,18 +5179,18 @@ ebc_probe:
 .LVL447:
 .LBE1413:
 .LBE1414:
-	.loc 1 1593 0
+	.loc 1 1592 0
 	str	x0, [x21, 160]
-	.loc 1 1594 0
+	.loc 1 1593 0
 	cbz	x0, .L414
-	.loc 1 1596 0
+	.loc 1 1595 0
 	ldp	w2, w1, [x22, 84]
 	mul	w2, w2, w1
 	mov	w1, 0
 	lsr	w2, w2, 4
 	bl	memset
 .LVL448:
-	.loc 1 1597 0
+	.loc 1 1596 0
 	ldrsw	x2, [x21, 20]
 	mov	w1, 255
 	ldr	x0, [x21, 144]
@@ -5208,45 +5200,45 @@ ebc_probe:
 .LBE1421:
 .LBB1422:
 .LBB1423:
-	.loc 1 1491 0
+	.loc 1 1490 0
 	ldr	x26, [x19, 272]
 .LVL450:
-	.loc 1 1497 0
+	.loc 1 1496 0
 	adrp	x1, .LC35
 	mov	w2, 0
 	add	x1, x1, :lo12:.LC35
 	ldr	x0, [x26, 752]
 	bl	of_parse_phandle
 .LVL451:
-	.loc 1 1498 0
+	.loc 1 1497 0
 	cbz	x0, .L444
-	.loc 1 1501 0
+	.loc 1 1500 0
 	add	x2, x29, 104
 	mov	w1, 0
 	bl	of_address_to_resource
 .LVL452:
 	mov	w24, w0
-	.loc 1 1503 0
+	.loc 1 1502 0
 	cbz	w0, .L491
 .LVL453:
 .L415:
 .LBE1423:
 .LBE1422:
-	.loc 1 1818 0
+	.loc 1 1817 0
 	adrp	x1, .LC68
 	mov	x0, x20
 .LVL454:
 	add	x1, x1, :lo12:.LC68
 	bl	_dev_err
 .LVL455:
-	.loc 1 1819 0
+	.loc 1 1818 0
 	b	.L397
 .LVL456:
 	.p2align 3
 .L406:
-	.loc 1 1801 0
-	mov	w24, -22
 	.loc 1 1800 0
+	mov	w24, -22
+	.loc 1 1799 0
 	adrp	x1, .LC72
 	mov	w2, w24
 	add	x1, x1, :lo12:.LC72
@@ -5254,7 +5246,7 @@ ebc_probe:
 	bl	_dev_err
 .LVL457:
 .L397:
-	.loc 1 1843 0
+	.loc 1 1842 0
 	add	x23, x23, :lo12:__stack_chk_guard
 	mov	w0, w24
 .LVL458:
@@ -5292,7 +5284,7 @@ ebc_probe:
 	.cfi_restore_state
 .LBB1430:
 .LBB1417:
-	.loc 1 1547 0
+	.loc 1 1546 0
 	adrp	x1, .LC34
 	mov	x0, x26
 	add	x1, x1, :lo12:.LC34
@@ -5301,13 +5293,13 @@ ebc_probe:
 .L411:
 .LBE1417:
 .LBE1430:
-	.loc 1 1811 0
+	.loc 1 1810 0
 	adrp	x1, .LC67
 	mov	x0, x20
 	add	x1, x1, :lo12:.LC67
 	bl	_dev_err
 .LVL464:
-	.loc 1 1812 0
+	.loc 1 1811 0
 	b	.L397
 .LVL465:
 	.p2align 3
@@ -5440,7 +5432,7 @@ ebc_probe:
 .LBE1431:
 .LBB1432:
 .LBB1426:
-	.loc 1 1509 0
+	.loc 1 1508 0
 	mov	x0, x26
 	mov	x3, 1
 .LBB1424:
@@ -5452,28 +5444,28 @@ ebc_probe:
 	sub	x26, x26, x1
 .LBE1425:
 .LBE1424:
-	.loc 1 1509 0
+	.loc 1 1508 0
 	sxtw	x2, w26
 	bl	devm_memremap
 .LVL472:
 	str	x0, [x19, 384]
-	.loc 1 1511 0
+	.loc 1 1510 0
 	cbz	x0, .L493
-	.loc 1 1516 0
+	.loc 1 1515 0
 	bl	epd_lut_from_mem_init
 .LVL473:
-	.loc 1 1517 0
+	.loc 1 1516 0
 	tbnz	w0, #31, .L494
 .L417:
 .LBE1426:
 .LBE1432:
 .LBB1433:
 .LBB1434:
-	.loc 1 1606 0
+	.loc 1 1605 0
 	add	x0, x19, 744
 	mov	x1, 68719476704
 	str	x1, [x21, 552]
-	.loc 1 1608 0
+	.loc 1 1607 0
 	add	x25, x25, :lo12:.LANCHOR0
 .LBB1435:
 .LBB1436:
@@ -5487,7 +5479,7 @@ ebc_probe:
 .LBE1437:
 .LBE1436:
 .LBE1435:
-	.loc 1 1604 0
+	.loc 1 1603 0
 	mov	w26, 99
 .LBB1441:
 .LBB1440:
@@ -5496,32 +5488,32 @@ ebc_probe:
 	str	x0, [x0, 8]
 .LBE1440:
 .LBE1441:
-	.loc 1 1606 0
+	.loc 1 1605 0
 	adrp	x0, new_buffer_refresh
 	add	x0, x0, :lo12:new_buffer_refresh
 	str	x0, [x21, 576]
-	.loc 1 1608 0
+	.loc 1 1607 0
 	adrp	x3, .LC69
 	mov	w2, -1
 	add	x3, x3, :lo12:.LC69
 	mov	x1, x21
 	adrp	x0, ebc_auto_tast_function
-	.loc 1 1604 0
+	.loc 1 1603 0
 	str	w26, [x29, 104]
-	.loc 1 1608 0
+	.loc 1 1607 0
 	add	x0, x0, :lo12:ebc_auto_tast_function
 	bl	kthread_create_on_node
 .LVL474:
 	str	x0, [x25, 8]
-	.loc 1 1609 0
+	.loc 1 1608 0
 	cmn	x0, #4096
 	bhi	.L495
-	.loc 1 1613 0
+	.loc 1 1612 0
 	add	x2, x29, 104
 	mov	w1, 1
 	bl	sched_setscheduler_nocheck
 .LVL475:
-	.loc 1 1614 0
+	.loc 1 1613 0
 	ldr	x2, [x25, 8]
 .LBB1442:
 .LBB1443:
@@ -5563,7 +5555,7 @@ ebc_probe:
 .LBE1443:
 .LBE1442:
 .LBB1444:
-	.loc 1 1617 0
+	.loc 1 1616 0
 	adrp	x3, .LC40
 	adrp	x0, ebc_thread
 .LVL479:
@@ -5572,10 +5564,10 @@ ebc_probe:
 	add	x0, x0, :lo12:ebc_thread
 	mov	x1, x21
 .LBE1444:
-	.loc 1 1616 0
+	.loc 1 1615 0
 	str	w26, [x29, 104]
 .LBB1445:
-	.loc 1 1617 0
+	.loc 1 1616 0
 	bl	kthread_create_on_node
 .LVL480:
 	mov	x25, x0
@@ -5586,13 +5578,13 @@ ebc_probe:
 .LVL482:
 .LBE1445:
 	str	x25, [x21, 120]
-	.loc 1 1622 0
+	.loc 1 1621 0
 	add	x2, x29, 104
 	mov	w1, 1
 	mov	x0, x25
 	bl	sched_setscheduler_nocheck
 .LVL483:
-	.loc 1 1623 0
+	.loc 1 1622 0
 	ldr	x2, [x21, 120]
 .LBB1446:
 .LBB1447:
@@ -5636,7 +5628,7 @@ ebc_probe:
 .LBE1433:
 .LBB1450:
 .LBB1451:
-	.loc 1 1632 0
+	.loc 1 1631 0
 	mov	w0, -1
 .LVL487:
 	str	w0, [x21, 48]
@@ -5647,9 +5639,9 @@ ebc_probe:
 .LVL488:
 .LBE1453:
 .LBE1452:
-	.loc 1 1636 0
-	str	wzr, [x21, 28]
 	.loc 1 1635 0
+	str	wzr, [x21, 28]
+	.loc 1 1634 0
 	str	wzr, [x21, 80]
 .LBB1458:
 .LBB1454:
@@ -5657,7 +5649,7 @@ ebc_probe:
 	adrp	x1, .LC41
 .LBE1454:
 .LBE1458:
-	.loc 1 1631 0
+	.loc 1 1630 0
 	str	wzr, [x21, 192]
 .LBB1459:
 .LBB1455:
@@ -5665,14 +5657,14 @@ ebc_probe:
 	add	x1, x1, :lo12:.LC41
 .LBE1455:
 .LBE1459:
-	.loc 1 1633 0
+	.loc 1 1632 0
 	str	wzr, [x21, 600]
-	.loc 1 1643 0
+	.loc 1 1642 0
 	add	x25, x19, 624
 .LVL489:
-	.loc 1 1634 0
+	.loc 1 1633 0
 	str	wzr, [x21, 604]
-	.loc 1 1644 0
+	.loc 1 1643 0
 	adrp	x26, jiffies
 .LBB1460:
 .LBB1456:
@@ -5680,7 +5672,7 @@ ebc_probe:
 	stp	xzr, xzr, [x0]
 .LBE1456:
 .LBE1460:
-	.loc 1 1644 0
+	.loc 1 1643 0
 	mov	x27, 268435455
 .LBB1461:
 .LBB1457:
@@ -5704,9 +5696,9 @@ ebc_probe:
 .LVL490:
 .LBE1457:
 .LBE1461:
-	.loc 1 1640 0
+	.loc 1 1639 0
 	str	wzr, [x21, 432]
-	.loc 1 1643 0
+	.loc 1 1642 0
 	mov	x4, 0
 	mov	x3, 0
 	mov	w2, 0
@@ -5715,16 +5707,16 @@ ebc_probe:
 	add	x1, x1, :lo12:ebc_vdd_power_timeout
 	bl	init_timer_key
 .LVL491:
-	.loc 1 1644 0
+	.loc 1 1643 0
 	ldr	x1, [x26, #:lo12:jiffies]
 	mov	x0, x25
-	.loc 1 1647 0
+	.loc 1 1646 0
 	add	x25, x19, 680
-	.loc 1 1644 0
+	.loc 1 1643 0
 	add	x1, x1, x27
 	bl	mod_timer
 .LVL492:
-	.loc 1 1647 0
+	.loc 1 1646 0
 	mov	x4, 0
 	mov	x3, 0
 	mov	w2, 0
@@ -5733,7 +5725,7 @@ ebc_probe:
 	add	x1, x1, :lo12:ebc_frame_timeout
 	bl	init_timer_key
 .LVL493:
-	.loc 1 1648 0
+	.loc 1 1647 0
 	ldr	x1, [x26, #:lo12:jiffies]
 	mov	x0, x25
 	add	x1, x1, x27
@@ -5743,88 +5735,88 @@ ebc_probe:
 .LBE1450:
 .LBB1462:
 .LBB1463:
-	.loc 1 1658 0
+	.loc 1 1657 0
 	adrp	x0, saved_command_line
 	adrp	x1, .LC42
-	.loc 1 1655 0
+	.loc 1 1654 0
 	stp	wzr, wzr, [x29, 100]
 .LVL495:
-	.loc 1 1658 0
+	.loc 1 1657 0
 	add	x1, x1, :lo12:.LC42
 	ldr	x25, [x0, #:lo12:saved_command_line]
 	mov	x0, x25
 	bl	strstr
 .LVL496:
-	.loc 1 1659 0
-	adrp	x1, .LC43
 	.loc 1 1658 0
+	adrp	x1, .LC43
+	.loc 1 1657 0
 	mov	x26, x0
 .LVL497:
-	.loc 1 1659 0
+	.loc 1 1658 0
 	add	x1, x1, :lo12:.LC43
 	mov	x0, x25
 	bl	strstr
 .LVL498:
 	mov	x28, x0
 .LVL499:
-	.loc 1 1664 0
+	.loc 1 1663 0
 	cbz	x26, .L420
-	.loc 1 1665 0
+	.loc 1 1664 0
 	add	x2, x29, 100
 	adrp	x1, .LC44
 	mov	x0, x26
 	add	x1, x1, :lo12:.LC44
 	bl	sscanf
 .LVL500:
-	.loc 1 1666 0
+	.loc 1 1665 0
 	ldr	w2, [x29, 100]
 	ldr	x0, [x19, 184]
 	cmp	x0, x2, uxtw
 	bls	.L496
 .L420:
-	.loc 1 1678 0
+	.loc 1 1677 0
 	mov	w25, 0
 .LVL501:
 	mov	x27, 0
 .LVL502:
-	.loc 1 1662 0
+	.loc 1 1661 0
 	mov	x26, 0
 .LVL503:
-	.loc 1 1678 0
+	.loc 1 1677 0
 	cbz	x28, .L440
 .LVL504:
 .L439:
-	.loc 1 1679 0
+	.loc 1 1678 0
 	add	x2, x29, 104
 	mov	x0, x28
 	adrp	x1, .LC47
 	add	x1, x1, :lo12:.LC47
 	bl	sscanf
 .LVL505:
-	.loc 1 1657 0
+	.loc 1 1656 0
 	mov	w28, 0
 .LVL506:
-	.loc 1 1680 0
+	.loc 1 1679 0
 	ldr	w2, [x29, 104]
-	.loc 1 1662 0
+	.loc 1 1661 0
 	mov	x26, 0
 .LVL507:
-	.loc 1 1680 0
+	.loc 1 1679 0
 	ldr	x0, [x19, 184]
 	cmp	x0, x2, uxtw
 	bls	.L497
 .L424:
-	.loc 1 1692 0
+	.loc 1 1691 0
 	cbz	w25, .L440
 .L423:
-	.loc 1 1699 0
+	.loc 1 1698 0
 	bl	ebc_empty_buf_get
 .LVL508:
 	mov	x25, x0
 .LVL509:
-	.loc 1 1700 0
+	.loc 1 1699 0
 	cbz	x0, .L426
-	.loc 1 1701 0
+	.loc 1 1700 0
 	ldp	w2, w0, [x22, 84]
 	mov	x1, x27
 	mul	w2, w2, w0
@@ -5832,41 +5824,41 @@ ebc_probe:
 	lsr	w2, w2, 1
 	bl	memcpy
 .LVL510:
-	.loc 1 1704 0
+	.loc 1 1703 0
 	stp	wzr, wzr, [x25, 48]
-	.loc 1 1702 0
+	.loc 1 1701 0
 	mov	w0, 7
 	str	w0, [x25, 40]
-	.loc 1 1707 0
+	.loc 1 1706 0
 	mov	x0, x25
-	.loc 1 1705 0
+	.loc 1 1704 0
 	ldr	w1, [x22, 84]
 	str	w1, [x25, 56]
-	.loc 1 1706 0
+	.loc 1 1705 0
 	ldr	w1, [x22, 88]
 	str	w1, [x25, 60]
-	.loc 1 1707 0
+	.loc 1 1706 0
 	bl	ebc_add_to_dsp_buf_list
 .LVL511:
 .L426:
-	.loc 1 1711 0
+	.loc 1 1710 0
 	cbnz	w28, .L498
 .L428:
-	.loc 1 1724 0
+	.loc 1 1723 0
 	ldr	w0, [x21, 80]
 	adrp	x22, .LANCHOR1
 	cbz	w0, .L499
 .L430:
-	.loc 1 1729 0
+	.loc 1 1728 0
 	cbz	x27, .L431
-	.loc 1 1730 0
+	.loc 1 1729 0
 	mov	x0, x27
 	bl	kfree
 .LVL512:
 .L431:
-	.loc 1 1731 0
+	.loc 1 1730 0
 	cbz	x26, .L422
-	.loc 1 1732 0
+	.loc 1 1731 0
 	mov	x0, x26
 	bl	kfree
 .LVL513:
@@ -5883,44 +5875,44 @@ ebc_probe:
 .LBE1475:
 .LBB1478:
 .LBB1479:
-	.loc 1 1476 0
+	.loc 1 1475 0
 	add	x22, x22, :lo12:.LANCHOR1
 	add	x0, x22, 224
 	bl	misc_register
 .LVL514:
-	.loc 1 1478 0
+	.loc 1 1477 0
 	ldr	x0, [x19, 272]
 	add	x1, x22, 400
 	bl	device_create_file
 .LVL515:
-	.loc 1 1479 0
+	.loc 1 1478 0
 	ldr	x0, [x19, 272]
 	add	x1, x22, 432
 	bl	device_create_file
 .LVL516:
-	.loc 1 1480 0
+	.loc 1 1479 0
 	ldr	x0, [x19, 272]
 	add	x1, x22, 464
 	bl	device_create_file
 .LVL517:
-	.loc 1 1481 0
+	.loc 1 1480 0
 	ldr	x0, [x19, 272]
 	add	x1, x22, 496
 	bl	device_create_file
 .LVL518:
-	.loc 1 1482 0
+	.loc 1 1481 0
 	ldr	x0, [x19, 272]
 	add	x1, x22, 528
 	bl	device_create_file
 .LVL519:
-	.loc 1 1483 0
+	.loc 1 1482 0
 	ldr	x0, [x19, 272]
 	add	x1, x22, 560
 	bl	device_create_file
 .LVL520:
 .LBE1479:
 .LBE1478:
-	.loc 1 1840 0
+	.loc 1 1839 0
 	ldr	x0, [x21, 88]
 	adrp	x2, .LC15
 	adrp	x1, .LC51
@@ -5928,20 +5920,20 @@ ebc_probe:
 	add	x1, x1, :lo12:.LC51
 	bl	_dev_info
 .LVL521:
-	.loc 1 1842 0
+	.loc 1 1841 0
 	b	.L397
 .LVL522:
 	.p2align 3
 .L440:
 .LBB1480:
 .LBB1472:
-	.loc 1 1693 0
+	.loc 1 1692 0
 	ldr	x0, [x21, 88]
 	adrp	x1, .LC50
 	add	x1, x1, :lo12:.LC50
 	bl	_dev_info
 .LVL523:
-	.loc 1 1694 0
+	.loc 1 1693 0
 	ldr	x0, [x19, 16]
 	bl	ebc_pmic_verity_vcom
 .LVL524:
@@ -5981,10 +5973,10 @@ ebc_probe:
 .L499:
 .LBE1465:
 .LBE1464:
-	.loc 1 1725 0
+	.loc 1 1724 0
 	mov	w2, 1
 	str	w2, [x21, 80]
-	.loc 1 1726 0
+	.loc 1 1725 0
 	add	x0, x22, :lo12:.LANCHOR1
 	mov	w1, w2
 	add	x0, x0, 304
@@ -5994,13 +5986,13 @@ ebc_probe:
 .LVL530:
 	.p2align 3
 .L497:
-	.loc 1 1682 0
+	.loc 1 1681 0
 	ldr	x0, [x21, 88]
 	adrp	x1, .LC48
 	add	x1, x1, :lo12:.LC48
 	bl	_dev_info
 .LVL531:
-	.loc 1 1683 0
+	.loc 1 1682 0
 	ldp	w0, w1, [x22, 84]
 	mul	w0, w0, w1
 .LBB1466:
@@ -6017,13 +6009,13 @@ ebc_probe:
 .LBE1468:
 .LBE1467:
 .LBE1466:
-	.loc 1 1684 0
+	.loc 1 1683 0
 	cbz	x0, .L500
-	.loc 1 1688 0
+	.loc 1 1687 0
 	ldp	w2, w1, [x22, 84]
-	.loc 1 1681 0
+	.loc 1 1680 0
 	mov	w28, 1
-	.loc 1 1688 0
+	.loc 1 1687 0
 	ldr	x3, [x19, 184]
 	mul	w2, w2, w1
 	ldr	w1, [x29, 104]
@@ -6043,7 +6035,7 @@ ebc_probe:
 .LBE1480:
 .LBB1481:
 .LBB1418:
-	.loc 1 1557 0
+	.loc 1 1556 0
 	mov	w24, -12
 	b	.L411
 .LVL537:
@@ -6053,14 +6045,14 @@ ebc_probe:
 .LBE1481:
 .LBB1482:
 .LBB1473:
-	.loc 1 1712 0
+	.loc 1 1711 0
 	bl	ebc_empty_buf_get
 .LVL538:
 	mov	x25, x0
 .LVL539:
-	.loc 1 1713 0
+	.loc 1 1712 0
 	cbz	x0, .L428
-	.loc 1 1714 0
+	.loc 1 1713 0
 	ldp	w2, w0, [x22, 84]
 	mov	x1, x26
 	mul	w2, w2, w0
@@ -6068,33 +6060,33 @@ ebc_probe:
 	lsr	w2, w2, 1
 	bl	memcpy
 .LVL540:
-	.loc 1 1717 0
+	.loc 1 1716 0
 	stp	wzr, wzr, [x25, 48]
-	.loc 1 1715 0
+	.loc 1 1714 0
 	mov	w0, 7
 	str	w0, [x25, 40]
-	.loc 1 1718 0
+	.loc 1 1717 0
 	ldr	w0, [x22, 84]
 	str	w0, [x25, 56]
-	.loc 1 1720 0
-	mov	x0, x25
 	.loc 1 1719 0
+	mov	x0, x25
+	.loc 1 1718 0
 	ldr	w1, [x22, 88]
 	str	w1, [x25, 60]
-	.loc 1 1720 0
+	.loc 1 1719 0
 	bl	ebc_add_to_dsp_buf_list
 .LVL541:
 	b	.L428
 .LVL542:
 	.p2align 3
 .L496:
-	.loc 1 1668 0
+	.loc 1 1667 0
 	ldr	x0, [x21, 88]
 	adrp	x1, .LC45
 	add	x1, x1, :lo12:.LC45
 	bl	_dev_info
 .LVL543:
-	.loc 1 1669 0
+	.loc 1 1668 0
 	ldp	w0, w1, [x22, 84]
 	mul	w0, w0, w1
 .LBB1469:
@@ -6111,9 +6103,9 @@ ebc_probe:
 .LBE1471:
 .LBE1470:
 .LBE1469:
-	.loc 1 1670 0
+	.loc 1 1669 0
 	cbz	x0, .L501
-	.loc 1 1674 0
+	.loc 1 1673 0
 	ldp	w2, w1, [x22, 84]
 	ldr	x3, [x19, 184]
 	mul	w2, w2, w1
@@ -6126,9 +6118,9 @@ ebc_probe:
 	add	x1, x3, x1
 	bl	memcpy
 .LVL548:
-	.loc 1 1678 0
+	.loc 1 1677 0
 	cbz	x28, .L445
-	.loc 1 1667 0
+	.loc 1 1666 0
 	mov	w25, 1
 .LVL549:
 	b	.L439
@@ -6139,26 +6131,26 @@ ebc_probe:
 .LBE1482:
 .LBB1483:
 .LBB1427:
-	.loc 1 1518 0
+	.loc 1 1517 0
 	ldr	x0, [x19, 272]
 	adrp	x1, .LC37
 	add	x1, x1, :lo12:.LC37
 	bl	_dev_err
 .LVL551:
-	.loc 1 1519 0
+	.loc 1 1518 0
 	ldr	x0, [x19, 272]
 	mov	w2, w26
 	ldr	x1, [x19, 384]
 	bl	epd_lut_from_file_init
 .LVL552:
-	.loc 1 1520 0
+	.loc 1 1519 0
 	tbz	w0, #31, .L417
-	.loc 1 1521 0
+	.loc 1 1520 0
 	ldr	x0, [x19, 272]
 	adrp	x1, .LC38
-	.loc 1 1522 0
-	mov	w24, -1
 	.loc 1 1521 0
+	mov	w24, -1
+	.loc 1 1520 0
 	add	x1, x1, :lo12:.LC38
 	bl	_dev_err
 .LVL553:
@@ -6168,7 +6160,7 @@ ebc_probe:
 .L401:
 .LBE1427:
 .LBE1483:
-	.loc 1 1765 0
+	.loc 1 1764 0
 	mov	w24, -517
 	b	.L397
 .LVL555:
@@ -6176,7 +6168,7 @@ ebc_probe:
 .L495:
 .LBB1484:
 .LBB1448:
-	.loc 1 1610 0
+	.loc 1 1609 0
 	ldr	x0, [x21, 88]
 	adrp	x1, .LC39
 	add	x1, x1, :lo12:.LC39
@@ -6185,29 +6177,29 @@ ebc_probe:
 .L418:
 .LBE1448:
 .LBE1484:
-	.loc 1 1825 0
+	.loc 1 1824 0
 	adrp	x1, .LC71
 	mov	x0, x20
 	add	x1, x1, :lo12:.LC71
-	.loc 1 1826 0
-	mov	w24, -1
 	.loc 1 1825 0
+	mov	w24, -1
+	.loc 1 1824 0
 	bl	_dev_err
 .LVL557:
-	.loc 1 1826 0
+	.loc 1 1825 0
 	b	.L397
 .LVL558:
 	.p2align 3
 .L419:
 .LBB1485:
 .LBB1449:
-	.loc 1 1619 0
+	.loc 1 1618 0
 	ldr	x0, [x21, 88]
 .LVL559:
 	adrp	x1, .LC70
-	.loc 1 1617 0
+	.loc 1 1616 0
 	str	x25, [x21, 120]
-	.loc 1 1619 0
+	.loc 1 1618 0
 	add	x1, x1, :lo12:.LC70
 	bl	_dev_err
 .LVL560:
@@ -6217,7 +6209,7 @@ ebc_probe:
 .L442:
 .LBE1449:
 .LBE1485:
-	.loc 1 1751 0
+	.loc 1 1750 0
 	mov	w24, -12
 	b	.L397
 .LVL562:
@@ -6225,86 +6217,86 @@ ebc_probe:
 .L443:
 .LBB1486:
 .LBB1419:
-	.loc 1 1542 0
+	.loc 1 1541 0
 	mov	w24, -19
 	b	.L411
 .LVL563:
 .L485:
 .LBE1419:
 .LBE1486:
-	.loc 1 1758 0
+	.loc 1 1757 0
 	adrp	x1, .LC23
 	mov	x0, x20
 	add	x1, x1, :lo12:.LC23
-	.loc 1 1759 0
-	mov	w24, -19
 	.loc 1 1758 0
+	mov	w24, -19
+	.loc 1 1757 0
 	bl	_dev_err
 .LVL564:
-	.loc 1 1759 0
+	.loc 1 1758 0
 	b	.L397
 .L488:
-	.loc 1 1786 0
+	.loc 1 1785 0
 	adrp	x1, .LC27
 	mov	x0, x20
 	add	x1, x1, :lo12:.LC27
-	.loc 1 1787 0
-	mov	w24, -517
 	.loc 1 1786 0
+	mov	w24, -517
+	.loc 1 1785 0
 	bl	_dev_err
 .LVL565:
-	.loc 1 1787 0
+	.loc 1 1786 0
 	b	.L397
 .L486:
-	.loc 1 1774 0
+	.loc 1 1773 0
 	adrp	x1, .LC25
 	mov	x0, x20
 	add	x1, x1, :lo12:.LC25
-	.loc 1 1775 0
-	mov	w24, -19
 	.loc 1 1774 0
+	mov	w24, -19
+	.loc 1 1773 0
 	bl	_dev_err
 .LVL566:
-	.loc 1 1775 0
+	.loc 1 1774 0
 	b	.L397
 .LVL567:
 .L444:
 .LBB1487:
 .LBB1428:
-	.loc 1 1499 0
+	.loc 1 1498 0
 	mov	w24, -19
 	b	.L415
 .LVL568:
 .L487:
 .LBE1428:
 .LBE1487:
-	.loc 1 1781 0
+	.loc 1 1780 0
 	adrp	x1, .LC26
 	mov	x0, x20
 .LVL569:
 	add	x1, x1, :lo12:.LC26
-	.loc 1 1782 0
-	mov	w24, -517
 	.loc 1 1781 0
+	mov	w24, -517
+	.loc 1 1780 0
 	bl	_dev_err
 .LVL570:
-	.loc 1 1782 0
+	.loc 1 1781 0
 	b	.L397
 .LVL571:
 .L493:
 .LBB1488:
 .LBB1429:
-	.loc 1 1512 0
+	.loc 1 1511 0
 	ldr	x0, [x19, 272]
 	adrp	x2, .LANCHOR3
 	add	x2, x2, :lo12:.LANCHOR3
 	adrp	x1, .LC36
-	mov	w3, 1512
+	mov	w3, 1511
 	add	x2, x2, 16
 	add	x1, x1, :lo12:.LC36
-	.loc 1 1513 0
-	mov	w24, -12
 	.loc 1 1512 0
+	mov	w24, -12
+	.loc 1 1511 0
 	bl	_dev_err
 .LVL572:
 	b	.L415
@@ -6312,13 +6304,13 @@ ebc_probe:
 .L492:
 .LBE1429:
 .LBE1488:
-	.loc 1 1843 0
+	.loc 1 1842 0
 	bl	__stack_chk_fail
 .LVL574:
 .L500:
 .LBB1489:
 .LBB1474:
-	.loc 1 1685 0
+	.loc 1 1684 0
 	ldr	x0, [x21, 88]
 .LVL575:
 	adrp	x1, .LC49
@@ -6329,7 +6321,7 @@ ebc_probe:
 	b	.L422
 .LVL577:
 .L501:
-	.loc 1 1671 0
+	.loc 1 1670 0
 	ldr	x0, [x21, 88]
 .LVL578:
 	adrp	x1, .LC46
@@ -6340,10 +6332,10 @@ ebc_probe:
 	b	.L422
 .LVL580:
 .L445:
-	.loc 1 1657 0
+	.loc 1 1656 0
 	mov	w28, 0
 .LVL581:
-	.loc 1 1662 0
+	.loc 1 1661 0
 	mov	x26, 0
 .LVL582:
 	b	.L423
@@ -6466,7 +6458,7 @@ ebc_power_set.constprop.7:
 	.type	ebc_suspend, %function
 ebc_suspend:
 .LFB2842:
-	.loc 1 1853 0
+	.loc 1 1852 0
 	.cfi_startproc
 .LVL594:
 	stp	x29, x30, [sp, -32]!
@@ -6484,17 +6476,17 @@ ebc_suspend:
 	ldr	x20, [x0, 184]
 .LBE1499:
 .LBE1498:
-	.loc 1 1857 0
+	.loc 1 1856 0
 	add	x19, x20, 184
 	ldr	w0, [x19, 192]
 .LVL595:
 	cmp	w0, 1
 	beq	.L512
 .L510:
-	.loc 1 1861 0
+	.loc 1 1860 0
 	mov	w0, 1
 	str	w0, [x19, 604]
-	.loc 1 1863 0
+	.loc 1 1862 0
 	ldr	x1, [x20, 16]
 .LBB1500:
 .LBB1501:
@@ -6505,13 +6497,13 @@ ebc_suspend:
 .LVL596:
 .LBE1501:
 .LBE1500:
-	.loc 1 1864 0
+	.loc 1 1863 0
 	ldr	x0, [x19, 88]
 	adrp	x1, .LC75
 	add	x1, x1, :lo12:.LC75
 	bl	_dev_info
 .LVL597:
-	.loc 1 1867 0
+	.loc 1 1866 0
 	mov	w0, 0
 	ldp	x19, x20, [sp, 16]
 	ldp	x29, x30, [sp], 32
@@ -6525,7 +6517,7 @@ ebc_suspend:
 	.p2align 3
 .L512:
 	.cfi_restore_state
-	.loc 1 1858 0
+	.loc 1 1857 0
 	ldr	x0, [x19, 88]
 	adrp	x2, .LANCHOR3
 	add	x2, x2, :lo12:.LANCHOR3
@@ -6534,7 +6526,7 @@ ebc_suspend:
 	add	x1, x1, :lo12:.LC74
 	bl	_dev_info
 .LVL598:
-	.loc 1 1859 0
+	.loc 1 1858 0
 	mov	x0, x20
 	bl	ebc_power_set.constprop.7
 .LVL599:
@@ -8061,14 +8053,14 @@ __func__.34835:
 	.size	__func__.34644, 16
 __func__.34644:
 	.string	"ebc_frame_start"
-	.type	__func__.35040, %object
-	.size	__func__.35040, 19
-__func__.35040:
+	.type	__func__.35039, %object
+	.size	__func__.35039, 19
+__func__.35039:
 	.string	"ebc_lut_table_init"
 	.zero	5
-	.type	__func__.35099, %object
-	.size	__func__.35099, 12
-__func__.35099:
+	.type	__func__.35098, %object
+	.size	__func__.35098, 12
+__func__.35098:
 	.string	"ebc_suspend"
 	.zero	4
 	.type	ebc_match, %object
@@ -8099,9 +8091,9 @@ ebc_ops:
 	.zero	176
 	.section	.discard.addressable,"aw",@progbits
 	.align	3
-	.type	__addressable_ebc_init1912, %object
-	.size	__addressable_ebc_init1912, 8
-__addressable_ebc_init1912:
+	.type	__addressable_ebc_init1911, %object
+	.size	__addressable_ebc_init1911, 8
+__addressable_ebc_init1911:
 	.xword	ebc_init
 	.section	.exitcall.exit,"aw",@progbits
 	.align	3
@@ -8156,7 +8148,7 @@ __exitcall_ebc_exit:
 	.string	"%d\n"
 	.zero	4
 .LC15:
-	.string	"1.10"
+	.string	"1.11"
 	.zero	3
 .LC16:
 	.string	"%s\n"
@@ -36187,7 +36179,7 @@ __exitcall_ebc_exit:
 	.uleb128 0x4c
 	.4byte	.LASF3001
 	.byte	0x1
-	.2byte	0x558
+	.2byte	0x557
 	.4byte	0x7b4
 	.uleb128 0x9
 	.byte	0x3
@@ -36195,7 +36187,7 @@ __exitcall_ebc_exit:
 	.uleb128 0x4c
 	.4byte	.LASF3002
 	.byte	0x1
-	.2byte	0x562
+	.2byte	0x561
 	.4byte	0xc5df
 	.uleb128 0x9
 	.byte	0x3
@@ -36203,7 +36195,7 @@ __exitcall_ebc_exit:
 	.uleb128 0x4c
 	.4byte	.LASF3003
 	.byte	0x1
-	.2byte	0x571
+	.2byte	0x570
 	.4byte	0xb372
 	.uleb128 0x9
 	.byte	0x3
@@ -36211,7 +36203,7 @@ __exitcall_ebc_exit:
 	.uleb128 0x4c
 	.4byte	.LASF3004
 	.byte	0x1
-	.2byte	0x57c
+	.2byte	0x57b
 	.4byte	0xb372
 	.uleb128 0x9
 	.byte	0x3
@@ -36219,7 +36211,7 @@ __exitcall_ebc_exit:
 	.uleb128 0x4c
 	.4byte	.LASF3005
 	.byte	0x1
-	.2byte	0x58a
+	.2byte	0x589
 	.4byte	0xb372
 	.uleb128 0x9
 	.byte	0x3
@@ -36227,7 +36219,7 @@ __exitcall_ebc_exit:
 	.uleb128 0x4c
 	.4byte	.LASF3006
 	.byte	0x1
-	.2byte	0x5ad
+	.2byte	0x5ac
 	.4byte	0xb372
 	.uleb128 0x9
 	.byte	0x3
@@ -36235,7 +36227,7 @@ __exitcall_ebc_exit:
 	.uleb128 0x4c
 	.4byte	.LASF3007
 	.byte	0x1
-	.2byte	0x5b7
+	.2byte	0x5b6
 	.4byte	0xb372
 	.uleb128 0x9
 	.byte	0x3
@@ -36243,7 +36235,7 @@ __exitcall_ebc_exit:
 	.uleb128 0x4c
 	.4byte	.LASF3008
 	.byte	0x1
-	.2byte	0x5c0
+	.2byte	0x5bf
 	.4byte	0xb372
 	.uleb128 0x9
 	.byte	0x3
@@ -36251,7 +36243,7 @@ __exitcall_ebc_exit:
 	.uleb128 0x4c
 	.4byte	.LASF3009
 	.byte	0x1
-	.2byte	0x759
+	.2byte	0x758
 	.4byte	0xa531
 	.uleb128 0x9
 	.byte	0x3
@@ -36268,7 +36260,7 @@ __exitcall_ebc_exit:
 	.uleb128 0x4c
 	.4byte	.LASF3010
 	.byte	0x1
-	.2byte	0x75e
+	.2byte	0x75d
 	.4byte	0xe5a6
 	.uleb128 0x9
 	.byte	0x3
@@ -36276,7 +36268,7 @@ __exitcall_ebc_exit:
 	.uleb128 0x4c
 	.4byte	.LASF3011
 	.byte	0x1
-	.2byte	0x764
+	.2byte	0x763
 	.4byte	0xd66d
 	.uleb128 0x9
 	.byte	0x3
@@ -36284,15 +36276,15 @@ __exitcall_ebc_exit:
 	.uleb128 0x4c
 	.4byte	.LASF3012
 	.byte	0x1
-	.2byte	0x778
+	.2byte	0x777
 	.4byte	0x443
 	.uleb128 0x9
 	.byte	0x3
-	.8byte	__addressable_ebc_init1912
+	.8byte	__addressable_ebc_init1911
 	.uleb128 0x4c
 	.4byte	.LASF3013
 	.byte	0x1
-	.2byte	0x779
+	.2byte	0x778
 	.4byte	0x497
 	.uleb128 0x9
 	.byte	0x3
@@ -36300,7 +36292,7 @@ __exitcall_ebc_exit:
 	.uleb128 0x4d
 	.4byte	.LASF3062
 	.byte	0x1
-	.2byte	0x773
+	.2byte	0x772
 	.8byte	.LFB2845
 	.8byte	.LFE2845-.LFB2845
 	.uleb128 0x1
@@ -36313,7 +36305,7 @@ __exitcall_ebc_exit:
 	.uleb128 0x4f
 	.4byte	.LASF3014
 	.byte	0x1
-	.2byte	0x76e
+	.2byte	0x76d
 	.4byte	0xc6
 	.8byte	.LFB2844
 	.8byte	.LFE2844-.LFB2844
@@ -36327,7 +36319,7 @@ __exitcall_ebc_exit:
 	.uleb128 0x50
 	.4byte	.LASF3015
 	.byte	0x1
-	.2byte	0x74d
+	.2byte	0x74c
 	.4byte	0xc6
 	.8byte	.LFB2843
 	.8byte	.LFE2843-.LFB2843
@@ -36337,25 +36329,25 @@ __exitcall_ebc_exit:
 	.uleb128 0x51
 	.string	"dev"
 	.byte	0x1
-	.2byte	0x74d
+	.2byte	0x74c
 	.4byte	0xa545
 	.4byte	.LLST11
 	.uleb128 0x52
 	.string	"ebc"
 	.byte	0x1
-	.2byte	0x74f
+	.2byte	0x74e
 	.4byte	0xe461
 	.uleb128 0x46
 	.4byte	.LASF2952
 	.byte	0x1
-	.2byte	0x750
+	.2byte	0x74f
 	.4byte	0xe6fb
 	.uleb128 0x53
 	.4byte	0x12f06
 	.8byte	.LBB802
 	.8byte	.LBE802-.LBB802
 	.byte	0x1
-	.2byte	0x74f
+	.2byte	0x74e
 	.4byte	0xe6cb
 	.uleb128 0x54
 	.4byte	0x12f17
@@ -36365,7 +36357,7 @@ __exitcall_ebc_exit:
 	.8byte	.LBB804
 	.8byte	.LBE804-.LBB804
 	.byte	0x1
-	.2byte	0x752
+	.2byte	0x751
 	.4byte	0xe6ed
 	.uleb128 0x54
 	.4byte	0x12b03
@@ -36380,7 +36372,7 @@ __exitcall_ebc_exit:
 	.uleb128 0x50
 	.4byte	.LASF3017
 	.byte	0x1
-	.2byte	0x73c
+	.2byte	0x73b
 	.4byte	0xc6
 	.8byte	.LFB2842
 	.8byte	.LFE2842-.LFB2842
@@ -36390,31 +36382,31 @@ __exitcall_ebc_exit:
 	.uleb128 0x51
 	.string	"dev"
 	.byte	0x1
-	.2byte	0x73c
+	.2byte	0x73b
 	.4byte	0xa545
 	.4byte	.LLST137
 	.uleb128 0x52
 	.string	"ebc"
 	.byte	0x1
-	.2byte	0x73e
+	.2byte	0x73d
 	.4byte	0xe461
 	.uleb128 0x46
 	.4byte	.LASF2952
 	.byte	0x1
-	.2byte	0x73f
+	.2byte	0x73e
 	.4byte	0xe6fb
 	.uleb128 0x55
 	.4byte	.LASF3018
 	.4byte	0xe7da
 	.uleb128 0x9
 	.byte	0x3
-	.8byte	__func__.35099
+	.8byte	__func__.35098
 	.uleb128 0x53
 	.4byte	0x12f06
 	.8byte	.LBB1498
 	.8byte	.LBE1498-.LBB1498
 	.byte	0x1
-	.2byte	0x73e
+	.2byte	0x73d
 	.4byte	0xe780
 	.uleb128 0x54
 	.4byte	0x12f17
@@ -36424,7 +36416,7 @@ __exitcall_ebc_exit:
 	.8byte	.LBB1500
 	.8byte	.LBE1500-.LBB1500
 	.byte	0x1
-	.2byte	0x747
+	.2byte	0x746
 	.4byte	0xe7a2
 	.uleb128 0x54
 	.4byte	0x12b1b
@@ -36451,7 +36443,7 @@ __exitcall_ebc_exit:
 	.uleb128 0x4f
 	.4byte	.LASF3019
 	.byte	0x1
-	.2byte	0x735
+	.2byte	0x734
 	.4byte	0xc6
 	.8byte	.LFB2841
 	.8byte	.LFE2841-.LFB2841
@@ -36461,7 +36453,7 @@ __exitcall_ebc_exit:
 	.uleb128 0x56
 	.4byte	.LASF3020
 	.byte	0x1
-	.2byte	0x735
+	.2byte	0x734
 	.4byte	0xd6e9
 	.4byte	.LLST13
 	.uleb128 0x4e
@@ -36471,7 +36463,7 @@ __exitcall_ebc_exit:
 	.uleb128 0x4f
 	.4byte	.LASF3021
 	.byte	0x1
-	.2byte	0x6c9
+	.2byte	0x6c8
 	.4byte	0xc6
 	.8byte	.LFB2840
 	.8byte	.LFE2840-.LFB2840
@@ -36481,63 +36473,63 @@ __exitcall_ebc_exit:
 	.uleb128 0x56
 	.4byte	.LASF3020
 	.byte	0x1
-	.2byte	0x6c9
+	.2byte	0x6c8
 	.4byte	0xd6e9
 	.4byte	.LLST113
 	.uleb128 0x52
 	.string	"dev"
 	.byte	0x1
-	.2byte	0x6cb
+	.2byte	0x6ca
 	.4byte	0xa545
 	.uleb128 0x46
 	.4byte	.LASF3022
 	.byte	0x1
-	.2byte	0x6cc
+	.2byte	0x6cb
 	.4byte	0xb869
 	.uleb128 0x57
 	.4byte	.LASF3023
 	.byte	0x1
-	.2byte	0x6cd
+	.2byte	0x6cc
 	.4byte	0xd6e9
 	.4byte	.LLST114
 	.uleb128 0x46
 	.4byte	.LASF3024
 	.byte	0x1
-	.2byte	0x6ce
+	.2byte	0x6cd
 	.4byte	0xb869
 	.uleb128 0x57
 	.4byte	.LASF3025
 	.byte	0x1
-	.2byte	0x6cf
+	.2byte	0x6ce
 	.4byte	0xc012
 	.4byte	.LLST115
 	.uleb128 0x52
 	.string	"ebc"
 	.byte	0x1
-	.2byte	0x6d0
+	.2byte	0x6cf
 	.4byte	0xe461
 	.uleb128 0x57
 	.4byte	.LASF2952
 	.byte	0x1
-	.2byte	0x6d1
+	.2byte	0x6d0
 	.4byte	0xe6fb
 	.4byte	.LLST116
 	.uleb128 0x46
 	.4byte	.LASF2994
 	.byte	0x1
-	.2byte	0x6d2
+	.2byte	0x6d1
 	.4byte	0xe117
 	.uleb128 0x52
 	.string	"ret"
 	.byte	0x1
-	.2byte	0x6d3
+	.2byte	0x6d2
 	.4byte	0xc6
 	.uleb128 0x58
 	.4byte	0x12f24
 	.8byte	.LBB1279
 	.4byte	.Ldebug_ranges0+0x850
 	.byte	0x1
-	.2byte	0x6d5
+	.2byte	0x6d4
 	.4byte	0xe8fe
 	.uleb128 0x54
 	.4byte	0x12f4d
@@ -36554,7 +36546,7 @@ __exitcall_ebc_exit:
 	.8byte	.LBB1283
 	.8byte	.LBE1283-.LBB1283
 	.byte	0x1
-	.2byte	0x6e7
+	.2byte	0x6e6
 	.4byte	0xe93d
 	.uleb128 0x54
 	.4byte	0x12e11
@@ -36573,7 +36565,7 @@ __exitcall_ebc_exit:
 	.8byte	.LBB1286
 	.8byte	.LBE1286-.LBB1286
 	.byte	0x1
-	.2byte	0x6f8
+	.2byte	0x6f7
 	.4byte	0xe97d
 	.uleb128 0x54
 	.4byte	0x12e34
@@ -36592,7 +36584,7 @@ __exitcall_ebc_exit:
 	.8byte	.LBB1289
 	.4byte	.Ldebug_ranges0+0x880
 	.byte	0x1
-	.2byte	0x706
+	.2byte	0x705
 	.4byte	0xf336
 	.uleb128 0x54
 	.4byte	0x11258
@@ -37373,7 +37365,7 @@ __exitcall_ebc_exit:
 	.8byte	.LBB1391
 	.4byte	.Ldebug_ranges0+0xa30
 	.byte	0x1
-	.2byte	0x711
+	.2byte	0x710
 	.4byte	0xf518
 	.uleb128 0x54
 	.4byte	0xfd4a
@@ -37404,7 +37396,7 @@ __exitcall_ebc_exit:
 	.8byte	.LBB1393
 	.4byte	.Ldebug_ranges0+0xaa0
 	.byte	0x1
-	.2byte	0x610
+	.2byte	0x60f
 	.4byte	0xf3a6
 	.uleb128 0x54
 	.4byte	0x12f6a
@@ -37414,7 +37406,7 @@ __exitcall_ebc_exit:
 	.8byte	.LBB1397
 	.4byte	.Ldebug_ranges0+0xad0
 	.byte	0x1
-	.2byte	0x62b
+	.2byte	0x62a
 	.4byte	0xf3db
 	.uleb128 0x54
 	.4byte	0x12f4d
@@ -37431,7 +37423,7 @@ __exitcall_ebc_exit:
 	.8byte	.LBB1405
 	.8byte	.LBE1405-.LBB1405
 	.byte	0x1
-	.2byte	0x62e
+	.2byte	0x62d
 	.4byte	0xf414
 	.uleb128 0x54
 	.4byte	0x12f4d
@@ -37448,7 +37440,7 @@ __exitcall_ebc_exit:
 	.8byte	.LBB1407
 	.8byte	.LBE1407-.LBB1407
 	.byte	0x1
-	.2byte	0x631
+	.2byte	0x630
 	.4byte	0xf44d
 	.uleb128 0x54
 	.4byte	0x12f4d
@@ -37465,7 +37457,7 @@ __exitcall_ebc_exit:
 	.8byte	.LBB1409
 	.8byte	.LBE1409-.LBB1409
 	.byte	0x1
-	.2byte	0x634
+	.2byte	0x633
 	.4byte	0xf486
 	.uleb128 0x54
 	.4byte	0x12f4d
@@ -37482,7 +37474,7 @@ __exitcall_ebc_exit:
 	.8byte	.LBB1411
 	.4byte	.Ldebug_ranges0+0xb20
 	.byte	0x1
-	.2byte	0x639
+	.2byte	0x638
 	.4byte	0xf4bb
 	.uleb128 0x54
 	.4byte	0x12f4d
@@ -37522,7 +37514,7 @@ __exitcall_ebc_exit:
 	.8byte	.LBB1422
 	.4byte	.Ldebug_ranges0+0xb50
 	.byte	0x1
-	.2byte	0x718
+	.2byte	0x717
 	.4byte	0xf5fe
 	.uleb128 0x54
 	.4byte	0xfdc4
@@ -37555,7 +37547,7 @@ __exitcall_ebc_exit:
 	.8byte	.LBB1424
 	.8byte	.LBE1424-.LBB1424
 	.byte	0x1
-	.2byte	0x5e3
+	.2byte	0x5e2
 	.4byte	0xf594
 	.uleb128 0x54
 	.4byte	0x12f6a
@@ -37591,7 +37583,7 @@ __exitcall_ebc_exit:
 	.8byte	.LBB1433
 	.4byte	.Ldebug_ranges0+0xbb0
 	.byte	0x1
-	.2byte	0x71f
+	.2byte	0x71e
 	.4byte	0xf78b
 	.uleb128 0x54
 	.4byte	0xfd12
@@ -37607,7 +37599,7 @@ __exitcall_ebc_exit:
 	.8byte	.LBB1435
 	.4byte	.Ldebug_ranges0+0xbf0
 	.byte	0x1
-	.2byte	0x646
+	.2byte	0x645
 	.4byte	0xf685
 	.uleb128 0x54
 	.4byte	0x1313c
@@ -37636,7 +37628,7 @@ __exitcall_ebc_exit:
 	.8byte	.LBB1442
 	.8byte	.LBE1442-.LBB1442
 	.byte	0x1
-	.2byte	0x64e
+	.2byte	0x64d
 	.4byte	0xf6d0
 	.uleb128 0x54
 	.4byte	0x1320a
@@ -37671,7 +37663,7 @@ __exitcall_ebc_exit:
 	.8byte	.LBB1446
 	.8byte	.LBE1446-.LBB1446
 	.byte	0x1
-	.2byte	0x657
+	.2byte	0x656
 	.4byte	0xf748
 	.uleb128 0x54
 	.4byte	0x1320a
@@ -37710,7 +37702,7 @@ __exitcall_ebc_exit:
 	.8byte	.LBB1450
 	.8byte	.LBE1450-.LBB1450
 	.byte	0x1
-	.2byte	0x726
+	.2byte	0x725
 	.4byte	0xf825
 	.uleb128 0x54
 	.4byte	0xfcf4
@@ -37719,7 +37711,7 @@ __exitcall_ebc_exit:
 	.8byte	.LBB1452
 	.4byte	.Ldebug_ranges0+0xc50
 	.byte	0x1
-	.2byte	0x667
+	.2byte	0x666
 	.4byte	0xf7f0
 	.uleb128 0x54
 	.4byte	0x12baf
@@ -37755,7 +37747,7 @@ __exitcall_ebc_exit:
 	.8byte	.LBB1462
 	.4byte	.Ldebug_ranges0+0xcb0
 	.byte	0x1
-	.2byte	0x729
+	.2byte	0x728
 	.4byte	0xfac8
 	.uleb128 0x54
 	.4byte	0xfc62
@@ -37796,7 +37788,7 @@ __exitcall_ebc_exit:
 	.8byte	.LBB1464
 	.8byte	.LBE1464-.LBB1464
 	.byte	0x1
-	.2byte	0x69f
+	.2byte	0x69e
 	.4byte	0xf907
 	.uleb128 0x54
 	.4byte	0x1131c
@@ -37824,7 +37816,7 @@ __exitcall_ebc_exit:
 	.8byte	.LBB1466
 	.8byte	.LBE1466-.LBB1466
 	.byte	0x1
-	.2byte	0x693
+	.2byte	0x692
 	.4byte	0xf95e
 	.uleb128 0x54
 	.4byte	0x12d27
@@ -37850,7 +37842,7 @@ __exitcall_ebc_exit:
 	.8byte	.LBB1469
 	.8byte	.LBE1469-.LBB1469
 	.byte	0x1
-	.2byte	0x685
+	.2byte	0x684
 	.4byte	0xf9b5
 	.uleb128 0x54
 	.4byte	0x12d27
@@ -37941,7 +37933,7 @@ __exitcall_ebc_exit:
 	.8byte	.LBB1475
 	.8byte	.LBE1475-.LBB1475
 	.byte	0x1
-	.2byte	0x72b
+	.2byte	0x72a
 	.4byte	0xfb11
 	.uleb128 0x54
 	.4byte	0x12df5
@@ -37964,7 +37956,7 @@ __exitcall_ebc_exit:
 	.8byte	.LBB1478
 	.8byte	.LBE1478-.LBB1478
 	.byte	0x1
-	.2byte	0x72e
+	.2byte	0x72d
 	.4byte	0xfb8e
 	.uleb128 0x54
 	.4byte	0xfe4a
@@ -38036,202 +38028,202 @@ __exitcall_ebc_exit:
 	.uleb128 0x62
 	.4byte	.LASF3034
 	.byte	0x1
-	.2byte	0x673
+	.2byte	0x672
 	.4byte	0xc6
 	.byte	0x1
 	.4byte	0xfce7
 	.uleb128 0x63
 	.string	"ebc"
 	.byte	0x1
-	.2byte	0x673
+	.2byte	0x672
 	.4byte	0xe461
 	.uleb128 0x64
 	.4byte	.LASF2994
 	.byte	0x1
-	.2byte	0x673
+	.2byte	0x672
 	.4byte	0xe117
 	.uleb128 0x46
 	.4byte	.LASF2952
 	.byte	0x1
-	.2byte	0x675
+	.2byte	0x674
 	.4byte	0xe6fb
 	.uleb128 0x46
 	.4byte	.LASF3026
 	.byte	0x1
-	.2byte	0x676
+	.2byte	0x675
 	.4byte	0x6d
 	.uleb128 0x46
 	.4byte	.LASF3027
 	.byte	0x1
-	.2byte	0x677
+	.2byte	0x676
 	.4byte	0x6d
 	.uleb128 0x46
 	.4byte	.LASF3028
 	.byte	0x1
-	.2byte	0x678
+	.2byte	0x677
 	.4byte	0xc6
 	.uleb128 0x46
 	.4byte	.LASF3029
 	.byte	0x1
-	.2byte	0x679
+	.2byte	0x678
 	.4byte	0xc6
 	.uleb128 0x46
 	.4byte	.LASF3030
 	.byte	0x1
-	.2byte	0x67a
+	.2byte	0x679
 	.4byte	0x219
 	.uleb128 0x46
 	.4byte	.LASF3031
 	.byte	0x1
-	.2byte	0x67b
+	.2byte	0x67a
 	.4byte	0x219
 	.uleb128 0x52
 	.string	"buf"
 	.byte	0x1
-	.2byte	0x67c
+	.2byte	0x67b
 	.4byte	0xe3fc
 	.uleb128 0x46
 	.4byte	.LASF3032
 	.byte	0x1
-	.2byte	0x67d
+	.2byte	0x67c
 	.4byte	0x443
 	.uleb128 0x46
 	.4byte	.LASF3033
 	.byte	0x1
-	.2byte	0x67e
+	.2byte	0x67d
 	.4byte	0x443
 	.byte	0
 	.uleb128 0x65
 	.4byte	.LASF3091
 	.byte	0x1
-	.2byte	0x65c
+	.2byte	0x65b
 	.byte	0x1
 	.4byte	0xfd01
 	.uleb128 0x64
 	.4byte	.LASF2952
 	.byte	0x1
-	.2byte	0x65c
+	.2byte	0x65b
 	.4byte	0xe6fb
 	.byte	0
 	.uleb128 0x62
 	.4byte	.LASF3035
 	.byte	0x1
-	.2byte	0x642
+	.2byte	0x641
 	.4byte	0xc6
 	.byte	0x1
 	.4byte	0xfd39
 	.uleb128 0x64
 	.4byte	.LASF2952
 	.byte	0x1
-	.2byte	0x642
+	.2byte	0x641
 	.4byte	0xe6fb
 	.uleb128 0x46
 	.4byte	.LASF2463
 	.byte	0x1
-	.2byte	0x644
+	.2byte	0x643
 	.4byte	0xd7e9
 	.uleb128 0x66
 	.uleb128 0x52
 	.string	"__k"
 	.byte	0x1
-	.2byte	0x651
+	.2byte	0x650
 	.4byte	0x2eda
 	.byte	0
 	.byte	0
 	.uleb128 0x62
 	.4byte	.LASF3036
 	.byte	0x1
-	.2byte	0x5f9
+	.2byte	0x5f8
 	.4byte	0xc6
 	.byte	0x1
 	.4byte	0xfdb3
 	.uleb128 0x63
 	.string	"ebc"
 	.byte	0x1
-	.2byte	0x5f9
+	.2byte	0x5f8
 	.4byte	0xe461
 	.uleb128 0x52
 	.string	"dev"
 	.byte	0x1
-	.2byte	0x5fb
+	.2byte	0x5fa
 	.4byte	0xa545
 	.uleb128 0x46
 	.4byte	.LASF2994
 	.byte	0x1
-	.2byte	0x5fc
+	.2byte	0x5fb
 	.4byte	0xe117
 	.uleb128 0x46
 	.4byte	.LASF2952
 	.byte	0x1
-	.2byte	0x5fd
+	.2byte	0x5fc
 	.4byte	0xe6fb
 	.uleb128 0x46
 	.4byte	.LASF3037
 	.byte	0x1
-	.2byte	0x5fe
+	.2byte	0x5fd
 	.4byte	0xb869
 	.uleb128 0x52
 	.string	"r"
 	.byte	0x1
-	.2byte	0x5ff
+	.2byte	0x5fe
 	.4byte	0x9721
 	.uleb128 0x46
 	.4byte	.LASF3038
 	.byte	0x1
-	.2byte	0x600
+	.2byte	0x5ff
 	.4byte	0xc6
 	.uleb128 0x52
 	.string	"ret"
 	.byte	0x1
-	.2byte	0x601
+	.2byte	0x600
 	.4byte	0xc6
 	.uleb128 0x52
 	.string	"i"
 	.byte	0x1
-	.2byte	0x601
+	.2byte	0x600
 	.4byte	0xc6
 	.byte	0
 	.uleb128 0x62
 	.4byte	.LASF3039
 	.byte	0x1
-	.2byte	0x5d0
+	.2byte	0x5cf
 	.4byte	0xc6
 	.byte	0x1
 	.4byte	0xfe24
 	.uleb128 0x64
 	.4byte	.LASF2952
 	.byte	0x1
-	.2byte	0x5d0
+	.2byte	0x5cf
 	.4byte	0xe6fb
 	.uleb128 0x52
 	.string	"ret"
 	.byte	0x1
-	.2byte	0x5d2
+	.2byte	0x5d1
 	.4byte	0xc6
 	.uleb128 0x52
 	.string	"dev"
 	.byte	0x1
-	.2byte	0x5d3
+	.2byte	0x5d2
 	.4byte	0xa545
 	.uleb128 0x46
 	.4byte	.LASF3037
 	.byte	0x1
-	.2byte	0x5d4
+	.2byte	0x5d3
 	.4byte	0xb869
 	.uleb128 0x52
 	.string	"r"
 	.byte	0x1
-	.2byte	0x5d5
+	.2byte	0x5d4
 	.4byte	0x9721
 	.uleb128 0x46
 	.4byte	.LASF3040
 	.byte	0x1
-	.2byte	0x5d6
+	.2byte	0x5d5
 	.4byte	0x29
 	.uleb128 0x46
 	.4byte	.LASF3041
 	.byte	0x1
-	.2byte	0x5d7
+	.2byte	0x5d6
 	.4byte	0xc6
 	.uleb128 0x67
 	.4byte	.LASF3018
@@ -38250,20 +38242,20 @@ __exitcall_ebc_exit:
 	.uleb128 0x62
 	.4byte	.LASF3042
 	.byte	0x1
-	.2byte	0x5c2
+	.2byte	0x5c1
 	.4byte	0xc6
 	.byte	0x1
 	.4byte	0xfe57
 	.uleb128 0x64
 	.4byte	.LASF2952
 	.byte	0x1
-	.2byte	0x5c2
+	.2byte	0x5c1
 	.4byte	0xe6fb
 	.byte	0
 	.uleb128 0x4f
 	.4byte	.LASF3043
 	.byte	0x1
-	.2byte	0x5b9
+	.2byte	0x5b8
 	.4byte	0x2d9
 	.8byte	.LFB2833
 	.8byte	.LFE2833-.LFB2833
@@ -38273,19 +38265,19 @@ __exitcall_ebc_exit:
 	.uleb128 0x56
 	.4byte	.LASF2197
 	.byte	0x1
-	.2byte	0x5b9
+	.2byte	0x5b8
 	.4byte	0xa545
 	.4byte	.LLST66
 	.uleb128 0x56
 	.4byte	.LASF2112
 	.byte	0x1
-	.2byte	0x5ba
+	.2byte	0x5b9
 	.4byte	0xb3c0
 	.4byte	.LLST67
 	.uleb128 0x51
 	.string	"buf"
 	.byte	0x1
-	.2byte	0x5bb
+	.2byte	0x5ba
 	.4byte	0x219
 	.4byte	.LLST68
 	.uleb128 0x4e
@@ -38295,7 +38287,7 @@ __exitcall_ebc_exit:
 	.uleb128 0x4f
 	.4byte	.LASF3044
 	.byte	0x1
-	.2byte	0x5b0
+	.2byte	0x5af
 	.4byte	0x2d9
 	.8byte	.LFB2832
 	.8byte	.LFE2832-.LFB2832
@@ -38305,19 +38297,19 @@ __exitcall_ebc_exit:
 	.uleb128 0x56
 	.4byte	.LASF2197
 	.byte	0x1
-	.2byte	0x5b0
+	.2byte	0x5af
 	.4byte	0xa545
 	.4byte	.LLST69
 	.uleb128 0x56
 	.4byte	.LASF2112
 	.byte	0x1
-	.2byte	0x5b1
+	.2byte	0x5b0
 	.4byte	0xb3c0
 	.4byte	.LLST70
 	.uleb128 0x51
 	.string	"buf"
 	.byte	0x1
-	.2byte	0x5b2
+	.2byte	0x5b1
 	.4byte	0x219
 	.4byte	.LLST71
 	.uleb128 0x4e
@@ -38327,7 +38319,7 @@ __exitcall_ebc_exit:
 	.uleb128 0x4f
 	.4byte	.LASF3045
 	.byte	0x1
-	.2byte	0x598
+	.2byte	0x597
 	.4byte	0x2d9
 	.8byte	.LFB2831
 	.8byte	.LFE2831-.LFB2831
@@ -38337,43 +38329,43 @@ __exitcall_ebc_exit:
 	.uleb128 0x56
 	.4byte	.LASF2197
 	.byte	0x1
-	.2byte	0x598
+	.2byte	0x597
 	.4byte	0xa545
 	.4byte	.LLST81
 	.uleb128 0x56
 	.4byte	.LASF2112
 	.byte	0x1
-	.2byte	0x599
+	.2byte	0x598
 	.4byte	0xb3c0
 	.4byte	.LLST82
 	.uleb128 0x51
 	.string	"buf"
 	.byte	0x1
-	.2byte	0x59a
+	.2byte	0x599
 	.4byte	0x56
 	.4byte	.LLST83
 	.uleb128 0x56
 	.4byte	.LASF380
 	.byte	0x1
-	.2byte	0x59a
+	.2byte	0x599
 	.4byte	0x2ce
 	.4byte	.LLST84
 	.uleb128 0x68
 	.string	"ebc"
 	.byte	0x1
-	.2byte	0x59c
+	.2byte	0x59b
 	.4byte	0xe461
 	.4byte	.LLST85
 	.uleb128 0x57
 	.4byte	.LASF2453
 	.byte	0x1
-	.2byte	0x59d
+	.2byte	0x59c
 	.4byte	0xc6
 	.4byte	.LLST86
 	.uleb128 0x52
 	.string	"ret"
 	.byte	0x1
-	.2byte	0x59d
+	.2byte	0x59c
 	.4byte	0xc6
 	.uleb128 0x4e
 	.8byte	.LVL267
@@ -38394,7 +38386,7 @@ __exitcall_ebc_exit:
 	.uleb128 0x50
 	.4byte	.LASF3046
 	.byte	0x1
-	.2byte	0x58c
+	.2byte	0x58b
 	.4byte	0x2d9
 	.8byte	.LFB2830
 	.8byte	.LFE2830-.LFB2830
@@ -38404,37 +38396,37 @@ __exitcall_ebc_exit:
 	.uleb128 0x56
 	.4byte	.LASF2197
 	.byte	0x1
-	.2byte	0x58c
+	.2byte	0x58b
 	.4byte	0xa545
 	.4byte	.LLST72
 	.uleb128 0x56
 	.4byte	.LASF2112
 	.byte	0x1
-	.2byte	0x58d
+	.2byte	0x58c
 	.4byte	0xb3c0
 	.4byte	.LLST73
 	.uleb128 0x51
 	.string	"buf"
 	.byte	0x1
-	.2byte	0x58e
+	.2byte	0x58d
 	.4byte	0x219
 	.4byte	.LLST74
 	.uleb128 0x52
 	.string	"ebc"
 	.byte	0x1
-	.2byte	0x590
+	.2byte	0x58f
 	.4byte	0xe461
 	.uleb128 0x46
 	.4byte	.LASF2453
 	.byte	0x1
-	.2byte	0x591
+	.2byte	0x590
 	.4byte	0xc6
 	.uleb128 0x53
 	.4byte	0x12ab6
 	.8byte	.LBB1025
 	.8byte	.LBE1025-.LBB1025
 	.byte	0x1
-	.2byte	0x593
+	.2byte	0x592
 	.4byte	0x10073
 	.uleb128 0x54
 	.4byte	0x12ac6
@@ -38446,7 +38438,7 @@ __exitcall_ebc_exit:
 	.uleb128 0x50
 	.4byte	.LASF3047
 	.byte	0x1
-	.2byte	0x57e
+	.2byte	0x57d
 	.4byte	0x2d9
 	.8byte	.LFB2829
 	.8byte	.LFE2829-.LFB2829
@@ -38456,30 +38448,30 @@ __exitcall_ebc_exit:
 	.uleb128 0x56
 	.4byte	.LASF2197
 	.byte	0x1
-	.2byte	0x57e
+	.2byte	0x57d
 	.4byte	0xa545
 	.4byte	.LLST75
 	.uleb128 0x56
 	.4byte	.LASF2112
 	.byte	0x1
-	.2byte	0x57f
+	.2byte	0x57e
 	.4byte	0xb3c0
 	.4byte	.LLST76
 	.uleb128 0x51
 	.string	"buf"
 	.byte	0x1
-	.2byte	0x580
+	.2byte	0x57f
 	.4byte	0x219
 	.4byte	.LLST77
 	.uleb128 0x52
 	.string	"ebc"
 	.byte	0x1
-	.2byte	0x582
+	.2byte	0x581
 	.4byte	0xe461
 	.uleb128 0x69
 	.string	"t"
 	.byte	0x1
-	.2byte	0x583
+	.2byte	0x582
 	.4byte	0xc6
 	.uleb128 0x2
 	.byte	0x91
@@ -38489,7 +38481,7 @@ __exitcall_ebc_exit:
 	.8byte	.LBB1027
 	.4byte	.Ldebug_ranges0+0x510
 	.byte	0x1
-	.2byte	0x585
+	.2byte	0x584
 	.4byte	0x1010f
 	.uleb128 0x54
 	.4byte	0x12aed
@@ -38506,7 +38498,7 @@ __exitcall_ebc_exit:
 	.uleb128 0x4f
 	.4byte	.LASF3048
 	.byte	0x1
-	.2byte	0x573
+	.2byte	0x572
 	.4byte	0x2d9
 	.8byte	.LFB2828
 	.8byte	.LFE2828-.LFB2828
@@ -38516,25 +38508,25 @@ __exitcall_ebc_exit:
 	.uleb128 0x56
 	.4byte	.LASF2197
 	.byte	0x1
-	.2byte	0x573
+	.2byte	0x572
 	.4byte	0xa545
 	.4byte	.LLST78
 	.uleb128 0x56
 	.4byte	.LASF2112
 	.byte	0x1
-	.2byte	0x574
+	.2byte	0x573
 	.4byte	0xb3c0
 	.4byte	.LLST79
 	.uleb128 0x51
 	.string	"buf"
 	.byte	0x1
-	.2byte	0x575
+	.2byte	0x574
 	.4byte	0x219
 	.4byte	.LLST80
 	.uleb128 0x52
 	.string	"ebc"
 	.byte	0x1
-	.2byte	0x577
+	.2byte	0x576
 	.4byte	0xe461
 	.uleb128 0x4e
 	.8byte	.LVL261
@@ -38543,7 +38535,7 @@ __exitcall_ebc_exit:
 	.uleb128 0x4f
 	.4byte	.LASF3049
 	.byte	0x1
-	.2byte	0x568
+	.2byte	0x567
 	.4byte	0x2d9
 	.8byte	.LFB2827
 	.8byte	.LFE2827-.LFB2827
@@ -38553,25 +38545,25 @@ __exitcall_ebc_exit:
 	.uleb128 0x56
 	.4byte	.LASF2197
 	.byte	0x1
-	.2byte	0x568
+	.2byte	0x567
 	.4byte	0xa545
 	.4byte	.LLST87
 	.uleb128 0x56
 	.4byte	.LASF2112
 	.byte	0x1
-	.2byte	0x569
+	.2byte	0x568
 	.4byte	0xb3c0
 	.4byte	.LLST88
 	.uleb128 0x51
 	.string	"buf"
 	.byte	0x1
-	.2byte	0x56a
+	.2byte	0x569
 	.4byte	0x219
 	.4byte	.LLST89
 	.uleb128 0x46
 	.4byte	.LASF3050
 	.byte	0x1
-	.2byte	0x56c
+	.2byte	0x56b
 	.4byte	0x56
 	.uleb128 0x4e
 	.8byte	.LVL280
@@ -38583,7 +38575,7 @@ __exitcall_ebc_exit:
 	.uleb128 0x4f
 	.4byte	.LASF3051
 	.byte	0x1
-	.2byte	0x551
+	.2byte	0x550
 	.4byte	0xc6
 	.8byte	.LFB2826
 	.8byte	.LFE2826-.LFB2826
@@ -38593,13 +38585,13 @@ __exitcall_ebc_exit:
 	.uleb128 0x56
 	.4byte	.LASF415
 	.byte	0x1
-	.2byte	0x551
+	.2byte	0x550
 	.4byte	0x1c54
 	.4byte	.LLST10
 	.uleb128 0x6a
 	.4byte	.LASF1270
 	.byte	0x1
-	.2byte	0x551
+	.2byte	0x550
 	.4byte	0x5531
 	.uleb128 0x1
 	.byte	0x51
@@ -49443,6 +49435,8 @@ __exitcall_ebc_exit:
 	.string	"OOM_KILL"
 .LASF442:
 	.string	"i_hash"
+.LASF3012:
+	.string	"__addressable_ebc_init1911"
 .LASF3098:
 	.string	"gray_old"
 .LASF67:
@@ -52315,8 +52309,6 @@ __exitcall_ebc_exit:
 	.string	"dev_root"
 .LASF1693:
 	.string	"spc_warnlimit"
-.LASF3012:
-	.string	"__addressable_ebc_init1912"
 .LASF1492:
 	.string	"NR_WRITTEN"
 .LASF2580:
