@@ -125,9 +125,24 @@ found_ep:
 	ep->claimed = true;
 #ifdef CONFIG_ARCH_ROCKCHIP
 	ep->transfer_type = type;
-	if (type == USB_ENDPOINT_XFER_ISOC ||
-	    type == USB_ENDPOINT_XFER_INT)
+	if (gadget_is_superspeed(gadget) && ep_comp) {
+		switch (type) {
+		case USB_ENDPOINT_XFER_ISOC:
+			/* mult: bits 1:0 of bmAttributes */
+			ep->mult = (ep_comp->bmAttributes & 0x3) + 1;
+			/* fall through */
+		case USB_ENDPOINT_XFER_BULK:
+		case USB_ENDPOINT_XFER_INT:
+			ep->maxburst = ep_comp->bMaxBurst + 1;
+			break;
+		default:
+			break;
+		}
+	} else if (gadget_is_dualspeed(gadget) &&
+		   (type == USB_ENDPOINT_XFER_ISOC ||
+		    type == USB_ENDPOINT_XFER_INT)) {
 		ep->mult = usb_endpoint_maxp_mult(desc);
+	}
 #endif
 	return ep;
 }
