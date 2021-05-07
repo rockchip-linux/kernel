@@ -858,9 +858,13 @@ uvc_function_bind(struct usb_configuration *c, struct usb_function *f)
 
 		uvc_ss_bulk_streaming_ep.wMaxPacketSize =
 			cpu_to_le16(max_packet_size);
-		uvc_ss_streaming_comp.bMaxBurst = opts->streaming_maxburst;
-		uvc_ss_streaming_comp.wBytesPerInterval =
-			cpu_to_le16(max_packet_size * opts->streaming_maxburst);
+		uvc_ss_bulk_streaming_comp.bMaxBurst = opts->streaming_maxburst;
+		/*
+		 * As per USB 3.1 spec "Table 9-26. SuperSpeed Endpoint
+		 * Companion Descriptor", the wBytesPerInterval must be
+		 * set to zero for bulk endpoints.
+		 */
+		uvc_ss_bulk_streaming_comp.wBytesPerInterval = 0;
 	}
 
 	/* Allocate endpoints. */
