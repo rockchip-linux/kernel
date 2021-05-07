@@ -16,12 +16,14 @@
 #include <linux/usb/ch9.h>
 #include <linux/usb/gadget.h>
 #include <linux/usb/video.h>
+#include <linux/pm_qos.h>
 
 #include <media/v4l2-dev.h>
 
 #include "uvc.h"
 #include "uvc_queue.h"
 #include "uvc_video.h"
+#include "u_uvc.h"
 
 /* --------------------------------------------------------------------------
  * Video codecs
@@ -365,12 +367,17 @@ int uvcg_video_enable(struct uvc_video *video, int enable)
 {
 	unsigned int i;
 	int ret;
+	struct uvc_device *uvc;
+	struct f_uvc_opts *opts;
 
 	if (video->ep == NULL) {
 		uvcg_info(&video->uvc->func,
 			  "Video enable failed, device is uninitialized.\n");
 		return -ENODEV;
 	}
+
+	uvc = container_of(video, struct uvc_device, video);
+	opts = fi_to_f_uvc_opts(uvc->func.fi);
 
 	if (!enable) {
 		for (i = 0; i < UVC_NUM_REQUESTS; ++i)
@@ -379,9 +386,13 @@ int uvcg_video_enable(struct uvc_video *video, int enable)
 
 		uvc_video_free_requests(video);
 		uvcg_queue_enable(&video->queue, 0);
+		if (pm_qos_request_active(&uvc->pm_qos))
+			pm_qos_remove_request(&uvc->pm_qos);
 		return 0;
 	}
 
+	pm_qos_add_request(&uvc->pm_qos, PM_QOS_CPU_DMA_LATENCY,
+			   opts->pm_qos_latency);
 	if ((ret = uvcg_queue_enable(&video->queue, 1)) < 0)
 		return ret;
 
