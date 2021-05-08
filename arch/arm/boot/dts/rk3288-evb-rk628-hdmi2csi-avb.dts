@@ -124,3 +124,7 @@
 		};
 	};
 };
+
+&isp_mmu {
+	status = "okay";
+};
