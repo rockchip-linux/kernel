@@ -146,11 +146,18 @@ struct rockchip_crtc_state {
 	int color_space;
 	int eotf;
 	u32 background;
+	u32 line_flag;
 	u8 mode_update;
 	struct rockchip_hdr_state hdr;
 };
 #define to_rockchip_crtc_state(s) \
 		container_of(s, struct rockchip_crtc_state, base)
+
+struct rockchip_drm_vcnt {
+	struct drm_pending_vblank_event *event;
+	__u32 sequence;
+	int pipe;
+};
 
 struct rockchip_logo {
 	dma_addr_t dma_addr;
@@ -202,6 +209,7 @@ struct rockchip_drm_private {
 	u8 dmc_support;
 	struct list_head psr_list;
 	struct mutex psr_list_lock;
+	struct rockchip_drm_vcnt vcnt[ROCKCHIP_MAX_CRTC];
 
 	/**
 	 * @loader_protect
