@@ -2871,7 +2871,15 @@ static int dw_mci_init_slot_caps(struct dw_mci_slot *slot)
 				ctrl_id);
 			return -EINVAL;
 		}
-		mmc->caps |= drv_data->caps[ctrl_id];
+		/*
+		 * Some sd cards violate the spec. They claim to support
+		 * CMD23 but actually not. We don't have a good method to
+		 * work around them except for adding MMC_QUIRK_BLK_NO_CMD23
+		 * one by one. But it's not a acceptable way for our custmors.
+		 * So removing CMD23 support for all sd cards to solve it.
+		 */
+		if (!(mmc->restrict_caps & RESTRICT_CARD_TYPE_SD))
+			mmc->caps |= drv_data->caps[ctrl_id];
 	}
 
 	if (host->pdata->caps2)
