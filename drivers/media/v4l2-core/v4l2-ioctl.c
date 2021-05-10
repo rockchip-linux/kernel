@@ -1361,6 +1361,8 @@ static void v4l_fill_fmtdesc(struct v4l2_fmtdesc *fmt)
 		case V4L2_PIX_FMT_FBC2:		descr = "Rockchip yuv422sp fbc encoder"; break;
 		case V4L2_PIX_FMT_FBC0:		descr = "Rockchip yuv420sp fbc encoder"; break;
 		case V4L2_PIX_FMT_FBCG:		descr = "Rockchip fbc gain"; break;
+		case V4l2_PIX_FMT_EBD8:		descr = "Embedded data 8-bit"; break;
+		case V4l2_PIX_FMT_SPD16:	descr = "Shield pix data 16-bit"; break;
 		default:
 			WARN(1, "Unknown pixelformat 0x%08x\n", fmt->pixelformat);
 			if (fmt->description[0])
