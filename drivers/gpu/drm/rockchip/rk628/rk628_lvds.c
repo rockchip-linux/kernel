@@ -61,21 +61,6 @@ static inline struct rk628_lvds *connector_to_lvds(struct drm_connector *c)
 	return container_of(c, struct rk628_lvds, connector);
 }
 
-static enum lvds_format rk628_lvds_get_format(u32 bus_format)
-{
-	switch (bus_format) {
-	case MEDIA_BUS_FMT_RGB666_1X7X3_JEIDA:
-		return LVDS_FORMAT_JEIDA_18BIT;
-	case MEDIA_BUS_FMT_RGB888_1X7X4_JEIDA:
-		return LVDS_FORMAT_JEIDA_24BIT;
-	case MEDIA_BUS_FMT_RGB666_1X7X3_SPWG:
-		return LVDS_FORMAT_VESA_18BIT;
-	case MEDIA_BUS_FMT_RGB888_1X7X4_SPWG:
-	default:
-		return LVDS_FORMAT_VESA_24BIT;
-	}
-}
-
 static enum lvds_link_type rk628_lvds_get_link_type(struct rk628_lvds *lvds)
 {
 	struct device *dev = lvds->dev;
@@ -110,14 +95,34 @@ static int rk628_lvds_connector_get_modes(struct drm_connector *connector)
 {
 	struct rk628_lvds *lvds = connector_to_lvds(connector);
 	struct drm_display_info *info = &connector->display_info;
+	u32 bus_format;
 	int num_modes = 0;
 
 	num_modes = drm_panel_get_modes(lvds->panel);
 
 	if (info->num_bus_formats)
-		lvds->format = rk628_lvds_get_format(info->bus_formats[0]);
+		bus_format = info->bus_formats[0];
 	else
-		lvds->format = MEDIA_BUS_FMT_RGB888_1X7X4_SPWG;
+		bus_format = MEDIA_BUS_FMT_RGB888_1X7X4_SPWG;
+
+	switch (bus_format) {
+	case MEDIA_BUS_FMT_RGB888_1X7X4_JEIDA:
+		bus_format = MEDIA_BUS_FMT_RGB888_1X24;
+		lvds->format = LVDS_FORMAT_JEIDA_24BIT;
+		break;
+	case MEDIA_BUS_FMT_RGB666_1X7X3_SPWG:
+		bus_format = MEDIA_BUS_FMT_RGB666_1X18;
+		lvds->format = LVDS_FORMAT_VESA_18BIT;
+		break;
+	case MEDIA_BUS_FMT_RGB888_1X7X4_SPWG:
+	default:
+		bus_format = MEDIA_BUS_FMT_RGB888_1X24;
+		lvds->format = LVDS_FORMAT_VESA_24BIT;
+		break;
+	}
+
+	drm_display_info_set_bus_formats(&connector->display_info,
+					 &bus_format, 1);
 
 	return num_modes;
 }
