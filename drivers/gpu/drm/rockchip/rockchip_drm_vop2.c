@@ -686,8 +686,12 @@ static inline void vop2_mask_write(struct vop2 *vop2, uint32_t offset,
 
 static inline u32 vop2_line_to_time(struct drm_display_mode *mode, int line)
 {
-	/* us */
-	return 1000000 / mode->crtc_clock * mode->crtc_htotal / 1000 * line;
+	u64 val = 1000000000ULL * mode->crtc_htotal * line;
+
+	do_div(val, mode->crtc_clock);
+	do_div(val, 1000000);
+
+	return val; /* us */
 }
 
 static bool vop2_soc_is_rk3566(void)
@@ -1006,6 +1010,13 @@ static int32_t vop2_pending_done_bits(struct vop2_video_port *vp)
 			wait_vp = second_done_vp;
 
 		vop2_wait_for_fs_by_raw_status(wait_vp);
+
+		done_bits = vop2_readl(vop2, RK3568_REG_CFG_DONE) & 0x7;
+		if (done_bits) {
+			vp_id = ffs(done_bits) - 1;
+			done_vp = &vop2->vps[vp_id];
+			vop2_wait_for_fs_by_raw_status(done_vp);
+		}
 		done_bits = 0;
 	}
 	return done_bits;
