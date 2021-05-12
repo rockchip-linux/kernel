@@ -856,6 +856,9 @@
 			<&cru SCLK_VDEC_CABAC>, <&cru SCLK_VDEC_CORE>;
 		clock-names = "aclk_vcodec", "hclk_vcodec", "clk_cabac",
 			"clk_core";
+		rockchip,normal-rates = <300000000>, <0>, <300000000>, <300000000>;
+		rockchip,advanced-rates = <400000000>, <0>, <400000000>, <300000000>;
+		rockchip,default-max-load = <2088960>;
 		resets = <&cru SRST_VDEC_A>, <&cru SRST_VDEC_H>,
 			<&cru SRST_VDEC_NIU_A>, <&cru SRST_VDEC_NIU_H>,
 			<&cru SRST_VDEC_CABAC>, <&cru SRST_VDEC_CORE>;
