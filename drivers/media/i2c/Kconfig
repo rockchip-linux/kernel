@@ -319,6 +319,17 @@ config VIDEO_RK628_CSI
 	  To compile this driver as a module, choose M here: the
 	  module will be called rk628-csi.
 
+config VIDEO_RK628_CSI_FOR_HAL1
+	tristate "Rockchip RK628_CSI decoder for camerahal1"
+	depends on I2C
+	select HDMI
+	help
+	  Support for the Rockchip RK628 HDMI to MIPI CSI-2 bridge
+	  for camerahal1.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called rk628-csi-for-hal1.
+
 config VIDEO_TVP514X
 	tristate "Texas Instruments TVP514x video decoder"
 	depends on VIDEO_V4L2 && I2C
