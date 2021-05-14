@@ -556,9 +556,9 @@ static int audio_get_endpoint_req(struct usb_function *f,
 	switch (ctrl->bRequest) {
 	case UAC_GET_CUR: {
 		if (cs == UAC_EP_CS_ATTR_SAMPLE_RATE) {
-			if (ep == (USB_DIR_IN | 1))
+			if (ep == agdev->in_ep->address)
 				val = opts->p_srate_active;
-			else if (ep == (USB_DIR_OUT | 1))
+			else if (ep == agdev->out_ep->address)
 				val = opts->c_srate_active;
 			buf[2] = (val >> 16) & 0xff;
 			buf[1] = (val >> 8) & 0xff;
