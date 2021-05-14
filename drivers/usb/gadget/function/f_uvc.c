@@ -463,6 +463,11 @@ uvc_function_set_alt(struct usb_function *f, unsigned interface, unsigned alt)
 			return 0;
 
 		case UVC_STATE_STREAMING:
+			if (!alt) {
+				uvcg_info(f, "bulk streaming intf not support alt 0\n");
+				return 0;
+			}
+
 			if (uvc->video.ep &&
 			    uvc->video.ep->enabled) {
 				ret = usb_ep_disable(uvc->video.ep);
