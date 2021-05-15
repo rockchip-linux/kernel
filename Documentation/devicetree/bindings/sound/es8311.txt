@@ -23,6 +23,7 @@ Optional properties:
 		"dac left, dac right"
 	    And aec-mode is "adc left, adc right" by default, if the property
 	    is not specified.
+- delay-pa-drv-ms: The value of delay some milliseconds to start Power Amplifier.
 Example:
 
 es8311: es8311@18 {
