@@ -132,10 +132,9 @@
 			1	0
 		>;
 		rockchip,pvtm-voltage-sel = <
-			0        100500   1
-			100501   104500   2
-			104501   109500   3
-			109501   999999   4
+			0        106000   1
+			106001   112000   2
+			112001   999999   3
 		>;
 		rockchip,pvtm-freq = <408000>;
 		rockchip,pvtm-volt = <800000>;
@@ -173,7 +172,6 @@
 			opp-microvolt-L1 = <775000 775000 1000000>;
 			opp-microvolt-L2 = <775000 775000 1000000>;
 			opp-microvolt-L3 = <750000 750000 1000000>;
-			opp-microvolt-L4 = <725000 725000 1000000>;
 			clock-latency-ns = <40000>;
 		};
 		opp-1200000000 {
@@ -183,7 +181,6 @@
 			opp-microvolt-L1 = <850000 850000 1000000>;
 			opp-microvolt-L2 = <850000 850000 1000000>;
 			opp-microvolt-L3 = <825000 825000 1000000>;
-			opp-microvolt-L4 = <800000 800000 1000000>;
 			clock-latency-ns = <40000>;
 		};
 		opp-1296000000 {
@@ -192,7 +189,6 @@
 			opp-microvolt-L1 = <875000 875000 1000000>;
 			opp-microvolt-L2 = <875000 875000 1000000>;
 			opp-microvolt-L3 = <850000 850000 1000000>;
-			opp-microvolt-L4 = <825000 825000 1000000>;
 			clock-latency-ns = <40000>;
 		};
 		opp-1416000000 {
@@ -201,7 +197,6 @@
 			opp-microvolt-L1 = <925000 925000 1000000>;
 			opp-microvolt-L2 = <925000 925000 1000000>;
 			opp-microvolt-L3 = <900000 900000 1000000>;
-			opp-microvolt-L4 = <875000 875000 1000000>;
 			clock-latency-ns = <40000>;
 		};
 		opp-1512000000 {
@@ -210,7 +205,6 @@
 			opp-microvolt-L1 = <975000 975000 1000000>;
 			opp-microvolt-L2 = <950000 950000 1000000>;
 			opp-microvolt-L3 = <925000 925000 1000000>;
-			opp-microvolt-L4 = <900000 900000 1000000>;
 			clock-latency-ns = <40000>;
 		};
 	};
@@ -2454,9 +2448,9 @@
 			2	0
 		>;
 		rockchip,pvtm-voltage-sel = <
-			0        108500   1
-			108501   113500   2
-			113501   999999   3
+			0        112500   1
+			112501   117500   2
+			117501   999999   3
 		>;
 		rockchip,pvtm-freq = <396000>;
 		rockchip,pvtm-volt = <800000>;
