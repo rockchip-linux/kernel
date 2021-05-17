@@ -538,7 +538,18 @@
 				regulator-max-microvolt = <900000>;
 				regulator-name = "vcca_0v9";
 				regulator-state-mem {
-					regulator-off-in-suspend;
+					/*
+					 * For V13/V14 ind evb, ldo1 is used for
+					 * ddr and pmu io, so it can't be off duaring
+					 * suspend, otherwise ind-evb can't be resume
+					 * after suspend, but for v12 and previous
+					 * ind evb, ldo1 is used for usb phy, so
+					 * keep the power on to compatible with all
+					 * ind-evb version.
+					 */
+					//regulator-off-in-suspend;
+					regulator-on-in-suspend;
+					regulator-suspend-microvolt = <900000>;
 				};
 			};
 
@@ -563,6 +574,19 @@
 
 				regulator-name = "vcc0v9_soc";
 				regulator-state-mem {
+					/*
+					 * For v12 and previous evb, this ldo should keep
+					 * power, because this ldo is used to supply power
+					 * for ddr and pmu-io, but for V13 an v14 this
+					 * ldo is used for usb phy, so this ldo can be
+					 * power off duaring suspend. But in order to
+					 * compatible with V12 and previous ind evb,
+					 * make sure the power of ldo3 is on duaring
+					 * suspend. If you want to save power duaring
+					 * suspend, and make sure this power only supply
+					 * for devices which can be power off such as
+					 * usb phy, you can shut it down duaring suspend.
+					 */
 					regulator-on-in-suspend;
 					regulator-suspend-microvolt = <900000>;
 				};
