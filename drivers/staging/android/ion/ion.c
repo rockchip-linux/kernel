@@ -563,7 +563,7 @@ static int ion_dma_buf_end_cpu_access(struct dma_buf *dmabuf,
 }
 
 static int ion_dma_buf_begin_cpu_access_partial(struct dma_buf *dmabuf,
-						enum dma_data_direction dir,
+						enum dma_data_direction direction,
 						unsigned int offset,
 						unsigned int len)
 {
@@ -571,17 +571,27 @@ static int ion_dma_buf_begin_cpu_access_partial(struct dma_buf *dmabuf,
 	struct ion_dma_buf_attachment *a;
 	int ret = 0;
 
-	if (!(buffer->flags & ION_FLAG_CACHED))
-		return 0;
-
 	mutex_lock(&buffer->lock);
+	if (IS_ENABLED(CONFIG_ION_FORCE_DMA_SYNC)) {
+		struct device *dev = ion_dev;
+		struct sg_table *table = buffer->sg_table;
+
+		if (dev) {
+			ret = ion_sgl_sync_range(dev, table->sgl, table->nents,
+						 offset, len, direction, true);
+
+			goto unlock;
+		}
+	}
+
 	list_for_each_entry(a, &buffer->attachments, list) {
 		if (!a->mapped)
 			continue;
 
 		ret = ion_sgl_sync_range(a->dev, a->table->sgl, a->table->nents,
-					 offset, len, dir, true);
+					 offset, len, direction, true);
 	}
+unlock:
 	mutex_unlock(&buffer->lock);
 
 	return ret;
@@ -596,10 +606,19 @@ static int ion_dma_buf_end_cpu_access_partial(struct dma_buf *dmabuf,
 	struct ion_dma_buf_attachment *a;
 	int ret = 0;
 
-	if (!(buffer->flags & ION_FLAG_CACHED))
-		return 0;
-
 	mutex_lock(&buffer->lock);
+	if (IS_ENABLED(CONFIG_ION_FORCE_DMA_SYNC)) {
+		struct device *dev = ion_dev;
+		struct sg_table *table = buffer->sg_table;
+
+		if (dev) {
+			ret = ion_sgl_sync_range(dev, table->sgl, table->nents,
+						 offset, len, direction, false);
+
+			goto unlock;
+		}
+	}
+
 	list_for_each_entry(a, &buffer->attachments, list) {
 		if (!a->mapped)
 			continue;
@@ -607,6 +626,7 @@ static int ion_dma_buf_end_cpu_access_partial(struct dma_buf *dmabuf,
 		ret = ion_sgl_sync_range(a->dev, a->table->sgl, a->table->nents,
 					 offset, len, direction, false);
 	}
+unlock:
 	mutex_unlock(&buffer->lock);
 
 	return ret;
