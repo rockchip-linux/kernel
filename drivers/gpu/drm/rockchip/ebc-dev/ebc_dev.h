@@ -45,6 +45,12 @@
 #define EBC_GET_OSD_BUFFER	(0x7006)
 #define EBC_SEND_OSD_BUFFER	(0x7007)
 
+//ebc debug ioctl command
+#define EBC_GET_AUTO_OLD_BUFFER (0x7008)
+#define EBC_GET_AUTO_NEW_BUFFER (0x7009)
+#define EBC_GET_AUTO_BG_BUFFER (0x700a)
+#define EBC_GET_AUTO_CUR_BUFFER (0x700b)
+
 /*
  * IMPORTANT: Those values is corresponding to android hardware program,
  * so *FORBID* to changes bellow values, unless you know what you're doing.
