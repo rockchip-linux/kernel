@@ -9,6 +9,7 @@
  * V0.0X01.0X03 add enum_frame_interval function.
  * V0.0X01.0X04 add quick stream on/off
  * V0.0X01.0X05 add function g_mbus_config
+ * V0.0X01.0X06 support capture spd data and embedded data
  */
 
 #include <linux/clk.h>
@@ -29,7 +30,7 @@
 #include <linux/pinctrl/consumer.h>
 #include "imx258_eeprom_head.h"
 
-#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x05)
+#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x06)
 
 #ifndef V4L2_CID_DIGITAL_GAIN
 #define V4L2_CID_DIGITAL_GAIN		V4L2_CID_GAIN
@@ -88,12 +89,27 @@ static const char * const imx258_supply_names[] = {
 
 #define IMX258_NUM_SUPPLIES ARRAY_SIZE(imx258_supply_names)
 
+enum imx258_max_pad {
+	PAD0,
+	PAD1,
+	PAD2,
+	PAD3,
+	PAD_MAX,
+};
+
 struct regval {
 	u16 addr;
 	u8 val;
 };
 
+struct other_data {
+	u32 width;
+	u32 height;
+	u32 bus_fmt;
+};
+
 struct imx258_mode {
+	u32 bus_fmt;
 	u32 width;
 	u32 height;
 	struct v4l2_fract max_fps;
@@ -101,6 +117,12 @@ struct imx258_mode {
 	u32 vts_def;
 	u32 exp_def;
 	const struct regval *reg_list;
+	/* Shield Pix Data */
+	const struct other_data *spd;
+	/* embedded Data */
+	const struct other_data *ebd;
+	u32 hdr_mode;
+	u32 vc[PAD_MAX];
 };
 
 struct imx258 {
@@ -127,6 +149,7 @@ struct imx258 {
 	bool			streaming;
 	bool			power_on;
 	const struct imx258_mode *cur_mode;
+	u32			cfg_num;
 	u32			module_index;
 	const char		*module_facing;
 	const char		*module_name;
@@ -137,6 +160,8 @@ struct imx258 {
 	struct rkmodule_inf	module_inf;
 	struct rkmodule_awb_cfg	awb_cfg;
 	struct rkmodule_lsc_cfg	lsc_cfg;
+	u32 spd_id;
+	u32 ebd_id;
 };
 
 #define to_imx258(sd) container_of(sd, struct imx258, subdev)
@@ -444,6 +469,8 @@ static const struct regval imx258_global_regs[] = {
 	{0x040f, 0x30},
 	{0x3038, 0x00},
 	{0x303a, 0x00},
+	{0x303b, 0x10},
+	{0x300d, 0x00},
 	{0x034c, 0x10},
 	{0x034d, 0x70},
 	{0x034e, 0x0c},
@@ -475,6 +502,7 @@ static const struct regval imx258_global_regs[] = {
 	{0x951b, 0x50},
 	{0x3030, 0x00},
 	{0x3032, 0x00},
+	{0x0220, 0x00},
 	{0x0100, 0x00},
 	{REG_NULL, 0x00},
 };
@@ -621,8 +649,36 @@ static const struct regval imx258_4208x3120_regs[] = {
 	{REG_NULL, 0x00},
 };
 
+static const struct regval imx258_4208_3120_spd_reg[] = {
+	{0x3030, 0x01},//shield output size:80x1920
+	{0x3032, 0x01},//shield BYTE2
+#ifdef SPD_DEBUG
+	/*DEBUG mode,spd data output with active pixel*/
+	{0x7bcd, 0x00},
+	{0x0b00, 0x00},
+	{0x3051, 0x00},
+	{0x3052, 0x00},
+	{0x7bca, 0x00},
+	{0x7bcb, 0x00},
+	{0x7bc8, 0x00},
+#endif
+};
+
+static const struct other_data imx258_full_spd = {
+	.width = 80,
+	.height = 1920,
+	.bus_fmt = MEDIA_BUS_FMT_SPD_2X8,
+};
+
+static const struct other_data imx258_full_ebd = {
+	.width = 320,
+	.height = 2,
+	.bus_fmt = MEDIA_BUS_FMT_EBD_1X8,
+};
+
 static const struct imx258_mode supported_modes[] = {
 	{
+		.bus_fmt = MEDIA_BUS_FMT_SBGGR10_1X10,
 		.width = 4208,
 		.height = 3120,
 		.max_fps = {
@@ -633,8 +689,13 @@ static const struct imx258_mode supported_modes[] = {
 		.hts_def = 0x14E8,
 		.vts_def = 0x0E88,
 		.reg_list = imx258_4208x3120_regs,
+		.spd = &imx258_full_spd,
+		.ebd = &imx258_full_ebd,
+		.hdr_mode = NO_HDR,
+		.vc[PAD0] = V4L2_MBUS_CSI2_CHANNEL_0,
 	},
 	{
+		.bus_fmt = MEDIA_BUS_FMT_SBGGR10_1X10,
 		.width = 2096,
 		.height = 1560,
 		.max_fps = {
@@ -645,6 +706,10 @@ static const struct imx258_mode supported_modes[] = {
 		.hts_def = 0x14E8,
 		.vts_def = 0x07C4,
 		.reg_list = imx258_2096x1560_regs,
+		.spd = NULL,
+		.ebd = NULL,
+		.hdr_mode = NO_HDR,
+		.vc[PAD0] = V4L2_MBUS_CSI2_CHANNEL_0,
 	},
 };
 
@@ -833,6 +898,20 @@ static int imx258_get_fmt(struct v4l2_subdev *sd,
 		fmt->format.height = mode->height;
 		fmt->format.code = MEDIA_BUS_FMT_SRGGB10_1X10;
 		fmt->format.field = V4L2_FIELD_NONE;
+		/* to csi rawwr3, other rawwr also can use */
+		if (fmt->pad == imx258->spd_id && mode->spd) {
+			fmt->format.width = mode->spd->width;
+			fmt->format.height = mode->spd->height;
+			fmt->format.code = mode->spd->bus_fmt;
+			//Set the vc channel to be consistent with the valid data
+			fmt->reserved[0] = V4L2_MBUS_CSI2_CHANNEL_0;
+		} else if (fmt->pad == imx258->ebd_id && mode->ebd) {
+			fmt->format.width = mode->ebd->width;
+			fmt->format.height = mode->ebd->height;
+			fmt->format.code = mode->ebd->bus_fmt;
+			//Set the vc channel to be consistent with the valid data
+			fmt->reserved[0] = V4L2_MBUS_CSI2_CHANNEL_0;
+		}
 	}
 	mutex_unlock(&imx258->mutex);
 
@@ -990,8 +1069,10 @@ static void imx258_set_lsc_cfg(struct imx258 *imx258,
 static long imx258_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 {
 	struct imx258 *imx258 = to_imx258(sd);
+	struct rkmodule_hdr_cfg *hdr_cfg;
 	long ret = 0;
 	u32 stream = 0;
+	u32 i, h, w;
 
 	switch (cmd) {
 	case RKMODULE_GET_MODULE_INFO:
@@ -1018,6 +1099,40 @@ static long imx258_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 					       IMX258_REG_VALUE_08BIT,
 					       IMX258_MODE_SW_STANDBY);
 		break;
+	case RKMODULE_SET_HDR_CFG:
+		hdr_cfg = (struct rkmodule_hdr_cfg *)arg;
+		w = imx258->cur_mode->width;
+		h = imx258->cur_mode->height;
+		for (i = 0; i < imx258->cfg_num; i++) {
+			if (w == supported_modes[i].width &&
+			    h == supported_modes[i].height &&
+			    supported_modes[i].hdr_mode == hdr_cfg->hdr_mode) {
+				imx258->cur_mode = &supported_modes[i];
+				break;
+			}
+		}
+		if (i == imx258->cfg_num) {
+			dev_err(&imx258->client->dev,
+				"not find hdr mode:%d %dx%d config\n",
+				hdr_cfg->hdr_mode, w, h);
+			ret = -EINVAL;
+		} else {
+			w = imx258->cur_mode->hts_def - imx258->cur_mode->width;
+			h = imx258->cur_mode->vts_def - imx258->cur_mode->height;
+			__v4l2_ctrl_modify_range(imx258->hblank, w, w, 1, w);
+			__v4l2_ctrl_modify_range(imx258->vblank, h,
+						 IMX258_VTS_MAX - imx258->cur_mode->height,
+						 1, h);
+			dev_info(&imx258->client->dev,
+				"sensor mode: %d\n",
+				imx258->cur_mode->hdr_mode);
+		}
+		break;
+	case RKMODULE_GET_HDR_CFG:
+		hdr_cfg = (struct rkmodule_hdr_cfg *)arg;
+		hdr_cfg->esp.mode = HDR_NORMAL_VC;
+		hdr_cfg->hdr_mode = imx258->cur_mode->hdr_mode;
+		break;
 	default:
 		ret = -ENOTTY;
 		break;
@@ -1034,6 +1149,7 @@ static long imx258_compat_ioctl32(struct v4l2_subdev *sd,
 	struct rkmodule_inf *inf;
 	struct rkmodule_awb_cfg *awb_cfg;
 	struct rkmodule_lsc_cfg *lsc_cfg;
+	struct rkmodule_hdr_cfg *hdr;
 	long ret = 0;
 	u32 stream = 0;
 
@@ -1046,8 +1162,11 @@ static long imx258_compat_ioctl32(struct v4l2_subdev *sd,
 		}
 
 		ret = imx258_ioctl(sd, cmd, inf);
-		if (!ret)
+		if (!ret) {
 			ret = copy_to_user(up, inf, sizeof(*inf));
+			if (ret)
+				ret = -EFAULT;
+		}
 		kfree(inf);
 		break;
 	case RKMODULE_AWB_CFG:
@@ -1058,8 +1177,11 @@ static long imx258_compat_ioctl32(struct v4l2_subdev *sd,
 		}
 
 		ret = copy_from_user(awb_cfg, up, sizeof(*awb_cfg));
-		if (!ret)
-			ret = imx258_ioctl(sd, cmd, awb_cfg);
+		if (ret) {
+			kfree(awb_cfg);
+			return -EFAULT;
+		}
+		ret = imx258_ioctl(sd, cmd, awb_cfg);
 		kfree(awb_cfg);
 		break;
 	case RKMODULE_LSC_CFG:
@@ -1070,14 +1192,50 @@ static long imx258_compat_ioctl32(struct v4l2_subdev *sd,
 		}
 
 		ret = copy_from_user(lsc_cfg, up, sizeof(*lsc_cfg));
-		if (!ret)
-			ret = imx258_ioctl(sd, cmd, lsc_cfg);
+		if (ret) {
+			kfree(lsc_cfg);
+			return -EFAULT;
+		}
+		ret = imx258_ioctl(sd, cmd, lsc_cfg);
 		kfree(lsc_cfg);
+		break;
+	case RKMODULE_GET_HDR_CFG:
+		hdr = kzalloc(sizeof(*hdr), GFP_KERNEL);
+		if (!hdr) {
+			ret = -ENOMEM;
+			return ret;
+		}
+
+		ret = imx258_ioctl(sd, cmd, hdr);
+		if (!ret) {
+			ret = copy_to_user(up, hdr, sizeof(*hdr));
+			if (ret) {
+				kfree(hdr);
+				return -EFAULT;
+			}
+		}
+		kfree(hdr);
+		break;
+	case RKMODULE_SET_HDR_CFG:
+		hdr = kzalloc(sizeof(*hdr), GFP_KERNEL);
+		if (!hdr) {
+			ret = -ENOMEM;
+			return ret;
+		}
+
+		ret = copy_from_user(hdr, up, sizeof(*hdr));
+		if (ret) {
+			kfree(hdr);
+			return -EFAULT;
+		}
+		ret = imx258_ioctl(sd, cmd, hdr);
+		kfree(hdr);
 		break;
 	case RKMODULE_SET_QUICK_STREAM:
 		ret = copy_from_user(&stream, up, sizeof(u32));
-		if (!ret)
-			ret = imx258_ioctl(sd, cmd, &stream);
+		if (ret)
+			return -EFAULT;
+		ret = imx258_ioctl(sd, cmd, &stream);
 		break;
 	default:
 		ret = -ENOTTY;
@@ -1209,6 +1367,14 @@ static int __imx258_start_stream(struct imx258 *imx258)
 		return ret;
 	if (imx258->otp) {
 		ret = imx258_apply_otp(imx258);
+		if (ret)
+			return ret;
+	}
+	if (imx258->cur_mode->width == 4208 &&
+	    imx258->cur_mode->height == 3120 &&
+	    imx258->cur_mode->spd != NULL &&
+	    imx258->spd_id < PAD_MAX) {
+		ret = imx258_write_array(imx258->client, imx258_4208_3120_spd_reg);
 		if (ret)
 			return ret;
 	}
@@ -1424,12 +1590,11 @@ static int imx258_enum_frame_interval(struct v4l2_subdev *sd,
 	if (fie->index >= ARRAY_SIZE(supported_modes))
 		return -EINVAL;
 
-	if (fie->code != MEDIA_BUS_FMT_SRGGB10_1X10)
-		return -EINVAL;
-
+	fie->code = supported_modes[fie->index].bus_fmt;
 	fie->width = supported_modes[fie->index].width;
 	fie->height = supported_modes[fie->index].height;
 	fie->interval = supported_modes[fie->index].max_fps;
+	fie->reserved[0] = supported_modes[fie->index].hdr_mode;
 	return 0;
 }
 
@@ -1698,6 +1863,7 @@ static int imx258_probe(struct i2c_client *client,
 	}
 
 	imx258->client = client;
+	imx258->cfg_num = ARRAY_SIZE(supported_modes);
 	imx258->cur_mode = &supported_modes[0];
 
 	imx258->xvclk = devm_clk_get(dev, "xvclk");
@@ -1713,6 +1879,23 @@ static int imx258_probe(struct i2c_client *client,
 	imx258->pwdn_gpio = devm_gpiod_get(dev, "pwdn", GPIOD_OUT_LOW);
 	if (IS_ERR(imx258->pwdn_gpio))
 		dev_warn(dev, "Failed to get pwdn-gpios\n");
+
+	ret = of_property_read_u32(node,
+				   "rockchip,spd-id",
+				   &imx258->spd_id);
+	if (ret != 0) {
+		imx258->spd_id = PAD_MAX;
+		dev_err(dev,
+			"failed get spd_id, will not to use spd\n");
+	}
+	ret = of_property_read_u32(node,
+				   "rockchip,ebd-id",
+				   &imx258->ebd_id);
+	if (ret != 0) {
+		imx258->ebd_id = PAD_MAX;
+		dev_err(dev,
+			"failed get ebd_id, will not to use ebd\n");
+	}
 
 	ret = imx258_configure_regulators(imx258);
 	if (ret) {
