@@ -302,9 +302,10 @@ static void rockchip_snd_txrxctrl(struct snd_pcm_substream *substream,
 {
 	struct rk_i2s_tdm_dev *i2s_tdm = to_info(dai);
 	unsigned int val = 0;
+	unsigned long flags;
 	int retry = 10;
 
-	spin_lock(&i2s_tdm->lock);
+	spin_lock_irqsave(&i2s_tdm->lock, flags);
 	if (on) {
 		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
 			regmap_update_bits(i2s_tdm->regmap, I2S_DMACR,
@@ -359,7 +360,7 @@ static void rockchip_snd_txrxctrl(struct snd_pcm_substream *substream,
 			}
 		}
 	}
-	spin_unlock(&i2s_tdm->lock);
+	spin_unlock_irqrestore(&i2s_tdm->lock, flags);
 }
 
 static void rockchip_snd_reset(struct reset_control *rc)
@@ -926,11 +927,12 @@ static int rockchip_i2s_trcm_mode(struct snd_pcm_substream *substream,
 				  unsigned int fmt)
 {
 	struct rk_i2s_tdm_dev *i2s_tdm = to_info(dai);
+	unsigned long flags;
 
 	if (!i2s_tdm->clk_trcm)
 		return 0;
 
-	spin_lock(&i2s_tdm->lock);
+	spin_lock_irqsave(&i2s_tdm->lock, flags);
 	if (atomic_read(&i2s_tdm->refcount))
 		rockchip_i2s_tdm_xfer_pause(substream, i2s_tdm);
 
@@ -952,7 +954,7 @@ static int rockchip_i2s_trcm_mode(struct snd_pcm_substream *substream,
 
 	if (atomic_read(&i2s_tdm->refcount))
 		rockchip_i2s_tdm_xfer_resume(substream, i2s_tdm);
-	spin_unlock(&i2s_tdm->lock);
+	spin_unlock_irqrestore(&i2s_tdm->lock, flags);
 
 	return 0;
 }
