@@ -1678,6 +1678,17 @@ config VIDEO_SC031GS
 	  To compile this driver as a module, choose M here: the
 	  module will be called sc031gs.
 
+config VIDEO_SC035HGS
+	tristate "SmartSens SC035HGS sensor support"
+	depends on I2C && VIDEO_V4L2 && VIDEO_V4L2_SUBDEV_API
+	depends on MEDIA_CAMERA_SUPPORT
+	select V4L2_FWNODE
+	help
+	  Support for the SmartSens SC035HGS sensor.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called sc035hgs.
+
 config VIDEO_SC132GS
 	tristate "SmartSens SC132GS sensor support"
 	depends on I2C && VIDEO_V4L2 && VIDEO_V4L2_SUBDEV_API
