@@ -1445,6 +1445,7 @@
   simple_statfs
   strndup_user
   sync_filesystem
+  sysfs_emit
   touch_atime
   truncate_inode_pages
   unlock_new_inode
