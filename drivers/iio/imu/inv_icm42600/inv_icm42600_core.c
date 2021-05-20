@@ -67,6 +67,11 @@ static const struct inv_icm42600_conf inv_icm42600_default_conf = {
 };
 
 static const struct inv_icm42600_hw inv_icm42600_hw[INV_CHIP_NB] = {
+	[INV_CHIP_ICM40608] = {
+		.whoami = INV_ICM42600_WHOAMI_ICM40608,
+		.name = "icm40608",
+		.conf = &inv_icm42600_default_conf,
+	},
 	[INV_CHIP_ICM42600] = {
 		.whoami = INV_ICM42600_WHOAMI_ICM42600,
 		.name = "icm42600",

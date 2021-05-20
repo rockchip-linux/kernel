@@ -70,6 +70,9 @@ static int inv_icm42600_probe(struct i2c_client *client)
 
 static const struct of_device_id inv_icm42600_of_matches[] = {
 	{
+		.compatible = "invensense,icm40608",
+		.data = (void *)INV_CHIP_ICM40608,
+	}, {
 		.compatible = "invensense,icm42600",
 		.data = (void *)INV_CHIP_ICM42600,
 	}, {
