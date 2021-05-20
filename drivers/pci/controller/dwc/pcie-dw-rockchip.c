@@ -443,9 +443,6 @@ static int rk_pcie_establish_link(struct dw_pcie *pci)
 		return 0;
 	}
 
-	/* Rest the device */
-	gpiod_set_value_cansleep(rk_pcie->rst_gpio, 0);
-
 	rk_pcie_disable_ltssm(rk_pcie);
 	rk_pcie_link_status_clear(rk_pcie);
 	rk_pcie_enable_debug(rk_pcie);
@@ -1285,6 +1282,16 @@ static int rk_pcie_really_probe(void *p)
 			return PTR_ERR(rk_pcie->vpcie3v3);
 		dev_info(dev, "no vpcie3v3 regulator found\n");
 	}
+
+	/*
+	 * Rest the device before enabling power because some of the
+	 * platforms may use external refclk input with the some power
+	 * rail connect to 100MHz OSC chip. So once the power is up for
+	 * the slot and the refclk is available, which isn't quite follow
+	 * the spec. We should make sure it is in reset state before
+	 * everthing's ready.
+	 */
+	gpiod_set_value_cansleep(rk_pcie->rst_gpio, 0);
 
 	ret = rk_pcie_enable_power(rk_pcie);
 	if (ret)
