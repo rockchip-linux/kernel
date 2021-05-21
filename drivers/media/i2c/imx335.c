@@ -11,6 +11,7 @@
  * V0.0X01.0X04 fix hdr ae error
  * V0.0X01.0X05 add quick stream on/off
  * V0.0X01.0X06 Increase hdr exposure restrictions
+ * V0.0X01.0X07 add binning resolution
  */
 
 #define DEBUG
@@ -33,13 +34,14 @@
 #include <linux/pinctrl/consumer.h>
 #include <linux/rk-preisp.h>
 
-#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x06)
+#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x07)
 
 #ifndef V4L2_CID_DIGITAL_GAIN
 #define V4L2_CID_DIGITAL_GAIN		V4L2_CID_GAIN
 #endif
 
 #define MIPI_FREQ_594M			594000000
+#define MIPI_FREQ_445M			445000000
 
 #define IMX335_4LANES			4
 
@@ -180,6 +182,7 @@ struct imx335_mode {
 	u32 vts_def;
 	u32 exp_def;
 	u32 bpp;
+	u32 mipi_freq_idx;
 	const struct regval *reg_list;
 	u32 hdr_mode;
 	u32 vc[PAD_MAX];
@@ -224,8 +227,9 @@ struct imx335 {
 /*
  * Xclk 37.125Mhz
  */
-static const struct regval imx335_linear_10bit_2592x1944_regs[] = {
+static const struct regval imx335_linear_12bit_1296x972_regs[] = {
 	{0x3002, 0x00},
+	{0x3018, 0x01},
 	{0x300C, 0x5B},
 	{0x300D, 0x40},
 	{0x3034, 0x26},
@@ -236,24 +240,62 @@ static const struct regval imx335_linear_10bit_2592x1944_regs[] = {
 	{0x304B, 0x01},
 	{0x304C, 0x14},
 	{0x3050, 0x00},
-	{0x3058, 0x09},
-	{0x3059, 0x00},
+	{0x3056, 0xd8},
+	{0x3057, 0x03},
+	{0x3058, 0x4E},
+	{0x3059, 0x0C},
 	{0x305C, 0x12},
 	{0x3060, 0xE8},
 	{0x3061, 0x00},
 	{0x3068, 0xce},
 	{0x3069, 0x00},
-	{0x306C, 0x88},
+	{0x306C, 0x68},
 	{0x306D, 0x06},
-	{0x30E8, 0x00},
-	{0x315A, 0x02},
+	{0x3072, 0x30},
+	{0x3074, 0xa8},
+	{0x3075, 0x00},
+	{0x3076, 0x60},
+	{0x3077, 0x0f},
+	{0x3078, 0x04},
+	{0x3079, 0xFD},
+	{0x307A, 0x04},
+	{0x307B, 0xFE},//binning
+	{0x307C, 0x04},
+	{0x307D, 0xFB},
+	{0x307E, 0x04},
+	{0x307F, 0x02}, /* Each frame gain adjustment disabled in linear mode */
+	{0x3080, 0x04},
+	{0x3081, 0xFD},
+	{0x3082, 0x04},//binning
+	{0x3083, 0xFE},
+	{0x3084, 0x04},
+	{0x3085, 0xFB},
+	{0x3086, 0x04},
+	{0x3087, 0x02},
+	{0x30A4, 0x77},
+	{0x30A8, 0x20},
+	{0x30A9, 0x00},
+	{0x30AC, 0x08},
+	{0x30AD, 0x08},
+	{0x30B0, 0x20},
+	{0x30B1, 0x00},
+	{0x30B4, 0x10},
+	{0x30B5, 0x10},
+	{0x30E8, 0x14},
+	{0x3112, 0x10},
+	{0x3116, 0x10},
+	{0x314C, 0xC0},
+	{0x315A, 0x06},
 	{0x316A, 0x7E},
-	{0x319D, 0x00},
+	{0x3199, 0x30},
+	{0x319D, 0x01},
+	{0x319E, 0x02},
 	{0x31A1, 0x00},
 	{0x31D7, 0x00},
-	{0x3200, 0x01}, /* Each frame gain adjustment disabed in linear mode */
+	{0x3200, 0x01},
 	{0x3288, 0x21},
 	{0x328A, 0x02},
+	{0x3300, 0x01},
 	{0x3414, 0x05},
 	{0x3416, 0x18},
 	{0x341C, 0xFF},
@@ -320,11 +362,170 @@ static const struct regval imx335_linear_10bit_2592x1944_regs[] = {
 	{0x3792, 0x43},
 	{0x3794, 0x7A},
 	{0x3796, 0xA1},
+	{0x3A18, 0x7F},
+	{0x3A1A, 0x37},
+	{0x3A1C, 0x37},
+	{0x3A1E, 0xF7},
+	{0x3A1F, 0x00},
+	{0x3A20, 0x3F},
+	{0x3A22, 0x6F},
+	{0x3A24, 0x3F},
+	{0x3A26, 0x5F},
+	{0x3A28, 0x2F},
+	{REG_NULL, 0x00},
+};
+
+static const struct regval imx335_linear_10bit_2592x1944_regs[] = {
+	{0x3002, 0x00},
+	{0x3018, 0x00},
+	{0x300C, 0x5B},
+	{0x300D, 0x40},
+	{0x3034, 0x26},
+	{0x3035, 0x02},
+	{0x3048, 0x00},
+	{0x3049, 0x00},
+	{0x304A, 0x03},
+	{0x304B, 0x01},
+	{0x304C, 0x14},
+	{0x3050, 0x00},
+	{0x3056, 0xac},
+	{0x3057, 0x07},
+	{0x3058, 0x09},
+	{0x3059, 0x00},
+	{0x305C, 0x12},
+	{0x3060, 0xE8},
+	{0x3061, 0x00},
+	{0x3068, 0xce},
+	{0x3069, 0x00},
+	{0x306C, 0x88},
+	{0x306D, 0x06},
+	{0x3072, 0x28},
+	{0x3074, 0xb0},
+	{0x3075, 0x00},
+	{0x3076, 0x58},
+	{0x3077, 0x0f},
+	{0x3078, 0x01},
+	{0x3079, 0x02},
+	{0x307A, 0xff},
+	{0x307B, 0x02},
+	{0x307C, 0x00},
+	{0x307D, 0x00},
+	{0x307E, 0x00},
+	{0x307F, 0x00},
+	{0x3080, 0x01},
+	{0x3081, 0x02},
+	{0x3082, 0xff},
+	{0x3083, 0x02},
+	{0x3084, 0x00},
+	{0x3085, 0x00},
+	{0x3086, 0x00},
+	{0x3087, 0x00},
+	{0x30A4, 0x33},
+	{0x30A8, 0x10},
+	{0x30A9, 0x04},
+	{0x30AC, 0x00},
+	{0x30AD, 0x00},
+	{0x30B0, 0x10},
+	{0x30B1, 0x08},
+	{0x30B4, 0x00},
+	{0x30B5, 0x00},
+	{0x30E8, 0x00},
+	{0x3112, 0x08},
+	{0x3116, 0x08},//full
+	{0x314C, 0x80},
+	{0x315A, 0x02},
+	{0x316A, 0x7E},
+	{0x3199, 0x00}, /* Each frame gain adjustment disabled in linear mode */
+	{0x319D, 0x00},
+	{0x319E, 0x01},
+	{0x31A1, 0x00},//full
+	{0x31D7, 0x00},
+	{0x3200, 0x01},
+	{0x3288, 0x21},
+	{0x328A, 0x02},
+	{0x3300, 0x00},
+	{0x3414, 0x05},
+	{0x3416, 0x18},
+	{0x341C, 0xFF},
+	{0x341D, 0x01},
+	{0x3648, 0x01},
+	{0x364A, 0x04},
+	{0x364C, 0x04},
+	{0x3678, 0x01},
+	{0x367C, 0x31},
+	{0x367E, 0x31},
+	{0x3706, 0x10},
+	{0x3708, 0x03},
+	{0x3714, 0x02},
+	{0x3715, 0x02},
+	{0x3716, 0x01},
+	{0x3717, 0x03},
+	{0x371C, 0x3D},
+	{0x371D, 0x3F},
+	{0x372C, 0x00},
+	{0x372D, 0x00},
+	{0x372E, 0x46},
+	{0x372F, 0x00},
+	{0x3730, 0x89},
+	{0x3731, 0x00},
+	{0x3732, 0x08},
+	{0x3733, 0x01},
+	{0x3734, 0xFE},
+	{0x3735, 0x05},
+	{0x3740, 0x02},
+	{0x375D, 0x00},
+	{0x375E, 0x00},
+	{0x375F, 0x11},
+	{0x3760, 0x01},
+	{0x3768, 0x1B},
+	{0x3769, 0x1B},
+	{0x376A, 0x1B},
+	{0x376B, 0x1B},
+	{0x376C, 0x1A},
+	{0x376D, 0x17},
+	{0x376E, 0x0F},
+	{0x3776, 0x00},
+	{0x3777, 0x00},
+	{0x3778, 0x46},
+	{0x3779, 0x00},
+	{0x377A, 0x89},
+	{0x377B, 0x00},
+	{0x377C, 0x08},
+	{0x377D, 0x01},
+	{0x377E, 0x23},
+	{0x377F, 0x02},
+	{0x3780, 0xD9},
+	{0x3781, 0x03},
+	{0x3782, 0xF5},
+	{0x3783, 0x06},
+	{0x3784, 0xA5},
+	{0x3788, 0x0F},
+	{0x378A, 0xD9},
+	{0x378B, 0x03},
+	{0x378C, 0xEB},
+	{0x378D, 0x05},
+	{0x378E, 0x87},
+	{0x378F, 0x06},
+	{0x3790, 0xF5},
+	{0x3792, 0x43},
+	{0x3794, 0x7A},
+	{0x3796, 0xA1},
+	{0x3A18, 0x8F},
+	{0x3A1A, 0x4f},
+	{0x3A1C, 0x47},
+	{0x3A1E, 0x37},
+	{0x3A1F, 0x01},
+	{0x3A20, 0x4F},
+	{0x3A22, 0x87},
+	{0x3A24, 0x4F},
+	{0x3A26, 0x7F},
+	{0x3A28, 0x3F},
 	{REG_NULL, 0x00},
 };
 
 static const struct regval imx335_hdr2_10bit_2592x1944_regs[] = {
 	{0x3002, 0x00},
+	{0x3018, 0x00},
 	{0x300C, 0x5B},
 	{0x300D, 0x40},
 	{0x3034, 0x13},
@@ -335,6 +536,8 @@ static const struct regval imx335_hdr2_10bit_2592x1944_regs[] = {
 	{0x304B, 0x03},
 	{0x304C, 0x13},
 	{0x3050, 0x00},
+	{0x3056, 0xac},
+	{0x3057, 0x07},
 	{0x3058, 0x48},
 	{0x3059, 0x12},
 	{0x305C, 0x12},
@@ -344,15 +547,51 @@ static const struct regval imx335_hdr2_10bit_2592x1944_regs[] = {
 	{0x3069, 0x01},
 	{0x306C, 0x68},
 	{0x306D, 0x06},
+	{0x3072, 0x28},
+	{0x3074, 0xb0},
+	{0x3075, 0x00},
+	{0x3076, 0x58},
+	{0x3077, 0x0f},
+	{0x3078, 0x01},
+	{0x3079, 0x02},//full
+	{0x307A, 0xff},
+	{0x307B, 0x02},
+	{0x307C, 0x00},
+	{0x307D, 0x00}, /* Each frame gain adjustment EN */
+	{0x307E, 0x00},
+	{0x307F, 0x00},
+	{0x3080, 0x01},//full
+	{0x3081, 0x02},
+	{0x3082, 0xff},
+	{0x3083, 0x02},
+	{0x3084, 0x00},
+	{0x3085, 0x00},
+	{0x3086, 0x00},
+	{0x3087, 0x00},
+	{0x30A4, 0x33},
+	{0x30A8, 0x10},
+	{0x30A9, 0x04},
+	{0x30AC, 0x00},
+	{0x30AD, 0x00},
+	{0x30B0, 0x10},
+	{0x30B1, 0x08},
+	{0x30B4, 0x00},
+	{0x30B5, 0x00},
 	{0x30E8, 0x00},
+	{0x3112, 0x08},
+	{0x3116, 0x08},
+	{0x314C, 0x80},
 	{0x315A, 0x02},
 	{0x316A, 0x7E},
+	{0x3199, 0x00},
 	{0x319D, 0x00},
+	{0x319E, 0x01},
 	{0x31A1, 0x00},
 	{0x31D7, 0x01},
-	{0x3200, 0x00}, /* Each frame gain adjustment EN */
+	{0x3200, 0x00},
 	{0x3288, 0x21},
 	{0x328A, 0x02},
+	{0x3300, 0x00},
 	{0x3414, 0x05},
 	{0x3416, 0x18},
 	{0x341C, 0xFF},
@@ -419,11 +658,22 @@ static const struct regval imx335_hdr2_10bit_2592x1944_regs[] = {
 	{0x3792, 0x43},
 	{0x3794, 0x7A},
 	{0x3796, 0xA1},
+	{0x3A18, 0x8F},
+	{0x3A1A, 0x4f},
+	{0x3A1C, 0x47},
+	{0x3A1E, 0x37},
+	{0x3A1F, 0x01},
+	{0x3A20, 0x4F},
+	{0x3A22, 0x87},
+	{0x3A24, 0x4F},
+	{0x3A26, 0x7F},
+	{0x3A28, 0x3F},
 	{REG_NULL, 0x00},
 };
 
 static const struct regval imx335_hdr3_10bit_2592x1944_regs[] = {
 	{0x3002, 0x00},
+	{0x3018, 0x00},
 	{0x300C, 0x5B},
 	{0x300D, 0x40},
 	{0x3034, 0x13},
@@ -434,6 +684,8 @@ static const struct regval imx335_hdr3_10bit_2592x1944_regs[] = {
 	{0x304B, 0x03},
 	{0x304C, 0x13},
 	{0x3050, 0x00},
+	{0x3056, 0xac},
+	{0x3057, 0x07},
 	{0x3058, 0xC4},
 	{0x3059, 0x3B},
 	{0x305C, 0x1A},
@@ -443,15 +695,51 @@ static const struct regval imx335_hdr3_10bit_2592x1944_regs[] = {
 	{0x3069, 0x01},
 	{0x306C, 0x6C},
 	{0x306D, 0x01},
+	{0x3072, 0x28},
+	{0x3074, 0xb0},
+	{0x3075, 0x00},
+	{0x3076, 0x58},
+	{0x3077, 0x0f},
+	{0x3078, 0x01},
+	{0x3079, 0x02},
+	{0x307A, 0xff},
+	{0x307B, 0x02},
+	{0x307C, 0x00},
+	{0x307D, 0x00},
+	{0x307E, 0x00},
+	{0x307F, 0x00},
+	{0x3080, 0x01},
+	{0x3081, 0x02},
+	{0x3082, 0xff},
+	{0x3083, 0x02},
+	{0x3084, 0x00},
+	{0x3085, 0x00},
+	{0x3086, 0x00},
+	{0x3087, 0x00},
+	{0x30A4, 0x33},
+	{0x30A8, 0x10},
+	{0x30A9, 0x04},
+	{0x30AC, 0x00},
+	{0x30AD, 0x00},
+	{0x30B0, 0x10},
+	{0x30B1, 0x08},
+	{0x30B4, 0x00},
+	{0x30B5, 0x00},
 	{0x30E8, 0x14},
+	{0x3112, 0x08},
+	{0x3116, 0x08},
+	{0x314C, 0x80},
 	{0x315A, 0x02},
 	{0x316A, 0x7E},
+	{0x3199, 0x00},
 	{0x319D, 0x00},
+	{0x319E, 0x01},
 	{0x31A1, 0x00},
 	{0x31D7, 0x03},
-	{0x3200, 0x00}, /* Each frame gain adjustment EN */
+	{0x3200, 0x00},
 	{0x3288, 0x21},
 	{0x328A, 0x02},
+	{0x3300, 0x00},
 	{0x3414, 0x05},
 	{0x3416, 0x18},
 	{0x341C, 0xFF},
@@ -487,14 +775,14 @@ static const struct regval imx335_hdr3_10bit_2592x1944_regs[] = {
 	{0x3760, 0x01},
 	{0x3768, 0x1B},
 	{0x3769, 0x1B},
-	{0x376A, 0x1B},
+	{0x376A, 0x1B},//full
 	{0x376B, 0x1B},
 	{0x376C, 0x1A},
 	{0x376D, 0x17},
-	{0x376E, 0x0F},
+	{0x376E, 0x0F}, /* Each frame gain adjustment EN */
 	{0x3776, 0x00},
 	{0x3777, 0x00},
-	{0x3778, 0x46},
+	{0x3778, 0x46},//full
 	{0x3779, 0x00},
 	{0x377A, 0x89},
 	{0x377B, 0x00},
@@ -518,6 +806,16 @@ static const struct regval imx335_hdr3_10bit_2592x1944_regs[] = {
 	{0x3792, 0x43},
 	{0x3794, 0x7A},
 	{0x3796, 0xA1},
+	{0x3A18, 0x8F},
+	{0x3A1A, 0x4f},
+	{0x3A1C, 0x47},
+	{0x3A1E, 0x37},
+	{0x3A1F, 0x01},
+	{0x3A20, 0x4F},
+	{0x3A22, 0x87},
+	{0x3A24, 0x4F},
+	{0x3A26, 0x7F},
+	{0x3A28, 0x3F},
 	{REG_NULL, 0x00},
 };
 
@@ -537,6 +835,23 @@ static const struct regval imx335_hdr3_10bit_2592x1944_regs[] = {
 static const struct imx335_mode supported_modes[] = {
 	{
 		/* 1H period = 7.4us */
+		.bus_fmt = MEDIA_BUS_FMT_SRGGB12_1X12,
+		.width = 1308,
+		.height = 984,
+		.max_fps = {
+			.numerator = 10000,
+			.denominator = 300000,
+		},
+		.exp_def = 0x600,
+		.hts_def = 0x0226 * IMX335_4LANES * 2,
+		.vts_def = 0x1194,
+		.reg_list = imx335_linear_12bit_1296x972_regs,
+		.hdr_mode = NO_HDR,
+		.bpp = 12,
+		.mipi_freq_idx = 0,
+	},
+	{
+		/* 1H period = 7.4us */
 		.bus_fmt = MEDIA_BUS_FMT_SRGGB10_1X10,
 		.width = 2616,
 		.height = 1964,
@@ -550,6 +865,7 @@ static const struct imx335_mode supported_modes[] = {
 		.reg_list = imx335_linear_10bit_2592x1944_regs,
 		.hdr_mode = NO_HDR,
 		.bpp = 10,
+		.mipi_freq_idx = 1,
 	},
 	{
 		/* 1H period = 3.70us */
@@ -570,6 +886,7 @@ static const struct imx335_mode supported_modes[] = {
 		.reg_list = imx335_hdr2_10bit_2592x1944_regs,
 		.hdr_mode = HDR_X2,
 		.bpp = 10,
+		.mipi_freq_idx = 1,
 		.vc[PAD0] = V4L2_MBUS_CSI2_CHANNEL_1,
 		.vc[PAD1] = V4L2_MBUS_CSI2_CHANNEL_0,//L->csi wr0
 		.vc[PAD2] = V4L2_MBUS_CSI2_CHANNEL_1,
@@ -594,6 +911,7 @@ static const struct imx335_mode supported_modes[] = {
 		.reg_list = imx335_hdr3_10bit_2592x1944_regs,
 		.hdr_mode = HDR_X3,
 		.bpp = 10,
+		.mipi_freq_idx = 1,
 		.vc[PAD0] = V4L2_MBUS_CSI2_CHANNEL_2,
 		.vc[PAD1] = V4L2_MBUS_CSI2_CHANNEL_1,//M->csi wr0
 		.vc[PAD2] = V4L2_MBUS_CSI2_CHANNEL_0,//L->csi wr0
@@ -602,6 +920,7 @@ static const struct imx335_mode supported_modes[] = {
 };
 
 static const s64 link_freq_items[] = {
+	MIPI_FREQ_445M,
 	MIPI_FREQ_594M,
 };
 
@@ -725,6 +1044,7 @@ static int imx335_set_fmt(struct v4l2_subdev *sd,
 	struct imx335 *imx335 = to_imx335(sd);
 	const struct imx335_mode *mode;
 	s64 h_blank, vblank_def;
+	s64 dst_pixel_rate = 0;
 
 	mutex_lock(&imx335->mutex);
 
@@ -745,6 +1065,12 @@ static int imx335_set_fmt(struct v4l2_subdev *sd,
 		__v4l2_ctrl_modify_range(imx335->vblank, vblank_def,
 					 IMX335_VTS_MAX - mode->height,
 					 1, vblank_def);
+		dst_pixel_rate = ((u32)link_freq_items[mode->mipi_freq_idx]) /
+				  mode->bpp * 2 * IMX335_4LANES;
+		__v4l2_ctrl_s_ctrl_int64(imx335->pixel_rate,
+					 dst_pixel_rate);
+		__v4l2_ctrl_s_ctrl(imx335->link_freq,
+				   mode->mipi_freq_idx);
 	}
 
 	mutex_unlock(&imx335->mutex);
@@ -1265,6 +1591,7 @@ static long imx335_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 	u32 i, h, w;
 	long ret = 0;
 	u32 stream = 0;
+	s64 dst_pixel_rate = 0;
 
 	switch (cmd) {
 	case PREISP_CMD_SET_HDRAE_EXP:
@@ -1305,6 +1632,12 @@ static long imx335_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 			__v4l2_ctrl_modify_range(imx335->vblank, h,
 				IMX335_VTS_MAX - imx335->cur_mode->height,
 				1, h);
+			dst_pixel_rate = ((u32)link_freq_items[imx335->cur_mode->mipi_freq_idx]) /
+				  imx335->cur_mode->bpp * 2 * IMX335_4LANES;
+			__v4l2_ctrl_s_ctrl_int64(imx335->pixel_rate,
+						 dst_pixel_rate);
+			__v4l2_ctrl_s_ctrl(imx335->link_freq,
+					   imx335->cur_mode->mipi_freq_idx);
 		}
 		break;
 	case RKMODULE_SET_QUICK_STREAM:
@@ -1646,6 +1979,8 @@ static int imx335_enum_frame_interval(struct v4l2_subdev *sd,
 
 #define DST_WIDTH 2592
 #define DST_HEIGHT 1944
+#define BINNING_WIDTH 1296
+#define BINNING_HEIGHT 972
 
 /*
  * The resolution of the driver configuration needs to be exactly
@@ -1660,15 +1995,23 @@ static int imx335_get_selection(struct v4l2_subdev *sd,
 				struct v4l2_subdev_pad_config *cfg,
 				struct v4l2_subdev_selection *sel)
 {
+	struct imx335 *imx335 = to_imx335(sd);
 	/*
 	 * From "Pixel Array Image Drawing in All scan mode",
 	 * there are 12 pixel offset on horizontal and vertical.
 	 */
 	if (sel->target == V4L2_SEL_TGT_CROP_BOUNDS) {
-		sel->r.left = 12;
-		sel->r.width = DST_WIDTH;
-		sel->r.top = 12;
-		sel->r.height = DST_HEIGHT;
+		if (imx335->cur_mode->width == 2616 && imx335->cur_mode->height == 1964) {
+			sel->r.left = 12;
+			sel->r.width = DST_WIDTH;
+			sel->r.top = 12;
+			sel->r.height = DST_HEIGHT;
+		} else {
+			sel->r.left = 4;
+			sel->r.width = BINNING_WIDTH;
+			sel->r.top = 8;
+			sel->r.height = BINNING_HEIGHT;
+		}
 		return 0;
 	}
 	return -EINVAL;
@@ -1803,33 +2146,263 @@ static int imx335_set_ctrl(struct v4l2_ctrl *ctrl)
 		if (ctrl->val) {
 			ret = imx335_write_reg(imx335->client, IMX335_VREVERSE_REG,
 					       IMX335_REG_VALUE_08BIT, !!ctrl->val);
-			ret |= imx335_write_reg(imx335->client, 0x3081,
-					       IMX335_REG_VALUE_08BIT, 0xfe);
-			ret |= imx335_write_reg(imx335->client, 0x3083,
-					       IMX335_REG_VALUE_08BIT, 0xfe);
-			ret |= imx335_write_reg(imx335->client, 0x30b6,
-					       IMX335_REG_VALUE_08BIT, 0xfa);
-			ret |= imx335_write_reg(imx335->client, 0x30b7,
-					       IMX335_REG_VALUE_08BIT, 0x01);
-			ret |= imx335_write_reg(imx335->client, 0x3116,
-					       IMX335_REG_VALUE_08BIT, 0x02);
-			ret |= imx335_write_reg(imx335->client, 0x3117,
-					       IMX335_REG_VALUE_08BIT, 0x00);
+			if (imx335->cur_mode->width == 2616 && imx335->cur_mode->height == 1964) {
+				ret |= imx335_write_reg(imx335->client, 0x3078,
+						IMX335_REG_VALUE_08BIT, 0x01);
+				ret |= imx335_write_reg(imx335->client, 0x3079,
+						IMX335_REG_VALUE_08BIT, 0x02);
+				ret |= imx335_write_reg(imx335->client, 0x307a,
+						IMX335_REG_VALUE_08BIT, 0xff);
+				ret |= imx335_write_reg(imx335->client, 0x307b,
+						IMX335_REG_VALUE_08BIT, 0x02);
+				ret |= imx335_write_reg(imx335->client, 0x307c,
+						IMX335_REG_VALUE_08BIT, 0x00);
+				ret |= imx335_write_reg(imx335->client, 0x307d,
+						IMX335_REG_VALUE_08BIT, 0x00);
+				ret |= imx335_write_reg(imx335->client, 0x307e,
+						IMX335_REG_VALUE_08BIT, 0x00);
+				ret |= imx335_write_reg(imx335->client, 0x307f,
+						IMX335_REG_VALUE_08BIT, 0x00);
+				ret |= imx335_write_reg(imx335->client, 0x3080,
+						IMX335_REG_VALUE_08BIT, 0x01);
+				ret |= imx335_write_reg(imx335->client, 0x3081,
+						IMX335_REG_VALUE_08BIT, 0xfe);
+				ret |= imx335_write_reg(imx335->client, 0x3082,
+						IMX335_REG_VALUE_08BIT, 0xff);
+				ret |= imx335_write_reg(imx335->client, 0x3083,
+						IMX335_REG_VALUE_08BIT, 0xfe);
+				ret |= imx335_write_reg(imx335->client, 0x3084,
+						IMX335_REG_VALUE_08BIT, 0x00);
+				ret |= imx335_write_reg(imx335->client, 0x3085,
+						IMX335_REG_VALUE_08BIT, 0x00);
+				ret |= imx335_write_reg(imx335->client, 0x3086,
+						IMX335_REG_VALUE_08BIT, 0x00);
+				ret |= imx335_write_reg(imx335->client, 0x3087,
+						IMX335_REG_VALUE_08BIT, 0x00);
+				ret |= imx335_write_reg(imx335->client, 0x30a4,
+						IMX335_REG_VALUE_08BIT, 0x33);
+				ret |= imx335_write_reg(imx335->client, 0x30a8,
+						IMX335_REG_VALUE_08BIT, 0x10);
+				ret |= imx335_write_reg(imx335->client, 0x30a9,
+						IMX335_REG_VALUE_08BIT, 0x04);
+				ret |= imx335_write_reg(imx335->client, 0x30ac,
+						IMX335_REG_VALUE_08BIT, 0x00);
+				ret |= imx335_write_reg(imx335->client, 0x30ad,
+						IMX335_REG_VALUE_08BIT, 0x00);
+				ret |= imx335_write_reg(imx335->client, 0x30b0,
+						IMX335_REG_VALUE_08BIT, 0x10);
+				ret |= imx335_write_reg(imx335->client, 0x30b1,
+						IMX335_REG_VALUE_08BIT, 0x08);
+				ret |= imx335_write_reg(imx335->client, 0x30b4,
+						IMX335_REG_VALUE_08BIT, 0x00);
+				ret |= imx335_write_reg(imx335->client, 0x30b5,
+						IMX335_REG_VALUE_08BIT, 0x00);
+				ret |= imx335_write_reg(imx335->client, 0x30b6,
+						IMX335_REG_VALUE_08BIT, 0xfa);
+				ret |= imx335_write_reg(imx335->client, 0x30b7,
+						IMX335_REG_VALUE_08BIT, 0x01);
+				ret |= imx335_write_reg(imx335->client, 0x3112,
+						IMX335_REG_VALUE_08BIT, 0x08);
+				ret |= imx335_write_reg(imx335->client, 0x3113,
+						IMX335_REG_VALUE_08BIT, 0x00);
+				ret |= imx335_write_reg(imx335->client, 0x3116,
+						IMX335_REG_VALUE_08BIT, 0x02);
+				ret |= imx335_write_reg(imx335->client, 0x3117,
+						IMX335_REG_VALUE_08BIT, 0x00);
+			} else {
+				ret |= imx335_write_reg(imx335->client, 0x3078,
+						IMX335_REG_VALUE_08BIT, 0x04);
+				ret |= imx335_write_reg(imx335->client, 0x3079,
+						IMX335_REG_VALUE_08BIT, 0xfd);
+				ret |= imx335_write_reg(imx335->client, 0x307a,
+						IMX335_REG_VALUE_08BIT, 0x04);
+				ret |= imx335_write_reg(imx335->client, 0x307b,
+						IMX335_REG_VALUE_08BIT, 0xfe);
+				ret |= imx335_write_reg(imx335->client, 0x307c,
+						IMX335_REG_VALUE_08BIT, 0x04);
+				ret |= imx335_write_reg(imx335->client, 0x307d,
+						IMX335_REG_VALUE_08BIT, 0xfb);
+				ret |= imx335_write_reg(imx335->client, 0x307e,
+						IMX335_REG_VALUE_08BIT, 0x04);
+				ret |= imx335_write_reg(imx335->client, 0x307f,
+						IMX335_REG_VALUE_08BIT, 0x02);
+				ret |= imx335_write_reg(imx335->client, 0x3080,
+						IMX335_REG_VALUE_08BIT, 0xfc);
+				ret |= imx335_write_reg(imx335->client, 0x3081,
+						IMX335_REG_VALUE_08BIT, 0x05);
+				ret |= imx335_write_reg(imx335->client, 0x3082,
+						IMX335_REG_VALUE_08BIT, 0xfc);
+				ret |= imx335_write_reg(imx335->client, 0x3083,
+						IMX335_REG_VALUE_08BIT, 0x02);
+				ret |= imx335_write_reg(imx335->client, 0x3084,
+						IMX335_REG_VALUE_08BIT, 0xfc);
+				ret |= imx335_write_reg(imx335->client, 0x3085,
+						IMX335_REG_VALUE_08BIT, 0x03);
+				ret |= imx335_write_reg(imx335->client, 0x3086,
+						IMX335_REG_VALUE_08BIT, 0xfc);
+				ret |= imx335_write_reg(imx335->client, 0x3087,
+						IMX335_REG_VALUE_08BIT, 0xfe);
+				ret |= imx335_write_reg(imx335->client, 0x30a4,
+						IMX335_REG_VALUE_08BIT, 0x77);
+				ret |= imx335_write_reg(imx335->client, 0x30a8,
+						IMX335_REG_VALUE_08BIT, 0x20);
+				ret |= imx335_write_reg(imx335->client, 0x30a9,
+						IMX335_REG_VALUE_08BIT, 0x00);
+				ret |= imx335_write_reg(imx335->client, 0x30ac,
+						IMX335_REG_VALUE_08BIT, 0x08);
+				ret |= imx335_write_reg(imx335->client, 0x30ad,
+						IMX335_REG_VALUE_08BIT, 0x78);
+				ret |= imx335_write_reg(imx335->client, 0x30b0,
+						IMX335_REG_VALUE_08BIT, 0x20);
+				ret |= imx335_write_reg(imx335->client, 0x30b1,
+						IMX335_REG_VALUE_08BIT, 0x00);
+				ret |= imx335_write_reg(imx335->client, 0x30b4,
+						IMX335_REG_VALUE_08BIT, 0x10);
+				ret |= imx335_write_reg(imx335->client, 0x30b5,
+						IMX335_REG_VALUE_08BIT, 0x70);
+				ret |= imx335_write_reg(imx335->client, 0x30b6,
+						IMX335_REG_VALUE_08BIT, 0xf2);
+				ret |= imx335_write_reg(imx335->client, 0x30b7,
+						IMX335_REG_VALUE_08BIT, 0x01);
+				ret |= imx335_write_reg(imx335->client, 0x3112,
+						IMX335_REG_VALUE_08BIT, 0x10);
+				ret |= imx335_write_reg(imx335->client, 0x3113,
+						IMX335_REG_VALUE_08BIT, 0x00);
+				ret |= imx335_write_reg(imx335->client, 0x3116,
+						IMX335_REG_VALUE_08BIT, 0x02);
+				ret |= imx335_write_reg(imx335->client, 0x3117,
+						IMX335_REG_VALUE_08BIT, 0x00);
+			}
 		} else {
 			ret = imx335_write_reg(imx335->client, IMX335_VREVERSE_REG,
 					       IMX335_REG_VALUE_08BIT, !!ctrl->val);
-			ret |= imx335_write_reg(imx335->client, 0x3081,
-					       IMX335_REG_VALUE_08BIT, 0x02);
-			ret |= imx335_write_reg(imx335->client, 0x3083,
-					       IMX335_REG_VALUE_08BIT, 0x02);
-			ret |= imx335_write_reg(imx335->client, 0x30b6,
-					       IMX335_REG_VALUE_08BIT, 0x00);
-			ret |= imx335_write_reg(imx335->client, 0x30b7,
-					       IMX335_REG_VALUE_08BIT, 0x00);
-			ret |= imx335_write_reg(imx335->client, 0x3116,
-					       IMX335_REG_VALUE_08BIT, 0x08);
-			ret |= imx335_write_reg(imx335->client, 0x3117,
-					       IMX335_REG_VALUE_08BIT, 0x00);
+			if (imx335->cur_mode->width == 2616 && imx335->cur_mode->height == 1964) {
+				ret |= imx335_write_reg(imx335->client, 0x3078,
+						IMX335_REG_VALUE_08BIT, 0x01);
+				ret |= imx335_write_reg(imx335->client, 0x3079,
+						IMX335_REG_VALUE_08BIT, 0x02);
+				ret |= imx335_write_reg(imx335->client, 0x307a,
+						IMX335_REG_VALUE_08BIT, 0xff);
+				ret |= imx335_write_reg(imx335->client, 0x307b,
+						IMX335_REG_VALUE_08BIT, 0x02);
+				ret |= imx335_write_reg(imx335->client, 0x307c,
+						IMX335_REG_VALUE_08BIT, 0x00);
+				ret |= imx335_write_reg(imx335->client, 0x307d,
+						IMX335_REG_VALUE_08BIT, 0x00);
+				ret |= imx335_write_reg(imx335->client, 0x307e,
+						IMX335_REG_VALUE_08BIT, 0x00);
+				ret |= imx335_write_reg(imx335->client, 0x307f,
+						IMX335_REG_VALUE_08BIT, 0x00);
+				ret |= imx335_write_reg(imx335->client, 0x3080,
+						IMX335_REG_VALUE_08BIT, 0x01);
+				ret |= imx335_write_reg(imx335->client, 0x3081,
+						IMX335_REG_VALUE_08BIT, 0x02);
+				ret |= imx335_write_reg(imx335->client, 0x3082,
+						IMX335_REG_VALUE_08BIT, 0xff);
+				ret |= imx335_write_reg(imx335->client, 0x3083,
+						IMX335_REG_VALUE_08BIT, 0x02);
+				ret |= imx335_write_reg(imx335->client, 0x3084,
+						IMX335_REG_VALUE_08BIT, 0x00);
+				ret |= imx335_write_reg(imx335->client, 0x3085,
+						IMX335_REG_VALUE_08BIT, 0x00);
+				ret |= imx335_write_reg(imx335->client, 0x3086,
+						IMX335_REG_VALUE_08BIT, 0x00);
+				ret |= imx335_write_reg(imx335->client, 0x3087,
+						IMX335_REG_VALUE_08BIT, 0x00);
+				ret |= imx335_write_reg(imx335->client, 0x30a4,
+						IMX335_REG_VALUE_08BIT, 0x33);
+				ret |= imx335_write_reg(imx335->client, 0x30a8,
+						IMX335_REG_VALUE_08BIT, 0x10);
+				ret |= imx335_write_reg(imx335->client, 0x30a9,
+						IMX335_REG_VALUE_08BIT, 0x04);
+				ret |= imx335_write_reg(imx335->client, 0x30ac,
+						IMX335_REG_VALUE_08BIT, 0x00);
+				ret |= imx335_write_reg(imx335->client, 0x30ad,
+						IMX335_REG_VALUE_08BIT, 0x00);
+				ret |= imx335_write_reg(imx335->client, 0x30b0,
+						IMX335_REG_VALUE_08BIT, 0x10);
+				ret |= imx335_write_reg(imx335->client, 0x30b1,
+						IMX335_REG_VALUE_08BIT, 0x08);
+				ret |= imx335_write_reg(imx335->client, 0x30b4,
+						IMX335_REG_VALUE_08BIT, 0x00);
+				ret |= imx335_write_reg(imx335->client, 0x30b5,
+						IMX335_REG_VALUE_08BIT, 0x00);
+				ret |= imx335_write_reg(imx335->client, 0x30b6,
+						IMX335_REG_VALUE_08BIT, 0x00);
+				ret |= imx335_write_reg(imx335->client, 0x30b7,
+						IMX335_REG_VALUE_08BIT, 0x00);
+				ret |= imx335_write_reg(imx335->client, 0x3112,
+						IMX335_REG_VALUE_08BIT, 0x08);
+				ret |= imx335_write_reg(imx335->client, 0x3113,
+						IMX335_REG_VALUE_08BIT, 0x00);
+				ret |= imx335_write_reg(imx335->client, 0x3116,
+						IMX335_REG_VALUE_08BIT, 0x08);
+				ret |= imx335_write_reg(imx335->client, 0x3117,
+						IMX335_REG_VALUE_08BIT, 0x00);
+			} else {
+				ret |= imx335_write_reg(imx335->client, 0x3078,
+						IMX335_REG_VALUE_08BIT, 0x04);
+				ret |= imx335_write_reg(imx335->client, 0x3079,
+						IMX335_REG_VALUE_08BIT, 0xfd);
+				ret |= imx335_write_reg(imx335->client, 0x307a,
+						IMX335_REG_VALUE_08BIT, 0x04);
+				ret |= imx335_write_reg(imx335->client, 0x307b,
+						IMX335_REG_VALUE_08BIT, 0xfe);
+				ret |= imx335_write_reg(imx335->client, 0x307c,
+						IMX335_REG_VALUE_08BIT, 0x04);
+				ret |= imx335_write_reg(imx335->client, 0x307d,
+						IMX335_REG_VALUE_08BIT, 0xfb);
+				ret |= imx335_write_reg(imx335->client, 0x307e,
+						IMX335_REG_VALUE_08BIT, 0x04);
+				ret |= imx335_write_reg(imx335->client, 0x307f,
+						IMX335_REG_VALUE_08BIT, 0x02);
+				ret |= imx335_write_reg(imx335->client, 0x3080,
+						IMX335_REG_VALUE_08BIT, 0x04);
+				ret |= imx335_write_reg(imx335->client, 0x3081,
+						IMX335_REG_VALUE_08BIT, 0xfd);
+				ret |= imx335_write_reg(imx335->client, 0x3082,
+						IMX335_REG_VALUE_08BIT, 0x04);
+				ret |= imx335_write_reg(imx335->client, 0x3083,
+						IMX335_REG_VALUE_08BIT, 0xfe);
+				ret |= imx335_write_reg(imx335->client, 0x3084,
+						IMX335_REG_VALUE_08BIT, 0x04);
+				ret |= imx335_write_reg(imx335->client, 0x3085,
+						IMX335_REG_VALUE_08BIT, 0xfb);
+				ret |= imx335_write_reg(imx335->client, 0x3086,
+						IMX335_REG_VALUE_08BIT, 0x04);
+				ret |= imx335_write_reg(imx335->client, 0x3087,
+						IMX335_REG_VALUE_08BIT, 0x02);
+				ret |= imx335_write_reg(imx335->client, 0x30a4,
+						IMX335_REG_VALUE_08BIT, 0x77);
+				ret |= imx335_write_reg(imx335->client, 0x30a8,
+						IMX335_REG_VALUE_08BIT, 0x20);
+				ret |= imx335_write_reg(imx335->client, 0x30a9,
+						IMX335_REG_VALUE_08BIT, 0x00);
+				ret |= imx335_write_reg(imx335->client, 0x30ac,
+						IMX335_REG_VALUE_08BIT, 0x08);
+				ret |= imx335_write_reg(imx335->client, 0x30ad,
+						IMX335_REG_VALUE_08BIT, 0x08);
+				ret |= imx335_write_reg(imx335->client, 0x30b0,
+						IMX335_REG_VALUE_08BIT, 0x20);
+				ret |= imx335_write_reg(imx335->client, 0x30b1,
+						IMX335_REG_VALUE_08BIT, 0x00);
+				ret |= imx335_write_reg(imx335->client, 0x30b4,
+						IMX335_REG_VALUE_08BIT, 0x10);
+				ret |= imx335_write_reg(imx335->client, 0x30b5,
+						IMX335_REG_VALUE_08BIT, 0x10);
+				ret |= imx335_write_reg(imx335->client, 0x30b6,
+						IMX335_REG_VALUE_08BIT, 0x00);
+				ret |= imx335_write_reg(imx335->client, 0x30b7,
+						IMX335_REG_VALUE_08BIT, 0x00);
+				ret |= imx335_write_reg(imx335->client, 0x3112,
+						IMX335_REG_VALUE_08BIT, 0x10);
+				ret |= imx335_write_reg(imx335->client, 0x3113,
+						IMX335_REG_VALUE_08BIT, 0x00);
+				ret |= imx335_write_reg(imx335->client, 0x3116,
+						IMX335_REG_VALUE_08BIT, 0x10);
+				ret |= imx335_write_reg(imx335->client, 0x3117,
+						IMX335_REG_VALUE_08BIT, 0x00);
+			}
 		}
 		break;
 	default:
@@ -1869,7 +2442,7 @@ static int imx335_initialize_controls(struct imx335 *imx335)
 				link_freq_items);
 
 	/* pixel rate = link frequency * 2 * lanes / BITS_PER_SAMPLE */
-	pixel_rate = (u32)link_freq_items[0] / mode->bpp * 2 * IMX335_4LANES;
+	pixel_rate = (u32)link_freq_items[mode->mipi_freq_idx] / mode->bpp * 2 * IMX335_4LANES;
 	imx335->pixel_rate = v4l2_ctrl_new_std(handler, NULL,
 		V4L2_CID_PIXEL_RATE, 0, pixel_rate, 1, pixel_rate);
 
