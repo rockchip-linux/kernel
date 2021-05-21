@@ -1543,6 +1543,7 @@ static void vop_crtc_atomic_disable(struct drm_crtc *crtc,
 	VOP_CTRL_SET(vop, reg_done_frm, 1);
 	VOP_CTRL_SET(vop, dsp_interlace, 0);
 	drm_crtc_vblank_off(crtc);
+	VOP_CTRL_SET(vop, out_mode, ROCKCHIP_OUT_MODE_P888);
 	VOP_CTRL_SET(vop, afbdc_en, 0);
 	vop_disable_all_planes(vop);
 
@@ -2724,14 +2725,41 @@ static void vop_crtc_close(struct drm_crtc *crtc)
 	mutex_unlock(&vop->vop_lock);
 }
 
+static u32 vop_mode_done(struct vop *vop)
+{
+	return VOP_CTRL_GET(vop, out_mode);
+}
+
+static void vop_set_out_mode(struct vop *vop, u32 mode)
+{
+	int ret;
+	u32 val;
+
+	VOP_CTRL_SET(vop, out_mode, mode);
+	vop_cfg_done(vop);
+	ret = readx_poll_timeout(vop_mode_done, vop, val, val == mode,
+				 1000, 500 * 1000);
+	if (ret)
+		dev_err(vop->dev, "wait mode 0x%x timeout\n", mode);
+
+}
+
 static void vop_crtc_send_mcu_cmd(struct drm_crtc *crtc,  u32 type, u32 value)
 {
+	struct rockchip_crtc_state *state;
 	struct vop *vop = NULL;
 
 	if (!crtc)
 		return;
 
 	vop = to_vop(crtc);
+	state = to_rockchip_crtc_state(crtc->state);
+
+	/*
+	 * set output mode to P888 when start send cmd.
+	 */
+	if ((type == MCU_SETBYPASS) && value)
+		vop_set_out_mode(vop, ROCKCHIP_OUT_MODE_P888);
 	mutex_lock(&vop->vop_lock);
 	if (vop && vop->is_enabled) {
 		switch (type) {
@@ -2752,6 +2780,12 @@ static void vop_crtc_send_mcu_cmd(struct drm_crtc *crtc,  u32 type, u32 value)
 		}
 	}
 	mutex_unlock(&vop->vop_lock);
+
+	/*
+	 * restore output mode at the end
+	 */
+	if ((type == MCU_SETBYPASS) && !value)
+		vop_set_out_mode(vop, state->output_mode);
 }
 
 static const struct rockchip_crtc_funcs private_crtc_funcs = {
