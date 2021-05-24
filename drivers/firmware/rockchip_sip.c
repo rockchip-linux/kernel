@@ -361,8 +361,6 @@ int sip_fiq_debugger_uart_irq_tf_init(u32 irq_id, void *callback_fn)
 {
 	struct arm_smccc_res res;
 
-	fiq_target_cpu = 0;
-
 	/* init fiq debugger callback */
 	sip_fiq_debugger_uart_irq_tf = callback_fn;
 	res = __invoke_sip_fn_smc(SIP_UARTDBG_FN, irq_id,
