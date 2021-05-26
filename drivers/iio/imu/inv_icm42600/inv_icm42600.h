@@ -362,7 +362,7 @@ extern const struct regmap_config inv_icm42600_regmap_config;
 extern const struct dev_pm_ops inv_icm42600_pm_ops;
 
 const struct iio_mount_matrix *
-inv_icm42600_get_mount_matrix(const struct iio_dev *indio_dev,
+inv_icm42600_get_mount_matrix(struct iio_dev *indio_dev,
 			      const struct iio_chan_spec *chan);
 
 uint32_t inv_icm42600_odr_to_period(enum inv_icm42600_odr odr);

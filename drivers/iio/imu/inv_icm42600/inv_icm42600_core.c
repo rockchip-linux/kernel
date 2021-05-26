@@ -90,10 +90,10 @@ static const struct inv_icm42600_hw inv_icm42600_hw[INV_CHIP_NB] = {
 };
 
 const struct iio_mount_matrix *
-inv_icm42600_get_mount_matrix(const struct iio_dev *indio_dev,
+inv_icm42600_get_mount_matrix(struct iio_dev *indio_dev,
 			      const struct iio_chan_spec *chan)
 {
-	const struct inv_icm42600_state *st = iio_device_get_drvdata(indio_dev);
+	struct inv_icm42600_state *st = iio_device_get_drvdata(indio_dev);
 
 	return &st->orientation;
 }
@@ -592,7 +592,7 @@ int inv_icm42600_core_probe(struct regmap *regmap, int chip, int irq,
 	st->chip = chip;
 	st->map = regmap;
 
-	ret = iio_read_mount_matrix(dev, "mount-matrix", &st->orientation);
+	ret = of_iio_read_mount_matrix(dev, "mount-matrix", &st->orientation);
 	if (ret) {
 		dev_err(dev, "failed to retrieve mounting matrix %d\n", ret);
 		return ret;
