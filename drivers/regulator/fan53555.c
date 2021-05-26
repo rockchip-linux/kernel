@@ -204,6 +204,9 @@ static int fan53555_resume(struct regulator_dev *rdev)
 {
 	int ret;
 
+	if (!rdev->constraints->state_mem.changeable)
+		return 0;
+
 	ret = fan53555_set_suspend_enable(rdev);
 	if (ret)
 		return ret;
