@@ -31,7 +31,6 @@ struct rockchip_gem_object {
 	void *kvaddr;
 	void *cookie;
 	dma_addr_t dma_addr;
-	dma_addr_t dma_handle;
 
 	/* Used when IOMMU is disabled */
 	unsigned long dma_attrs;
