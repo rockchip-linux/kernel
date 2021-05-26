@@ -314,8 +314,16 @@ if [ "$CheckBckfileRet" != "2" ];then
 				vccio6-supply = <&vcc_1v8>;
 				vccio7-supply = <&vcc_3v3>;
 			};
+
 		io-domain docs:
-		RKDocs/common/IO-Domain/Rockchip_RK356X_Introduction_IO_Power_Domains_Configuration.pdf
+
+		Android11 SDK:
+		RKDocs/android/Rockchip_Developer_Guide_Android11_SDK_V1.1.2_CN.pdf or newer.
+
+		RK356X Linux SDK:
+		docs/RK356X/Rockchip_RK356X_Introduction_IO_Power_Domains_Configuration.pdf
+		docs/Common/IO-DOMAIN/Rockchip_Developer_Guide_Linux_IO_DOMAIN_CN.pdf
+
 		"
 
 		exit 1
