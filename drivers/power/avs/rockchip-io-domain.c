@@ -16,6 +16,7 @@
 
 #include <linux/kernel.h>
 #include <linux/module.h>
+#include <linux/debugfs.h>
 #include <linux/err.h>
 #include <linux/mfd/syscon.h>
 #include <linux/of.h>
@@ -618,11 +619,37 @@ static const struct of_device_id rockchip_iodomain_match[] = {
 };
 MODULE_DEVICE_TABLE(of, rockchip_iodomain_match);
 
+#ifdef CONFIG_DEBUG_FS
+static ssize_t rockchip_iodomain_vol_read(struct file *file, char __user *user_buf,
+					  size_t count, loff_t *ppos)
+{
+	char buf[256];
+	unsigned int len;
+	struct rockchip_iodomain_supply *supply = file->private_data;
+	struct regulator *reg = supply->reg;
+
+	if (reg)
+		len = snprintf(buf, sizeof(buf), "%d\n", regulator_get_voltage(reg));
+	else
+		len = snprintf(buf, sizeof(buf), "invalid regulator\n");
+
+	return simple_read_from_buffer(user_buf, count, ppos, buf, len);
+}
+
+static const struct file_operations rockchip_iodomain_vol_fops = {
+	.open		= simple_open,
+	.read		= rockchip_iodomain_vol_read,
+};
+#else
+static const struct file_operations rockchip_iodomain_vol_fops = { };
+#endif
+
 static int rockchip_iodomain_probe(struct platform_device *pdev)
 {
 	struct device_node *np = pdev->dev.of_node;
 	const struct of_device_id *match;
 	struct rockchip_iodomain *iod;
+	struct dentry *debugfs_root;
 	struct device *parent;
 	int i, ret = 0;
 
@@ -657,10 +684,13 @@ static int rockchip_iodomain_probe(struct platform_device *pdev)
 		return PTR_ERR(iod->grf);
 	}
 
+	debugfs_root = debugfs_create_dir("iodomain", NULL);
+
 	for (i = 0; i < MAX_SUPPLIES; i++) {
 		const char *supply_name = iod->soc_data->supply_names[i];
 		struct rockchip_iodomain_supply *supply = &iod->supplies[i];
 		struct regulator *reg;
+		struct dentry *debugfs_supply;
 		int uV;
 
 		if (!supply_name)
@@ -717,6 +747,11 @@ static int rockchip_iodomain_probe(struct platform_device *pdev)
 			supply->reg = NULL;
 			goto unreg_notify;
 		}
+
+		debugfs_supply = debugfs_create_dir(supply_name, debugfs_root);
+		debugfs_create_file("voltage", 0444, debugfs_supply,
+				    (void *)supply,
+				    &rockchip_iodomain_vol_fops);
 	}
 
 	if (iod->soc_data->init)
@@ -732,6 +767,7 @@ unreg_notify:
 			regulator_unregister_notifier(io_supply->reg,
 						      &io_supply->nb);
 	}
+	debugfs_remove_recursive(debugfs_root);
 
 	return ret;
 }
@@ -748,6 +784,8 @@ static int rockchip_iodomain_remove(struct platform_device *pdev)
 			regulator_unregister_notifier(io_supply->reg,
 						      &io_supply->nb);
 	}
+
+	debugfs_remove_recursive(debugfs_lookup("iodomain", NULL));
 
 	return 0;
 }
