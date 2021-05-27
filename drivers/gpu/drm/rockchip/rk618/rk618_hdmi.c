@@ -1521,6 +1521,9 @@ static int rk618_hdmi_probe(struct platform_device *pdev)
 		return PTR_ERR(hdmi->clock);
 	}
 
+	/* hpd io pull down */
+	regmap_write(rk618->regmap, RK618_IO_CON0, HDMI_IO_PULL_UP_DISABLE);
+
 	rk618_hdmi_pol_init(hdmi, 0);
 	rk618_hdmi_reset(hdmi);
 
