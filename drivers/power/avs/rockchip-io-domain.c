@@ -103,6 +103,7 @@ static int rk3568_pmu_iodomain_write(struct rockchip_iodomain_supply *supply,
 
 	switch (supply->idx) {
 	case 0: /* pmuio1 */
+		break;
 	case 1: /* pmuio2 */
 		b = supply->idx;
 		val0 = BIT(16 + b) | (is_3v3 ? 0 : BIT(b));
@@ -112,8 +113,9 @@ static int rk3568_pmu_iodomain_write(struct rockchip_iodomain_supply *supply,
 		regmap_write(iod->grf, RK3568_PMU_GRF_IO_VSEL2, val0);
 		regmap_write(iod->grf, RK3568_PMU_GRF_IO_VSEL2, val1);
 		break;
-	case 2: /* vccio1 */
 	case 3: /* vccio2 */
+		break;
+	case 2: /* vccio1 */
 	case 4: /* vccio3 */
 	case 5: /* vccio4 */
 	case 6: /* vccio5 */
