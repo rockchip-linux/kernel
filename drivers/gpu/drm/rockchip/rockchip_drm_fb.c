@@ -424,7 +424,9 @@ rockchip_atomic_commit_complete(struct rockchip_atomic_commit *commit)
 		rockchip_dmcfreq_vop_bandwidth_update(prv->devfreq, bandwidth,
 						      plane_num);
 
+	mutex_lock(&prv->commit_lock);
 	drm_atomic_helper_commit_planes(dev, state, true);
+	mutex_unlock(&prv->commit_lock);
 
 	rockchip_drm_psr_inhibit_put_state(state);
 
