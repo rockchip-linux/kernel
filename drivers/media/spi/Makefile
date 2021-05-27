@@ -1,4 +1,5 @@
 obj-$(CONFIG_VIDEO_GS1662) += gs1662.o
+obj-$(CONFIG_VIDEO_MS41908) += ms41908.o
 obj-$(CONFIG_VIDEO_ROCKCHIP_PREISP) += rk1608.o rk1608_dphy.o
 obj-$(CONFIG_CXD2880_SPI_DRV) += cxd2880-spi.o
 
