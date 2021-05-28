@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: (GPL-2.0+ OR MIT)
 # Copyright (c) 2021 Rockchip Electronics Co., Ltd.
 
-PMUIO1=0
 PMUIO2=0
 VCCIO1=0
 VCCIO3=0
@@ -11,7 +10,6 @@ VCCIO5=0
 VCCIO6=0
 VCCIO7=0
 
-DTS_PMUIO1=0
 DTS_PMUIO2=0
 DTS_VCCIO1=0
 DTS_VCCIO3=0
@@ -28,16 +26,6 @@ GetVoltageFromDtsVal=0
 
 ShowChecklist()
 {
-	PMUIO1=$(whiptail --title "IO Domain Checklist" --menu --nocancel\
-	"Get the corresponding value from the hardware schematic diagram" 15 60 2 \
-	"1800000" "PMUIO1 Supply Power Voltage(uV)" \
-	"3300000" "PMUIO1 Supply Power Voltage(uV)" 3>&1 1>&2 2>&3)
-	exitstatus=$?
-	if [ $exitstatus != 0 ]; then
-		echo "You chose Cancel."
-		checklistRst=1
-	fi
-
 	PMUIO2=$(whiptail --title "IO Domain Checklist" --menu --nocancel\
 	"Get the corresponding value from the hardware schematic diagram" 15 60 2 \
 	"1800000" "PMUIO2 Supply Power Voltage(uV)" \
@@ -145,8 +133,6 @@ DtsIoDomainVoltage()
 
 GetIoDomainVoltageFromDts()
 {
-	DtsIoDomainVoltage "pmuio1-supply"
-	DTS_PMUIO1=$DtsIoDomainVoltageVal
 	DtsIoDomainVoltage "pmuio2-supply"
 	DTS_PMUIO2=$DtsIoDomainVoltageVal
 	DtsIoDomainVoltage "vccio1-supply"
@@ -166,13 +152,6 @@ GetIoDomainVoltageFromDts()
 CheckVoltageWithBackupfile()
 {
 	CheckBckfileRet=2
-	val=$(cat $DTS_NAME.domain \
-			| grep PMUIO1 \
-			| cut -d ":" -f 2)
-	if [ "$val" != "$DTS_PMUIO1" ];then
-		CheckBckfileRet=1
-		echo "PMUIO1 Supply Power Voltage has changed!!! please reconfirm!!!"
-	fi
 	val=$(cat $DTS_NAME.domain \
 			| grep PMUIO2 \
 			| cut -d ":" -f 2)
@@ -225,10 +204,6 @@ CheckVoltageWithBackupfile()
 CheckVoltageWithEnter()
 {
 	checklistRst=0
-	if [ "$PMUIO1" -ne "$DTS_PMUIO1" ];then
-		checklistRst=1
-		echo "PMUIO1 Supply Power Voltage has changed!!! please reconfirm!!!"
-	fi
 	if [ $PMUIO2 -ne $DTS_PMUIO2 ];then
 		checklistRst=1
 		echo "PMUIO2 Supply Power Voltage has changed!!! please reconfirm!!!"
@@ -278,7 +253,6 @@ if [ "$CheckBckfileRet" != "2" ];then
 			rm -rf $DTS_NAME.domain
 		fi
 
-		echo "PMUIO1 Supply Power Voltage1:$PMUIO1" >> $DTS_NAME.domain
 		echo "PMUIO2 Supply Power Voltage1:$PMUIO2" >> $DTS_NAME.domain
 		echo "VCCIO1 Supply Power Voltage1:$VCCIO1" >> $DTS_NAME.domain
 		echo "VCCIO3 Supply Power Voltage1:$VCCIO3" >> $DTS_NAME.domain
