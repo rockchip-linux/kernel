@@ -2922,7 +2922,8 @@ static void dwc3_gadget_endpoint_transfer_in_progress(struct dwc3_ep *dep,
 	if (event->status & DEPEVT_STATUS_MISSED_ISOC &&
 	    list_empty(&dep->started_list))
 		dwc3_stop_active_transfer(dep, true, true);
-	else if (dwc3_gadget_ep_should_continue(dep))
+	else if (!usb_endpoint_xfer_isoc(dep->endpoint.desc) &&
+		 dwc3_gadget_ep_should_continue(dep))
 		__dwc3_gadget_kick_transfer(dep);
 
 	/*
