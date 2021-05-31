@@ -1621,6 +1621,7 @@ static int rockchip_i2s_tdm_probe(struct platform_device *pdev)
 	struct snd_soc_dai_driver *soc_dai;
 	struct resource *res;
 	void __iomem *regs;
+	bool sync;
 	int ret;
 	int val;
 
@@ -1668,7 +1669,11 @@ static int rockchip_i2s_tdm_probe(struct platform_device *pdev)
 	if (IS_ERR(i2s_tdm->grf))
 		return PTR_ERR(i2s_tdm->grf);
 
-	if (i2s_tdm->clk_trcm) {
+	sync = of_device_is_compatible(node, "rockchip,px30-i2s-tdm") ||
+	       of_device_is_compatible(node, "rockchip,rk1808-i2s-tdm") ||
+	       of_device_is_compatible(node, "rockchip,rk3308-i2s-tdm");
+
+	if (i2s_tdm->clk_trcm && sync) {
 		cru_node = of_parse_phandle(node, "rockchip,cru", 0);
 		i2s_tdm->cru_base = of_iomap(cru_node, 0);
 		if (!i2s_tdm->cru_base)
