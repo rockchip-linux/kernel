@@ -5,6 +5,7 @@
  * Copyright (C) 2021 Fuzhou Rockchip Electronics Co., Ltd.
  *
  * V0.0X01.0X00 first version.
+ * V0.0X01.0X01 fix time sequence error when streaming on.
  */
 
 //#define DEBUG
@@ -25,7 +26,7 @@
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-subdev.h>
 
-#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x00)
+#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x01)
 
 #ifndef V4L2_CID_DIGITAL_GAIN
 #define V4L2_CID_DIGITAL_GAIN		V4L2_CID_GAIN
@@ -127,7 +128,6 @@ struct sc035hgs {
 	struct v4l2_ctrl	*digi_gain;
 	struct v4l2_ctrl	*hblank;
 	struct v4l2_ctrl	*vblank;
-	struct v4l2_ctrl	*test_pattern;
 	struct mutex		mutex;
 	bool			streaming;
 	bool			power_on;
@@ -301,10 +301,6 @@ static const struct regval sc035hgs_640x480_120fps_1lane_regs[] = {
 	{0x598f, 0x17},
 	{0x36e9, 0x62},
 	{0x36f9, 0x62},
-	{0x0100, 0x01},
-	{0x4418, 0x08},
-	{0x363d, 0x10},
-	{0x4419, 0x80},
 	{REG_NULL, 0x00}
 };
 
@@ -554,7 +550,7 @@ static int sc035hgs_enable_test_pattern(struct sc035hgs *sc035hgs, u32 pattern)
 		val = SC035HGS_TEST_PATTERN_DISABLE;
 
 	return sc035hgs_write_reg(sc035hgs->client, SC035HGS_REG_TEST_PATTERN,
-				SC035HGS_REG_VALUE_08BIT, val);
+				  SC035HGS_REG_VALUE_08BIT, val);
 }
 
 static void sc035hgs_get_module_inf(struct sc035hgs *sc035hgs,
@@ -587,10 +583,12 @@ static long sc035hgs_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 		stream = *((u32 *)arg);
 		if (stream)
 			ret = sc035hgs_write_reg(sc035hgs->client, SC035HGS_REG_CTRL_MODE,
-				SC035HGS_REG_VALUE_08BIT, SC035HGS_MODE_STREAMING);
+						 SC035HGS_REG_VALUE_08BIT,
+						 SC035HGS_MODE_STREAMING);
 		else
 			ret = sc035hgs_write_reg(sc035hgs->client, SC035HGS_REG_CTRL_MODE,
-				SC035HGS_REG_VALUE_08BIT, SC035HGS_MODE_SW_STANDBY);
+						 SC035HGS_REG_VALUE_08BIT,
+						 SC035HGS_MODE_SW_STANDBY);
 		break;
 	default:
 		ret = -ENOIOCTLCMD;
@@ -700,40 +698,43 @@ static int sc035hgs_set_ctrl_gain(struct sc035hgs *sc035hgs, u32 a_gain)
 		coarse_dgain = 0x0f;
 	}
 
-	dev_dbg(dev, ">>>set fine_again = 0x%x, coarse_again = 0x%x, coarse_dgain=0x%x, fine_dgain=0x%x\n",
+	dev_dbg(dev, "set fine_again = 0x%x, coarse_again = 0x%x, coarse_dgain=0x%x, fine_dgain=0x%x\n",
 			fine_again, coarse_again, coarse_dgain, fine_dgain);
 
 	if (a_gain < 0x20)
-		ret = sc035hgs_write_array(sc035hgs->client, image_optimize_gain_1x_2x_regs);
+		ret = sc035hgs_write_array(sc035hgs->client,
+					   image_optimize_gain_1x_2x_regs);
 	else if (a_gain < 0x40)
-		ret |= sc035hgs_write_array(sc035hgs->client, image_optimize_gain_2x_4x_regs);
+		ret |= sc035hgs_write_array(sc035hgs->client,
+					    image_optimize_gain_2x_4x_regs);
 	else
-		ret |= sc035hgs_write_array(sc035hgs->client, image_optimize_regs);
+		ret |= sc035hgs_write_array(sc035hgs->client,
+					    image_optimize_regs);
 
 	ret |= sc035hgs_write_reg(sc035hgs->client,
-		SC035HGS_GROUP_HOLD,
-		SC035HGS_REG_VALUE_08BIT,
-		SC035HGS_GROUP_HOLD_START);
+				  SC035HGS_GROUP_HOLD,
+				  SC035HGS_REG_VALUE_08BIT,
+				  SC035HGS_GROUP_HOLD_START);
 	ret |= sc035hgs_write_reg(sc035hgs->client,
-		SC035HGS_REG_COARSE_AGAIN,
-		SC035HGS_REG_VALUE_08BIT,
-		coarse_again);
+				  SC035HGS_REG_COARSE_AGAIN,
+				  SC035HGS_REG_VALUE_08BIT,
+				  coarse_again);
 	ret |= sc035hgs_write_reg(sc035hgs->client,
-		SC035HGS_REG_FINE_AGAIN,
-		SC035HGS_REG_VALUE_08BIT,
-		fine_again);
+				  SC035HGS_REG_FINE_AGAIN,
+				  SC035HGS_REG_VALUE_08BIT,
+				  fine_again);
 	ret |= sc035hgs_write_reg(sc035hgs->client,
-		SC035HGS_REG_COARSE_DGAIN,
-		SC035HGS_REG_VALUE_08BIT,
-		coarse_dgain);
+				  SC035HGS_REG_COARSE_DGAIN,
+				  SC035HGS_REG_VALUE_08BIT,
+				  coarse_dgain);
 	ret |= sc035hgs_write_reg(sc035hgs->client,
-		SC035HGS_REG_FINE_DGAIN,
-		SC035HGS_REG_VALUE_08BIT,
-		fine_dgain);
+				  SC035HGS_REG_FINE_DGAIN,
+				  SC035HGS_REG_VALUE_08BIT,
+				  fine_dgain);
 	ret |= sc035hgs_write_reg(sc035hgs->client,
-		SC035HGS_GROUP_HOLD,
-		SC035HGS_REG_VALUE_08BIT,
-		SC035HGS_GROUP_HOLD_LUNCH);
+				  SC035HGS_GROUP_HOLD,
+				  SC035HGS_REG_VALUE_08BIT,
+				  SC035HGS_GROUP_HOLD_LUNCH);
 
 	return ret;
 }
@@ -742,10 +743,6 @@ static int __sc035hgs_start_stream(struct sc035hgs *sc035hgs)
 {
 	int ret;
 
-	ret = sc035hgs_write_array(sc035hgs->client, sc035hgs->cur_mode->reg_list);
-	if (ret)
-		return ret;
-
 	/* In case these controls are set before streaming */
 	mutex_unlock(&sc035hgs->mutex);
 	ret = v4l2_ctrl_handler_setup(&sc035hgs->ctrl_handler);
@@ -753,14 +750,27 @@ static int __sc035hgs_start_stream(struct sc035hgs *sc035hgs)
 	if (ret)
 		return ret;
 
-	return sc035hgs_write_reg(sc035hgs->client, SC035HGS_REG_CTRL_MODE,
-			SC035HGS_REG_VALUE_08BIT, SC035HGS_MODE_STREAMING);
+	ret = sc035hgs_write_reg(sc035hgs->client, SC035HGS_REG_CTRL_MODE,
+				 SC035HGS_REG_VALUE_08BIT, SC035HGS_MODE_STREAMING);
+
+	usleep_range(10 * 1000, 20 * 1000);
+
+	ret |= sc035hgs_write_reg(sc035hgs->client, 0x4418,
+				  SC035HGS_REG_VALUE_08BIT, 0x08);
+	ret |= sc035hgs_write_reg(sc035hgs->client, 0x363d,
+				  SC035HGS_REG_VALUE_08BIT, 0x10);
+	ret |= sc035hgs_write_reg(sc035hgs->client, 0x4419,
+				  SC035HGS_REG_VALUE_08BIT, 0x80);
+	if (ret)
+		return ret;
+
+	return ret;
 }
 
 static int __sc035hgs_stop_stream(struct sc035hgs *sc035hgs)
 {
 	return sc035hgs_write_reg(sc035hgs->client, SC035HGS_REG_CTRL_MODE,
-			SC035HGS_REG_VALUE_08BIT, SC035HGS_MODE_SW_STANDBY);
+				  SC035HGS_REG_VALUE_08BIT, SC035HGS_MODE_SW_STANDBY);
 }
 
 static int sc035hgs_s_stream(struct v4l2_subdev *sd, int on)
@@ -827,6 +837,12 @@ static int sc035hgs_s_power(struct v4l2_subdev *sd, int on)
 
 	if (on) {
 		ret = pm_runtime_get_sync(&client->dev);
+		if (ret < 0) {
+			pm_runtime_put_noidle(&client->dev);
+			goto unlock_and_return;
+		}
+
+		ret = sc035hgs_write_array(sc035hgs->client, sc035hgs->cur_mode->reg_list);
 		if (ret < 0) {
 			pm_runtime_put_noidle(&client->dev);
 			goto unlock_and_return;
@@ -940,7 +956,7 @@ static int sc035hgs_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 #endif
 
 static int sc035hgs_g_mbus_config(struct v4l2_subdev *sd,
-				 struct v4l2_mbus_config *config)
+				  struct v4l2_mbus_config *config)
 {
 	u32 val = 0;
 
@@ -955,8 +971,8 @@ static int sc035hgs_g_mbus_config(struct v4l2_subdev *sd,
 }
 
 static int sc035hgs_enum_frame_interval(struct v4l2_subdev *sd,
-				      struct v4l2_subdev_pad_config *cfg,
-				      struct v4l2_subdev_frame_interval_enum *fie)
+					struct v4l2_subdev_pad_config *cfg,
+					struct v4l2_subdev_frame_interval_enum *fie)
 {
 	if (fie->index >= ARRAY_SIZE(supported_modes))
 		return -EINVAL;
@@ -1039,11 +1055,13 @@ static int sc035hgs_set_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_EXPOSURE:
 		dev_dbg(&client->dev, "set exposure 0x%x\n", ctrl->val);
 		ret = sc035hgs_write_reg(sc035hgs->client, SC035HGS_GROUP_HOLD,
-			SC035HGS_REG_VALUE_08BIT, SC035HGS_GROUP_HOLD_START);
+					 SC035HGS_REG_VALUE_08BIT,
+					 SC035HGS_GROUP_HOLD_START);
 		ret |= sc035hgs_write_reg(sc035hgs->client, SC035HGS_REG_EXPOSURE,
-			SC035HGS_REG_VALUE_16BIT, ctrl->val << 4);
+					  SC035HGS_REG_VALUE_16BIT, ctrl->val << 4);
 		ret |= sc035hgs_write_reg(sc035hgs->client, SC035HGS_GROUP_HOLD,
-			SC035HGS_REG_VALUE_08BIT, SC035HGS_GROUP_HOLD_LUNCH);
+					  SC035HGS_REG_VALUE_08BIT,
+					  SC035HGS_GROUP_HOLD_LUNCH);
 		break;
 	case V4L2_CID_ANALOGUE_GAIN:
 		dev_dbg(&client->dev, "set again 0x%x\n", ctrl->val);
@@ -1053,14 +1071,14 @@ static int sc035hgs_set_ctrl(struct v4l2_ctrl *ctrl)
 		vts = ctrl->val + sc035hgs->cur_mode->height;
 		dev_dbg(&client->dev, "set vts 0x%x\n", vts);
 		ret = sc035hgs_write_reg(sc035hgs->client, SC035HGS_REG_VTS,
-			SC035HGS_REG_VALUE_16BIT, vts);
+					 SC035HGS_REG_VALUE_16BIT, vts);
 		break;
 	case V4L2_CID_TEST_PATTERN:
 		ret = sc035hgs_enable_test_pattern(sc035hgs, ctrl->val);
 		break;
 	case V4L2_CID_HFLIP:
 		ret = sc035hgs_read_reg(sc035hgs->client, SC035HGS_REG_FLIP_MIRROR,
-			SC035HGS_REG_VALUE_08BIT, &val);
+					SC035HGS_REG_VALUE_08BIT, &val);
 		if (ret)
 			break;
 		if (ctrl->val)
@@ -1068,11 +1086,11 @@ static int sc035hgs_set_ctrl(struct v4l2_ctrl *ctrl)
 		else
 			val &= ~SC035HGS_MIRROR_MASK;
 		ret |= sc035hgs_write_reg(sc035hgs->client, SC035HGS_REG_FLIP_MIRROR,
-			SC035HGS_REG_VALUE_08BIT, val);
+					  SC035HGS_REG_VALUE_08BIT, val);
 		break;
 	case V4L2_CID_VFLIP:
 		ret = sc035hgs_read_reg(sc035hgs->client, SC035HGS_REG_FLIP_MIRROR,
-			SC035HGS_REG_VALUE_08BIT, &val);
+					SC035HGS_REG_VALUE_08BIT, &val);
 		if (ret)
 			break;
 		if (ctrl->val)
@@ -1080,7 +1098,7 @@ static int sc035hgs_set_ctrl(struct v4l2_ctrl *ctrl)
 		else
 			val &= ~SC035HGS_FLIP_MASK;
 		ret |= sc035hgs_write_reg(sc035hgs->client, SC035HGS_REG_FLIP_MIRROR,
-			SC035HGS_REG_VALUE_08BIT, val);
+					  SC035HGS_REG_VALUE_08BIT, val);
 		break;
 	default:
 		dev_warn(&client->dev, "%s Unhandled id:0x%x, val:0x%x\n",
@@ -1123,37 +1141,37 @@ static int sc035hgs_initialize_controls(struct sc035hgs *sc035hgs)
 
 	h_blank = mode->hts_def - mode->width;
 	sc035hgs->hblank = v4l2_ctrl_new_std(handler, NULL, V4L2_CID_HBLANK,
-				h_blank, h_blank, 1, h_blank);
+					     h_blank, h_blank, 1, h_blank);
 	if (sc035hgs->hblank)
 		sc035hgs->hblank->flags |= V4L2_CTRL_FLAG_READ_ONLY;
 
 	vblank_def = mode->vts_def - mode->height;
 	sc035hgs->vblank = v4l2_ctrl_new_std(handler, &sc035hgs_ctrl_ops,
-				V4L2_CID_VBLANK, vblank_def,
-				SC035HGS_VTS_MAX - mode->height,
-				1, vblank_def);
+					     V4L2_CID_VBLANK, vblank_def,
+					     SC035HGS_VTS_MAX - mode->height,
+					     1, vblank_def);
 
 	exposure_max = mode->vts_def - 6;
 	sc035hgs->exposure = v4l2_ctrl_new_std(handler, &sc035hgs_ctrl_ops,
-				V4L2_CID_EXPOSURE, SC035HGS_EXPOSURE_MIN,
-				exposure_max, SC035HGS_EXPOSURE_STEP,
-				mode->exp_def);
+					       V4L2_CID_EXPOSURE, SC035HGS_EXPOSURE_MIN,
+					       exposure_max, SC035HGS_EXPOSURE_STEP,
+					       mode->exp_def);
 
 	sc035hgs->anal_gain = v4l2_ctrl_new_std(handler, &sc035hgs_ctrl_ops,
-				V4L2_CID_ANALOGUE_GAIN, ANALOG_GAIN_MIN,
-				ANALOG_GAIN_MAX, ANALOG_GAIN_STEP,
-				ANALOG_GAIN_DEFAULT);
+						V4L2_CID_ANALOGUE_GAIN, ANALOG_GAIN_MIN,
+						ANALOG_GAIN_MAX, ANALOG_GAIN_STEP,
+						ANALOG_GAIN_DEFAULT);
 
-	sc035hgs->test_pattern = v4l2_ctrl_new_std_menu_items(handler,
-				&sc035hgs_ctrl_ops, V4L2_CID_TEST_PATTERN,
-				ARRAY_SIZE(sc035hgs_test_pattern_menu) - 1,
-				0, 0, sc035hgs_test_pattern_menu);
-
-	v4l2_ctrl_new_std(handler, &sc035hgs_ctrl_ops,
-					   V4L2_CID_HFLIP, 0, 1, 1, 0);
+	v4l2_ctrl_new_std_menu_items(handler, &sc035hgs_ctrl_ops,
+				     V4L2_CID_TEST_PATTERN,
+				     ARRAY_SIZE(sc035hgs_test_pattern_menu) - 1,
+				     0, 0, sc035hgs_test_pattern_menu);
 
 	v4l2_ctrl_new_std(handler, &sc035hgs_ctrl_ops,
-					   V4L2_CID_VFLIP, 0, 1, 1, 0);
+			  V4L2_CID_HFLIP, 0, 1, 1, 0);
+
+	v4l2_ctrl_new_std(handler, &sc035hgs_ctrl_ops,
+			  V4L2_CID_VFLIP, 0, 1, 1, 0);
 
 	if (handler->error) {
 		ret = handler->error;
@@ -1180,7 +1198,7 @@ static int sc035hgs_check_sensor_id(struct sc035hgs *sc035hgs,
 	int ret;
 
 	ret = sc035hgs_read_reg(client, SC035HGS_REG_CHIP_ID,
-			      SC035HGS_REG_VALUE_24BIT, &id);
+				SC035HGS_REG_VALUE_24BIT, &id);
 	if (id != CHIP_ID) {
 		dev_err(dev, "Unexpected sensor id(%04x), ret(%d)\n", id, ret);
 		return -ENODEV;
