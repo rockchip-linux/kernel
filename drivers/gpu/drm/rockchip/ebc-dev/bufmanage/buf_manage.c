@@ -83,7 +83,9 @@ int ebc_add_to_dsp_buf_list(struct ebc_buf_s *dsp_buf)
 		case EPD_RESUME:
 		case EPD_POWER_OFF:
 		case EPD_OVERLAY:
+		case EPD_OVERLAY_WHITE:
 		case EPD_RESET:
+		case EPD_FORCE_FULL:
 			break;
 
 		default:
@@ -91,24 +93,11 @@ int ebc_add_to_dsp_buf_list(struct ebc_buf_s *dsp_buf)
 				temp_pos = ebc_buf_info.dsp_buf_list->nb_elt;
 				while (--temp_pos) {
 					temp_buf = (struct ebc_buf_s *)buf_list_get(ebc_buf_info.dsp_buf_list, temp_pos);
-					if ((temp_buf->buf_mode != EPD_FULL_GC16) &&
-					    (temp_buf->buf_mode != EPD_FULL_GL16) &&
-					    (temp_buf->buf_mode != EPD_FULL_GLR16) &&
-					    (temp_buf->buf_mode != EPD_FULL_GLD16) &&
-					    (temp_buf->buf_mode != EPD_FULL_GCC16) &&
-					    (temp_buf->buf_mode != EPD_OVERLAY) &&
-					    (temp_buf->buf_mode != EPD_DU) &&
-					    (temp_buf->buf_mode != EPD_SUSPEND) &&
-					    (temp_buf->buf_mode != EPD_RESUME) &&
-					    (temp_buf->buf_mode != EPD_POWER_OFF)) {
+					if ((temp_buf->buf_mode >= EPD_PART_GC16) && (temp_buf->buf_mode <= EPD_A2)) {
 						buf_list_remove(ebc_buf_info.dsp_buf_list, temp_pos);
 						ebc_buf_release(temp_buf);
-					} else if ((1 == is_full_mode) &&
-						   (temp_buf->buf_mode != EPD_DU) &&
-						   (temp_buf->buf_mode != EPD_OVERLAY) &&
-						   (temp_buf->buf_mode != EPD_SUSPEND) &&
-						   (temp_buf->buf_mode != EPD_RESUME) &&
-						   (temp_buf->buf_mode != EPD_POWER_OFF)) {
+					} else if ((1 == is_full_mode) && (temp_buf->buf_mode >= EPD_FULL_GC16)
+						   && (temp_buf->buf_mode <= EPD_FULL_GCC16)) {
 						buf_list_remove(ebc_buf_info.dsp_buf_list, temp_pos);
 						ebc_buf_release(temp_buf);
 					} else {
