@@ -4798,6 +4798,7 @@ static struct bpf_test tests[] = {
 		.fixup_cgroup_storage = { 1 },
 		.result = REJECT,
 		.errstr = "get_local_storage() doesn't support non-zero flags",
+		.errstr_unpriv = "R2 leaks addr into helper function",
 		.prog_type = BPF_PROG_TYPE_CGROUP_SKB,
 	},
 	{
@@ -12963,6 +12964,13 @@ static void get_unpriv_disabled()
 	fclose(fd);
 }
 
+static bool test_as_unpriv(struct bpf_test *test)
+{
+	return !test->prog_type ||
+	       test->prog_type == BPF_PROG_TYPE_SOCKET_FILTER ||
+	       test->prog_type == BPF_PROG_TYPE_CGROUP_SKB;
+}
+
 static int do_test(bool unpriv, unsigned int from, unsigned int to)
 {
 	int i, passes = 0, errors = 0, skips = 0;
@@ -12973,10 +12981,10 @@ static int do_test(bool unpriv, unsigned int from, unsigned int to)
 		/* Program types that are not supported by non-root we
 		 * skip right away.
 		 */
-		if (!test->prog_type && unpriv_disabled) {
+		if (test_as_unpriv(test) && unpriv_disabled) {
 			printf("#%d/u %s SKIP\n", i, test->descr);
 			skips++;
-		} else if (!test->prog_type) {
+		} else if (test_as_unpriv(test)) {
 			if (!unpriv)
 				set_admin(false);
 			printf("#%d/u %s ", i, test->descr);
