@@ -70,7 +70,7 @@ struct bpf_test {
 	int fixup_cgroup_storage[MAX_FIXUPS];
 	const char *errstr;
 	const char *errstr_unpriv;
-	uint32_t retval;
+	uint32_t retval, retval_unpriv;
 	enum {
 		UNDEF,
 		ACCEPT,
@@ -2986,6 +2986,8 @@ static struct bpf_test tests[] = {
 		.fixup_prog1 = { 2 },
 		.result = ACCEPT,
 		.retval = 42,
+		/* Verifier rewrite for unpriv skips tail call here. */
+		.retval_unpriv = 2,
 	},
 	{
 		"stack pointer arithmetic",
@@ -12811,6 +12813,33 @@ static void do_test_fixup(struct bpf_test *test, struct bpf_insn *prog,
 	}
 }
 
+static int set_admin(bool admin)
+{
+	cap_t caps;
+	const cap_value_t cap_val = CAP_SYS_ADMIN;
+	int ret = -1;
+
+	caps = cap_get_proc();
+	if (!caps) {
+		perror("cap_get_proc");
+		return -1;
+	}
+	if (cap_set_flag(caps, CAP_EFFECTIVE, 1, &cap_val,
+				admin ? CAP_SET : CAP_CLEAR)) {
+		perror("cap_set_flag");
+		goto out;
+	}
+	if (cap_set_proc(caps)) {
+		perror("cap_set_proc");
+		goto out;
+	}
+	ret = 0;
+out:
+	if (cap_free(caps))
+		perror("cap_free");
+	return ret;
+}
+
 static void do_test_single(struct bpf_test *test, bool unpriv,
 			   int *passes, int *errors)
 {
@@ -12819,6 +12848,7 @@ static void do_test_single(struct bpf_test *test, bool unpriv,
 	struct bpf_insn *prog = test->insns;
 	int map_fds[MAX_NR_MAPS];
 	const char *expected_err;
+	uint32_t expected_val;
 	uint32_t retval;
 	int i, err;
 
@@ -12836,6 +12866,8 @@ static void do_test_single(struct bpf_test *test, bool unpriv,
 		       test->result_unpriv : test->result;
 	expected_err = unpriv && test->errstr_unpriv ?
 		       test->errstr_unpriv : test->errstr;
+	expected_val = unpriv && test->retval_unpriv ?
+		       test->retval_unpriv : test->retval;
 
 	reject_from_alignment = fd_prog < 0 &&
 				(test->flags & F_NEEDS_EFFICIENT_UNALIGNED_ACCESS) &&
@@ -12869,16 +12901,20 @@ static void do_test_single(struct bpf_test *test, bool unpriv,
 		__u8 tmp[TEST_DATA_LEN << 2];
 		__u32 size_tmp = sizeof(tmp);
 
+		if (unpriv)
+			set_admin(true);
 		err = bpf_prog_test_run(fd_prog, 1, test->data,
 					sizeof(test->data), tmp, &size_tmp,
 					&retval, NULL);
+		if (unpriv)
+			set_admin(false);
 		if (err && errno != 524/*ENOTSUPP*/ && errno != EPERM) {
 			printf("Unexpected bpf_prog_test_run error\n");
 			goto fail_log;
 		}
-		if (!err && retval != test->retval &&
-		    test->retval != POINTER_VALUE) {
-			printf("FAIL retval %d != %d\n", retval, test->retval);
+		if (!err && retval != expected_val &&
+		    expected_val != POINTER_VALUE) {
+			printf("FAIL retval %d != %d\n", retval, expected_val);
 			goto fail_log;
 		}
 	}
@@ -12919,33 +12955,6 @@ static bool is_admin(void)
 	if (cap_free(caps))
 		perror("cap_free");
 	return (sysadmin == CAP_SET);
-}
-
-static int set_admin(bool admin)
-{
-	cap_t caps;
-	const cap_value_t cap_val = CAP_SYS_ADMIN;
-	int ret = -1;
-
-	caps = cap_get_proc();
-	if (!caps) {
-		perror("cap_get_proc");
-		return -1;
-	}
-	if (cap_set_flag(caps, CAP_EFFECTIVE, 1, &cap_val,
-				admin ? CAP_SET : CAP_CLEAR)) {
-		perror("cap_set_flag");
-		goto out;
-	}
-	if (cap_set_proc(caps)) {
-		perror("cap_set_proc");
-		goto out;
-	}
-	ret = 0;
-out:
-	if (cap_free(caps))
-		perror("cap_free");
-	return ret;
 }
 
 static void get_unpriv_disabled()
