@@ -91,6 +91,7 @@ struct rk628_csi {
 	struct clk *clk_vop;
 	struct clk *clk_rx_read;
 	struct clk *clk_csi0;
+	struct clk *clk_i2s_mclk;
 	struct regmap *grf;
 	struct regmap *rxphy_regmap;
 	struct regmap *hdmirx_regmap;
@@ -1269,6 +1270,7 @@ static void rk628_csi_initial_setup(struct v4l2_subdev *sd)
 	clk_prepare_enable(csi->clk_hdmirx_cec);
 	clk_prepare_enable(csi->clk_vop);
 	clk_prepare_enable(csi->clk_csi0);
+	clk_prepare_enable(csi->clk_i2s_mclk);
 	udelay(10);
 	reset_control_assert(csi->rst_hdmirx);
 	reset_control_assert(csi->rst_hdmirx_pon);
@@ -2181,8 +2183,11 @@ static long rk628_csi_compat_ioctl32(struct v4l2_subdev *sd,
 		}
 
 		ret = rk628_csi_ioctl(sd, cmd, inf);
-		if (!ret)
+		if (!ret) {
 			ret = copy_to_user(up, inf, sizeof(*inf));
+			if (ret)
+				ret = -EFAULT;
+		}
 		kfree(inf);
 		break;
 
@@ -2346,6 +2351,15 @@ static int rk628_csi_probe_of(struct rk628_csi *csi)
 		dev_err(dev, "failed to get clk_csi0: %d\n", ret);
 		return ret;
 	}
+
+	csi->clk_i2s_mclk = devm_clk_get_optional(dev, "i2s_mclk");
+	if (IS_ERR(csi->clk_i2s_mclk)) {
+		ret = PTR_ERR(csi->clk_i2s_mclk);
+		dev_err(dev, "failed to get i2s_mclk: %d\n", ret);
+		return ret;
+	}
+	if (csi->clk_i2s_mclk == NULL)
+		dev_warn(dev, "i2s_mclk is not configured\n");
 
 	csi->rst_hdmirx = of_reset_control_get(dev->of_node, "hdmirx");
 	if (IS_ERR(csi->rst_hdmirx)) {
@@ -2804,6 +2818,7 @@ static int rk628_csi_remove(struct platform_device *pdev)
 	clk_disable_unprepare(csi->clk_vop);
 	clk_disable_unprepare(csi->clk_rx_read);
 	clk_disable_unprepare(csi->clk_csi0);
+	clk_disable_unprepare(csi->clk_i2s_mclk);
 
 	return 0;
 }
