@@ -1041,7 +1041,6 @@
 	supports-emmc;
 	non-removable;
 	keep-power-in-suspend;
-	rockchip,txclk-tapnum = <0x8>;
 	max-frequency = <200000000>;
 	status = "okay";
 };
