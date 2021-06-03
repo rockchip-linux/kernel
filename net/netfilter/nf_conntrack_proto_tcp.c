@@ -1438,6 +1438,11 @@ void nf_conntrack_tcp_init_net(struct net *net)
 	tn->tcp_loose = nf_ct_tcp_loose;
 	tn->tcp_be_liberal = nf_ct_tcp_be_liberal;
 	tn->tcp_max_retrans = nf_ct_tcp_max_retrans;
+
+#if IS_ENABLED(CONFIG_NF_FLOW_TABLE)
+	tn->offload_timeout = 30 * HZ;
+	tn->offload_pickup = 120 * HZ;
+#endif
 }
 
 const struct nf_conntrack_l4proto nf_conntrack_l4proto_tcp =
