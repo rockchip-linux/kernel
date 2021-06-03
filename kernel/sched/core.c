@@ -477,7 +477,11 @@ void resched_curr(struct rq *rq)
 		return;
 	}
 
+#ifdef CONFIG_PREEMPT
 	if (set_nr_and_not_polling(curr))
+#else
+	if (set_nr_and_not_polling(curr) && (rq->curr == rq->idle))
+#endif
 		smp_send_reschedule(cpu);
 	else
 		trace_sched_wake_idle_without_ipi(cpu);
