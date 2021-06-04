@@ -5,9 +5,12 @@
  * Copyright (C) 2020 Rockchip Electronics Co., Ltd.
  *
  * V0.0X01.0X00 first version.
+ * V0.0X01.0X01 fix some errors for exposure and gain.
+ * 1.fix vts_def/hts_def wrong value;
+ * 2.fix gain wrong value;
  */
 
-#define DEBUG
+//#define DEBUG
 #include <linux/clk.h>
 #include <linux/delay.h>
 #include <linux/gpio/consumer.h>
@@ -28,15 +31,15 @@
 #include <media/v4l2-fwnode.h>
 #include <media/v4l2-subdev.h>
 
-#define DRIVER_VERSION		KERNEL_VERSION(0, 0x01, 0x00)
+#define DRIVER_VERSION		KERNEL_VERSION(0, 0x01, 0x01)
 
 #define OF_CAMERA_PINCTRL_STATE_DEFAULT	"rockchip,camera_default"
 #define OF_CAMERA_PINCTRL_STATE_SLEEP	"rockchip,camera_sleep"
 
 #define IMX178_NAME				"imx178"
 #define IMX178_MEDIA_BUS_FMT	MEDIA_BUS_FMT_SRGGB10_1X10
-#define MIPI_FREQ				594000000 // w*h*fps*bits_per_pixel/lanes/2
-#define IMX178_XVCLK_FREQ		19500000
+#define MIPI_FREQ				594000000
+#define IMX178_XVCLK_FREQ		37125000
 #define BITS_PER_SAMPLE			10
 
 #define IMX178_REG_CHIP_ID		0x33be
@@ -61,14 +64,16 @@
 #define IMX178_MODE_SW_STANDBY	0x0
 #define IMX178_MODE_STREAMING	1
 
-#define IMX178_REG_HOLD			0x3007
+#define IMX178_REG_HOLD		0x3007
+#define IMX178_REG_HOLD_START	0x01
+#define IMX178_REG_HOLD_LUNCH	0X00
 
-#define IMX178_REG_VMAX_H	0x302e  //vmax
-#define IMX178_REG_VMAX_M   0x302d
+#define IMX178_REG_VMAX_H	0x302e
+#define IMX178_REG_VMAX_M	0x302d
 #define IMX178_REG_VMAX_L	0x302c
 
 #define IMX178_VTS_MAX		0x3FFF
-#define IMX178_HTS_MAX		0xFFF
+#define IMX178_HTS_MAX		0x0FFF
 
 #define IMX178_EXPOSURE_NORMAL_MAX  0x118A
 #define IMX178_EXPOSURE_NORMAL_MIN  3
@@ -132,8 +137,6 @@ struct imx178 {
 	struct v4l2_ctrl    *anal_gain;
 	struct v4l2_ctrl    *hblank;
 	struct v4l2_ctrl    *vblank;
-	struct v4l2_ctrl    *h_flip;
-	struct v4l2_ctrl    *v_flip;
 	struct v4l2_ctrl    *link_freq;
 	struct v4l2_ctrl    *pixel_rate;
 	struct mutex        lock;
@@ -145,7 +148,7 @@ struct imx178 {
 	const char      *module_facing;
 	const char      *module_name;
 	const char      *len_name;
-	bool			  has_init_exp;
+	bool		has_init_exp;
 	u32		cur_vts;
 };
 
@@ -160,9 +163,9 @@ static const s64 link_freq_menu_items[] = {
 };
 
 /*
- * window size=3840*2160 mipi@4lane
- * mclk=27M mipi_clk=708.75Mbps
- * pixel_line_total=xxxx line_frame_total=2256
+ * window size=3072*1728 mipi@4lane
+ * mclk=37.125M mipi_clk=708.75Mbps
+ * pixel_line_total=999 line_frame_total=2500
  * row_time=29.62us frame_rate=30fps
  */
 static const struct reg_sequence imx178_3072_1728_liner_30fps_settings[] = {
@@ -282,9 +285,9 @@ static const struct imx178_mode supported_modes[] = {
 			.numerator = 10000,
 			.denominator = 300000,
 		},
-		.exp_def = 0x6ee - 0x8,
-		.hts_def = 0xc18,
-		.vts_def = 0x6ee,
+		.exp_def = 0x0008,
+		.hts_def = 0x03de * 4,
+		.vts_def = 0x09c4,
 		.link_freq_index = LINK_FREQ_INDEX,
 		.reg_list = imx178_3072_1728_liner_30fps_settings,
 		.reg_num = ARRAY_SIZE(imx178_3072_1728_liner_30fps_settings),
@@ -345,19 +348,18 @@ static inline int imx178_write_reg(struct imx178 *imx178, u16 addr, u8 value)
 static int imx178_set_ctrl(struct v4l2_ctrl *ctrl)
 {
 	struct imx178 *imx178 = container_of(ctrl->handler,
-							struct imx178, ctrl_handler);
+					     struct imx178, ctrl_handler);
 	const struct imx178_mode *mode = imx178->cur_mode;
 	s64 max;
 	int ret = 0;
 	u8 val = 0;
-	u32 vts = 0;
-	u32 shr0 = 0;
+	u32 vts = 0, shr0 = 0, again = 0;
 
 	/* Propagate change of current control to all related controls */
 	switch (ctrl->id) {
 	case V4L2_CID_VBLANK:
 		/* Update max exposure while meeting expected vblanking */
-		max = mode->height + ctrl->val - 4;
+		max = mode->height + ctrl->val;
 		__v4l2_ctrl_modify_range(imx178->exposure,
 					 imx178->exposure->minimum, max,
 					 imx178->exposure->step,
@@ -370,42 +372,38 @@ static int imx178_set_ctrl(struct v4l2_ctrl *ctrl)
 
 	switch (ctrl->id) {
 	case V4L2_CID_EXPOSURE:
+		dev_info(imx178->dev, "set exposure 0x%x", ctrl->val);
 		shr0 = imx178->cur_vts - ctrl->val;
-		ret  = imx178_write_reg(imx178, IMX178_REG_HOLD, 0x01);
-		ret |= imx178_write_reg(imx178, IMX178_REG_SHS_H,
-			(shr0 >> 16) & 0x1);
-		ret |= imx178_write_reg(imx178, IMX178_REG_SHS_M,
-			(shr0 >> 8) & 0xff);
-		ret |= imx178_write_reg(imx178, IMX178_REG_SHS_L,
-			(shr0 & 0xff));
-		ret |= imx178_write_reg(imx178, IMX178_REG_HOLD, 0x00);
+		ret  = imx178_write_reg(imx178, IMX178_REG_HOLD, IMX178_REG_HOLD_START);
+		ret |= imx178_write_reg(imx178, IMX178_REG_SHS_H, (shr0 >> 16) & 0x1);
+		ret |= imx178_write_reg(imx178, IMX178_REG_SHS_M, (shr0 >> 8) & 0xff);
+		ret |= imx178_write_reg(imx178, IMX178_REG_SHS_L, (shr0 & 0xff));
+		ret |= imx178_write_reg(imx178, IMX178_REG_HOLD, IMX178_REG_HOLD_LUNCH);
 		break;
 	case V4L2_CID_ANALOGUE_GAIN:
-		ret  = imx178_write_reg(imx178, IMX178_REG_HOLD, 0x01);
-		ret |= imx178_write_reg(imx178, IMX178_GAIN_REG_H,
-			(ctrl->val >> 8) & 0x01);
-		ret |= imx178_write_reg(imx178, IMX178_GAIN_REG_L,
-			ctrl->val & 0xff);
-		ret |= imx178_write_reg(imx178, IMX178_REG_HOLD, 0x00);
+		dev_info(imx178->dev, "set anal_gain 0x%x", ctrl->val);
+		again = ctrl->val * 3;
+		ret  = imx178_write_reg(imx178, IMX178_REG_HOLD, IMX178_REG_HOLD_START);
+		ret |= imx178_write_reg(imx178, IMX178_GAIN_REG_H, (again >> 8) & 0x01);
+		ret |= imx178_write_reg(imx178, IMX178_GAIN_REG_L, again & 0xff);
+		ret |= imx178_write_reg(imx178, IMX178_REG_HOLD, IMX178_REG_HOLD_LUNCH);
 		break;
 	case V4L2_CID_VBLANK:
+		dev_info(imx178->dev, "set vblank 0x%x", ctrl->val);
 		vts = ctrl->val + mode->height;
-		ret = imx178_write_reg(imx178, IMX178_REG_VMAX_H,
-			vts >> 16);
-		ret |= imx178_write_reg(imx178, IMX178_REG_VMAX_M,
-			vts >> 8);
-		ret |= imx178_write_reg(imx178, IMX178_REG_VMAX_L,
-			vts & 0xff);
+		ret = imx178_write_reg(imx178, IMX178_REG_VMAX_H, vts >> 16);
+		ret |= imx178_write_reg(imx178, IMX178_REG_VMAX_M, vts >> 8);
+		ret |= imx178_write_reg(imx178, IMX178_REG_VMAX_L, vts & 0xff);
 		break;
 	case V4L2_CID_HFLIP:
 		ret = imx178_read_reg(imx178, IMX178_REG_MIRROR_FLIP, &val);
 		ret |= imx178_write_reg(imx178, IMX178_REG_MIRROR_FLIP,
-			IMX178_FETCH_MIRROR(val, ctrl->val));
+					IMX178_FETCH_MIRROR(val, ctrl->val));
 		break;
 	case V4L2_CID_VFLIP:
 		ret = imx178_read_reg(imx178, IMX178_REG_MIRROR_FLIP, &val);
 		ret |= imx178_write_reg(imx178, IMX178_REG_MIRROR_FLIP,
-			IMX178_FETCH_FLIP(val, ctrl->val));
+					IMX178_FETCH_FLIP(val, ctrl->val));
 		break;
 	default:
 		dev_warn(imx178->dev, "%s Unhandled id:0x%x, val:0x%x\n",
@@ -448,35 +446,35 @@ static int imx178_initialize_controls(struct imx178 *imx178)
 
 	handler->lock = &imx178->lock;
 	imx178->link_freq = v4l2_ctrl_new_int_menu(handler, NULL, V4L2_CID_LINK_FREQ,
-						  ARRAY_SIZE(link_freq_menu_items) - 1, 0,
-						  link_freq_menu_items);
+						   ARRAY_SIZE(link_freq_menu_items) - 1, 0,
+						   link_freq_menu_items);
 	imx178->pixel_rate = v4l2_ctrl_new_std(handler, NULL, V4L2_CID_PIXEL_RATE,
-					      0, to_pixel_rate(LINK_FREQ_INDEX),
-					      1, to_pixel_rate(LINK_FREQ_INDEX));
+					       0, to_pixel_rate(LINK_FREQ_INDEX),
+					       1, to_pixel_rate(LINK_FREQ_INDEX));
 	h_blank = mode->hts_def - mode->width;
 	imx178->hblank = v4l2_ctrl_new_std(handler, NULL, V4L2_CID_HBLANK,
-					  h_blank, h_blank, 1, h_blank);
+					   h_blank, h_blank, 1, h_blank);
 	if (imx178->hblank)
 		imx178->hblank->flags |= V4L2_CTRL_FLAG_READ_ONLY;
 	vblank_def = mode->vts_def - mode->height;
 	imx178->vblank = v4l2_ctrl_new_std(handler, &imx178_ctrl_ops,
-					  V4L2_CID_VBLANK, vblank_def,
-					  IMX178_VTS_MAX - mode->height,
-					  1, vblank_def);
+					   V4L2_CID_VBLANK, vblank_def,
+					   IMX178_VTS_MAX - mode->height,
+					   1, vblank_def);
 	imx178->cur_vts = mode->vts_def;
 	exposure_max =  mode->vts_def - 1;
 	imx178->exposure = v4l2_ctrl_new_std(handler, &imx178_ctrl_ops,
-					    V4L2_CID_EXPOSURE, IMX178_EXPOSURE_NORMAL_MIN,
-					    exposure_max, IMX178_EXPOSURE_NORMAL_STEP,
-					    mode->exp_def);
+					     V4L2_CID_EXPOSURE, IMX178_EXPOSURE_NORMAL_MIN,
+					     exposure_max, IMX178_EXPOSURE_NORMAL_STEP,
+					     mode->exp_def);
 	imx178->anal_gain = v4l2_ctrl_new_std(handler, &imx178_ctrl_ops,
-					     V4L2_CID_ANALOGUE_GAIN, IMX178_GAIN_MIN,
-					     IMX178_GAIN_MAX, IMX178_GAIN_STEP,
-					     IMX178_GAIN_DEFAULT);
-	imx178->h_flip = v4l2_ctrl_new_std(handler, &imx178_ctrl_ops,
-					  V4L2_CID_HFLIP, 0, 1, 1, 0);
-	imx178->v_flip = v4l2_ctrl_new_std(handler, &imx178_ctrl_ops,
-					  V4L2_CID_VFLIP, 0, 1, 1, 0);
+					      V4L2_CID_ANALOGUE_GAIN, IMX178_GAIN_MIN,
+					      IMX178_GAIN_MAX, IMX178_GAIN_STEP,
+					      IMX178_GAIN_DEFAULT);
+	v4l2_ctrl_new_std(handler, &imx178_ctrl_ops,
+			  V4L2_CID_HFLIP, 0, 1, 1, 0);
+	v4l2_ctrl_new_std(handler, &imx178_ctrl_ops,
+			  V4L2_CID_VFLIP, 0, 1, 1, 0);
 	if (handler->error) {
 		ret = handler->error;
 		dev_err(imx178->dev, "Failed to init controls(%d)\n", ret);
@@ -590,6 +588,11 @@ static long imx178_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 		hdr_cfg->esp.mode = HDR_NORMAL_VC;
 		hdr_cfg->hdr_mode = imx178->cur_mode->hdr_mode;
 		break;
+	case RKMODULE_SET_HDR_CFG:
+		hdr_cfg = (struct rkmodule_hdr_cfg *)arg;
+		if (hdr_cfg->hdr_mode != 0)
+			ret = -1;
+		break;
 	case RKMODULE_GET_MODULE_INFO:
 		imx178_get_module_inf(imx178, (struct rkmodule_inf *)arg);
 		break;
@@ -652,9 +655,13 @@ static long imx178_compat_ioctl32(struct v4l2_subdev *sd,
 			ret = -ENOMEM;
 			return ret;
 		}
+
 		ret = imx178_ioctl(sd, cmd, inf);
-		if (!ret)
+		if (!ret) {
 			ret = copy_to_user(up, inf, sizeof(*inf));
+			if (ret)
+				ret = -EFAULT;
+		}
 		kfree(inf);
 		break;
 	case RKMODULE_GET_HDR_CFG:
@@ -663,9 +670,26 @@ static long imx178_compat_ioctl32(struct v4l2_subdev *sd,
 			ret = -ENOMEM;
 			return ret;
 		}
+
 		ret = imx178_ioctl(sd, cmd, hdr);
-		if (!ret)
+		if (!ret) {
 			ret = copy_to_user(up, hdr, sizeof(*hdr));
+			if (ret)
+				ret = -EFAULT;
+		}
+		kfree(hdr);
+		break;
+	case RKMODULE_SET_HDR_CFG:
+		hdr = kzalloc(sizeof(*hdr), GFP_KERNEL);
+		if (!hdr) {
+			ret = -ENOMEM;
+			return ret;
+		}
+
+		if (copy_from_user(hdr, up, sizeof(*hdr)))
+			return -EFAULT;
+
+		ret = imx178_ioctl(sd, cmd, hdr);
 		kfree(hdr);
 		break;
 	case RKMODULE_GET_LVDS_CFG:
@@ -674,9 +698,13 @@ static long imx178_compat_ioctl32(struct v4l2_subdev *sd,
 			ret = -ENOMEM;
 			return ret;
 		}
+
 		ret = imx178_ioctl(sd, cmd, lvds_cfg);
-		if (!ret)
+		if (!ret) {
 			ret = copy_to_user(up, lvds_cfg, sizeof(*lvds_cfg));
+			if (ret)
+				ret = -EFAULT;
+		}
 		kfree(lvds_cfg);
 		break;
 	default:
@@ -772,8 +800,8 @@ static int imx178_enum_frame_sizes(struct v4l2_subdev *sd,
 }
 
 static int imx178_enum_frame_interval(struct v4l2_subdev *sd,
-						  struct v4l2_subdev_pad_config *cfg,
-						  struct v4l2_subdev_frame_interval_enum *fie)
+				      struct v4l2_subdev_pad_config *cfg,
+				      struct v4l2_subdev_frame_interval_enum *fie)
 {
 	struct imx178 *imx178 = to_imx178(sd);
 
@@ -976,7 +1004,7 @@ static const struct dev_pm_ops imx178_pm_ops = {
 };
 
 static int imx178_probe(struct i2c_client *client,
-			 const struct i2c_device_id *id)
+			const struct i2c_device_id *id)
 {
 	struct device *dev = &client->dev;
 	struct device_node *node = dev->of_node;
@@ -1157,5 +1185,5 @@ static void __exit sensor_mod_exit(void)
 device_initcall_sync(sensor_mod_init);
 module_exit(sensor_mod_exit);
 
-MODULE_DESCRIPTION("Smartsens imx178 Image Sensor Driver");
+MODULE_DESCRIPTION("Sony imx178 Image Sensor Driver");
 MODULE_LICENSE("GPL v2");
