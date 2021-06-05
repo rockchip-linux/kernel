@@ -38,6 +38,7 @@
 #include <linux/regmap.h>
 #include <linux/mfd/syscon.h>
 #include <linux/mmc/host.h>
+#include <linux/delay.h>
 #ifdef CONFIG_OF
 #include <linux/of.h>
 #include <linux/of_device.h>
@@ -353,8 +354,16 @@ int rockchip_wifi_get_oob_irq(void)
 {
 	struct rfkill_wlan_data *mrfkill = g_rfkill;
 	struct rksdmmc_gpio *wifi_int_irq;
+	 int retry=3;
 
 	LOG("%s: Enter\n", __func__);
+	while(!mrfkill && retry){
+        	retry--;
+        	mrfkill = g_rfkill;
+        	LOG("%s: rfkill-wlan rfkill-wlan driver has not Successful initialized ,wating ...  \n",__func__);
+
+        	msleep(500);
+    	}
 
 	if (!mrfkill) {
 		LOG("%s: rfkill-wlan driver has not Successful initialized\n",
