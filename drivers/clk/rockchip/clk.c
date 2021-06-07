@@ -618,7 +618,8 @@ void __init rockchip_clk_register_branches(
 				flags, &ctx->lock);
 			break;
 		case branch_gate:
-			flags |= CLK_SET_RATE_PARENT;
+			if (!(list->gate_flags & CLK_GATE_NO_SET_RATE))
+				flags |= CLK_SET_RATE_PARENT;
 
 			clk = clk_register_gate(NULL, list->name,
 				list->parent_names[0], flags,

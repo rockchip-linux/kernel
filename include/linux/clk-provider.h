@@ -445,6 +445,8 @@ void of_fixed_clk_setup(struct device_node *np);
  *	of this register, and mask of gate bits are in higher 16-bit of this
  *	register.  While setting the gate bits, higher 16-bit should also be
  *	updated to indicate changing gate bits.
+ * CLK_GATE_NO_SET_RATE - The Gate not allowed to set rate.
+ *	And not allowed to set parent rate.
  */
 struct clk_gate {
 	struct clk_hw hw;
@@ -458,6 +460,7 @@ struct clk_gate {
 
 #define CLK_GATE_SET_TO_DISABLE		BIT(0)
 #define CLK_GATE_HIWORD_MASK		BIT(1)
+#define CLK_GATE_NO_SET_RATE		BIT(3)
 
 extern const struct clk_ops clk_gate_ops;
 struct clk *clk_register_gate(struct device *dev, const char *name,
