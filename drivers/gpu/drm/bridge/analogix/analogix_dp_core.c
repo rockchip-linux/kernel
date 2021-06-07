@@ -393,7 +393,7 @@ static int analogix_dp_process_clock_recovery(struct analogix_dp_device *dp)
 	u8 dpcd, training_pattern = TRAINING_PTN2;
 	bool source_tps3_supported, sink_tps3_supported;
 
-	usleep_range(100, 101);
+	drm_dp_link_train_clock_recovery_delay(dp->link_train.dpcd);
 
 	lane_count = dp->link_train.lane_count;
 
@@ -478,7 +478,7 @@ static int analogix_dp_process_equalizer_training(struct analogix_dp_device *dp)
 	u32 reg;
 	u8 link_align, link_status[2], adjust_request[2];
 
-	usleep_range(400, 401);
+	drm_dp_link_train_channel_eq_delay(dp->link_train.dpcd);
 
 	lane_count = dp->link_train.lane_count;
 
@@ -579,11 +579,20 @@ static void analogix_dp_init_training(struct analogix_dp_device *dp,
 				      enum link_lane_count_type max_lane,
 				      int max_rate)
 {
+	int retval;
+
 	/*
 	 * MACRO_RST must be applied after the PLL_LOCK to avoid
 	 * the DP inter pair skew issue for at least 10 us
 	 */
 	analogix_dp_reset_macro(dp);
+
+	retval = drm_dp_dpcd_read(&dp->aux, DP_DPCD_REV, dp->link_train.dpcd,
+				  DP_RECEIVER_CAP_SIZE);
+	if (retval < 0) {
+		dev_err(dp->dev, "failed to read DPCD: %d\n", retval);
+		return;
+	}
 
 	/* Initialize by reading RX's DPCD */
 	analogix_dp_get_max_rx_bandwidth(dp, &dp->link_train.link_rate);

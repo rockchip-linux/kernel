@@ -152,7 +152,7 @@ struct link_train {
 	u8 link_rate;
 	u8 lane_count;
 	u8 training_lane[4];
-
+	u8 dpcd[DP_RECEIVER_CAP_SIZE];
 	enum link_training_state lt_state;
 };
 
