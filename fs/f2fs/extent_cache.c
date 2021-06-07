@@ -383,6 +383,9 @@ static bool f2fs_lookup_extent_tree(struct inode *inode, pgoff_t pgofs,
 
 	f2fs_bug_on(sbi, !et);
 
+	if (!et)
+		return ret;
+
 	trace_f2fs_lookup_extent_tree_start(inode, pgofs);
 
 	read_lock(&et->lock);
