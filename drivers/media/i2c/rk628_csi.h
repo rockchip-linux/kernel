@@ -11,6 +11,9 @@
 /* --------- EDID and HDCP KEY ------- */
 #define EDID_BASE			0x000a0000
 #define HDCP_KEY_BASE			0x000a8000
+#define HDCP_KEY_KSV0			(HDCP_KEY_BASE + 4)
+#define HDCP_KEY_DPK0			(HDCP_KEY_BASE + 36)
+
 #define KEY_MAX_REGISTER		0x000a8490
 
 /* --------- GPIO0 REG --------------- */
@@ -91,6 +94,15 @@
 #define HDCP_ENC_EN_MASK		BIT(0)
 #define HDCP_ENC_EN(x)			UPDATE(x, 0, 0)
 #define HDMI_RX_HDCP_SETTINGS		(HDMI_RX_BASE + 0x00c4)
+#define HDMI_RESERVED(x)		UPDATE(x, 13, 13)
+#define HDMI_RESERVED_MASK		BIT(13)
+#define FAST_I2C(x)			UPDATE(x, 12, 12)
+#define FAST_I2C_MASK			BIT(12)
+#define ONE_DOT_ONE(x)			UPDATE(x, 9, 9)
+#define ONE_DOT_ONE_MASK		BIT(9)
+#define FAST_REAUTH(x)			UPDATE(x, 8, 8)
+#define FAST_REAUTH_MASK		BIT(8)
+#define HDMI_RX_HDCP_SEED		(HDMI_RX_BASE + 0x00c8)
 #define HDMI_RX_HDCP_KIDX		(HDMI_RX_BASE + 0x00d4)
 #define HDMI_RX_HDCP_DBG		(HDMI_RX_BASE + 0x00e0)
 #define HDMI_RX_HDCP_AN0		(HDMI_RX_BASE + 0x00f0)
