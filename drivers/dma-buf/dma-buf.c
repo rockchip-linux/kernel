@@ -442,8 +442,7 @@ static long dma_buf_ioctl(struct file *file,
 
 		return ret;
 
-	case DMA_BUF_SET_NAME_A:
-	case DMA_BUF_SET_NAME_B:
+	case DMA_BUF_SET_NAME:
 		return dma_buf_set_name(dmabuf, (const char __user *)arg);
 
 	case DMA_BUF_IOCTL_SYNC_PARTIAL:
