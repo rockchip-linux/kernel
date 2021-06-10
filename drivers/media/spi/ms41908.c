@@ -1117,9 +1117,9 @@ static void motor_config_dev_next_status(struct motor_dev *motor, struct ext_dev
 		dev->is_mv_tim_update = true;
 		dev->move_status = MOTOR_STATUS_STOPPED;
 		dev->reg_op->tmp_psum = 0;
-		complete(&dev->complete);
-		complete(&dev->complete_out);
 		dev->is_running = false;
+		complete(&dev->complete_out);
+		complete(&dev->complete);
 	}
 }
 
@@ -1221,11 +1221,16 @@ static int motor_g_volatile_ctrl(struct v4l2_ctrl *ctrl)
 	return 0;
 }
 
-static void wait_for_motor_stop(struct ext_dev *dev)
+static void wait_for_motor_stop(struct motor_dev *motor, struct ext_dev *dev)
 {
+	unsigned long ret = 0;
+
 	if (dev->is_running) {
 		reinit_completion(&dev->complete_out);
-		wait_for_completion(&dev->complete_out);
+		ret = wait_for_completion_timeout(&dev->complete_out, 10 * HZ);
+		if (ret == 0)
+			dev_info(&motor->spi->dev,
+				 "wait for complete timeout\n");
 	}
 }
 
@@ -1265,7 +1270,7 @@ static int motor_s_ctrl(struct v4l2_ctrl *ctrl)
 						       true,
 						       false,
 						       false);
-			wait_for_motor_stop(motor->piris);
+			wait_for_motor_stop(motor, motor->piris);
 			dev_dbg(&motor->spi->dev, "set piris pos %d\n", ctrl->val);
 		}
 		break;
@@ -1276,7 +1281,7 @@ static int motor_s_ctrl(struct v4l2_ctrl *ctrl)
 					       true,
 					       false,
 					       false);
-		wait_for_motor_stop(motor->focus);
+		wait_for_motor_stop(motor, motor->focus);
 		dev_dbg(&motor->spi->dev, "set focus pos %d\n", ctrl->val);
 		break;
 	case V4L2_CID_ZOOM_ABSOLUTE:
@@ -1286,7 +1291,7 @@ static int motor_s_ctrl(struct v4l2_ctrl *ctrl)
 					       true,
 					       false,
 					       false);
-		wait_for_motor_stop(motor->zoom);
+		wait_for_motor_stop(motor, motor->zoom);
 		dev_dbg(&motor->spi->dev, "set zoom pos %d\n", ctrl->val);
 		break;
 	case V4L2_CID_ZOOM_CONTINUOUS:
@@ -1296,7 +1301,7 @@ static int motor_s_ctrl(struct v4l2_ctrl *ctrl)
 					       true,
 					       false,
 					       false);
-		wait_for_motor_stop(motor->zoom1);
+		wait_for_motor_stop(motor, motor->zoom1);
 		dev_dbg(&motor->spi->dev, "set zoom1 pos %d\n", ctrl->val);
 		break;
 	default:
@@ -1340,8 +1345,8 @@ static int motor_set_zoom_follow(struct motor_dev *motor, struct rk_cam_set_zoom
 						 false,
 						 false);
 		}
-		wait_for_motor_stop(motor->focus);
-		wait_for_motor_stop(motor->zoom);
+		wait_for_motor_stop(motor, motor->focus);
+		wait_for_motor_stop(motor, motor->zoom);
 		dev_dbg(&motor->spi->dev,
 			"%s zoom %d, focus %d, i %d\n",
 			__func__,
@@ -1384,7 +1389,7 @@ static int motor_find_pi_binarysearch(struct motor_dev *motor,
 						 false,
 						 false,
 						 true);
-		wait_for_motor_stop(ext_dev);
+		wait_for_motor_stop(motor, ext_dev);
 		return mid;
 	}
 	last_pos = ext_dev->last_pos;
@@ -1402,7 +1407,7 @@ static int motor_find_pi_binarysearch(struct motor_dev *motor,
 				       false,
 				       false,
 				       true);
-	wait_for_motor_stop(ext_dev);
+	wait_for_motor_stop(motor, ext_dev);
 	gpio_val = gpiod_get_value(ext_dev->pic_gpio);
 	if (tmp_val != gpio_val) {
 		usleep_range(10, 20);
@@ -1451,7 +1456,7 @@ static int motor_find_pi(struct motor_dev *motor,
 					 false,
 					 false,
 					 false);
-		wait_for_motor_stop(ext_dev);
+		wait_for_motor_stop(motor, ext_dev);
 		gpio_val = gpiod_get_value(ext_dev->pic_gpio);
 		if (tmp_val != gpio_val) {
 			usleep_range(10, 20);
@@ -1475,7 +1480,7 @@ static int motor_find_pi(struct motor_dev *motor,
 					       false,
 					       false,
 					       true);
-			wait_for_motor_stop(ext_dev);
+			wait_for_motor_stop(motor, ext_dev);
 			gpio_val = gpiod_get_value(ext_dev->pic_gpio);
 			if (tmp_val != gpio_val) {
 				usleep_range(10, 20);
@@ -1522,7 +1527,7 @@ static int motor_reinit_piris(struct motor_dev *motor)
 					       false,
 					       false,
 					       false);
-		wait_for_motor_stop(motor->piris);
+		wait_for_motor_stop(motor, motor->piris);
 		#else
 		motor->piris->last_pos = 0;
 		#endif
@@ -1551,7 +1556,7 @@ static int motor_reinit_piris(struct motor_dev *motor)
 					       false,
 					       false,
 					       false);
-		wait_for_motor_stop(motor->piris);
+		wait_for_motor_stop(motor, motor->piris);
 	}
 	return 0;
 }
@@ -1588,7 +1593,7 @@ static int motor_reinit_focus(struct motor_dev *motor)
 					       false,
 					       false,
 					       false);
-		wait_for_motor_stop(motor->focus);
+		wait_for_motor_stop(motor, motor->focus);
 		#else
 		motor->focus->last_pos = 0;
 		#endif
@@ -1616,7 +1621,7 @@ static int motor_reinit_focus(struct motor_dev *motor)
 					       false,
 					       false,
 					       true);
-		wait_for_motor_stop(motor->focus);
+		wait_for_motor_stop(motor, motor->focus);
 	}
 	return 0;
 }
@@ -1653,7 +1658,7 @@ static int  motor_reinit_zoom(struct motor_dev *motor)
 					       false,
 					       false,
 					       false);
-		wait_for_motor_stop(motor->zoom);
+		wait_for_motor_stop(motor, motor->zoom);
 		#else
 		motor->zoom->last_pos = 0;
 		#endif
@@ -1681,7 +1686,7 @@ static int  motor_reinit_zoom(struct motor_dev *motor)
 					       false,
 					       false,
 					       true);
-		wait_for_motor_stop(motor->zoom);
+		wait_for_motor_stop(motor, motor->zoom);
 	}
 	return 0;
 }
@@ -1718,7 +1723,7 @@ static int motor_reinit_zoom1(struct motor_dev *motor)
 					       false,
 					       false,
 					       false);
-		wait_for_motor_stop(motor->zoom1);
+		wait_for_motor_stop(motor, motor->zoom1);
 		#else
 		motor->zoom1->last_pos = 0;
 		#endif
@@ -1746,7 +1751,7 @@ static int motor_reinit_zoom1(struct motor_dev *motor)
 					       false,
 					       false,
 					       true);
-		wait_for_motor_stop(motor->zoom1);
+		wait_for_motor_stop(motor, motor->zoom1);
 	}
 	return 0;
 }
@@ -1783,7 +1788,7 @@ static int motor_set_focus(struct motor_dev *motor, struct rk_cam_set_focus *mv_
 				       true,
 				       false,
 				       is_need_reback);
-	wait_for_motor_stop(motor->focus);
+	wait_for_motor_stop(motor, motor->focus);
 
 	return ret;
 }
