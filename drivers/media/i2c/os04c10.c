@@ -33,8 +33,9 @@
 #define V4L2_CID_DIGITAL_GAIN		V4L2_CID_GAIN
 #endif
 
+#define OS04C10_LANES			4
 #define MIPI_FREQ_384M			384000000
-#define PIXEL_RATE_WITH_384M		(MIPI_FREQ_384M * 2 * 2 / 10)
+#define PIXEL_RATE_WITH_384M	(MIPI_FREQ_384M * 2 / 10 * OS04C10_LANES)
 
 #define OS04C10_XVCLK_FREQ		24000000
 
@@ -73,7 +74,6 @@
 #define OS04C10_REG_VALUE_16BIT		2
 #define OS04C10_REG_VALUE_24BIT		3
 
-#define OS04C10_LANES			4
 #define OS04C10_NAME			"os04c10"
 
 #define OF_CAMERA_HDR_MODE		"rockchip,camera-hdr-mode"
@@ -144,6 +144,9 @@ struct os04c10 {
 	struct mutex		mutex;
 	bool			streaming;
 	bool			power_on;
+	bool			is_thunderboot;
+	bool			is_thunderboot_ng;
+	bool			is_first_streamoff;
 	const struct os04c10_mode *cur_mode;
 	u32			cfg_num;
 	u32			module_index;
@@ -888,9 +891,11 @@ static int __os04c10_start_stream(struct os04c10 *os04c10)
 {
 	int ret;
 
-	ret = os04c10_write_array(os04c10->client, os04c10->cur_mode->reg_list);
-	if (ret)
-		return ret;
+	if (!os04c10->is_thunderboot) {
+		ret = os04c10_write_array(os04c10->client, os04c10->cur_mode->reg_list);
+		if (ret)
+			return ret;
+	}
 
 	/* In case these controls are set before streaming */
 	ret = __v4l2_ctrl_handler_setup(&os04c10->ctrl_handler);
@@ -911,6 +916,8 @@ static int __os04c10_start_stream(struct os04c10 *os04c10)
 static int __os04c10_stop_stream(struct os04c10 *os04c10)
 {
 	os04c10->has_init_exp = false;
+	if (os04c10->is_thunderboot)
+		os04c10->is_first_streamoff = true;
 	return os04c10_write_reg(os04c10->client, OS04C10_REG_CTRL_MODE,
 		OS04C10_REG_VALUE_08BIT, OS04C10_MODE_SW_STANDBY);
 }
@@ -927,6 +934,10 @@ static int os04c10_s_stream(struct v4l2_subdev *sd, int on)
 		goto unlock_and_return;
 
 	if (on) {
+		if (os04c10->is_thunderboot && rkisp_tb_get_state() == RKISP_TB_NG) {
+			os04c10->is_thunderboot = false;
+			__os04c10_power_on(os04c10);
+		}
 		ret = pm_runtime_get_sync(&client->dev);
 		if (ret < 0) {
 			pm_runtime_put_noidle(&client->dev);
@@ -999,6 +1010,9 @@ static int __os04c10_power_on(struct os04c10 *os04c10)
 	u32 delay_us;
 	struct device *dev = &os04c10->client->dev;
 
+	if (os04c10->is_thunderboot)
+		return 0;
+
 	if (!IS_ERR_OR_NULL(os04c10->pins_default)) {
 		ret = pinctrl_select_state(os04c10->pinctrl,
 					   os04c10->pins_default);
@@ -1055,6 +1069,15 @@ static void __os04c10_power_off(struct os04c10 *os04c10)
 {
 	int ret;
 	struct device *dev = &os04c10->client->dev;
+
+	if (os04c10->is_thunderboot) {
+		if (os04c10->is_first_streamoff) {
+			os04c10->is_thunderboot = false;
+			os04c10->is_first_streamoff = false;
+		} else {
+			return;
+		}
+	}
 
 	// To avoid bad frames from MIPI
 	os04c10_write_reg(os04c10->client, 0x3021, OS04C10_REG_VALUE_08BIT, 0x00);
@@ -1360,6 +1383,11 @@ static int os04c10_check_sensor_id(struct os04c10 *os04c10, struct i2c_client *c
 	u32 id = 0;
 	int ret;
 
+	if (os04c10->is_thunderboot) {
+		dev_info(dev, "Enable thunderboot mode, skip sensor id check\n");
+		return 0;
+	}
+
 	ret = os04c10_read_reg(client, OS04C10_REG_CHIP_ID,
 			       OS04C10_REG_VALUE_24BIT, &id);
 
@@ -1426,6 +1454,8 @@ static int os04c10_probe(struct i2c_client *client, const struct i2c_device_id *
 		}
 	}
 	os04c10->client = client;
+
+	os04c10->is_thunderboot = IS_ENABLED(CONFIG_VIDEO_ROCKCHIP_THUNDER_BOOT_ISP);
 
 	os04c10->xvclk = devm_clk_get(dev, "xvclk");
 	if (IS_ERR(os04c10->xvclk)) {
