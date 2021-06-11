@@ -5942,6 +5942,8 @@ static int vop2_gamma_init(struct vop2 *vop2)
 	for (i = 0; i < vop2_data->nr_vps; i++) {
 		vp = &vop2->vps[i];
 		crtc = &vp->crtc;
+		if (!crtc->dev)
+			continue;
 		vp_data = &vop2_data->vp[vp->id];
 		lut_len = vp_data->gamma_lut_len;
 		vp->gamma_lut_len = vp_data->gamma_lut_len;
@@ -5984,6 +5986,8 @@ static void vop2_cubic_lut_init(struct vop2 *vop2)
 	for (i = 0; i < vop2_data->nr_vps; i++) {
 		vp = &vop2->vps[i];
 		crtc = &vp->crtc;
+		if (!crtc->dev)
+			continue;
 		vp_data = &vop2_data->vp[vp->id];
 		vp->cubic_lut_len = vp_data->cubic_lut_len;
 
@@ -6045,9 +6049,25 @@ static int vop2_create_crtc(struct vop2 *vop2)
 	int ret = 0;
 	bool be_used_for_primary_plane = false;
 	bool find_primary_plane = false;
+	bool bootloader_initialized = false;
 
 	/* all planes can attach to any crtc */
 	possible_crtcs = (1 << vop2_data->nr_vps) - 1;
+
+	/*
+	 * We set plane_mask from dts or bootloader
+	 * if all the plane_mask are zero, that means
+	 * the bootloader don't initialized the vop, or
+	 * something is wrong, the kernel will try to
+	 * initial all the vp.
+	 */
+	for (i = 0; i < vop2_data->nr_vps; i++) {
+		vp = &vop2->vps[i];
+		if (vp->plane_mask) {
+			bootloader_initialized = true;
+			break;
+		}
+	}
 
 	/*
 	 * Create primary plane for eache crtc first, since we need
@@ -6061,6 +6081,14 @@ static int vop2_create_crtc(struct vop2 *vop2)
 		vp->id = vp_data->id;
 		vp->regs = vp_data->regs;
 		vp->cursor_win_id = -1;
+
+		/*
+		 * we assume a vp with a zere plane_mask(set from dts or bootloader)
+		 * as unused.
+		 */
+		if (!vp->plane_mask && bootloader_initialized)
+			continue;
+
 		if (vop2_soc_is_rk3566())
 			soc_id = vp_data->soc_id[1];
 		else
