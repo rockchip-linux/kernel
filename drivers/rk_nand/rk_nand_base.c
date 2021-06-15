@@ -51,7 +51,7 @@ static int rk_timer_add;
 
 void *ftl_malloc(int size)
 {
-	return kmalloc(size, GFP_KERNEL | GFP_DMA);
+	return kmalloc(size, GFP_KERNEL | GFP_DMA32);
 }
 
 void ftl_free(void *buf)
@@ -96,24 +96,15 @@ EXPORT_SYMBOL(rknand_dma_flush_dcache);
 
 unsigned long rknand_dma_map_single(unsigned long ptr, int size, int dir)
 {
-#ifdef CONFIG_ARM64
-	__dma_map_area((void *)ptr, size, dir);
-	return ((unsigned long)virt_to_phys((void *)ptr));
-#else
-	return dma_map_single(NULL, (void *)ptr, size
+	return dma_map_single(g_nand_device, (void *)ptr, size
 		, dir ? DMA_TO_DEVICE : DMA_FROM_DEVICE);
-#endif
 }
 EXPORT_SYMBOL(rknand_dma_map_single);
 
 void rknand_dma_unmap_single(unsigned long ptr, int size, int dir)
 {
-#ifdef CONFIG_ARM64
-	__dma_unmap_area(phys_to_virt(ptr), size, dir);
-#else
-	dma_unmap_single(NULL, (dma_addr_t)ptr, size
+	dma_unmap_single(g_nand_device, (dma_addr_t)ptr, size
 		, dir ? DMA_TO_DEVICE : DMA_FROM_DEVICE);
-#endif
 }
 EXPORT_SYMBOL(rknand_dma_unmap_single);
 
@@ -392,7 +383,7 @@ static int rknand_probe(struct platform_device *pdev)
 	pm_runtime_enable(&pdev->dev);
 	pm_runtime_get_sync(&pdev->dev);
 
-	return 0;
+	return dma_set_mask(g_nand_device, DMA_BIT_MASK(32));
 }
 
 static int rknand_suspend(struct platform_device *pdev, pm_message_t state)
