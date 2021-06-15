@@ -44,6 +44,7 @@ struct gpio_regulator_state {
 /**
  * struct gpio_regulator_config - config structure
  * @supply_name:	Name of the regulator supply
+ * @input_supply:	Name of the regulator input supply
  * @enable_gpio:	GPIO to use for enable control
  *			set to -EINVAL if not used
  * @enable_high:	Polarity of enable GPIO
@@ -68,6 +69,7 @@ struct gpio_regulator_state {
  */
 struct gpio_regulator_config {
 	const char *supply_name;
+	const char *input_supply;
 
 	int enable_gpio;
 	unsigned enable_high:1;
