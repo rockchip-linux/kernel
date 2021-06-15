@@ -292,6 +292,12 @@
 		compatible = "regulator-fixed";
 		regulator-name = "vcc3v3_lcd0_n";
 		regulator-boot-on;
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		enable-active-high;
+		gpio = <&gpio0 RK_PC7 GPIO_ACTIVE_HIGH>;
+		vin-supply = <&vcc3v3_sys>;
+
 		regulator-state-mem {
 			regulator-off-in-suspend;
 		};
@@ -301,6 +307,12 @@
 		compatible = "regulator-fixed";
 		regulator-name = "vcc3v3_lcd1_n";
 		regulator-boot-on;
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		enable-active-high;
+		gpio = <&gpio0 RK_PC5 GPIO_ACTIVE_HIGH>;
+		vin-supply = <&vcc3v3_sys>;
+
 		regulator-state-mem {
 			regulator-off-in-suspend;
 		};
