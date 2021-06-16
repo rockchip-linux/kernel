@@ -57,7 +57,7 @@
 #define OS04C10_SOFTWARE_RESET_VAL	0x1
 
 #define OS04C10_GAIN_MIN		0x0080
-#define OS04C10_GAIN_MAX		0x07C0
+#define OS04C10_GAIN_MAX		0x7820
 #define OS04C10_GAIN_STEP		1
 #define OS04C10_GAIN_DEFAULT	0x0080
 
@@ -422,7 +422,7 @@ static const struct regval os04c10_linear10bit_2688x1520_regs[] = {
 	{0x3815, 0x01},
 	{0x3816, 0x01},
 	{0x3817, 0x01},
-	{0x3820, 0x88},
+	{0x3820, 0x80},
 	{0x3821, 0x00},
 	{0x3880, 0x25},
 	{0x3882, 0x20},
@@ -1227,9 +1227,9 @@ static int os04c10_set_ctrl(struct v4l2_ctrl *ctrl)
 		dev_dbg(&client->dev, "set exposure 0x%x\n", ctrl->val);
 		break;
 	case V4L2_CID_ANALOGUE_GAIN:
-		if (ctrl->val > 248) {
-			dgain = ctrl->val * 1024 / 248;
-			again = 248;
+		if (ctrl->val > 1984) {
+			dgain = ctrl->val * 1024 / 1984;
+			again = 1984;
 		} else {
 			dgain = 1024;
 			again = ctrl->val;
@@ -1237,7 +1237,7 @@ static int os04c10_set_ctrl(struct v4l2_ctrl *ctrl)
 		ret = os04c10_write_reg(os04c10->client,
 					OS04C10_REG_AGAIN_LONG_H,
 					OS04C10_REG_VALUE_16BIT,
-					again & 0x1ff0);
+					again & 0x1fff);
 		ret |= os04c10_write_reg(os04c10->client,
 					OS04C10_REG_DGAIN_LONG_H,
 					OS04C10_REG_VALUE_16BIT,
