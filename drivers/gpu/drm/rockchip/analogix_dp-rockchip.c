@@ -223,6 +223,7 @@ static int rockchip_dp_get_modes(struct analogix_dp_plat_data *plat_data,
 	struct drm_display_info *di = &connector->display_info;
 	/* VOP couldn't output YUV video format for eDP rightly */
 	u32 mask = DRM_COLOR_FORMAT_YCRCB444 | DRM_COLOR_FORMAT_YCRCB422;
+	int ret = 0;
 
 	if ((di->color_formats & mask)) {
 		DRM_DEBUG_KMS("Swapping display color format from YUV to RGB\n");
@@ -231,7 +232,12 @@ static int rockchip_dp_get_modes(struct analogix_dp_plat_data *plat_data,
 		di->bpc = 8;
 	}
 
-	return 0;
+	if (list_empty(&connector->probed_modes) && !plat_data->panel) {
+		ret = rockchip_drm_add_modes_noedid(connector);
+		DRM_ERROR("analogix dp get edid mode failed, use default mode\n");
+	}
+
+	return ret;
 }
 
 static int rockchip_dp_bridge_attach(struct analogix_dp_plat_data *plat_data,
