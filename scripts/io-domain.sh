@@ -105,11 +105,12 @@ DtsIoDomainVoltage()
 	if [ -f $DTS_NAME ];then
 		echo "found $DTS_NAME"
 	fi
+
 	supply=$(cat $DTS_NAME \
-			| grep $1 \
-			| cut -d "&" -f 2 \
-			| cut -d ">" -f 1)
-	#supply_str=$supply":"
+		| grep $1 \
+		| cut -d "&" -f 2 \
+		| cut -d ">" -f 1 \
+		| tail -n1)
 
 	ldo_str=$(cat $DTS_NAME  \
 		| awk 'BEGIN {RS="\n\n+";ORS="\n\n"}/regulator-name/{print $0}' \
