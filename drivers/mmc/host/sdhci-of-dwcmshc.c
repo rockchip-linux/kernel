@@ -182,7 +182,7 @@ static void dwcmshc_rk_set_clock(struct sdhci_host *host, unsigned int clock)
 	extra &= ~BIT(0);
 	sdhci_writel(host, extra, DWCMSHC_HOST_CTRL3);
 
-	if (clock <= 400000) {
+	if (clock <= 52000000) {
 		/* Disable DLL and reset both of sample and drive clock */
 		sdhci_writel(host, 0, DWCMSHC_EMMC_DLL_CTRL);
 		sdhci_writel(host, 0, DWCMSHC_EMMC_DLL_RXCLK);
