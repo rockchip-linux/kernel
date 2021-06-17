@@ -83,7 +83,6 @@ int ebc_add_to_dsp_buf_list(struct ebc_buf_s *dsp_buf)
 		case EPD_RESUME:
 		case EPD_POWER_OFF:
 		case EPD_OVERLAY:
-		case EPD_OVERLAY_WHITE:
 		case EPD_RESET:
 		case EPD_FORCE_FULL:
 			break;
