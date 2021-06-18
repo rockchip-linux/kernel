@@ -1023,8 +1023,15 @@ static void show_loader_logo(struct drm_device *drm_dev)
 			struct rockchip_drm_private *priv =
 							drm_dev->dev_private;
 
-			if (unset->hdisplay && unset->vdisplay)
+			if (unset->hdisplay && unset->vdisplay) {
+				if (priv->crtc_funcs[pipe] &&
+				    priv->crtc_funcs[pipe]->loader_protect)
+					priv->crtc_funcs[pipe]->loader_protect(crtc, true);
 				priv->crtc_funcs[pipe]->crtc_close(crtc);
+				if (priv->crtc_funcs[pipe] &&
+				    priv->crtc_funcs[pipe]->loader_protect)
+					priv->crtc_funcs[pipe]->loader_protect(crtc, false);
+			}
 		}
 
 		list_del(&unset->head);
