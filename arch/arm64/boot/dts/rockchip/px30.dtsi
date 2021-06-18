@@ -1922,6 +1922,11 @@
 		};
 	};
 
+	dmcdbg: dmcdbg {
+		compatible = "rockchip,px30-dmcdbg";
+		status = "okay";
+	};
+
 	rockchip_system_monitor: rockchip-system-monitor {
 		compatible = "rockchip,system-monitor";
 
