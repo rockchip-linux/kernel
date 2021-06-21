@@ -905,6 +905,56 @@ static const struct file_operations regsinfo_proc_fops = {
 	.release	= single_release,
 };
 
+static int rk_dmcdbg_sip_smc_match_ver(struct platform_device *pdev,
+				       u32 match_ver)
+{
+	struct arm_smccc_res res;
+
+	/* check ddr_debug_func version */
+	res = sip_smc_dram(0, DDRDBG_FUNC_GET_VERSION,
+			   ROCKCHIP_SIP_CONFIG_DRAM_DEBUG);
+	dev_notice(&pdev->dev, "current ATF ddr_debug_func version 0x%lx.\n",
+		   res.a1);
+	/*
+	 * [15:8] major version, [7:0] minor version
+	 * major version must match both kernel dmcdbg and ATF ddr_debug_func.
+	 */
+	if (res.a0 || res.a1 < match_ver || ((res.a1 & 0xff00) != (match_ver & 0xff00))) {
+		dev_err(&pdev->dev,
+			"version invalid, need update to 0x%x or newer, the major version unmatch!\n",
+			match_ver);
+
+		return -ENXIO;
+	}
+
+	return 0;
+}
+
+static int proc_dmcdbg_init(struct platform_device *pdev)
+{
+	struct arm_smccc_res res;
+
+	/* request share memory for pass parameter */
+	res = sip_smc_request_share_mem(DMCDBG_PAGE_NUMS,
+					SHARE_PAGE_TYPE_DDRDBG);
+	if (res.a0 != 0) {
+		dev_err(&pdev->dev, "request share mem error!\n");
+		return -ENOMEM;
+	}
+
+	dmcdbg_data.share_memory = (void __iomem *)res.a1;
+	dmcdbg_data.inited_flag = 1;
+
+	/* create parent dir in /proc */
+	proc_dmcdbg_dir = proc_mkdir(PROC_DMCDBG_DIR_NAME, NULL);
+	if (!proc_dmcdbg_dir) {
+		dev_err(&pdev->dev, "create proc dir error!\n");
+		return -ENOENT;
+	}
+
+	return 0;
+}
+
 static int proc_regsinfo_init(void)
 {
 	/* create dmcinfo file */
@@ -968,42 +1018,18 @@ static void rv1126_get_skew_parameter(void)
 static __maybe_unused int rv1126_dmcdbg_init(struct platform_device *pdev,
 					     struct rockchip_dmcdbg *dmcdbg)
 {
-	struct arm_smccc_res res;
+	u32 version = 0x101;
+	int ret;
 
-	/* check ddr_debug_func version */
-	res = sip_smc_dram(0, DDRDBG_FUNC_GET_VERSION,
-			   ROCKCHIP_SIP_CONFIG_DRAM_DEBUG);
-	dev_notice(&pdev->dev, "current ATF ddr_debug_func version 0x%lx.\n",
-		   res.a1);
-	/*
-	 * [15:8] major version, [7:0] minor version
-	 * major version must match both kernel dmcdbg and ATF ddr_debug_func.
-	 */
-	if (res.a0 || res.a1 < 0x101 || ((res.a1 & 0xff00) != 0x100)) {
-		dev_err(&pdev->dev,
-			"version invalid,need update,the major version unmatch!\n");
-		return -ENXIO;
-	}
+	ret = rk_dmcdbg_sip_smc_match_ver(pdev, version);
+	if (ret)
+		return ret;
 
-	/* request share memory for pass parameter */
-	res = sip_smc_request_share_mem(DMCDBG_PAGE_NUMS,
-					SHARE_PAGE_TYPE_DDRDBG);
-	if (res.a0 != 0) {
-		dev_err(&pdev->dev, "request share mem error\n");
-		return -ENOMEM;
-	}
-
-	dmcdbg_data.share_memory = (void __iomem *)res.a1;
-	dmcdbg_data.inited_flag = 1;
+	ret = proc_dmcdbg_init(pdev);
+	if (ret)
+		return ret;
 
 	rv1126_get_skew_parameter();
-
-	/* create parent dir in /proc */
-	proc_dmcdbg_dir = proc_mkdir(PROC_DMCDBG_DIR_NAME, NULL);
-	if (!proc_dmcdbg_dir) {
-		dev_err(&pdev->dev, "create proc dir error!");
-		return -ENOENT;
-	}
 
 	proc_dmcinfo_init();
 	proc_powersave_init();
