@@ -1043,6 +1043,7 @@ static const struct vop2_win_data rk3568_vop_win_data[] = {
 	  .max_upscale_factor = 8,
 	  .max_downscale_factor = 8,
 	  .dly = { 20, 47, 41 },
+	  .feature = WIN_FEATURE_MIRROR,
 	},
 
 	{
@@ -1065,6 +1066,7 @@ static const struct vop2_win_data rk3568_vop_win_data[] = {
 	  .max_upscale_factor = 8,
 	  .max_downscale_factor = 8,
 	  .dly = { 20, 47, 41 },
+	  .feature = WIN_FEATURE_MIRROR,
 	},
 
 	{
@@ -1150,7 +1152,7 @@ static const struct vop2_win_data rk3568_vop_win_data[] = {
 	  .max_upscale_factor = 4,
 	  .max_downscale_factor = 4,
 	  .dly = { 0, 27, 21 },
-	  .feature = WIN_FEATURE_AFBDC | WIN_FEATURE_CLUSTER_MAIN,
+	  .feature = WIN_FEATURE_AFBDC | WIN_FEATURE_CLUSTER_MAIN | WIN_FEATURE_MIRROR,
 	},
 
 	{
@@ -1170,7 +1172,7 @@ static const struct vop2_win_data rk3568_vop_win_data[] = {
 	  .type = DRM_PLANE_TYPE_OVERLAY,
 	  .max_upscale_factor = 4,
 	  .max_downscale_factor = 4,
-	  .feature = WIN_FEATURE_AFBDC | WIN_FEATURE_CLUSTER_SUB,
+	  .feature = WIN_FEATURE_AFBDC | WIN_FEATURE_CLUSTER_SUB | WIN_FEATURE_MIRROR,
 	},
 };
 
