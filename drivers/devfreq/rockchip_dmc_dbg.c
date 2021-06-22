@@ -78,6 +78,55 @@ struct dram_info {
 	unsigned int dramfreq;
 	unsigned int channel_num;
 	struct dram_cap_info ch[2];
+	unsigned int dramid[3];
+};
+
+struct lpddrx_id {
+	unsigned int dramid;
+	char *name;
+};
+
+static const struct lpddrx_id lp23_manuf_id[] = {
+	{ 0x1, "Samsung" },
+	{ 0x2, "Qimonda" },
+	{ 0x3, "Elpida" },
+	{ 0x4, "Etron" },
+	{ 0x5, "Nanya" },
+	{ 0x6, "SK hynix" },
+	{ 0x7, "Mosel" },
+	{ 0x8, "Winbond" },
+	{ 0x9, "ESMT" },
+	{ 0xa, "Zentel" },
+	{ 0xb, "Spansion" },
+	{ 0xc, "SST" },
+	{ 0xd, "ZMOS" },
+	{ 0xe, "Intel" },
+	{ 0x12, "Being Advanced Memory Corp" },
+	{ 0x1a, "Xi'an UniIC Semiconductors Co., Ltd" },
+	{ 0x1b, "ISSI" },
+	{ 0x1c, "JSC" },
+	{ 0xaa, "Tezzaron" },
+	{ 0xc2, "Macronix" },
+	{ 0xf8, "Fidelix" },
+	{ 0xfc, "eveRAM" },
+	{ 0xfd, "AP Memory" },
+	{ 0xfe, "Numonyx" },
+	{ 0xff, "Micron" }
+};
+
+static const struct lpddrx_id lp4_manuf_id[] = {
+	{ 0x1, "Samsung" },
+	{ 0x5, "Nanya" },
+	{ 0x6, "SK hynix" },
+	{ 0x8, "Winbond" },
+	{ 0x9, "ESMT" },
+	{ 0x13, "CXMT" },
+	{ 0x1a, "Xi'an UniIC Semiconductors Co., Ltd" },
+	{ 0x1c, "JSC" },
+	{ 0xf8, "Fidelix" },
+	{ 0xf9, "Ultra Memory" },
+	{ 0xfd, "AP Memory" },
+	{ 0xff, "Micron" }
 };
 
 static const char * const power_save_msg[] = {
@@ -192,9 +241,9 @@ static int dmcinfo_proc_show(struct seq_file *m, void *v)
 {
 	struct arm_smccc_res res;
 	struct dram_info *p_dram_info;
-	struct file *fp  = NULL;
-	char cur_freq[20] = {0};
-	char governor[20] = {0};
+	struct file *fp = NULL;
+	char cur_freq[20] = { 0 };
+	char governor[20] = { 0 };
 	loff_t pos;
 	u32 i;
 
@@ -213,25 +262,56 @@ static int dmcinfo_proc_show(struct seq_file *m, void *v)
 	p_dram_info = (struct dram_info *)dmcdbg_data.share_memory;
 
 	/* dram type information */
-	seq_printf(m,
-		   "DramType:	%s\n"
-		   ,
-		   p_dram_info->dramtype
-		   );
-
+	seq_printf(m, "DramType:	%s\n", p_dram_info->dramtype);
+	if (p_dram_info->version >= 0x2) {
+		if ((strcmp(p_dram_info->dramtype, "LPDDR2") == 0) ||
+		    (strcmp(p_dram_info->dramtype, "LPDDR3") == 0)) {
+			for (i = 0; i < ARRAY_SIZE(lp23_manuf_id); i++) {
+				if (lp23_manuf_id[i].dramid == p_dram_info->dramid[0]) {
+					seq_printf(m,
+						   "Dram ID:	%s(MR5=0x%x,MR6=0x%x,MR7=0x%x)\n",
+						   lp23_manuf_id[i].name,
+						   p_dram_info->dramid[0],
+						   p_dram_info->dramid[1],
+						   p_dram_info->dramid[2]);
+					break;
+				}
+			}
+			if (i == ARRAY_SIZE(lp23_manuf_id))
+				seq_printf(m,
+					   "Dram ID:	Unknown(MR5=0x%x,MR6=0x%x,MR7=0x%x)\n",
+					   p_dram_info->dramid[0],
+					   p_dram_info->dramid[1],
+					   p_dram_info->dramid[2]);
+		} else if (strcmp(p_dram_info->dramtype, "LPDDR4") == 0) {
+			for (i = 0; i < ARRAY_SIZE(lp4_manuf_id); i++) {
+				if (lp4_manuf_id[i].dramid == p_dram_info->dramid[0]) {
+					seq_printf(m,
+						   "Dram ID:	%s(MR5=0x%x,MR6=0x%x,MR7=0x%x)\n",
+						   lp4_manuf_id[i].name,
+						   p_dram_info->dramid[0],
+						   p_dram_info->dramid[1],
+						   p_dram_info->dramid[2]);
+					break;
+				}
+			}
+			if (i == ARRAY_SIZE(lp4_manuf_id))
+				seq_printf(m,
+					   "Dram ID:	Unknown(MR5=0x%x,MR6=0x%x,MR7=0x%x)\n",
+					   p_dram_info->dramid[0],
+					   p_dram_info->dramid[1],
+					   p_dram_info->dramid[2]);
+		} else {
+			seq_printf(m, "Dram ID:	None\n");
+		}
+	}
 	/* dram capacity information */
-	seq_printf(m,
-		   "\n"
-		   "DramCapacity:\n"
-		   );
+	seq_printf(m, "\n"
+		      "DramCapacity:\n");
 
 	for (i = 0; i < p_dram_info->channel_num; i++) {
 		if (p_dram_info->channel_num == 2)
-			seq_printf(m,
-				   "Channel [%d]:\n"
-				   ,
-				   i
-				   );
+			seq_printf(m, "Channel [%d]:\n", i);
 
 		seq_printf(m,
 			   "CS Count:	%d\n"
@@ -241,8 +321,7 @@ static int dmcinfo_proc_show(struct seq_file *m, void *v)
 			   "CS0_Row:	%d\n"
 			   "CS1_Row:	%d\n"
 			   "DieBusWidth:	%d bit\n"
-			   "TotalSize:	%d MB\n"
-			   ,
+			   "TotalSize:	%d MB\n",
 			   p_dram_info->ch[i].rank,
 			   p_dram_info->ch[i].buswidth,
 			   p_dram_info->ch[i].col,
@@ -250,8 +329,7 @@ static int dmcinfo_proc_show(struct seq_file *m, void *v)
 			   p_dram_info->ch[i].cs0_row,
 			   p_dram_info->ch[i].cs1_row,
 			   p_dram_info->ch[i].die_buswidth,
-			   p_dram_info->ch[i].size
-			   );
+			   p_dram_info->ch[i].size);
 	}
 
 	/* check devfreq/dmc device */
@@ -260,10 +338,8 @@ static int dmcinfo_proc_show(struct seq_file *m, void *v)
 		seq_printf(m,
 			   "\n"
 			   "devfreq/dmc:	Disable\n"
-			   "DramFreq:	%d\n"
-			   ,
-			   p_dram_info->dramfreq
-			   );
+			   "DramFreq:	%d\n",
+			   p_dram_info->dramfreq);
 	} else {
 		pos = 0;
 		kernel_read(fp, cur_freq, sizeof(cur_freq), &pos);
@@ -282,15 +358,11 @@ static int dmcinfo_proc_show(struct seq_file *m, void *v)
 			   "\n"
 			   "devfreq/dmc:	Enable\n"
 			   "governor:	%s\n"
-			   "cur_freq:	%s\n"
-			   ,
-			   governor,
-			   cur_freq
-			   );
+			   "cur_freq:	%s\n",
+			   governor, cur_freq);
 		seq_printf(m,
 			   "NOTE:\n"
-			   "more information about dmc can get from /sys/class/devfreq/dmc.\n"
-			   );
+			   "more information about dmc can get from /sys/class/devfreq/dmc.\n");
 	}
 
 	return 0;
@@ -340,19 +412,15 @@ static int powersave_proc_show(struct seq_file *m, void *v)
 	}
 	p_power = (struct power_save_info *)dmcdbg_data.share_memory;
 
-	seq_printf(m,
-		   "low power information:\n"
-		   "\n"
-		   "[number]name: value\n"
-		   );
+	seq_printf(m, "low power information:\n"
+		      "\n"
+		      "[number]name: value\n");
 
 	p_uint = (unsigned int *)p_power;
 	for (i = 0; i < ARRAY_SIZE(power_save_msg); i++)
 		seq_printf(m,
-			   "[%d]%s: %d\n"
-			   ,
-			   i, power_save_msg[i], *(p_uint + i)
-			   );
+			   "[%d]%s: %d\n",
+			   i, power_save_msg[i], *(p_uint + i));
 
 	seq_printf(m,
 		   "\n"
@@ -364,8 +432,7 @@ static int powersave_proc_show(struct seq_file *m, void *v)
 		   "Support for setting multiple parameters at the same time.\n"
 		   "echo number=value,number=value,... > /proc/dmcdbg/powersave\n"
 		   "eg:\n"
-		   "  echo 0=1,1=32 > /proc/dmcdbg/powersave\n"
-		   );
+		   "  echo 0=1,1=32 > /proc/dmcdbg/powersave\n");
 
 	return 0;
 }
@@ -502,48 +569,34 @@ static int drvodt_proc_show(struct seq_file *m, void *v)
 	}
 	p_drvodt = (struct drv_odt_info *)dmcdbg_data.share_memory;
 
-	seq_printf(m,
-		   "drv and odt information:\n"
-		   "\n"
-		   "[number]name: value (ohm)\n"
-	);
+	seq_printf(m, "drv and odt information:\n"
+		      "\n"
+		      "[number]name: value (ohm)\n");
 
 	p_uint = (unsigned int *)p_drvodt;
 	for (i = 0; i < ARRAY_SIZE(drv_odt_msg); i++) {
 		if (*(p_uint + (i * 3)) == DRV_ODT_UNKNOWN)
 			seq_printf(m,
-				   "[%2d]%s: NULL (unknown) %c\n"
-				   ,
+				   "[%2d]%s: NULL (unknown) %c\n",
 				   i, drv_odt_msg[i],
-				   (*(p_uint + (i * 3) + 2) ==
-				    DRV_ODT_SUSPEND_FIX) ? '\0' : '*'
-			);
+				   (*(p_uint + (i * 3) + 2) == DRV_ODT_SUSPEND_FIX) ? '\0' : '*');
 		else if (*(p_uint + (i * 3) + 1) == DRV_ODT_UNKNOWN)
 			seq_printf(m,
-				   "[%2d]%s: %d (unknown) %c\n"
-				   ,
+				   "[%2d]%s: %d (unknown) %c\n",
 				   i, drv_odt_msg[i], *(p_uint + (i * 3)),
-				   (*(p_uint + (i * 3) + 2) ==
-				    DRV_ODT_SUSPEND_FIX) ? '\0' : '*'
-			);
+				   (*(p_uint + (i * 3) + 2) == DRV_ODT_SUSPEND_FIX) ? '\0' : '*');
 		else if (i < (ARRAY_SIZE(drv_odt_msg) - 2))
 			seq_printf(m,
-				   "[%2d]%s: %d (%d ohm) %c\n"
-				   ,
+				   "[%2d]%s: %d (%d ohm) %c\n",
 				   i, drv_odt_msg[i], *(p_uint + (i * 3)),
 				   *(p_uint + (i * 3) + 1),
-				   (*(p_uint + (i * 3) + 2) ==
-				    DRV_ODT_SUSPEND_FIX) ? '\0' : '*'
-			);
+				   (*(p_uint + (i * 3) + 2) == DRV_ODT_SUSPEND_FIX) ? '\0' : '*');
 		else
 			seq_printf(m,
-				   "[%2d]%s: %d (%d %%) %c\n"
-				   ,
+				   "[%2d]%s: %d (%d %%) %c\n",
 				   i, drv_odt_msg[i], *(p_uint + (i * 3)),
 				   *(p_uint + (i * 3) + 1),
-				   (*(p_uint + (i * 3) + 2) ==
-				    DRV_ODT_SUSPEND_FIX) ? '\0' : '*'
-			);
+				   (*(p_uint + (i * 3) + 2) == DRV_ODT_SUSPEND_FIX) ? '\0' : '*');
 	}
 
 	seq_printf(m,
@@ -558,8 +611,7 @@ static int drvodt_proc_show(struct seq_file *m, void *v)
 		   "eg: set soc side ca drv up and down to 20\n"
 		   "  echo 6=20,7=20 > /proc/dmcdbg/drvodt\n"
 		   "Note: Please update both up and down at the same time.\n"
-		   "      (*) mean unsupported setting value\n"
-	);
+		   "      (*) mean unsupported setting value\n");
 
 	return 0;
 }
@@ -694,28 +746,20 @@ static int skew_proc_show(struct seq_file *m, void *v)
 		return -EPERM;
 	}
 
-	seq_printf(m,
-		   "de-skew information:\n"
-		   "\n"
-		   "[group_number]name: value\n"
-	);
+	seq_printf(m, "de-skew information:\n"
+		      "\n"
+		      "[group_number]name: value\n");
 
 	for (group = 0; group < dmcdbg_data.skew_group_num; group++) {
 		if (dmcdbg_data.skew_group[group].note != NULL)
-			seq_printf(m,
-				"%s\n"
-				,
-				dmcdbg_data.skew_group[group].note
-			);
+			seq_printf(m, "%s\n",
+				   dmcdbg_data.skew_group[group].note);
 		p_uint = (unsigned int *)dmcdbg_data.skew_group[group].p_skew_info;
 		for (i = 0; i < dmcdbg_data.skew_group[group].skew_num; i++)
-			seq_printf(m,
-				"[%c%d_%d]%s: %d\n"
-				,
-				(i < 10) ? ' ' : '\0', group, i,
-				dmcdbg_data.skew_group[group].p_skew_timing[i],
-				*(p_uint + i)
-			);
+			seq_printf(m, "[%c%d_%d]%s: %d\n",
+				   (i < 10) ? ' ' : '\0', group, i,
+				   dmcdbg_data.skew_group[group].p_skew_timing[i],
+				   *(p_uint + i));
 	}
 
 	seq_printf(m,
@@ -728,8 +772,7 @@ static int skew_proc_show(struct seq_file *m, void *v)
 		   "Support for setting multiple parameters simultaneously.\n"
 		   "echo group_number=value,group_number=value,... > /proc/dmcdbg/deskew\n"
 		   "eg:\n"
-		   "  echo 0_1=8,1_2=8 > /proc/dmcdbg/deskew\n"
-	);
+		   "  echo 0_1=8,1_2=8 > /proc/dmcdbg/deskew\n");
 
 	return 0;
 }
@@ -876,18 +919,13 @@ static int regsinfo_proc_show(struct seq_file *m, void *v)
 	}
 	p_regsinfo = (struct registers_info *)dmcdbg_data.share_memory;
 
-	seq_printf(m,
-		   "registers base address information:\n"
-		   "\n"
-	);
+	seq_printf(m, "registers base address information:\n"
+		      "\n");
 
 	for (i = 0; i < p_regsinfo->regs_num; i++) {
-		seq_printf(m,
-			   "%s=0x%x\n"
-			   ,
+		seq_printf(m, "%s=0x%x\n",
 			   p_regsinfo->regs[i].regs_name,
-			   p_regsinfo->regs[i].regs_addr
-			   );
+			   p_regsinfo->regs[i].regs_addr);
 	}
 
 	return 0;
@@ -1040,7 +1078,7 @@ static __maybe_unused int rv1126_dmcdbg_init(struct platform_device *pdev,
 }
 
 static const struct of_device_id rockchip_dmcdbg_of_match[] = {
-	{ .compatible = "rockchip,rv1126-dmcdbg", .data = rv1126_dmcdbg_init},
+	{ .compatible = "rockchip,rv1126-dmcdbg", .data = rv1126_dmcdbg_init },
 	{ },
 };
 MODULE_DEVICE_TABLE(of, rockchip_dmcdbg_of_match);
