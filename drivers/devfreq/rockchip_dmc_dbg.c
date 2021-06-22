@@ -74,7 +74,7 @@ struct dram_cap_info {
 
 struct dram_info {
 	unsigned int version;
-	char dramtype[10];
+	char dramtype[12];
 	unsigned int dramfreq;
 	unsigned int channel_num;
 	struct dram_cap_info ch[2];
@@ -1018,7 +1018,7 @@ static void rv1126_get_skew_parameter(void)
 static __maybe_unused int rv1126_dmcdbg_init(struct platform_device *pdev,
 					     struct rockchip_dmcdbg *dmcdbg)
 {
-	u32 version = 0x101;
+	u32 version = 0x102;
 	int ret;
 
 	ret = rk_dmcdbg_sip_smc_match_ver(pdev, version);
