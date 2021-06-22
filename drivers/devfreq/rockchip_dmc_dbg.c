@@ -1077,7 +1077,27 @@ static __maybe_unused int rv1126_dmcdbg_init(struct platform_device *pdev,
 	return 0;
 }
 
+static __maybe_unused int px30_dmcdbg_init(struct platform_device *pdev,
+					   struct rockchip_dmcdbg *dmcdbg)
+{
+	u32 version = 0x101;
+	int ret;
+
+	ret = rk_dmcdbg_sip_smc_match_ver(pdev, version);
+	if (ret)
+		return ret;
+
+	ret = proc_dmcdbg_init(pdev);
+	if (ret)
+		return ret;
+
+	proc_dmcinfo_init();
+
+	return 0;
+}
+
 static const struct of_device_id rockchip_dmcdbg_of_match[] = {
+	{ .compatible = "rockchip,px30-dmcdbg", .data = px30_dmcdbg_init },
 	{ .compatible = "rockchip,rv1126-dmcdbg", .data = rv1126_dmcdbg_init },
 	{ },
 };
