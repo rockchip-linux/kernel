@@ -1054,16 +1054,6 @@ void __init acpi_early_init(void)
 		goto error0;
 	}
 
-	if (!acpi_gbl_execute_tables_as_methods &&
-	    acpi_gbl_group_module_level_code) {
-		status = acpi_load_tables();
-		if (ACPI_FAILURE(status)) {
-			printk(KERN_ERR PREFIX
-			       "Unable to load the System Description Tables\n");
-			goto error0;
-		}
-	}
-
 #ifdef CONFIG_X86
 	if (!acpi_ioapic) {
 		/* compatible (0) means level (3) */
@@ -1133,26 +1123,24 @@ static int __init acpi_bus_init(void)
 
 	acpi_os_initialize1();
 
-	/*
-	 * ACPI 2.0 requires the EC driver to be loaded and work before
-	 * the EC device is found in the namespace (i.e. before
-	 * acpi_load_tables() is called).
-	 *
-	 * This is accomplished by looking for the ECDT table, and getting
-	 * the EC parameters out of that.
-	 */
-	status = acpi_ec_ecdt_probe();
-	/* Ignore result. Not having an ECDT is not fatal. */
-
-	if (acpi_gbl_execute_tables_as_methods ||
-	    !acpi_gbl_group_module_level_code) {
-		status = acpi_load_tables();
-		if (ACPI_FAILURE(status)) {
-			printk(KERN_ERR PREFIX
-			       "Unable to load the System Description Tables\n");
-			goto error1;
-		}
+	status = acpi_load_tables();
+	if (ACPI_FAILURE(status)) {
+		printk(KERN_ERR PREFIX
+		       "Unable to load the System Description Tables\n");
+		goto error1;
 	}
+
+	/*
+	 * ACPI 2.0 requires the EC driver to be loaded and work before the EC
+	 * device is found in the namespace.
+	 *
+	 * This is accomplished by looking for the ECDT table and getting the EC
+	 * parameters out of that.
+	 *
+	 * Do that before calling acpi_initialize_objects() which may trigger EC
+	 * address space accesses.
+	 */
+	acpi_ec_ecdt_probe();
 
 	status = acpi_enable_subsystem(ACPI_NO_ACPI_ENABLE);
 	if (ACPI_FAILURE(status)) {
