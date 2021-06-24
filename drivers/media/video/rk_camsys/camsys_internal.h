@@ -221,9 +221,11 @@
 	   isp internal reset would cause system halted, so we use by cru.
 *v0.0x30.3:
        1) fix stack overflow bug.
+*v0.0x30.4:
+       1) fix vcm access failure by i2c command.
 */
 
-#define CAMSYS_DRIVER_VERSION                   KERNEL_VERSION(0, 0x30, 3)
+#define CAMSYS_DRIVER_VERSION                   KERNEL_VERSION(0, 0x30, 4)
 
 #define CAMSYS_PLATFORM_DRV_NAME                "RockChip-CamSys"
 #define CAMSYS_PLATFORM_MARVIN_NAME             "Platform_MarvinDev"
