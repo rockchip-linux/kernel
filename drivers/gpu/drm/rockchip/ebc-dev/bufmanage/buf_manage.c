@@ -78,7 +78,7 @@ int ebc_add_to_dsp_buf_list(struct ebc_buf_s *dsp_buf)
 	mutex_lock(&ebc_buf_info.dsp_buf_lock);
 	if (ebc_buf_info.dsp_buf_list) {
 		switch (dsp_buf->buf_mode) {
-		case EPD_DU:
+		case EPD_A2_ENTER:
 		case EPD_SUSPEND:
 		case EPD_RESUME:
 		case EPD_POWER_OFF:
@@ -92,7 +92,7 @@ int ebc_add_to_dsp_buf_list(struct ebc_buf_s *dsp_buf)
 				temp_pos = ebc_buf_info.dsp_buf_list->nb_elt;
 				while (--temp_pos) {
 					temp_buf = (struct ebc_buf_s *)buf_list_get(ebc_buf_info.dsp_buf_list, temp_pos);
-					if ((temp_buf->buf_mode >= EPD_PART_GC16) && (temp_buf->buf_mode <= EPD_A2)) {
+					if ((temp_buf->buf_mode >= EPD_PART_GC16) && (temp_buf->buf_mode <= EPD_DU4)) {
 						buf_list_remove(ebc_buf_info.dsp_buf_list, temp_pos);
 						ebc_buf_release(temp_buf);
 					} else if ((1 == is_full_mode) && (temp_buf->buf_mode >= EPD_FULL_GC16)

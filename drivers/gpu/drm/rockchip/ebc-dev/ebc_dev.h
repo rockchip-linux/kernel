@@ -71,11 +71,13 @@ enum panel_refresh_mode {
 	EPD_PART_GCC16		= 11,
 	EPD_A2			= 12,
 	EPD_DU			= 13,
-	EPD_RESET		= 14,
-	EPD_SUSPEND		= 15,
-	EPD_RESUME		= 16,
-	EPD_POWER_OFF		= 17,
-	EPD_FORCE_FULL		= 18,
+	EPD_DU4			= 14,
+	EPD_A2_ENTER		= 15,
+	EPD_RESET		= 16,
+	EPD_SUSPEND		= 17,
+	EPD_RESUME		= 18,
+	EPD_POWER_OFF		= 19,
+	EPD_FORCE_FULL		= 20,
 };
 
 /*
