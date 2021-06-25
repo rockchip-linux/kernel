@@ -38,7 +38,7 @@ static int debug;
 module_param(debug, int, 0644);
 MODULE_PARM_DESC(debug, "debug level (0-3)");
 
-#define DRIVER_VERSION			KERNEL_VERSION(0, 0x0, 0x3)
+#define DRIVER_VERSION			KERNEL_VERSION(0, 0x0, 0x4)
 #define RK628_CSI_NAME			"rk628-csi"
 
 #define EDID_NUM_BLOCKS_MAX 		2
@@ -844,7 +844,8 @@ static void rk628_csi_set_csi(struct v4l2_subdev *sd)
 	u8 lanes = csi->csi_lanes_in_use;
 	u8 lane_num;
 	u8 dphy_lane_en;
-	u32 wc_usrdef, val;
+	u32 wc_usrdef, val, avi_pb = 0;
+	u8 cnt = 0;
 
 	lane_num = lanes - 1;
 	dphy_lane_en = (1 << (lanes + 1)) - 1;
@@ -905,16 +906,19 @@ static void rk628_csi_set_csi(struct v4l2_subdev *sd)
 	regmap_write(csi->csi_regmap, CSITX_CONFIG_DONE, CONFIG_DONE_IMD);
 	v4l2_dbg(1, debug, sd, "%s csi cofig done\n", __func__);
 
-	for (i = 0; i < 10; i++) {
-		if (csi->avi_rcv_rdy)
-			break;
-		usleep_range(20*1000, 21*1000);
+	for (i = 0; i < 100; i++) {
+		regmap_read(csi->hdmirx_regmap, HDMI_RX_PDEC_AVI_PB, &val);
+		v4l2_dbg(2, debug, sd, "%s PDEC_AVI_PB:%#x, avi_rcv_rdy:%d\n",
+			 __func__, val, csi->avi_rcv_rdy);
+		if (val == avi_pb && csi->avi_rcv_rdy) {
+			if (++cnt >= 2)
+				break;
+		} else {
+			cnt = 0;
+			avi_pb = val;
+		}
+		msleep(30);
 	}
-
-	if (i == 10)
-		v4l2_err(sd, "%s Have not rcv avi packet!\n", __func__);
-
-	regmap_read(csi->hdmirx_regmap, HDMI_RX_PDEC_AVI_PB, &val);
 	video_fmt = (val & VIDEO_FORMAT_MASK) >> 5;
 	v4l2_dbg(1, debug, sd, "%s PDEC_AVI_PB:%#x, video format:%d\n",
 			__func__, val, video_fmt);
@@ -1398,7 +1402,7 @@ static int rk628_csi_isr(struct v4l2_subdev *sd, u32 status, bool *handled)
 		*handled = true;
 	}
 
-	if ((pdec_ints | AVI_RCV_ISTS) && plugin) {
+	if ((pdec_ints & AVI_RCV_ISTS) && plugin) {
 		v4l2_dbg(1, debug, sd, "%s: AVI RCV INT!\n", __func__);
 		csi->avi_rcv_rdy = true;
 		/* After get the AVI_RCV interrupt state, disable interrupt. */
