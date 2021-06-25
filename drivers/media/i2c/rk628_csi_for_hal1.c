@@ -33,7 +33,7 @@ static int debug;
 module_param(debug, int, 0644);
 MODULE_PARM_DESC(debug, "debug level (0-1)");
 
-#define DRIVER_VERSION			KERNEL_VERSION(0, 0x0, 0x4)
+#define DRIVER_VERSION			KERNEL_VERSION(0, 0x0, 0x5)
 #define RKMODULE_CAMERA_MODULE_INDEX    "rockchip,camera-module-index"
 
 #define EDID_NUM_BLOCKS_MAX		2
@@ -804,7 +804,8 @@ static void rk628_csi_set_csi(struct rk628_csi *csi)
 	u8 lanes = csi->csi_lanes_in_use;
 	u8 lane_num;
 	u8 dphy_lane_en;
-	u32 wc_usrdef, val;
+	u32 wc_usrdef, val, avi_pb = 0;
+	u8 cnt = 0;
 
 	lane_num = lanes - 1;
 	dphy_lane_en = (1 << (lanes + 1)) - 1;
@@ -865,16 +866,19 @@ static void rk628_csi_set_csi(struct rk628_csi *csi)
 	regmap_write(csi->csi_regmap, CSITX_CONFIG_DONE, CONFIG_DONE_IMD);
 	dev_dbg(csi->dev, "%s csi cofig done\n", __func__);
 
-	for (i = 0; i < 10; i++) {
-		if (csi->avi_rcv_rdy)
-			break;
-		usleep_range(20*1000, 21*1000);
+	for (i = 0; i < 100; i++) {
+		regmap_read(csi->hdmirx_regmap, HDMI_RX_PDEC_AVI_PB, &val);
+		dev_dbg(csi->dev, "%s PDEC_AVI_PB:%#x, avi_rcv_rdy:%d\n",
+			__func__, val, csi->avi_rcv_rdy);
+		if (val == avi_pb && csi->avi_rcv_rdy) {
+			if (++cnt >= 2)
+				break;
+		} else {
+			cnt = 0;
+			avi_pb = val;
+		}
+		msleep(30);
 	}
-
-	if (i == 10)
-		dev_err(csi->dev, "%s Have not rcv avi packet!\n", __func__);
-
-	regmap_read(csi->hdmirx_regmap, HDMI_RX_PDEC_AVI_PB, &val);
 	video_fmt = (val & VIDEO_FORMAT_MASK) >> 5;
 	dev_dbg(csi->dev, "%s PDEC_AVI_PB:%#x, video format:%d\n",
 			__func__, val, video_fmt);
