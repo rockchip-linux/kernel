@@ -66,15 +66,19 @@ struct xz3216 {
 	struct i2c_client *i2c;
 	int num_regulators;
 	struct regulator_dev *rdev;
+	struct regulator_desc desc;
 	struct regulator_init_data *regulator;
 	struct regmap *regmap;
 	/* Voltage setting register */
 	unsigned int vol_reg;
 	unsigned int sleep_reg;
+	unsigned int en_reg;
+	unsigned int sleep_en_reg;
 	/* Voltage range and step(linear) */
 	unsigned int vsel_min;
 	unsigned int vsel_step;
 	unsigned int sleep_vol_cache;
+	unsigned int sleep_vsel_id;
 };
 
 struct xz3216_regulator {
@@ -86,6 +90,7 @@ struct xz3216_regulator {
 struct xz3216_board {
 	struct regulator_init_data *xz3216_init_data;
 	struct device_node *of_node;
+	unsigned int sleep_vsel_id;
 };
 
 static unsigned int xz3216_dcdc_get_mode(struct regulator_dev *dev)
@@ -120,19 +125,51 @@ static int xz3216_dcdc_set_mode(struct regulator_dev *dev, unsigned int mode)
 	}
 }
 
+static int xz3216_dcdc_is_enable(struct regulator_dev *dev)
+{
+	struct xz3216 *xz3216 = rdev_get_drvdata(dev);
+	int ret = 0;
+	unsigned int val;
+
+	ret = regmap_read(xz3216->regmap, xz3216->en_reg, &val);
+	if (ret < 0)
+		return ret;
+	if (val & VSEL_BUCK_EN)
+		return 1;
+	else
+		return 0;
+}
+
+static int xz3216_dcdc_enable(struct regulator_dev *dev)
+{
+	struct xz3216 *xz3216 = rdev_get_drvdata(dev);
+
+	return regmap_update_bits(xz3216->regmap, xz3216->en_reg,
+				VSEL_BUCK_EN, VSEL_BUCK_EN);
+}
+
+static int xz3216_dcdc_disable(struct regulator_dev *dev)
+{
+	struct xz3216 *xz3216 = rdev_get_drvdata(dev);
+
+	return regmap_update_bits(xz3216->regmap, xz3216->en_reg,
+				VSEL_BUCK_EN, 0);
+}
+
 static int xz3216_dcdc_suspend_enable(struct regulator_dev *dev)
 {
 	struct xz3216 *xz3216 = rdev_get_drvdata(dev);
-	return regmap_update_bits(xz3216->regmap, XZ3216_BUCK1_SLP_VOL_BASE,
-				  VSEL_BUCK_EN, VSEL_BUCK_EN);
+
+	return regmap_update_bits(xz3216->regmap, xz3216->sleep_en_reg,
+				VSEL_BUCK_EN, VSEL_BUCK_EN);
 }
 
 static int xz3216_dcdc_suspend_disable(struct regulator_dev *dev)
 {
 	struct xz3216 *xz3216 = rdev_get_drvdata(dev);
-	return regmap_update_bits(xz3216->regmap, XZ3216_BUCK1_SLP_VOL_BASE,
-				  VSEL_BUCK_EN, 0);
 
+	return regmap_update_bits(xz3216->regmap, xz3216->sleep_en_reg,
+				VSEL_BUCK_EN, 0);
 }
 
 static int xz3216_dcdc_set_sleep_voltage(struct regulator_dev *dev,
@@ -146,13 +183,13 @@ static int xz3216_dcdc_set_sleep_voltage(struct regulator_dev *dev,
 	ret = regulator_map_voltage_linear(dev, uV, uV);
 	if (ret < 0)
 		return ret;
-	ret = regmap_update_bits(xz3216->regmap, XZ3216_BUCK1_SLP_VOL_BASE,
+	ret = regmap_update_bits(xz3216->regmap, xz3216->sleep_reg,
 					VSEL_NSEL_MASK, ret);
 	if (ret < 0)
 		return ret;
 	xz3216->sleep_vol_cache = uV;
-	return 0;
 
+	return 0;
 }
 
 static int xz3216_dcdc_set_suspend_mode(struct regulator_dev *dev,
@@ -162,11 +199,11 @@ static int xz3216_dcdc_set_suspend_mode(struct regulator_dev *dev,
 
 	switch (mode) {
 	case REGULATOR_MODE_FAST:
-		return regmap_update_bits(xz3216->regmap, xz3216->vol_reg,
-					  VSEL_MODE, VSEL_MODE);
+		return regmap_update_bits(xz3216->regmap, xz3216->sleep_reg,
+						VSEL_MODE, VSEL_MODE);
 	case REGULATOR_MODE_NORMAL:
-		return regmap_update_bits(xz3216->regmap, xz3216->vol_reg,
-					  VSEL_MODE, 0);
+		return regmap_update_bits(xz3216->regmap, xz3216->sleep_reg,
+						VSEL_MODE, 0);
 	default:
 		DBG_ERR("error:dcdc_xz3216 only auto and pwm mode\n");
 		return -EINVAL;
@@ -209,9 +246,9 @@ static struct regulator_ops xz3216_dcdc_ops = {
 	.get_voltage_sel = regulator_get_voltage_sel_regmap,
 	.list_voltage = regulator_list_voltage_linear,
 	.map_voltage = regulator_map_voltage_linear,
-	.is_enabled = regulator_is_enabled_regmap,
-	.enable = regulator_enable_regmap,
-	.disable = regulator_disable_regmap,
+	.is_enabled = xz3216_dcdc_is_enable,
+	.enable = xz3216_dcdc_enable,
+	.disable = xz3216_dcdc_disable,
 	.get_mode = xz3216_dcdc_get_mode,
 	.set_mode = xz3216_dcdc_set_mode,
 	.set_suspend_voltage = xz3216_dcdc_set_sleep_voltage,
@@ -222,24 +259,44 @@ static struct regulator_ops xz3216_dcdc_ops = {
 	.set_voltage_time_sel = regulator_set_voltage_time_sel,
 };
 
-static struct regulator_desc regulators[] = {
-	{
-		.name = "XZ_DCDC1",
-		.supply_name = "vin",
-		.id = 0,
-		.ops = &xz3216_dcdc_ops,
-		.n_voltages = 64,
-		.type = REGULATOR_VOLTAGE,
-		.enable_time = 400,
-		.enable_reg = XZ3216_BUCK1_SET_VOL_BASE,
-		.enable_mask = VSEL_BUCK_EN,
-		.min_uV = 600000,
-		.uV_step = 12500,
-		.vsel_reg = XZ3216_BUCK1_SET_VOL_BASE,
-		.vsel_mask = VSEL_NSEL_MASK,
-		.owner = THIS_MODULE,
-	},
-};
+static int xz3216_regulator_register(struct xz3216 *xz3216, struct regulator_config *config)
+{
+	struct regulator_desc *rdesc = &xz3216->desc;
+
+	rdesc->name = "XZ_DCDC1";
+	rdesc->supply_name = "vin";
+	rdesc->id = 0;
+	rdesc->ops = &xz3216_dcdc_ops;
+	rdesc->type = REGULATOR_VOLTAGE;
+	rdesc->n_voltages = 64;
+	rdesc->enable_mask = VSEL_BUCK_EN;
+	rdesc->min_uV = 600000;
+	rdesc->uV_step = 12500;
+	rdesc->vsel_mask = VSEL_NSEL_MASK;
+	rdesc->owner = THIS_MODULE;
+	rdesc->enable_time = 400;
+
+	if (xz3216->sleep_vsel_id) {
+		rdesc->vsel_reg = XZ3216_BUCK1_SET_VOL_BASE;
+		rdesc->enable_reg = XZ3216_BUCK1_SET_VOL_BASE;
+
+		xz3216->vol_reg = rdesc->vsel_reg;
+		xz3216->en_reg = rdesc->vsel_reg;
+		xz3216->sleep_reg = XZ3216_BUCK1_SLP_VOL_BASE;
+		xz3216->sleep_en_reg = xz3216->sleep_reg;
+	} else {
+		rdesc->vsel_reg = XZ3216_BUCK1_SLP_VOL_BASE;
+		rdesc->enable_reg = XZ3216_BUCK1_SLP_VOL_BASE;
+
+		xz3216->vol_reg = rdesc->vsel_reg;
+		xz3216->en_reg = rdesc->vsel_reg;
+		xz3216->sleep_reg = XZ3216_BUCK1_SET_VOL_BASE;
+		xz3216->sleep_en_reg = xz3216->sleep_reg;
+	}
+	xz3216->rdev = devm_regulator_register(xz3216->dev, &xz3216->desc, config);
+
+	return PTR_ERR_OR_ZERO(xz3216->rdev);
+}
 
 static const struct regmap_config xz3216_regmap_config = {
 	.reg_bits = 8,
@@ -265,26 +322,47 @@ static struct xz3216_board *xz3216_parse_dt(struct xz3216 *xz3216)
 	struct device_node *regs;
 	struct device_node *xz3216_np;
 	int count;
+	u32 tmp;
+
+	pdata = devm_kzalloc(xz3216->dev, sizeof(*pdata), GFP_KERNEL);
+	if (!pdata)
+		return NULL;
 
 	xz3216_np = of_node_get(xz3216->dev->of_node);
 	if (!xz3216_np) {
 		DBG_ERR("could not find pmic sub-node\n");
 		return NULL;
 	}
+
+	regs = of_find_node_by_name(xz3216_np, "regulator");
+	if (!regs) {
+		DBG_ERR("can not found regulator node\n");
+		return NULL;
+	}
+	count = of_property_read_u32(regs, "fcs,suspend-voltage-selector",
+				   &tmp);
+	if (!count) {
+		pdata->sleep_vsel_id = tmp;
+		pr_info("xz3216, suspend-voltage-selector = %d\n", pdata->sleep_vsel_id);
+	} else {
+		pdata->sleep_vsel_id = 0;
+		pr_info("xz3216, get suspend-voltage-selector failed, use default value\n");
+	}
+	of_node_put(regs);
+
 	regs = of_find_node_by_name(xz3216_np, "regulators");
 	if (!regs)
 		return NULL;
 	count = of_regulator_match(xz3216->dev, regs, xz3216_reg_matches,
 				   XZ3216_NUM_REGULATORS);
 	of_node_put(regs);
-	pdata = devm_kzalloc(xz3216->dev, sizeof(*pdata), GFP_KERNEL);
-	if (!pdata)
+	if (!count)
 		return NULL;
 	pdata->xz3216_init_data = xz3216_reg_matches[0].init_data;
 	pdata->of_node = xz3216_reg_matches[0].of_node;
+
 	return pdata;
 }
-
 #else
 static struct xz3216_board *xz3216_parse_dt(struct i2c_client *i2c)
 {
@@ -300,7 +378,7 @@ static int xz3216_i2c_probe(struct i2c_client *i2c,
 	const struct of_device_id *match;
 	struct regulator_config config = { };
 	int ret;
-	DBG("%s, line=%d\n", __func__, __LINE__);
+
 	xz3216 = devm_kzalloc(&i2c->dev, sizeof(struct xz3216),
 						GFP_KERNEL);
 	if (!xz3216) {
@@ -329,6 +407,7 @@ static int xz3216_i2c_probe(struct i2c_client *i2c,
 	if (!pdev)
 		pdev = xz3216_parse_dt(xz3216);
 	if (pdev) {
+		xz3216->sleep_vsel_id = pdev->sleep_vsel_id;
 		xz3216->num_regulators = XZ3216_NUM_REGULATORS;
 		xz3216->rdev = kcalloc(XZ3216_NUM_REGULATORS,
 					sizeof(struct regulator_dev),
@@ -342,9 +421,8 @@ static int xz3216_i2c_probe(struct i2c_client *i2c,
 		config.dev = xz3216->dev;
 		config.driver_data = xz3216;
 		config.init_data = xz3216->regulator;
-		xz3216->rdev = devm_regulator_register(xz3216->dev,
-						&regulators[0], &config);
-		ret = PTR_ERR_OR_ZERO(xz3216->rdev);
+		config.regmap = xz3216->regmap;
+		ret = xz3216_regulator_register(xz3216, &config);
 		if (ret < 0)
 			dev_err(&i2c->dev, "Failed to register regulator!\n");
 		return ret;
