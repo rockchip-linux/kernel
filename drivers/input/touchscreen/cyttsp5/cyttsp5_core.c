@@ -1710,6 +1710,11 @@ static int cyttsp5_hid_output_read_conf_block_(struct cyttsp5_core_data *cd,
 	if (length < read_length)
 		length = read_length;
 
+	if (length + 10 > CY_MAX_INPUT) {
+		dev_err(cd->dev, "%s:%d: size=%d is larger than the max %d!!!\n",
+			__func__, __LINE__, length + 10, CY_MAX_INPUT);
+		return -EINVAL;
+	}
 	memcpy(read_buf, &cd->response_buf[10], length);
 	*crc = get_unaligned_le16(&cd->response_buf[read_length + 10]);
 
@@ -2481,6 +2486,11 @@ static int cyttsp5_hid_output_bl_get_information_(struct cyttsp5_core_data *cd,
 	if (!data_len)
 		return -EPROTO;
 
+	if (data_len + 8 > CY_MAX_INPUT) {
+		dev_err(cd->dev, "%s:%d: size=%d is larger than the max %d!!!\n",
+			__func__, __LINE__, data_len, CY_MAX_INPUT);
+		return -EINVAL;
+	}
 	memcpy(return_data, &cd->response_buf[8], data_len);
 
 	return 0;
@@ -3874,6 +3884,12 @@ static int move_touch_data(struct cyttsp5_core_data *cd,
 		tthe_print(cd, cd->input_buf, size, "OpModeData=");
 #endif
 
+	if (si->desc.tch_header_size > CY_MAX_INPUT) {
+		dev_err(cd->dev, "%s:%d: size=%d is larger than the max %d!!!\n",
+			__func__, __LINE__, si->desc.tch_header_size, CY_MAX_INPUT);
+		return -EINVAL;
+	}
+
 	memcpy(si->xy_mode, cd->input_buf, si->desc.tch_header_size);
 	cyttsp5_pr_buf(cd->dev, (u8 *)si->xy_mode, si->desc.tch_header_size,
 			"xy_mode");
@@ -3884,6 +3900,13 @@ static int move_touch_data(struct cyttsp5_core_data *cd,
 		num_cur_tch = max_tch;
 
 	length = num_cur_tch * si->desc.tch_record_size;
+
+	if ((length + si->desc.tch_header_size) > CY_MAX_INPUT) {
+		dev_err(cd->dev, "%s:%d: size=%d is larger than the max %d!!!\n",
+			__func__, __LINE__, length + si->desc.tch_header_size,
+			CY_MAX_INPUT);
+		return -EINVAL;
+	}
 
 	memcpy(si->xy_data, &cd->input_buf[si->desc.tch_header_size], length);
 	cyttsp5_pr_buf(cd->dev, (u8 *)si->xy_data, length, "xy_data");
@@ -3931,6 +3954,12 @@ static int parse_command_input(struct cyttsp5_core_data *cd, int size)
 	parade_debug(cd->dev, DEBUG_LEVEL_2, "%s: Received cmd interrupt\n",
 		__func__);
 
+	if (size > CY_MAX_INPUT) {
+		dev_err(cd->dev, "%s:%d: size=%d is larger than the max %d!!!\n",
+			__func__, __LINE__, size, CY_MAX_INPUT);
+		return -EINVAL;
+	}
+
 	memcpy(cd->response_buf, cd->input_buf, size);
 
 	mutex_lock(&cd->system_lock);
@@ -3973,12 +4002,17 @@ static int cyttsp5_parse_input(struct cyttsp5_core_data *cd)
 		wake_up(&cd->wait_q);
 		mutex_unlock(&cd->system_lock);
 		return 0;
-	} else if (size == 2 || size >= CY_PIP_1P7_EMPTY_BUF)
+	} else if (size == 2 || size >= CY_PIP_1P7_EMPTY_BUF || size > CY_MAX_INPUT) {
 		/*
 		 * Before PIP 1.7, empty buffer is 0x0002;
 		 * From PIP 1.7, empty buffer is 0xFFXX
 		 */
+		if (size > CY_MAX_INPUT && size < CY_PIP_1P7_EMPTY_BUF)
+			dev_err(cd->dev, "%s:%d: size=%d is larger than the max %d!!!\n",
+				__func__, __LINE__, size, CY_MAX_INPUT);
+
 		return 0;
+	}
 
 	report_id = cd->input_buf[2];
 	parade_debug(cd->dev, DEBUG_LEVEL_2, "%s: report_id:%X\n",
