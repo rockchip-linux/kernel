@@ -2793,6 +2793,29 @@ static int rockchip_get_drive_perpin(struct rockchip_pin_bank *bank,
 	return rockchip_perpin_drv_list[drv_type][data];
 }
 
+#define RK3308_SLEW_RATE_GRF_OFFSET		0x150
+#define RK3308_SLEW_RATE_BANK_STRIDE		16
+#define RK3308_SLEW_RATE_PINS_PER_GRF_REG	8
+
+static int rk3308_calc_slew_rate_reg_and_bit(struct rockchip_pin_bank *bank,
+					     int pin_num,
+					     struct regmap **regmap,
+					     int *reg, u8 *bit)
+{
+	struct rockchip_pinctrl *info = bank->drvdata;
+	int pins_per_reg;
+
+	*regmap = info->regmap_base;
+	*reg = RK3308_SLEW_RATE_GRF_OFFSET;
+	*reg += (bank->bank_num) * RK3308_SLEW_RATE_BANK_STRIDE;
+	pins_per_reg = RK3308_SLEW_RATE_PINS_PER_GRF_REG;
+
+	*reg += ((pin_num / pins_per_reg) * 4);
+	*bit = pin_num % pins_per_reg;
+
+	return 0;
+}
+
 static int rockchip_set_drive_perpin(struct rockchip_pin_bank *bank,
 				     int pin_num, int strength)
 {
@@ -2835,6 +2858,31 @@ static int rockchip_set_drive_perpin(struct rockchip_pin_bank *bank,
 		dev_err(info->dev, "unsupported driver strength %d\n",
 			strength);
 		return ret;
+	}
+
+	if (soc_is_rk3308bs()) {
+		if (ret == 0)
+			ret = 1;
+		else if (ret == 1)
+			ret = 2;
+		else if (ret == 2)
+			ret = 5;
+		else if (ret == 3)
+			ret = 6;
+
+		data = 0x3 << (bit + 16);
+		rmask = data | (data >> 16);
+		data |= ((ret & 0x3) << bit);
+
+		ret = regmap_update_bits(regmap, reg, rmask, data);
+		if (ret)
+			return ret;
+
+		rk3308_calc_slew_rate_reg_and_bit(bank, pin_num, &regmap, &reg, &bit);
+		data = BIT(bit + 16) | (((ret > 3) ? 1 : 0) << bit);
+		rmask = BIT(bit + 16) | BIT(bit);
+
+		return regmap_update_bits(regmap, reg, rmask, data);
 	}
 
 	switch (drv_type) {
@@ -4334,7 +4382,7 @@ static int rk3308b_ctrl_data_re_init(struct rockchip_pin_ctrl *ctrl)
 	 * Special for rk3308b, where we need to replace the recalced
 	 * and routed arrays.
 	 */
-	if (soc_is_rk3308b()) {
+	if (soc_is_rk3308b() || soc_is_rk3308bs()) {
 		ctrl->iomux_recalced = rk3308b_mux_recalced_data;
 		ctrl->niomux_recalced = ARRAY_SIZE(rk3308b_mux_recalced_data);
 		ctrl->iomux_routes = rk3308b_mux_route_data;
@@ -4555,7 +4603,7 @@ static int rk3308b_soc_data_init(struct rockchip_pinctrl *info)
 	/*
 	 * Enable the special ctrl of selected sources.
 	 */
-	if (soc_is_rk3308b()) {
+	if (soc_is_rk3308b() || soc_is_rk3308bs()) {
 		ret = regmap_write(info->regmap_base, RK3308B_GRF_SOC_CON13,
 				   RK3308B_GRF_I2C3_IOFUNC_SRC_CTRL |
 				   RK3308B_GRF_GPIO2A3_SEL_SRC_CTRL |
