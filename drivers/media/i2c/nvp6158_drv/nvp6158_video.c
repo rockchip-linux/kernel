@@ -1140,7 +1140,7 @@ int nvp6168_set_chnmode(const unsigned char ch, const unsigned char chnmode)
 	video_equalizer_info_s vin_eq_set;
 	video_input_novid auto_novid;
 	nvp6158_coax_str s_coax_str;
-	
+
 	if(ch >= (nvp6158_cnt*4))
 	{
 		printk("func[nvp6168_set_chnmode] Channel %d is out of range!!!\n", ch);
@@ -1258,7 +1258,18 @@ int nvp6158_set_portmode(const unsigned char chip, const unsigned char portsel, 
 			gpio_i2c_write(chipaddr, 0xC1+portsel*2, (chid<<4)|chid);
 			tmp = gpio_i2c_read(chipaddr, 0xC8+(portsel/2)) & (portsel%2?0x0F:0xF0);
 			gpio_i2c_write(chipaddr, 0xC8+(portsel/2), tmp);
-			gpio_i2c_write(chipaddr, 0xCC+portsel, 0x58);
+			gpio_i2c_write(chipaddr, 0xCC+portsel, 0x56); //0x40~0x5f adjust delay
+			break;
+		case NVP6158_OUTMODE_1MUX_FHD_DDR:
+			/*Output 720P@5060 /1080P Single Channel data,Data Rate 148.5MHz,Pclk 148.5MHz, Single Edge.*/
+			gpio_i2c_write(chipaddr, 0xFF, 0x00);
+			gpio_i2c_write(chipaddr, 0x56, 0x10);
+			gpio_i2c_write(chipaddr, 0xFF, 0x01);
+			gpio_i2c_write(chipaddr, 0xC0+portsel*2, (chid<<4)|chid);
+			gpio_i2c_write(chipaddr, 0xC1+portsel*2, (chid<<4)|chid);
+			tmp = gpio_i2c_read(chipaddr, 0xC8+(portsel/2)) & (portsel%2?0x0F:0xF0);
+			gpio_i2c_write(chipaddr, 0xC8+(portsel/2), tmp);
+			gpio_i2c_write(chipaddr, 0xCC+portsel, 0x06); //0x00~0x3f adjust delay
 			break;
 		case NVP6158_OUTMODE_2MUX_SD:
 			/*Output 720H/960H 2 Channel data,Data Rate 74.25MHz,Pclk 74.25MHz, Single Edge.*/
@@ -1529,6 +1540,36 @@ int nvp6158_set_portmode(const unsigned char chip, const unsigned char portsel, 
 			gpio_i2c_write(chipaddr, 0xFF, 0x00);
 			gpio_i2c_write(chipaddr, 0x56, 0x32);
 			gpio_i2c_write(chipaddr, 0xFF, 0x01);
+			if (nvp6158_chip_id[chip] == NVP6158C_R0_ID ||
+			    nvp6158_chip_id[chip] == NVP6168C_R0_ID) {
+				//6158C makes 2 bt656 ports to 1 bt1120 port.  portsel=[1,2] to choose clock.
+				gpio_i2c_write(chipaddr, 0xC2, 0x54);
+				gpio_i2c_write(chipaddr, 0xC3, 0x76);
+				gpio_i2c_write(chipaddr, 0xC4, 0xdc);
+				gpio_i2c_write(chipaddr, 0xC5, 0xfe);
+				gpio_i2c_write(chipaddr, 0xC8, 0x88);
+				gpio_i2c_write(chipaddr, 0xC9, 0x88);
+
+				//single edge
+				gpio_i2c_write(chipaddr, 0xCD, 0x46);		//148.5MHz clock
+				gpio_i2c_write(chipaddr, 0xCE, 0x46);		//148.5MHz clock
+//				//dual_edge
+//				gpio_i2c_write(chipaddr, 0xCD, 0x06);		//74.25MHz clock
+//				gpio_i2c_write(chipaddr, 0xCE, 0x06);		//74.25MHz clock
+			} else {
+				//6158 makes 4 bt656 ports to 2 bt1120 port.   portsel=[0,1] to choose clock.
+				gpio_i2c_write(chipaddr, 0xC0+portsel*4, 0xdc);
+				gpio_i2c_write(chipaddr, 0xC1+portsel*4, 0xfe);
+				gpio_i2c_write(chipaddr, 0xC2+portsel*4, 0x54);
+				gpio_i2c_write(chipaddr, 0xC3+portsel*4, 0x76);
+				gpio_i2c_write(chipaddr, 0xC8+(portsel), 0x88);
+				gpio_i2c_write(chipaddr, 0xCC+portsel*2, 0x58); //148.5MHz clock
+			}
+			break;
+		case NVP6158_OUTMODE_4MUX_BT1120S_DDR:
+			gpio_i2c_write(chipaddr, 0xFF, 0x00);
+			gpio_i2c_write(chipaddr, 0x56, 0x32);
+			gpio_i2c_write(chipaddr, 0xFF, 0x01);
 			if(nvp6158_chip_id[chip] == NVP6158C_R0_ID || nvp6158_chip_id[chip] == NVP6168C_R0_ID)
 			{
 				//6158C makes 2 bt656 ports to 1 bt1120 port.  portsel=[1,2] to choose clock.
@@ -1541,9 +1582,6 @@ int nvp6158_set_portmode(const unsigned char chip, const unsigned char portsel, 
 				//dual_edge
 				gpio_i2c_write(chipaddr, 0xCD, 0x06);		//74.25MHz clock
 				gpio_i2c_write(chipaddr, 0xCE, 0x06);		//74.25MHz clock
-//				//single edge
-//				gpio_i2c_write(chipaddr, 0xCD, 0x46);		//148.5MHz clock
-//				gpio_i2c_write(chipaddr, 0xCE, 0x46);		//148.5MHz clock
 			}
 			else
 			{
@@ -1553,9 +1591,10 @@ int nvp6158_set_portmode(const unsigned char chip, const unsigned char portsel, 
 				gpio_i2c_write(chipaddr, 0xC2+portsel*4, 0x54);
 				gpio_i2c_write(chipaddr, 0xC3+portsel*4, 0x76);
 				gpio_i2c_write(chipaddr, 0xC8+(portsel), 0x88);
-				gpio_i2c_write(chipaddr, 0xCC+portsel*2, 0x58);		//148.5MHz clock
+				gpio_i2c_write(chipaddr, 0xCC+portsel*2, 0x58); //148.5MHz clock
 			}
 			break;
+
 		case NVP6158_OUTMODE_4MUX_BT1120S_1080P:
 			gpio_i2c_write(chipaddr, 0xFF, 0x00);
 			gpio_i2c_write(chipaddr, 0x56, 0x32);

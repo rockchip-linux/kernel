@@ -352,7 +352,7 @@ unsigned int nvp6158_g_vloss=0xFFFF;
 
 long nvp6158_native_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
-	unsigned int __user *argp = (unsigned int __user *)arg;	
+	unsigned int __user *argp = (unsigned int __user *)arg;
 	int cpy2usr_ret;
 	unsigned char i;
 	//unsigned char oCableDistance = 0;
@@ -743,7 +743,7 @@ void nvp6158_set_bt1120_1080P_mode(void)
 }
 #endif
 
-void nvp6158_start(video_init_all *video_init)
+void nvp6158_start(video_init_all *video_init, bool dual_edge)
 {
 	unsigned char ch = 0;
 	int chip = 0;
@@ -765,59 +765,75 @@ void nvp6158_start(video_init_all *video_init)
 	{
 		/* normal output */
 		case AHD20_720P_25P:
-			for(ch=0;ch<nvp6158_cnt*4;ch++)
-			{
-				nvp6158_set_chnmode(ch, AHD20_720P_25P); 
-			}
+			for (ch = 0; ch < nvp6158_cnt * 4; ch++)
+				nvp6158_set_chnmode(ch, AHD20_720P_25P);
 			break;
 		case AHD20_720P_30P:
-			for(ch=0;ch<nvp6158_cnt*4;ch++)
-			{
-				nvp6158_set_chnmode(ch, AHD20_720P_30P); 
-			}
+			for (ch = 0; ch < nvp6158_cnt * 4; ch++)
+				nvp6158_set_chnmode(ch, AHD20_720P_30P);
 			break;
 		case AHD20_1080P_25P:
-			for(ch=0;ch<nvp6158_cnt*4;ch++)
-			{
-				nvp6158_set_chnmode(ch, AHD20_1080P_25P); 
-			}
+			for (ch = 0; ch < nvp6158_cnt * 4; ch++)
+				nvp6158_set_chnmode(ch, AHD20_1080P_25P);
 			break;
 		case AHD20_1080P_30P:
-			for(ch=0;ch<nvp6158_cnt*4;ch++)
-			{
-				nvp6158_set_chnmode(ch, AHD20_1080P_30P); 
+			for (ch = 0; ch < nvp6158_cnt * 4; ch++)
+				nvp6158_set_chnmode(ch, AHD20_1080P_30P);
+			break;
+		case AHD30_3M_18P:
+			for (ch = 0; ch < nvp6158_cnt * 4; ch++) {
+				if (dual_edge)
+					nvp6158_set_chnmode(ch, AHD30_3M_30P);
+				else
+					nvp6158_set_chnmode(ch, AHD30_3M_18P);
+
 			}
 			break;
+		case AHD30_4M_15P:
+			for (ch = 0; ch < nvp6158_cnt * 4; ch++) {
+				if (dual_edge)
+					nvp6158_set_chnmode(ch, AHD30_4M_30P);
+				else
+					nvp6158_set_chnmode(ch, AHD30_4M_15P);
+			}
+			break;
+		case AHD30_5M_12_5P:
+			for (ch = 0; ch < nvp6158_cnt * 4; ch++) {
+				if (dual_edge)
+					nvp6158_set_chnmode(ch, AHD30_5M_20P);
+				else
+					nvp6158_set_chnmode(ch, AHD30_5M_12_5P);
+			}
+			break;
+		case AHD30_8M_7_5P:
+			for (ch = 0; ch < nvp6158_cnt * 4; ch++) {
+				if (dual_edge)
+					nvp6158_set_chnmode(ch, AHD30_8M_15P);
+				else
+					nvp6158_set_chnmode(ch, AHD30_8M_7_5P);
+			}
+			break;
+
 		/* test output */
 		case AHD20_SD_SH720_NT:
-			for(ch=0;ch<nvp6158_cnt*4;ch++)
-			{
+			for (ch = 0; ch < nvp6158_cnt * 4; ch++)
 				nvp6158_set_chnmode(ch, AHD20_SD_SH720_NT); /* 720*480i*/
-			}
 			break;
 		case AHD20_SD_SH720_PAL:
-			for(ch=0;ch<nvp6158_cnt*4;ch++)
-			{
+			for (ch = 0; ch < nvp6158_cnt * 4; ch++)
 				nvp6158_set_chnmode(ch, AHD20_SD_SH720_PAL); /* 720*576i*/
-			}
 			break;
 		case AHD20_SD_H960_PAL:
-			for(ch=0;ch<nvp6158_cnt*4;ch++)
-			{
+			for (ch = 0; ch < nvp6158_cnt * 4; ch++)
 				nvp6158_set_chnmode(ch, AHD20_SD_H960_PAL); /* 960*576i*/
-			}
 			break;
 		case AHD20_SD_H960_EX_PAL:
-			for(ch=0;ch<nvp6158_cnt*4;ch++)
-			{
+			for (ch = 0; ch < nvp6158_cnt * 4; ch++)
 				nvp6158_set_chnmode(ch, AHD20_SD_H960_EX_PAL); /*1920*576i*/
-			}
 			break;
 		default:
-			for(ch=0;ch<nvp6158_cnt*4;ch++)
-			{
+			for (ch = 0; ch < nvp6158_cnt * 4; ch++)
 				nvp6158_set_chnmode(ch, AHD20_1080P_30P); 
-			}
 			break;	
 	}
 
@@ -830,35 +846,45 @@ void nvp6158_start(video_init_all *video_init)
 		/* normal output */
 		case BT656_1MUX:
 			if ((fmt_idx == AHD20_1080P_25P) || (fmt_idx == AHD20_1080P_30P)) {
-				for(chip=0;chip<nvp6158_cnt;chip++)
-				{
+				for (chip = 0; chip < nvp6158_cnt; chip++) {
 					nvp6158_set_portmode(chip, 1, NVP6158_OUTMODE_1MUX_FHD, 0);
 					nvp6158_set_portmode(chip, 2, NVP6158_OUTMODE_1MUX_FHD, 1);
 				}
 			} else if ((fmt_idx == AHD20_720P_25P) || (fmt_idx == AHD20_720P_30P)) {
-				for(chip=0;chip<nvp6158_cnt;chip++)
-				{
+				for (chip = 0; chip < nvp6158_cnt; chip++) {
 					nvp6158_set_portmode(chip, 1, NVP6158_OUTMODE_1MUX_HD, 0);
 					nvp6158_set_portmode(chip, 2, NVP6158_OUTMODE_1MUX_HD, 1);
+				}
+			} else if ((fmt_idx == AHD30_3M_18P) || (fmt_idx == AHD30_4M_15P) ||
+					(fmt_idx == AHD30_5M_12_5P) || (fmt_idx == AHD30_8M_7_5P)) {
+				for (chip = 0; chip < nvp6158_cnt; chip++) {
+					nvp6158_set_portmode(chip, 1, NVP6158_OUTMODE_1MUX_FHD, 0);
+					nvp6158_set_portmode(chip, 2, NVP6158_OUTMODE_1MUX_FHD, 1);
+				}
+			} else if ((fmt_idx == AHD20_1080P_50P) || (fmt_idx == AHD20_1080P_60P) ||
+					(fmt_idx == AHD30_3M_30P) || (fmt_idx == AHD30_4M_30P) ||
+					(fmt_idx == AHD30_3M_25P) || (fmt_idx == AHD30_4M_25P) ||
+					(fmt_idx == AHD30_5M_20P) || (fmt_idx == AHD30_8M_15P)) {
+				for (chip = 0; chip < nvp6158_cnt; chip++) {
+					nvp6158_set_portmode(chip, 1, NVP6158_OUTMODE_1MUX_FHD, 0);
+					nvp6158_set_portmode(chip, 2, NVP6158_OUTMODE_1MUX_FHD, 1);
 				}
 			}
 			//standard sync head
 			gpio_i2c_write(0x60, 0xFF, 0x00);
 			gpio_i2c_write(0x60, 0x54, 0x00);
-			//VDO2 enabled VDO1 disabled VCLK_1_EN
+			//VDO2/VDO1 enabled VCLK_1/2_EN
 			gpio_i2c_write(0x60, 0xFF, 0x01);
-			gpio_i2c_write(0x60, 0xCA, 0x64);
+			gpio_i2c_write(0x60, 0xCA, 0x66);
 			break;
 		case BT656_2MUX:
 			if ((fmt_idx == AHD20_1080P_25P) || (fmt_idx == AHD20_1080P_30P)) {
-				for(chip=0;chip<nvp6158_cnt;chip++)
-				{
+				for (chip = 0; chip < nvp6158_cnt; chip++) {
 					nvp6158_set_portmode(chip, 1, NVP6158_OUTMODE_2MUX_FHD, 0);
 					nvp6158_set_portmode(chip, 2, NVP6158_OUTMODE_2MUX_FHD, 0);
 				}
 			} else if ((fmt_idx == AHD20_720P_25P) || (fmt_idx == AHD20_720P_30P)) {
-				for(chip=0;chip<nvp6158_cnt;chip++)
-				{
+				for (chip = 0; chip < nvp6158_cnt; chip++) {
 					nvp6158_set_portmode(chip, 1, NVP6158_OUTMODE_2MUX_HD, 0);
 					nvp6158_set_portmode(chip, 2, NVP6158_OUTMODE_2MUX_HD, 0);
 				}
@@ -872,14 +898,12 @@ void nvp6158_start(video_init_all *video_init)
 			break;
 		case BT1120_1MUX:
 			if ((fmt_idx == AHD20_1080P_25P) || (fmt_idx == AHD20_1080P_30P)) {
-				for(chip=0;chip<nvp6158_cnt;chip++)
-				{
+				for (chip = 0; chip < nvp6158_cnt; chip++) {
 					nvp6158_set_portmode(chip, 1, NVP6158_OUTMODE_1MUX_BT1120S_1080P, 0);
 					nvp6158_set_portmode(chip, 2, NVP6158_OUTMODE_1MUX_BT1120S_1080P, 0);
 				}
 			} else if ((fmt_idx == AHD20_720P_25P) || (fmt_idx == AHD20_720P_30P)) {
-				for(chip=0;chip<nvp6158_cnt;chip++)
-				{
+				for (chip = 0; chip < nvp6158_cnt; chip++) {
 					nvp6158_set_portmode(chip, 1, NVP6158_OUTMODE_1MUX_BT1120S_720P, 1);
 					nvp6158_set_portmode(chip, 2, NVP6158_OUTMODE_1MUX_BT1120S_720P, 1);
 				}
@@ -890,14 +914,12 @@ void nvp6158_start(video_init_all *video_init)
 			break;
 		case BT1120_2MUX:
 			if ((fmt_idx == AHD20_1080P_25P) || (fmt_idx == AHD20_1080P_30P)) {
-				for(chip=0;chip<nvp6158_cnt;chip++)
-				{
+				for (chip = 0; chip < nvp6158_cnt; chip++) {
 					nvp6158_set_portmode(chip, 1, NVP6158_OUTMODE_2MUX_BT1120S_1080P, 0);
 					nvp6158_set_portmode(chip, 2, NVP6158_OUTMODE_2MUX_BT1120S_1080P, 1);
 				}
 			} else if ((fmt_idx == AHD20_720P_25P) || (fmt_idx == AHD20_720P_30P)) {
-				for(chip=0;chip<nvp6158_cnt;chip++)
-				{
+				for (chip = 0; chip < nvp6158_cnt; chip++) {
 					nvp6158_set_portmode(chip, 1, NVP6158_OUTMODE_2MUX_BT1120S_720P, 0);
 					nvp6158_set_portmode(chip, 2, NVP6158_OUTMODE_2MUX_BT1120S_720P, 1);
 				}
@@ -908,16 +930,19 @@ void nvp6158_start(video_init_all *video_init)
 			break;
 		case BT1120_4MUX:
 			if ((fmt_idx == AHD20_1080P_25P) || (fmt_idx == AHD20_1080P_30P)) {
-				for(chip=0;chip<nvp6158_cnt;chip++)
-				{
+				for (chip = 0; chip < nvp6158_cnt; chip++) {
 					nvp6158_set_portmode(chip, 1, NVP6158_OUTMODE_4MUX_BT1120S_1080P, 0);
 					nvp6158_set_portmode(chip, 2, NVP6158_OUTMODE_4MUX_BT1120S_1080P, 1);
 				}
 			} else if ((fmt_idx == AHD20_720P_25P) || (fmt_idx == AHD20_720P_30P)) {
-				for(chip=0;chip<nvp6158_cnt;chip++)
-				{
-					nvp6158_set_portmode(chip, 1, NVP6158_OUTMODE_4MUX_BT1120S, 0);
-					nvp6158_set_portmode(chip, 2, NVP6158_OUTMODE_4MUX_BT1120S, 1);
+				for (chip = 0; chip < nvp6158_cnt; chip++) {
+					if (dual_edge) {
+						nvp6158_set_portmode(chip, 1, NVP6158_OUTMODE_4MUX_BT1120S_DDR, 0);
+						nvp6158_set_portmode(chip, 2, NVP6158_OUTMODE_4MUX_BT1120S_DDR, 1);
+					} else {
+						nvp6158_set_portmode(chip, 1, NVP6158_OUTMODE_4MUX_BT1120S, 0);
+						nvp6158_set_portmode(chip, 2, NVP6158_OUTMODE_4MUX_BT1120S, 1);
+					}
 				}
 			}
 			//VDO2/VDO1 enabled VCLK_1_EN/VCLK_2_EN
@@ -927,21 +952,21 @@ void nvp6158_start(video_init_all *video_init)
 		/* test output */
 		case BT656I_TEST_MODES:
 			if (fmt_idx == AHD20_SD_H960_EX_PAL) {
-				for(chip=0;chip<nvp6158_cnt;chip++)
-				{
+				for (chip = 0; chip < nvp6158_cnt; chip++) {
 					nvp6158_set_portmode(chip, 1, NVP6158_OUTMODE_1MUX_HD, 0);
 					nvp6158_set_portmode(chip, 2, NVP6158_OUTMODE_1MUX_HD, 1);
 				}
 			} else {
-				for(chip=0;chip<nvp6158_cnt;chip++)
-				{
+				for (chip = 0; chip < nvp6158_cnt; chip++) {
 					nvp6158_set_portmode(chip, 1, NVP6158_OUTMODE_1MUX_SD, 0);
 					nvp6158_set_portmode(chip, 2, NVP6158_OUTMODE_1MUX_SD, 1);
 				}
 			}
 			//VDO2 enabled VDO1 disabled VCLK_1_EN
 			gpio_i2c_write(0x60, 0xFF, 0x01);
-			gpio_i2c_write(0x60, 0xCA, 0x64);
+			//gpio_i2c_write(0x60, 0xCA, 0x64);
+			//VDO2/VDO1 enabled VCLK_1_EN/VCLK_2_EN
+			gpio_i2c_write(0x60, 0xCA, 0x66);
 			break;
 		default:
 			printk("mode %d not supported yet\n", mode);

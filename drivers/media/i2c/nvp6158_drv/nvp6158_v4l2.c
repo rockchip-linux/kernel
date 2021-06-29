@@ -5,7 +5,9 @@
  * Copyright (c) 2021 Rockchip Electronics Co. Ltd.
  *
  * V0.0X01.0X00 first version.
- *
+ * V0.0X01.0X01
+ * 1. add workqueue to detect ahd state.
+ * 2. add more resolution support.
  */
 
 #include <linux/clk.h>
@@ -43,7 +45,19 @@
 #include "nvp6158_video_auto_detect.h"
 #include "nvp6158_drv.h"
 
-#define DRIVER_VERSION				KERNEL_VERSION(0, 0x01, 0x0)
+//#define WORK_QUEUE
+
+#ifdef WORK_QUEUE
+#include <linux/workqueue.h>
+
+struct sensor_state_check_work {
+	struct workqueue_struct *state_check_wq;
+	struct delayed_work d_work;
+};
+
+#endif
+
+#define DRIVER_VERSION				KERNEL_VERSION(0, 0x01, 0x1)
 
 #ifndef V4L2_CID_DIGITAL_GAIN
 #define V4L2_CID_DIGITAL_GAIN			V4L2_CID_GAIN
@@ -115,6 +129,14 @@ struct nvp6158_default_rect {
 	unsigned int height;
 };
 
+#ifdef WORK_QUEUE
+enum nvp6158_hot_plug_state {
+	PLUG_IN = 0,
+	PLUG_OUT,
+	PLUG_STATE_MAX,
+};
+#endif
+
 struct nvp6158 {
 	struct i2c_client	*client;
 	struct clk		*xvclk;
@@ -149,6 +171,14 @@ struct nvp6158 {
 	const struct nvp6158_framesize *frame_size;
 	int streaming;
 	struct nvp6158_default_rect defrect;
+#ifdef WORK_QUEUE
+	struct sensor_state_check_work plug_state_check;
+	u8 cur_detect_status;
+	u8 last_detect_status;
+#endif
+	bool hot_plug;
+	u8 is_reset;
+
 };
 
 #define to_nvp6158(sd) container_of(sd, struct nvp6158, subdev)
@@ -172,6 +202,52 @@ static const struct nvp6158_framesize nvp6158_framesizes[] = {
 			.denominator = 250000,
 		},
 	},
+	{
+		.width		= 2048,
+		.height		= 1536,
+		.fmt_idx	= AHD30_3M_18P,
+		.max_fps = {
+			.numerator = 10000,
+			.denominator = 180000,
+		},
+	},
+	{
+		.width		= 1280,
+		.height		= 1440,
+		.fmt_idx	= AHD30_4M_30P,
+		.max_fps = {
+			.numerator = 10000,
+			.denominator = 300000,
+		},
+	},
+	{
+		.width		= 2560,
+		.height		= 1440,
+		.fmt_idx	= AHD30_4M_15P,
+		.max_fps = {
+			.numerator = 10000,
+			.denominator = 150000,
+		},
+	},
+	{
+		.width		= 2592,
+		.height		= 1944,
+		.fmt_idx	= AHD30_5M_12_5P,
+		.max_fps = {
+			.numerator = 10000,
+			.denominator = 125000,
+		},
+	},
+	{
+		.width		= 3840,
+		.height		= 2160,
+		.fmt_idx	= AHD30_8M_7_5P,
+		.max_fps = {
+			.numerator = 10000,
+			.denominator = 75000,
+		},
+	},
+
 	/* test modes, Interlace mode*/
 	{
 		.width		= 720,
@@ -240,6 +316,62 @@ static int nvp6158_querystd(struct v4l2_subdev *sd, v4l2_std_id *std)
 		*std = V4L2_STD_PAL;
 	}
 	return 0;
+}
+
+/* sensor register write */
+static int nvp6158_write(struct i2c_client *client, u8 reg, u8 val)
+{
+	struct i2c_msg msg;
+	u8 buf[2];
+	int ret;
+
+	dev_info(&client->dev, "write reg(0x%x val:0x%x)!\n", reg, val);
+	buf[0] = reg & 0xFF;
+	buf[1] = val;
+
+	msg.addr = client->addr;
+	msg.flags = client->flags;
+	msg.buf = buf;
+	msg.len = sizeof(buf);
+
+	ret = i2c_transfer(client->adapter, &msg, 1);
+	if (ret >= 0)
+		return 0;
+
+	dev_err(&client->dev,
+		"nvp6158 write reg(0x%x val:0x%x) failed !\n", reg, val);
+
+	return ret;
+}
+
+/* sensor register read */
+static int nvp6158_read(struct i2c_client *client, u8 reg, u8 *val)
+{
+	struct i2c_msg msg[2];
+	u8 buf[1];
+	int ret;
+
+	buf[0] = reg & 0xFF;
+
+	msg[0].addr = client->addr;
+	msg[0].flags = client->flags;
+	msg[0].buf = buf;
+	msg[0].len = sizeof(buf);
+
+	msg[1].addr = client->addr;
+	msg[1].flags = client->flags | I2C_M_RD;
+	msg[1].buf = buf;
+	msg[1].len = 1;
+
+	ret = i2c_transfer(client->adapter, msg, 2);
+	if (ret >= 0) {
+		*val = buf[0];
+		return 0;
+	}
+
+	dev_err(&client->dev, "nvp6158 read reg(0x%x) failed !\n", reg);
+
+	return ret;
 }
 
 static int __nvp6158_power_on(struct nvp6158 *nvp6158)
@@ -375,7 +507,7 @@ static int nvp6158_power(struct v4l2_subdev *sd, int on)
 	struct nvp6158 *nvp6158 = to_nvp6158(sd);
 	int ret = 0;
 
-	dev_dbg(&client->dev, "%s: on %d\n", __func__, on);
+	dev_info(&client->dev, "%s: on %d\n", __func__, on);
 	mutex_lock(&nvp6158->mutex);
 
 	/* If the power state is not modified - no work to do. */
@@ -514,8 +646,20 @@ static int nvp6158_stream(struct v4l2_subdev *sd, int on)
 			video_init.ch_param[ch].format = fmt_idx;
 		}
 		video_init.mode = nvp6158->mode;
-		nvp6158_start(&video_init);
+		nvp6158_start(&video_init, nvp6158->dual_edge ? true : false);
+#ifdef WORK_QUEUE
+		if (nvp6158->plug_state_check.state_check_wq) {
+			dev_info(&client->dev, "%s queue_delayed_work 1000ms", __func__);
+			queue_delayed_work(nvp6158->plug_state_check.state_check_wq,
+					   &nvp6158->plug_state_check.d_work,
+					   msecs_to_jiffies(1000));
+		}
+#endif
 	} else {
+#ifdef WORK_QUEUE
+		cancel_delayed_work_sync(&nvp6158->plug_state_check.d_work);
+		dev_info(&client->dev, "cancle_queue_delayed_work");
+#endif
 		nvp6158_stop();
 	}
 
@@ -582,6 +726,100 @@ static int nvp6158_enum_frame_sizes(struct v4l2_subdev *sd,
 
 	return 0;
 }
+
+/* indicate N4 no signal channel */
+static inline bool nvp6158_no_signal(struct v4l2_subdev *sd, u8 *novid)
+{
+	struct nvp6158 *nvp6158 = to_nvp6158(sd);
+	struct i2c_client *client = nvp6158->client;
+	u8 videoloss = 0;
+	int ret;
+	bool no_signal = false;
+
+	nvp6158_write(client, 0xff, 0x00);
+	ret = nvp6158_read(client, 0xa8, &videoloss);
+	if (ret < 0)
+		dev_err(&client->dev, "Failed to read videoloss state!\n");
+
+	*novid = videoloss;
+	dev_info(&client->dev, "%s: video loss status:0x%x.\n", __func__, videoloss);
+	if (videoloss == 0xf) {
+		dev_info(&client->dev, "%s: all channels No Video detected.\n", __func__);
+		no_signal = true;
+	} else {
+		dev_info(&client->dev, "%s: channel has some video detection.\n", __func__);
+		no_signal = false;
+	}
+	return no_signal;
+}
+
+/* indicate N4 channel locked status */
+static inline bool nvp6158_sync(struct v4l2_subdev *sd, u8 *lock_st)
+{
+	struct i2c_client *client = v4l2_get_subdevdata(sd);
+	u8 video_lock_status = 0;
+	int ret;
+	bool has_sync = false;
+
+	nvp6158_write(client, 0xff, 0x00);
+	ret = nvp6158_read(client, 0xe0, &video_lock_status);
+	if (ret < 0)
+		dev_err(&client->dev, "Failed to read sync state!\n");
+
+	dev_info(&client->dev, "%s: video AGC LOCK status:0x%x.\n",
+			__func__, video_lock_status);
+	*lock_st = video_lock_status;
+	if (video_lock_status) {
+		dev_info(&client->dev, "%s: channel has AGC LOCK.\n", __func__);
+		has_sync = true;
+	} else {
+		dev_info(&client->dev, "%s: channel has no AGC LOCK.\n", __func__);
+		has_sync = false;
+	}
+	return has_sync;
+}
+
+#ifdef WORK_QUEUE
+static void nvp6158_plug_state_check_work(struct work_struct *work)
+{
+	struct sensor_state_check_work *params_check =
+		container_of(work, struct sensor_state_check_work, d_work.work);
+	struct nvp6158 *nvp6158 =
+		container_of(params_check, struct nvp6158, plug_state_check);
+	struct i2c_client *client = nvp6158->client;
+	struct v4l2_subdev *sd = &nvp6158->subdev;
+	u8 novid_status = 0x00;
+	u8 sync_status = 0x00;
+
+	nvp6158_no_signal(sd, &novid_status);
+	nvp6158_sync(sd, &sync_status);
+	nvp6158->cur_detect_status = novid_status;
+
+	/* detect state change to determine is there has plug motion */
+	novid_status = nvp6158->cur_detect_status ^ nvp6158->last_detect_status;
+	if (novid_status)
+		nvp6158->hot_plug = true;
+	else
+		nvp6158->hot_plug = false;
+	nvp6158->last_detect_status = nvp6158->cur_detect_status;
+
+	dev_info(&client->dev, "%s has plug motion? (%s)", __func__,
+			 nvp6158->hot_plug ? "true" : "false");
+	if (nvp6158->hot_plug) {
+		dev_info(&client->dev, "queue_delayed_work 1500ms, if has hot plug motion.");
+		queue_delayed_work(nvp6158->plug_state_check.state_check_wq,
+				   &nvp6158->plug_state_check.d_work, msecs_to_jiffies(1500));
+		nvp6158_write(client, 0xFF, 0x20);
+		nvp6158_write(client, 0x00, (sync_status << 4) | sync_status);
+		usleep_range(3000, 5000);
+		nvp6158_write(client, 0x00, 0xFF);
+	} else {
+		dev_info(&client->dev, "queue_delayed_work 100ms, if no hot plug motion.");
+		queue_delayed_work(nvp6158->plug_state_check.state_check_wq,
+				   &nvp6158->plug_state_check.d_work, msecs_to_jiffies(100));
+	}
+}
+#endif
 
 static int nvp6158_g_mbus_config(struct v4l2_subdev *sd,
 				 struct v4l2_mbus_config *cfg)
@@ -738,10 +976,46 @@ nvp6158_get_bt656_module_inf(struct nvp6158 *nvp6158,
 	}
 }
 
+static void nvp6158_get_vicap_rst_inf(struct nvp6158 *nvp6158,
+				   struct rkmodule_vicap_reset_info *rst_info)
+{
+	struct i2c_client *client = nvp6158->client;
+
+	rst_info->is_reset = nvp6158->hot_plug;
+	nvp6158->hot_plug = false;
+	rst_info->src = RKCIF_RESET_SRC_ERR_HOTPLUG;
+	dev_info(&client->dev, "%s: rst_info->is_reset:%d.\n", __func__, rst_info->is_reset);
+}
+
+static void nvp6158_set_vicap_rst_inf(struct nvp6158 *nvp6158,
+				   struct rkmodule_vicap_reset_info rst_info)
+{
+	nvp6158->is_reset = rst_info.is_reset;
+}
+
+static void nvp6158_set_streaming(struct nvp6158 *nvp6158, int on)
+{
+	struct i2c_client *client = nvp6158->client;
+
+
+	dev_info(&client->dev, "%s: on: %d\n", __func__, on);
+
+	if (on) {
+		//VDO2/VDO1 enabled VCLK_1_EN/VCLK_2_EN
+		nvp6158_write(client, 0xFF, 0x01);
+		nvp6158_write(client, 0xCA, 0x66);
+	} else {
+		//VDO2/VDO1 disable VCLK_1/VCLK_2_DISABLE
+		nvp6158_write(client, 0xFF, 0x01);
+		nvp6158_write(client, 0xCA, 0x00);
+	}
+}
+
 static long nvp6158_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 {
 	struct nvp6158 *nvp6158 = to_nvp6158(sd);
 	long ret = 0;
+	u32 stream = 0;
 
 	switch (cmd) {
 	case RKMODULE_GET_MODULE_INFO:
@@ -756,6 +1030,16 @@ static long nvp6158_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 		if ((nvp6158->mode > BT656_4MUX) &&
 			(nvp6158->mode < NVP6158_DVP_MODES_END))
 			*(int *)arg = RKMODULE_START_STREAM_FRONT;
+		break;
+	case RKMODULE_GET_VICAP_RST_INFO:
+		nvp6158_get_vicap_rst_inf(nvp6158, (struct rkmodule_vicap_reset_info *)arg);
+		break;
+	case RKMODULE_SET_VICAP_RST_INFO:
+		nvp6158_set_vicap_rst_inf(nvp6158, *(struct rkmodule_vicap_reset_info *)arg);
+		break;
+	case RKMODULE_SET_QUICK_STREAM:
+		stream = *((u32 *)arg);
+		nvp6158_set_streaming(nvp6158, !!stream);
 		break;
 	default:
 		ret = -ENOTTY;
@@ -775,6 +1059,8 @@ static long nvp6158_compat_ioctl32(struct v4l2_subdev *sd,
 	long ret;
 	struct rkmodule_bt656_mbus_info *bt565_inf;
 	int *seq;
+	struct rkmodule_vicap_reset_info *vicap_rst_inf;
+	u32 stream = 0;
 
 	switch (cmd) {
 	case RKMODULE_GET_MODULE_INFO:
@@ -785,8 +1071,11 @@ static long nvp6158_compat_ioctl32(struct v4l2_subdev *sd,
 		}
 
 		ret = nvp6158_ioctl(sd, cmd, inf);
-		if (!ret)
+		if (!ret) {
 			ret = copy_to_user(up, inf, sizeof(*inf));
+			if (ret)
+				ret = -EFAULT;
+		}
 		kfree(inf);
 		break;
 	case RKMODULE_AWB_CFG:
@@ -799,6 +1088,8 @@ static long nvp6158_compat_ioctl32(struct v4l2_subdev *sd,
 		ret = copy_from_user(cfg, up, sizeof(*cfg));
 		if (!ret)
 			ret = nvp6158_ioctl(sd, cmd, cfg);
+		else
+			ret = -EFAULT;
 		kfree(cfg);
 		break;
 	case RKMODULE_GET_BT656_MBUS_INFO:
@@ -809,8 +1100,11 @@ static long nvp6158_compat_ioctl32(struct v4l2_subdev *sd,
 		}
 
 		ret = nvp6158_ioctl(sd, cmd, bt565_inf);
-		if (!ret)
+		if (!ret) {
 			ret = copy_to_user(up, bt565_inf, sizeof(*bt565_inf));
+			if (ret)
+				ret = -EFAULT;
+		}
 		kfree(bt565_inf);
 		break;
 	case RKMODULE_GET_START_STREAM_SEQ:
@@ -820,11 +1114,49 @@ static long nvp6158_compat_ioctl32(struct v4l2_subdev *sd,
 			return ret;
 		}
 		ret = nvp6158_ioctl(sd, cmd, seq);
-		if (!ret)
+		if (!ret) {
 			ret = copy_to_user(up, seq, sizeof(*seq));
+			if (ret)
+				ret = -EFAULT;
+		}
 		kfree(seq);
 		break;
+	case RKMODULE_GET_VICAP_RST_INFO:
+		vicap_rst_inf = kzalloc(sizeof(*vicap_rst_inf), GFP_KERNEL);
+		if (!vicap_rst_inf) {
+			ret = -ENOMEM;
+			return ret;
+		}
 
+		ret = nvp6158_ioctl(sd, cmd, vicap_rst_inf);
+		if (!ret) {
+			ret = copy_to_user(up, vicap_rst_inf, sizeof(*vicap_rst_inf));
+			if (ret)
+				ret = -EFAULT;
+		}
+		kfree(vicap_rst_inf);
+		break;
+	case RKMODULE_SET_VICAP_RST_INFO:
+		vicap_rst_inf = kzalloc(sizeof(*vicap_rst_inf), GFP_KERNEL);
+		if (!vicap_rst_inf) {
+			ret = -ENOMEM;
+			return ret;
+		}
+
+		ret = copy_from_user(vicap_rst_inf, up, sizeof(*vicap_rst_inf));
+		if (!ret)
+			ret = nvp6158_ioctl(sd, cmd, vicap_rst_inf);
+		else
+			ret = -EFAULT;
+		kfree(vicap_rst_inf);
+		break;
+	case RKMODULE_SET_QUICK_STREAM:
+		ret = copy_from_user(&stream, up, sizeof(u32));
+		if (!ret)
+			ret = nvp6158_ioctl(sd, cmd, &stream);
+		else
+			ret = -EFAULT;
+		break;
 	default:
 		ret = -ENOIOCTLCMD;
 		break;
@@ -1178,7 +1510,21 @@ static int nvp6158_probe(struct i2c_client *client,
 	pm_runtime_set_active(dev);
 	pm_runtime_enable(dev);
 	pm_runtime_idle(dev);
+#ifdef WORK_QUEUE
+	/* init work_queue for state_check */
+	INIT_DELAYED_WORK(&nvp6158->plug_state_check.d_work, nvp6158_plug_state_check_work);
+	nvp6158->plug_state_check.state_check_wq =
+		create_singlethread_workqueue("nvp6158_work_queue");
+	if (nvp6158->plug_state_check.state_check_wq == NULL) {
+		dev_err(dev, "%s(%d): %s create failed.\n", __func__, __LINE__,
+			  "nvp6158_work_queue");
+	}
+	nvp6158->cur_detect_status = 0x0;
+	nvp6158->last_detect_status = 0x0;
+	nvp6158->hot_plug = false;
+	nvp6158->is_reset = 0;
 
+#endif
 	return 0;
 
 err_clean_entity:
@@ -1206,7 +1552,10 @@ static int nvp6158_remove(struct i2c_client *client)
 	if (!pm_runtime_status_suspended(&client->dev))
 		__nvp6158_power_off(nvp6158);
 	pm_runtime_set_suspended(&client->dev);
-
+#ifdef WORK_QUEUE
+	if (nvp6158->plug_state_check.state_check_wq != NULL)
+		destroy_workqueue(nvp6158->plug_state_check.state_check_wq);
+#endif
 	return 0;
 }
 

@@ -26,7 +26,7 @@ long nvp6158_native_ioctl(struct file *file, unsigned int cmd, unsigned long arg
 void nvp6158_i2c_client_exit(void);
 
 void nvp6158_set_mclk(unsigned int mclk);
-void nvp6158_start(video_init_all *video_init);
+void nvp6158_start(video_init_all *video_init, bool dual_edge);
 void nvp6158_stop(void);
 int nvp6158_init(int i2c_bus);
 void nvp6158_exit(void);
