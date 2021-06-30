@@ -5,7 +5,7 @@
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
- * date: 2021-06-16
+ * date: 2021-06-30
  * function: rk ftl v6 for rockchip soc base on arm v8 to support 3D/2D
  *	     TLC and MLC.
  */
@@ -26946,7 +26946,7 @@ rk_ftl_init:
 	mov	w0, 136
 	strb	wzr, [x19, 496]
 	str	wzr, [x19, 248]
-	bl	ftl_malloc
+	bl	ftl_dma32_malloc
 	str	x0, [x19, 232]
 	cbnz	x0, .L4174
 .L4176:
@@ -26959,7 +26959,7 @@ rk_ftl_init:
 	ret
 .L4174:
 	mov	w0, 2048
-	bl	ftl_malloc
+	bl	ftl_dma32_malloc
 	add	x1, x19, 512
 	stp	x0, xzr, [x19, 504]
 	str	xzr, [x19, 240]
@@ -29119,92 +29119,93 @@ StorageSysDataDeInit:
 	.type	rk_ftl_vendor_storage_init, %function
 rk_ftl_vendor_storage_init:
 	stp	x29, x30, [sp, -80]!
-	mov	w0, 65536
 	add	x29, sp, 0
 	stp	x19, x20, [sp, 16]
 	adrp	x19, .LANCHOR5
 	add	x20, x19, :lo12:.LANCHOR5
 	stp	x21, x22, [sp, 32]
 	stp	x23, x24, [sp, 48]
-	stp	x25, x26, [sp, 64]
+	str	x25, [sp, 64]
+	ldr	x0, [x20, 1112]
+	cbnz	x0, .L4500
+	mov	w0, 65536
 	bl	ftl_malloc
 	str	x0, [x20, 1112]
+.L4500:
+	add	x19, x19, :lo12:.LANCHOR5
+	ldr	x0, [x19, 1112]
 	cbz	x0, .L4505
-	adrp	x24, .LC337
-	mov	w26, 22084
-	mov	x22, x19
-	add	x24, x24, :lo12:.LC337
-	mov	w25, 0
-	mov	w23, 0
+	adrp	x23, .LC337
+	mov	w25, 22084
+	add	x23, x23, :lo12:.LC337
+	mov	w24, 0
+	mov	w22, 0
 	mov	w21, 0
-	movk	w26, 0x524b, lsl 16
+	movk	w25, 0x524b, lsl 16
 .L4503:
-	ldr	x2, [x20, 1112]
+	ldr	x2, [x19, 1112]
 	mov	w1, 128
 	lsl	w0, w21, 7
 	bl	FlashBootVendorRead
-	cbnz	w0, .L4501
-	ldr	x0, [x20, 1112]
+	cbnz	w0, .L4506
+	ldr	x0, [x19, 1112]
 	add	x1, x0, 61440
 	ldr	w3, [x0, 4]
 	ldr	w2, [x1, 4092]
 	ldr	w1, [x0]
-	mov	x0, x24
+	mov	x0, x23
 	bl	printk
-	ldr	x19, [x20, 1112]
-	ldr	w0, [x19]
-	cmp	w0, w26
+	ldr	x20, [x19, 1112]
+	ldr	w0, [x20]
+	cmp	w0, w25
 	bne	.L4502
-	add	x0, x19, 61440
-	ldr	w1, [x19, 4]
+	add	x0, x20, 61440
+	ldr	w1, [x20, 4]
 	ldr	w0, [x0, 4092]
 	cmp	w0, w1
 	bne	.L4502
-	cmp	w0, w23
+	cmp	w0, w22
 	bls	.L4502
-	mov	w25, w21
-	mov	w23, w0
+	mov	w24, w21
+	mov	w22, w0
 .L4502:
 	add	w21, w21, 1
 	cmp	w21, 2
 	bne	.L4503
-	cbz	w23, .L4504
-	mov	x2, x19
+	cbz	w22, .L4504
+	mov	x2, x20
 	mov	w1, 128
-	lsl	w0, w25, 7
+	lsl	w0, w24, 7
 	bl	FlashBootVendorRead
-	cbnz	w0, .L4501
+	cmp	w0, 0
+	csetm	w0, ne
 .L4499:
 	ldp	x19, x20, [sp, 16]
 	ldp	x21, x22, [sp, 32]
 	ldp	x23, x24, [sp, 48]
-	ldp	x25, x26, [sp, 64]
+	ldr	x25, [sp, 64]
 	ldp	x29, x30, [sp], 80
 	ret
 .L4504:
 	mov	w1, 0
 	mov	x2, 65536
-	mov	x0, x19
+	mov	x0, x20
 	bl	memset
 	mov	w1, 22084
 	mov	w0, 1
 	movk	w1, 0x524b, lsl 16
-	stp	w1, w0, [x19]
-	add	x1, x19, 61440
+	stp	w1, w0, [x20]
+	add	x1, x20, 61440
 	str	w0, [x1, 4092]
 	mov	w0, -1032
-	strh	w0, [x19, 14]
+	strh	w0, [x20, 14]
 	mov	w0, 0
-	b	.L4499
-.L4501:
-	add	x22, x22, :lo12:.LANCHOR5
-	ldr	x0, [x22, 1112]
-	bl	kfree
-	str	xzr, [x22, 1112]
-	mov	w0, -1
 	b	.L4499
 .L4505:
 	mov	w0, -12
+	b	.L4499
+.L4506:
+	mov	w0, -1
 	b	.L4499
 	.size	rk_ftl_vendor_storage_init, .-rk_ftl_vendor_storage_init
 	.align	2
@@ -29213,20 +29214,20 @@ rk_ftl_vendor_storage_init:
 rk_ftl_vendor_read:
 	adrp	x3, .LANCHOR5+1112
 	ldr	x4, [x3, #:lo12:.LANCHOR5+1112]
-	cbz	x4, .L4513
+	cbz	x4, .L4514
 	ldrh	w6, [x4, 10]
 	add	x5, x4, 16
 	mov	w3, 0
-.L4510:
+.L4511:
 	cmp	w3, w6
-	bcc	.L4512
-.L4513:
+	bcc	.L4513
+.L4514:
 	mov	w0, -1
 	ret
-.L4512:
+.L4513:
 	ldrh	w7, [x5], 8
 	cmp	w7, w0
-	bne	.L4511
+	bne	.L4512
 	stp	x29, x30, [sp, -32]!
 	add	x3, x4, w3, uxtw 3
 	mov	x0, x1
@@ -29244,9 +29245,9 @@ rk_ftl_vendor_read:
 	ldr	x19, [sp, 16]
 	ldp	x29, x30, [sp], 32
 	ret
-.L4511:
+.L4512:
 	add	w3, w3, 1
-	b	.L4510
+	b	.L4511
 	.size	rk_ftl_vendor_read, .-rk_ftl_vendor_read
 	.align	2
 	.global	rk_ftl_vendor_write
@@ -29261,7 +29262,7 @@ rk_ftl_vendor_write:
 	stp	x23, x24, [sp, 48]
 	stp	x25, x26, [sp, 64]
 	stp	x27, x28, [sp, 80]
-	cbz	x19, .L4533
+	cbz	x19, .L4534
 	add	w4, w2, 63
 	ldrh	w3, [x19, 10]
 	ldrh	w24, [x19, 8]
@@ -29270,12 +29271,12 @@ rk_ftl_vendor_write:
 	and	w22, w4, -64
 	add	x1, x19, 16
 	mov	w20, 0
-.L4520:
+.L4521:
 	cmp	w20, w3
-	bcc	.L4528
+	bcc	.L4529
 	ldrh	w1, [x19, 14]
 	cmp	w22, w1
-	bhi	.L4533
+	bhi	.L4534
 	add	x3, x19, w3, uxth 3
 	strh	w0, [x3, 16]
 	and	w0, w22, 65535
@@ -29295,11 +29296,11 @@ rk_ftl_vendor_write:
 	ldrh	w0, [x19, 10]
 	add	w0, w0, 1
 	strh	w0, [x19, 10]
-	b	.L4535
-.L4528:
+	b	.L4536
+.L4529:
 	ldrh	w6, [x1], 8
 	cmp	w6, w0
-	bne	.L4521
+	bne	.L4522
 	uxtw	x23, w20
 	add	x5, x19, 1024
 	add	x21, x19, x23, lsl 3
@@ -29307,17 +29308,17 @@ rk_ftl_vendor_write:
 	add	w25, w25, 63
 	and	w25, w25, -64
 	cmp	w26, w25
-	bls	.L4522
+	bls	.L4523
 	ldrh	w0, [x19, 14]
 	cmp	w22, w0
-	bhi	.L4533
+	bhi	.L4534
 	add	x23, x23, 2
 	ldrh	w21, [x21, 18]
 	add	x23, x19, x23, lsl 3
 	sub	w3, w3, #1
-.L4523:
+.L4524:
 	cmp	w20, w3
-	bcc	.L4524
+	bcc	.L4525
 	add	x20, x19, w20, uxtw 3
 	and	w21, w21, 65535
 	add	x0, x5, w21, uxth
@@ -29334,7 +29335,7 @@ rk_ftl_vendor_write:
 	sub	w0, w0, w4
 	add	w25, w0, w25
 	strh	w25, [x19, 14]
-.L4535:
+.L4536:
 	ldr	w0, [x19, 4]
 	add	x1, x19, 61440
 	mov	x2, x19
@@ -29351,7 +29352,7 @@ rk_ftl_vendor_write:
 	lsl	w0, w24, 7
 	bl	FlashBootVendorWrite
 	mov	w0, 0
-.L4518:
+.L4519:
 	ldp	x19, x20, [sp, 16]
 	ldp	x21, x22, [sp, 32]
 	ldp	x23, x24, [sp, 48]
@@ -29359,7 +29360,7 @@ rk_ftl_vendor_write:
 	ldp	x27, x28, [sp, 80]
 	ldp	x29, x30, [sp], 112
 	ret
-.L4524:
+.L4525:
 	add	w20, w20, 1
 	stp	w3, w6, [x29, 96]
 	add	x0, x19, w20, uxtw 3
@@ -29381,111 +29382,111 @@ rk_ftl_vendor_write:
 	add	w21, w21, w27
 	ldr	x5, [x29, 104]
 	ldp	w3, w6, [x29, 96]
-	b	.L4523
-.L4522:
+	b	.L4524
+.L4523:
 	ldrh	w0, [x21, 18]
 	uxtw	x2, w26
 	mov	x1, x28
 	add	x0, x5, x0
 	bl	memcpy
 	strh	w26, [x21, 20]
-	b	.L4535
-.L4521:
+	b	.L4536
+.L4522:
 	add	w20, w20, 1
-	b	.L4520
-.L4533:
+	b	.L4521
+.L4534:
 	mov	w0, -1
-	b	.L4518
+	b	.L4519
 	.size	rk_ftl_vendor_write, .-rk_ftl_vendor_write
 	.align	2
 	.global	rk_ftl_vendor_storage_ioctl
 	.type	rk_ftl_vendor_storage_ioctl, %function
 rk_ftl_vendor_storage_ioctl:
 	stp	x29, x30, [sp, -48]!
-	mov	w0, 4096
+	mov	w0, 9216
 	add	x29, sp, 0
 	stp	x19, x20, [sp, 16]
 	mov	x20, x2
 	str	x21, [sp, 32]
 	mov	w21, w1
 	bl	ftl_malloc
-	cbz	x0, .L4544
+	cbz	x0, .L4545
 	mov	w1, 30209
 	mov	x19, x0
 	movk	w1, 0x4004, lsl 16
 	cmp	w21, w1
-	beq	.L4539
+	beq	.L4540
 	add	w1, w1, 1
 	cmp	w21, w1
-	beq	.L4540
-.L4550:
+	beq	.L4541
+.L4551:
 	mov	x20, -14
-	b	.L4538
-.L4539:
+	b	.L4539
+.L4540:
 	mov	x2, 8
 	mov	x1, x20
 	bl	rk_copy_from_user
-	cbnz	x0, .L4550
+	cbnz	x0, .L4551
 	ldr	w1, [x19]
 	mov	w0, 17745
 	movk	w0, 0x5652, lsl 16
 	cmp	w1, w0
-	beq	.L4542
-.L4543:
+	beq	.L4543
+.L4544:
 	mov	x20, -1
-.L4538:
+.L4539:
 	mov	x0, x19
 	bl	kfree
-.L4536:
+.L4537:
 	mov	x0, x20
 	ldr	x21, [sp, 32]
 	ldp	x19, x20, [sp, 16]
 	ldp	x29, x30, [sp], 48
 	ret
-.L4542:
+.L4543:
 	ldrh	w2, [x19, 6]
 	add	x1, x19, 8
 	ldrh	w0, [x19, 4]
 	bl	rk_ftl_vendor_read
 	cmn	w0, #1
-	beq	.L4543
+	beq	.L4544
 	strh	w0, [x19, 6]
 	and	x0, x0, 65535
 	add	x2, x0, 8
 	mov	x1, x19
 	mov	x0, x20
 	bl	rk_copy_to_user
-	cbnz	x0, .L4550
+	cbnz	x0, .L4551
 	mov	x20, 0
-	b	.L4538
-.L4540:
+	b	.L4539
+.L4541:
 	mov	x2, 8
 	mov	x1, x20
 	bl	rk_copy_from_user
-	cbnz	x0, .L4550
+	cbnz	x0, .L4551
 	ldr	w1, [x19]
 	mov	w0, 17745
 	movk	w0, 0x5652, lsl 16
 	cmp	w1, w0
-	bne	.L4543
+	bne	.L4544
 	ldrh	w2, [x19, 6]
 	cmp	w2, 4087
-	bhi	.L4543
+	bhi	.L4544
 	add	w2, w2, 8
 	mov	x1, x20
 	sxtw	x2, w2
 	mov	x0, x19
 	bl	rk_copy_from_user
-	cbnz	x0, .L4550
+	cbnz	x0, .L4551
 	ldrh	w2, [x19, 6]
 	add	x1, x19, 8
 	ldrh	w0, [x19, 4]
 	bl	rk_ftl_vendor_write
 	sxtw	x20, w0
-	b	.L4538
-.L4544:
+	b	.L4539
+.L4545:
 	mov	x20, -1
-	b	.L4536
+	b	.L4537
 	.size	rk_ftl_vendor_storage_ioctl, .-rk_ftl_vendor_storage_ioctl
 	.global	SecureBootUnlockTryCount
 	.global	SecureBootCheckOK
