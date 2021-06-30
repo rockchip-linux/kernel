@@ -36,6 +36,7 @@
 #include "karma.h"
 #include "sysv68.h"
 #include "cmdline.h"
+#include "rk.h"
 
 int warn_no_part = 1; /*This is ugly: should make genhd removable media aware*/
 
@@ -65,6 +66,10 @@ static int (*check_part[])(struct parsed_partitions *) = {
 #endif
 #ifdef CONFIG_ACORN_PARTITION_ADFS
 	adfspart_check_ADFS,
+#endif
+
+#ifdef CONFIG_RK_PARTITION
+    rkpart_partition,
 #endif
 
 #ifdef CONFIG_CMDLINE_PARTITION

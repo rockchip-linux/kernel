@@ -2914,8 +2914,14 @@ static int mmc_blk_probe(struct mmc_card *card)
 	dev_set_drvdata(&card->dev, md);
 
 #if IS_ENABLED(CONFIG_MMC_DW_ROCKCHIP) || IS_ENABLED(CONFIG_MMC_SDHCI_OF_ARASAN)
-	if (card->host->restrict_caps & RESTRICT_CARD_TYPE_EMMC)
-		this_card = card;
+	   /*if (card->host->restrict_caps & RESTRICT_CARD_TYPE_EMMC)
+       this_card = card;*/
+    if (card->host->restrict_caps & RESTRICT_CARD_TYPE_EMMC) {
+        this_card = card;
+        md->disk->is_rk_disk = true;
+    } else {
+        md->disk->is_rk_disk = false;
+    }
 #endif
 
 	if (mmc_add_disk(md))
