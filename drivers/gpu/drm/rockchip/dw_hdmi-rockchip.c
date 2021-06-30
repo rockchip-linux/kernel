@@ -772,39 +772,47 @@ dw_hdmi_rockchip_select_output(struct drm_connector_state *conn_state,
 		else
 			*bus_format = MEDIA_BUS_FMT_UYYVYY8_0_5X24;
 		*bus_width = color_depth / 2;
+		hdmi->output_bus_format = *bus_format;
 	} else {
 		*output_mode = ROCKCHIP_OUT_MODE_AAAA;
+
 		if (color_depth > 8) {
-			if (*color_format != DRM_HDMI_OUTPUT_DEFAULT_RGB &&
-			    !hdmi->unsupported_yuv_input)
-				*bus_format = MEDIA_BUS_FMT_YUV10_1X30;
+			if (*color_format != DRM_HDMI_OUTPUT_DEFAULT_RGB)
+				hdmi->output_bus_format = MEDIA_BUS_FMT_YUV10_1X30;
+			else
+				hdmi->output_bus_format = MEDIA_BUS_FMT_RGB101010_1X30;
+
+			if (!hdmi->unsupported_yuv_input)
+				*bus_format = hdmi->output_bus_format;
 			else
 				*bus_format = MEDIA_BUS_FMT_RGB101010_1X30;
 		} else {
-			if (*color_format != DRM_HDMI_OUTPUT_DEFAULT_RGB &&
-			    !hdmi->unsupported_yuv_input)
-				*bus_format = MEDIA_BUS_FMT_YUV8_1X24;
+			if (*color_format != DRM_HDMI_OUTPUT_DEFAULT_RGB)
+				hdmi->output_bus_format = MEDIA_BUS_FMT_YUV8_1X24;
+			else
+				hdmi->output_bus_format = MEDIA_BUS_FMT_RGB888_1X24;
+
+			if (!hdmi->unsupported_yuv_input)
+				*bus_format = hdmi->output_bus_format;
 			else
 				*bus_format = MEDIA_BUS_FMT_RGB888_1X24;
 		}
-		if (*color_format == DRM_HDMI_OUTPUT_YCBCR422)
+
+		if (*color_format == DRM_HDMI_OUTPUT_YCBCR422) {
 			*bus_width = 8;
-		else
+
+			if (color_depth == 12)
+				hdmi->output_bus_format = MEDIA_BUS_FMT_UYVY12_1X24;
+			else if (color_depth == 10)
+				hdmi->output_bus_format = MEDIA_BUS_FMT_UYVY10_1X20;
+			else
+				hdmi->output_bus_format = MEDIA_BUS_FMT_UYVY8_1X16;
+		} else {
 			*bus_width = color_depth;
+		}
 	}
 
 	hdmi->bus_format = *bus_format;
-
-	if (*color_format == DRM_HDMI_OUTPUT_YCBCR422) {
-		if (color_depth == 12)
-			hdmi->output_bus_format = MEDIA_BUS_FMT_UYVY12_1X24;
-		else if (color_depth == 10)
-			hdmi->output_bus_format = MEDIA_BUS_FMT_UYVY10_1X20;
-		else
-			hdmi->output_bus_format = MEDIA_BUS_FMT_UYVY8_1X16;
-	} else {
-		hdmi->output_bus_format = *bus_format;
-	}
 }
 
 static bool
