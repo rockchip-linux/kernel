@@ -1315,7 +1315,8 @@ static int motor_set_zoom_follow(struct motor_dev *motor, struct rk_cam_set_zoom
 {
 	int i = 0;
 	int ret = 0;
-	bool is_need_reback = mv_param->is_need_reback;
+	bool is_need_zoom_reback = mv_param->is_need_zoom_reback;
+	bool is_need_focus_reback = mv_param->is_need_focus_reback;
 
 	for (i = 0; i < mv_param->setzoom_cnt; i++) {
 		if (i == (mv_param->setzoom_cnt - 1)) {
@@ -1324,13 +1325,13 @@ static int motor_set_zoom_follow(struct motor_dev *motor, struct rk_cam_set_zoom
 						       mv_param->zoom_pos[i].focus_pos,
 						       true,
 						       true,
-						       is_need_reback);
+						       is_need_zoom_reback);
 			ret = set_motor_running_status(motor,
 						       motor->zoom,
 						       mv_param->zoom_pos[i].zoom_pos,
 						       true,
 						       false,
-						       is_need_reback);
+						       is_need_focus_reback);
 		} else {
 			set_motor_running_status(motor,
 						 motor->focus,
