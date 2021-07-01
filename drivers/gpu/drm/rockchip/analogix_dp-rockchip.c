@@ -72,6 +72,7 @@ struct rockchip_dp_device {
 	struct drm_device        *drm_dev;
 	struct device            *dev;
 	struct drm_encoder       encoder;
+	struct drm_bridge	 *bridge;
 	struct drm_display_mode  mode;
 
 	int			 num_clks;
@@ -228,6 +229,24 @@ static int rockchip_dp_get_modes(struct analogix_dp_plat_data *plat_data,
 		di->color_formats &= ~mask;
 		di->color_formats |= DRM_COLOR_FORMAT_RGB444;
 		di->bpc = 8;
+	}
+
+	return 0;
+}
+
+static int rockchip_dp_bridge_attach(struct analogix_dp_plat_data *plat_data,
+				     struct drm_bridge *bridge,
+				     struct drm_connector *connector)
+{
+	struct rockchip_dp_device *dp = to_dp(plat_data);
+	int ret;
+
+	if (dp->bridge) {
+		ret = drm_bridge_attach(&dp->encoder, dp->bridge, bridge);
+		if (ret) {
+			DRM_ERROR("Failed to attach bridge to drm: %d\n", ret);
+			return ret;
+		}
 	}
 
 	return 0;
@@ -495,6 +514,7 @@ static int rockchip_dp_bind(struct device *dev, struct device *master,
 	dp->plat_data.power_on_end = rockchip_dp_poweron_end;
 	dp->plat_data.power_off = rockchip_dp_powerdown;
 	dp->plat_data.get_modes = rockchip_dp_get_modes;
+	dp->plat_data.attach = rockchip_dp_bridge_attach;
 	dp->plat_data.property_ops = &rockchip_dp_encoder_property_ops;
 
 	ret = rockchip_drm_psr_register(&dp->encoder, analogix_dp_psr_set);
@@ -562,10 +582,11 @@ static int rockchip_dp_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct drm_panel *panel = NULL;
+	struct drm_bridge *bridge = NULL;
 	struct rockchip_dp_device *dp;
 	int ret, id;
 
-	ret = drm_of_find_panel_or_bridge(dev->of_node, 1, 0, &panel, NULL);
+	ret = drm_of_find_panel_or_bridge(dev->of_node, 1, 0, &panel, &bridge);
 	if (ret < 0 && ret != -ENODEV)
 		return ret;
 
@@ -580,6 +601,8 @@ static int rockchip_dp_probe(struct platform_device *pdev)
 	dp->dev = dev;
 	dp->adp = ERR_PTR(-ENODEV);
 	dp->plat_data.panel = panel;
+	dp->plat_data.skip_connector = !!bridge;
+	dp->bridge = bridge;
 
 	ret = rockchip_dp_of_probe(dp);
 	if (ret < 0)
