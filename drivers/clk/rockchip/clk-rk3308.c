@@ -157,7 +157,6 @@ PNAME(mux_sdio_p)		= { "clk_sdio_div", "clk_sdio_div50" };
 PNAME(mux_emmc_p)		= { "clk_emmc_div", "clk_emmc_div50" };
 PNAME(mux_mac_p)		= { "clk_mac_src", "mac_clkin" };
 PNAME(mux_mac_rmii_sel_p)	= { "clk_mac_rx_tx_div20", "clk_mac_rx_tx_div2" };
-PNAME(mux_ddrstdby_p)		= { "clk_ddrphy1x_out", "clk_ddr_stdby_div4" };
 PNAME(mux_rtc32k_p)		= { "xin32k", "clk_pvtm_32k", "clk_rtc32k_frac", "clk_rtc32k_div" };
 PNAME(mux_usbphy_ref_p)		= { "xin24m", "clk_usbphy_ref_src" };
 PNAME(mux_wifi_src_p)		= { "clk_wifi_dpll", "clk_wifi_vpll0" };
@@ -565,28 +564,8 @@ static struct rockchip_clk_branch rk3308_clk_branches[] __initdata = {
 
 	GATE(0, "clk_ddr_mon_timer", "xin24m", CLK_IGNORE_UNUSED,
 			RK3308_CLKGATE_CON(0), 12, GFLAGS),
-
-	GATE(0, "clk_ddr_mon", "clk_ddrphy1x_out", CLK_IGNORE_UNUSED,
-			RK3308_CLKGATE_CON(4), 10, GFLAGS),
-	GATE(0, "clk_ddr_upctrl", "clk_ddrphy1x_out", CLK_IGNORE_UNUSED,
-			RK3308_CLKGATE_CON(4), 11, GFLAGS),
-	GATE(0, "clk_ddr_msch", "clk_ddrphy1x_out", CLK_IGNORE_UNUSED,
-			RK3308_CLKGATE_CON(4), 12, GFLAGS),
-	GATE(0, "clk_ddr_msch_peribus", "clk_ddrphy1x_out", CLK_IGNORE_UNUSED,
-			RK3308_CLKGATE_CON(4), 13, GFLAGS),
-
 	COMPOSITE_DDRCLK(SCLK_DDRCLK, "sclk_ddrc", mux_dpll_vpll0_vpll1_p, 0,
 			RK3308_CLKSEL_CON(1), 6, 2, 0, 0, ROCKCHIP_DDRCLK_SIP_V2),
-	COMPOSITE(0, "clk_ddrphy4x_src", mux_dpll_vpll0_vpll1_p, CLK_IGNORE_UNUSED,
-			RK3308_CLKSEL_CON(1), 6, 2, MFLAGS, 0, 3, DFLAGS,
-			RK3308_CLKGATE_CON(0), 10, GFLAGS),
-	GATE(0, "clk_ddrphy4x", "clk_ddrphy4x_src", CLK_IGNORE_UNUSED,
-			RK3308_CLKGATE_CON(0), 11, GFLAGS),
-	FACTOR_GATE(0, "clk_ddr_stdby_div4", "clk_ddrphy4x", CLK_IGNORE_UNUSED, 1, 4,
-			RK3308_CLKGATE_CON(0), 13, GFLAGS),
-	COMPOSITE_NODIV(0, "clk_ddrstdby", mux_ddrstdby_p, CLK_IGNORE_UNUSED,
-			RK3308_CLKSEL_CON(1), 8, 1, MFLAGS,
-			RK3308_CLKGATE_CON(4), 14, GFLAGS),
 
 	/*
 	 * Clock-Architecture Diagram 6
