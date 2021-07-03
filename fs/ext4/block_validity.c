@@ -171,8 +171,10 @@ static int ext4_data_block_valid_rcu(struct ext4_sb_info *sbi,
 		else if (start_blk >= (entry->start_blk + entry->count))
 			n = n->rb_right;
 		else {
+			if (entry->ino == ino)
+				return 1;
 			sbi->s_es->s_last_error_block = cpu_to_le64(start_blk);
-			return entry->ino == ino;
+			return 0;
 		}
 	}
 	return 1;
