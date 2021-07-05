@@ -144,6 +144,9 @@
 #define RKMODULE_SYNC_I2CDEV_COMPLETE       \
 	_IOW('V', BASE_VIDIOC_PRIVATE + 29, __u8)
 
+#define RKMODULE_GET_READOUT_LINE_CNT_PER_LINE  \
+	_IOR('V', BASE_VIDIOC_PRIVATE + 34, __u32)
+
 /* csi0/csi1 phy support full/split mode */
 enum rkmodule_phy_mode {
 	PHY_FULL_MODE,
