@@ -1071,7 +1071,10 @@ static int stmmac_init_phy(struct net_device *dev)
 		int addr = priv->plat->phy_addr;
 		struct phy_device *phydev;
 
-		phydev = mdiobus_get_phy(priv->mii, addr);
+		if (addr == -1)
+			phydev = phy_find_first(priv->mii);
+		else
+			phydev = mdiobus_get_phy(priv->mii, addr);
 		if (!phydev) {
 			netdev_err(priv->dev, "no phy at addr %d\n", addr);
 			return -ENODEV;
