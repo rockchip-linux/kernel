@@ -1651,6 +1651,12 @@ static long imx335_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 			imx335_write_reg(imx335->client, IMX335_REG_CTRL_MODE,
 				IMX335_REG_VALUE_08BIT, 1);
 		break;
+	case RKMODULE_GET_READOUT_LINE_CNT_PER_LINE:
+		if (imx335->cur_mode->width == 2616 && imx335->cur_mode->height == 1964)
+			*((u32 *)arg) = 2;
+		else
+			*((u32 *)arg) = 4;
+		break;
 	default:
 		ret = -ENOIOCTLCMD;
 		break;
@@ -1670,6 +1676,7 @@ static long imx335_compat_ioctl32(struct v4l2_subdev *sd,
 	struct preisp_hdrae_exp_s *hdrae;
 	long ret;
 	u32 stream = 0;
+	u32 readout = 0;
 
 	switch (cmd) {
 	case RKMODULE_GET_MODULE_INFO:
@@ -1680,8 +1687,10 @@ static long imx335_compat_ioctl32(struct v4l2_subdev *sd,
 		}
 
 		ret = imx335_ioctl(sd, cmd, inf);
-		if (!ret)
-			ret = copy_to_user(up, inf, sizeof(*inf));
+		if (!ret) {
+			if (copy_to_user(up, inf, sizeof(*inf)))
+				ret = -EFAULT;
+		}
 		kfree(inf);
 		break;
 	case RKMODULE_AWB_CFG:
@@ -1694,6 +1703,8 @@ static long imx335_compat_ioctl32(struct v4l2_subdev *sd,
 		ret = copy_from_user(cfg, up, sizeof(*cfg));
 		if (!ret)
 			ret = imx335_ioctl(sd, cmd, cfg);
+		else
+			ret = -EFAULT;
 		kfree(cfg);
 		break;
 	case RKMODULE_GET_HDR_CFG:
@@ -1704,8 +1715,10 @@ static long imx335_compat_ioctl32(struct v4l2_subdev *sd,
 		}
 
 		ret = imx335_ioctl(sd, cmd, hdr);
-		if (!ret)
-			ret = copy_to_user(up, hdr, sizeof(*hdr));
+		if (!ret) {
+			if (copy_to_user(up, hdr, sizeof(*hdr)))
+				ret = -EFAULT;
+		}
 		kfree(hdr);
 		break;
 	case RKMODULE_SET_HDR_CFG:
@@ -1718,6 +1731,8 @@ static long imx335_compat_ioctl32(struct v4l2_subdev *sd,
 		ret = copy_from_user(hdr, up, sizeof(*hdr));
 		if (!ret)
 			ret = imx335_ioctl(sd, cmd, hdr);
+		else
+			ret = -EFAULT;
 		kfree(hdr);
 		break;
 	case PREISP_CMD_SET_HDRAE_EXP:
@@ -1730,12 +1745,23 @@ static long imx335_compat_ioctl32(struct v4l2_subdev *sd,
 		ret = copy_from_user(hdrae, up, sizeof(*hdrae));
 		if (!ret)
 			ret = imx335_ioctl(sd, cmd, hdrae);
+		else
+			ret = -EFAULT;
 		kfree(hdrae);
 		break;
 	case RKMODULE_SET_QUICK_STREAM:
 		ret = copy_from_user(&stream, up, sizeof(u32));
 		if (!ret)
 			ret = imx335_ioctl(sd, cmd, &stream);
+		else
+			ret = -EFAULT;
+		break;
+	case RKMODULE_GET_READOUT_LINE_CNT_PER_LINE:
+		ret = imx335_ioctl(sd, cmd, &readout);
+		if (!ret) {
+			if (copy_to_user(up, &readout, sizeof(u32)))
+				ret = -EFAULT;
+		}
 		break;
 	default:
 		ret = -ENOIOCTLCMD;
