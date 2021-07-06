@@ -14,8 +14,9 @@ snd-soc-rockchip-vad-$(CONFIG_ARM64) += vad_preprocess_arm64.o
 snd-soc-rockchip-vad-$(CONFIG_ARM) += vad_preprocess_arm.o
 endif
 
+obj-$(CONFIG_SND_SOC_ROCKCHIP) += snd-soc-rockchip-pcm.o
 obj-$(CONFIG_SND_SOC_ROCKCHIP_AUDIO_PWM) += snd-soc-rockchip-audio-pwm.o
-obj-$(CONFIG_SND_SOC_ROCKCHIP_I2S) += snd-soc-rockchip-i2s.o snd-soc-rockchip-pcm.o
+obj-$(CONFIG_SND_SOC_ROCKCHIP_I2S) += snd-soc-rockchip-i2s.o
 obj-$(CONFIG_SND_SOC_ROCKCHIP_I2S_TDM) += snd-soc-rockchip-i2s-tdm.o
 obj-$(CONFIG_SND_SOC_ROCKCHIP_PDM) += snd-soc-rockchip-pdm.o
 obj-$(CONFIG_SND_SOC_ROCKCHIP_SPDIF) += snd-soc-rockchip-spdif.o
