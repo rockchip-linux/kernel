@@ -17,6 +17,7 @@
 #include <sound/pcm_params.h>
 
 #include "rockchip_audio_pwm.h"
+#include "rockchip_pcm.h"
 
 #define AUDIO_PWM_DMA_BURST_SIZE	(16) /* size * width: 16*4 = 64 bytes */
 
@@ -324,7 +325,7 @@ static int rockchip_audio_pwm_probe(struct platform_device *pdev)
 		goto err_suspend;
 	}
 
-	ret = devm_snd_dmaengine_pcm_register(&pdev->dev, NULL, 0);
+	ret = rockchip_pcm_platform_register(&pdev->dev);
 	if (ret) {
 		dev_err(&pdev->dev, "could not register pcm: %d\n", ret);
 		goto err_suspend;
