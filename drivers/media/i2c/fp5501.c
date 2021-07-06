@@ -386,6 +386,7 @@ static void motor_reinit_focus_pos(struct motor_dev *motor)
 {
 	motor_reinit_focus(motor);
 	motor->focus.last_pos = 0;
+	motor->focus.phase_index = 0;
 	__v4l2_ctrl_modify_range(motor->focus_ctrl, 0,
 				 motor->focus.step_max - motor->focus.reback,
 				 1, 0);
@@ -408,6 +409,7 @@ static void motor_reinit_zoom_pos(struct motor_dev *motor)
 {
 	motor_reinit_zoom(motor);
 	motor->zoom.last_pos = 0;
+	motor->zoom.phase_index = 0;
 	__v4l2_ctrl_modify_range(motor->zoom_ctrl, 0,
 				 motor->zoom.step_max - motor->zoom.reback,
 				 1, 0);
