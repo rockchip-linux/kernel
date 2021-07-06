@@ -17,6 +17,7 @@
 #include <sound/pcm_params.h>
 #include <sound/dmaengine_pcm.h>
 
+#include "rockchip_pcm.h"
 #include "rockchip_spdifrx.h"
 
 struct rk_spdifrx_dev {
@@ -335,7 +336,7 @@ static int rk_spdifrx_probe(struct platform_device *pdev)
 		goto err_pm_suspend;
 	}
 
-	ret = devm_snd_dmaengine_pcm_register(&pdev->dev, NULL, 0);
+	ret = rockchip_pcm_platform_register(&pdev->dev);
 	if (ret) {
 		dev_err(&pdev->dev, "Could not register PCM\n");
 		goto err_pm_suspend;
