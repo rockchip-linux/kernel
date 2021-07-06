@@ -39,7 +39,7 @@ static int debug;
 module_param(debug, int, 0644);
 MODULE_PARM_DESC(debug, "debug level (0-3)");
 
-#define DRIVER_VERSION			KERNEL_VERSION(0, 0x0, 0x5)
+#define DRIVER_VERSION			KERNEL_VERSION(0, 0x0, 0x6)
 #define RK628_CSI_NAME			"rk628-csi"
 
 #define EDID_NUM_BLOCKS_MAX 		2
@@ -360,12 +360,12 @@ static int rk628_csi_get_detected_timings(struct v4l2_subdev *sd,
 	htotal = (val >> 16) & 0xffff;
 	regmap_read(csi->hdmirx_regmap, HDMI_RX_MD_VTL, &val);
 	vtotal = val & 0xffff;
-	regmap_read(csi->hdmirx_regmap, 0x3014c, &val);
+	regmap_read(csi->hdmirx_regmap, HDMI_RX_MD_HT1, &val);
 	hofs_pix = val & 0xffff;
-	regmap_read(csi->hdmirx_regmap, 0x30164, &val);
+	regmap_read(csi->hdmirx_regmap, HDMI_RX_MD_VOL, &val);
 	vbp = (val & 0xffff) + 1;
 
-	regmap_read(csi->hdmirx_regmap, 0x3009c, &val);
+	regmap_read(csi->hdmirx_regmap, HDMI_RX_HDMI_CKM_RESULT, &val);
 	tmdsclk_cnt = val & 0xffff;
 	tmp_data = tmdsclk_cnt;
 	tmp_data = ((tmp_data * MODETCLK_HZ) + MODETCLK_CNT_NUM / 2);
@@ -378,12 +378,12 @@ static int rk628_csi_get_detected_timings(struct v4l2_subdev *sd,
 	}
 	fps = (tmds_clk + (htotal * vtotal) / 2) / (htotal * vtotal);
 
-	regmap_read(csi->hdmirx_regmap, 0x30148, &val);
+	regmap_read(csi->hdmirx_regmap, HDMI_RX_MD_HT0, &val);
 	modetclk_cnt_hs = val & 0xffff;
 	hs = (tmdsclk_cnt * modetclk_cnt_hs + MODETCLK_CNT_NUM / 2) /
 		MODETCLK_CNT_NUM;
 
-	regmap_read(csi->hdmirx_regmap, 0x3015c, &val);
+	regmap_read(csi->hdmirx_regmap, HDMI_RX_MD_VSC, &val);
 	modetclk_cnt_vs = val & 0xffff;
 	vs = (tmdsclk_cnt * modetclk_cnt_vs + MODETCLK_CNT_NUM / 2) /
 		MODETCLK_CNT_NUM;
@@ -1454,7 +1454,12 @@ static void rk628_csi_enable_interrupts(struct v4l2_subdev *sd, bool en)
 
 	if (en) {
 		regmap_write(csi->hdmirx_regmap, HDMI_RX_MD_IEN_SET,
-			VACT_LIN_ENSET | HACT_PIX_ENSET);
+				VACT_LIN_ENSET |
+				HACT_PIX_ENSET |
+				HS_CLK_ENSET |
+				DE_ACTIVITY_ENSET |
+				VS_ACT_ENSET |
+				HS_ACT_ENSET);
 		regmap_write(csi->hdmirx_regmap, HDMI_RX_PDEC_IEN_SET,
 				AVI_RCV_ENSET);
 	} else {
@@ -1488,7 +1493,11 @@ static int rk628_csi_isr(struct v4l2_subdev *sd, u32 status, bool *handled)
 	v4l2_dbg(1, debug, sd, "%s: md_ints: %#x, pdec_ints:%#x, plugin: %d\n",
 		__func__, md_ints, pdec_ints, plugin);
 
-	if ((md_ints & (VACT_LIN_ISTS | HACT_PIX_ISTS)) && plugin) {
+	if ((md_ints & (VACT_LIN_ISTS | HACT_PIX_ISTS |
+			HS_CLK_ISTS | DE_ACTIVITY_ISTS |
+			VS_ACT_ISTS | HS_ACT_ISTS))
+			&& plugin) {
+
 		regmap_read(csi->hdmirx_regmap, HDMI_RX_MD_HACT_PX, &hact);
 		regmap_read(csi->hdmirx_regmap, HDMI_RX_MD_VAL, &vact);
 		v4l2_dbg(1, debug, sd, "%s: HACT:%#x, VACT:%#x\n",
@@ -2611,6 +2620,7 @@ static const struct regmap_range rk628_hdmirx_readable_ranges[] = {
 	regmap_reg_range(HDMI_RX_HDMI_MODE_RECOVER, HDMI_RX_HDMI_ERROR_PROTECT),
 	regmap_reg_range(HDMI_RX_HDMI_SYNC_CTRL, HDMI_RX_HDMI_CKM_RESULT),
 	regmap_reg_range(HDMI_RX_HDMI_RESMPL_CTRL, HDMI_RX_HDMI_RESMPL_CTRL),
+	regmap_reg_range(HDMI_VM_CFG_CH2, HDMI_VM_CFG_CH2),
 	regmap_reg_range(HDMI_RX_HDCP_CTRL, HDMI_RX_HDCP_SETTINGS),
 	regmap_reg_range(HDMI_RX_HDCP_KIDX, HDMI_RX_HDCP_KIDX),
 	regmap_reg_range(HDMI_RX_HDCP_DBG, HDMI_RX_HDCP_AN0),
@@ -2626,8 +2636,10 @@ static const struct regmap_range rk628_hdmirx_readable_ranges[] = {
 	regmap_reg_range(HDMI_RX_AUD_CHEXTR_CTRL, HDMI_RX_AUD_PAO_CTRL),
 	regmap_reg_range(HDMI_RX_AUD_FIFO_STS, HDMI_RX_AUD_FIFO_STS),
 	regmap_reg_range(HDMI_RX_AUDPLL_GEN_CTS, HDMI_RX_AUDPLL_GEN_N),
+	regmap_reg_range(HDMI_RX_PDEC_CTRL, HDMI_RX_PDEC_CTRL),
 	regmap_reg_range(HDMI_RX_PDEC_AUDIODET_CTRL, HDMI_RX_PDEC_AUDIODET_CTRL),
 	regmap_reg_range(HDMI_RX_PDEC_ERR_FILTER, HDMI_RX_PDEC_ASP_CTRL),
+	regmap_reg_range(HDMI_RX_PDEC_GCP_AVMUTE, HDMI_RX_PDEC_GCP_AVMUTE),
 	regmap_reg_range(HDMI_RX_PDEC_ACR_CTS, HDMI_RX_PDEC_ACR_N),
 	regmap_reg_range(HDMI_RX_PDEC_AIF_CTRL, HDMI_RX_PDEC_AIF_PB0),
 	regmap_reg_range(HDMI_RX_PDEC_AVI_PB, HDMI_RX_PDEC_AVI_PB),
