@@ -562,6 +562,13 @@ static void rockchip_spi_config(struct rockchip_spi *rs)
 		rs->max_freq = clk_get_rate(rs->spiclk);
 	}
 
+	/* the maxmum divisor is 4 for mode1/3 spi master case */
+	if ((rs->max_freq > 4 * rs->speed) && (rs->mode & SPI_CPHA) &&
+	    !(cr0 & (1 << CR0_OPM_OFFSET))) {
+		clk_set_rate(rs->spiclk, 4 * rs->speed);
+		rs->max_freq = clk_get_rate(rs->spiclk);
+	}
+
 	/* div doesn't support odd number */
 	div = DIV_ROUND_UP(rs->max_freq, rs->speed);
 	div = (div + 1) & 0xfffe;
