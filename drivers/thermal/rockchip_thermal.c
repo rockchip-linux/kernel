@@ -1038,7 +1038,7 @@ static const struct rockchip_tsadc_chip rk3308_tsadc_data = {
 	.tshut_mode = TSHUT_MODE_CRU, /* default TSHUT via CRU */
 	.tshut_temp = 95000,
 
-	.initialize = rk_tsadcv4_initialize,
+	.initialize = rk_tsadcv2_initialize,
 	.irq_ack = rk_tsadcv3_irq_ack,
 	.control = rk_tsadcv3_control,
 	.get_temp = rk_tsadcv2_get_temp,
