@@ -23,6 +23,7 @@
 #include <linux/platform_device.h>
 #include <linux/regmap.h>
 #include <linux/reset.h>
+#include <linux/rockchip/cpu.h>
 #include <linux/thermal.h>
 #include <linux/mfd/syscon.h>
 #include <linux/pinctrl/consumer.h>
@@ -83,6 +84,9 @@ struct chip_tsadc_table {
 	const struct tsadc_table *id;
 	unsigned int length;
 	u32 data_mask;
+	/* Tsadc is linear, using linear parameters */
+	int kNum;
+	int bNum;
 	enum adc_sort_mode mode;
 };
 
@@ -543,6 +547,9 @@ static u32 rk_tsadcv2_temp_to_code(struct chip_tsadc_table table,
 	int high, low, mid;
 	u32 error = table.data_mask;
 
+	if (table.kNum)
+		return (((temp / 1000) * table.kNum) / 1000 + table.bNum);
+
 	low = 0;
 	high = table.length - 1;
 	mid = (high + low) / 2;
@@ -576,6 +583,13 @@ static int rk_tsadcv2_code_to_temp(struct chip_tsadc_table table, u32 code,
 	unsigned int mid = (low + high) / 2;
 	unsigned int num;
 	unsigned long denom;
+
+	if (table.kNum) {
+		*temp = (((int)code - table.bNum) * 10000 / table.kNum) * 100;
+		if (*temp < MIN_TEMP || *temp > MAX_TEMP)
+			return -EAGAIN;
+		return 0;
+	}
 
 	WARN_ON(table.length < 2);
 
@@ -1054,6 +1068,29 @@ static const struct rockchip_tsadc_chip rk3308_tsadc_data = {
 	},
 };
 
+static const struct rockchip_tsadc_chip rk3308bs_tsadc_data = {
+	.chn_id[SENSOR_CPU] = 0, /* cpu sensor is channel 0 */
+	.chn_num = 1, /* 1 channels for tsadc */
+
+	.tshut_mode = TSHUT_MODE_CRU, /* default TSHUT via CRU */
+	.tshut_temp = 95000,
+
+	.initialize = rk_tsadcv2_initialize,
+	.irq_ack = rk_tsadcv3_irq_ack,
+	.control = rk_tsadcv2_control,
+	.get_temp = rk_tsadcv2_get_temp,
+	.set_alarm_temp = rk_tsadcv2_alarm_temp,
+	.set_tshut_temp = rk_tsadcv2_tshut_temp,
+	.set_tshut_mode = rk_tsadcv2_tshut_mode,
+
+	.table = {
+		.kNum = 2699,
+		.bNum = 2796,
+		.data_mask = TSADCV2_DATA_MASK,
+		.mode = ADC_INCREMENT,
+	},
+};
+
 static const struct rockchip_tsadc_chip px30_tsadc_data = {
 	.chn_id[SENSOR_CPU] = 0, /* cpu sensor is channel 0 */
 	.chn_id[SENSOR_GPU] = 1, /* gpu sensor is channel 1 */
@@ -1220,6 +1257,10 @@ static const struct of_device_id of_rockchip_thermal_match[] = {
 	{
 		.compatible = "rockchip,rk3308-tsadc",
 		.data = (void *)&rk3308_tsadc_data,
+	},
+	{
+		.compatible = "rockchip,rk3308bs-tsadc",
+		.data = (void *)&rk3308bs_tsadc_data,
 	},
 	{
 		.compatible = "rockchip,rk3328-tsadc",
@@ -1487,9 +1528,13 @@ static int rockchip_thermal_probe(struct platform_device *pdev)
 
 	thermal->pdev = pdev;
 
-	thermal->chip = (const struct rockchip_tsadc_chip *)match->data;
-	if (!thermal->chip)
-		return -EINVAL;
+	if (soc_is_rk3308bs()) {
+		thermal->chip = &rk3308bs_tsadc_data;
+	} else {
+		thermal->chip = (const struct rockchip_tsadc_chip *)match->data;
+		if (!thermal->chip)
+			return -EINVAL;
+	}
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	thermal->regs = devm_ioremap_resource(&pdev->dev, res);
@@ -1508,6 +1553,14 @@ static int rockchip_thermal_probe(struct platform_device *pdev)
 		error = PTR_ERR(thermal->clk);
 		dev_err(&pdev->dev, "failed to get tsadc clock: %d\n", error);
 		return error;
+	}
+	if (soc_is_rk3308bs()) {
+		error = clk_set_rate(thermal->clk, 4000000);
+		if (error < 0) {
+			dev_err(&pdev->dev,
+				"failed to set tsadc clk rate to 4000000Hz\n");
+			return error;
+		}
 	}
 
 	thermal->pclk = devm_clk_get(&pdev->dev, "apb_pclk");
