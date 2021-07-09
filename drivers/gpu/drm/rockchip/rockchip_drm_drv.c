@@ -21,7 +21,7 @@
 #include <drm/drm_gem_cma_helper.h>
 #include <drm/drm_of.h>
 #include <linux/devfreq.h>
-#include <linux/dma-buf.h>
+#include <linux/dma-buf-cache.h>
 #include <linux/dma-mapping.h>
 #include <linux/dma-iommu.h>
 #include <linux/genalloc.h>
