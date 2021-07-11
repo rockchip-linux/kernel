@@ -733,6 +733,7 @@ const struct omap_clkctrl_data dra7_clkctrl_data[] __initconst = {
 static struct ti_dt_clk dra7xx_clks[] = {
 	DT_CLK(NULL, "timer_32k_ck", "sys_32k_ck"),
 	DT_CLK(NULL, "sys_clkin_ck", "timer_sys_clk_div"),
+	DT_CLK(NULL, "timer_sys_ck", "timer_sys_clk_div"),
 	DT_CLK(NULL, "sys_clkin", "sys_clkin1"),
 	DT_CLK(NULL, "atl_dpll_clk_mux", "atl_cm:0000:24"),
 	DT_CLK(NULL, "atl_gfclk_mux", "atl_cm:0000:26"),

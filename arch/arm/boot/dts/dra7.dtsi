@@ -48,6 +48,7 @@
 
 	timer {
 		compatible = "arm,armv7-timer";
+		status = "disabled";	/* See ARM architected timer wrap erratum i940 */
 		interrupts = <GIC_PPI 13 (GIC_CPU_MASK_SIMPLE(2) | IRQ_TYPE_LEVEL_LOW)>,
 			     <GIC_PPI 14 (GIC_CPU_MASK_SIMPLE(2) | IRQ_TYPE_LEVEL_LOW)>,
 			     <GIC_PPI 11 (GIC_CPU_MASK_SIMPLE(2) | IRQ_TYPE_LEVEL_LOW)>,
@@ -910,6 +911,8 @@
 			reg = <0x48032000 0x80>;
 			interrupts = <GIC_SPI 33 IRQ_TYPE_LEVEL_HIGH>;
 			ti,hwmods = "timer2";
+			clock-names = "fck";
+			clocks = <&l4per_clkctrl DRA7_TIMER2_CLKCTRL 24>;
 		};
 
 		timer3: timer@48034000 {
@@ -917,6 +920,10 @@
 			reg = <0x48034000 0x80>;
 			interrupts = <GIC_SPI 34 IRQ_TYPE_LEVEL_HIGH>;
 			ti,hwmods = "timer3";
+			clock-names = "fck";
+			clocks = <&l4per_clkctrl DRA7_TIMER3_CLKCTRL 24>;
+			assigned-clocks = <&l4per_clkctrl DRA7_TIMER3_CLKCTRL 24>;
+			assigned-clock-parents = <&timer_sys_clk_div>;
 		};
 
 		timer4: timer@48036000 {
@@ -924,6 +931,10 @@
 			reg = <0x48036000 0x80>;
 			interrupts = <GIC_SPI 35 IRQ_TYPE_LEVEL_HIGH>;
 			ti,hwmods = "timer4";
+			clock-names = "fck";
+			clocks = <&l4per_clkctrl DRA7_TIMER4_CLKCTRL 24>;
+			assigned-clocks = <&l4per_clkctrl DRA7_TIMER4_CLKCTRL 24>;
+			assigned-clock-parents = <&timer_sys_clk_div>;
 		};
 
 		timer5: timer@48820000 {
