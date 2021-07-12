@@ -43,6 +43,7 @@ struct ebc_buf_s *ebc_find_buf_by_phy_addr(unsigned long phy_addr);
 struct ebc_buf_s *ebc_empty_buf_get(void);
 unsigned long ebc_phy_buf_base_get(void);
 char *ebc_virt_buf_base_get(void);
+int ebc_buf_state_show(char *buf);
 int ebc_buf_uninit(void);
 int ebc_buf_init(unsigned long phy_start, char *mem_start, int men_len, int dest_buf_len, int max_buf_num);
 #endif

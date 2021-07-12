@@ -78,25 +78,36 @@ int ebc_add_to_dsp_buf_list(struct ebc_buf_s *dsp_buf)
 	mutex_lock(&ebc_buf_info.dsp_buf_lock);
 	if (ebc_buf_info.dsp_buf_list) {
 		switch (dsp_buf->buf_mode) {
+		case EPD_OVERLAY:
+			break;
 		case EPD_A2_ENTER:
 		case EPD_SUSPEND:
 		case EPD_RESUME:
 		case EPD_POWER_OFF:
-		case EPD_OVERLAY:
 		case EPD_RESET:
 		case EPD_FORCE_FULL:
-			break;
-
+			/*
+			 * add system display buf to dsp buf list directly when dsp buf list is not full,
+			 * otherwise, we need to remove some bufs from dsp buf list.
+			 */
+			if (ebc_buf_info.dsp_buf_list->nb_elt < ebc_buf_info.dsp_buf_list->maxelements)
+				break;
+			/* fallthrough */
 		default:
 			if (ebc_buf_info.dsp_buf_list->nb_elt > 1) {
 				temp_pos = ebc_buf_info.dsp_buf_list->nb_elt;
 				while (--temp_pos) {
 					temp_buf = (struct ebc_buf_s *)buf_list_get(ebc_buf_info.dsp_buf_list, temp_pos);
-					if ((temp_buf->buf_mode >= EPD_PART_GC16) && (temp_buf->buf_mode <= EPD_DU4)) {
+					if (temp_buf->buf_mode == EPD_OVERLAY) {
+						continue;
+					} else if (((temp_buf->buf_mode >= EPD_FULL_GC16) && (temp_buf->buf_mode <= EPD_DU4))
+						|| (temp_buf->buf_mode == EPD_AUTO)) {
 						buf_list_remove(ebc_buf_info.dsp_buf_list, temp_pos);
 						ebc_buf_release(temp_buf);
-					} else if ((1 == is_full_mode) && (temp_buf->buf_mode >= EPD_FULL_GC16)
-						   && (temp_buf->buf_mode <= EPD_FULL_GCC16)) {
+					} else if ((1 == is_full_mode)
+							&& (temp_buf->buf_mode != EPD_SUSPEND)
+							&& (temp_buf->buf_mode != EPD_RESUME)
+							&& (temp_buf->buf_mode != EPD_POWER_OFF)) {
 						buf_list_remove(ebc_buf_info.dsp_buf_list, temp_pos);
 						ebc_buf_release(temp_buf);
 					} else {
@@ -107,11 +118,15 @@ int ebc_add_to_dsp_buf_list(struct ebc_buf_s *dsp_buf)
 			break;
 		}
 
-		dsp_buf->status = buf_dsp;
 		if (-1 == buf_list_add(ebc_buf_info.dsp_buf_list, (int *)dsp_buf, -1)) {
+			ebc_buf_release(dsp_buf);
 			mutex_unlock(&ebc_buf_info.dsp_buf_lock);
 			return BUF_ERROR;
 		}
+
+		if (dsp_buf->status != buf_osd)
+			dsp_buf->status = buf_dsp;
+
 	}
 	mutex_unlock(&ebc_buf_info.dsp_buf_lock);
 
@@ -198,7 +213,6 @@ struct ebc_buf_s *ebc_empty_buf_get(void)
 			}
 		}
 		ebc_buf_info.use_buf_is_empty = 1;
-
 		wait_event_interruptible(ebc_buf_wq, ebc_buf_info.use_buf_is_empty != 1);
 	}
 
@@ -215,6 +229,23 @@ unsigned long ebc_phy_buf_base_get(void)
 char *ebc_virt_buf_base_get(void)
 {
 	return ebc_buf_info.virt_mem_base;
+}
+
+int ebc_buf_state_show(char *buf)
+{
+	int i;
+	int ret = 0;
+	struct ebc_buf_s *temp_buf;
+
+	ret += sprintf(buf, "dsp_buf num = %d\n", ebc_buf_info.dsp_buf_list->nb_elt);
+	if (ebc_buf_info.buf_list) {
+		for (i = 0; i < ebc_buf_info.buf_list->nb_elt; i++) {
+			temp_buf = (struct ebc_buf_s *)buf_list_get(ebc_buf_info.buf_list, i);
+			ret += sprintf(buf + ret, "ebc_buf[%d]: s = %d, m = %d\n", i, temp_buf->status, temp_buf->buf_mode);
+		}
+	}
+
+	return ret;
 }
 
 int ebc_buf_uninit(void)
