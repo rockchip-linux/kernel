@@ -2489,7 +2489,6 @@ static void vop2_layer_map_initial(struct vop2 *vop2, uint32_t current_vp_id)
 	const struct vop2_data *vop2_data = vop2->data;
 	struct vop2_layer *layer = &vop2->layers[0];
 	struct vop2_video_port *vp = &vop2->vps[0];
-	struct vop2_video_port *last_active_vp;
 	struct vop2_win *win;
 	const struct vop2_win_data *win_data = NULL;
 	uint32_t used_layers = 0;
@@ -2518,8 +2517,6 @@ static void vop2_layer_map_initial(struct vop2 *vop2, uint32_t current_vp_id)
 		if (!standby)
 			active_vp_mask |= BIT(i);
 	}
-
-	last_active_vp = &vop2->vps[fls(active_vp_mask) - 1];
 
 	for (i = 0; i < vop2->data->nr_vps; i++) {
 		vp = &vop2->vps[i];
@@ -2552,7 +2549,8 @@ static void vop2_layer_map_initial(struct vop2 *vop2, uint32_t current_vp_id)
 	}
 
 	/* the last VP is fixed */
-	port_mux_cfg |= 7 << (4 * (vop2->data->nr_vps - 1));
+	if (vop2->data->nr_vps >= 1)
+		port_mux_cfg |= 7 << (4 * (vop2->data->nr_vps - 1));
 	vop2->port_mux_cfg = port_mux_cfg;
 	VOP_CTRL_SET(vop2, ovl_port_mux_cfg, port_mux_cfg);
 
@@ -4924,7 +4922,8 @@ static void vop2_setup_layer_mixer_for_vp(struct vop2_video_port *vp,
 			prev_vp->bg_ovl_dly = (vop2_data->nr_mixers - port_mux) << 1;
 	}
 
-	port_mux_cfg |= 7 << (4 * (vop2->data->nr_vps - 1));
+	if (vop2->data->nr_vps >= 1)
+		port_mux_cfg |= 7 << (4 * (vop2->data->nr_vps - 1));
 
 	/*
 	 * Win and layer must map one by one, if a win is selected
