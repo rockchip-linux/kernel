@@ -48,6 +48,12 @@
 &dmc {
 	center-supply = <&vdd_logic>;
 	auto-freq-en = <0>;
+	system-status-level = <
+		/*system status         freq level*/
+		SYS_STATUS_NORMAL       DMC_FREQ_LEVEL_HIGH
+		SYS_STATUS_REBOOT       DMC_FREQ_LEVEL_HIGH
+		SYS_STATUS_SUSPEND      DMC_FREQ_LEVEL_LOW
+	>;
 	status = "okay";
 };
 
