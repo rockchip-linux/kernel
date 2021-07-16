@@ -1039,18 +1039,6 @@ static int rockchip_gem_prime_sgl_sync_range(struct device *dev,
 	dma_addr_t sg_dma_addr;
 
 	for_each_sg(sgl, sg, nents, i) {
-		if (sg_dma_len(sg) == 0)
-			break;
-
-		if (i > 0) {
-			pr_warn_ratelimited("Partial cmo only supported with 1 segment\n"
-				"is dma_set_max_seg_size being set on dev:%s\n",
-				dev_name(dev));
-			return -EINVAL;
-		}
-	}
-
-	for_each_sg(sgl, sg, nents, i) {
 		unsigned int sg_offset, sg_left, size = 0;
 
 		if (i == 0)
