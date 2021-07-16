@@ -479,6 +479,8 @@ static int __fill_vb2_buffer(struct vb2_buffer *vb,
 		 */
 		vbuf->flags &= ~V4L2_BUF_FLAG_TIMECODE;
 		vbuf->field = b->field;
+		/* get image sequence from user space */
+		vbuf->sequence = b->sequence;
 	} else {
 		/* Zero any output buffer flags as this is a capture buffer */
 		vbuf->flags &= ~V4L2_BUFFER_OUT_FLAGS;
