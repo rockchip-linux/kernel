@@ -3545,7 +3545,9 @@ bool pr_flush(int timeout_ms, bool reset_on_progress)
 	u64 diff;
 	u64 seq;
 
-	may_sleep = (preemptible() && !in_softirq());
+	may_sleep = (preemptible() &&
+		     !in_softirq() &&
+		     system_state >= SYSTEM_RUNNING);
 
 	seq = prb_next_seq(prb);
 
