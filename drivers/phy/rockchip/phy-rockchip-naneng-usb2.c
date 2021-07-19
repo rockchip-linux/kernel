@@ -109,6 +109,7 @@ struct rockchip_chg_det_reg {
  * @ls_det_en: linestate detection enable register.
  * @ls_det_st: linestate detection state register.
  * @ls_det_clr: linestate detection clear register.
+ * @phy_chg_mode: set phy in charge detection mode.
  * @phy_sus: phy suspend register.
  * @utmi_bvalid: utmi vbus bvalid status register.
  * @utmi_iddig: otg port id pin status register.
@@ -140,6 +141,7 @@ struct rockchip_usb2phy_port_cfg {
 	struct usb2phy_reg	ls_det_en;
 	struct usb2phy_reg	ls_det_st;
 	struct usb2phy_reg	ls_det_clr;
+	struct usb2phy_reg	phy_chg_mode;
 	struct usb2phy_reg	phy_sus;
 	struct usb2phy_reg	utmi_bvalid;
 	struct usb2phy_reg	utmi_iddig;
@@ -796,12 +798,45 @@ static void rockchip_chg_detect(struct rockchip_usb2phy *rphy,
 				struct rockchip_usb2phy_port *rport)
 {
 	bool chg_valid, phy_connect;
-	int result;
-	int cnt;
+	const struct usb2phy_reg *phy_sus_reg;
+	unsigned int phy_sus_cfg, mask;
+	int result, cnt, ret;
 
 	mutex_lock(&rport->mutex);
 
-	reset_control_assert(rphy->reset);
+	/*
+	 * We are violating what the phy specification says about
+	 * the charge detection process. Ideally we need to hold
+	 * the phy in the reset state during the charge detection
+	 * process, but that's causing trouble synchronizing between
+	 * the phy and usb controller because CLK60_30 is disabled
+	 * while phy in reset.
+	 *
+	 * We have discussed this with the phy IP Provider, and
+	 * it was suggested to keep the CLK60_30 while do charging
+	 * detection.
+	 *
+	 * Set the phy in charge mode (keep the CLK60_30):
+	 * Enable the DP/DM pulldown resistor;
+	 * Set the opmode to non-driving mode;
+	 * Set the phy controlled by GRF utmi interface, and set
+	 * the utmi in normal mode to keep the CLK60_30.
+	 */
+	phy_sus_reg = &rport->port_cfg->phy_sus;
+	ret = regmap_read(rphy->grf, phy_sus_reg->offset, &phy_sus_cfg);
+	if (ret) {
+		dev_err(&rport->phy->dev,
+			"Fail to read phy_sus reg offset 0x%x, ret %d\n",
+			phy_sus_reg->offset, ret);
+		goto unlock;
+	}
+
+	ret = property_enable(rphy->grf, &rport->port_cfg->phy_chg_mode, true);
+	if (ret) {
+		dev_err(&rport->phy->dev,
+			"Fail to set phy_chg_mode reg, ret %d\n", ret);
+		goto unlock;
+	}
 
 	/* CHG_RST is set to 1'b0 to start charge detection */
 	property_enable(rphy->grf, &rphy->phy_cfg->chg_det.chg_en, true);
@@ -841,15 +876,21 @@ static void rockchip_chg_detect(struct rockchip_usb2phy *rphy,
 	dev_info(&rport->phy->dev, "charger = %s\n",
 		 chg_to_string(rphy->chg_type));
 
-	usleep_range(1000, 1100);
-	reset_control_deassert(rphy->reset);
-	/* waiting for the utmi_clk to become stable */
-	usleep_range(2500, 3000);
-
 	/* disable the chg detection module */
 	property_enable(rphy->grf, &rphy->phy_cfg->chg_det.chg_rst, true);
 	property_enable(rphy->grf, &rphy->phy_cfg->chg_det.chg_en, false);
 
+	mask = GENMASK(phy_sus_reg->bitend, phy_sus_reg->bitstart);
+	/* Restore the phy suspend configuration */
+	ret = regmap_write(rphy->grf, phy_sus_reg->offset,
+			   ((phy_sus_cfg << phy_sus_reg->bitstart) |
+			    (mask << BIT_WRITEABLE_SHIFT)));
+	if (ret)
+		dev_err(&rport->phy->dev,
+			"Fail to set phy_sus reg offset 0x%x, ret %d\n",
+			phy_sus_reg->offset, ret);
+
+unlock:
 	mutex_unlock(&rport->mutex);
 }
 
@@ -1860,6 +1901,7 @@ static const struct rockchip_usb2phy_cfg rv1126_phy_cfgs[] = {
 				.ls_det_en = { 0x10300, 0, 0, 0, 1 },
 				.ls_det_st = { 0x10304, 0, 0, 0, 1 },
 				.ls_det_clr = { 0x10308, 0, 0, 0, 1 },
+				.phy_chg_mode = { 0x10230, 8, 0, 0x052, 0x1d7 },
 				.phy_sus = { 0x10230, 8, 0, 0x052, 0x1d5 },
 				.utmi_bvalid = { 0x10248, 9, 9, 0, 1 },
 				.utmi_iddig = { 0x10248, 6, 6, 0, 1 },
