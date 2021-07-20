@@ -66,9 +66,6 @@
 			      "clk_scr1_rtc", "clk_scr1_jtag",
 			      "csiphy0_pclk";
 		power-domains = <&power RV1126_PD_VI>;
-
-		pinctrl-names = "default";
-		pinctrl-0 = <&mipicsi_clk0>;
 		status = "okay";
 	};
 };
