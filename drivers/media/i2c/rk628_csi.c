@@ -39,7 +39,7 @@ static int debug;
 module_param(debug, int, 0644);
 MODULE_PARM_DESC(debug, "debug level (0-3)");
 
-#define DRIVER_VERSION			KERNEL_VERSION(0, 0x0, 0x6)
+#define DRIVER_VERSION			KERNEL_VERSION(0, 0x0, 0x7)
 #define RK628_CSI_NAME			"rk628-csi"
 
 #define EDID_NUM_BLOCKS_MAX 		2
@@ -280,6 +280,9 @@ static void rk628_hdmirx_vid_enable(struct v4l2_subdev *sd, bool en);
 static void rk628_csi_set_csi(struct v4l2_subdev *sd);
 static void rk628_hdmirx_hpd_ctrl(struct v4l2_subdev *sd, bool en);
 static void rk628_csi_set_hdmi_hdcp(struct v4l2_subdev *sd, bool en);
+static void rk628_hdmirx_controller_reset(struct v4l2_subdev *sd);
+static bool rk628_rcv_supported_res(struct v4l2_subdev *sd, u32 width,
+				    u32 height);
 
 static inline struct rk628_csi *to_csi(struct v4l2_subdev *sd)
 {
@@ -480,6 +483,31 @@ static void rk628_csi_delayed_work_enable_hotplug(struct work_struct *work)
 	mutex_unlock(&csi->confctl_mutex);
 }
 
+static int rk628_check_resulotion_change(struct v4l2_subdev *sd)
+{
+	u32 val;
+	struct rk628_csi *csi = to_csi(sd);
+	u32 htotal, vtotal;
+	u32 old_htotal, old_vtotal;
+	struct v4l2_bt_timings *bt = &csi->timings.bt;
+
+	regmap_read(csi->hdmirx_regmap, HDMI_RX_MD_HT1, &val);
+	htotal = (val >> 16) & 0xffff;
+	regmap_read(csi->hdmirx_regmap, HDMI_RX_MD_VTL, &val);
+	vtotal = val & 0xffff;
+
+	old_htotal = bt->hfrontporch + bt->hsync + bt->width + bt->hbackporch;
+	old_vtotal = bt->vfrontporch + bt->vsync + bt->height + bt->vbackporch;
+
+	v4l2_dbg(1, debug, sd, "new mode: %d x %d\n", htotal, vtotal);
+	v4l2_dbg(1, debug, sd, "old mode: %d x %d\n", old_htotal, old_vtotal);
+
+	if (htotal != old_htotal || vtotal != old_vtotal)
+		return 1;
+
+	return 0;
+}
+
 static void rk628_delayed_work_res_change(struct work_struct *work)
 {
 	struct delayed_work *dwork = to_delayed_work(work);
@@ -493,9 +521,20 @@ static void rk628_delayed_work_res_change(struct work_struct *work)
 	plugin = tx_5v_power_present(sd);
 	v4l2_dbg(1, debug, sd, "%s: 5v_det:%d\n", __func__, plugin);
 	if (plugin) {
-		v4l2_dbg(1, debug, sd, "res change, recfg ctrler and phy!\n");
-		rk628_hdmirx_config_all(sd);
-		rk628_csi_enable_interrupts(sd, true);
+		if (rk628_check_resulotion_change(sd)) {
+			v4l2_dbg(1, debug, sd, "res change, recfg ctrler and phy!\n");
+			rk628_hdmirx_config_all(sd);
+			rk628_csi_enable_interrupts(sd, true);
+			regmap_update_bits(csi->grf, GRF_SYSTEM_CON0,
+					   SW_I2S_DATA_OEN_MASK,
+					   SW_I2S_DATA_OEN(0));
+			schedule_delayed_work(&csi->delayed_work_audio,
+					      msecs_to_jiffies(0));
+		} else {
+			rk628_csi_format_change(sd);
+			csi->nosignal = false;
+			rk628_csi_enable_interrupts(sd, true);
+		}
 	}
 	mutex_unlock(&csi->confctl_mutex);
 }
@@ -942,7 +981,8 @@ static void rk628_csi_set_csi(struct v4l2_subdev *sd)
 	u8 lane_num;
 	u8 dphy_lane_en;
 	u32 wc_usrdef, val, avi_pb = 0;
-	u8 cnt = 0;
+	u8 cnt = 0, max_cnt = 2;
+	u32 hdcp_ctrl_val = 0;
 
 	lane_num = lanes - 1;
 	dphy_lane_en = (1 << (lanes + 1)) - 1;
@@ -1003,12 +1043,27 @@ static void rk628_csi_set_csi(struct v4l2_subdev *sd)
 	regmap_write(csi->csi_regmap, CSITX_CONFIG_DONE, CONFIG_DONE_IMD);
 	v4l2_dbg(1, debug, sd, "%s csi cofig done\n", __func__);
 
+	mutex_lock(&csi->confctl_mutex);
+	regmap_read(csi->hdmirx_regmap, HDMI_RX_HDCP_CTRL, &val);
+	if ((val & HDCP_ENABLE_MASK))
+		max_cnt = 5;
+
 	for (i = 0; i < 100; i++) {
 		regmap_read(csi->hdmirx_regmap, HDMI_RX_PDEC_AVI_PB, &val);
+
 		v4l2_dbg(2, debug, sd, "%s PDEC_AVI_PB:%#x, avi_rcv_rdy:%d\n",
 			 __func__, val, csi->avi_rcv_rdy);
-		if (val == avi_pb && csi->avi_rcv_rdy) {
-			if (++cnt >= 2)
+		if (i > 30 && !(hdcp_ctrl_val & 0x400)) {
+			regmap_read(csi->hdmirx_regmap, HDMI_RX_HDCP_CTRL,
+				    &hdcp_ctrl_val);
+			/* force hdcp avmute */
+			hdcp_ctrl_val |= 0x400;
+			regmap_write(csi->csi_regmap, HDMI_RX_HDCP_CTRL,
+				     hdcp_ctrl_val);
+		}
+
+		if (val && val == avi_pb && csi->avi_rcv_rdy) {
+			if (++cnt >= max_cnt)
 				break;
 		} else {
 			cnt = 0;
@@ -1016,6 +1071,8 @@ static void rk628_csi_set_csi(struct v4l2_subdev *sd)
 		}
 		msleep(30);
 	}
+	mutex_unlock(&csi->confctl_mutex);
+
 	video_fmt = (val & VIDEO_FORMAT_MASK) >> 5;
 	v4l2_dbg(1, debug, sd, "%s PDEC_AVI_PB:%#x, video format:%d\n",
 			__func__, val, video_fmt);
@@ -1030,6 +1087,10 @@ static void rk628_csi_set_csi(struct v4l2_subdev *sd)
 				SW_YUV2VYU_SWP(0) |
 				SW_R2Y_EN(1));
 	}
+
+	/* if avi packet is not stable, reset ctrl*/
+	if (cnt < max_cnt)
+		schedule_delayed_work(&csi->delayed_work_enable_hotplug, HZ / 20);
 }
 
 static int rk628_hdmirx_phy_power_on(struct v4l2_subdev *sd)
