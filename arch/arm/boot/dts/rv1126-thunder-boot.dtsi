@@ -24,7 +24,7 @@
 			reg = <0x00200000 0x00008000>;
 		};
 
-		ramoops@210000 {
+		thunderboot_ramoops: ramoops@210000 {
 			compatible = "ramoops";
 			reg = <0x00210000 0x000f0000>;
 			record-size = <0x20000>;
