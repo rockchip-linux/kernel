@@ -258,7 +258,7 @@ static int rockchip_gem_alloc_dma(struct rockchip_gem_object *rk_obj,
 		rk_obj->dma_attrs |= DMA_ATTR_NO_KERNEL_MAPPING;
 
 	rk_obj->kvaddr = dma_alloc_attrs(drm->dev, obj->size,
-					 &rk_obj->dma_addr, GFP_KERNEL,
+					 &rk_obj->dma_handle, GFP_KERNEL,
 					 rk_obj->dma_attrs);
 	if (!rk_obj->kvaddr) {
 		DRM_ERROR("failed to allocate %zu byte dma buffer", obj->size);
@@ -272,7 +272,7 @@ static int rockchip_gem_alloc_dma(struct rockchip_gem_object *rk_obj,
 	}
 
 	ret = dma_get_sgtable_attrs(drm->dev, sgt, rk_obj->kvaddr,
-				    rk_obj->dma_addr, obj->size,
+				    rk_obj->dma_handle, obj->size,
 				    rk_obj->dma_attrs);
 	if (ret) {
 		DRM_ERROR("failed to allocate sgt, %d\n", ret);
@@ -310,7 +310,7 @@ err_sgt_free:
 	kfree(sgt);
 err_dma_free:
 	dma_free_attrs(drm->dev, obj->size, rk_obj->kvaddr,
-		       rk_obj->dma_addr, rk_obj->dma_attrs);
+		       rk_obj->dma_handle, rk_obj->dma_attrs);
 
 	return ret;
 }
@@ -352,7 +352,7 @@ static int rockchip_gem_alloc_secure(struct rockchip_gem_object *rk_obj)
 		return -ENOMEM;
 	}
 
-	rk_obj->dma_addr = paddr;
+	rk_obj->dma_handle = paddr;
 	rk_obj->num_pages = rk_obj->base.size >> PAGE_SHIFT;
 
 	rk_obj->pages = drm_calloc_large(rk_obj->num_pages,
@@ -396,7 +396,7 @@ static void rockchip_gem_free_secure(struct rockchip_gem_object *rk_obj)
 	drm_free_large(rk_obj->pages);
 	sg_free_table(rk_obj->sgt);
 	kfree(rk_obj->sgt);
-	gen_pool_free(private->secure_buffer_pool, rk_obj->dma_addr,
+	gen_pool_free(private->secure_buffer_pool, rk_obj->dma_handle,
 		      rk_obj->base.size);
 }
 
@@ -449,7 +449,8 @@ static int rockchip_gem_alloc_buf(struct rockchip_gem_object *rk_obj,
 		if (ret < 0)
 			goto err_free;
 	} else {
-		WARN_ON(!rk_obj->dma_addr);
+		WARN_ON(!rk_obj->dma_handle);
+		rk_obj->dma_addr = rk_obj->dma_handle;
 	}
 
 	return 0;
@@ -476,7 +477,7 @@ static void rockchip_gem_free_dma(struct rockchip_gem_object *rk_obj)
 	sg_free_table(rk_obj->sgt);
 	kfree(rk_obj->sgt);
 	dma_free_attrs(drm->dev, obj->size, rk_obj->kvaddr,
-		       rk_obj->dma_addr, rk_obj->dma_attrs);
+		       rk_obj->dma_handle, rk_obj->dma_attrs);
 }
 
 static void rockchip_gem_free_buf(struct rockchip_gem_object *rk_obj)
