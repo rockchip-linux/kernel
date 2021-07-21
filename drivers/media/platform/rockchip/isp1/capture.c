@@ -1433,7 +1433,7 @@ static void destroy_buf_queue(struct rkisp1_stream *stream,
 		buf = list_first_entry(&stream->buf_queue,
 				       struct rkisp1_buffer, queue);
 		list_del(&buf->queue);
-		vb2_buffer_done(&buf->vb.vb2_buf, VB2_BUF_STATE_ERROR);
+		vb2_buffer_done(&buf->vb.vb2_buf, state);
 	}
 	spin_unlock_irqrestore(&stream->vbq_lock, lock_flags);
 }
