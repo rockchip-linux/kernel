@@ -2859,8 +2859,6 @@ static int dw_hdmi_connector_atomic_check(struct drm_connector *connector,
 	struct drm_display_mode *mode = NULL;
 	void *data = hdmi->plat_data->phy_data;
 	struct hdmi_vmode *vmode = &hdmi->hdmi_data.video_mode;
-	unsigned int in_bus_format = hdmi->hdmi_data.enc_in_bus_format;
-	unsigned int out_bus_format = hdmi->hdmi_data.enc_out_bus_format;
 
 	if (!crtc)
 		return 0;
@@ -2893,10 +2891,6 @@ static int dw_hdmi_connector_atomic_check(struct drm_connector *connector,
 						       vmode->mpixelclock);
 		if (hdmi_bus_fmt_is_yuv420(hdmi->hdmi_data.enc_out_bus_format))
 			vmode->mtmdsclock /= 2;
-
-		if (in_bus_format != hdmi->hdmi_data.enc_in_bus_format ||
-		    out_bus_format != hdmi->hdmi_data.enc_out_bus_format)
-			dw_hdmi_setup(hdmi, &hdmi->previous_mode);
 	}
 
 	if (!hdr_metadata_equal(old_state, new_state) ||
