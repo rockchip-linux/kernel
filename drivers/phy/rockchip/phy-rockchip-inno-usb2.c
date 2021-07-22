@@ -196,6 +196,7 @@ struct rockchip_usb2phy_port_cfg {
  * @phy_tuning: phy default parameters tunning.
  * @vbus_detect: vbus voltage level detection function.
  * @clkout_ctl: keep on/turn off output clk of phy.
+ * @ls_filter_con: set linestate filter time.
  * @chg_det: charger detection registers.
  */
 struct rockchip_usb2phy_cfg {
@@ -204,6 +205,7 @@ struct rockchip_usb2phy_cfg {
 	int (*phy_tuning)(struct rockchip_usb2phy *);
 	int (*vbus_detect)(struct rockchip_usb2phy *rphy, bool en);
 	struct usb2phy_reg	clkout_ctl;
+	struct usb2phy_reg	ls_filter_con;
 	const struct rockchip_usb2phy_port_cfg	port_cfgs[USB2PHY_NUM_PORTS];
 	const struct rockchip_chg_det_reg	chg_det;
 };
@@ -2273,6 +2275,9 @@ static int rk3568_usb2phy_tuning(struct rockchip_usb2phy *rphy)
 		ret |= regmap_write(rphy->grf, 0x004c, FILTER_COUNTER);
 	}
 
+	/* Enable host port (usb3 host1 and usb2 host1) wakeup irq */
+	ret |= regmap_write(rphy->grf, 0x000c, 0x80008000);
+
 	return ret;
 }
 
@@ -2297,6 +2302,7 @@ static int rk3568_vbus_detect_control(struct rockchip_usb2phy *rphy, bool en)
 static int rockchip_usb2phy_pm_suspend(struct device *dev)
 {
 	struct rockchip_usb2phy *rphy = dev_get_drvdata(dev);
+	const struct rockchip_usb2phy_cfg *phy_cfg = rphy->phy_cfg;
 	struct rockchip_usb2phy_port *rport;
 	unsigned int index;
 	int ret = 0;
@@ -2305,7 +2311,18 @@ static int rockchip_usb2phy_pm_suspend(struct device *dev)
 	if (device_may_wakeup(rphy->dev))
 		wakeup_enable = true;
 
-	for (index = 0; index < rphy->phy_cfg->num_ports; index++) {
+	/*
+	 * Set the linestate filter time to 1ms based
+	 * on the usb2 phy grf pclk 32KHz on suspend.
+	 */
+	if (phy_cfg->ls_filter_con.enable) {
+		ret = regmap_write(rphy->grf, phy_cfg->ls_filter_con.offset,
+				   phy_cfg->ls_filter_con.enable);
+		if (ret)
+			dev_err(rphy->dev, "failed to set ls filter %d\n", ret);
+	}
+
+	for (index = 0; index < phy_cfg->num_ports; index++) {
 		rport = &rphy->ports[index];
 		if (!rport->phy)
 			continue;
@@ -2345,12 +2362,16 @@ static int rockchip_usb2phy_pm_suspend(struct device *dev)
 		rockchip_usb2phy_low_power_enable(rphy, rport, true);
 	}
 
+	if (wakeup_enable && rphy->irq > 0)
+		enable_irq_wake(rphy->irq);
+
 	return ret;
 }
 
 static int rockchip_usb2phy_pm_resume(struct device *dev)
 {
 	struct rockchip_usb2phy *rphy = dev_get_drvdata(dev);
+	const struct rockchip_usb2phy_cfg *phy_cfg = rphy->phy_cfg;
 	struct rockchip_usb2phy_port *rport;
 	unsigned int index;
 	bool iddig;
@@ -2360,10 +2381,17 @@ static int rockchip_usb2phy_pm_resume(struct device *dev)
 	if (device_may_wakeup(rphy->dev))
 		wakeup_enable = true;
 
-	if (rphy->phy_cfg->phy_tuning)
-		ret = rphy->phy_cfg->phy_tuning(rphy);
+	if (phy_cfg->phy_tuning)
+		ret = phy_cfg->phy_tuning(rphy);
 
-	for (index = 0; index < rphy->phy_cfg->num_ports; index++) {
+	if (phy_cfg->ls_filter_con.disable) {
+		ret = regmap_write(rphy->grf, phy_cfg->ls_filter_con.offset,
+				   phy_cfg->ls_filter_con.disable);
+		if (ret)
+			dev_err(rphy->dev, "failed to set ls filter %d\n", ret);
+	}
+
+	for (index = 0; index < phy_cfg->num_ports; index++) {
 		rport = &rphy->ports[index];
 		if (!rport->phy)
 			continue;
@@ -2408,6 +2436,9 @@ static int rockchip_usb2phy_pm_resume(struct device *dev)
 		/* exit low power state */
 		rockchip_usb2phy_low_power_enable(rphy, rport, false);
 	}
+
+	if (wakeup_enable && rphy->irq > 0)
+		disable_irq_wake(rphy->irq);
 
 	return ret;
 }
@@ -2893,6 +2924,7 @@ static const struct rockchip_usb2phy_cfg rk3568_phy_cfgs[] = {
 		.phy_tuning	= rk3568_usb2phy_tuning,
 		.vbus_detect	= rk3568_vbus_detect_control,
 		.clkout_ctl	= { 0x0008, 4, 4, 1, 0 },
+		.ls_filter_con	= { 0x0040, 19, 0, 0x30100, 0x00020 },
 		.port_cfgs	= {
 			[USB2PHY_PORT_OTG] = {
 				.phy_sus	= { 0x0000, 8, 0, 0, 0x1d1 },
@@ -2946,6 +2978,7 @@ static const struct rockchip_usb2phy_cfg rk3568_phy_cfgs[] = {
 		.num_ports	= 2,
 		.phy_tuning	= rk3568_usb2phy_tuning,
 		.clkout_ctl	= { 0x0008, 4, 4, 1, 0 },
+		.ls_filter_con	= { 0x0040, 19, 0, 0x30100, 0x00020 },
 		.port_cfgs	= {
 			[USB2PHY_PORT_OTG] = {
 				.phy_sus	= { 0x0000, 8, 0, 0x1d2, 0x1d1 },
