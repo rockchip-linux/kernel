@@ -914,6 +914,7 @@ static int rk628_combrxphy_power_off(struct phy *phy)
 	struct rk628_combrxphy *combrxphy = phy_get_drvdata(phy);
 
 	dev_dbg(combrxphy->dev, "%s\n", __func__);
+	regmap_update_bits(combrxphy->regmap, REG(0x6630), BIT(0), BIT(0));
 	reset_control_assert(combrxphy->rstc);
 	udelay(10);
 	clk_disable_unprepare(combrxphy->pclk);
