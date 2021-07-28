@@ -1,0 +1,38 @@
+Hynetek Husb311 Type-C Port controllers DT bindings
+
+Required properties:
+- compatible:       hynetek,husb311
+
+- reg:              the i2c slave address of typec port controller device.
+- interrupt-parent: the phandle to the interrupt controller which provides
+                    the interrupt.
+- interrupts:       interrupt specification for tcpci alert.
+- vbus-supply:      vbus regulator
+
+Required sub-node:
+- connector: The "usb-c-connector" attached to the tcpci chip, the bindings
+  of connector node are specified in
+  Documentation/devicetree/bindings/connector/usb-connector.txt
+
+Example:
+
+#include "dt-bindings/usb/pd.h"
+
+husb0: husb311@4e {
+	compatible = "hynetek,husb311";
+	reg = <0x4e>;
+	interrupt-parent = <&gpio1>;
+	interrupts = <2 IRQ_TYPE_LEVEL_LOW>;
+	vbus-supply = <&vcc5v0_typec>;
+	status = "okay";
+
+	usb_con: connector {
+		data-role = "dual";
+		power-role = "dual";
+		try-power-role = "sink";
+		source-pdos = <PDO_FIXED(5000, 2000, PDO_FIXED_USB_COMM)>;
+		sink-pdos = <PDO_FIXED(5000, 2000, PDO_FIXED_USB_COMM)>;
+		op-sink-microwatt = <10000000>;
+
+	};
+};
