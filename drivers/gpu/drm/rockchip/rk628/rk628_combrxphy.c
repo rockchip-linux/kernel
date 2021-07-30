@@ -520,6 +520,7 @@ rk628_combrxphy_set_hdmi_mode_for_cable(struct rk628_combrxphy *combrxphy,
 	u32 cdr_mode, cdr_data, pll_man;
 	u32 tmds_bitrate_per_lane;
 	u32 cdr_data_min, cdr_data_max;
+	u32 temp = 0;
 
 	/*
 	 * use the mode of automatic clock detection, only supports fixed TMDS
@@ -554,6 +555,11 @@ rk628_combrxphy_set_hdmi_mode_for_cable(struct rk628_combrxphy *combrxphy,
 	};
 
 	for (i = 0; i < CLK_DET_TRY_TIMES; i++) {
+		regmap_read(combrxphy->regmap, REG(0x6620), &val);
+		if (!temp && val) {
+			temp = val;
+			msleep(200);
+		}
 		if (rk628_combrxphy_try_clk_detect(combrxphy) >= 0)
 			break;
 		usleep_range(100*1000, 100*1000);
