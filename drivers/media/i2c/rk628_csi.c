@@ -39,7 +39,7 @@ static int debug;
 module_param(debug, int, 0644);
 MODULE_PARM_DESC(debug, "debug level (0-3)");
 
-#define DRIVER_VERSION			KERNEL_VERSION(0, 0x0, 0x8)
+#define DRIVER_VERSION			KERNEL_VERSION(0, 0x0, 0x9)
 #define RK628_CSI_NAME			"rk628-csi"
 
 #define EDID_NUM_BLOCKS_MAX 		2
@@ -988,6 +988,13 @@ static void rk628_post_process_setup(struct v4l2_subdev *sd)
 	src.vsync_len = bt->vsync;
 	src.vback_porch = bt->vbackporch;
 	src.pixelclock = bt->pixelclock;
+	if (!src.pixelclock) {
+		enable_stream(sd, false);
+		csi->nosignal = true;
+		schedule_delayed_work(&csi->delayed_work_enable_hotplug, HZ / 20);
+		return;
+	}
+
 	src.flags = 0;
 	if (bt->interlaced == V4L2_DV_INTERLACED)
 		src.flags |= DISPLAY_FLAGS_INTERLACED;
