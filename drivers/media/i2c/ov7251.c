@@ -9,6 +9,7 @@
  * V0.0X01.0X03 add enum_frame_interval function.
  * V0.0X01.0X04 add quick stream on/off
  * V0.0X01.0X05 add function g_mbus_config
+ * V0.0X01.0X06 support 640x480@120fps mode
  */
 
 #include <linux/clk.h>
@@ -18,6 +19,7 @@
 #include <linux/i2c.h>
 #include <linux/module.h>
 #include <linux/pm_runtime.h>
+#include <linux/pinctrl/consumer.h>
 #include <linux/regulator/consumer.h>
 #include <linux/sysfs.h>
 #include <linux/slab.h>
@@ -28,7 +30,7 @@
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-subdev.h>
 
-#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x05)
+#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x06)
 
 #ifndef V4L2_CID_DIGITAL_GAIN
 #define V4L2_CID_DIGITAL_GAIN		V4L2_CID_GAIN
@@ -51,6 +53,7 @@
 #define OV7251_EXPOSURE_MIN		4
 #define OV7251_EXPOSURE_STEP		0xf
 #define OV7251_VTS_MAX			0xffff
+#define OV7251_REG_VTS			0x380e
 
 #define OV7251_REG_ANALOG_GAIN		0x350a
 #define ANALOG_GAIN_MASK		0x3ff
@@ -63,8 +66,6 @@
 #define	OV7251_TEST_PATTERN_ENABLE	0x80
 #define	OV7251_TEST_PATTERN_DISABLE	0x0
 
-#define OV7251_REG_VTS			0x380e
-
 #define REG_NULL			0xFFFF
 
 #define OV7251_REG_VALUE_08BIT		1
@@ -72,8 +73,11 @@
 #define OV7251_REG_VALUE_24BIT		3
 
 #define OV7251_NAME			"ov7251"
-
 #define OV7251_LANES			1
+#define PIX_FORMAT			MEDIA_BUS_FMT_Y10_1X10
+
+#define OF_CAMERA_PINCTRL_STATE_DEFAULT	"rockchip,camera_default"
+#define OF_CAMERA_PINCTRL_STATE_SLEEP	"rockchip,camera_sleep"
 
 static const char * const ov7251_supply_names[] = {
 	"avdd",		/* Analog power */
@@ -96,6 +100,7 @@ struct ov7251_mode {
 	u32 vts_def;
 	u32 exp_def;
 	const struct regval *reg_list;
+	u32 hdr_mode;
 };
 
 struct ov7251 {
@@ -104,7 +109,9 @@ struct ov7251 {
 	struct gpio_desc	*reset_gpio;
 	struct gpio_desc	*pwdn_gpio;
 	struct regulator_bulk_data supplies[OV7251_NUM_SUPPLIES];
-
+	struct pinctrl		*pinctrl;
+	struct pinctrl_state	*pins_default;
+	struct pinctrl_state	*pins_sleep;
 	struct v4l2_subdev	subdev;
 	struct media_pad	pad;
 	struct v4l2_ctrl_handler ctrl_handler;
@@ -130,6 +137,160 @@ struct ov7251 {
  * Xclk 24Mhz
  * Pclk 48Mhz
  * PCLK = HTS * VTS * FPS
+ * linelength 775(0x302)
+ * framelength 516(0x204)
+ * grabwindow_width 640
+ * grabwindow_height 480
+ * max_framerate 120fps
+ * mipi_datarate per lane 640Mbps
+ */
+static const struct regval ov7251_640x480_120fps_regs[] = {
+	{0x0103, 0x01},
+	{0x0100, 0x00},
+	{0x3005, 0x00},
+	{0x3012, 0xc0},
+	{0x3013, 0xd2},
+	{0x3014, 0x04},
+	{0x3016, 0x10},
+	{0x3017, 0x00},
+	{0x3018, 0x00},
+	{0x301a, 0x00},
+	{0x301b, 0x00},
+	{0x301c, 0x00},
+	{0x3023, 0x05},
+	{0x3037, 0xf0},
+	{0x3098, 0x04},
+	{0x3099, 0x32},
+	{0x309a, 0x05},
+	{0x309b, 0x04},
+	{0x30b0, 0x0a},
+	{0x30b1, 0x01},
+	{0x30b3, 0x64},
+	{0x30b4, 0x03},
+	{0x30b5, 0x05},
+	{0x3106, 0xda},
+	{0x3500, 0x00},
+	{0x3501, 0x1f},
+	{0x3502, 0x80},
+	{0x3503, 0x07},
+	{0x3509, 0x10},
+	{0x350b, 0x10},
+	{0x3600, 0x1c},
+	{0x3602, 0x62},
+	{0x3620, 0xb7},
+	{0x3622, 0x04},
+	{0x3626, 0x21},
+	{0x3627, 0x30},
+	{0x3630, 0x44},
+	{0x3631, 0x35},
+	{0x3634, 0x60},
+	{0x3636, 0x00},
+	{0x3662, 0x01},
+	{0x3663, 0x70},
+	{0x3664, 0xf0},
+	{0x3666, 0x0a},
+	{0x3669, 0x1a},
+	{0x366a, 0x00},
+	{0x366b, 0x50},
+	{0x3673, 0x01},
+	{0x3674, 0xef},
+	{0x3675, 0x03},
+	{0x3705, 0xc1},
+	{0x3709, 0x40},
+	{0x373c, 0x08},
+	{0x3742, 0x00},
+	{0x3757, 0xb3},
+	{0x3788, 0x00},
+	{0x37a8, 0x01},
+	{0x37a9, 0xc0},
+	{0x3800, 0x00},
+	{0x3801, 0x04},
+	{0x3802, 0x00},
+	{0x3803, 0x04},
+	{0x3804, 0x02},
+	{0x3805, 0x8b},
+	{0x3806, 0x01},
+	{0x3807, 0xeb},
+	{0x3808, 0x02},
+	{0x3809, 0x80},
+	{0x380a, 0x01},
+	{0x380b, 0xe0},
+	{0x380c, 0x03},
+	{0x380d, 0xa1},
+	{0x380e, 0x02},
+	{0x380f, 0x1a},
+	{0x3810, 0x00},
+	{0x3811, 0x04},
+	{0x3812, 0x00},
+	{0x3813, 0x05},
+	{0x3814, 0x11},
+	{0x3815, 0x11},
+	{0x3820, 0x40},
+	{0x3821, 0x00},
+	{0x382f, 0x0e},
+	{0x3832, 0x00},
+	{0x3833, 0x05},
+	{0x3834, 0x00},
+	{0x3835, 0x0c},
+	{0x3837, 0x00},
+	{0x3b80, 0x00},
+	{0x3b81, 0xa5},
+	{0x3b82, 0x10},
+	{0x3b83, 0x00},
+	{0x3b84, 0x08},
+	{0x3b85, 0x00},
+	{0x3b86, 0x01},
+	{0x3b87, 0x00},
+	{0x3b88, 0x00},
+	{0x3b89, 0x00},
+	{0x3b8a, 0x00},
+	{0x3b8b, 0x05},
+	{0x3b8c, 0x00},
+	{0x3b8d, 0x00},
+	{0x3b8e, 0x00},
+	{0x3b8f, 0x1a},
+	{0x3b94, 0x05},
+	{0x3b95, 0xf2},
+	{0x3b96, 0x40},
+	{0x3c00, 0x89},
+	{0x3c01, 0x63},
+	{0x3c02, 0x01},
+	{0x3c03, 0x00},
+	{0x3c04, 0x00},
+	{0x3c05, 0x03},
+	{0x3c06, 0x00},
+	{0x3c07, 0x06},
+	{0x3c0c, 0x01},
+	{0x3c0d, 0xd0},
+	{0x3c0e, 0x02},
+	{0x3c0f, 0x0a},
+	{0x4001, 0x42},
+	{0x4004, 0x04},
+	{0x4005, 0x00},
+	{0x404e, 0x01},
+	{0x4300, 0xff},
+	{0x4301, 0x00},
+	{0x4501, 0x48},
+	{0x4600, 0x00},
+	{0x4601, 0x4e},
+	{0x4801, 0x0f},
+	{0x4806, 0x0f},
+	{0x4819, 0xaa},
+	{0x4823, 0x3e},
+	{0x4837, 0x19},
+	{0x4a0d, 0x00},
+	{0x4a47, 0x7f},
+	{0x4a49, 0xf0},
+	{0x4a4b, 0x30},
+	{0x5000, 0x85},
+	{0x5001, 0x80},
+	{REG_NULL, 0x00},
+};
+
+/*
+ * Xclk 24Mhz
+ * Pclk 48Mhz
+ * PCLK = HTS * VTS * FPS
  * linelength 928(0x3a0)
  * framelength 1720(0x6b8)
  * grabwindow_width 640
@@ -137,10 +298,9 @@ struct ov7251 {
  * max_framerate 30fps
  * mipi_datarate per lane 640Mbps
  */
-static const struct regval ov7251_640x480_regs[] = {
+static const struct regval ov7251_640x480_30fps_regs[] = {
 	{0x0100, 0x00},
 	{0x0103, 0x01},
-
 	{0x3001, 0x62},
 	{0x3005, 0x00},
 	{0x3012, 0xc0},
@@ -290,13 +450,27 @@ static const struct ov7251_mode supported_modes[] = {
 		.height = 480,
 		.max_fps = {
 			.numerator = 10000,
+			.denominator = 1200000,
+		},
+		.exp_def = 0x00f8,
+		.hts_def = 0x03a1,
+		.vts_def = 0x021a,
+		.reg_list = ov7251_640x480_120fps_regs,
+		.hdr_mode = 0,
+	},
+	{
+		.width = 640,
+		.height = 480,
+		.max_fps = {
+			.numerator = 10000,
 			.denominator = 300000,
 		},
 		.exp_def = 0x061c,
 		.hts_def = 0x03a0,
 		.vts_def = 0x06b8,
-		.reg_list = ov7251_640x480_regs,
-	},
+		.reg_list = ov7251_640x480_30fps_regs,
+		.hdr_mode = 0,
+	}
 };
 
 #define OV7251_LINK_FREQ_320MHZ		320000000
@@ -425,7 +599,7 @@ static int ov7251_set_fmt(struct v4l2_subdev *sd,
 	mutex_lock(&ov7251->mutex);
 
 	mode = ov7251_find_best_fit(fmt);
-	fmt->format.code = MEDIA_BUS_FMT_Y10_1X10;
+	fmt->format.code = PIX_FORMAT;
 	fmt->format.width = mode->width;
 	fmt->format.height = mode->height;
 	fmt->format.field = V4L2_FIELD_NONE;
@@ -470,7 +644,7 @@ static int ov7251_get_fmt(struct v4l2_subdev *sd,
 	} else {
 		fmt->format.width = mode->width;
 		fmt->format.height = mode->height;
-		fmt->format.code = MEDIA_BUS_FMT_Y10_1X10;
+		fmt->format.code = PIX_FORMAT;
 		fmt->format.field = V4L2_FIELD_NONE;
 	}
 	mutex_unlock(&ov7251->mutex);
@@ -484,7 +658,7 @@ static int ov7251_enum_mbus_code(struct v4l2_subdev *sd,
 {
 	if (code->index != 0)
 		return -EINVAL;
-	code->code = MEDIA_BUS_FMT_Y10_1X10;
+	code->code = PIX_FORMAT;
 
 	return 0;
 }
@@ -496,7 +670,7 @@ static int ov7251_enum_frame_sizes(struct v4l2_subdev *sd,
 	if (fse->index >= ARRAY_SIZE(supported_modes))
 		return -EINVAL;
 
-	if (fse->code != MEDIA_BUS_FMT_Y10_1X10)
+	if (fse->code != PIX_FORMAT)
 		return -EINVAL;
 
 	fse->min_width  = supported_modes[fse->index].width;
@@ -537,15 +711,16 @@ static void ov7251_get_module_inf(struct ov7251 *ov7251,
 				  struct rkmodule_inf *inf)
 {
 	memset(inf, 0, sizeof(*inf));
-	strlcpy(inf->base.sensor, OV7251_NAME, sizeof(inf->base.sensor));
-	strlcpy(inf->base.module, ov7251->module_name,
+	strscpy(inf->base.sensor, OV7251_NAME, sizeof(inf->base.sensor));
+	strscpy(inf->base.module, ov7251->module_name,
 		sizeof(inf->base.module));
-	strlcpy(inf->base.lens, ov7251->len_name, sizeof(inf->base.lens));
+	strscpy(inf->base.lens, ov7251->len_name, sizeof(inf->base.lens));
 }
 
 static long ov7251_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 {
 	struct ov7251 *ov7251 = to_ov7251(sd);
+	struct rkmodule_hdr_cfg *hdr;
 	long ret = 0;
 	u32 stream = 0;
 
@@ -553,10 +728,18 @@ static long ov7251_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 	case RKMODULE_GET_MODULE_INFO:
 		ov7251_get_module_inf(ov7251, (struct rkmodule_inf *)arg);
 		break;
+	case RKMODULE_GET_HDR_CFG:
+		hdr = (struct rkmodule_hdr_cfg *)arg;
+		hdr->esp.mode = HDR_NORMAL_VC;
+		hdr->hdr_mode = ov7251->cur_mode->hdr_mode;
+		break;
+	case RKMODULE_SET_HDR_CFG:
+		hdr = (struct rkmodule_hdr_cfg *)arg;
+		if (hdr->hdr_mode != 0)
+			ret = -1;
+		break;
 	case RKMODULE_SET_QUICK_STREAM:
-
 		stream = *((u32 *)arg);
-
 		if (stream)
 			ret = ov7251_write_reg(ov7251->client, OV7251_REG_CTRL_MODE,
 				OV7251_REG_VALUE_08BIT, OV7251_MODE_STREAMING);
@@ -578,7 +761,7 @@ static long ov7251_compat_ioctl32(struct v4l2_subdev *sd,
 {
 	void __user *up = compat_ptr(arg);
 	struct rkmodule_inf *inf;
-	struct rkmodule_awb_cfg *cfg;
+	struct rkmodule_hdr_cfg *hdr;
 	long ret;
 	u32 stream = 0;
 
@@ -591,26 +774,48 @@ static long ov7251_compat_ioctl32(struct v4l2_subdev *sd,
 		}
 
 		ret = ov7251_ioctl(sd, cmd, inf);
-		if (!ret)
+		if (!ret) {
 			ret = copy_to_user(up, inf, sizeof(*inf));
+			if (ret)
+				ret = -EFAULT;
+		}
 		kfree(inf);
 		break;
-	case RKMODULE_AWB_CFG:
-		cfg = kzalloc(sizeof(*cfg), GFP_KERNEL);
-		if (!cfg) {
+	case RKMODULE_GET_HDR_CFG:
+		hdr = kzalloc(sizeof(*hdr), GFP_KERNEL);
+		if (!hdr) {
 			ret = -ENOMEM;
 			return ret;
 		}
 
-		ret = copy_from_user(cfg, up, sizeof(*cfg));
-		if (!ret)
-			ret = ov7251_ioctl(sd, cmd, cfg);
-		kfree(cfg);
+		ret = ov7251_ioctl(sd, cmd, hdr);
+		if (!ret) {
+			ret = copy_to_user(up, hdr, sizeof(*hdr));
+			if (ret)
+				ret = -EFAULT;
+		}
+		kfree(hdr);
+		break;
+	case RKMODULE_SET_HDR_CFG:
+		hdr = kzalloc(sizeof(*hdr), GFP_KERNEL);
+		if (!hdr) {
+			ret = -ENOMEM;
+			return ret;
+		}
+
+		if (copy_from_user(hdr, up, sizeof(*hdr))) {
+			kfree(hdr);
+			return -EFAULT;
+		}
+
+		ret = ov7251_ioctl(sd, cmd, hdr);
+		kfree(hdr);
 		break;
 	case RKMODULE_SET_QUICK_STREAM:
-		ret = copy_from_user(&stream, up, sizeof(u32));
-		if (!ret)
-			ret = ov7251_ioctl(sd, cmd, &stream);
+		if (copy_from_user(&stream, up, sizeof(u32)))
+			return -EFAULT;
+
+		ret = ov7251_ioctl(sd, cmd, &stream);
 		break;
 	default:
 		ret = -ENOIOCTLCMD;
@@ -726,11 +931,18 @@ static int __ov7251_power_on(struct ov7251 *ov7251)
 	u32 delay_us;
 	struct device *dev = &ov7251->client->dev;
 
+	if (!IS_ERR_OR_NULL(ov7251->pins_default)) {
+		ret = pinctrl_select_state(ov7251->pinctrl,
+					   ov7251->pins_default);
+		if (ret < 0)
+			dev_err(dev, "could not set pins\n");
+	}
+
 	ret = clk_set_rate(ov7251->xvclk, OV7251_XVCLK_FREQ);
 	if (ret < 0)
-		dev_warn(dev, "Failed to set xvclk rate (24MHz)\n");
+		dev_err(dev, "Failed to set xvclk rate (24MHz)\n");
 	if (clk_get_rate(ov7251->xvclk) != OV7251_XVCLK_FREQ)
-		dev_warn(dev, "xvclk mismatched, modes are based on 24MHz\n");
+		dev_err(dev, "xvclk mismatched, modes are based on 24MHz\n");
 	ret = clk_prepare_enable(ov7251->xvclk);
 	if (ret < 0) {
 		dev_err(dev, "Failed to enable xvclk\n");
@@ -763,11 +975,23 @@ static int __ov7251_power_on(struct ov7251 *ov7251)
 disable_clk:
 	clk_disable_unprepare(ov7251->xvclk);
 
+	if (!IS_ERR_OR_NULL(ov7251->pins_sleep))
+		pinctrl_select_state(ov7251->pinctrl, ov7251->pins_sleep);
+
 	return ret;
 }
 
 static void __ov7251_power_off(struct ov7251 *ov7251)
 {
+	int ret;
+	struct device *dev = &ov7251->client->dev;
+
+	if (!IS_ERR_OR_NULL(ov7251->pins_sleep)) {
+		ret = pinctrl_select_state(ov7251->pinctrl,
+					   ov7251->pins_sleep);
+		if (ret < 0)
+			dev_dbg(dev, "could not set pins\n");
+	}
 	if (!IS_ERR(ov7251->pwdn_gpio))
 		gpiod_set_value_cansleep(ov7251->pwdn_gpio, 0);
 	clk_disable_unprepare(ov7251->xvclk);
@@ -808,7 +1032,7 @@ static int ov7251_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 	/* Initialize try_fmt */
 	try_fmt->width = def_mode->width;
 	try_fmt->height = def_mode->height;
-	try_fmt->code = MEDIA_BUS_FMT_Y10_1X10;
+	try_fmt->code = PIX_FORMAT;
 	try_fmt->field = V4L2_FIELD_NONE;
 
 	mutex_unlock(&ov7251->mutex);
@@ -825,7 +1049,7 @@ static int ov7251_enum_frame_interval(struct v4l2_subdev *sd,
 	if (fie->index >= ARRAY_SIZE(supported_modes))
 		return -EINVAL;
 
-	if (fie->code != MEDIA_BUS_FMT_Y10_1X10)
+	if (fie->code != PIX_FORMAT)
 		return -EINVAL;
 
 	fie->width = supported_modes[fie->index].width;
@@ -846,6 +1070,35 @@ static int ov7251_g_mbus_config(struct v4l2_subdev *sd,
 	config->flags = val;
 
 	return 0;
+}
+
+#define CROP_START(SRC, DST) (((SRC) - (DST)) / 2 / 4 * 4)
+#define DST_WIDTH 640
+#define DST_HEIGHT 480
+
+/*
+ * The resolution of the driver configuration needs to be exactly
+ * the same as the current output resolution of the sensor,
+ * the input width of the isp needs to be 16 aligned,
+ * the input height of the isp needs to be 8 aligned.
+ * Can be cropped to standard resolution by this function,
+ * otherwise it will crop out strange resolution according
+ * to the alignment rules.
+ */
+static int ov7251_get_selection(struct v4l2_subdev *sd,
+				struct v4l2_subdev_pad_config *cfg,
+				struct v4l2_subdev_selection *sel)
+{
+	struct ov7251 *ov7251 = to_ov7251(sd);
+
+	if (sel->target == V4L2_SEL_TGT_CROP_BOUNDS) {
+		sel->r.left = CROP_START(ov7251->cur_mode->width, DST_WIDTH);
+		sel->r.width = DST_WIDTH;
+		sel->r.top = CROP_START(ov7251->cur_mode->height, DST_HEIGHT);
+		sel->r.height = DST_HEIGHT;
+		return 0;
+	}
+	return -EINVAL;
 }
 
 static const struct dev_pm_ops ov7251_pm_ops = {
@@ -879,6 +1132,7 @@ static const struct v4l2_subdev_pad_ops ov7251_pad_ops = {
 	.enum_frame_interval = ov7251_enum_frame_interval,
 	.get_fmt = ov7251_get_fmt,
 	.set_fmt = ov7251_set_fmt,
+	.get_selection = ov7251_get_selection,
 };
 
 static const struct v4l2_subdev_ops ov7251_subdev_ops = {
@@ -1098,7 +1352,22 @@ static int ov7251_probe(struct i2c_client *client,
 		dev_err(dev, "Failed to get power regulators\n");
 		return ret;
 	}
+	ov7251->pinctrl = devm_pinctrl_get(dev);
+	if (!IS_ERR(ov7251->pinctrl)) {
+		ov7251->pins_default =
+			pinctrl_lookup_state(ov7251->pinctrl,
+					     OF_CAMERA_PINCTRL_STATE_DEFAULT);
+		if (IS_ERR(ov7251->pins_default))
+			dev_info(dev, "could not get default pinstate\n");
 
+		ov7251->pins_sleep =
+			pinctrl_lookup_state(ov7251->pinctrl,
+					     OF_CAMERA_PINCTRL_STATE_SLEEP);
+		if (IS_ERR(ov7251->pins_sleep))
+			dev_info(dev, "could not get sleep pinstate\n");
+	} else {
+		dev_info(dev, "no pinctrl\n");
+	}
 	mutex_init(&ov7251->mutex);
 
 	sd = &ov7251->subdev;
