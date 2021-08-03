@@ -39,6 +39,7 @@
 #include <linux/hashtable.h>
 #include <linux/list_sort.h>
 #include <linux/mount.h>
+#include <linux/cache.h>
 
 #include <uapi/linux/dma-buf.h>
 #include <uapi/linux/magic.h>
@@ -451,6 +452,9 @@ static long dma_buf_ioctl(struct file *file,
 			return -EFAULT;
 
 		if (sync_p.len == 0)
+			return -EINVAL;
+
+		if ((sync_p.offset % cache_line_size()) || (sync_p.len % cache_line_size()))
 			return -EINVAL;
 
 		if (sync_p.len > dmabuf->size || sync_p.offset > dmabuf->size - sync_p.len)
