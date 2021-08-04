@@ -29,6 +29,7 @@
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 #include <linux/vmalloc.h>
+#include <asm/cacheflush.h>
 
 #define CREATE_TRACE_POINTS
 #include "ion_trace.h"
@@ -530,6 +531,18 @@ static int ion_dma_buf_end_cpu_access(struct dma_buf *dmabuf,
 		mutex_unlock(&buffer->lock);
 	}
 
+	if (buffer->size >= SZ_1M) {
+		if (direction == DMA_FROM_DEVICE) {
+			flush_cache_all();
+			goto exit;
+		} else {
+#ifdef CONFIG_ARM64
+			__flush_dcache_all();
+			goto exit;
+#endif
+		}
+	}
+
 	mutex_lock(&buffer->lock);
 	if (IS_ENABLED(CONFIG_ION_FORCE_DMA_SYNC)) {
 		struct device *dev = ion_dev;
@@ -557,7 +570,7 @@ static int ion_dma_buf_end_cpu_access(struct dma_buf *dmabuf,
 	}
 unlock:
 	mutex_unlock(&buffer->lock);
-
+exit:
 	return 0;
 }
 
@@ -614,6 +627,18 @@ static int ion_dma_buf_end_cpu_access_partial(struct dma_buf *dmabuf,
 	struct ion_dma_buf_attachment *a;
 	int ret = 0;
 
+	if (len >= SZ_1M) {
+		if (direction == DMA_FROM_DEVICE) {
+			flush_cache_all();
+			goto exit;
+		} else {
+#ifdef CONFIG_ARM64
+			__flush_dcache_all();
+			goto exit;
+#endif
+		}
+	}
+
 	mutex_lock(&buffer->lock);
 	if (IS_ENABLED(CONFIG_ION_FORCE_DMA_SYNC)) {
 		if (dev) {
@@ -638,7 +663,7 @@ static int ion_dma_buf_end_cpu_access_partial(struct dma_buf *dmabuf,
 	}
 unlock:
 	mutex_unlock(&buffer->lock);
-
+exit:
 	return ret;
 }
 
