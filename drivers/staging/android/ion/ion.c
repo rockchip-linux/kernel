@@ -485,6 +485,9 @@ static int ion_dma_buf_begin_cpu_access(struct dma_buf *dmabuf,
 		mutex_unlock(&buffer->lock);
 	}
 
+	if (direction == DMA_TO_DEVICE)
+		return 0;
+
 	mutex_lock(&buffer->lock);
 	if (IS_ENABLED(CONFIG_ION_FORCE_DMA_SYNC)) {
 		struct device *dev = ion_dev;
@@ -554,6 +557,9 @@ static int ion_dma_buf_begin_cpu_access_partial(struct dma_buf *dmabuf,
 	struct ion_buffer *buffer = dmabuf->priv;
 	struct ion_dma_buf_attachment *a;
 	int ret = 0;
+
+	if (direction == DMA_TO_DEVICE)
+		return 0;
 
 	mutex_lock(&buffer->lock);
 	if (IS_ENABLED(CONFIG_ION_FORCE_DMA_SYNC)) {
