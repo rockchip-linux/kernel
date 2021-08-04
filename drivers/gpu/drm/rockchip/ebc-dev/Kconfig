@@ -5,10 +5,7 @@ menuconfig ROCKCHIP_EBC_DEV
 	help
 	Rockchip eBook Device Dirver could help to driver the electronic ink screen.
 
-choice
-	prompt "eink pmic sensor"
-	depends on ROCKCHIP_EBC_DEV
-	default EPD_TPS65185_SENSOR
 config EPD_TPS65185_SENSOR
-	bool "Tps65185"
-endchoice
+    bool "eink pmic Tps65185"
+    depends on ROCKCHIP_EBC_DEV
+    default y
