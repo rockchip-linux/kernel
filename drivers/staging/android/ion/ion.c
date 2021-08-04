@@ -494,8 +494,14 @@ static int ion_dma_buf_begin_cpu_access(struct dma_buf *dmabuf,
 		struct sg_table *table = buffer->sg_table;
 
 		if (dev) {
-			dma_sync_sg_for_cpu(dev, table->sgl, table->nents,
-					    direction);
+			if (buffer->heap->type == ION_HEAP_TYPE_DMA)
+				dma_sync_single_range_for_cpu(dev,
+							      sg_dma_address(table->sgl),
+							      0, buffer->size,
+							      direction);
+			else
+				dma_sync_sg_for_cpu(dev, table->sgl, table->nents,
+						    direction);
 			goto unlock;
 		}
 	}
@@ -530,11 +536,16 @@ static int ion_dma_buf_end_cpu_access(struct dma_buf *dmabuf,
 		struct sg_table *table = buffer->sg_table;
 
 		if (dev) {
-			dma_sync_sg_for_device(dev, table->sgl, table->nents,
-					       direction);
-			mutex_unlock(&buffer->lock);
+			if (buffer->heap->type == ION_HEAP_TYPE_DMA)
+				dma_sync_single_range_for_device(dev,
+								 sg_dma_address(table->sgl),
+								 0, buffer->size,
+								 direction);
+			else
 
-			return 0;
+				dma_sync_sg_for_device(dev, table->sgl, table->nents,
+						       direction);
+			goto unlock;
 		}
 	}
 
@@ -544,6 +555,7 @@ static int ion_dma_buf_end_cpu_access(struct dma_buf *dmabuf,
 		dma_sync_sg_for_device(a->dev, a->table->sgl, a->table->nents,
 				       direction);
 	}
+unlock:
 	mutex_unlock(&buffer->lock);
 
 	return 0;
@@ -554,7 +566,9 @@ static int ion_dma_buf_begin_cpu_access_partial(struct dma_buf *dmabuf,
 						unsigned int offset,
 						unsigned int len)
 {
+	struct device *dev = ion_dev;
 	struct ion_buffer *buffer = dmabuf->priv;
+	struct sg_table *table = buffer->sg_table;
 	struct ion_dma_buf_attachment *a;
 	int ret = 0;
 
@@ -563,13 +577,15 @@ static int ion_dma_buf_begin_cpu_access_partial(struct dma_buf *dmabuf,
 
 	mutex_lock(&buffer->lock);
 	if (IS_ENABLED(CONFIG_ION_FORCE_DMA_SYNC)) {
-		struct device *dev = ion_dev;
-		struct sg_table *table = buffer->sg_table;
-
 		if (dev) {
-			ret = ion_sgl_sync_range(dev, table->sgl, table->nents,
-						 offset, len, direction, true);
-
+			if (buffer->heap->type == ION_HEAP_TYPE_DMA)
+				dma_sync_single_range_for_cpu(dev,
+							      sg_dma_address(table->sgl),
+							      offset, len,
+							      direction);
+			else
+				ret = ion_sgl_sync_range(dev, table->sgl, table->nents,
+							 offset, len, direction, true);
 			goto unlock;
 		}
 	}
@@ -592,19 +608,23 @@ static int ion_dma_buf_end_cpu_access_partial(struct dma_buf *dmabuf,
 					      unsigned int offset,
 					      unsigned int len)
 {
+	struct device *dev = ion_dev;
 	struct ion_buffer *buffer = dmabuf->priv;
+	struct sg_table *table = buffer->sg_table;
 	struct ion_dma_buf_attachment *a;
 	int ret = 0;
 
 	mutex_lock(&buffer->lock);
 	if (IS_ENABLED(CONFIG_ION_FORCE_DMA_SYNC)) {
-		struct device *dev = ion_dev;
-		struct sg_table *table = buffer->sg_table;
-
 		if (dev) {
-			ret = ion_sgl_sync_range(dev, table->sgl, table->nents,
-						 offset, len, direction, false);
-
+			if (buffer->heap->type == ION_HEAP_TYPE_DMA)
+				dma_sync_single_range_for_device(dev,
+								 sg_dma_address(table->sgl),
+								 offset, len,
+								 direction);
+			else
+				ret = ion_sgl_sync_range(dev, table->sgl, table->nents,
+							 offset, len, direction, false);
 			goto unlock;
 		}
 	}
