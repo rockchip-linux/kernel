@@ -452,8 +452,10 @@ static void mpp_task_timeout_work(struct work_struct *work_s)
 					     struct mpp_task,
 					     timeout_work);
 
-	if (test_and_set_bit(TASK_STATE_HANDLE, &task->state)) {
-		mpp_err("task has been handled\n");
+	if (!test_bit(TASK_STATE_START, &task->state)) {
+		mpp_err("task has not start\n");
+		schedule_delayed_work(&task->timeout_work,
+					msecs_to_jiffies(MPP_WORK_TIMEOUT_DELAY));
 		return;
 	}
 
@@ -469,6 +471,13 @@ static void mpp_task_timeout_work(struct work_struct *work_s)
 		return;
 	}
 	mpp = session->mpp;
+
+	synchronize_hardirq(mpp->irq);
+
+	if (test_and_set_bit(TASK_STATE_HANDLE, &task->state)) {
+		mpp_err("task has been handled\n");
+		return;
+	}
 
 	/* hardware maybe dead, reset it */
 	mpp_reset_up_read(mpp->reset_group);
@@ -674,11 +683,11 @@ static int mpp_task_run(struct mpp_dev *mpp,
 	 */
 	mpp_reset_down_read(mpp->reset_group);
 
-	set_bit(TASK_STATE_START, &task->state);
 	schedule_delayed_work(&task->timeout_work,
 			      msecs_to_jiffies(MPP_WORK_TIMEOUT_DELAY));
 	if (mpp->dev_ops->run)
 		mpp->dev_ops->run(mpp, task);
+	set_bit(TASK_STATE_START, &task->state);
 
 	mpp_debug_leave();
 
