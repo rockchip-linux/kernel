@@ -937,7 +937,6 @@ int rknpu_gem_sync_ioctl(struct drm_device *dev, void *data,
 	} else {
 		length = args->size;
 		offset = args->offset;
-		sg_dma_addr = rknpu_obj->dma_addr;
 
 		for_each_sg(rknpu_obj->sgt->sgl, sg, rknpu_obj->sgt->nents,
 			     i) {
@@ -945,6 +944,7 @@ int rknpu_gem_sync_ioctl(struct drm_device *dev, void *data,
 			if (len <= offset)
 				continue;
 
+			sg_dma_addr = sg_dma_address(sg);
 			sg_left = len - offset;
 			sg_offset = sg->length - sg_left;
 			size = (length < sg_left) ? length : sg_left;
@@ -964,7 +964,6 @@ int rknpu_gem_sync_ioctl(struct drm_device *dev, void *data,
 
 			offset += size;
 			length -= size;
-			sg_dma_addr += sg->length;
 
 			if (length == 0)
 				break;
