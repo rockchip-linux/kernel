@@ -138,8 +138,7 @@ struct parallel_data {
 /**
  * struct padata_instance - The overall control structure.
  *
- * @cpu_online_node: Linkage for CPU online callback.
- * @cpu_dead_node: Linkage for CPU offline callback.
+ * @cpu_notifier: cpu hotplug notifier.
  * @wq: The workqueue in use.
  * @pd: The internal control structure.
  * @cpumask: User supplied cpumasks for parallel and serial works.
@@ -151,8 +150,7 @@ struct parallel_data {
  * @flags: padata flags.
  */
 struct padata_instance {
-	struct hlist_node		cpu_online_node;
-	struct hlist_node		cpu_dead_node;
+	struct hlist_node		 node;
 	struct workqueue_struct		*wq;
 	struct parallel_data		*pd;
 	struct padata_cpumask		cpumask;
