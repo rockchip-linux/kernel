@@ -6,12 +6,39 @@
  *
  */
 
+#include <sound/core.h>
+#include <sound/pcm.h>
+#include <sound/pcm_params.h>
+#include <sound/soc.h>
+#include <sound/tlv.h>
 #include "techpoint_dev.h"
 
 #define TECHPOINT_NAME  "techpoint"
 
 #define OF_CAMERA_PINCTRL_STATE_DEFAULT		"rockchip,camera_default"
 #define OF_CAMERA_PINCTRL_STATE_SLEEP		"rockchip,camera_sleep"
+
+#define I2S				0
+#define DSP				1
+#define AUDIO_FORMAT			I2S
+
+#define SAMPLE_8K			0
+#define SAMPLE_16K			1
+#define SAMPLE_RATE			SAMPLE_8K
+
+#define DATA_16BIT			0
+#define DATA_8BIT			1
+#define DATA_BIT			DATA_16BIT
+
+#define AUDIO_CHN			8
+#define MAX_CHIPS			4
+#define MAX_SLAVES			(MAX_CHIPS - 1)
+
+#define TECHPOINT_I2C_CHIP_ADDRESS_0	0x44
+#define TECHPOINT_I2C_CHIP_ADDRESS_1	0x45
+
+static int g_idx;
+static struct techpoint *g_techpoints[MAX_CHIPS];
 
 static const char *const techpoint_supply_names[] = {
 	"dovdd",		/* Digital I/O power */
@@ -809,6 +836,496 @@ static const struct i2c_device_id techpoint_match_id[] = {
 	{ },
 };
 
+static int techpoint_9930_audio_init(struct techpoint *techpoint);
+
+static struct snd_soc_dai_driver techpoint_audio_dai = {
+	.name = "techpoint",
+	.playback = {
+		.stream_name = "Playback",
+		.channels_min = 1,
+		.channels_max = 16,
+		.rates = SNDRV_PCM_RATE_8000_384000,
+		.formats = (SNDRV_PCM_FMTBIT_S8 | SNDRV_PCM_FMTBIT_S16_LE),
+	},
+	.capture = {
+		.stream_name = "Capture",
+		.channels_min = 1,
+		.channels_max = 16,
+		.rates = SNDRV_PCM_RATE_8000_384000,
+		.formats = (SNDRV_PCM_FMTBIT_S8 | SNDRV_PCM_FMTBIT_S16_LE),
+	},
+};
+
+static ssize_t i2c_rdwr_store(struct device *dev,
+			      struct device_attribute *attr,
+			      const char *buf, size_t count)
+{
+	struct techpoint *techpoint =
+		container_of(dev, struct techpoint, dev);
+	unsigned char op_type;
+	unsigned int reg, v;
+	int ret;
+
+	ret = sscanf(buf, "%c %x %x", &op_type, &reg, &v);
+	if (ret != 3) {
+		dev_err(&techpoint->client->dev, "%s sscanf failed: %d\n",
+			__func__, ret);
+		return -EFAULT;
+	}
+
+	if (op_type == 'r')
+		techpoint_read_reg(techpoint->client, reg, (unsigned char *)&v);
+	else if (op_type == 'w')
+		techpoint_write_reg(techpoint->client, reg, v);
+	else if (op_type == 'd')
+		techpoint_9930_audio_init(techpoint);
+
+	return count;
+}
+
+static const struct device_attribute techpoint_attrs[] = {
+	__ATTR_WO(i2c_rdwr),
+};
+
+static int techpoint_codec_probe(struct snd_soc_component *component)
+{
+	return 0;
+}
+
+static void techpoint_codec_remove(struct snd_soc_component *component)
+{
+}
+
+static const struct snd_soc_component_driver techpoint_codec_driver = {
+	.probe			= techpoint_codec_probe,
+	.remove			= techpoint_codec_remove,
+	.idle_bias_on		= 1,
+	.use_pmdown_time	= 1,
+	.endianness		= 1,
+	.non_legacy_dai_naming	= 1,
+};
+
+static int tp2833_audio_config_rmpos(struct i2c_client *client,
+		unsigned int chip, unsigned int format, unsigned int chn_num)
+{
+	int i = 0;
+	unsigned char v;
+
+	/* clear first */
+	for (i = 0; i < 20; i++)
+		techpoint_write_reg(client, i, 0x00);
+
+	switch (chn_num) {
+
+	case 2:
+		if (format == DSP) {
+			techpoint_write_reg(client, 0x0, 1);
+			techpoint_write_reg(client, 0x1, 2);
+		} else {
+			techpoint_write_reg(client, 0x0, 1);
+			techpoint_write_reg(client, 0x8, 2);
+		}
+		break;
+
+	case 4:
+		if (format == DSP) {
+			techpoint_write_reg(client, 0x0, 1);
+			techpoint_write_reg(client, 0x1, 2);
+			techpoint_write_reg(client, 0x2, 3);
+			techpoint_write_reg(client, 0x3, 4);
+		} else {
+			techpoint_write_reg(client, 0x0, 1);
+			techpoint_write_reg(client, 0x1, 3);
+			techpoint_write_reg(client, 0x8, 2);
+			techpoint_write_reg(client, 0x9, 4);
+		}
+		break;
+
+	case 8:
+		if (chip % 4 == 0) {
+			if (format == DSP) {
+				techpoint_write_reg(client, 0x0, 1);
+				techpoint_write_reg(client, 0x1, 2);
+				techpoint_write_reg(client, 0x2, 3);
+				techpoint_write_reg(client, 0x3, 4);
+				techpoint_write_reg(client, 0x4, 5);
+				techpoint_write_reg(client, 0x5, 6);
+				techpoint_write_reg(client, 0x6, 7);
+				techpoint_write_reg(client, 0x7, 8);
+			} else {
+				techpoint_write_reg(client, 0x0, 1);
+				techpoint_write_reg(client, 0x1, 2);
+				techpoint_write_reg(client, 0x2, 3);
+				techpoint_write_reg(client, 0x3, 4);
+				techpoint_write_reg(client, 0x8, 5);
+				techpoint_write_reg(client, 0x9, 6);
+				techpoint_write_reg(client, 0xa, 7);
+				techpoint_write_reg(client, 0xb, 8);
+			}
+		} else if (chip % 4 == 1) {
+			if (format == DSP) {
+				techpoint_write_reg(client, 0x0, 0);
+				techpoint_write_reg(client, 0x1, 0);
+				techpoint_write_reg(client, 0x2, 0);
+				techpoint_write_reg(client, 0x3, 0);
+				techpoint_write_reg(client, 0x4, 1);
+				techpoint_write_reg(client, 0x5, 2);
+				techpoint_write_reg(client, 0x6, 3);
+				techpoint_write_reg(client, 0x7, 4);
+			} else {
+				techpoint_write_reg(client, 0x0, 0);
+				techpoint_write_reg(client, 0x1, 0);
+				techpoint_write_reg(client, 0x2, 1);
+				techpoint_write_reg(client, 0x3, 2);
+				techpoint_write_reg(client, 0x8, 0);
+				techpoint_write_reg(client, 0x9, 0);
+				techpoint_write_reg(client, 0xa, 3);
+				techpoint_write_reg(client, 0xb, 4);
+				techpoint_read_reg(client, 0x3, &v);
+			}
+		}
+		break;
+
+	case 16:
+		if (chip % 4 == 0) {
+			for (i = 0; i < 16; i++)
+				techpoint_write_reg(client, i, i+1);
+		} else if (chip % 4 == 1) {
+			for (i = 4; i < 16; i++)
+				techpoint_write_reg(client, i, i+1 - 4);
+		} else if (chip % 4 == 2) {
+			for (i = 8; i < 16; i++)
+				techpoint_write_reg(client, i, i+1 - 8);
+		} else {
+			for (i = 12; i < 16; i++)
+				techpoint_write_reg(client, i, i+1 - 12);
+		}
+		break;
+
+	case 20:
+		for (i = 0; i < 20; i++)
+			techpoint_write_reg(client, i, i+1);
+		break;
+
+	default:
+		for (i = 0; i < 20; i++)
+			techpoint_write_reg(client, i, i+1);
+		break;
+	}
+
+	mdelay(10);
+	return 0;
+}
+
+static int techpoint_2855_audio_init(struct techpoint *techpoint)
+{
+	struct i2c_client *client = techpoint->client;
+
+	unsigned char bank;
+	unsigned char chip_id_h = 0xFF, chip_id_l = 0xFF;
+
+	techpoint_read_reg(client, CHIP_ID_H_REG, &chip_id_h);
+	techpoint_read_reg(client, CHIP_ID_L_REG, &chip_id_l);
+
+	techpoint_read_reg(client, 0x40, &bank);
+	techpoint_write_reg(client, 0x40, 0x40);
+
+	tp2833_audio_config_rmpos(client, 0, AUDIO_FORMAT, AUDIO_CHN);
+
+	techpoint_write_reg(client, 0x17, 0x00|(DATA_BIT<<2));
+	techpoint_write_reg(client, 0x1B, 0x01|(DATA_BIT<<6));
+
+#if (AUDIO_CHN == 20)
+	techpoint_write_reg(client, 0x18, 0x90|(SAMPLE_RATE));
+#else
+	techpoint_write_reg(client, 0x18, 0x80|(SAMPLE_RATE));
+#endif
+
+#if (AUDIO_CHN >= 8)
+	techpoint_write_reg(client, 0x19, 0x1F);
+#else
+	techpoint_write_reg(client, 0x19, 0x0F);
+#endif
+
+	techpoint_write_reg(client, 0x1A, 0x15);
+
+	techpoint_write_reg(client, 0x37, 0x20);
+	techpoint_write_reg(client, 0x38, 0x38);
+	techpoint_write_reg(client, 0x3E, 0x00);
+
+	/* audio reset */
+	techpoint_write_reg(client, 0x3d, 0x01);
+
+	techpoint_write_reg(client, 0x40, bank);
+
+	return 0;
+}
+
+static int techpoint_9930_audio_init(struct techpoint *techpoint)
+{
+	struct i2c_client *client = techpoint->client;
+
+	unsigned char bank;
+	unsigned char chip_id_h = 0xFF;
+	unsigned char chip_id_l = 0xFF;
+
+	techpoint_read_reg(client, CHIP_ID_H_REG, &chip_id_h);
+	techpoint_read_reg(client, CHIP_ID_L_REG, &chip_id_l);
+
+	techpoint_read_reg(client, 0x40, &bank);
+	techpoint_write_reg(client, 0x40, 0x40);
+
+	tp2833_audio_config_rmpos(client, 1, AUDIO_FORMAT, AUDIO_CHN);
+
+	techpoint_write_reg(client, 0x17, 0x00|(DATA_BIT<<2));
+	techpoint_write_reg(client, 0x1B, 0x01|(DATA_BIT<<6));
+
+#if (AUDIO_CHN == 20)
+	techpoint_write_reg(client, 0x18, 0x90|(SAMPLE_RATE));
+#else
+	techpoint_write_reg(client, 0x18, 0x80|(SAMPLE_RATE));
+#endif
+
+#if (AUDIO_CHN >= 8)
+	techpoint_write_reg(client, 0x19, 0x1F);
+#else
+	techpoint_write_reg(client, 0x19, 0x0F);
+#endif
+
+	techpoint_write_reg(client, 0x1A, 0x15);
+	techpoint_write_reg(client, 0x37, 0x20);
+	techpoint_write_reg(client, 0x38, 0x38);
+	techpoint_write_reg(client, 0x3E, 0x00);
+
+	/* reset audio */
+	techpoint_write_reg(client, 0x3d, 0x01);
+
+	techpoint_write_reg(client, 0x40, bank);
+
+	return 0;
+}
+
+static int techpoint_audio_init(struct techpoint *techpoint)
+{
+	if (techpoint)
+		techpoint_2855_audio_init(techpoint);
+
+	if (techpoint && techpoint->audio_in)
+		techpoint_9930_audio_init(techpoint->audio_in->slave_tp[0]);
+
+	return 0;
+}
+
+static int techpoint_audio_dt_parse(struct techpoint *techpoint)
+{
+	struct device *dev = &techpoint->client->dev;
+	struct device_node *node = dev->of_node;
+	const char *str;
+	u32 v;
+
+	/* Parse audio parts */
+	techpoint->audio_in = NULL;
+	if (!of_property_read_string(node, "techpoint,audio-in-format", &str)) {
+		struct techpoint_audio *audio_stream;
+
+		techpoint->audio_in = devm_kzalloc(dev, sizeof(struct techpoint_audio),
+						   GFP_KERNEL);
+		if (!techpoint->audio_in)
+			return -ENOMEM;
+
+		audio_stream = techpoint->audio_in;
+
+		if (strcmp(str, "i2s") == 0)
+			audio_stream->audfmt = AUDFMT_I2S;
+		else if (strcmp(str, "dsp") == 0)
+			audio_stream->audfmt = AUDFMT_DSP;
+		else {
+			dev_err(dev, "techpoint,audio-in-format invalid\n");
+			return -EINVAL;
+		}
+
+		if (!of_property_read_u32(node, "techpoint,audio-in-mclk-fs", &v)) {
+			switch (v) {
+			case 256:
+				break;
+			default:
+				dev_err(dev,
+					"techpoint,audio-in-mclk-fs invalid\n");
+				return -EINVAL;
+			}
+			audio_stream->mclk_fs = v;
+		}
+
+		if (!of_property_read_u32(node, "techpoint,audio-in-cascade-num", &v))
+			audio_stream->cascade_num = v;
+
+		if (!of_property_read_u32(node, "techpoint,audio-in-cascade-order", &v)) {
+			if (v > 1)
+				dev_err(dev,
+					"audio-in-cascade-order should be 1st chip, otherwise without cascade (is 0)\n");
+			else
+				audio_stream->cascade_order = v;
+		}
+
+		if (audio_stream->cascade_order == 1) {
+			struct device_node *np;
+			int i, count;
+
+			count = of_count_phandle_with_args(node, "techpoint,audio-in-cascade-slaves", NULL);
+			if (count < 0 || count > MAX_SLAVES)
+				return -EINVAL;
+
+			for (i = 0; i < count; i++) {
+				np = of_parse_phandle(node, "techpoint,audio-in-cascade-slaves", i);
+				if (!np)
+					return -ENODEV;
+			}
+
+			for (i = 0; i < g_idx; i++) {
+				struct techpoint *tp = g_techpoints[i];
+
+				if (tp->i2c_idx != techpoint->i2c_idx) {
+					audio_stream->slave_tp[i] = tp;
+					audio_stream->slave_num++;
+				}
+			}
+		}
+	}
+
+	techpoint->audio_out = NULL;
+	if (!of_property_read_string(node, "techpoint,audio-out-format", &str)) {
+		struct techpoint_audio *audio_stream;
+
+		techpoint->audio_out = devm_kzalloc(dev, sizeof(struct techpoint_audio),
+						    GFP_KERNEL);
+		if (!techpoint->audio_out)
+			return -ENOMEM;
+
+		audio_stream = techpoint->audio_out;
+
+		if (strcmp(str, "i2s") == 0)
+			audio_stream->audfmt = AUDFMT_I2S;
+		else if (strcmp(str, "dsp") == 0)
+			audio_stream->audfmt = AUDFMT_DSP;
+		else {
+			dev_err(dev, "techpoint,audio-out-format invalid\n");
+			return -EINVAL;
+		}
+
+		if (!of_property_read_u32(node, "techpoint,audio-out-mclk-fs", &v)) {
+			switch (v) {
+			case 256:
+				break;
+			default:
+				dev_err(dev,
+					"techpoint,audio-out-mclk-fs invalid\n");
+				return -EINVAL;
+			}
+			audio_stream->mclk_fs = v;
+		}
+
+		if (!of_property_read_u32(node, "techpoint,audio-out-cascade-num", &v))
+			audio_stream->cascade_num = v;
+
+		if (!of_property_read_u32(node, "techpoint,audio-out-cascade-order", &v)) {
+			if (v > 1)
+				dev_err(dev,
+					"audio-out-cascade-order should be 1st chip, otherwise without cascade (is 0)\n");
+			else
+				audio_stream->cascade_order = v;
+		}
+	}
+
+	if (!techpoint->audio_in && !techpoint->audio_out)
+		return -ENODEV;
+
+	return 0;
+}
+
+static int techpoint_audio_probe(struct techpoint *techpoint)
+{
+	struct device *dev = &techpoint->client->dev;
+	int ret;
+	unsigned char i;
+
+	switch (techpoint->chip_id) {
+	case CHIP_TP9930:
+		techpoint_9930_audio_init(techpoint);
+		break;
+	case CHIP_TP2855:
+		techpoint_2855_audio_init(techpoint);
+		break;
+	default:
+		break;
+	}
+
+	if (techpoint->chip_id == CHIP_TP9930) {
+
+		techpoint_write_reg(techpoint->client, 0x40, 0x00);
+		for (i = 0; i < 0xff; i++)
+			techpoint_write_reg(techpoint->client, i, 0xbb);
+	}
+
+	ret = techpoint_audio_dt_parse(techpoint);
+	if (ret) {
+		dev_info(dev, "hasn't audio DT nodes\n");
+		return 0;
+	}
+
+	ret = techpoint_audio_init(techpoint);
+	if (ret) {
+		dev_info(dev, "audio init failed(%d)\n", ret);
+		return 0;
+	}
+
+	ret = devm_snd_soc_register_component(dev,
+					      &techpoint_codec_driver,
+					      &techpoint_audio_dai, 1);
+	if (ret) {
+		dev_err(dev, "register audio codec failed\n");
+		return -EINVAL;
+	}
+
+	dev_info(dev, "registered audio codec\n");
+
+	return 0;
+}
+
+static void techpoint_device_release(struct device *dev)
+{
+
+}
+
+static int techpoint_sysfs_init(struct i2c_client *client,
+				struct techpoint *techpoint)
+{
+	struct device *dev = &techpoint->dev;
+	int i;
+
+	dev->release = techpoint_device_release;
+	dev->parent = &client->dev;
+	set_dev_node(dev, dev_to_node(&client->dev));
+	dev_set_name(dev, "techpoint-dev");
+
+	if (device_register(dev)) {
+		dev_err(&client->dev,
+			"Register 'techpoint-dev' failed\n");
+		dev->parent = NULL;
+		return -ENOMEM;
+	}
+
+	for (i = 0; i < ARRAY_SIZE(techpoint_attrs); i++) {
+		if (device_create_file(dev, &techpoint_attrs[i])) {
+			dev_err(&client->dev,
+				"Create 'techpoint-dev' attr failed\n");
+			device_unregister(dev);
+			return -ENOMEM;
+		}
+	}
+
+	return 0;
+}
+
 static int techpoint_probe(struct i2c_client *client,
 			   const struct i2c_device_id *id)
 {
@@ -828,6 +1345,8 @@ static int techpoint_probe(struct i2c_client *client,
 
 	techpoint->client = client;
 	techpoint->supplies = NULL;
+
+	techpoint_sysfs_init(client, techpoint);
 
 	mutex_init(&techpoint->mutex);
 
@@ -880,6 +1399,15 @@ static int techpoint_probe(struct i2c_client *client,
 	ret = v4l2_async_register_subdev_sensor_common(sd);
 	if (ret) {
 		dev_err(dev, "v4l2 async register subdev failed\n");
+		goto err_clean_entity;
+	}
+
+	techpoint->i2c_idx = g_idx;
+	g_techpoints[g_idx++] = techpoint;
+
+	ret = techpoint_audio_probe(techpoint);
+	if (ret) {
+		dev_err(dev, "sound audio probe failed\n");
 		goto err_clean_entity;
 	}
 

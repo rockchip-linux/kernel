@@ -8,7 +8,6 @@
 #ifndef _TECHPOINT_COMMON_H
 #define _TECHPOINT_COMMON_H
 
-// #define DEBUG
 #include <linux/clk.h>
 #include <linux/device.h>
 #include <linux/delay.h>
@@ -89,7 +88,23 @@ struct techpoint_video_modes {
 	enum techpoint_support_reso channel_reso[PAD_MAX];
 };
 
+/* Audio output port formats */
+enum techpoint_audfmts {
+	AUDFMT_I2S = 0,
+	AUDFMT_DSP,
+};
+
+struct techpoint_audio {
+	enum techpoint_audfmts audfmt;
+	int mclk_fs;
+	int cascade_num;
+	int cascade_order;
+	int slave_num;
+	struct techpoint *slave_tp[3];
+};
+
 struct techpoint {
+	struct device dev;
 	struct i2c_client *client;
 	struct clk *xvclk;
 	struct gpio_desc *reset_gpio;
@@ -105,6 +120,9 @@ struct techpoint {
 	struct mutex mutex;
 	struct regulator_bulk_data *supplies;
 	u32 xvclk_freq_value;
+	struct techpoint_audio *audio_in;
+	struct techpoint_audio *audio_out;
+	int i2c_idx;
 	u32 channel_nums;
 
 	enum techpoint_chips chip_id;
