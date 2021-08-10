@@ -204,6 +204,52 @@
 		};
 	};
 
+	rk3308bs_cpu0_opp_table: rk3308bs-cpu0-opp-table {
+		compatible = "operating-points-v2";
+		opp-shared;
+
+		rockchip,temp-hysteresis = <5000>;
+		rockchip,low-temp = <0>;
+		rockchip,low-temp-min-volt = <900000>;
+		rockchip,max-volt = <1200000>;
+		rockchip,low-temp-adjust-volt = <
+			/* MHz    MHz    uV */
+			   0      1200   50000
+		>;
+
+		rockchip,evb-irdrop = <25000>;
+		nvmem-cells = <&cpu_leakage>;
+		nvmem-cell-names = "leakage";
+
+		opp-408000000 {
+			opp-hz = /bits/ 64 <408000000>;
+			opp-microvolt = <825000 825000 1200000>;
+			clock-latency-ns = <40000>;
+			opp-suspend;
+		};
+		opp-600000000 {
+			opp-hz = /bits/ 64 <600000000>;
+			opp-microvolt = <850000 850000 1200000>;
+			clock-latency-ns = <40000>;
+		};
+		opp-816000000 {
+			opp-hz = /bits/ 64 <816000000>;
+			opp-microvolt = <950000 950000 1200000>;
+			clock-latency-ns = <40000>;
+		};
+		opp-1008000000 {
+			opp-hz = /bits/ 64 <1008000000>;
+			opp-microvolt = <1075000 1075000 1200000>;
+			clock-latency-ns = <40000>;
+		};
+		opp-1200000000 {
+			opp-hz = /bits/ 64 <1200000000>;
+			opp-microvolt = <1200000 1200000 1200000>;
+			clock-latency-ns = <40000>;
+			status = "disabled";
+		};
+	};
+
 	arm-pmu {
 		compatible = "arm,cortex-a53-pmu";
 		interrupts = <GIC_SPI 83 IRQ_TYPE_LEVEL_HIGH>,
@@ -261,6 +307,23 @@
 		opp-590000000 {
 			opp-hz = /bits/ 64 <590000000>;
 			opp-microvolt = <1000000>;
+		};
+	};
+
+	rk3308bs_dmc_opp_table: rk3308bs-dmc-opp-table {
+		compatible = "operating-points-v2";
+
+		opp-394000000 {
+			opp-hz = /bits/ 64 <394000000>;
+			opp-microvolt = <900000>;
+		};
+		opp-452000000 {
+			opp-hz = /bits/ 64 <452000000>;
+			opp-microvolt = <900000>;
+		};
+		opp-590000000 {
+			opp-hz = /bits/ 64 <590000000>;
+			opp-microvolt = <900000>;
 		};
 	};
 
