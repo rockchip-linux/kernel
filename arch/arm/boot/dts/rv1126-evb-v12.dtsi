@@ -36,6 +36,14 @@
 	};
 };
 
+&imx335 {
+	reset-gpios = <&gpio1 RK_PD5 GPIO_ACTIVE_LOW>;
+};
+
+&imx415 {
+	reset-gpios = <&gpio1 RK_PD5 GPIO_ACTIVE_LOW>;
+};
+
 &ov4689 {
 	reset-gpios = <&gpio2 RK_PA0 GPIO_ACTIVE_LOW>;
 };
