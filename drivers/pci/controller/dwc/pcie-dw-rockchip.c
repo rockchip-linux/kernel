@@ -818,8 +818,16 @@ static int rk_pcie_resource_get(struct platform_device *pdev,
 	if (IS_ERR(rk_pcie->apb_base))
 		return PTR_ERR(rk_pcie->apb_base);
 
+	/*
+	 * Rest the device before enabling power because some of the
+	 * platforms may use external refclk input with the some power
+	 * rail connect to 100MHz OSC chip. So once the power is up for
+	 * the slot and the refclk is available, which isn't quite follow
+	 * the spec. We should make sure it is in reset state before
+	 * everthing's ready.
+	 */
 	rk_pcie->rst_gpio = devm_gpiod_get_optional(&pdev->dev, "reset",
-						    GPIOD_OUT_HIGH);
+						    GPIOD_OUT_LOW);
 	if (IS_ERR(rk_pcie->rst_gpio)) {
 		dev_err(&pdev->dev, "invalid reset-gpios property in node\n");
 		return PTR_ERR(rk_pcie->rst_gpio);
@@ -1284,16 +1292,6 @@ static int rk_pcie_really_probe(void *p)
 			return PTR_ERR(rk_pcie->vpcie3v3);
 		dev_info(dev, "no vpcie3v3 regulator found\n");
 	}
-
-	/*
-	 * Rest the device before enabling power because some of the
-	 * platforms may use external refclk input with the some power
-	 * rail connect to 100MHz OSC chip. So once the power is up for
-	 * the slot and the refclk is available, which isn't quite follow
-	 * the spec. We should make sure it is in reset state before
-	 * everthing's ready.
-	 */
-	gpiod_set_value_cansleep(rk_pcie->rst_gpio, 0);
 
 	ret = rk_pcie_enable_power(rk_pcie);
 	if (ret)
