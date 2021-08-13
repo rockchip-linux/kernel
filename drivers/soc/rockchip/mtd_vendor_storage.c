@@ -447,4 +447,4 @@ static int __init vendor_storage_init(void)
 	return ret;
 }
 
-module_init(vendor_storage_init);
+device_initcall_sync(vendor_storage_init);
