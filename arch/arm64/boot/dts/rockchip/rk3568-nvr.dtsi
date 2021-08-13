@@ -228,6 +228,7 @@
 };
 
 &hdmi {
+	skip-check-420-mode;
 	status = "okay";
 };
 
