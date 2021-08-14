@@ -197,6 +197,11 @@ struct rockchip_drm_private {
 	struct rockchip_atomic_commit *commit;
 	/* protect async commit */
 	struct mutex commit_lock;
+	/*
+	 * protect some shared overlay resource
+	 * OVL_LAYER_SEL/OVL_PORT_SEL
+	 */
+	struct mutex ovl_lock;
 	struct work_struct commit_work;
 	struct iommu_domain *domain;
 	struct gen_pool *secure_buffer_pool;

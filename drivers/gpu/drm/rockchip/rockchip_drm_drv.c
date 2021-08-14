@@ -1621,6 +1621,7 @@ static int rockchip_drm_bind(struct device *dev)
 	}
 
 	mutex_init(&private->commit_lock);
+	mutex_init(&private->ovl_lock);
 	INIT_WORK(&private->commit_work, rockchip_drm_atomic_work);
 	drm_dev->dev_private = private;
 
