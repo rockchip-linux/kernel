@@ -18,6 +18,7 @@
 #include <linux/phy/phy.h>
 #include <linux/platform_device.h>
 #include <linux/reset.h>
+#include <linux/soc/rockchip/rk_vendor_storage.h>
 #include <linux/slab.h>
 #include <linux/timer.h>
 #include <linux/v4l2-dv-timings.h>
@@ -33,7 +34,7 @@ static int debug;
 module_param(debug, int, 0644);
 MODULE_PARM_DESC(debug, "debug level (0-1)");
 
-#define DRIVER_VERSION			KERNEL_VERSION(0, 0x0, 0x5)
+#define DRIVER_VERSION			KERNEL_VERSION(0, 0x0, 0x6)
 #define RKMODULE_CAMERA_MODULE_INDEX    "rockchip,camera-module-index"
 
 #define EDID_NUM_BLOCKS_MAX		2
@@ -48,10 +49,30 @@ MODULE_PARM_DESC(debug, "debug level (0-1)");
 #define RXPHY_CFG_MAX_TIMES		3
 #define CSITX_ERR_RETRY_TIMES		3
 
+#define HDCP_KEY_KSV_SIZE		8
+#define HDCP_PRIVATE_KEY_SIZE		280
+#define HDCP_KEY_SHA_SIZE		20
+#define HDCP_KEY_SIZE			308
+#define HDCP_KEY_SEED_SIZE		2
+#define KSV_LEN				5
+
+#define HDMIRX_HDCP1X_ID		13
+
 #define USE_4_LANES			4
 #define YUV422_8BIT			0x1e
 /* Test Code: 0x44 (HS RX Control of Lane 0) */
 #define HSFREQRANGE(x)			UPDATE(x, 6, 1)
+
+struct hdcp_keys {
+	u8 KSV[HDCP_KEY_KSV_SIZE];
+	u8 devicekey[HDCP_PRIVATE_KEY_SIZE];
+	u8 sha[HDCP_KEY_SHA_SIZE];
+};
+
+struct rk628_hdcp {
+	char *seeds;
+	struct hdcp_keys *keys;
+};
 
 struct rk628_csi {
 	struct device *dev;
@@ -103,6 +124,7 @@ struct rk628_csi {
 	bool audio_present;
 	bool hpd_output_inverted;
 	bool avi_rcv_rdy;
+	struct rk628_hdcp hdcp;
 };
 
 struct rk628_csi_mode {
@@ -148,10 +170,6 @@ static u8 edid_init_data[] = {
 	0x16, 0x20, 0x58, 0x2C, 0x25, 0x00, 0xC0, 0x6C,
 	0x00, 0x00, 0x00, 0x18, 0x00, 0x00, 0x00, 0x00,
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xD8,
-};
-
-static u8 hdcp_key_data[] = {
-	0x00,
 };
 
 static const struct rk628_csi_mode supported_modes[] = {
@@ -223,6 +241,7 @@ static void rk628_csi_set_csi(struct rk628_csi *csi);
 static void rk628_hdmirx_vid_enable(struct rk628_csi *csi, bool en);
 static void rk628_hdmirx_hpd_ctrl(struct rk628_csi *csi, bool en);
 static inline bool tx_5v_power_present(struct rk628_csi *csi);
+static void rk628_csi_set_hdmi_hdcp(struct rk628_csi *csi, bool en);
 
 static struct rk628_csi *g_csi;
 
@@ -446,6 +465,7 @@ static void rk628_csi_delayed_work_enable_hotplug(struct work_struct *work)
 	dev_dbg(csi->dev, "%s: 5v_det:%d\n", __func__, plugin);
 	if (plugin) {
 		rk628_csi_enable_interrupts(csi, false);
+		rk628_csi_set_hdmi_hdcp(csi, csi->enable_hdcp);
 		rk628_hdmirx_hpd_ctrl(csi, true);
 		rk628_hdmirx_config_all(csi);
 		rk628_csi_enable_interrupts(csi, true);
@@ -484,38 +504,115 @@ static void rk628_delayed_work_res_change(struct work_struct *work)
 	mutex_unlock(&csi->confctl_mutex);
 }
 
+static int hdcp_load_keys_cb(struct rk628_csi *csi)
+{
+	struct rk628_hdcp *hdcp = &csi->hdcp;
+	int size;
+	u8 hdcp_vendor_data[320];
+
+	hdcp->keys = kmalloc(HDCP_KEY_SIZE, GFP_KERNEL);
+	if (!hdcp->keys)
+		return -ENOMEM;
+
+	hdcp->seeds = kmalloc(HDCP_KEY_SEED_SIZE, GFP_KERNEL);
+	if (!hdcp->seeds) {
+		kfree(hdcp->keys);
+		hdcp->keys = NULL;
+		return -ENOMEM;
+	}
+
+	size = rk_vendor_read(HDMIRX_HDCP1X_ID, hdcp_vendor_data, 314);
+	if (size < (HDCP_KEY_SIZE + HDCP_KEY_SEED_SIZE)) {
+		dev_dbg(csi->dev, "HDCP: read size %d\n", size);
+		kfree(hdcp->keys);
+		hdcp->keys = NULL;
+		kfree(hdcp->seeds);
+		hdcp->seeds = NULL;
+		return -EINVAL;
+	}
+	memcpy(hdcp->keys, hdcp_vendor_data, HDCP_KEY_SIZE);
+	memcpy(hdcp->seeds, hdcp_vendor_data + HDCP_KEY_SIZE,
+	       HDCP_KEY_SEED_SIZE);
+
+	return 0;
+}
+
+static int rk628_hdmi_hdcp_load_key(struct rk628_csi *csi)
+{
+	int i;
+	int ret;
+	struct hdcp_keys *hdcp_keys;
+	struct rk628_hdcp *hdcp = &csi->hdcp;
+	u32 seeds = 0;
+
+	if (!hdcp->keys) {
+		ret = hdcp_load_keys_cb(csi);
+		if (ret) {
+			dev_err(csi->dev, "HDCP: load key failed\n");
+			return ret;
+		}
+	}
+	hdcp_keys = hdcp->keys;
+
+	regmap_update_bits(csi->hdmirx_regmap, HDMI_RX_HDCP_CTRL,
+			HDCP_ENABLE_MASK |
+			HDCP_ENC_EN_MASK,
+			HDCP_ENABLE(0) |
+			HDCP_ENC_EN(0));
+	regmap_update_bits(csi->grf, GRF_SYSTEM_CON0,
+			SW_ADAPTER_I2CSLADR_MASK |
+			SW_EFUSE_HDCP_EN_MASK,
+			SW_ADAPTER_I2CSLADR(0) |
+			SW_EFUSE_HDCP_EN(1));
+	/* The useful data in ksv should be 5 byte */
+	for (i = 0; i < KSV_LEN; i++)
+		regmap_write(csi->key_regmap, HDCP_KEY_KSV0 + i * 4,
+			     hdcp_keys->KSV[i]);
+
+	for (i = 0; i < HDCP_PRIVATE_KEY_SIZE; i++)
+		regmap_write(csi->key_regmap, HDCP_KEY_DPK0 + i * 4,
+			     hdcp_keys->devicekey[i]);
+
+	regmap_update_bits(csi->grf, GRF_SYSTEM_CON0,
+			SW_ADAPTER_I2CSLADR_MASK |
+			SW_EFUSE_HDCP_EN_MASK,
+			SW_ADAPTER_I2CSLADR(0) |
+			SW_EFUSE_HDCP_EN(0));
+	regmap_update_bits(csi->hdmirx_regmap, HDMI_RX_HDCP_CTRL,
+			HDCP_ENABLE_MASK |
+			HDCP_ENC_EN_MASK,
+			HDCP_ENABLE(1) |
+			HDCP_ENC_EN(1));
+
+	/* Enable decryption logic */
+	if (hdcp->seeds) {
+		seeds = (hdcp->seeds[0] & 0xff) << 8;
+		seeds |= (hdcp->seeds[1] & 0xff);
+	}
+	if (seeds) {
+		regmap_update_bits(csi->hdmirx_regmap, HDMI_RX_HDCP_CTRL,
+				   KEY_DECRIPT_ENABLE_MASK,
+				   KEY_DECRIPT_ENABLE(1));
+		regmap_write(csi->hdmirx_regmap, HDMI_RX_HDCP_SEED, seeds);
+	} else {
+		regmap_update_bits(csi->hdmirx_regmap, HDMI_RX_HDCP_CTRL,
+				   KEY_DECRIPT_ENABLE_MASK,
+				   KEY_DECRIPT_ENABLE(0));
+	}
+
+	return 0;
+}
+
 static void rk628_csi_set_hdmi_hdcp(struct rk628_csi *csi, bool en)
 {
-	u16 i;
+	u32 val;
 
 	dev_dbg(csi->dev, "%s: %sable\n", __func__, en ? "en" : "dis");
 
 	if (en) {
-		regmap_update_bits(csi->hdmirx_regmap, HDMI_RX_HDCP_CTRL,
-				HDCP_ENABLE_MASK |
-				HDCP_ENC_EN_MASK,
-				HDCP_ENABLE(1) |
-				HDCP_ENC_EN(1));
-		regmap_update_bits(csi->grf, GRF_SYSTEM_CON0,
-				SW_ADAPTER_I2CSLADR_MASK |
-				SW_EFUSE_HDCP_EN_MASK,
-				SW_ADAPTER_I2CSLADR(0) |
-				SW_EFUSE_HDCP_EN(1));
-		for (i = 0; i < ARRAY_SIZE(hdcp_key_data); i++) {
-			regmap_write(csi->key_regmap, HDCP_KEY_BASE + i * 4,
-					hdcp_key_data[i]);
-		}
-
-		regmap_update_bits(csi->grf, GRF_SYSTEM_CON0,
-				SW_ADAPTER_I2CSLADR_MASK |
-				SW_EFUSE_HDCP_EN_MASK,
-				SW_ADAPTER_I2CSLADR(0) |
-				SW_EFUSE_HDCP_EN(0));
-		regmap_update_bits(csi->hdmirx_regmap, HDMI_RX_HDCP_CTRL,
-				HDCP_ENABLE_MASK |
-				HDCP_ENC_EN_MASK,
-				HDCP_ENABLE(1) |
-				HDCP_ENC_EN(1));
+		regmap_read(csi->hdmirx_regmap, HDMI_RX_HDCP_CTRL, &val);
+		if (!(val & HDCP_ENABLE_MASK))
+			rk628_hdmi_hdcp_load_key(csi);
 	} else {
 		regmap_update_bits(csi->hdmirx_regmap, HDMI_RX_HDCP_CTRL,
 				HDCP_ENABLE_MASK |
@@ -1136,6 +1233,16 @@ static void rk628_hdmirx_controller_setup(struct rk628_csi *csi)
 	regmap_write(csi->hdmirx_regmap, HDMI_RX_HDMI_CKM_EVLTM, 0x00103e70);
 	regmap_write(csi->hdmirx_regmap, HDMI_RX_HDMI_CKM_F, 0x0c1c0b54);
 	regmap_write(csi->hdmirx_regmap, HDMI_RX_HDMI_RESMPL_CTRL, 0x00000001);
+
+	regmap_update_bits(csi->hdmirx_regmap, HDMI_RX_HDCP_SETTINGS,
+			   HDMI_RESERVED_MASK |
+			   FAST_I2C_MASK |
+			   ONE_DOT_ONE_MASK |
+			   FAST_REAUTH_MASK,
+			   HDMI_RESERVED(1) |
+			   FAST_I2C(0) |
+			   ONE_DOT_ONE(0) |
+			   FAST_REAUTH(0));
 }
 
 static bool rk628_rcv_supported_res(struct rk628_csi *csi, u32 width,
@@ -1251,18 +1358,14 @@ static void rk628_csi_initial_setup(struct rk628_csi *csi)
 	def_edid.blocks = 2;
 	def_edid.edid = edid_init_data;
 	rk628_csi_s_edid(csi, &def_edid);
-	rk628_csi_set_hdmi_hdcp(csi, csi->enable_hdcp);
+	rk628_csi_set_hdmi_hdcp(csi, false);
 	rk628_hdmirx_audio_setup(csi);
 
 	mipi_dphy_reset(csi);
 	mipi_dphy_power_on(csi);
 	csi->txphy_pwron = true;
-	if (tx_5v_power_present(csi)) {
-		rk628_hdmirx_config_all(csi);
-		regmap_update_bits(csi->grf, GRF_SYSTEM_CON0,
-				SW_I2S_DATA_OEN_MASK, SW_I2S_DATA_OEN(0));
-		schedule_delayed_work(&csi->delayed_work_audio, msecs_to_jiffies(1000));
-	}
+	if (tx_5v_power_present(csi))
+		schedule_delayed_work(&csi->delayed_work_enable_hotplug, msecs_to_jiffies(1000));
 }
 
 static void rk628_csi_format_change(struct rk628_csi *csi)
@@ -1713,6 +1816,7 @@ static int rk628_csi_probe_of(struct rk628_csi *csi)
 {
 	struct device *dev = csi->dev;
 	int ret = -EINVAL;
+	bool hdcp1x_enable = false;
 
 	csi->clk_hdmirx = devm_clk_get(dev, "hdmirx");
 	if (IS_ERR(csi->clk_hdmirx)) {
@@ -1846,8 +1950,11 @@ static int rk628_csi_probe_of(struct rk628_csi *csi)
 		return ret;
 	}
 
+	if (of_property_read_bool(dev->of_node, "hdcp-enable"))
+		hdcp1x_enable = true;
+
 	csi->csi_lanes_in_use = USE_4_LANES;
-	csi->enable_hdcp = false;
+	csi->enable_hdcp = hdcp1x_enable;
 	csi->rxphy_pwron = false;
 	csi->txphy_pwron = false;
 	csi->nosignal = true;
