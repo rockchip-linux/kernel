@@ -62,6 +62,21 @@ static inline int rockchip_soc_id_init(void)
 #define ROCKCHIP_CPU_RK312X     0x31260000
 #define ROCKCHIP_CPU_RK3288     0x32880000
 #define ROCKCHIP_CPU_RK3308	0x33080000
+#define ROCKCHIP_CPU_PX30	0x33260000
+
+#ifdef CONFIG_CPU_PX30
+static inline bool cpu_is_px30(void)
+{
+	if (rockchip_soc_id)
+		return (rockchip_soc_id & ROCKCHIP_CPU_MASK) == ROCKCHIP_CPU_PX30;
+	return of_machine_is_compatible("rockchip,px30") ||
+	       of_machine_is_compatible("rockchip,px30s") ||
+	       of_machine_is_compatible("rockchip,rk3326") ||
+	       of_machine_is_compatible("rockchip,rk3326s");
+}
+#else
+static inline bool cpu_is_px30(void) { return false; }
+#endif
 
 #ifdef CONFIG_CPU_RK312X
 static inline bool cpu_is_rk312x(void)
@@ -103,6 +118,8 @@ static inline bool cpu_is_rk3308(void) { return false; }
 #endif
 
 #define ROCKCHIP_SOC_MASK	(ROCKCHIP_CPU_MASK | 0xff)
+#define ROCKCHIP_SOC_PX30	(ROCKCHIP_CPU_PX30 | 0x00)
+#define ROCKCHIP_SOC_PX30S	(ROCKCHIP_CPU_PX30 | 0x01)
 #define ROCKCHIP_SOC_RK3126     (ROCKCHIP_CPU_RK312X | 0x00)
 #define ROCKCHIP_SOC_RK3126B    (ROCKCHIP_CPU_RK312X | 0x10)
 #define ROCKCHIP_SOC_RK3126C    (ROCKCHIP_CPU_RK312X | 0x20)
@@ -121,6 +138,8 @@ static inline bool soc_is_##id(void) \
 	return of_machine_is_compatible("rockchip,"#id); \
 }
 
+ROCKCHIP_SOC(px30, PX30)
+ROCKCHIP_SOC(px30s, PX30S)
 ROCKCHIP_SOC(rk3126, RK3126)
 ROCKCHIP_SOC(rk3126b, RK3126B)
 ROCKCHIP_SOC(rk3126c, RK3126C)
