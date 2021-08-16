@@ -610,7 +610,7 @@ static int hdcp_load_keys_cb(struct rk628_csi *csi)
 		hdcp->keys = NULL;
 		kfree(hdcp->seeds);
 		hdcp->seeds = NULL;
-		return size;
+		return -EINVAL;
 	}
 	memcpy(hdcp->keys, hdcp_vendor_data, HDCP_KEY_SIZE);
 	memcpy(hdcp->seeds, hdcp_vendor_data + HDCP_KEY_SIZE,
@@ -1629,7 +1629,7 @@ static void rk628_csi_initial_setup(struct v4l2_subdev *sd)
 	mipi_dphy_power_on(csi);
 	csi->txphy_pwron = true;
 	if (tx_5v_power_present(sd))
-		schedule_delayed_work(&csi->delayed_work_enable_hotplug, 1000);
+		schedule_delayed_work(&csi->delayed_work_enable_hotplug, msecs_to_jiffies(1000));
 }
 
 static void rk628_csi_format_change(struct v4l2_subdev *sd)
