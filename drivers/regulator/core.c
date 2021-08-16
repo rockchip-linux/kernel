@@ -2343,8 +2343,14 @@ static int _regulator_enable(struct regulator_dev *rdev)
 			if (ret < 0)
 				return ret;
 
-			_notifier_call_chain(rdev, REGULATOR_EVENT_ENABLE,
-					     NULL);
+			if (IS_ENABLED(CONFIG_CPU_RV1126)) {
+				ret = _regulator_get_voltage(rdev);
+				_notifier_call_chain(rdev, REGULATOR_EVENT_ENABLE,
+						     &ret);
+			} else {
+				_notifier_call_chain(rdev, REGULATOR_EVENT_ENABLE,
+						     NULL);
+			}
 		} else if (ret < 0) {
 			rdev_err(rdev, "is_enabled() failed: %d\n", ret);
 			return ret;
