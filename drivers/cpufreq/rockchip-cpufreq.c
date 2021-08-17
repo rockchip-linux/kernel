@@ -55,8 +55,9 @@ struct cluster_info {
 };
 static LIST_HEAD(cluster_info_list);
 
-static int px30_get_soc_info(struct device *dev, struct device_node *np,
-			     int *bin, int *process)
+static __maybe_unused int px30_get_soc_info(struct device *dev,
+					    struct device_node *np,
+					    int *bin, int *process)
 {
 	int ret = 0;
 	u8 value = 0;
@@ -79,8 +80,9 @@ static int px30_get_soc_info(struct device *dev, struct device_node *np,
 	return ret;
 }
 
-static int rk3288_get_soc_info(struct device *dev, struct device_node *np,
-			       int *bin, int *process)
+static __maybe_unused int rk3288_get_soc_info(struct device *dev,
+					      struct device_node *np,
+					      int *bin, int *process)
 {
 	int ret = 0;
 	u8 value = 0;
@@ -139,8 +141,9 @@ out:
 	return ret;
 }
 
-static int rk3399_get_soc_info(struct device *dev, struct device_node *np,
-			       int *bin, int *process)
+static __maybe_unused int rk3399_get_soc_info(struct device *dev,
+					      struct device_node *np,
+					      int *bin, int *process)
 {
 	int ret = 0;
 	u8 value = 0;
@@ -188,8 +191,9 @@ out:
 	return ret;
 }
 
-static int rv1126_get_soc_info(struct device *dev, struct device_node *np,
-			       int *bin, int *process)
+static __maybe_unused int rv1126_get_soc_info(struct device *dev,
+					      struct device_node *np,
+					      int *bin, int *process)
 {
 	int ret = 0;
 	u8 value = 0;
@@ -212,10 +216,13 @@ static int rv1126_get_soc_info(struct device *dev, struct device_node *np,
 }
 
 static const struct of_device_id rockchip_cpufreq_of_match[] = {
+#ifdef CONFIG_CPU_PX30
 	{
 		.compatible = "rockchip,px30",
 		.data = (void *)&px30_get_soc_info,
 	},
+#endif
+#ifdef CONFIG_CPU_RK3288
 	{
 		.compatible = "rockchip,rk3288",
 		.data = (void *)&rk3288_get_soc_info,
@@ -224,14 +231,20 @@ static const struct of_device_id rockchip_cpufreq_of_match[] = {
 		.compatible = "rockchip,rk3288w",
 		.data = (void *)&rk3288_get_soc_info,
 	},
+#endif
+#ifdef CONFIG_CPU_PX30
 	{
 		.compatible = "rockchip,rk3326",
 		.data = (void *)&px30_get_soc_info,
 	},
+#endif
+#ifdef CONFIG_CPU_RK3399
 	{
 		.compatible = "rockchip,rk3399",
 		.data = (void *)&rk3399_get_soc_info,
 	},
+#endif
+#ifdef CONFIG_CPU_RV1126
 	{
 		.compatible = "rockchip,rv1109",
 		.data = (void *)&rv1126_get_soc_info,
@@ -240,6 +253,7 @@ static const struct of_device_id rockchip_cpufreq_of_match[] = {
 		.compatible = "rockchip,rv1126",
 		.data = (void *)&rv1126_get_soc_info,
 	},
+#endif
 	{},
 };
 
