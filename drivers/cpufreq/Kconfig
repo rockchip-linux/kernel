@@ -246,7 +246,7 @@ config CPUFREQ_DT
 	depends on HAVE_CLK && OF
 	# if CPU_THERMAL is on and THERMAL=m, CPUFREQ_DT cannot be =y:
 	depends on !CPU_THERMAL || THERMAL
-	select CPUFREQ_DT_PLATDEV
+	select CPUFREQ_DT_PLATDEV if !ARM_ROCKCHIP_CPUFREQ
 	select PM_OPP
 	help
 	  This adds a generic DT based cpufreq driver for frequency management.
