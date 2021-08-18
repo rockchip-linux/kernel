@@ -11,6 +11,7 @@ dtbo-$(CONFIG_ARCH_ROCKCHIP) += \
 	spi1-waveshare35c.dtbo \
 	spi1-waveshare35b-v2.dtbo \
 	spi1-flash.dtbo \
+	spi1-mcp2515-can0.dtbo \
 	hifiberry-dac.dtbo \
 	hifiberry-dacplus.dtbo \
 	raspberrypi-7-inch-lcd.dtbo \

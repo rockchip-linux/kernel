@@ -1,0 +1,54 @@
+//This devicetree overlay is used for RS485 CAN HAT.
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "rockchip,rockpi","rockchip,rk3399";
+
+	fragment@0 {
+		target = <&pinctrl>;
+
+		__overlay__ {
+			mcp2515_int_pin: mcp2515_int_pin {
+				rockchip,pins = <4 29 0 &pcfg_pull_none>;
+			};
+		};		
+	};
+
+	fragment@1 {
+		target-path = "/";
+
+		__overlay__ {
+			can_mcp2515_osc: can-mcp2515-osc {
+				compatible = "fixed-clock";
+				clock-frequency = <12000000>;
+				#clock-cells = <0>;
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&spi1>;
+
+		__overlay__ {
+			status = "okay";
+			max-freq = <10000000>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			can_mcp2515: can-mcp2515@0 {
+				status = "okay";
+				compatible = "microchip,mcp2515";
+				reg = <0>;
+				interrupt-parent = <&gpio4>;
+				interrupts = <29 2>;
+				spi-max-frequency = <10000000>;
+				clocks = <&can_mcp2515_osc>;
+				vdd-supply = <&vcc3v3_sys>;
+				xceiver-supply = <&vcc3v3_sys>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&mcp2515_int_pin>;
+			};
+		};
+	};
+};

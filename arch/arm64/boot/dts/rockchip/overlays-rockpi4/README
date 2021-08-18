@@ -181,6 +181,12 @@ Info:   Overlay for activation of 1-wire on GPIO4_D6 for devices such as
         DS18B20.
 Load:   intfc:dtoverlay=w1-gpio4-30
 
+
 Name:   gt9xx
 Info:   Overlay for activation of gt9xx touchpanel.
 Load:   intfc:dtoverlay=gt9xx
+
+
+Name:   spi1-mcp2515-can0
+Info:   Overlay for activation of can function of waveshare ra485 can hat.
+Load:   intfc:dtoverlay=spi1-mcp2515-can0
