@@ -668,18 +668,30 @@ static const struct regmap_config rockchip_pdm_regmap_config = {
 };
 
 static const struct of_device_id rockchip_pdm_match[] = {
+#ifdef CONFIG_CPU_PX30
 	{ .compatible = "rockchip,px30-pdm",
 	  .data = (void *)RK_PDM_RK3308 },
+#endif
+#ifdef CONFIG_CPU_RK1808
 	{ .compatible = "rockchip,rk1808-pdm",
 	  .data = (void *)RK_PDM_RK3308 },
+#endif
+#ifdef CONFIG_CPU_RK3308
 	{ .compatible = "rockchip,rk3308-pdm",
 	  .data = (void *)RK_PDM_RK3308 },
+#endif
+#ifdef CONFIG_CPU_RK3328
 	{ .compatible = "rockchip,rk3328-pdm",
 	  .data = (void *)RK_PDM_RK3328 },
+#endif
+#ifdef CONFIG_CPU_RK3568
 	{ .compatible = "rockchip,rk3568-pdm",
 	  .data = (void *)RK_PDM_RV1126 },
+#endif
+#ifdef CONFIG_CPU_RV1126
 	{ .compatible = "rockchip,rv1126-pdm",
 	  .data = (void *)RK_PDM_RV1126 },
+#endif
 	{},
 };
 MODULE_DEVICE_TABLE(of, rockchip_pdm_match);
