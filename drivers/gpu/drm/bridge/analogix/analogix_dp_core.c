@@ -137,24 +137,23 @@ static void analogix_dp_training_pattern_dis(struct analogix_dp_device *dp)
 			   DP_TRAINING_PATTERN_DISABLE);
 }
 
-static void
-analogix_dp_set_lane_lane_pre_emphasis(struct analogix_dp_device *dp,
-				       int pre_emphasis, int lane)
+static void analogix_dp_set_lane_link_training(struct analogix_dp_device *dp,
+					       u8 training_lane_set, int lane)
 {
 	switch (lane) {
 	case 0:
-		analogix_dp_set_lane0_pre_emphasis(dp, pre_emphasis);
+		analogix_dp_set_lane0_link_training(dp, training_lane_set);
 		break;
 	case 1:
-		analogix_dp_set_lane1_pre_emphasis(dp, pre_emphasis);
+		analogix_dp_set_lane1_link_training(dp, training_lane_set);
 		break;
 
 	case 2:
-		analogix_dp_set_lane2_pre_emphasis(dp, pre_emphasis);
+		analogix_dp_set_lane2_link_training(dp, training_lane_set);
 		break;
 
 	case 3:
-		analogix_dp_set_lane3_pre_emphasis(dp, pre_emphasis);
+		analogix_dp_set_lane3_link_training(dp, training_lane_set);
 		break;
 	}
 }
@@ -207,11 +206,6 @@ static int analogix_dp_link_start(struct analogix_dp_device *dp)
 			return retval;
 	}
 
-	/* Set TX pre-emphasis to minimum */
-	for (lane = 0; lane < lane_count; lane++)
-		analogix_dp_set_lane_lane_pre_emphasis(dp,
-			PRE_EMPHASIS_LEVEL_0, lane);
-
 	/* Wait for PLL lock */
 	pll_tries = 0;
 	while (analogix_dp_get_pll_lock_status(dp) == PLL_UNLOCKED) {
@@ -224,6 +218,18 @@ static int analogix_dp_link_start(struct analogix_dp_device *dp)
 		usleep_range(90, 120);
 	}
 
+	/* Set TX voltage-swing & pre-emphasis to minimum */
+	for (lane = 0; lane < lane_count; lane++) {
+		buf[lane] = DP_TRAIN_PRE_EMPH_LEVEL_0 |
+			    DP_TRAIN_VOLTAGE_SWING_LEVEL_0;
+		analogix_dp_set_lane_link_training(dp, buf[lane], lane);
+	}
+
+	retval = drm_dp_dpcd_write(&dp->aux, DP_TRAINING_LANE0_SET, buf,
+				   lane_count);
+	if (retval < 0)
+		return retval;
+
 	/* Set training pattern 1 */
 	analogix_dp_set_training_pattern(dp, TRAINING_PTN1);
 
@@ -231,15 +237,6 @@ static int analogix_dp_link_start(struct analogix_dp_device *dp)
 	retval = drm_dp_dpcd_writeb(&dp->aux, DP_TRAINING_PATTERN_SET,
 				    DP_LINK_SCRAMBLING_DISABLE |
 					DP_TRAINING_PATTERN_1);
-	if (retval < 0)
-		return retval;
-
-	for (lane = 0; lane < lane_count; lane++)
-		buf[lane] = DP_TRAIN_PRE_EMPH_LEVEL_0 |
-			    DP_TRAIN_VOLTAGE_SWING_LEVEL_0;
-
-	retval = drm_dp_dpcd_write(&dp->aux, DP_TRAINING_LANE0_SET, buf,
-				   lane_count);
 	if (retval < 0)
 		return retval;
 
@@ -303,27 +300,6 @@ static unsigned char analogix_dp_get_adjust_request_pre_emphasis(
 	u8 link_value = adjust_request[lane >> 1];
 
 	return ((link_value >> shift) & 0xc) >> 2;
-}
-
-static void analogix_dp_set_lane_link_training(struct analogix_dp_device *dp,
-					       u8 training_lane_set, int lane)
-{
-	switch (lane) {
-	case 0:
-		analogix_dp_set_lane0_link_training(dp, training_lane_set);
-		break;
-	case 1:
-		analogix_dp_set_lane1_link_training(dp, training_lane_set);
-		break;
-
-	case 2:
-		analogix_dp_set_lane2_link_training(dp, training_lane_set);
-		break;
-
-	case 3:
-		analogix_dp_set_lane3_link_training(dp, training_lane_set);
-		break;
-	}
 }
 
 static unsigned int

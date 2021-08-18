@@ -46,7 +46,8 @@
 #define ANALOGIX_DP_PLL_REG_4			0x9ec
 #define ANALOGIX_DP_PLL_REG_5			0xa00
 
-#define ANALOIGX_DP_SSC_REG			0x104
+#define ANALOGIX_DP_SSC_REG			0x104
+#define ANALOGIX_DP_AUX				0x120
 #define ANALOGIX_DP_BIAS			0x124
 #define ANALOGIX_DP_PD				0x12c
 
@@ -122,6 +123,16 @@
 #define ANALOGIX_DP_BUF_DATA_0			0x7C0
 
 #define ANALOGIX_DP_SOC_GENERAL_CTL		0x800
+#define ANALOGIX_DP_ANALOG_CTL_36		0x990
+#define ANALOGIX_DP_ANALOG_CTL_37		0x994
+#define ANALOGIX_DP_ANALOG_CTL_39		0x99C
+#define ANALOGIX_DP_ANALOG_CTL_40		0x9A0
+#define ANALOGIX_DP_ANALOG_CTL_42		0x9A8
+#define ANALOGIX_DP_ANALOG_CTL_43		0x9AC
+#define ANALOGIX_DP_ANALOG_CTL_44		0x9B0
+#define ANALOGIX_DP_ANALOG_CTL_46		0x9B8
+#define ANALOGIX_DP_ANALOG_CTL_47		0x9BC
+#define ANALOGIX_DP_ANALOG_CTL_49		0x9C4
 
 /* ANALOGIX_DP_TX_SW_RESET */
 #define RESET_DP_TX				(0x1 << 0)
@@ -452,5 +463,17 @@
 #define VIDEO_MODE_MASK				(0x1 << 0)
 #define VIDEO_MODE_SLAVE_MODE			(0x1 << 0)
 #define VIDEO_MODE_MASTER_MODE			(0x0 << 0)
+
+/* ANALOGIX_DP_ANALOG_CTL_42 */
+#define R_FORCE_CH1_AMP				(0x1 << 5)
+#define R_FORCE_CH1_EMP				(0x1 << 4)
+#define R_FORCE_CH0_AMP				(0x1 << 2)
+#define R_FORCE_CH0_EMP				(0x1 << 1)
+
+/* ANALOGIX_DP_ANALOG_CTL_49 */
+#define R_FORCE_CH3_AMP				(0x1 << 5)
+#define R_FORCE_CH3_EMP				(0x1 << 4)
+#define R_FORCE_CH2_AMP				(0x1 << 2)
+#define R_FORCE_CH2_EMP				(0x1 << 1)
 
 #endif /* _ANALOGIX_DP_REG_H */

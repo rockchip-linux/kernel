@@ -116,6 +116,8 @@ void analogix_dp_init_analog_param(struct analogix_dp_device *dp)
 	reg = CH3_AMP_400_MV | CH2_AMP_400_MV |
 		CH1_AMP_400_MV | CH0_AMP_400_MV;
 	analogix_dp_write(dp, ANALOGIX_DP_TX_AMP_TUNING_CTL, reg);
+
+	analogix_dp_write(dp, ANALOGIX_DP_AUX, 0x4);
 }
 
 void analogix_dp_init_interrupt(struct analogix_dp_device *dp)
@@ -583,84 +585,220 @@ void analogix_dp_set_training_pattern(struct analogix_dp_device *dp,
 	}
 }
 
-void analogix_dp_set_lane0_pre_emphasis(struct analogix_dp_device *dp,
-					u32 level)
-{
-	u32 reg;
+struct swing_pre_emp_ctrl {
+	u8 amp;
+	u8 emp;
+};
 
-	reg = analogix_dp_read(dp, ANALOGIX_DP_LN0_LINK_TRAINING_CTL);
-	reg &= ~PRE_EMPHASIS_SET_MASK;
-	reg |= level << PRE_EMPHASIS_SET_SHIFT;
-	analogix_dp_write(dp, ANALOGIX_DP_LN0_LINK_TRAINING_CTL, reg);
-}
+static const struct swing_pre_emp_ctrl swing_pre_emp_ctrl_rbr[4][4] = {
+	/* voltage swing 0, pre-emphasis 0->3 */
+	{
+		{ .amp = 0x50, .emp = 0x00 },
+		{ .amp = 0x6c, .emp = 0x28 },
+		{ .amp = 0x80, .emp = 0x60 },
+		{ .amp = 0xb0, .emp = 0xc4 },
+	},
+	/* voltage swing 1, pre-emphasis 0->3 */
+	{
+		{ .amp = 0x78, .emp = 0x00 },
+		{ .amp = 0xa4, .emp = 0x50 },
+		{ .amp = 0xcc, .emp = 0xa6 },
+	},
+	/* voltage swing 2, pre-emphasis 0->3 */
+	{
+		{ .amp = 0xa0, .emp = 0x00 },
+		{ .amp = 0xe4, .emp = 0x72 },
+	},
+	/* voltage swing 3, pre-emphasis 0->3 */
+	{
+		{ .amp = 0xf0, .emp = 0x00 },
+	},
+};
 
-void analogix_dp_set_lane1_pre_emphasis(struct analogix_dp_device *dp,
-					u32 level)
-{
-	u32 reg;
+static const struct swing_pre_emp_ctrl swing_pre_emp_ctrl_hbr[4][4] = {
+	/* voltage swing 0, pre-emphasis 0->3 */
+	{
+		{ .amp = 0x50, .emp = 0x00 },
+		{ .amp = 0x6c, .emp = 0x34 },
+		{ .amp = 0x80, .emp = 0x64 },
+		{ .amp = 0xb8, .emp = 0xdc },
+	},
+	/* voltage swing 1, pre-emphasis 0->3 */
+	{
+		{ .amp = 0x78, .emp = 0x00 },
+		{ .amp = 0xa8, .emp = 0x58 },
+		{ .amp = 0xcc, .emp = 0xa8 },
+	},
+	/* voltage swing 2, pre-emphasis 0->3 */
+	{
+		{ .amp = 0xa0, .emp = 0x00 },
+		{ .amp = 0xdd, .emp = 0x74 },
+	},
+	/* voltage swing 3, pre-emphasis 0->3 */
+	{
+		{ .amp = 0xf0, .emp = 0x00 },
+	},
+};
 
-	reg = analogix_dp_read(dp, ANALOGIX_DP_LN1_LINK_TRAINING_CTL);
-	reg &= ~PRE_EMPHASIS_SET_MASK;
-	reg |= level << PRE_EMPHASIS_SET_SHIFT;
-	analogix_dp_write(dp, ANALOGIX_DP_LN1_LINK_TRAINING_CTL, reg);
-}
-
-void analogix_dp_set_lane2_pre_emphasis(struct analogix_dp_device *dp,
-					u32 level)
-{
-	u32 reg;
-
-	reg = analogix_dp_read(dp, ANALOGIX_DP_LN2_LINK_TRAINING_CTL);
-	reg &= ~PRE_EMPHASIS_SET_MASK;
-	reg |= level << PRE_EMPHASIS_SET_SHIFT;
-	analogix_dp_write(dp, ANALOGIX_DP_LN2_LINK_TRAINING_CTL, reg);
-}
-
-void analogix_dp_set_lane3_pre_emphasis(struct analogix_dp_device *dp,
-					u32 level)
-{
-	u32 reg;
-
-	reg = analogix_dp_read(dp, ANALOGIX_DP_LN3_LINK_TRAINING_CTL);
-	reg &= ~PRE_EMPHASIS_SET_MASK;
-	reg |= level << PRE_EMPHASIS_SET_SHIFT;
-	analogix_dp_write(dp, ANALOGIX_DP_LN3_LINK_TRAINING_CTL, reg);
-}
+static const struct swing_pre_emp_ctrl swing_pre_emp_ctrl_hbr2[4][4] = {
+	/* voltage swing 0, pre-emphasis 0->3 */
+	{
+		{ .amp = 0x64, .emp = 0x1c },
+		{ .amp = 0x90, .emp = 0x78 },
+		{ .amp = 0xc4, .emp = 0xe0 },
+		{ .amp = 0xa0, .emp = 0xa0 },
+	},
+	/* voltage swing 1, pre-emphasis 0->3 */
+	{
+		{ .amp = 0x9c, .emp = 0x3c },
+		{ .amp = 0xe8, .emp = 0xd0 },
+		{ .amp = 0xb4, .emp = 0x78 },
+	},
+	/* voltage swing 2, pre-emphasis 0->3 */
+	{
+		{ .amp = 0xe0, .emp = 0x68 },
+		{ .amp = 0xe8, .emp = 0xd0 },
+	},
+	/* voltage swing 3, pre-emphasis 0->3 */
+	{
+		{ .amp = 0xf0, .emp = 0x00 },
+	},
+};
 
 void analogix_dp_set_lane0_link_training(struct analogix_dp_device *dp,
 					 u32 training_lane)
 {
+	const struct swing_pre_emp_ctrl *ctrl;
+	u8 voltage_swing = (training_lane & DP_TRAIN_VOLTAGE_SWING_MASK) >>
+			   DP_TRAIN_VOLTAGE_SWING_SHIFT;
+	u8 pre_emphasis = (training_lane & DP_TRAIN_PRE_EMPHASIS_MASK) >>
+			  DP_TRAIN_PRE_EMPHASIS_SHIFT;
 	u32 reg;
+
+	switch (dp->link_train.link_rate) {
+	case DP_LINK_BW_1_62:
+		ctrl = &swing_pre_emp_ctrl_rbr[voltage_swing][pre_emphasis];
+		break;
+	case DP_LINK_BW_2_7:
+		ctrl = &swing_pre_emp_ctrl_hbr[voltage_swing][pre_emphasis];
+		break;
+	case DP_LINK_BW_5_4:
+	default:
+		ctrl = &swing_pre_emp_ctrl_hbr2[voltage_swing][pre_emphasis];
+		break;
+	}
 
 	reg = training_lane;
 	analogix_dp_write(dp, ANALOGIX_DP_LN0_LINK_TRAINING_CTL, reg);
+
+	reg = analogix_dp_read(dp, ANALOGIX_DP_ANALOG_CTL_42);
+	reg |= R_FORCE_CH0_AMP | R_FORCE_CH0_EMP;
+	analogix_dp_write(dp, ANALOGIX_DP_ANALOG_CTL_42, reg);
+
+	analogix_dp_write(dp, ANALOGIX_DP_ANALOG_CTL_36, ctrl->amp);
+	analogix_dp_write(dp, ANALOGIX_DP_ANALOG_CTL_37, ctrl->emp);
 }
 
 void analogix_dp_set_lane1_link_training(struct analogix_dp_device *dp,
 					 u32 training_lane)
 {
+	const struct swing_pre_emp_ctrl *ctrl;
+	u8 voltage_swing = (training_lane & DP_TRAIN_VOLTAGE_SWING_MASK) >>
+			   DP_TRAIN_VOLTAGE_SWING_SHIFT;
+	u8 pre_emphasis = (training_lane & DP_TRAIN_PRE_EMPHASIS_MASK) >>
+			  DP_TRAIN_PRE_EMPHASIS_SHIFT;
 	u32 reg;
+
+	switch (dp->link_train.link_rate) {
+	case DP_LINK_BW_1_62:
+		ctrl = &swing_pre_emp_ctrl_rbr[voltage_swing][pre_emphasis];
+		break;
+	case DP_LINK_BW_2_7:
+		ctrl = &swing_pre_emp_ctrl_hbr[voltage_swing][pre_emphasis];
+		break;
+	case DP_LINK_BW_5_4:
+	default:
+		ctrl = &swing_pre_emp_ctrl_hbr2[voltage_swing][pre_emphasis];
+		break;
+	}
 
 	reg = training_lane;
 	analogix_dp_write(dp, ANALOGIX_DP_LN1_LINK_TRAINING_CTL, reg);
+
+	reg = analogix_dp_read(dp, ANALOGIX_DP_ANALOG_CTL_42);
+	reg |= R_FORCE_CH1_AMP | R_FORCE_CH1_EMP;
+	analogix_dp_write(dp, ANALOGIX_DP_ANALOG_CTL_42, reg);
+
+	analogix_dp_write(dp, ANALOGIX_DP_ANALOG_CTL_39, ctrl->amp);
+	analogix_dp_write(dp, ANALOGIX_DP_ANALOG_CTL_40, ctrl->emp);
 }
 
 void analogix_dp_set_lane2_link_training(struct analogix_dp_device *dp,
 					 u32 training_lane)
 {
+	const struct swing_pre_emp_ctrl *ctrl;
+	u8 voltage_swing = (training_lane & DP_TRAIN_VOLTAGE_SWING_MASK) >>
+			   DP_TRAIN_VOLTAGE_SWING_SHIFT;
+	u8 pre_emphasis = (training_lane & DP_TRAIN_PRE_EMPHASIS_MASK) >>
+			  DP_TRAIN_PRE_EMPHASIS_SHIFT;
 	u32 reg;
+
+	switch (dp->link_train.link_rate) {
+	case DP_LINK_BW_1_62:
+		ctrl = &swing_pre_emp_ctrl_rbr[voltage_swing][pre_emphasis];
+		break;
+	case DP_LINK_BW_2_7:
+		ctrl = &swing_pre_emp_ctrl_hbr[voltage_swing][pre_emphasis];
+		break;
+	case DP_LINK_BW_5_4:
+	default:
+		ctrl = &swing_pre_emp_ctrl_hbr2[voltage_swing][pre_emphasis];
+		break;
+	}
 
 	reg = training_lane;
 	analogix_dp_write(dp, ANALOGIX_DP_LN2_LINK_TRAINING_CTL, reg);
+
+	reg = analogix_dp_read(dp, ANALOGIX_DP_ANALOG_CTL_49);
+	reg |= R_FORCE_CH2_AMP | R_FORCE_CH2_EMP;
+	analogix_dp_write(dp, ANALOGIX_DP_ANALOG_CTL_49, reg);
+
+	analogix_dp_write(dp, ANALOGIX_DP_ANALOG_CTL_43, ctrl->amp);
+	analogix_dp_write(dp, ANALOGIX_DP_ANALOG_CTL_44, ctrl->emp);
 }
 
 void analogix_dp_set_lane3_link_training(struct analogix_dp_device *dp,
 					 u32 training_lane)
 {
+	const struct swing_pre_emp_ctrl *ctrl;
+	u8 voltage_swing = (training_lane & DP_TRAIN_VOLTAGE_SWING_MASK) >>
+			   DP_TRAIN_VOLTAGE_SWING_SHIFT;
+	u8 pre_emphasis = (training_lane & DP_TRAIN_PRE_EMPHASIS_MASK) >>
+			  DP_TRAIN_PRE_EMPHASIS_SHIFT;
 	u32 reg;
+
+	switch (dp->link_train.link_rate) {
+	case DP_LINK_BW_1_62:
+		ctrl = &swing_pre_emp_ctrl_rbr[voltage_swing][pre_emphasis];
+		break;
+	case DP_LINK_BW_2_7:
+		ctrl = &swing_pre_emp_ctrl_hbr[voltage_swing][pre_emphasis];
+		break;
+	case DP_LINK_BW_5_4:
+	default:
+		ctrl = &swing_pre_emp_ctrl_hbr2[voltage_swing][pre_emphasis];
+		break;
+	}
 
 	reg = training_lane;
 	analogix_dp_write(dp, ANALOGIX_DP_LN3_LINK_TRAINING_CTL, reg);
+
+	reg = analogix_dp_read(dp, ANALOGIX_DP_ANALOG_CTL_49);
+	reg |= R_FORCE_CH3_AMP | R_FORCE_CH3_EMP;
+	analogix_dp_write(dp, ANALOGIX_DP_ANALOG_CTL_49, reg);
+
+	analogix_dp_write(dp, ANALOGIX_DP_ANALOG_CTL_46, ctrl->amp);
+	analogix_dp_write(dp, ANALOGIX_DP_ANALOG_CTL_47, ctrl->emp);
 }
 
 u32 analogix_dp_get_lane0_link_training(struct analogix_dp_device *dp)
@@ -1100,8 +1238,7 @@ void analogix_dp_ssc_enable(struct analogix_dp_device *dp)
 {
 	u8 reg;
 
-	/* 4500ppm */
-	analogix_dp_write(dp, ANALOIGX_DP_SSC_REG, 0x19);
+	analogix_dp_write(dp, ANALOGIX_DP_SSC_REG, 0x17);
 	/*
 	 * To apply updated SSC parameters into SSC operation,
 	 * firmware must disable and enable this bit.
