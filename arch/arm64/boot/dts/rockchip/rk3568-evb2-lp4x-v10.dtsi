@@ -39,6 +39,7 @@
 		regulator-max-microvolt = <3300000>;
 		enable-active-high;
 		gpio = <&gpio0 RK_PD4 GPIO_ACTIVE_HIGH>;
+		startup-delay-us = <5000>;
 		vin-supply = <&dc_12v>;
 	};
 
