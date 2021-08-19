@@ -296,8 +296,10 @@ disconnect:
 		 * We should set drd_connected to false before
 		 * runtime_suspend to enable reset assert.
 		 */
-		dwc->drd_connected = false;
-		pm_runtime_put_sync_suspend(dwc->dev);
+		if (dwc->drd_connected) {
+			dwc->drd_connected = false;
+			pm_runtime_put_sync_suspend(dwc->dev);
+		}
 	}
 }
 
