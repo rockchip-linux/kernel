@@ -1554,8 +1554,11 @@ static void dw_mci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 		if (!IS_ERR(mmc->supply.vmmc))
 			mmc_regulator_set_ocr(mmc, mmc->supply.vmmc, 0);
 
-		if (!IS_ERR(mmc->supply.vqmmc) && slot->host->vqmmc_enabled)
+		if (!IS_ERR(mmc->supply.vqmmc) && slot->host->vqmmc_enabled) {
+			ios->signal_voltage = MMC_SIGNAL_VOLTAGE_330;
+			mmc_regulator_set_vqmmc(mmc, ios);
 			regulator_disable(mmc->supply.vqmmc);
+		}
 		slot->host->vqmmc_enabled = false;
 
 		regs = mci_readl(slot->host, PWREN);
