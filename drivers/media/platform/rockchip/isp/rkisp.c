@@ -515,15 +515,16 @@ void rkisp_trigger_read_back(struct rkisp_device *dev, u8 dma2frm, u32 mode, boo
 	}
 
 	if (dev->isp_ver == ISP_V20 && dev->dmarx_dev.trigger == T_MANUAL && !is_try) {
-		if (dev->rd_mode != rd_mode && dev->br_dev.en) {
+		if (dev->rd_mode != rd_mode && RKMODULE_EXTEND_LINE != 0) {
 			tmp = dev->isp_sdev.in_crop.height;
 			val = rkisp_read(dev, CIF_DUAL_CROP_CTRL, false);
 			if (rd_mode == HDR_RDBK_FRAME1) {
-				val |= CIF_DUAL_CROP_MP_MODE_YUV;
+				val |= CIF_DUAL_CROP_MP_MODE_YUV | CIF_DUAL_CROP_SP_MODE_YUV;
 				tmp += RKMODULE_EXTEND_LINE;
 			} else {
-				val &= ~CIF_DUAL_CROP_MP_MODE_YUV;
+				val &= ~(CIF_DUAL_CROP_MP_MODE_YUV | CIF_DUAL_CROP_SP_MODE_YUV);
 			}
+			val |= CIF_DUAL_CROP_CFG_UPD;
 			rkisp_write(dev, CIF_DUAL_CROP_CTRL, val, false);
 			rkisp_write(dev, CIF_ISP_ACQ_V_SIZE, tmp, false);
 			rkisp_write(dev, CIF_ISP_OUT_V_SIZE, tmp, false);
