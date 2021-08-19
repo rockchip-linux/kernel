@@ -3650,7 +3650,7 @@ static int dwc2_hsotg_udc_stop(struct usb_gadget *gadget)
 		return -ENODEV;
 
 	/* all endpoints should be shutdown */
-	for (ep = 1; ep < hsotg->num_of_eps; ep++) {
+	for (ep = 0; ep < hsotg->num_of_eps; ep++) {
 		if (hsotg->eps_in[ep])
 			dwc2_hsotg_ep_disable(&hsotg->eps_in[ep]->ep);
 		if (hsotg->eps_out[ep])
