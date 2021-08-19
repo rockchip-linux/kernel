@@ -35,6 +35,7 @@
 #include <linux/component.h>
 #include <linux/regmap.h>
 #include <linux/mfd/syscon.h>
+#include <linux/gpio/consumer.h>
 
 #include <linux/reset.h>
 #include <linux/delay.h>
@@ -260,6 +261,10 @@ struct vop {
 	bool lut_active;
 	void __iomem *cabc_lut_regs;
 	u32 cabc_lut_len;
+
+	void __iomem *bypass_wport_regs;
+	u32 bypass_wport_len;
+	struct gpio_desc *mcu_rs_gpio;
 
 	/* one time only one process allowed to config the register */
 	spinlock_t reg_lock;
@@ -522,6 +527,22 @@ static inline void vop_write_lut(struct vop *vop, uint32_t offset, uint32_t v)
 static inline uint32_t vop_read_lut(struct vop *vop, uint32_t offset)
 {
 	return readl(vop->lut_regs + offset);
+}
+
+static inline void vop_mcu_write_bypass_wport(struct vop *vop, uint32_t v)
+{
+	if (vop->bypass_wport_regs)
+		writel(v, vop->bypass_wport_regs);
+	else
+		VOP_CTRL_SET(vop, mcu_rw_bypass_port, v);
+}
+
+static inline void vop_mcu_set_rs(struct vop *vop, int v)
+{
+	if (vop->mcu_rs_gpio)
+		gpiod_set_value(vop->mcu_rs_gpio, v);
+	else
+		VOP_CTRL_SET(vop, mcu_rs, v);
 }
 
 static inline void vop_write_cabc_lut(struct vop *vop, uint32_t offset, uint32_t v)
@@ -2516,13 +2537,13 @@ static void vop_crtc_send_mcu_cmd(struct drm_crtc *crtc,  u32 type, u32 value)
 	if (vop && vop->is_enabled) {
 		switch (type) {
 		case MCU_WRCMD:
-			VOP_CTRL_SET(vop, mcu_rs, 0);
-			VOP_CTRL_SET(vop, mcu_rw_bypass_port, value);
-			VOP_CTRL_SET(vop, mcu_rs, 1);
+			vop_mcu_set_rs(vop, 0);
+			vop_mcu_write_bypass_wport(vop, value);
+			vop_mcu_set_rs(vop, 1);
 			break;
 		case MCU_WRDATA:
-			VOP_CTRL_SET(vop, mcu_rs, 1);
-			VOP_CTRL_SET(vop, mcu_rw_bypass_port, value);
+			vop_mcu_set_rs(vop, 1);
+			vop_mcu_write_bypass_wport(vop, value);
 			break;
 		case MCU_SETBYPASS:
 			VOP_CTRL_SET(vop, mcu_bypass, value ? 1 : 0);
@@ -4601,6 +4622,14 @@ static int vop_bind(struct device *dev, struct device *master, void *data)
 			return PTR_ERR(vop->lut_regs);
 	}
 
+	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "bypass_wport");
+	if (res) {
+		vop->bypass_wport_regs = devm_ioremap_resource(dev, res);
+		if (IS_ERR(vop->bypass_wport_regs))
+			return PTR_ERR(vop->bypass_wport_regs);
+		vop->bypass_wport_len = resource_size(res);
+	}
+
 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "cabc_lut");
 	if (res) {
 		vop->cabc_lut_len = resource_size(res) >> 2;
@@ -4695,6 +4724,12 @@ static int vop_bind(struct device *dev, struct device *master, void *data)
 			vop->mcu_timing.mcu_rw_pend = val;
 		if (!of_property_read_u32(mcu, "mcu-hold-mode", &val))
 			vop->mcu_timing.mcu_hold_mode = val;
+
+		vop->mcu_rs_gpio = devm_gpiod_get_optional(dev, "mcu-rs", GPIOD_OUT_LOW);
+		if (IS_ERR(vop->mcu_rs_gpio)) {
+			dev_err(dev, "failed to request mcu rs gpio\n");
+			return PTR_ERR(vop->mcu_rs_gpio);
+		}
 	}
 
 	return 0;

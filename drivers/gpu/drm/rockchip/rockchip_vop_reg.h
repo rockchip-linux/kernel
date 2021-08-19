@@ -126,6 +126,8 @@
 #define RK3288_BCSH_BCS				0x01b4
 #define RK3288_BCSH_H				0x01b8
 #define RK3288_GRF_SOC_CON15			0x03a4
+
+#define RK3288_MCU_BYPASS_WPORT			0x2200
 /* register definition end */
 
 /* rk3368 register definition */
