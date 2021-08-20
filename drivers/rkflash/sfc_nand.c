@@ -954,6 +954,7 @@ int sfc_nand_read_id(u8 *data)
 	return ret;
 }
 
+#if defined(CONFIG_RK_SFTL)
 /*
  * Read the 1st page's 1st byte of a phy_blk
  * If not FF, it's bad blk
@@ -1008,6 +1009,7 @@ void sfc_nand_ftl_ops_init(void)
 	g_nand_ops.read_page		= sfc_nand_read_page;
 	g_nand_ops.bch_sel		= NULL;
 }
+#endif
 
 static int sfc_nand_enable_QE(void)
 {
