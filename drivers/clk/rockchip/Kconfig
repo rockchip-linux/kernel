@@ -20,6 +20,24 @@ config ROCKCHIP_CLK_BOOST
 	help
 	  Say y here to enable clk boost.
 
+config ROCKCHIP_CLK_INV
+	bool "Rockchip Clk Inverter"
+	default y if !CPU_RV1126
+	help
+	  Say y here to enable clk Inverter.
+
+config ROCKCHIP_CLK_PVTM
+	bool "Rockchip Clk Pvtm"
+	default y if !CPU_RV1126
+	help
+	  Say y here to enable clk pvtm.
+
+config ROCKCHIP_DCLK_DIV
+	bool "Rockchip Dclk Divider"
+	default y if !CPU_RV1126
+	help
+	  Say y here to enable dclk divider.
+
 config ROCKCHIP_DDRCLK_SCPI
 	bool "Rockchip DDR Clk SCPI"
 	default y if RK3368_SCPI_PROTOCOL

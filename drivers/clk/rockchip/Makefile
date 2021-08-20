@@ -7,12 +7,12 @@ obj-y	+= clk.o
 obj-y	+= clk-pll.o
 obj-y	+= clk-cpu.o
 obj-y	+= clk-half-divider.o
-obj-y	+= clk-inverter.o
 obj-y	+= clk-mmc-phase.o
 obj-y	+= clk-muxgrf.o
 obj-y	+= clk-ddr.o
-obj-y	+= clk-pvtm.o
-obj-y	+= clk-dclk-divider.o
+obj-$(CONFIG_ROCKCHIP_CLK_INV)	+= clk-inverter.o
+obj-$(CONFIG_ROCKCHIP_CLK_PVTM)	+= clk-pvtm.o
+obj-$(CONFIG_ROCKCHIP_DCLK_DIV)	+= clk-dclk-divider.o
 obj-$(CONFIG_RESET_CONTROLLER)	+= softrst.o
 
 obj-$(CONFIG_CPU_PX30)		+= clk-px30.o
