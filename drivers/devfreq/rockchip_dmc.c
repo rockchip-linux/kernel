@@ -2431,6 +2431,64 @@ static ssize_t rockchip_dmcfreq_status_store(struct device *dev,
 static DEVICE_ATTR(system_status, 0644, rockchip_dmcfreq_status_show,
 		   rockchip_dmcfreq_status_store);
 
+static ssize_t upthreshold_show(struct device *dev,
+				struct device_attribute *attr,
+				char *buf)
+{
+	struct rockchip_dmcfreq *dmcfreq = dev_get_drvdata(dev->parent);
+	struct rockchip_dmcfreq_ondemand_data *data = &dmcfreq->ondemand_data;
+
+	return sprintf(buf, "%d\n", data->upthreshold);
+}
+
+static ssize_t upthreshold_store(struct device *dev,
+				 struct device_attribute *attr,
+				 const char *buf,
+				 size_t count)
+{
+	struct rockchip_dmcfreq *dmcfreq = dev_get_drvdata(dev->parent);
+	struct rockchip_dmcfreq_ondemand_data *data = &dmcfreq->ondemand_data;
+	unsigned int value;
+
+	if (kstrtouint(buf, 10, &value))
+		return -EINVAL;
+
+	data->upthreshold = value;
+
+	return count;
+}
+
+static DEVICE_ATTR_RW(upthreshold);
+
+static ssize_t downdifferential_show(struct device *dev,
+				     struct device_attribute *attr,
+				     char *buf)
+{
+	struct rockchip_dmcfreq *dmcfreq = dev_get_drvdata(dev->parent);
+	struct rockchip_dmcfreq_ondemand_data *data = &dmcfreq->ondemand_data;
+
+	return sprintf(buf, "%d\n", data->downdifferential);
+}
+
+static ssize_t downdifferential_store(struct device *dev,
+				      struct device_attribute *attr,
+				      const char *buf,
+				      size_t count)
+{
+	struct rockchip_dmcfreq *dmcfreq = dev_get_drvdata(dev->parent);
+	struct rockchip_dmcfreq_ondemand_data *data = &dmcfreq->ondemand_data;
+	unsigned int value;
+
+	if (kstrtouint(buf, 10, &value))
+		return -EINVAL;
+
+	data->downdifferential = value;
+
+	return count;
+}
+
+static DEVICE_ATTR_RW(downdifferential);
+
 static void rockchip_dmcfreq_set_msch_rl(struct rockchip_dmcfreq *dmcfreq,
 					 unsigned int readlatency)
 
@@ -2971,6 +3029,15 @@ static void rockchip_dmcfreq_register_notifier(struct rockchip_dmcfreq *dmcfreq)
 
 static void rockchip_dmcfreq_add_interface(struct rockchip_dmcfreq *dmcfreq)
 {
+	if (sysfs_create_file(&dmcfreq->devfreq->dev.kobj,
+			      &dev_attr_upthreshold.attr))
+		dev_err(dmcfreq->dev,
+			"failed to register upthreshold sysfs file\n");
+	if (sysfs_create_file(&dmcfreq->devfreq->dev.kobj,
+			      &dev_attr_downdifferential.attr))
+		dev_err(dmcfreq->dev,
+			"failed to register downdifferential sysfs file\n");
+
 	if (!rockchip_add_system_status_interface(&dmcfreq->devfreq->dev))
 		return;
 	if (sysfs_create_file(&dmcfreq->devfreq->dev.kobj,
