@@ -49,6 +49,7 @@ MODULE_PARM_DESC(bypass_irq_handler,
 static const struct rknpu_config rk356x_rknpu_config = {
 	.bw_priority_base = 0xfe180008,
 	.bw_priority_length = 0x10,
+	.dma_mask = DMA_BIT_MASK(32),
 };
 
 /* driver probe and init */
@@ -247,6 +248,42 @@ static bool rknpu_is_iommu_enable(struct device *dev)
 	return true;
 }
 
+static int drm_fake_dev_register(struct rknpu_device *rknpu_dev)
+{
+	const struct platform_device_info rknpu_dev_info = {
+		.name = "rknpu_dev",
+		.id = PLATFORM_DEVID_AUTO,
+		.dma_mask = rknpu_dev->config->dma_mask,
+	};
+	struct platform_device *pdev = NULL;
+	int ret = -EINVAL;
+
+	pdev = platform_device_register_full(&rknpu_dev_info);
+	if (pdev) {
+		ret = of_dma_configure(&pdev->dev, NULL, true);
+		if (ret) {
+			platform_device_unregister(pdev);
+			pdev = NULL;
+		}
+	}
+
+	rknpu_dev->fake_dev = pdev ? &pdev->dev : NULL;
+
+	return ret;
+}
+
+static void drm_fake_dev_unregister(struct rknpu_device *rknpu_dev)
+{
+	struct platform_device *pdev = NULL;
+
+	if (!rknpu_dev->fake_dev)
+		return;
+
+	pdev = to_platform_device(rknpu_dev->fake_dev);
+
+	platform_device_unregister(pdev);
+}
+
 static int rknpu_drm_probe(struct rknpu_device *rknpu_dev)
 {
 	struct device *dev = rknpu_dev->dev;
@@ -265,6 +302,8 @@ static int rknpu_drm_probe(struct rknpu_device *rknpu_dev)
 	drm_dev->dev_private = rknpu_dev;
 	rknpu_dev->drm_dev = drm_dev;
 
+	drm_fake_dev_register(rknpu_dev);
+
 	return 0;
 
 err_free_drm:
@@ -281,7 +320,10 @@ static void rknpu_drm_remove(struct rknpu_device *rknpu_dev)
 {
 	struct drm_device *drm_dev = rknpu_dev->drm_dev;
 
+	drm_fake_dev_unregister(rknpu_dev);
+
 	drm_dev_unregister(drm_dev);
+
 #if KERNEL_VERSION(4, 15, 0) <= LINUX_VERSION_CODE
 	drm_dev_put(drm_dev);
 #else

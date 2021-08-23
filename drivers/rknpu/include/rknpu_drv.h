@@ -40,6 +40,7 @@
 struct rknpu_config {
 	__u32 bw_priority_base;
 	__u32 bw_priority_length;
+	__u64 dma_mask;
 };
 
 /**
@@ -52,6 +53,7 @@ struct rknpu_config {
 struct rknpu_device {
 	void __iomem *base;
 	struct device *dev;
+	struct device *fake_dev;
 	struct drm_device *drm_dev;
 	atomic_t sequence;
 	spinlock_t lock;

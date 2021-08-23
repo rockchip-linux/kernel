@@ -935,6 +935,11 @@ int rknpu_gem_sync_ioctl(struct drm_device *dev, void *data,
 						      DMA_FROM_DEVICE);
 		}
 	} else {
+		struct drm_device *drm = rknpu_obj->base.dev;
+		struct rknpu_device *rknpu_dev = drm->dev_private;
+
+		WARN_ON(!rknpu_dev->fake_dev);
+
 		length = args->size;
 		offset = args->offset;
 
@@ -951,15 +956,14 @@ int rknpu_gem_sync_ioctl(struct drm_device *dev, void *data,
 
 			if (args->flags & RKNPU_MEM_SYNC_TO_DEVICE) {
 				dma_sync_single_range_for_device(
-					dev->dev, sg_dma_addr, sg_offset, size,
-					DMA_TO_DEVICE);
+					rknpu_dev->fake_dev, sg_dma_addr,
+					sg_offset, size, DMA_TO_DEVICE);
 			}
 
 			if (args->flags & RKNPU_MEM_SYNC_FROM_DEVICE) {
-				dma_sync_single_range_for_cpu(dev->dev,
-							      sg_dma_addr,
-							      sg_offset, size,
-							      DMA_FROM_DEVICE);
+				dma_sync_single_range_for_cpu(
+					rknpu_dev->fake_dev, sg_dma_addr,
+					sg_offset, size, DMA_FROM_DEVICE);
 			}
 
 			offset += size;
