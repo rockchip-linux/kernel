@@ -1097,8 +1097,12 @@ static __maybe_unused int px30_dmcdbg_init(struct platform_device *pdev,
 }
 
 static const struct of_device_id rockchip_dmcdbg_of_match[] = {
+#ifdef CONFIG_CPU_PX30
 	{ .compatible = "rockchip,px30-dmcdbg", .data = px30_dmcdbg_init },
+#endif
+#ifdef CONFIG_CPU_RV1126
 	{ .compatible = "rockchip,rv1126-dmcdbg", .data = rv1126_dmcdbg_init },
+#endif
 	{ },
 };
 MODULE_DEVICE_TABLE(of, rockchip_dmcdbg_of_match);
