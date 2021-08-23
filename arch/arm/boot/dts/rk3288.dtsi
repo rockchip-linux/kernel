@@ -1404,8 +1404,10 @@
 	vopb: vop@ff930000 {
 		compatible = "rockchip,rk3288-vop-big";
 		rockchip,grf = <&grf>;
-		reg = <0x0 0xff930000 0x0 0x19c>, <0x0 0xff931000 0x0 0x1000>;
-		reg-names = "regs", "gamma_lut";
+		reg = <0x0 0xff930000 0x0 0x19c>,
+			<0x0 0xff931000 0x0 0x1000>,
+			<0x0 0xff932200 0x0 0x10>;
+		reg-names = "regs", "gamma_lut", "bypass_wport";
 		interrupts = <GIC_SPI 15 IRQ_TYPE_LEVEL_HIGH>;
 		clocks = <&cru ACLK_VOP0>, <&cru DCLK_VOP0>, <&cru HCLK_VOP0>;
 		clock-names = "aclk_vop", "dclk_vop", "hclk_vop";
@@ -1413,6 +1415,7 @@
 		resets = <&cru SRST_LCDC0_AXI>, <&cru SRST_LCDC0_AHB>, <&cru SRST_LCDC0_DCLK>;
 		reset-names = "axi", "ahb", "dclk";
 		iommus = <&vopb_mmu>;
+		mcu-rs-gpios = <&gpio1 RK_PD3 GPIO_ACTIVE_HIGH>;
 		status = "disabled";
 
 		vopb_out: port {
@@ -1466,8 +1469,10 @@
 	vopl: vop@ff940000 {
 		compatible = "rockchip,rk3288-vop-lit";
 		rockchip,grf = <&grf>;
-		reg = <0x0 0xff940000 0x0 0x19c>, <0x0 0xff941000 0x0 0x1000>;
-		reg-names = "regs", "gamma_lut";
+		reg = <0x0 0xff940000 0x0 0x19c>,
+			<0x0 0xff941000 0x0 0x1000>,
+			<0x0 0xff942200 0x0 0x10>;
+		reg-names = "regs", "gamma_lut", "bypass_wport";
 		interrupts = <GIC_SPI 16 IRQ_TYPE_LEVEL_HIGH>;
 		clocks = <&cru ACLK_VOP1>, <&cru DCLK_VOP1>, <&cru HCLK_VOP1>;
 		clock-names = "aclk_vop", "dclk_vop", "hclk_vop";
@@ -1475,6 +1480,7 @@
 		resets = <&cru SRST_LCDC1_AXI>, <&cru SRST_LCDC1_AHB>, <&cru SRST_LCDC1_DCLK>;
 		reset-names = "axi", "ahb", "dclk";
 		iommus = <&vopl_mmu>;
+		mcu-rs-gpios = <&gpio1 RK_PD3 GPIO_ACTIVE_HIGH>;
 		status = "disabled";
 
 		vopl_out: port {
@@ -2197,8 +2203,15 @@
 						<1 24 RK_FUNC_1 &pcfg_pull_none>; /* LCDC_HSYNC */
 			};
 
+			lcdc_mcu_pins: lcdc-mcu-pins {
+				rockchip,pins = <1 27 RK_FUNC_GPIO &pcfg_pull_none>, /* LCDC_DCLK */
+						<1 26 RK_FUNC_1 &pcfg_pull_none>, /* LCDC_DEN */
+						<1 25 RK_FUNC_1 &pcfg_pull_none>, /* LCDC_VSYNC */
+						<1 24 RK_FUNC_1 &pcfg_pull_none>; /* LCDC_HSYNC */
+			};
+
 			lcdc_sleep_pins: lcdc-sleep-pins {
-				rockchip,pins =	<1 27 RK_FUNC_GPIO &pcfg_pull_none>, /* LCDC_DCLK */
+				rockchip,pins = <1 27 RK_FUNC_GPIO &pcfg_pull_none>, /* LCDC_DCLK */
 						<1 26 RK_FUNC_GPIO &pcfg_pull_none>, /* LCDC_DEN */
 						<1 25 RK_FUNC_GPIO &pcfg_pull_none>, /* LCDC_VSYNC */
 						<1 24 RK_FUNC_GPIO &pcfg_pull_none>; /* LCDC_HSYNC */
