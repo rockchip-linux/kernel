@@ -72,19 +72,10 @@ enum rockchip_pin_pull_type {
 	PULL_TYPE_MAX
 };
 
-/**
- * enum mux route register type, should be invalid/default/topgrf/pmugrf.
- * INVALID: means do not need to set mux route
- * DEFAULT: means same regmap as pin iomux
- * TOPGRF: means mux route setting in topgrf
- * PMUGRF: means mux route setting in pmugrf
- */
-enum rockchip_pin_route_type {
-	ROUTE_TYPE_DEFAULT = 0,
-	ROUTE_TYPE_TOPGRF = 1,
-	ROUTE_TYPE_PMUGRF = 2,
-
-	ROUTE_TYPE_INVALID = -1,
+enum rockchip_mux_route_location {
+	ROCKCHIP_ROUTE_SAME = 0,
+	ROCKCHIP_ROUTE_PMU,
+	ROCKCHIP_ROUTE_GRF,
 };
 
 /**
@@ -173,7 +164,7 @@ struct rockchip_mux_recalced_data {
  * @bank_num: bank number.
  * @pin: index at register or used to calc index.
  * @func: the min pin.
- * @route_type: the register type.
+ * @route_location: the mux route location (same, pmu, grf).
  * @route_offset: the max pin.
  * @route_val: the register offset.
  */
@@ -181,7 +172,7 @@ struct rockchip_mux_route_data {
 	u8 bank_num;
 	u8 pin;
 	u8 func;
-	enum rockchip_pin_route_type route_type : 8;
+	enum rockchip_mux_route_location route_location;
 	u32 route_offset;
 	u32 route_val;
 };
