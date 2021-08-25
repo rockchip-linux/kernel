@@ -371,8 +371,11 @@ static void rockchip_snd_reset(struct reset_control *rc)
 		return;
 
 	reset_control_assert(rc);
-	udelay(1);
+	/* delay for reset assert done */
+	udelay(10);
 	reset_control_deassert(rc);
+	/* delay for reset deassert done */
+	udelay(10);
 }
 
 static void rockchip_snd_txctrl(struct rk_i2s_tdm_dev *i2s_tdm, int on)
