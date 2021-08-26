@@ -304,6 +304,7 @@ static int rkvdec2_run(struct mpp_dev *mpp, struct mpp_task *mpp_task)
 	}
 	/* init current task */
 	mpp->cur_task = mpp_task;
+	mpp_time_record(mpp_task);
 	/* Flush the register before the start the device */
 	wmb();
 	mpp_write(mpp, RKVDEC_REG_START_EN_BASE, task->reg[reg_en] | RKVDEC_START_EN);

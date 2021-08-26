@@ -447,6 +447,7 @@ static int rkvdec_link_send_task_to_hw(struct rkvdec_link_dev *dev,
 			set_bit(TASK_STATE_START, &task_ddr->state);
 			schedule_delayed_work(&task_ddr->timeout_work,
 					      msecs_to_jiffies(200));
+			mpp_time_record(task_ddr);
 		}
 	} else {
 		if (task_total)
@@ -566,6 +567,7 @@ static int rkvdec_link_isr_recv_task(struct mpp_dev *mpp,
 			continue;
 		}
 
+		mpp_time_diff(mpp_task);
 		task = to_rkvdec2_task(mpp_task);
 		regs = table_base + idx * link_dec->link_reg_count;
 		irq_status = regs[info->tb_reg_int];
@@ -1173,7 +1175,6 @@ static int mpp_task_queue(struct mpp_dev *mpp, struct mpp_task *task)
 	}
 
 	rkvdec2_link_power_on(mpp);
-	mpp_time_record(task);
 	mpp_debug(DEBUG_TASK_INFO, "pid %d, start hw %s\n",
 		  task->session->pid, dev_name(mpp->dev));
 
