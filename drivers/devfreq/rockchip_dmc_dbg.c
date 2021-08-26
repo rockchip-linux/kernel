@@ -254,6 +254,11 @@ static int dmcinfo_proc_show(struct seq_file *m, void *v)
 			   res.a0);
 		return -ENOMEM;
 	}
+	if (res.a1) {
+		seq_printf(m, "ddrdbg function get dram info error:%lx\n",
+			   res.a1);
+		return -EPERM;
+	}
 
 	if (!dmcdbg_data.inited_flag) {
 		seq_puts(m, "dmcdbg_data no int\n");
@@ -283,7 +288,8 @@ static int dmcinfo_proc_show(struct seq_file *m, void *v)
 					   p_dram_info->dramid[0],
 					   p_dram_info->dramid[1],
 					   p_dram_info->dramid[2]);
-		} else if (strcmp(p_dram_info->dramtype, "LPDDR4") == 0) {
+		} else if ((strcmp(p_dram_info->dramtype, "LPDDR4") == 0) ||
+			   (strcmp(p_dram_info->dramtype, "LPDDR4X") == 0)) {
 			for (i = 0; i < ARRAY_SIZE(lp4_manuf_id); i++) {
 				if (lp4_manuf_id[i].dramid == p_dram_info->dramid[0]) {
 					seq_printf(m,
@@ -1096,12 +1102,34 @@ static __maybe_unused int px30_dmcdbg_init(struct platform_device *pdev,
 	return 0;
 }
 
+static __maybe_unused int rk3568_dmcdbg_init(struct platform_device *pdev,
+					     struct rockchip_dmcdbg *dmcdbg)
+{
+	u32 version = 0x101;
+	int ret;
+
+	ret = rk_dmcdbg_sip_smc_match_ver(pdev, version);
+	if (ret)
+		return ret;
+
+	ret = proc_dmcdbg_init(pdev);
+	if (ret)
+		return ret;
+
+	proc_dmcinfo_init();
+
+	return 0;
+}
+
 static const struct of_device_id rockchip_dmcdbg_of_match[] = {
 #ifdef CONFIG_CPU_PX30
 	{ .compatible = "rockchip,px30-dmcdbg", .data = px30_dmcdbg_init },
 #endif
 #ifdef CONFIG_CPU_RV1126
 	{ .compatible = "rockchip,rv1126-dmcdbg", .data = rv1126_dmcdbg_init },
+#endif
+#ifdef CONFIG_CPU_RK3568
+	{ .compatible = "rockchip,rk3568-dmcdbg", .data = rk3568_dmcdbg_init },
 #endif
 	{ },
 };
