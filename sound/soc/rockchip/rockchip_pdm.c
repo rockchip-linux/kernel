@@ -36,8 +36,8 @@
 #define CLK_PPM_MAX		(1000)
 
 enum rk_pdm_version {
-	RK_PDM_RK3229,
 	RK_PDM_RK3308,
+	RK_PDM_RK3328,
 	RK_PDM_RV1126,
 };
 
@@ -359,7 +359,7 @@ static int rockchip_pdm_hw_params(struct snd_pcm_substream *substream,
 	regmap_update_bits(pdm->regmap, PDM_HPF_CTRL,
 			   PDM_HPF_LE | PDM_HPF_RE, PDM_HPF_LE | PDM_HPF_RE);
 	regmap_update_bits(pdm->regmap, PDM_CLK_CTRL, PDM_CLK_EN, PDM_CLK_EN);
-	if (pdm->version != RK_PDM_RK3229)
+	if (pdm->version != RK_PDM_RK3328)
 		regmap_update_bits(pdm->regmap, PDM_CTRL0,
 				   PDM_MODE_MSK, PDM_MODE_LJ);
 
@@ -668,14 +668,14 @@ static const struct regmap_config rockchip_pdm_regmap_config = {
 };
 
 static const struct of_device_id rockchip_pdm_match[] = {
-	{ .compatible = "rockchip,pdm",
-	  .data = (void *)RK_PDM_RK3229 },
 	{ .compatible = "rockchip,px30-pdm",
 	  .data = (void *)RK_PDM_RK3308 },
 	{ .compatible = "rockchip,rk1808-pdm",
 	  .data = (void *)RK_PDM_RK3308 },
 	{ .compatible = "rockchip,rk3308-pdm",
 	  .data = (void *)RK_PDM_RK3308 },
+	{ .compatible = "rockchip,rk3328-pdm",
+	  .data = (void *)RK_PDM_RK3328 },
 	{ .compatible = "rockchip,rk3568-pdm",
 	  .data = (void *)RK_PDM_RV1126 },
 	{ .compatible = "rockchip,rv1126-pdm",

@@ -286,7 +286,7 @@
 	};
 
 	pdm: pdm@ff040000 {
-		compatible = "rockchip,pdm";
+		compatible = "rockchip,rk3328-pdm";
 		reg = <0x0 0xff040000 0x0 0x1000>;
 		clocks = <&cru SCLK_PDM>, <&cru HCLK_PDM>;
 		clock-names = "pdm_clk", "pdm_hclk";
