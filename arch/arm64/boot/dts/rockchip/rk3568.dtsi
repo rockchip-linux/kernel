@@ -2191,12 +2191,17 @@
 		rockchip,low-temp = <0>;
 		rockchip,low-temp-adjust-volt = <
 			/* MHz    MHz    uV */
-			   0      1560   25000
+			   0      1560   75000
 		>;
 		rockchip,leakage-voltage-sel = <
 			1   80    0
 			81  254   1
 		>;
+		rockchip,pvtm-voltage-sel = <
+			0        82000   0
+			82001    100000  1
+		>;
+		rockchip,pvtm-ch = <0 5>;
 
 		opp-1560000000 {
 			opp-hz = /bits/ 64 <1560000000>;
