@@ -2935,6 +2935,9 @@ static bool is_function_node(const struct device_node *np)
 	if (of_match_node(rockchip_bank_match, np))
 		return false;
 
+	if (!strncmp(np->name, "pcfg", 4))
+		return false;
+
 	return true;
 }
 
