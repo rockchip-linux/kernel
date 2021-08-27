@@ -512,6 +512,7 @@
 		*(.text..refcount)					\
 		*(.text..ftrace)					\
 		*(.ref.text)						\
+		*(.text.asan.* .text.tsan.*)				\
 	MEM_KEEP(init.text*)						\
 	MEM_KEEP(exit.text*)						\
 
