@@ -15,6 +15,7 @@
 #ifndef __ROCKCHIP_DRM_PSR___
 #define __ROCKCHIP_DRM_PSR___
 
+#ifdef CONFIG_ROCKCHIP_PSR
 void rockchip_drm_psr_flush_all(struct drm_device *dev);
 
 int rockchip_drm_psr_inhibit_put(struct drm_encoder *encoder);
@@ -23,5 +24,30 @@ int rockchip_drm_psr_inhibit_get(struct drm_encoder *encoder);
 int rockchip_drm_psr_register(struct drm_encoder *encoder,
 			int (*psr_set)(struct drm_encoder *, bool enable));
 void rockchip_drm_psr_unregister(struct drm_encoder *encoder);
+#else
+static inline void rockchip_drm_psr_flush_all(struct drm_device *dev)
+{
+}
+
+static inline int rockchip_drm_psr_inhibit_put(struct drm_encoder *encoder)
+{
+	return 0;
+}
+
+static inline int rockchip_drm_psr_inhibit_get(struct drm_encoder *encoder)
+{
+	return 0;
+}
+
+static inline int rockchip_drm_psr_register(struct drm_encoder *encoder,
+			int (*psr_set)(struct drm_encoder *, bool enable))
+{
+	return 0;
+}
+
+static inline void rockchip_drm_psr_unregister(struct drm_encoder *encoder)
+{
+}
+#endif
 
 #endif /* __ROCKCHIP_DRM_PSR__ */

@@ -159,7 +159,7 @@ static void rockchip_drm_do_flush(struct psr_drv *psr)
  * timeout.
  *
  * Returns:
- * Zero on success, negative errno on failure.
+ * void.
  */
 void rockchip_drm_psr_flush_all(struct drm_device *dev)
 {
@@ -228,7 +228,7 @@ EXPORT_SYMBOL(rockchip_drm_psr_register);
  * rockchip_drm_psr_inhibit_get() to stop the PSR logic.
  *
  * Returns:
- * Zero on success, negative errno on failure.
+ * void.
  */
 void rockchip_drm_psr_unregister(struct drm_encoder *encoder)
 {
