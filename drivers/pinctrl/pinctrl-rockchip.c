@@ -2930,13 +2930,21 @@ static const struct of_device_id rockchip_bank_match[] = {
 	{},
 };
 
+static bool is_function_node(const struct device_node *np)
+{
+	if (of_match_node(rockchip_bank_match, np))
+		return false;
+
+	return true;
+}
+
 static void rockchip_pinctrl_child_count(struct rockchip_pinctrl *info,
 						struct device_node *np)
 {
 	struct device_node *child;
 
 	for_each_child_of_node(np, child) {
-		if (of_match_node(rockchip_bank_match, child))
+		if (!is_function_node(child))
 			continue;
 
 		info->nfunctions++;
@@ -3080,7 +3088,7 @@ static int rockchip_pinctrl_parse_dt(struct platform_device *pdev,
 	i = 0;
 
 	for_each_child_of_node(np, child) {
-		if (of_match_node(rockchip_bank_match, child))
+		if (!is_function_node(child))
 			continue;
 
 		ret = rockchip_pinctrl_parse_functions(child, info, i++);
