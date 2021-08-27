@@ -221,3 +221,7 @@
   of_property_read_string_helper
   pm_runtime_enable
   __pm_runtime_set_status
+
+# required by usb_f_cdev.ko
+  cdev_device_add
+  cdev_device_del
