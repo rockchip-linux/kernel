@@ -59,6 +59,7 @@
 		spi1 = &spi1;
 		spi2 = &spi2;
 		spi3 = &spi3;
+		spi4 = &sfc; // for U-Boot
 	};
 
 	cpus {
