@@ -418,6 +418,10 @@ static const struct of_device_id rockchip_otp_match[] = {
 		.data = (void *)&px30_data,
 	},
 	{
+		.compatible = "rockchip,px30s-otp",
+		.data = (void *)&rk3308bs_data,
+	},
+	{
 		.compatible = "rockchip,rk3308-otp",
 		.data = (void *)&px30_data,
 	},
@@ -444,7 +448,7 @@ static int __init rockchip_otp_probe(struct platform_device *pdev)
 		return -EINVAL;
 	}
 	data = match->data;
-	if (soc_is_rk3308bs())
+	if (soc_is_rk3308bs() || soc_is_px30s())
 		data = &rk3308bs_data;
 
 	otp = devm_kzalloc(&pdev->dev, sizeof(struct rockchip_otp),
