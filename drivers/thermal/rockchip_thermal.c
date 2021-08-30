@@ -103,6 +103,7 @@ struct chip_tsadc_table {
  * @set_alarm_temp: set the high temperature interrupt
  * @set_tshut_temp: set the hardware-controlled shutdown temperature
  * @set_tshut_mode: set the hardware-controlled shutdown mode
+ * @set_clk_rate: set clock rate
  * @table: the chip-specific conversion table
  */
 struct rockchip_tsadc_chip {
@@ -129,6 +130,7 @@ struct rockchip_tsadc_chip {
 	void (*set_tshut_temp)(struct chip_tsadc_table table,
 			       int chn, void __iomem *reg, int temp);
 	void (*set_tshut_mode)(int chn, void __iomem *reg, enum tshut_mode m);
+	int (*set_clk_rate)(struct platform_device *pdev);
 
 	/* Per-table methods */
 	struct chip_tsadc_table table;
@@ -232,6 +234,7 @@ struct rockchip_thermal_data {
 #define GRF_TSADC_TESTBIT_L			0x0e648
 #define GRF_TSADC_TESTBIT_H			0x0e64c
 
+#define PX30_GRF_SOC_CON0			0x0400
 #define PX30_GRF_SOC_CON2			0x0408
 
 #define RK1808_BUS_GRF_SOC_CON0			0x0400
@@ -243,6 +246,8 @@ struct rockchip_thermal_data {
 #define GRF_TSADC_VCM_EN_H			(0x10001 << 7)
 
 #define GRF_CON_TSADC_CH_INV			(0x10001 << 1)
+#define PX30S_TSADC_TDC_MODE			(0x10001 << 4)
+#define PX30S_TSADC_TRIM			(0xf0007 << 0)
 
 #define MIN_TEMP				(-40000)
 #define LOWEST_TEMP				(-273000)
@@ -775,6 +780,16 @@ static void rk_tsadcv5_initialize(struct regmap *grf, void __iomem *regs,
 			     GRF_TSADC_BANDGAP_CHOPPER_EN);
 }
 
+static void rk_tsadcv9_initialize(struct regmap *grf, void __iomem *regs,
+				  enum tshut_polarity tshut_polarity)
+{
+	rk_tsadcv2_initialize(grf, regs, tshut_polarity);
+	if (!IS_ERR(grf)) {
+		regmap_write(grf, PX30_GRF_SOC_CON0, PX30S_TSADC_TDC_MODE);
+		regmap_write(grf, PX30_GRF_SOC_CON0, PX30S_TSADC_TRIM);
+	}
+}
+
 static void rk_tsadcv2_irq_ack(void __iomem *regs)
 {
 	u32 val;
@@ -971,6 +986,29 @@ static void rk_tsadcv2_tshut_mode(int chn, void __iomem *regs,
 	writel_relaxed(val, regs + TSADCV2_INT_EN);
 }
 
+static int rk_tsadcv1_set_clk_rate(struct platform_device *pdev)
+{
+	struct clk *clk;
+	int error;
+
+	clk = devm_clk_get(&pdev->dev, "tsadc");
+	if (IS_ERR(clk)) {
+		error = PTR_ERR(clk);
+		dev_err(&pdev->dev, "failed to get tsadc clock\n");
+		return error;
+	}
+	error = clk_set_rate(clk, 4000000);
+	if (error < 0) {
+		devm_clk_put(&pdev->dev, clk);
+		dev_err(&pdev->dev,
+			"failed to set tsadc clk rate to 4000000Hz\n");
+		return error;
+	}
+	devm_clk_put(&pdev->dev, clk);
+
+	return 0;
+}
+
 static const struct rockchip_tsadc_chip rk1808_tsadc_data = {
 	.chn_id[SENSOR_CPU] = 0, /* cpu sensor is channel 0 */
 	.chn_num = 1, /* one channel for tsadc */
@@ -1115,6 +1153,28 @@ static const struct rockchip_tsadc_chip px30_tsadc_data = {
 	},
 };
 
+static const struct rockchip_tsadc_chip px30s_tsadc_data = {
+	.chn_id[SENSOR_CPU] = 0, /* cpu sensor is channel 0 */
+	.chn_id[SENSOR_GPU] = 1, /* gpu sensor is channel 1 */
+	.chn_num = 2, /* 1 channels for tsadc */
+	.tshut_mode = TSHUT_MODE_CRU, /* default TSHUT via CRU */
+	.tshut_temp = 95000,
+	.initialize = rk_tsadcv9_initialize,
+	.irq_ack = rk_tsadcv3_irq_ack,
+	.control = rk_tsadcv2_control,
+	.get_temp = rk_tsadcv2_get_temp,
+	.set_alarm_temp = rk_tsadcv2_alarm_temp,
+	.set_tshut_temp = rk_tsadcv2_tshut_temp,
+	.set_tshut_mode = rk_tsadcv2_tshut_mode,
+	.set_clk_rate = rk_tsadcv1_set_clk_rate,
+	.table = {
+		.kNum = 2699,
+		.bNum = 2796,
+		.data_mask = TSADCV2_DATA_MASK,
+		.mode = ADC_INCREMENT,
+	},
+};
+
 static const struct rockchip_tsadc_chip rk3328_tsadc_data = {
 	.chn_id[SENSOR_CPU] = 0, /* cpu sensor is channel 0 */
 	.chn_num = 1, /* one channels for tsadc */
@@ -1241,6 +1301,9 @@ static const struct of_device_id of_rockchip_thermal_match[] = {
 	{
 		.compatible = "rockchip,px30-tsadc",
 		.data = (void *)&px30_tsadc_data,
+	},
+	{	.compatible = "rockchip,px30s-tsadc",
+		.data = (void *)&px30s_tsadc_data,
 	},
 	{
 		.compatible = "rockchip,rk1808-tsadc",
@@ -1530,6 +1593,8 @@ static int rockchip_thermal_probe(struct platform_device *pdev)
 
 	if (soc_is_rk3308bs()) {
 		thermal->chip = &rk3308bs_tsadc_data;
+	} else if (soc_is_px30s()) {
+		thermal->chip = &px30s_tsadc_data;
 	} else {
 		thermal->chip = (const struct rockchip_tsadc_chip *)match->data;
 		if (!thermal->chip)
@@ -1585,6 +1650,9 @@ static int rockchip_thermal_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "failed to enable pclk: %d\n", error);
 		goto err_disable_clk;
 	}
+
+	if (thermal->chip->set_clk_rate)
+		thermal->chip->set_clk_rate(pdev);
 
 	rockchip_thermal_reset_controller(thermal->reset);
 
