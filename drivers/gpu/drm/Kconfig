@@ -23,6 +23,13 @@ menuconfig DRM
 	  details.  You should also select and configure AGP
 	  (/dev/agpgart) support if it is available for your platform.
 
+config DRM_DP
+	bool "DRM DisplayPort support"
+	depends on DRM_KMS_HELPER
+	default y if !ARCH_ROCKCHIP || DRM_ANALOGIX_DP
+	help
+	  Choose this option to support DP interface.
+
 config DRM_IGNORE_IOTCL_PERMIT
 	bool "Ignore drm ioctl permission"
 	depends on DRM && ANDROID
