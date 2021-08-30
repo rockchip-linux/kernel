@@ -3786,6 +3786,8 @@ onmatch_create_field_var(struct hist_trigger_data *hist_data,
 			event = data->onmatch.match_event;
 		}
 
+		if (!event)
+			goto free;
 		/*
 		 * At this point, we're looking at a field on another
 		 * event.  Because we can't modify a hist trigger on
