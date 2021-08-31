@@ -9,7 +9,7 @@ drm-y       :=	drm_auth.o drm_bufs.o drm_cache.o \
 		drm_lock.o drm_memory.o drm_drv.o \
 		drm_scatter.o drm_pci.o \
 		drm_sysfs.o drm_hashtab.o drm_mm.o \
-		drm_crtc.o drm_fourcc.o drm_modes.o drm_edid.o \
+		drm_crtc.o drm_fourcc.o drm_modes.o \
 		drm_info.o drm_encoder_slave.o \
 		drm_trace_points.o drm_global.o drm_prime.o \
 		drm_rect.o drm_vma_manager.o drm_flip_work.o \
@@ -20,6 +20,7 @@ drm-y       :=	drm_auth.o drm_bufs.o drm_cache.o \
 		drm_dumb_buffers.o drm_mode_config.o drm_vblank.o \
 		drm_syncobj.o drm_lease.o drm_writeback.o drm_client.o
 
+drm-$(CONFIG_DRM_EDID) += drm_edid.o
 drm-$(CONFIG_DRM_LIB_RANDOM) += lib/drm_random.o
 drm-$(CONFIG_DRM_VM) += drm_vm.o
 drm-$(CONFIG_COMPAT) += drm_ioc32.o

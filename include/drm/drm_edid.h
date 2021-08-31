@@ -511,23 +511,14 @@ struct edid *drm_do_get_edid(struct drm_connector *connector,
 	int (*get_edid_block)(void *data, u8 *buf, unsigned int block,
 			      size_t len),
 	void *data);
-struct edid *drm_get_edid(struct drm_connector *connector,
-			  struct i2c_adapter *adapter);
 struct edid *drm_get_edid_switcheroo(struct drm_connector *connector,
 				     struct i2c_adapter *adapter);
-struct edid *drm_edid_duplicate(const struct edid *edid);
-int drm_add_edid_modes(struct drm_connector *connector, struct edid *edid);
-int drm_add_override_edid_modes(struct drm_connector *connector);
 
-u8 drm_match_cea_mode(const struct drm_display_mode *to_match);
 enum hdmi_picture_aspect drm_get_cea_aspect_ratio(const u8 video_code);
 bool drm_detect_hdmi_monitor(struct edid *edid);
-bool drm_detect_monitor_audio(struct edid *edid);
 bool drm_rgb_quant_range_selectable(struct edid *edid);
 enum hdmi_quantization_range
 drm_default_rgb_quant_range(const struct drm_display_mode *mode);
-int drm_add_modes_noedid(struct drm_connector *connector,
-			 int hdisplay, int vdisplay);
 void drm_set_preferred_mode(struct drm_connector *connector,
 			    int hpref, int vpref);
 
@@ -535,9 +526,64 @@ int drm_edid_header_is_valid(const u8 *raw_edid);
 bool drm_edid_block_valid(u8 *raw_edid, int block, bool print_bad_edid,
 			  bool *edid_corrupt);
 bool drm_edid_is_valid(struct edid *edid);
-void drm_edid_get_monitor_name(struct edid *edid, char *name,
-			       int buflen);
 struct drm_display_mode *drm_mode_find_dmt(struct drm_device *dev,
 					   int hsize, int vsize, int fresh,
 					   bool rb);
+#ifdef CONFIG_DRM_EDID
+struct edid *drm_get_edid(struct drm_connector *connector,
+			  struct i2c_adapter *adapter);
+struct edid *drm_edid_duplicate(const struct edid *edid);
+int drm_add_edid_modes(struct drm_connector *connector, struct edid *edid);
+int drm_add_override_edid_modes(struct drm_connector *connector);
+u8 drm_match_cea_mode(const struct drm_display_mode *to_match);
+int drm_add_modes_noedid(struct drm_connector *connector,
+			 int hdisplay, int vdisplay);
+bool drm_detect_monitor_audio(struct edid *edid);
+void drm_edid_get_monitor_name(struct edid *edid, char *name,
+			       int buflen);
+#else
+static inline struct edid *drm_get_edid(struct drm_connector *connector,
+					struct i2c_adapter *adapter)
+{
+	return NULL;
+}
+
+static inline struct edid *drm_edid_duplicate(const struct edid *edid)
+{
+	return NULL;
+}
+
+static inline int drm_add_edid_modes(struct drm_connector *connector,
+				     struct edid *edid)
+{
+	return 0;
+}
+
+static inline int drm_add_override_edid_modes(struct drm_connector *connector)
+{
+	return 0;
+}
+
+static inline u8 drm_match_cea_mode(const struct drm_display_mode *to_match)
+{
+	return 0;
+}
+
+static inline int drm_add_modes_noedid(struct drm_connector *connector,
+				       int hdisplay, int vdisplay)
+{
+	return 0;
+}
+
+static inline bool drm_detect_monitor_audio(struct edid *edid)
+{
+	return false;
+}
+
+static inline void drm_edid_get_monitor_name(struct edid *edid, char *name,
+					     int buflen)
+{
+}
+#endif
+
 #endif /* __DRM_EDID_H__ */

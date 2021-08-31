@@ -31,6 +31,8 @@
  * and are not exported to drivers.
  */
 
+#ifndef _DRM_CRTC_INTERNAL_H_
+#define _DRM_CRTC_INTERNAL_H_
 
 /* drm_crtc.c */
 int drm_mode_crtc_set_obj_prop(struct drm_mode_object *obj,
@@ -233,6 +235,24 @@ int drm_mode_page_flip_ioctl(struct drm_device *dev,
 			     void *data, struct drm_file *file_priv);
 
 /* drm_edid.c */
+#ifdef CONFIG_DRM_EDID
 void drm_mode_fixup_1366x768(struct drm_display_mode *mode);
 void drm_reset_display_info(struct drm_connector *connector);
 u32 drm_add_display_info(struct drm_connector *connector, const struct edid *edid);
+#else
+static inline void drm_mode_fixup_1366x768(struct drm_display_mode *mode)
+{
+}
+
+static inline void drm_reset_display_info(struct drm_connector *connector)
+{
+}
+
+static inline u32 drm_add_display_info(struct drm_connector *connector,
+				       const struct edid *edid)
+{
+	return 0;
+}
+#endif
+
+#endif /* _DRM_CRTC_INTERNAL_H_ */
