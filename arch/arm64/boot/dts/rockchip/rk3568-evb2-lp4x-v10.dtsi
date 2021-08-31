@@ -63,6 +63,13 @@
 		regulator-max-microvolt = <3300000>;
 		vin-supply = <&vcc5v0_sys>;
 	};
+
+	ext_cam_clk: external-camera-clock {
+		compatible = "fixed-clock";
+		clock-frequency = <24000000>;
+		clock-output-names = "CLK_CAMERA_24MHZ";
+		#clock-cells = <0>;
+	};
 };
 
 &combphy0_us {
@@ -159,6 +166,35 @@
  */
 &gt1x {
 	power-supply = <&vcc3v3_lcd0_n>;
+};
+
+&i2c3 {
+	status = "okay";
+
+	lt6911uxc: lt6911uxc@2b {
+		status = "okay";
+		reg = <0x2b>;
+		compatible = "lontium,lt6911uxc";
+		clocks = <&ext_cam_clk>;
+		clock-names = "xvclk";
+		interrupt-parent = <&gpio4>;
+		interrupts = <16 IRQ_TYPE_LEVEL_LOW>;
+		power-gpios = <&gpio0 29 GPIO_ACTIVE_HIGH>;
+		reset-gpios = <&gpio4 26 GPIO_ACTIVE_LOW>;
+		plugin-det-gpios = <&gpio0 30 GPIO_ACTIVE_LOW>;
+		hpd-ctl-gpios = <&gpio3 27 GPIO_ACTIVE_LOW>;
+		rockchip,camera-module-index = <0>;
+		rockchip,camera-module-facing = "back";
+		rockchip,camera-module-name = "LT6911UXC";
+		rockchip,camera-module-lens-name = "NC";
+
+		port {
+			lt6911uxc_out: endpoint {
+				remote-endpoint = <&hdmi_to_mipi_in>;
+				data-lanes = <1 2 3 4>;
+			};
+		};
+	};
 };
 
 &i2c4 {
@@ -457,5 +493,93 @@
 };
 
 &xpcs {
+	status = "okay";
+};
+
+&csi2_dphy_hw {
+	status = "okay";
+};
+
+&csi2_dphy0 {
+	status = "okay";
+
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		port@0 {
+			reg = <0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			hdmi_to_mipi_in: endpoint@1 {
+				reg = <1>;
+				remote-endpoint = <&lt6911uxc_out>;
+				data-lanes = <1 2 3 4>;
+			};
+		};
+
+		port@1 {
+			reg = <1>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			csidphy_out: endpoint@1 {
+				reg = <1>;
+				remote-endpoint = <&mipi_csi2_input>;
+				data-lanes = <1 2 3 4>;
+			};
+		};
+	};
+};
+
+&mipi_csi2 {
+	status = "okay";
+
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		port@0 {
+			reg = <0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			mipi_csi2_input: endpoint@1 {
+				reg = <1>;
+				remote-endpoint = <&csidphy_out>;
+				data-lanes = <1 2 3 4>;
+			};
+		};
+
+		port@1 {
+			reg = <1>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			mipi_csi2_output: endpoint@0 {
+				reg = <0>;
+				remote-endpoint = <&cif_mipi_in>;
+				data-lanes = <1 2 3 4>;
+			};
+		};
+	};
+};
+
+&rkcif {
+	status = "okay";
+};
+
+&rkcif_mipi_lvds {
+	status = "okay";
+
+	port {
+		cif_mipi_in: endpoint {
+			remote-endpoint = <&mipi_csi2_output>;
+			data-lanes = <1 2 3 4>;
+		};
+	};
+};
+
+&rkcif_mmu {
 	status = "okay";
 };
