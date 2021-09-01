@@ -2867,10 +2867,13 @@ static int rockchip_pinconf_get(struct pinctrl_dev *pctldev, unsigned int pin,
 		break;
 	case PIN_CONFIG_OUTPUT:
 		rc = rockchip_get_mux(bank, pin - bank->pin_base);
-		if (rc != 0) {
-			dev_err(info->dev, "pin-%d has been mux to func%d\n", pin, rc);
+		if (rc != 0)
 			return -EINVAL;
-		}
+
+		/* 0 for output, 1 for input */
+		rc = gpio->get_direction(gpio, pin - bank->pin_base);
+		if (rc)
+			return -EINVAL;
 
 		rc = gpio->get(gpio, pin - bank->pin_base);
 		if (rc < 0)
