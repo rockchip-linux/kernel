@@ -37,7 +37,6 @@
 
 #define DRIVER_VERSION          KERNEL_VERSION(0, 0x01, 0x01)
 #define GC2053_NAME             "gc2053"
-#define GC2053_MEDIA_BUS_FMT    MEDIA_BUS_FMT_SGRBG10_1X10
 
 #define MIPI_FREQ_297M          297000000
 #define GC2053_XVCLK_FREQ       24000000
@@ -54,8 +53,6 @@
 #define GC2053_REG_VTS_L        0x42
 
 #define GC2053_REG_CTRL_MODE    0x3E
-#define GC2053_MODE_SW_STANDBY  0x11
-#define GC2053_MODE_STREAMING   0x91
 
 #define REG_NULL                0xFF
 
@@ -94,6 +91,18 @@ static const char * const gc2053_supply_names[] = {
 #define GC2053_NUM_SUPPLIES ARRAY_SIZE(gc2053_supply_names)
 
 #define to_gc2053(sd) container_of(sd, struct gc2053, subdev)
+
+#define USE_DVP_INTERFACE         0
+
+#if USE_DVP_INTERFACE
+  #define GC2053_MEDIA_BUS_FMT    MEDIA_BUS_FMT_SRGGB8_1X8
+  #define GC2053_MODE_SW_STANDBY  0x00
+  #define GC2053_MODE_STREAMING   0x40
+#else
+  #define GC2053_MEDIA_BUS_FMT    MEDIA_BUS_FMT_SGRBG10_1X10
+  #define GC2053_MODE_SW_STANDBY  0x11
+  #define GC2053_MODE_STREAMING   0x91
+#endif
 
 enum gc2053_max_pad {
 	PAD0,
@@ -145,7 +154,7 @@ struct gc2053 {
 	unsigned int        lane_num;
 	unsigned int        cfg_num;
 	unsigned int        pixel_rate;
-
+	u32         cur_vts;
 	u32         module_index;
 	const char      *module_facing;
 	const char      *module_name;
@@ -307,7 +316,173 @@ static const struct regval gc2053_1920x1080_regs_2lane[] = {
 	{REG_NULL, 0x00},
 };
 
+/*
+ * window_size=1920*1080
+ * mclk=24mhz,pclk=74.25mhz
+ * pixel_line_total=2200,line_frame_total=1125
+ * row_time=29.629us,frame_rate=30fps
+ */
+static const struct regval __maybe_unused gc2053_1920x1080_regs_dvp[] = {
+	/****system****/
+	{0xfe, 0x80},
+	{0xfe, 0x80},
+	{0xfe, 0x80},
+	{0xfe, 0x00},
+	{0xf2, 0x00},
+	{0xf3, 0x0f},
+	{0xf4, 0x36},
+	{0xf5, 0xc0},
+	{0xf6, 0x44},
+	{0xf7, 0x01},
+	{0xf8, 0x63},
+	{0xf9, 0x40},
+	{0xfc, 0x8e},
+	/****CISCTL & ANALOG****/
+	{0xfe, 0x00},
+	{0x87, 0x18},
+	{0xee, 0x30},
+	{0xd0, 0xb7},
+	{0x03, 0x04},
+	{0x04, 0x60},
+	{0x05, 0x04},
+	{0x06, 0x4c},
+	{0x07, 0x00},
+	{0x08, 0x11},
+	{0x09, 0x00},
+	{0x0a, 0x02},
+	{0x0b, 0x00},
+	{0x0c, 0x02},
+	{0x0d, 0x04},
+	{0x0e, 0x40},
+	{0x12, 0xe2},
+	{0x13, 0x16},
+	{0x19, 0x0a},
+	{0x21, 0x1c},
+	{0x28, 0x0a},
+	{0x29, 0x24},
+	{0x2b, 0x04},
+	{0x32, 0xf8},
+	{0x37, 0x03},
+	{0x39, 0x15},
+	{0x43, 0x07},
+	{0x44, 0x40},
+	{0x46, 0x0b},
+	{0x4b, 0x20},
+	{0x4e, 0x08},
+	{0x55, 0x20},
+	{0x66, 0x05},
+	{0x67, 0x05},
+	{0x77, 0x01},
+	{0x78, 0x00},
+	{0x7c, 0x93},
+	{0x8c, 0x12},
+	{0x8d, 0x92},
+	{0x90, 0x00},
+	{0x9d, 0x10},
+	{0xce, 0x7c},
+	{0xd2, 0x41},
+	{0xd3, 0xdc},
+	{0xe6, 0x50},
+	/*gain*/
+	{0xb6, 0xc0},
+	{0xb0, 0x70},
+	{0xb1, 0x01},
+	{0xb2, 0x00},
+	{0xb3, 0x00},
+	{0xb4, 0x00},
+	{0xb8, 0x01},
+	{0xb9, 0x00},
+	/*blk*/
+	{0x26, 0x30},
+	{0xfe, 0x01},
+	{0x40, 0x23},
+	{0x55, 0x07},
+	{0x60, 0x40},
+	{0xfe, 0x04},
+	{0x14, 0x78},
+	{0x15, 0x78},
+	{0x16, 0x78},
+	{0x17, 0x78},
+	/*window*/
+	{0xfe, 0x01},
+	{0x92, 0x00},
+	{0x94, 0x03},
+	{0x95, 0x04},
+	{0x96, 0x38},
+	{0x97, 0x07},
+	{0x98, 0x80},
+	/*ISP*/
+	{0xfe, 0x01},
+	{0x01, 0x05},
+	{0x02, 0x89},
+	{0x04, 0x01},
+	{0x07, 0xa6},
+	{0x08, 0xa9},
+	{0x09, 0xa8},
+	{0x0a, 0xa7},
+	{0x0b, 0xff},
+	{0x0c, 0xff},
+	{0x0f, 0x00},
+	{0x50, 0x1c},
+	{0x89, 0x03},
+	{0xfe, 0x04},
+	{0x28, 0x86},
+	{0x29, 0x86},
+	{0x2a, 0x86},
+	{0x2b, 0x68},
+	{0x2c, 0x68},
+	{0x2d, 0x68},
+	{0x2e, 0x68},
+	{0x2f, 0x68},
+	{0x30, 0x4f},
+	{0x31, 0x68},
+	{0x32, 0x67},
+	{0x33, 0x66},
+	{0x34, 0x66},
+	{0x35, 0x66},
+	{0x36, 0x66},
+	{0x37, 0x66},
+	{0x38, 0x62},
+	{0x39, 0x62},
+	{0x3a, 0x62},
+	{0x3b, 0x62},
+	{0x3c, 0x62},
+	{0x3d, 0x62},
+	{0x3e, 0x62},
+	{0x3f, 0x62},
+	/****DVP & MIPI****/
+	{0xfe, 0x01},
+	{0x9a, 0x06},
+	{0xfe, 0x00},
+	{0x7b, 0x2a},
+	{0x23, 0x2d},
+	{0xfe, 0x03},
+	{0x01, 0x20},
+	{0x02, 0x56},
+	{0x03, 0xb2},
+	{0x12, 0x80},
+	{0x13, 0x07},
+	{0xfe, 0x00},
+	{REG_NULL, 0x00},
+};
+
 static const struct gc2053_mode supported_modes[] = {
+#if USE_DVP_INTERFACE
+	{
+		.width = 1920,
+		.height = 1080,
+		.max_fps = {
+			.numerator = 10000,
+			.denominator = 300000,
+		},
+		.exp_def = 0x0010,
+		.hts_def = 0x0898,
+		.vts_def = 0x0465,
+		.reg_list = gc2053_1920x1080_regs_dvp,
+		.hdr_mode = NO_HDR,
+		.vc[PAD0] = 0,
+	},
+#endif
 	{
 		.width = 1920,
 		.height = 1080,
@@ -324,9 +499,11 @@ static const struct gc2053_mode supported_modes[] = {
 	},
 };
 
+#if !USE_DVP_INTERFACE
 static const s64 link_freq_menu_items[] = {
 	MIPI_FREQ_297M
 };
+#endif
 
 /* sensor register write */
 static int gc2053_write_reg(struct i2c_client *client, u8 reg, u8 val)
@@ -461,7 +638,7 @@ static uint8_t gain_reg_table[29][4] = {
 	{0x00, 0xce, 0x3f, 0x3f},
 };
 
-static  uint32_t gain_level_table[30] = {
+static  uint32_t gain_level_table[29] = {
 	64,
 	76,
 	91,
@@ -491,7 +668,6 @@ static  uint32_t gain_level_table[30] = {
 	5572,
 	6552,
 	7713,
-	0xffffffff
 };
 
 static int gc2053_set_gain(struct gc2053 *gc2053, u32 gain)
@@ -596,7 +772,7 @@ static int gc2053_configure_regulators(struct gc2053 *gc2053)
 					   gc2053->supplies);
 }
 
-static int gc2053_parse_of(struct gc2053 *gc2053)
+static int __maybe_unused gc2053_parse_of_mipi(struct gc2053 *gc2053)
 {
 	struct device *dev = &gc2053->client->dev;
 	struct device_node *endpoint;
@@ -619,6 +795,7 @@ static int gc2053_parse_of(struct gc2053 *gc2053)
 	if (2 == gc2053->lane_num) {
 		gc2053->cur_mode = &supported_modes[0];
 		gc2053->cfg_num = ARRAY_SIZE(supported_modes);
+		gc2053->cur_vts = gc2053->cur_mode->vts_def;
 
 		/*pixel rate = link frequency * 2 * lanes / BITS_PER_SAMPLE */
 		gc2053->pixel_rate = MIPI_FREQ_297M * 2U * (gc2053->lane_num) / 10U;
@@ -634,7 +811,7 @@ static int gc2053_initialize_controls(struct gc2053 *gc2053)
 {
 	const struct gc2053_mode *mode;
 	struct v4l2_ctrl_handler *handler;
-	struct v4l2_ctrl *ctrl;
+	struct v4l2_ctrl __maybe_unused *ctrl;
 	s64 exposure_max, vblank_def;
 	u32 h_blank;
 	int ret;
@@ -646,10 +823,12 @@ static int gc2053_initialize_controls(struct gc2053 *gc2053)
 		return ret;
 	handler->lock = &gc2053->mutex;
 
+#if !USE_DVP_INTERFACE
 	ctrl = v4l2_ctrl_new_int_menu(handler, NULL, V4L2_CID_LINK_FREQ,
 					  0, 0, link_freq_menu_items);
 	if (ctrl)
 		ctrl->flags |= V4L2_CTRL_FLAG_READ_ONLY;
+#endif
 
 	v4l2_ctrl_new_std(handler, NULL, V4L2_CID_PIXEL_RATE,
 			  0, gc2053->pixel_rate, 1, gc2053->pixel_rate);
@@ -842,7 +1021,7 @@ static int __gc2053_start_stream(struct gc2053 *gc2053)
 
 	/* In case these controls are set before streaming */
 	mutex_unlock(&gc2053->mutex);
-	ret = v4l2_ctrl_handler_setup(&gc2053->ctrl_handler);
+	v4l2_ctrl_handler_setup(&gc2053->ctrl_handler);
 	mutex_lock(&gc2053->mutex);
 
 	ret = gc2053_set_flip(gc2053, gc2053->flip);
@@ -862,26 +1041,10 @@ static void gc2053_get_module_inf(struct gc2053 *gc2053,
 				  struct rkmodule_inf *inf)
 {
 	memset(inf, 0, sizeof(*inf));
-	strlcpy(inf->base.sensor, GC2053_NAME, sizeof(inf->base.sensor));
-	strlcpy(inf->base.module, gc2053->module_name,
+	strscpy(inf->base.sensor, GC2053_NAME, sizeof(inf->base.sensor));
+	strscpy(inf->base.module, gc2053->module_name,
 		sizeof(inf->base.module));
-	strlcpy(inf->base.lens, gc2053->len_name, sizeof(inf->base.lens));
-}
-
-static void gc2053_set_awb_cfg(struct gc2053 *gc2053,
-				   struct rkmodule_awb_cfg *cfg)
-{
-	mutex_lock(&gc2053->mutex);
-	memcpy(&gc2053->awb_cfg, cfg, sizeof(*cfg));
-	mutex_unlock(&gc2053->mutex);
-}
-
-static void gc2053_set_lsc_cfg(struct gc2053 *gc2053,
-				   struct rkmodule_lsc_cfg *cfg)
-{
-	mutex_lock(&gc2053->mutex);
-	memcpy(&gc2053->lsc_cfg, cfg, sizeof(*cfg));
-	mutex_unlock(&gc2053->mutex);
+	strscpy(inf->base.lens, gc2053->len_name, sizeof(inf->base.lens));
 }
 
 static long gc2053_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
@@ -898,16 +1061,11 @@ static long gc2053_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 		hdr_cfg->hdr_mode = gc2053->cur_mode->hdr_mode;
 		break;
 	case RKMODULE_SET_HDR_CFG:
-	case RKMODULE_SET_CONVERSION_GAIN:
+		ret = -EINVAL;
+		dev_err(&gc2053->client->dev, "gc2053 not support hdr mode\n");
 		break;
 	case RKMODULE_GET_MODULE_INFO:
 		gc2053_get_module_inf(gc2053, (struct rkmodule_inf *)arg);
-		break;
-	case RKMODULE_AWB_CFG:
-		gc2053_set_awb_cfg(gc2053, (struct rkmodule_awb_cfg *)arg);
-		break;
-	case RKMODULE_LSC_CFG:
-		gc2053_set_lsc_cfg(gc2053, (struct rkmodule_lsc_cfg *)arg);
 		break;
 	case RKMODULE_SET_QUICK_STREAM:
 
@@ -933,11 +1091,8 @@ static long gc2053_compat_ioctl32(struct v4l2_subdev *sd,
 {
 	void __user *up = compat_ptr(arg);
 	struct rkmodule_inf *inf;
-	struct rkmodule_awb_cfg *awb_cfg;
-	struct rkmodule_lsc_cfg *lsc_cfg;
 	struct rkmodule_hdr_cfg *hdr;
 	long ret = 0;
-	u32 cg = 0;
 	u32 stream = 0;
 
 	switch (cmd) {
@@ -949,33 +1104,12 @@ static long gc2053_compat_ioctl32(struct v4l2_subdev *sd,
 		}
 
 		ret = gc2053_ioctl(sd, cmd, inf);
-		if (!ret)
+		if (!ret) {
 			ret = copy_to_user(up, inf, sizeof(*inf));
+			if (ret)
+				ret = -EFAULT;
+		}
 		kfree(inf);
-		break;
-	case RKMODULE_AWB_CFG:
-		awb_cfg = kzalloc(sizeof(*awb_cfg), GFP_KERNEL);
-		if (!awb_cfg) {
-			ret = -ENOMEM;
-			return ret;
-		}
-
-		ret = copy_from_user(awb_cfg, up, sizeof(*awb_cfg));
-		if (!ret)
-			ret = gc2053_ioctl(sd, cmd, awb_cfg);
-		kfree(awb_cfg);
-		break;
-	case RKMODULE_LSC_CFG:
-		lsc_cfg = kzalloc(sizeof(*lsc_cfg), GFP_KERNEL);
-		if (!lsc_cfg) {
-			ret = -ENOMEM;
-			return ret;
-		}
-
-		ret = copy_from_user(lsc_cfg, up, sizeof(*lsc_cfg));
-		if (!ret)
-			ret = gc2053_ioctl(sd, cmd, lsc_cfg);
-		kfree(lsc_cfg);
 		break;
 	case RKMODULE_GET_HDR_CFG:
 		hdr = kzalloc(sizeof(*hdr), GFP_KERNEL);
@@ -985,8 +1119,11 @@ static long gc2053_compat_ioctl32(struct v4l2_subdev *sd,
 		}
 
 		ret = gc2053_ioctl(sd, cmd, hdr);
-		if (!ret)
+		if (!ret) {
 			ret = copy_to_user(up, hdr, sizeof(*hdr));
+			if (ret)
+				ret = -EFAULT;
+		}
 		kfree(hdr);
 		break;
 	case RKMODULE_SET_HDR_CFG:
@@ -996,23 +1133,20 @@ static long gc2053_compat_ioctl32(struct v4l2_subdev *sd,
 			return ret;
 		}
 
-		ret = copy_from_user(hdr, up, sizeof(*hdr));
-		if (!ret)
-			ret = gc2053_ioctl(sd, cmd, hdr);
+		if (copy_from_user(hdr, up, sizeof(*hdr)))
+			return -EFAULT;
+
+		ret = gc2053_ioctl(sd, cmd, hdr);
 		kfree(hdr);
 		break;
-	case RKMODULE_SET_CONVERSION_GAIN:
-		ret = copy_from_user(&cg, up, sizeof(cg));
-		if (!ret)
-			ret = gc2053_ioctl(sd, cmd, &cg);
-		break;
 	case RKMODULE_SET_QUICK_STREAM:
-		ret = copy_from_user(&stream, up, sizeof(u32));
-		if (!ret)
-			ret = gc2053_ioctl(sd, cmd, &stream);
+		if (copy_from_user(&stream, up, sizeof(u32)))
+			return -EFAULT;
+
+		ret = gc2053_ioctl(sd, cmd, &stream);
 		break;
 	default:
-		ret = -ENOTTY;
+		ret = -ENOIOCTLCMD;
 		break;
 	}
 	return ret;
@@ -1071,6 +1205,12 @@ static int gc2053_g_frame_interval(struct v4l2_subdev *sd,
 static int gc2053_g_mbus_config(struct v4l2_subdev *sd,
 				struct v4l2_mbus_config *config)
 {
+#if USE_DVP_INTERFACE
+	config->type = V4L2_MBUS_PARALLEL;
+	config->flags = V4L2_MBUS_HSYNC_ACTIVE_HIGH |
+			V4L2_MBUS_VSYNC_ACTIVE_LOW |
+			V4L2_MBUS_PCLK_SAMPLE_RISING;
+#else
 	struct gc2053 *gc2053 = to_gc2053(sd);
 	const struct gc2053_mode *mode = gc2053->cur_mode;
 	u32 val = 0;
@@ -1082,6 +1222,7 @@ static int gc2053_g_mbus_config(struct v4l2_subdev *sd,
 
 	config->type = V4L2_MBUS_CSI2;
 	config->flags = val;
+#endif
 	return 0;
 }
 static int gc2053_enum_mbus_code(struct v4l2_subdev *sd,
@@ -1368,9 +1509,20 @@ static int gc2053_probe(struct i2c_client *client,
 		return ret;
 	}
 
-	ret = gc2053_parse_of(gc2053);
+#if USE_DVP_INTERFACE
+	gc2053->cur_mode = &supported_modes[0];
+	gc2053->cfg_num = 1;
+	gc2053->cur_vts = gc2053->cur_mode->vts_def;
+
+	gc2053->pixel_rate = gc2053->cur_mode->width *
+			     gc2053->cur_mode->height * 8 * 30 / 8;
+
+#else
+	ret = gc2053_parse_of_mipi(gc2053);
 	if (ret != 0)
 		return -EINVAL;
+
+#endif
 
 	gc2053->pinctrl = devm_pinctrl_get(dev);
 	if (!IS_ERR(gc2053->pinctrl)) {
