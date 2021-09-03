@@ -22,6 +22,7 @@
 #include <linux/iommu.h>
 #include <linux/pagemap.h>
 #include <linux/vmalloc.h>
+#include <linux/swiotlb.h>
 
 #include "rockchip_drm_drv.h"
 #include "rockchip_drm_gem.h"
@@ -101,6 +102,30 @@ static void rockchip_gem_free_list(struct list_head lists[])
 			kfree(info);
 		}
 	}
+}
+
+static struct sg_table *rockchip_gem_pages_to_sg(struct page **pages, unsigned int nr_pages)
+{
+	struct sg_table *sg = NULL;
+	int ret;
+#define SG_SIZE_MAX	(IO_TLB_SEGSIZE * (1 << IO_TLB_SHIFT))
+
+	sg = kmalloc(sizeof(struct sg_table), GFP_KERNEL);
+	if (!sg) {
+		ret = -ENOMEM;
+		goto out;
+	}
+
+	ret = __sg_alloc_table_from_pages(sg, pages, nr_pages, 0,
+					  nr_pages << PAGE_SHIFT,
+					  SG_SIZE_MAX, GFP_KERNEL);
+	if (ret)
+		goto out;
+
+	return sg;
+out:
+	kfree(sg);
+	return ERR_PTR(ret);
 }
 
 static int rockchip_gem_get_pages(struct rockchip_gem_object *rk_obj)
@@ -199,7 +224,7 @@ static int rockchip_gem_get_pages(struct rockchip_gem_object *rk_obj)
 	DRM_DEBUG_KMS("%s, %d, end = %d, n_pages = %d\n", __func__, __LINE__,
 			end, n_pages);
 
-	rk_obj->sgt = drm_prime_pages_to_sg(dst_pages, rk_obj->num_pages);
+	rk_obj->sgt = rockchip_gem_pages_to_sg(dst_pages, rk_obj->num_pages);
 
 	if (IS_ERR(rk_obj->sgt)) {
 		ret = PTR_ERR(rk_obj->sgt);
@@ -369,7 +394,7 @@ static int rockchip_gem_alloc_secure(struct rockchip_gem_object *rk_obj)
 		paddr += PAGE_SIZE;
 		i++;
 	}
-	sgt = drm_prime_pages_to_sg(rk_obj->pages, rk_obj->num_pages);
+	sgt = rockchip_gem_pages_to_sg(rk_obj->pages, rk_obj->num_pages);
 	if (IS_ERR(sgt)) {
 		ret = PTR_ERR(sgt);
 		goto err_free_pages;
@@ -808,7 +833,7 @@ struct sg_table *rockchip_gem_prime_get_sg_table(struct drm_gem_object *obj)
 	int ret;
 
 	if (rk_obj->pages)
-		return drm_prime_pages_to_sg(rk_obj->pages, rk_obj->num_pages);
+		return rockchip_gem_pages_to_sg(rk_obj->pages, rk_obj->num_pages);
 
 	sgt = kzalloc(sizeof(*sgt), GFP_KERNEL);
 	if (!sgt)
