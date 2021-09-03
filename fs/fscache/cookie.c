@@ -955,6 +955,6 @@ void __init fscache_cookie_init(void)
 {
 	int i;
 
-	for (i = 0; i < (1 << fscache_cookie_hash_shift) - 1; i++)
+	for (i = 0; i < ARRAY_SIZE(fscache_cookie_hash); i++)
 		INIT_HLIST_BL_HEAD(&fscache_cookie_hash[i]);
 }
