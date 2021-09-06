@@ -205,6 +205,7 @@ obj-$(CONFIG_VIDEO_SC8220)	+= sc8220.o
 obj-$(CONFIG_VIDEO_SP250A)	+= sp250a.o
 obj-$(CONFIG_VIDEO_HYNIX_HI556)	+= hynix_hi556.o
 obj-$(CONFIG_VIDEO_HYNIX_HI846)	+= hynix_hi846.o
+obj-$(CONFIG_VIDEO_HM5040)	+= hm5040.o
 
 obj-$(CONFIG_VIDEO_PREISP_DUMMY_SENSOR)	+= preisp-dummy.o
 

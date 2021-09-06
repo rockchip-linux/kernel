@@ -1925,6 +1925,18 @@ config VIDEO_HYNIX_HI846
 	  To compile this driver as a module, choose M here: the
 	  module will be called hynix_hi846.
 
+config VIDEO_HM5040
+	tristate "Himax HM5040 sensor support"
+	depends on VIDEO_V4L2 && I2C && MEDIA_CONTROLLER
+	depends on MEDIA_CAMERA_SUPPORT
+	select V4L2_FWNODE
+	help
+	  This is a Video4Linux2 sensor driver for the Hynix
+	  HM5040 camera.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called hm5040.
+
 comment "Flash devices"
 
 config VIDEO_ADP1653
