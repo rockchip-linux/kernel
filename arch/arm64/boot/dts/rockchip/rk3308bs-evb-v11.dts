@@ -1,0 +1,70 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright (c) 2021 Rockchip Electronics Co., Ltd
+ */
+
+/dts-v1/;
+
+#include "rk3308b-evb-v10.dtsi"
+
+/ {
+	model = "Rockchip RK3308B-S EVB V11";
+	compatible = "rockchip,rk3308bs-evb-v11", "rockchip,rk3308bs", "rockchip,rk3308";
+
+	/delete-node/ vdd-1v0;
+	vdd_0v9: vdd-0v9 {
+		compatible = "regulator-fixed";
+		regulator-name = "vdd_0v9";
+		regulator-always-on;
+		regulator-boot-on;
+		regulator-min-microvolt = <900000>;
+		regulator-max-microvolt = <900000>;
+	};
+
+	/delete-node/ wireless-bluetooth;
+	wireless-bluetooth {
+		compatible = "bluetooth-platdata";
+		uart_rts_gpios = <&gpio2 RK_PA3 GPIO_ACTIVE_LOW>;
+		pinctrl-names = "default", "rts_gpio";
+		pinctrl-0 = <&uart0_rts>;
+		pinctrl-1 = <&uart0_rts_gpio>;
+		BT,power_gpio    = <&gpio2 RK_PB7 GPIO_ACTIVE_HIGH>;
+		BT,wake_host_irq = <&gpio2 RK_PB0 GPIO_ACTIVE_HIGH>;
+		status = "okay";
+	};
+
+	/delete-node/ wireless-wlan;
+	wireless-wlan {
+		compatible = "wlan-platdata";
+		rockchip,grf = <&grf>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&wifi_wake_host>;
+		wifi_chip_type = "ap6256";
+		WIFI,host_wake_irq = <&gpio2 RK_PB4 GPIO_ACTIVE_HIGH>;
+		status = "okay";
+	};
+};
+
+&acodec_sound {
+	status = "disabled";
+};
+
+&mac {
+	status = "okay";
+};
+
+&vdd_core {
+	regulator-min-microvolt = <774000>;
+	regulator-max-microvolt = <1336000>;
+	regulator-init-microvolt = <916000>;
+};
+
+&vcc_ddr {
+	regulator-min-microvolt = <1350000>;
+	regulator-max-microvolt = <1350000>;
+};
+
+&vdd_log {
+	regulator-min-microvolt = <900000>;
+	regulator-max-microvolt = <900000>;
+};

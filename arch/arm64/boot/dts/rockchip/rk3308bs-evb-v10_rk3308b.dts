@@ -1,0 +1,33 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright (c) 2021 Rockchip Electronics Co., Ltd
+ */
+
+/dts-v1/;
+
+#include "rk3308b-evb-v10.dtsi"
+
+/ {
+	model = "Rockchip RK3308B-S EVB V10 with RK3308B";
+	compatible = "rockchip,rk3308bs-evb-v10_rk3308b", "rockchip,rk3308b", "rockchip,rk3308";
+
+	/delete-node/ wireless-wlan;
+	wireless-wlan {
+		compatible = "wlan-platdata";
+		rockchip,grf = <&grf>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&wifi_wake_host>;
+		wifi_chip_type = "ap6256";
+		WIFI,host_wake_irq = <&gpio2 RK_PB4 GPIO_ACTIVE_HIGH>;
+		status = "okay";
+	};
+};
+
+&mac {
+	status = "okay";
+};
+
+&vcc_ddr {
+	regulator-min-microvolt = <1350000>;
+	regulator-max-microvolt = <1350000>;
+};
