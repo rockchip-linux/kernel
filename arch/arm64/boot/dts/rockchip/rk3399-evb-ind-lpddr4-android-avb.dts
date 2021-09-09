@@ -31,6 +31,13 @@
 		vin-supply = <&vcc5v0_sys>;
 	};
 
+	ext_cam_clk: external-camera-clock {
+		compatible = "fixed-clock";
+		clock-frequency = <27000000>;
+		clock-output-names = "CLK_CAMERA_27MHZ";
+		#clock-cells = <0>;
+	};
+
 	panel: panel {
 		compatible = "simple-panel";
 		backlight = <&backlight>;
@@ -221,6 +228,35 @@
 			};
 		};
 	};
+
+	/delete-node/ tc358749x@0f;
+
+	tc35874x: tc35874x@0f {
+		status = "disabled";
+		reg = <0x0f>;
+		compatible = "toshiba,tc358749";
+		clocks = <&ext_cam_clk>;
+		clock-names = "refclk";
+		reset-gpios = <&gpio0 2 GPIO_ACTIVE_LOW>;
+		/* interrupt-parent = <&gpio2>; */
+		/* interrupts = <12 IRQ_TYPE_LEVEL_HIGH>; */
+		pinctrl-names = "default";
+		pinctrl-0 = <&tc35874x_gpios>;
+		rockchip,camera-module-index = <0>;
+		rockchip,camera-module-facing = "back";
+		rockchip,camera-module-name = "TC358749XBG";
+		rockchip,camera-module-lens-name = "NC";
+
+		port {
+			hdmiin_out0: endpoint {
+				remote-endpoint = <&hdmi_to_mipi_in>;
+				data-lanes = <1 2 3 4>;
+				clock-noncontinuous;
+				link-frequencies =
+					/bits/ 64 <297000000>;
+			};
+		};
+	};
 };
 
 &i2s2 {
@@ -280,6 +316,11 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 
+			hdmi_to_mipi_in: endpoint@0 {
+				reg = <0>;
+				remote-endpoint = <&hdmiin_out0>;
+				data-lanes = <1 2 3 4>;
+			};
 			mipi_in_ucam1: endpoint@1 {
 				reg = <1>;
 				remote-endpoint = <&ucam_out1>;
@@ -380,6 +421,19 @@
 };
 
 &pinctrl {
+	hdmiin {
+		tc35874x_gpios: tc35874x_gpios {
+			rockchip,pins =
+				/* PWREN_3.3 */
+				<0 RK_PB5 RK_FUNC_GPIO &pcfg_output_high>,
+				/* HDMIIN_RST */
+				<0 RK_PA2 RK_FUNC_GPIO &pcfg_pull_none>,
+				/* HDMIIN_STBY */
+				<3 RK_PD1 RK_FUNC_GPIO &pcfg_output_high>,
+				/* HDMIIN_INT */
+				<4 RK_PA4 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
 	lcd-panel {
 		lcd_panel_reset: lcd-panel-reset {
 			rockchip,pins = <1 RK_PC7 RK_FUNC_GPIO &pcfg_pull_up>;
