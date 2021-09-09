@@ -247,6 +247,7 @@ struct rk628_gvi {
 	u8 color_depth;
 	u8 byte_mode;
 	bool division_mode;
+	bool frm_rst;
 };
 
 static inline struct rk628_gvi *bridge_to_gvi(struct drm_bridge *b)
@@ -442,7 +443,8 @@ static void rk628_gvi_pre_enable(struct rk628_gvi *gvi)
 	regmap_write_bits(gvi->regmap, GVI_SYS_CTRL1, SYS_CTRL1_DUAL_PIXEL_EN,
 			  gvi->division_mode ? SYS_CTRL1_DUAL_PIXEL_EN : 0);
 
-	regmap_write_bits(gvi->regmap, GVI_SYS_CTRL0, SYS_CTRL0_FRM_RST_EN, 0);
+	regmap_write_bits(gvi->regmap, GVI_SYS_CTRL0, SYS_CTRL0_FRM_RST_EN,
+			  gvi->frm_rst ? SYS_CTRL0_FRM_RST_EN : 0);
 	regmap_write_bits(gvi->regmap, GVI_SYS_CTRL1, SYS_CTRL1_LANE_ALIGN_EN, 0);
 }
 
@@ -592,6 +594,7 @@ static int rk628_gvi_probe(struct platform_device *pdev)
 	gvi->parent = rk628;
 	gvi->division_mode = of_property_read_bool(dev->of_node,
 						   "rockchip,division-mode");
+	gvi->frm_rst = of_property_read_bool(dev->of_node, "rockchip,gvi-frm-rst");
 	ret = of_property_read_u32(dev->of_node, "rockchip,lane-num",
 				   &gvi->lane_num);
 	if (ret) {
