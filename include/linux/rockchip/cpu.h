@@ -36,6 +36,8 @@ static inline void rockchip_set_cpu_version(unsigned long ver)
 		(ver << ROCKCHIP_CPU_VERION_SHIFT) & ROCKCHIP_CPU_VERION_MASK;
 }
 
+int rockchip_soc_id_init(void);
+
 #else
 
 #define rockchip_soc_id 0
@@ -47,6 +49,11 @@ static inline unsigned long rockchip_get_cpu_version(void)
 
 static inline void rockchip_set_cpu_version(unsigned long ver)
 {
+}
+
+static inline int rockchip_soc_id_init(void)
+{
+	return 0;
 }
 
 #endif
