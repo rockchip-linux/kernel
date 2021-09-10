@@ -1147,7 +1147,7 @@ static int rk_tsadcv1_get_trim_code(struct platform_device *pdev,
 	int trim_code;
 
 	base_code = trim_base * table->kNum / 1000 + table->bNum;
-	trim_code = code - base_code - 10;
+	trim_code = code - base_code;
 
 	return trim_code;
 }
