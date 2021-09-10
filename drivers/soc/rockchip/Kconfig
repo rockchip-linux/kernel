@@ -148,6 +148,7 @@ config ROCKCHIP_THUNDER_BOOT_CRYPTO
 
 config ROCKCHIP_SCHED_PERFORMANCE_BIAS
 	bool "Rockchip task scheduler optimization"
+	depends on SMP && CPU_FREQ_GOV_INTERACTIVE
 	default y
 	help
 	  Say y here to enable rockchip optimize task scheduler for performance bias,
