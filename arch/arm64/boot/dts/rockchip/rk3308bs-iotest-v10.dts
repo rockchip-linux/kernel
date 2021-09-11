@@ -1,0 +1,50 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright (c) 2021 Rockchip Electronics Co., Ltd
+ */
+
+/dts-v1/;
+
+#include "rk3308.dtsi"
+
+/ {
+	model = "Rockchip RK3308B-S IOTEST V10";
+	compatible = "rockchip,rk3308bs-iotest-v10", "rockchip,rk3308bs", "rockchip,rk3308";
+
+	chosen {
+		bootargs = "earlycon=uart8250,mmio32,0xff0e0000 swiotlb=1 console=ttyFIQ0 root=PARTUUID=614e0000-0000 rootfstype=squashfs rootwait";
+	};
+};
+
+&fiq_debugger {
+	rockchip,serial-id = <4>;
+	status = "okay";
+};
+
+&nandc {
+	status = "okay";
+};
+
+&rng {
+	status = "okay";
+};
+
+&sfc {
+	status = "okay";
+};
+
+&uart4 {
+	status = "disabled";
+};
+
+&u2phy {
+	status = "okay";
+
+	u2phy_otg: otg-port {
+		status = "okay";
+	};
+};
+
+&usb20_otg {
+	status = "okay";
+};
