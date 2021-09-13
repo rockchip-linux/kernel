@@ -93,6 +93,12 @@ struct xz3216_board {
 	unsigned int sleep_vsel_id;
 };
 
+static unsigned int xz3216_map_mode(unsigned int mode)
+{
+	return mode == REGULATOR_MODE_FAST ?
+		REGULATOR_MODE_FAST : REGULATOR_MODE_NORMAL;
+}
+
 static unsigned int xz3216_dcdc_get_mode(struct regulator_dev *dev)
 {
 	struct xz3216 *xz3216 = rdev_get_drvdata(dev);
@@ -353,6 +359,8 @@ static struct xz3216_board *xz3216_parse_dt(struct xz3216 *xz3216)
 	regs = of_find_node_by_name(xz3216_np, "regulators");
 	if (!regs)
 		return NULL;
+
+	xz3216_reg_matches[0].desc = &xz3216->desc;
 	count = of_regulator_match(xz3216->dev, regs, xz3216_reg_matches,
 				   XZ3216_NUM_REGULATORS);
 	of_node_put(regs);
@@ -394,6 +402,7 @@ static int xz3216_i2c_probe(struct i2c_client *i2c,
 		}
 	}
 
+	xz3216->desc.of_map_mode = xz3216_map_mode;
 	xz3216->regmap = devm_regmap_init_i2c(i2c, &xz3216_regmap_config);
 	if (IS_ERR(xz3216->regmap)) {
 		dev_err(&i2c->dev, "Failed to allocate regmap!\n");
