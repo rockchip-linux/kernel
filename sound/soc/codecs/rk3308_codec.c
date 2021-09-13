@@ -1335,18 +1335,20 @@ static int rk3308_mute_stream(struct snd_soc_dai *dai, int mute, int stream)
 		int dgain;
 
 		if (mute) {
-			for (dgain = 0x2; dgain <= 0x7; dgain++) {
-				/*
-				 * Keep the max -> min digital CIC interpolation
-				 * filter gain step by step.
-				 *
-				 * loud: 0x2; whisper: 0x7
-				 */
-				regmap_update_bits(rk3308->regmap,
-						   RK3308_DAC_DIG_CON04,
-						   RK3308_DAC_CIC_IF_GAIN_MSK,
-						   dgain);
-				usleep_range(200, 300);  /* estimated value */
+			if (rk3308->codec_ver <= ACODEC_VERSION_B) {
+				for (dgain = 0x2; dgain <= 0x7; dgain++) {
+					/*
+					 * Keep the max -> min digital CIC interpolation
+					 * filter gain step by step.
+					 *
+					 * loud: 0x2; whisper: 0x7
+					 */
+					regmap_update_bits(rk3308->regmap,
+							   RK3308_DAC_DIG_CON04,
+							   RK3308_DAC_CIC_IF_GAIN_MSK,
+							   dgain);
+					usleep_range(200, 300);  /* estimated value */
+				}
 			}
 
 #if !DEBUG_POP_ALWAYS
@@ -1363,18 +1365,20 @@ static int rk3308_mute_stream(struct snd_soc_dai *dai, int mute, int stream)
 			if (rk3308->delay_start_play_ms)
 				msleep(rk3308->delay_start_play_ms);
 #endif
-			for (dgain = 0x7; dgain >= 0x2; dgain--) {
-				/*
-				 * Keep the min -> max digital CIC interpolation
-				 * filter gain step by step
-				 *
-				 * loud: 0x2; whisper: 0x7
-				 */
-				regmap_update_bits(rk3308->regmap,
-						   RK3308_DAC_DIG_CON04,
-						   RK3308_DAC_CIC_IF_GAIN_MSK,
-						   dgain);
-				usleep_range(200, 300);  /* estimated value */
+			if (rk3308->codec_ver <= ACODEC_VERSION_B) {
+				for (dgain = 0x7; dgain >= 0x2; dgain--) {
+					/*
+					 * Keep the min -> max digital CIC interpolation
+					 * filter gain step by step
+					 *
+					 * loud: 0x2; whisper: 0x7
+					 */
+					regmap_update_bits(rk3308->regmap,
+							   RK3308_DAC_DIG_CON04,
+							   RK3308_DAC_CIC_IF_GAIN_MSK,
+							   dgain);
+					usleep_range(200, 300);  /* estimated value */
+				}
 			}
 		}
 	}
@@ -3492,6 +3496,12 @@ static int rk3308_codec_default_gains(struct rk3308_codec_priv *rk3308)
 			   RK3308_DAC_R_LINEOUT_GAIN_MSK,
 			   RK3308_DAC_L_LINEOUT_GAIN_0DB |
 			   RK3308_DAC_R_LINEOUT_GAIN_0DB);
+
+	if (rk3308->codec_ver == ACODEC_VERSION_C) {
+		/* recover DAC digtial gain to 0dB */
+		regmap_write(rk3308->regmap, RK3308BS_DAC_DIG_CON04,
+			     RK3308BS_DAC_DIG_GAIN(RK3308BS_DAC_DIG_0DB));
+	}
 
 	return 0;
 }
