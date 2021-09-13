@@ -206,6 +206,11 @@
 		status = "okay";
 	};
 
+	dummy_codec: dummy-codec {
+		compatible = "rockchip,dummy-codec";
+		#sound-dai-cells = <0>;
+	};
+
 	tc358749x_sound:tc358749x-sound {
 		status = "okay";
 		compatible = "simple-audio-card";
@@ -214,10 +219,10 @@
 		simple-audio-card,bitclock-master = <&sound0_master>;
 		simple-audio-card,frame-master = <&sound0_master>;
 		simple-audio-card,cpu {
-				sound-dai = <&i2s0>;
+			sound-dai = <&i2s0>;
 		};
 		sound0_master: simple-audio-card,codec {
-				sound-dai = <&tc358749x>;
+			sound-dai = <&dummy_codec>;
 		};
 	};
 
