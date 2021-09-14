@@ -16,6 +16,15 @@
 	};
 };
 
+&cpu0_opp_table {
+	opp-816000000 {
+		status = "disabled";
+	};
+	opp-1008000000 {
+		status = "disabled";
+	};
+};
+
 &fiq_debugger {
 	rockchip,serial-id = <4>;
 	status = "okay";
