@@ -2031,17 +2031,17 @@ static int rk3308_usb2phy_tuning(struct rockchip_usb2phy *rphy)
 
 	if (soc_is_rk3308bs()) {
 		/* Turn off differential reciver in suspend mode */
-		ret = regmap_write(rphy->grf, 0x30, 0 | BIT(2) << 16);
+		ret = regmap_update_bits(rphy->grf, 0x30, BIT(2), 0);
 		if (ret)
 			return ret;
 
 		/* Enable otg port pre-emphasis during non-chirp phase */
-		ret = regmap_write(rphy->grf, 0, BIT(2) | GENMASK(2, 0) << 16);
+		ret = regmap_update_bits(rphy->grf, 0, GENMASK(2, 0), BIT(2));
 		if (ret)
 			return ret;
 
 		/* Enable host port pre-emphasis during non-chirp phase */
-		ret = regmap_write(rphy->grf, 0x400, BIT(2) | GENMASK(2, 0) << 16);
+		ret = regmap_update_bits(rphy->grf, 0x400, GENMASK(2, 0), BIT(2));
 		if (ret)
 			return ret;
 	} else {
