@@ -216,6 +216,20 @@ static int xz3216_dcdc_set_suspend_mode(struct regulator_dev *dev,
 	}
 }
 
+static int xz3216_resume(struct regulator_dev *rdev)
+{
+	int ret;
+
+	if (!rdev->constraints->state_mem.changeable)
+		return 0;
+
+	ret = xz3216_dcdc_suspend_enable(rdev);
+	if (ret)
+		return ret;
+
+	return regulator_suspend_enable(rdev, PM_SUSPEND_MEM);
+}
+
 static const int slew_rates[] = {
 	64000,
 	32000,
@@ -263,6 +277,7 @@ static struct regulator_ops xz3216_dcdc_ops = {
 	.set_suspend_mode = xz3216_dcdc_set_suspend_mode,
 	.set_ramp_delay = xz3216_set_ramp,
 	.set_voltage_time_sel = regulator_set_voltage_time_sel,
+	.resume = xz3216_resume,
 };
 
 static int xz3216_regulator_register(struct xz3216 *xz3216, struct regulator_config *config)
