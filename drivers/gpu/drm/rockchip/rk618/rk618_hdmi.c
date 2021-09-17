@@ -439,6 +439,9 @@ struct rk618_hdmi {
 	struct switch_dev switchdev;
 #endif
 	struct rockchip_drm_sub_dev sub_dev;
+	hdmi_codec_plugged_cb plugged_cb;
+	struct device *codec_dev;
+	enum drm_connector_status last_connector_result;
 };
 
 enum {
@@ -542,6 +545,26 @@ static inline u8 hdmi_readb(struct rk618_hdmi *hdmi, u16 offset)
 static inline void hdmi_writeb(struct rk618_hdmi *hdmi, u16 offset, u32 val)
 {
 	regmap_write(hdmi->regmap, (RK618_HDMI_BASE + ((offset) << 2)), val);
+}
+
+static void handle_plugged_change(struct rk618_hdmi *hdmi, bool plugged)
+{
+	if (hdmi->plugged_cb && hdmi->codec_dev)
+		hdmi->plugged_cb(hdmi->codec_dev, plugged);
+}
+
+static int rk618_hdmi_set_plugged_cb(struct rk618_hdmi *hdmi,
+				     hdmi_codec_plugged_cb fn,
+				     struct device *codec_dev)
+{
+	bool plugged;
+
+	hdmi->plugged_cb = fn;
+	hdmi->codec_dev = codec_dev;
+	plugged = hdmi->last_connector_result == connector_status_connected;
+	handle_plugged_change(hdmi, plugged);
+
+	return 0;
 }
 
 static void rk618_hdmi_set_polarity(struct rk618_hdmi *hdmi, int vic)
@@ -945,14 +968,23 @@ rk618_hdmi_connector_detect(struct drm_connector *connector, bool force)
 {
 	struct rk618_hdmi *hdmi = connector_to_hdmi(connector);
 	bool status;
+	enum drm_connector_status result;
 
 	status = rk618_hdmi_hpd_detect(hdmi);
 #ifdef CONFIG_SWITCH
 	switch_set_state(&hdmi->switchdev, status);
 #endif
 
-	return status ? connector_status_connected :
+	result = status ? connector_status_connected :
 			connector_status_disconnected;
+	if (result != hdmi->last_connector_result) {
+		dev_dbg(hdmi->dev, "rk618_hdmi read_hpd result: %d", result);
+		handle_plugged_change(hdmi,
+				result == connector_status_connected);
+		hdmi->last_connector_result = result;
+	}
+
+	return result;
 }
 
 static int rk618_hdmi_connector_get_modes(struct drm_connector *connector)
@@ -1284,11 +1316,21 @@ static int rk618_hdmi_audio_get_eld(struct device *dev, void *d,
 	return ret;
 }
 
+static int rk618_hdmi_hook_plugged_cb(struct device *dev, void *data,
+				      hdmi_codec_plugged_cb fn,
+				      struct device *codec_dev)
+{
+	struct rk618_hdmi *hdmi = dev_get_drvdata(dev);
+
+	return rk618_hdmi_set_plugged_cb(hdmi, fn, codec_dev);
+}
+
 static const struct hdmi_codec_ops audio_codec_ops = {
 	.hw_params = rk618_hdmi_audio_hw_params,
 	.audio_shutdown = rk618_hdmi_audio_shutdown,
 	.digital_mute = rk618_hdmi_audio_digital_mute,
 	.get_eld = rk618_hdmi_audio_get_eld,
+	.hook_plugged_cb = rk618_hdmi_hook_plugged_cb,
 };
 
 static int rk618_hdmi_audio_codec_init(struct rk618_hdmi *hdmi,
