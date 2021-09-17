@@ -25,23 +25,6 @@ typedef struct {
 	.owner		= NULL,			\
 	.nestcnt	= 0,			\
 	}
-#else
-
-# ifdef CONFIG_DEBUG_LOCK_ALLOC
-#  define LL_DEP_MAP_INIT(lockname)			\
-	.dep_map = {					\
-		.name = #lockname,			\
-		.wait_type_inner = LD_WAIT_CONFIG,	\
-	}
-# else
-#  define LL_DEP_MAP_INIT(lockname)
-# endif
-
-#define INIT_LOCAL_LOCK(lockname)	{ LL_DEP_MAP_INIT(lockname) }
-
-#endif
-
-#ifdef CONFIG_PREEMPT_RT
 
 static inline void ___local_lock_init(local_lock_t *l)
 {
@@ -55,15 +38,15 @@ do {								\
 	___local_lock_init(l);					\
 } while (0)
 
-#else
+#elif defined(CONFIG_DEBUG_LOCK_ALLOC)
 
-#define __local_lock_init(l)					\
-do {								\
-	static struct lock_class_key __key;			\
-								\
-	debug_check_no_locks_freed((void *)l, sizeof(*l));	\
-	lockdep_init_map_wait(&(l)->dep_map, #l, &__key, 0, LD_WAIT_CONFIG);\
-} while (0)
+# define LOCAL_LOCK_DEBUG_INIT(lockname)		\
+	.dep_map = {					\
+		.name = #lockname,			\
+		.wait_type_inner = LD_WAIT_CONFIG,	\
+		.lock_type = LD_LOCK_PERCPU,		\
+	},						\
+	.owner = NULL,
 #endif
 
 #ifdef CONFIG_PREEMPT_RT
@@ -105,9 +88,15 @@ static inline void local_lock_release(local_lock_t *l)
 	lock_map_release(&l->dep_map);
 }
 
+static inline void local_lock_debug_init(local_lock_t *l)
+{
+	l->owner = NULL;
+}
 #else /* CONFIG_DEBUG_LOCK_ALLOC */
+# define LOCAL_LOCK_DEBUG_INIT(lockname)
 static inline void local_lock_acquire(local_lock_t *l) { }
 static inline void local_lock_release(local_lock_t *l) { }
+static inline void local_lock_debug_init(local_lock_t *l) { }
 #endif /* !CONFIG_DEBUG_LOCK_ALLOC */
 
 #ifdef CONFIG_PREEMPT_RT
@@ -150,6 +139,19 @@ static inline void local_lock_release(local_lock_t *l) { }
 	} while (0)
 
 #else
+
+#define INIT_LOCAL_LOCK(lockname)	{ LOCAL_LOCK_DEBUG_INIT(lockname) }
+
+#define __local_lock_init(lock)					\
+do {								\
+	static struct lock_class_key __key;			\
+								\
+	debug_check_no_locks_freed((void *)lock, sizeof(*lock));\
+	lockdep_init_map_type(&(lock)->dep_map, #lock, &__key,  \
+			      0, LD_WAIT_CONFIG, LD_WAIT_INV,	\
+			      LD_LOCK_PERCPU);			\
+	local_lock_debug_init(lock);				\
+} while (0)
 
 #define __local_lock(lock)					\
 	do {							\
