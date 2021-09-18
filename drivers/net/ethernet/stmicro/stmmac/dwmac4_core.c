@@ -715,6 +715,7 @@ static void dwmac4_debug(void __iomem *ioaddr, struct stmmac_extra_stats *x,
 		x->mac_gmii_rx_proto_engine++;
 }
 
+#ifdef CONFIG_STMMAC_FULL
 const struct stmmac_ops dwmac4_ops = {
 	.core_init = dwmac4_core_init,
 	.set_mac = stmmac_set_mac,
@@ -745,6 +746,7 @@ const struct stmmac_ops dwmac4_ops = {
 	.debug = dwmac4_debug,
 	.set_filter = dwmac4_set_filter,
 };
+#endif
 
 const struct stmmac_ops dwmac410_ops = {
 	.core_init = dwmac4_core_init,
@@ -777,6 +779,7 @@ const struct stmmac_ops dwmac410_ops = {
 	.set_filter = dwmac4_set_filter,
 };
 
+#ifdef CONFIG_STMMAC_FULL
 const struct stmmac_ops dwmac510_ops = {
 	.core_init = dwmac4_core_init,
 	.set_mac = stmmac_dwmac4_set_mac,
@@ -812,6 +815,7 @@ const struct stmmac_ops dwmac510_ops = {
 	.rxp_config = dwmac5_rxp_config,
 	.flex_pps_config = dwmac5_flex_pps_config,
 };
+#endif
 
 int dwmac4_setup(struct stmmac_priv *priv)
 {

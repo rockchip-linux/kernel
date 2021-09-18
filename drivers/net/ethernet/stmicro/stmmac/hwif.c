@@ -23,6 +23,7 @@ static u32 stmmac_get_id(struct stmmac_priv *priv, u32 id_reg)
 	return reg & GENMASK(7, 0);
 }
 
+#ifdef CONFIG_STMMAC_FULL
 static void stmmac_dwmac_mode_quirk(struct stmmac_priv *priv)
 {
 	struct mac_device_info *mac = priv->hw;
@@ -68,6 +69,7 @@ static int stmmac_dwmac4_quirks(struct stmmac_priv *priv)
 	stmmac_dwmac_mode_quirk(priv);
 	return 0;
 }
+#endif
 
 static const struct stmmac_hwif_entry {
 	bool gmac;
@@ -85,6 +87,7 @@ static const struct stmmac_hwif_entry {
 	int (*quirks)(struct stmmac_priv *priv);
 } stmmac_hw[] = {
 	/* NOTE: New HW versions shall go to the end of this table */
+#ifdef CONFIG_STMMAC_FULL
 	{
 		.gmac = false,
 		.gmac4 = false,
@@ -153,7 +156,9 @@ static const struct stmmac_hwif_entry {
 		.tc = NULL,
 		.setup = dwmac4_setup,
 		.quirks = NULL,
-	}, {
+	},
+#endif /* CONFIG_STMMAC_FULL */
+	{
 		.gmac = false,
 		.gmac4 = true,
 		.xgmac = false,
@@ -170,7 +175,9 @@ static const struct stmmac_hwif_entry {
 		.tc = NULL,
 		.setup = dwmac4_setup,
 		.quirks = NULL,
-	}, {
+	},
+#ifdef CONFIG_STMMAC_FULL
+	{
 		.gmac = false,
 		.gmac4 = true,
 		.xgmac = false,
@@ -205,6 +212,7 @@ static const struct stmmac_hwif_entry {
 		.setup = dwxgmac2_setup,
 		.quirks = NULL,
 	},
+#endif
 };
 
 int stmmac_hwif_init(struct stmmac_priv *priv)
