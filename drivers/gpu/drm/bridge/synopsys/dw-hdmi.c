@@ -418,14 +418,23 @@ static void hdmi_mask_writeb(struct dw_hdmi *hdmi, u8 data, unsigned int reg,
 	hdmi_modb(hdmi, data << shift, mask, reg);
 }
 
-static void dw_hdmi_check_output_type(struct dw_hdmi *hdmi)
+static bool dw_hdmi_check_output_type_changed(struct dw_hdmi *hdmi)
 {
+	bool sink_hdmi;
+
+	sink_hdmi = hdmi->sink_is_hdmi;
+
 	if (hdmi->force_output == 1)
 		hdmi->sink_is_hdmi = true;
 	else if (hdmi->force_output == 2)
 		hdmi->sink_is_hdmi = false;
 	else
 		hdmi->sink_is_hdmi = hdmi->support_hdmi;
+
+	if (sink_hdmi != hdmi->sink_is_hdmi)
+		return true;
+
+	return false;
 }
 
 static void repo_hpd_event(struct work_struct *p_work)
@@ -2820,7 +2829,7 @@ static int dw_hdmi_connector_get_modes(struct drm_connector *connector)
 
 		dev_info(hdmi->dev, "failed to get edid\n");
 	}
-	dw_hdmi_check_output_type(hdmi);
+	dw_hdmi_check_output_type_changed(hdmi);
 
 	return ret;
 }
@@ -2959,6 +2968,9 @@ static int dw_hdmi_connector_atomic_check(struct drm_connector *connector,
 
 void dw_hdmi_set_quant_range(struct dw_hdmi *hdmi)
 {
+	if (!hdmi->bridge_is_on)
+		return;
+
 	hdmi_writeb(hdmi, HDMI_FC_GCP_SET_AVMUTE, HDMI_FC_GCP);
 	dw_hdmi_setup(hdmi, &hdmi->previous_mode);
 	hdmi_writeb(hdmi, HDMI_FC_GCP_CLEAR_AVMUTE, HDMI_FC_GCP);
@@ -2969,7 +2981,11 @@ void dw_hdmi_set_output_type(struct dw_hdmi *hdmi, u64 val)
 {
 	hdmi->force_output = val;
 
-	dw_hdmi_check_output_type(hdmi);
+	if (!dw_hdmi_check_output_type_changed(hdmi))
+		return;
+
+	if (!hdmi->bridge_is_on)
+		return;
 
 	hdmi_writeb(hdmi, HDMI_FC_GCP_SET_AVMUTE, HDMI_FC_GCP);
 	dw_hdmi_setup(hdmi, &hdmi->previous_mode);
