@@ -59,6 +59,7 @@ struct rockchip_saradc {
 	struct reset_control	*reset;
 	const struct rockchip_saradc_data *data;
 	u16			last_val;
+	bool			suspended;
 #ifdef CONFIG_ROCKCHIP_SARADC_TEST_CHN
 	struct timer_list	timer;
 	bool			test;
@@ -80,6 +81,11 @@ static int rockchip_saradc_read_raw(struct iio_dev *indio_dev,
 	switch (mask) {
 	case IIO_CHAN_INFO_RAW:
 		mutex_lock(&indio_dev->mlock);
+
+		if (info->suspended) {
+			mutex_unlock(&indio_dev->mlock);
+			return -EBUSY;
+		}
 
 		reinit_completion(&info->completion);
 
@@ -499,9 +505,16 @@ static int rockchip_saradc_suspend(struct device *dev)
 	struct iio_dev *indio_dev = dev_get_drvdata(dev);
 	struct rockchip_saradc *info = iio_priv(indio_dev);
 
+	/* Avoid reading saradc when suspending */
+	mutex_lock(&indio_dev->mlock);
+
 	clk_disable_unprepare(info->clk);
 	clk_disable_unprepare(info->pclk);
 	regulator_disable(info->vref);
+
+	info->suspended = true;
+
+	mutex_unlock(&indio_dev->mlock);
 
 	return 0;
 }
@@ -523,6 +536,8 @@ static int rockchip_saradc_resume(struct device *dev)
 	ret = clk_prepare_enable(info->clk);
 	if (ret)
 		clk_disable_unprepare(info->pclk);
+
+	info->suspended = false;
 
 	return ret;
 }
