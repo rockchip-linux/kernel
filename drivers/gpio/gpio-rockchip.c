@@ -249,6 +249,7 @@ static int rockchip_gpio_set_debounce(struct gpio_chip *gc,
 static int rockchip_gpio_direction_input(struct gpio_chip *gc,
 					 unsigned int offset)
 {
+	pinctrl_gpio_direction_input(gc->base + offset);
 	return rockchip_gpio_set_direction(gc, offset, true);
 }
 
@@ -257,6 +258,7 @@ static int rockchip_gpio_direction_output(struct gpio_chip *gc,
 {
 	rockchip_gpio_set(gc, offset, value);
 
+	pinctrl_gpio_direction_output(gc->base + offset);
 	return rockchip_gpio_set_direction(gc, offset, false);
 }
 
