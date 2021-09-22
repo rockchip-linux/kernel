@@ -699,6 +699,15 @@ static int rockchip_spi_setup(struct spi_device *spi)
 	int ret = -EINVAL;
 	struct spi_master *master = spi->master;
 	struct rockchip_spi *rs = spi_master_get_devdata(master);
+	u32 cr0;
+
+	pm_runtime_get_sync(rs->dev);
+
+	cr0 = readl_relaxed(rs->regs + ROCKCHIP_SPI_CTRLR0);
+	cr0 |= ((spi->mode & 0x3) << CR0_SCPH_OFFSET);
+	writel_relaxed(cr0, rs->regs + ROCKCHIP_SPI_CTRLR0);
+
+	pm_runtime_put(rs->dev);
 
 	if (spi->cs_gpio == -ENOENT)
 		return 0;
