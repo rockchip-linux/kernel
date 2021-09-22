@@ -124,6 +124,48 @@ static int stmmac_mdio_write(struct mii_bus *bus, int phyaddr, int phyreg,
 }
 
 /**
+ * stmmac_mdio_idle
+ * @bus: points to the mii_bus structure
+ * Description: reset the MII bus
+ */
+int stmmac_mdio_idle(struct mii_bus *bus)
+{
+#if IS_ENABLED(CONFIG_STMMAC_PLATFORM)
+	struct net_device *ndev = bus->priv;
+	struct stmmac_priv *priv = netdev_priv(ndev);
+	struct stmmac_mdio_bus_data *data = priv->plat->mdio_bus_data;
+
+#ifdef CONFIG_OF
+	if (priv->device->of_node) {
+		if (data->reset_gpio < 0) {
+			struct device_node *np = priv->device->of_node;
+
+			if (!np)
+				return 0;
+
+			data->reset_gpio = of_get_named_gpio(np,
+						"snps,reset-gpio", 0);
+			if (data->reset_gpio < 0)
+				return 0;
+
+			data->active_low = of_property_read_bool(np,
+						"snps,reset-active-low");
+			of_property_read_u32_array(np,
+				"snps,reset-delays-us", data->delays, 3);
+
+			if (devm_gpio_request(priv->device, data->reset_gpio,
+					      "mdio-reset"))
+				return 0;
+		}
+
+		gpio_set_value(data->reset_gpio, data->active_low ? 0 : 1);
+	}
+#endif
+#endif
+	return 0;
+}
+
+/**
  * stmmac_mdio_reset
  * @bus: points to the mii_bus structure
  * Description: reset the MII bus

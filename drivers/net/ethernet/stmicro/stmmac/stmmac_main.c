@@ -3118,6 +3118,9 @@ int stmmac_suspend(struct device *dev)
 	} else {
 		stmmac_set_mac(priv->ioaddr, false);
 		pinctrl_pm_select_sleep_state(priv->device);
+		/* Make the phy into suspend state */
+		if (priv->mii)
+			stmmac_mdio_idle(priv->mii);
 		/* Disable clock in case of PWM is off */
 		clk_disable(priv->pclk);
 		clk_disable(priv->stmmac_clk);
