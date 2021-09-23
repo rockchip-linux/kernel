@@ -775,11 +775,13 @@ u32 sfc_nand_prog_page_raw(u8 cs, u32 addr, u32 *p_page_buf)
 	 * is detected by cache recheck, it's better to wait a second for a reliable
 	 * hardware environment to avoid abnormal data written to flash array.
 	 */
-	sfc_nand_read_cache(addr, (u32 *)sfc_nand_dev.recheck_buffer, 0, data_area_size);
-	if (memcmp(sfc_nand_dev.recheck_buffer, p_page_buf, data_area_size)) {
-		rkflash_print_error("%s cache bitflip1\n", __func__);
-		msleep(1000);
-		sfc_request(&op, plane, p_page_buf, page_size);
+	if (p_nand_info->id0 != MID_XTX) {
+		sfc_nand_read_cache(addr, (u32 *)sfc_nand_dev.recheck_buffer, 0, data_area_size);
+		if (memcmp(sfc_nand_dev.recheck_buffer, p_page_buf, data_area_size)) {
+			rkflash_print_error("%s %x cache bitflip\n", __func__, addr);
+			msleep(1000);
+			sfc_request(&op, plane, p_page_buf, page_size);
+		}
 	}
 
 	op.sfcmd.d32 = 0;
