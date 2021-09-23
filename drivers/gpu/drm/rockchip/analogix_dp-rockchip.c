@@ -530,12 +530,6 @@ static int rockchip_dp_bind(struct device *dev, struct device *master,
 	if (ret < 0)
 		goto err_cleanup_encoder;
 
-	dp->adp = analogix_dp_bind(dev, dp->drm_dev, &dp->plat_data);
-	if (IS_ERR(dp->adp)) {
-		ret = PTR_ERR(dp->adp);
-		goto err_unreg_psr;
-	}
-
 	if (dp->data->audio) {
 		struct hdmi_codec_pdata codec_data = {
 			.ops = &rockchip_dp_audio_codec_ops,
@@ -555,11 +549,20 @@ static int rockchip_dp_bind(struct device *dev, struct device *master,
 		}
 	}
 
+	dp->adp = analogix_dp_bind(dev, dp->drm_dev, &dp->plat_data);
+	if (IS_ERR(dp->adp)) {
+		ret = PTR_ERR(dp->adp);
+		goto err_unreg_audio;
+	}
+
 	dp->sub_dev.connector = &dp->adp->connector;
 	dp->sub_dev.of_node = dev->of_node;
 	rockchip_drm_register_sub_dev(&dp->sub_dev);
 
 	return 0;
+err_unreg_audio:
+	if (dp->audio_pdev)
+		platform_device_unregister(dp->audio_pdev);
 err_unreg_psr:
 	rockchip_drm_psr_unregister(&dp->encoder);
 err_cleanup_encoder:

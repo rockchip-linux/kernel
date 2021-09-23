@@ -171,7 +171,6 @@ struct analogix_dp_device {
 	struct drm_connector	connector;
 	struct drm_bridge	*bridge;
 	struct drm_dp_aux       aux;
-	struct clk		*clock;
 	unsigned int		irq;
 	void __iomem		*reg_base;
 
