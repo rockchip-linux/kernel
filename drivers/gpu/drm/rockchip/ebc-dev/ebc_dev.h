@@ -79,6 +79,8 @@ enum panel_refresh_mode {
 	EPD_RESUME		= 19,
 	EPD_POWER_OFF		= 20,
 	EPD_FORCE_FULL		= 21,
+	EPD_AUTO_DU		= 22,
+	EPD_AUTO_DU4		= 23,
 };
 
 /*

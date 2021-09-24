@@ -101,7 +101,9 @@ int ebc_add_to_dsp_buf_list(struct ebc_buf_s *dsp_buf)
 					if (temp_buf->buf_mode == EPD_OVERLAY) {
 						continue;
 					} else if (((temp_buf->buf_mode >= EPD_FULL_GC16) && (temp_buf->buf_mode <= EPD_DU4))
-						|| (temp_buf->buf_mode == EPD_AUTO)) {
+						|| (temp_buf->buf_mode == EPD_AUTO)
+						|| (temp_buf->buf_mode == EPD_AUTO_DU)
+						|| (temp_buf->buf_mode == EPD_AUTO_DU4)) {
 						buf_list_remove(ebc_buf_info.dsp_buf_list, temp_pos);
 						ebc_buf_release(temp_buf);
 					} else if ((1 == is_full_mode)
