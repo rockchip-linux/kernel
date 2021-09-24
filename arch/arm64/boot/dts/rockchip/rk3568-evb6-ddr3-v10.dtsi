@@ -141,6 +141,8 @@
 		reset-gpios = <&gpio4 RK_PD2 GPIO_ACTIVE_LOW>;
 		plugin-det-gpios = <&gpio0 RK_PD6 GPIO_ACTIVE_LOW>;
 		hpd-output-inverted;
+		rockchip,dvp-mode = <3>; /* 3:BT1120, 4:BT656, 5:BT1120_8bit */
+		rockchip,dual-edge = <1>; /* 0:single edge, 1:dual edge */
 		rockchip,camera-module-index = <0>;
 		rockchip,camera-module-facing = "back";
 		rockchip,camera-module-name = "LT8619C";
