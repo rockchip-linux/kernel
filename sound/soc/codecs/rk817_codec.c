@@ -952,10 +952,6 @@ static int rk817_suspend(struct snd_soc_codec *codec)
 
 static int rk817_resume(struct snd_soc_codec *codec)
 {
-	struct rk817_codec_priv *rk817 = snd_soc_codec_get_drvdata(codec);
-
-	rk817_capture_path_config(codec, OFF, rk817->capture_path);
-	rk817_playback_path_config(codec, OFF, rk817->playback_path);
 	return 0;
 }
 
