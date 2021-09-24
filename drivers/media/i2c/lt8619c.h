@@ -9,11 +9,9 @@
 #define _LT8619C_H
 
 /* --------------- configuration -------------------- */
-#define YUV_OUTPUT_MODE		BT1120_OUTPUT
 #define CLK_SRC			XTAL_CLK
 #define REF_RESISTANCE		EXT_RESISTANCE
 #define CP_CONVERT_MODE		HDPC
-#define YC_SWAP			YC_SWAP_EN
 #define YUV_COLORDEPTH		OUTPUT_16BIT_LOW
 #define BT_TX_SYNC_POL		BT_TX_SYNC_POSITIVE
 

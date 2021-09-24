@@ -3,6 +3,13 @@
  * Copyright (c) 2021 Rockchip Electronics Co. Ltd.
  *
  * Author: Dingxian Wen <shawn.wen@rock-chips.com>
+ *
+ * V0.0X01.0X00 first version.
+ * V0.0X01.0X01
+ * 1. add BT656 mode support.
+ * 2. add ddr mode support.
+ * 3. fix 576i and 480i support mode.
+ * V0.0X01.0X02 add 4K30 mode.
  */
 
 #include <linux/kernel.h>
@@ -29,12 +36,17 @@
 #include <linux/regmap.h>
 #include "lt8619c.h"
 
-#define DRIVER_VERSION		KERNEL_VERSION(0, 0x1, 0x0)
+#define DRIVER_VERSION		KERNEL_VERSION(0, 0x1, 0x2)
 #define LT8619C_NAME		"LT8619C"
 
 static int debug;
 module_param(debug, int, 0644);
 MODULE_PARM_DESC(debug, "debug level (0-2)");
+
+#define RK_CAMERA_MODULE_DUAL_EDGE		"rockchip,dual-edge"
+#define LT8619C_DEFAULT_DUAL_EDGE		1U
+#define RK_CAMERA_MODULE_DVP_MODE		"rockchip,dvp-mode"
+#define LT8619C_DEFAULT_DVP_MODE		BT1120_OUTPUT
 
 struct lt8619c_mode {
 	u32 width;
@@ -67,7 +79,7 @@ struct lt8619c {
 	const char *len_name;
 	bool nosignal;
 	bool enable_hdcp;
-	bool clk_ddrmode_en;
+	u32 clk_ddrmode_en;
 	bool BT656_double_clk_en;
 	bool hpd_output_inverted;
 	int plugin_irq;
@@ -111,22 +123,22 @@ static u8 edid_init_data[] = {
 	0x00, 0x14, 0x78, 0x01, 0xFF, 0x1D, 0x00, 0x0A,
 	0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x01, 0x64,
 
-	0x02, 0x03, 0x1D, 0x71, 0x4A, 0x90, 0x1F, 0x22,
-	0x04, 0x02, 0x01, 0x11, 0x05, 0x07, 0x16, 0x23,
-	0x09, 0x07, 0x01, 0x83, 0x01, 0x00, 0x00, 0x65,
-	0x03, 0x0C, 0x00, 0x10, 0x00, 0x8C, 0x0A, 0xD0,
-	0x8A, 0x20, 0xE0, 0x2D, 0x10, 0x10, 0x3E, 0x96,
-	0x00, 0x13, 0x8E, 0x21, 0x00, 0x00, 0x1E, 0xD8,
-	0x09, 0x80, 0xA0, 0x20, 0xE0, 0x2D, 0x10, 0x10,
-	0x60, 0xA2, 0x00, 0xC4, 0x8E, 0x21, 0x00, 0x00,
-	0x18, 0x8C, 0x0A, 0xD0, 0x90, 0x20, 0x40, 0x31,
-	0x20, 0x0C, 0x40, 0x55, 0x00, 0x48, 0x39, 0x00,
-	0x00, 0x00, 0x18, 0x01, 0x1D, 0x80, 0x18, 0x71,
-	0x38, 0x2D, 0x40, 0x58, 0x2C, 0x45, 0x00, 0xC0,
-	0x6C, 0x00, 0x00, 0x00, 0x18, 0x01, 0x1D, 0x80,
-	0x18, 0x71, 0x1C, 0x16, 0x20, 0x58, 0x2C, 0x25,
-	0x00, 0xC0, 0x6C, 0x00, 0x00, 0x00, 0x18, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xF0,
+	0x02, 0x03, 0x1C, 0x71, 0x49, 0x90, 0x04, 0x02,
+	0x5F, 0x11, 0x07, 0x05, 0x16, 0x22, 0x23, 0x09,
+	0x07, 0x01, 0x83, 0x01, 0x00, 0x00, 0x65, 0x03,
+	0x0C, 0x00, 0x10, 0x00, 0x8C, 0x0A, 0xD0, 0x8A,
+	0x20, 0xE0, 0x2D, 0x10, 0x10, 0x3E, 0x96, 0x00,
+	0x13, 0x8E, 0x21, 0x00, 0x00, 0x1E, 0xD8, 0x09,
+	0x80, 0xA0, 0x20, 0xE0, 0x2D, 0x10, 0x10, 0x60,
+	0xA2, 0x00, 0xC4, 0x8E, 0x21, 0x00, 0x00, 0x18,
+	0x8C, 0x0A, 0xD0, 0x90, 0x20, 0x40, 0x31, 0x20,
+	0x0C, 0x40, 0x55, 0x00, 0x48, 0x39, 0x00, 0x00,
+	0x00, 0x18, 0x01, 0x1D, 0x80, 0x18, 0x71, 0x38,
+	0x2D, 0x40, 0x58, 0x2C, 0x45, 0x00, 0xC0, 0x6C,
+	0x00, 0x00, 0x00, 0x18, 0x01, 0x1D, 0x80, 0x18,
+	0x71, 0x1C, 0x16, 0x20, 0x58, 0x2C, 0x25, 0x00,
+	0xC0, 0x6C, 0x00, 0x00, 0x00, 0x18, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xB3,
 };
 
 static u8 phase_num[10] = {
@@ -136,6 +148,15 @@ static u8 phase_num[10] = {
 
 static const struct lt8619c_mode supported_modes[] = {
 	{
+		.width = 3840,
+		.height = 2160,
+		.max_fps = {
+			.numerator = 10000,
+			.denominator = 300000,
+		},
+		.hts_def = 4400,
+		.vts_def = 2250,
+	}, {
 		.width = 1920,
 		.height = 1080,
 		.max_fps = {
@@ -191,22 +212,22 @@ static const struct lt8619c_mode supported_modes[] = {
 		.vts_def = 525,
 	}, {
 		.width = 1440,
-		.height = 240,
+		.height = 480,
 		.max_fps = {
 			.numerator = 10000,
 			.denominator = 600000,
 		},
 		.hts_def = 1716,
-		.vts_def = 262,
+		.vts_def = 525,
 	}, {
 		.width = 1440,
-		.height = 288,
+		.height = 576,
 		.max_fps = {
 			.numerator = 10000,
 			.denominator = 500000,
 		},
-		.hts_def = 1716,
-		.vts_def = 312,
+		.hts_def = 1728,
+		.vts_def = 625,
 	},
 };
 
@@ -328,12 +349,11 @@ static int lt8619c_get_detected_timings(struct v4l2_subdev *sd,
 	bt->vsync = vs;
 	bt->vbackporch = vbp;
 	pix_clk = hdmi_clk_cnt * 1000;
+	bt->pixelclock = pix_clk;
 
 	fps = 0;
 	if (htotal * vtotal)
 		fps = (pix_clk + (htotal * vtotal) / 2) / (htotal * vtotal);
-
-	bt->pixelclock = htotal * vtotal * fps;
 
 	/* for interlaced res 1080i 576i 480i */
 	if (lt8619c_is_supported_interlaced_res(sd, hact, vact)) {
@@ -494,7 +514,7 @@ static void lt8619c_mode_config(struct v4l2_subdev *sd)
 	regmap_update_bits(lt8619c->reg_map, 0x60, OUTPUT_MODE_MASK,
 			lt8619c->yuv_output_mode);
 
-	if (lt8619c->clk_ddrmode_en)
+	if (lt8619c->clk_ddrmode_en == 1)
 		regmap_write(lt8619c->reg_map, 0xa4, 0x14);
 	else
 		regmap_write(lt8619c->reg_map, 0xa4, 0x10);
@@ -907,17 +927,17 @@ static void lt8619c_initial_setup(struct v4l2_subdev *sd)
 	def_edid.blocks = 2;
 	def_edid.edid = edid_init_data;
 	lt8619c->enable_hdcp = false;
-	lt8619c->yuv_output_mode = YUV_OUTPUT_MODE;
-	lt8619c->clk_ddrmode_en = false;
 	lt8619c->cp_convert_mode = CP_CONVERT_MODE;
-	lt8619c->yc_swap = YC_SWAP;
 	lt8619c->yuv_colordepth = YUV_COLORDEPTH;
 	lt8619c->bt_tx_sync_pol = BT_TX_SYNC_POL;
 
-	if (lt8619c->yuv_output_mode == BT656_OUTPUT)
+	if (lt8619c->yuv_output_mode == BT656_OUTPUT) {
+		lt8619c->yc_swap = YC_SWAP_DIS;
 		lt8619c->BT656_double_clk_en = true;
-	else
+	} else {
+		lt8619c->yc_swap = YC_SWAP_EN;
 		lt8619c->BT656_double_clk_en = false;
+	}
 
 	lt8619c_set_hpd(sd, 0);
 	lt8619c_write_edid(sd, &def_edid);
@@ -997,9 +1017,7 @@ static bool lt8619c_rcv_supported_res(struct v4l2_subdev *sd,
 
 	for (i = 0; i < ARRAY_SIZE(supported_modes); i++) {
 		if ((supported_modes[i].width == hact) &&
-		    (supported_modes[i].height == vact) &&
-		    (supported_modes[i].hts_def == htotal) &&
-		    (supported_modes[i].vts_def == vtotal)) {
+		    (supported_modes[i].height == vact)) {
 			break;
 		}
 	}
@@ -1126,10 +1144,17 @@ static int lt8619c_dv_timings_cap(struct v4l2_subdev *sd,
 static int lt8619c_g_mbus_config(struct v4l2_subdev *sd,
 			     struct v4l2_mbus_config *cfg)
 {
+	struct lt8619c *lt8619c = to_lt8619c(sd);
+
 	cfg->type = V4L2_MBUS_BT656;
-	cfg->flags = V4L2_MBUS_HSYNC_ACTIVE_HIGH |
-		     V4L2_MBUS_VSYNC_ACTIVE_HIGH |
-		     V4L2_MBUS_PCLK_SAMPLE_RISING;
+	if (lt8619c->clk_ddrmode_en) {
+		cfg->flags = RKMODULE_CAMERA_BT656_CHANNELS |
+			V4L2_MBUS_PCLK_SAMPLE_RISING |
+			V4L2_MBUS_PCLK_SAMPLE_FALLING;
+	} else {
+		cfg->flags = RKMODULE_CAMERA_BT656_CHANNELS |
+			V4L2_MBUS_PCLK_SAMPLE_RISING;
+	}
 
 	return 0;
 }
@@ -1379,7 +1404,13 @@ static int lt8619c_g_frame_interval(struct v4l2_subdev *sd,
 
 static int lt8619c_querystd(struct v4l2_subdev *sd, v4l2_std_id *std)
 {
-	*std = V4L2_STD_ATSC;
+	struct lt8619c *lt8619c = to_lt8619c(sd);
+
+	if (lt8619c->yuv_output_mode == BT656_OUTPUT)
+		*std = V4L2_STD_PAL;
+	else
+		*std = V4L2_STD_ATSC;
+
 	return 0;
 }
 
@@ -1580,6 +1611,27 @@ static int lt8619c_parse_of(struct lt8619c *lt8619c)
 		dev_err(dev, "failed to get plugin_det gpio\n");
 		err = PTR_ERR(lt8619c->plugin_det_gpio);
 		goto disable_clk;
+	}
+
+	if (of_property_read_u32(node, RK_CAMERA_MODULE_DUAL_EDGE,
+					&lt8619c->clk_ddrmode_en)) {
+		lt8619c->clk_ddrmode_en = LT8619C_DEFAULT_DUAL_EDGE;
+		dev_warn(dev, "can not get module %s from dts, use default(%d)!\n",
+			RK_CAMERA_MODULE_DUAL_EDGE, LT8619C_DEFAULT_DUAL_EDGE);
+	} else {
+		dev_info(dev, "get module %s from dts, dual_edge(%d)!\n",
+			RK_CAMERA_MODULE_DUAL_EDGE, lt8619c->clk_ddrmode_en);
+	}
+
+	if (of_property_read_u32(node, RK_CAMERA_MODULE_DVP_MODE,
+					&lt8619c->yuv_output_mode)) {
+		lt8619c->yuv_output_mode = LT8619C_DEFAULT_DVP_MODE;
+		dev_warn(dev, "can not get module %s from dts, use default(BT1120)!\n",
+					RK_CAMERA_MODULE_DVP_MODE);
+	} else {
+		dev_info(dev, "get module %s from dts, dvp mode(%s)!\n",
+			RK_CAMERA_MODULE_DVP_MODE,
+			(lt8619c->yuv_output_mode == BT656_OUTPUT) ? "BT656" : "BT1120");
 	}
 
 	return 0;
