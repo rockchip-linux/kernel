@@ -309,6 +309,13 @@ config BPF_STREAM_PARSER
 	 It can be used to enforce socket policy, implement socket redirects,
 	 etc.
 
+config ETHTOOL
+	bool "enable ethtool"
+	default y
+	help
+	  This selects ethtool function, default is Y. If say N, ethtool function
+	  is not implemented.
+
 config NET_FLOW_LIMIT
 	bool
 	depends on RPS

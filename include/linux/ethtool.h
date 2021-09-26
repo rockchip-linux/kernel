@@ -161,6 +161,7 @@ struct ethtool_link_ksettings {
 #define ethtool_link_ksettings_test_link_mode(ptr, name, mode)		\
 	test_bit(ETHTOOL_LINK_MODE_ ## mode ## _BIT, (ptr)->link_modes.name)
 
+#ifdef CONFIG_ETHTOOL
 extern int
 __ethtool_get_link_ksettings(struct net_device *dev,
 			     struct ethtool_link_ksettings *link_ksettings);
@@ -181,6 +182,33 @@ void ethtool_convert_legacy_u32_to_link_mode(unsigned long *dst,
 /* return false if src had higher bits set. lower bits always updated. */
 bool ethtool_convert_link_mode_to_legacy_u32(u32 *legacy_u32,
 				     const unsigned long *src);
+#else
+static inline int
+__ethtool_get_link_ksettings(struct net_device *dev,
+			     struct ethtool_link_ksettings *link_ksettings)
+{
+	return 0;
+}
+
+static inline
+void ethtool_intersect_link_masks(struct ethtool_link_ksettings *dst,
+				  struct ethtool_link_ksettings *src)
+{
+}
+
+static inline
+void ethtool_convert_legacy_u32_to_link_mode(unsigned long *dst,
+					     u32 legacy_u32)
+{
+}
+
+static inline
+bool ethtool_convert_link_mode_to_legacy_u32(u32 *legacy_u32,
+				     const unsigned long *src)
+{
+	return false;
+}
+#endif
 
 /**
  * struct ethtool_ops - optional netdev operations

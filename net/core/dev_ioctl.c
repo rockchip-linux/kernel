@@ -417,6 +417,7 @@ int dev_ioctl(struct net *net, unsigned int cmd, struct ifreq *ifr, bool *need_c
 			*colon = ':';
 		return ret;
 
+#ifdef CONFIG_ETHTOOL
 	case SIOCETHTOOL:
 		dev_load(net, ifr->ifr_name);
 		rtnl_lock();
@@ -425,6 +426,7 @@ int dev_ioctl(struct net *net, unsigned int cmd, struct ifreq *ifr, bool *need_c
 		if (colon)
 			*colon = ':';
 		return ret;
+#endif
 
 	/*
 	 *	These ioctl calls:
