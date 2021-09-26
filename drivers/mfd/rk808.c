@@ -784,13 +784,21 @@ static void rk817_shutdown_prepare(void)
 	int ret;
 	struct rk808 *rk808 = i2c_get_clientdata(rk808_i2c_client);
 
-	/* close rtc int when power off */
+	/* close int when power off */
 	regmap_update_bits(rk808->regmap,
 			   RK817_INT_STS_MSK_REG0,
-			   (0x3 << 5), (0x3 << 5));
+			   0xff, 0xff);
+	regmap_update_bits(rk808->regmap,
+			   RK817_INT_STS_MSK_REG1,
+			   0xff, 0xff);
+	regmap_update_bits(rk808->regmap,
+			   RK817_INT_STS_MSK_REG2,
+			   0xff, 0xff);
 	regmap_update_bits(rk808->regmap,
 			   RK817_RTC_INT_REG,
 			   (0x3 << 2), (0x0 << 2));
+
+	dev_info(&rk808_i2c_client->dev, "disabled int when device shutdown!\n");
 
 	if (rk808->pins && rk808->pins->p && rk808->pins->power_off) {
 		ret = regmap_update_bits(rk808->regmap,
