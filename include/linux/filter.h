@@ -761,7 +761,16 @@ bpf_jit_binary_hdr(const struct bpf_prog *fp)
 	return (void *)addr;
 }
 
+#ifdef CONFIG_FILTER
 int sk_filter_trim_cap(struct sock *sk, struct sk_buff *skb, unsigned int cap);
+#else
+static inline
+int sk_filter_trim_cap(struct sock *sk, struct sk_buff *skb, unsigned int cap)
+{
+	return 0;
+}
+#endif
+
 static inline int sk_filter(struct sock *sk, struct sk_buff *skb)
 {
 	return sk_filter_trim_cap(sk, skb, 1);
@@ -786,6 +795,7 @@ static inline void bpf_prog_unlock_free(struct bpf_prog *fp)
 typedef int (*bpf_aux_classic_check_t)(struct sock_filter *filter,
 				       unsigned int flen);
 
+#ifdef CONFIG_FILTER
 int bpf_prog_create(struct bpf_prog **pfp, struct sock_fprog_kern *fprog);
 int bpf_prog_create_from_user(struct bpf_prog **pfp, struct sock_fprog *fprog,
 			      bpf_aux_classic_check_t trans, bool save_orig);
@@ -802,6 +812,71 @@ int sk_get_filter(struct sock *sk, struct sock_filter __user *filter,
 
 bool sk_filter_charge(struct sock *sk, struct sk_filter *fp);
 void sk_filter_uncharge(struct sock *sk, struct sk_filter *fp);
+
+#else
+static inline
+int bpf_prog_create(struct bpf_prog **pfp, struct sock_fprog_kern *fprog)
+{
+	return 0;
+}
+
+static inline
+int bpf_prog_create_from_user(struct bpf_prog **pfp, struct sock_fprog *fprog,
+			      bpf_aux_classic_check_t trans, bool save_orig)
+{
+	return 0;
+}
+
+static inline void bpf_prog_destroy(struct bpf_prog *fp)
+{
+}
+
+static inline int sk_attach_filter(struct sock_fprog *fprog, struct sock *sk)
+{
+	return 0;
+}
+
+static inline int sk_attach_bpf(u32 ufd, struct sock *sk)
+{
+	return 0;
+}
+
+static inline
+int sk_reuseport_attach_filter(struct sock_fprog *fprog, struct sock *sk)
+{
+	return 0;
+}
+
+static inline int sk_reuseport_attach_bpf(u32 ufd, struct sock *sk)
+{
+	return 0;
+}
+
+static inline void sk_reuseport_prog_free(struct bpf_prog *prog)
+{
+}
+
+static inline int sk_detach_filter(struct sock *sk)
+{
+	return 0;
+}
+
+static inline
+int sk_get_filter(struct sock *sk, struct sock_filter __user *filter,
+		  unsigned int len)
+{
+	return 0;
+}
+
+static inline bool sk_filter_charge(struct sock *sk, struct sk_filter *fp)
+{
+	return false;
+}
+
+static inline void sk_filter_uncharge(struct sock *sk, struct sk_filter *fp)
+{
+}
+#endif
 
 u64 __bpf_call_base(u64 r1, u64 r2, u64 r3, u64 r4, u64 r5);
 #define __bpf_call_base_args \
@@ -861,6 +936,7 @@ static inline int xdp_ok_fwd_dev(const struct net_device *fwd,
 	return 0;
 }
 
+#ifdef CONFIG_FILTER
 /* The pair of xdp_do_redirect and xdp_do_flush_map MUST be called in the
  * same cpu context. Further for best results no more than a single map
  * for the do_redirect/do_flush pair should be used. This limitation is
@@ -875,11 +951,35 @@ int xdp_do_redirect(struct net_device *dev,
 void xdp_do_flush_map(void);
 
 void bpf_warn_invalid_xdp_action(u32 act);
+#else
+static inline
+int xdp_do_generic_redirect(struct net_device *dev, struct sk_buff *skb,
+			    struct xdp_buff *xdp, struct bpf_prog *prog)
+{
+	return 0;
+}
+
+static inline
+int xdp_do_redirect(struct net_device *dev,
+		    struct xdp_buff *xdp,
+		    struct bpf_prog *prog)
+{
+	return 0;
+}
+
+static inline void xdp_do_flush_map(void)
+{
+}
+
+static inline void bpf_warn_invalid_xdp_action(u32 act)
+{
+}
+#endif
 
 struct sock *do_sk_redirect_map(struct sk_buff *skb);
 struct sock *do_msg_redirect_map(struct sk_msg_buff *md);
 
-#ifdef CONFIG_INET
+#if (IS_ENABLED(CONFIG_INET) && IS_ENABLED(CONFIG_FILTER))
 struct sock *bpf_run_sk_reuseport(struct sock_reuseport *reuse, struct sock *sk,
 				  struct bpf_prog *prog, struct sk_buff *skb,
 				  u32 hash);

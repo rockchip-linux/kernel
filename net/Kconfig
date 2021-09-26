@@ -316,6 +316,13 @@ config ETHTOOL
 	  This selects ethtool function, default is Y. If say N, ethtool function
 	  is not implemented.
 
+config FILTER
+	bool "enable filter"
+	default y
+	help
+	  This selects filter function, default is Y. If say N, filter function
+	  is not implemented.
+
 config NET_FLOW_LIMIT
 	bool
 	depends on RPS
