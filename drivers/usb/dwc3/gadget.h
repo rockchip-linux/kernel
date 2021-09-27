@@ -75,8 +75,6 @@ static inline void dwc3_gadget_move_queued_request(struct dwc3_request *req)
 {
 	struct dwc3_ep		*dep = req->dep;
 
-	if (req->trb)
-		req->trb->ctrl &= ~DWC3_TRB_CTRL_HWO;
 	req->status = DWC3_REQUEST_STATUS_QUEUED;
 	list_move_tail(&req->list, &dep->pending_list);
 }

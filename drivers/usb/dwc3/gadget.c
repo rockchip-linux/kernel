@@ -2869,12 +2869,15 @@ static int dwc3_gadget_ep_cleanup_completed_request(struct dwc3_ep *dep,
 		 */
 		req->remaining = 0;
 		req->needs_extra_trb = false;
-		dwc3_gadget_move_queued_request(req);
-		if (req->trb)
+		dwc3_gadget_move_cancelled_request(req);
+		if (req->trb) {
 			usb_gadget_unmap_request_by_dev(dwc->sysdev,
 							&req->request,
 							req->direction);
-		req->trb = NULL;
+			req->trb->ctrl &= ~DWC3_TRB_CTRL_HWO;
+			req->trb = NULL;
+		}
+		ret = 0;
 
 		goto out;
 	}
@@ -2930,6 +2933,8 @@ static void dwc3_gadget_endpoint_transfer_in_progress(struct dwc3_ep *dep,
 {
 	struct dwc3		*dwc = dep->dwc;
 	unsigned		status = 0;
+	struct dwc3_request	*req;
+	struct dwc3_request	*tmp;
 
 	dwc3_gadget_endpoint_frame_from_event(dep, event);
 
@@ -2940,6 +2945,19 @@ static void dwc3_gadget_endpoint_transfer_in_progress(struct dwc3_ep *dep,
 		status = -EXDEV;
 
 	dwc3_gadget_ep_cleanup_completed_requests(dep, event, status);
+
+	if (event->status & DEPEVT_STATUS_MISSED_ISOC &&
+	    !list_empty(&dep->cancelled_list) &&
+	    !list_empty(&dep->pending_list)) {
+		list_for_each_entry_safe(req, tmp, &dep->pending_list, list)
+			dwc3_gadget_move_cancelled_request(req);
+	}
+
+	if (event->status & DEPEVT_STATUS_MISSED_ISOC &&
+	    !list_empty(&dep->cancelled_list)) {
+		list_for_each_entry_safe(req, tmp, &dep->cancelled_list, list)
+			dwc3_gadget_move_queued_request(req);
+	}
 
 	if (event->status & DEPEVT_STATUS_MISSED_ISOC &&
 	    list_empty(&dep->started_list))
