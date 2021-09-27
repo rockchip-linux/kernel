@@ -26,7 +26,6 @@
 #include <sound/dmaengine_pcm.h>
 #include <sound/pcm_params.h>
 
-#include "rockchip_pcm.h"
 #include "rockchip_pdm.h"
 
 #define PDM_DMA_BURST_SIZE	(8) /* size * width: 8*4 = 32 bytes */
@@ -811,7 +810,7 @@ static int rockchip_pdm_probe(struct platform_device *pdev)
 	if (of_property_read_bool(node, "rockchip,no-dmaengine"))
 		return 0;
 
-	ret = rockchip_pcm_platform_register(&pdev->dev);
+	ret = devm_snd_dmaengine_pcm_register(&pdev->dev, NULL, 0);
 	if (ret) {
 		dev_err(&pdev->dev, "could not register pcm: %d\n", ret);
 		goto err_suspend;
