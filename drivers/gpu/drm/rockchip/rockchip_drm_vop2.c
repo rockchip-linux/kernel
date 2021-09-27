@@ -261,7 +261,7 @@ struct vop2_plane_state {
 	int color_space;
 	int global_alpha;
 	int blend_mode;
-	int color_key;
+	uint64_t color_key;
 	void *yrgb_kvaddr;
 	unsigned long offset;
 	int pdaf_data_type;
