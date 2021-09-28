@@ -237,6 +237,9 @@ static const struct usb_device_id usb_quirk_list[] = {
 	{ USB_DEVICE(0x0c45, 0x64ab), .driver_info = USB_QUIRK_AUTO_SUSPEND },
 	{ USB_DEVICE(0x0c45, 0x64ac), .driver_info = USB_QUIRK_AUTO_SUSPEND },
 
+	/* MT7668 WIFI/BT */
+	{ USB_DEVICE(0x0e8d, 0x7668), .driver_info = USB_QUIRK_NO_LPM },
+
 	/* Action Semiconductor flash disk */
 	{ USB_DEVICE(0x10d6, 0x2200), .driver_info =
 			USB_QUIRK_STRING_FETCH_255 },
