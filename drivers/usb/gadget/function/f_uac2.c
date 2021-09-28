@@ -590,7 +590,7 @@ struct cntrl_range_lay3 {
 } __packed;
 
 #define ranges_size(c) (sizeof(c.wNumSubRanges) + c.wNumSubRanges \
-		* sizeof(struct cntrl_ranges_lay3))
+		* sizeof(struct cntrl_range_lay3))
 struct cntrl_ranges_lay3 {
 	__u16	wNumSubRanges;
 	struct cntrl_range_lay3 r[UAC_MAX_RATES];
