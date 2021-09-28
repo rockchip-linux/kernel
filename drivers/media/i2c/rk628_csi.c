@@ -1296,17 +1296,6 @@ static void rk628_hdmirx_audio_clk_set_rate(struct v4l2_subdev *sd, u32 rate)
 	csi->audio_state.hdmirx_aud_clkrate = rate;
 }
 
-static void rk628_hdmirx_audio_clk_inc_rate(struct v4l2_subdev *sd, int dis)
-{
-	struct rk628_csi *csi = to_csi(sd);
-	u32 hdmirx_aud_clkrate = csi->audio_state.hdmirx_aud_clkrate + dis;
-
-	v4l2_dbg(2, debug, sd, "%s: %u to %u\n",
-		 __func__, csi->audio_state.hdmirx_aud_clkrate, hdmirx_aud_clkrate);
-	clk_set_rate(csi->clk_hdmirx_aud, hdmirx_aud_clkrate);
-	csi->audio_state.hdmirx_aud_clkrate = hdmirx_aud_clkrate;
-}
-
 static void rk628_hdmirx_audio_set_fs(struct v4l2_subdev *sd, u32 fs_audio)
 {
 	struct rk628_csi *csi = to_csi(sd);
@@ -1318,6 +1307,26 @@ static void rk628_hdmirx_audio_set_fs(struct v4l2_subdev *sd, u32 fs_audio)
 	clk_set_rate(csi->clk_hdmirx_aud, hdmirx_aud_clkrate_t);
 	csi->audio_state.hdmirx_aud_clkrate = hdmirx_aud_clkrate_t;
 	csi->audio_state.fs_audio = fs_audio;
+}
+
+static void rk628_hdmirx_audio_clk_ppm_inc(struct v4l2_subdev *sd, int ppm)
+{
+	struct rk628_csi *csi = to_csi(sd);
+	int delta, rate, inc;
+
+	rate = csi->audio_state.hdmirx_aud_clkrate;
+	if (ppm < 0) {
+		ppm = -ppm;
+		inc = -1;
+	} else
+		inc = 1;
+	delta = (int)div64_u64((uint64_t)rate * ppm + 500000, 1000000);
+	delta *= inc;
+	rate = csi->audio_state.hdmirx_aud_clkrate + delta;
+	v4l2_dbg(2, debug, sd, "%s: %u to %u(delta:%d)\n",
+		 __func__, csi->audio_state.hdmirx_aud_clkrate, rate, delta);
+	clk_set_rate(csi->clk_hdmirx_aud, rate);
+	csi->audio_state.hdmirx_aud_clkrate = rate;
 }
 
 static void rk628_hdmirx_audio_setup(struct v4l2_subdev *sd)
@@ -1412,9 +1421,9 @@ static void rk628_csi_delayed_work_audio(struct work_struct *work)
 		csi->audio_present = false;
 
 	if ((cur_state - init_state) > 16 && (cur_state - pre_state) > 0)
-		rk628_hdmirx_audio_clk_inc_rate(sd, 10);
+		rk628_hdmirx_audio_clk_ppm_inc(sd, 10);
 	else if ((cur_state != 0) && (cur_state - init_state) < -16 && (cur_state - pre_state) < 0)
-		rk628_hdmirx_audio_clk_inc_rate(sd, -10);
+		rk628_hdmirx_audio_clk_ppm_inc(sd, -10);
 	audio_state->pre_state = cur_state;
 exit:
 	schedule_delayed_work(&csi->delayed_work_audio, msecs_to_jiffies(1000));
