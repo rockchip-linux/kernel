@@ -60,6 +60,7 @@ dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3328-evb-android-avb.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3328-rock64.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3328-rock64-android.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3328-rock64-android-avb.dtb
+dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3358-evb-ddr3-v10-linux.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3366-fpga.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3366-sheep.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3368-808-evb.dtb
