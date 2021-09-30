@@ -57,3 +57,7 @@
 &rockchip_suspend {
 	status = "okay";
 };
+
+&vop {
+	disable-win-move;
+};
