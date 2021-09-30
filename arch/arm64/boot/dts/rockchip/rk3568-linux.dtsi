@@ -39,6 +39,11 @@
 	};
 };
 
+&hdmi_sound {
+	status = "okay";
+	rockchip,jack-det;
+};
+
 &reserved_memory {
 	ramoops: ramoops@110000 {
 		compatible = "ramoops";
