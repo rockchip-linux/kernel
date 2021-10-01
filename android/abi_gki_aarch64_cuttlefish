@@ -978,6 +978,7 @@
   __netif_set_xps_queue
   net_ratelimit
   nf_conntrack_destroy
+  __pskb_pull_tail
   _raw_spin_trylock
   skb_add_rx_frag
   skb_coalesce_rx_frag
@@ -1004,6 +1005,7 @@
 # required by virtio_pci.ko
   irq_set_affinity_hint
   pci_alloc_irq_vectors_affinity
+  pci_device_is_present
   pci_find_capability
   pci_find_ext_capability
   pci_find_next_capability
@@ -1015,6 +1017,7 @@
   pci_release_region
   pci_release_selected_regions
   pci_request_selected_regions
+  virtio_break_device
   virtio_device_freeze
   virtio_device_restore
 
