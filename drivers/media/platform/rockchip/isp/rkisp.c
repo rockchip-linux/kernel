@@ -2462,15 +2462,6 @@ static long rkisp_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 	case RKISP_CMD_TRIGGER_READ_BACK:
 		rkisp_rdbk_trigger_event(isp_dev, T_CMD_QUEUE, arg);
 		break;
-	case RKISP_CMD_CSI_MEMORY_MODE:
-		if (*((int *)arg) == CSI_MEM_BYTE_BE)
-			isp_dev->csi_dev.memory = SW_CSI_RWA_WR_SIMG_SWP |
-						SW_CSI_RAW_WR_SIMG_MODE;
-		else if (*((int *)arg) == CSI_MEM_BYTE_LE)
-			isp_dev->csi_dev.memory = SW_CSI_RAW_WR_SIMG_MODE;
-		else
-			isp_dev->csi_dev.memory = 0;
-		break;
 	case RKISP_CMD_GET_SHARED_BUF:
 		resmem = (struct rkisp_thunderboot_resmem *)arg;
 		resmem->resmem_padr = isp_dev->resmem_pa;
@@ -2548,7 +2539,6 @@ static long rkisp_compat_ioctl32(struct v4l2_subdev *sd,
 	struct rkisp_thunderboot_shmem shmem;
 	struct isp2x_buf_idxfd idxfd;
 	long ret = 0;
-	int mode;
 
 	if (!up && cmd != RKISP_CMD_FREE_SHARED_BUF)
 		return -EINVAL;
@@ -2558,11 +2548,6 @@ static long rkisp_compat_ioctl32(struct v4l2_subdev *sd,
 		if (copy_from_user(&trigger, up, sizeof(trigger)))
 			return -EFAULT;
 		ret = rkisp_ioctl(sd, cmd, &trigger);
-		break;
-	case RKISP_CMD_CSI_MEMORY_MODE:
-		if (copy_from_user(&mode, up, sizeof(int)))
-			return -EFAULT;
-		ret = rkisp_ioctl(sd, cmd, &mode);
 		break;
 	case RKISP_CMD_GET_SHARED_BUF:
 		ret = rkisp_ioctl(sd, cmd, &resmem);
