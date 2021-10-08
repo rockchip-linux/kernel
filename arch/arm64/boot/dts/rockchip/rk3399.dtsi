@@ -470,6 +470,7 @@
 			resets = <&cru SRST_A_USB3_OTG0>;
 			reset-names = "usb3-otg";
 			snps,dis_enblslpm_quirk;
+			snps,dis-u1u2-quirk;
 			snps,dis-u2-freeclk-exists-quirk;
 			snps,dis_u2_susphy_quirk;
 			snps,dis-del-phy-power-chg-quirk;
