@@ -16,6 +16,7 @@
 #include <dt-bindings/suspend/rockchip-px30.h>
 #include <dt-bindings/thermal/thermal.h>
 #include "px30-dram-default-timing.dtsi"
+#include "px30s-dram-default-timing.dtsi"
 
 / {
 	compatible = "rockchip,px30";
@@ -227,6 +228,58 @@
 		};
 	};
 
+	px30s_cpu0_opp_table: px30s-cpu0-opp-table {
+		compatible = "operating-points-v2";
+		opp-shared;
+
+		opp-408000000 {
+			opp-hz = /bits/ 64 <408000000>;
+			opp-microvolt = <850000 850000 1150000>;
+			clock-latency-ns = <40000>;
+			opp-suspend;
+		};
+		opp-600000000 {
+			opp-hz = /bits/ 64 <600000000>;
+			opp-microvolt = <850000 850000 1150000>;
+			clock-latency-ns = <40000>;
+		};
+		opp-816000000 {
+			opp-hz = /bits/ 64 <816000000>;
+			opp-microvolt = <850000 850000 1150000>;
+			clock-latency-ns = <40000>;
+		};
+		opp-1008000000 {
+			opp-hz = /bits/ 64 <1008000000>;
+			opp-microvolt = <900000 900000 1150000>;
+			clock-latency-ns = <40000>;
+		};
+		opp-1200000000 {
+			opp-hz = /bits/ 64 <1200000000>;
+			opp-microvolt = <975000 975000 1150000>;
+			clock-latency-ns = <40000>;
+		};
+		opp-1248000000 {
+			opp-hz = /bits/ 64 <1248000000>;
+			opp-microvolt = <1000000 1000000 1150000>;
+			clock-latency-ns = <40000>;
+		};
+		opp-1296000000 {
+			opp-hz = /bits/ 64 <1296000000>;
+			opp-microvolt = <1025000 1025000 1150000>;
+			clock-latency-ns = <40000>;
+		};
+		opp-1416000000 {
+			opp-hz = /bits/ 64 <1416000000>;
+			opp-microvolt = <1075000 1075000 1150000>;
+			clock-latency-ns = <40000>;
+		};
+		opp-1512000000 {
+			opp-hz = /bits/ 64 <1512000000>;
+			opp-microvolt = <1150000 1150000 1150000>;
+			clock-latency-ns = <40000>;
+		};
+	};
+
 	arm-pmu {
 		compatible = "arm,cortex-a53-pmu";
 		interrupts = <GIC_SPI 100 IRQ_TYPE_LEVEL_HIGH>,
@@ -272,8 +325,28 @@
 	};
 
 	firmware {
+		compatible = "simple-bus";
+
 		optee {
 			compatible = "linaro,optee-tz";
+			method = "smc";
+		};
+
+		scmi: scmi {
+			compatible = "arm,scmi-smc";
+			shmem = <&scmi_shmem>;
+			arm,smc-id = <0x82000010>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			scmi_clk: protocol@14 {
+				reg = <0x14>;
+				#clock-cells = <1>;
+			};
+		};
+
+		sdei: sdei {
+			compatible = "arm,sdei-1.0";
 			method = "smc";
 		};
 	};
@@ -332,6 +405,11 @@
 		#clock-cells = <0>;
 		clock-frequency = <32768>;
 		clock-output-names = "xin32k";
+	};
+
+	scmi_shmem: scmi-shmem@10f000 {
+		compatible = "arm,scmi-shmem";
+		reg = <0x0 0x0010f000 0x0 0x100>;
 	};
 
 	pmu: power-management@ff000000 {
@@ -1382,6 +1460,27 @@
 		};
 	};
 
+	px30s_gpu_opp_table: px30s-gpu-opp-table {
+		compatible = "operating-points-v2";
+
+		opp-200000000 {
+			opp-hz = /bits/ 64 <200000000>;
+			opp-microvolt = <1000000>;
+		};
+		opp-300000000 {
+			opp-hz = /bits/ 64 <300000000>;
+			opp-microvolt = <1000000>;
+		};
+		opp-400000000 {
+			opp-hz = /bits/ 64 <400000000>;
+			opp-microvolt = <1000000>;
+		};
+		opp-520000000 {
+			opp-hz = /bits/ 64 <520000000>;
+			opp-microvolt = <1000000>;
+		};
+	};
+
 	hevc: hevc_service@ff440000 {
 		compatible = "rockchip,hevc_sub";
 		iommu_enabled = <1>;
@@ -1812,7 +1911,7 @@
 			SYS_STATUS_VIDEO_1080P  450000
 			SYS_STATUS_BOOST        528000
 			SYS_STATUS_ISP          666000
-			SYS_STATUS_PERFORMANCE  666000
+			SYS_STATUS_PERFORMANCE  1056000
 		>;
 		auto-min-freq = <328000>;
 		auto-freq-en = <1>;
@@ -1826,6 +1925,20 @@
 			ts = <32000 4700 (-80) 2>;
 			thermal-zone = "soc-thermal";
 		};
+	};
+
+	dmc_fsp: dmc-fsp {
+		compatible = "rockchip,px30s-dmc-fsp";
+
+		debug_print_level = <0>;
+		phy_de_skew_en = <1>;
+		ddr3_params = <&ddr3_params>;
+		ddr4_params = <&ddr4_params>;
+		lpddr2_params = <&lpddr2_params>;
+		lpddr3_params = <&lpddr3_params>;
+		lpddr4_params = <&lpddr4_params>;
+		ddr_timing = <&ddr_timing>;
+		status = "okay";
 	};
 
 	dmc_opp_table: dmc-opp-table {
@@ -1889,6 +2002,34 @@
 			opp-microvolt-L1 = <1050000>;
 			opp-microvolt-L2 = <1025000>;
 			opp-microvolt-L3 = <1000000>;
+			status = "disabled";
+		};
+	};
+
+	px30s_dmc_opp_table: px30s-dmc-opp-table {
+		compatible = "operating-points-v2";
+
+		opp-328000000 {
+			opp-hz = /bits/ 64 <328000000>;
+			opp-microvolt = <1000000>;
+		};
+		opp-666000000 {
+			opp-hz = /bits/ 64 <666000000>;
+			opp-microvolt = <1000000>;
+		};
+		opp-786000000 {
+			opp-hz = /bits/ 64 <786000000>;
+			opp-microvolt = <1000000>;
+		};
+		opp-924000000 {
+			opp-hz = /bits/ 64 <924000000>;
+			opp-microvolt = <1000000>;
+			status = "disabled";
+		};
+		/* 1056M only for LP4 */
+		opp-1056000000 {
+			opp-hz = /bits/ 64 <1056000000>;
+			opp-microvolt = <1000000>;
 			status = "disabled";
 		};
 	};
