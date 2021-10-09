@@ -53,12 +53,6 @@
 	status = "okay";
 };
 
-&vdd_core {
-	regulator-min-microvolt = <774000>;
-	regulator-max-microvolt = <1336000>;
-	regulator-init-microvolt = <916000>;
-};
-
 &vcc_ddr {
 	regulator-min-microvolt = <1350000>;
 	regulator-max-microvolt = <1350000>;
