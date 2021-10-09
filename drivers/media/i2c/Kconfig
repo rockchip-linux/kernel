@@ -395,6 +395,13 @@ config VIDEO_VM149C
 	help
 	  This is a driver for the VM149C camera lens voice coil.
 
+config VIDEO_OTP_EEPROM
+	tristate "sensor otp from eeprom support"
+	depends on VIDEO_V4L2 && I2C
+	select V4L2_FWNODE
+	help
+	  This driver supports OTP load from eeprom.
+
 config VIDEO_SAA7110
 	tristate "Philips SAA7110 video decoder"
 	depends on VIDEO_V4L2 && I2C
