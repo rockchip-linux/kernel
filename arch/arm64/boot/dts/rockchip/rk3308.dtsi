@@ -2705,3 +2705,4 @@
 		};
 	};
 };
+#include "rk3308bs-pinctrl.dtsi"
