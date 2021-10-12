@@ -529,8 +529,6 @@
 				<1 RK_PD2 2 &pcfg_pull_none>,
 				/* flash_rdy */
 				<1 RK_PD1 2 &pcfg_pull_none>,
-				/* flash_volsel */
-				<0 RK_PA7 1 &pcfg_pull_none>,
 				/* flash_wpn */
 				<1 RK_PC7 3 &pcfg_pull_none>,
 				/* flash_wrn */
