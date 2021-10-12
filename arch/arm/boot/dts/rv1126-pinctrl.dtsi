@@ -267,12 +267,6 @@
 				<1 RK_PA2 1 &pcfg_pull_none>,
 				/* flash_rdyn */
 				<1 RK_PA1 1 &pcfg_pull_none>,
-				/* flash_trig_in */
-				<1 RK_PC5 4 &pcfg_pull_none>,
-				/* flash_trig_out */
-				<1 RK_PC4 4 &pcfg_pull_none>,
-				/* flash_vol_sel */
-				<0 RK_PB3 1 &pcfg_pull_none>,
 				/* flash_wpn */
 				<1 RK_PA3 1 &pcfg_pull_none>,
 				/* flash_wrn */
