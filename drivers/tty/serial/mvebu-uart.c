@@ -72,6 +72,7 @@
 #define  BRDV_BAUD_MASK         0x3FF
 
 #define UART_OSAMP		0x14
+#define  OSAMP_DEFAULT_DIVISOR	16
 
 #define MVEBU_NR_UARTS		2
 
@@ -444,23 +445,28 @@ static void mvebu_uart_shutdown(struct uart_port *port)
 static int mvebu_uart_baud_rate_set(struct uart_port *port, unsigned int baud)
 {
 	struct mvebu_uart *mvuart = to_mvuart(port);
-	unsigned int baud_rate_div;
+	unsigned int d_divisor, m_divisor;
 	u32 brdv;
 
 	if (IS_ERR(mvuart->clk))
 		return -PTR_ERR(mvuart->clk);
 
 	/*
-	 * The UART clock is divided by the value of the divisor to generate
-	 * UCLK_OUT clock, which is 16 times faster than the baudrate.
-	 * This prescaler can achieve all standard baudrates until 230400.
-	 * Higher baudrates could be achieved for the extended UART by using the
-	 * programmable oversampling stack (also called fractional divisor).
+	 * The baudrate is derived from the UART clock thanks to two divisors:
+	 *   > D ("baud generator"): can divide the clock from 2 to 2^10 - 1.
+	 *   > M ("fractional divisor"): allows a better accuracy for
+	 *     baudrates higher than 230400.
+	 *
+	 * As the derivation of M is rather complicated, the code sticks to its
+	 * default value (x16) when all the prescalers are zeroed, and only
+	 * makes use of D to configure the desired baudrate.
 	 */
-	baud_rate_div = DIV_ROUND_UP(port->uartclk, baud * 16);
+	m_divisor = OSAMP_DEFAULT_DIVISOR;
+	d_divisor = DIV_ROUND_CLOSEST(port->uartclk, baud * m_divisor);
+
 	brdv = readl(port->membase + UART_BRDV);
 	brdv &= ~BRDV_BAUD_MASK;
-	brdv |= baud_rate_div;
+	brdv |= d_divisor;
 	writel(brdv, port->membase + UART_BRDV);
 
 	return 0;
@@ -471,7 +477,7 @@ static void mvebu_uart_set_termios(struct uart_port *port,
 				   struct ktermios *old)
 {
 	unsigned long flags;
-	unsigned int baud;
+	unsigned int baud, min_baud, max_baud;
 
 	spin_lock_irqsave(&port->lock, flags);
 
@@ -490,16 +496,21 @@ static void mvebu_uart_set_termios(struct uart_port *port,
 		port->ignore_status_mask |= STAT_RX_RDY(port) | STAT_BRK_ERR;
 
 	/*
+	 * Maximal divisor is 1023 * 16 when using default (x16) scheme.
 	 * Maximum achievable frequency with simple baudrate divisor is 230400.
 	 * Since the error per bit frame would be of more than 15%, achieving
 	 * higher frequencies would require to implement the fractional divisor
 	 * feature.
 	 */
-	baud = uart_get_baud_rate(port, termios, old, 0, 230400);
+	min_baud = DIV_ROUND_UP(port->uartclk, 1023 * 16);
+	max_baud = 230400;
+
+	baud = uart_get_baud_rate(port, termios, old, min_baud, max_baud);
 	if (mvebu_uart_baud_rate_set(port, baud)) {
 		/* No clock available, baudrate cannot be changed */
 		if (old)
-			baud = uart_get_baud_rate(port, old, NULL, 0, 230400);
+			baud = uart_get_baud_rate(port, old, NULL,
+						  min_baud, max_baud);
 	} else {
 		tty_termios_encode_baud_rate(termios, baud, baud);
 		uart_update_timeout(port, termios->c_cflag, baud);

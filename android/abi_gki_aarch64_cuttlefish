@@ -14,14 +14,18 @@
   bpf_trace_run8
   cancel_delayed_work
   cancel_delayed_work_sync
+  cancel_work_sync
   capable
   cfg80211_inform_bss_data
   cfg80211_put_bss
   __cfi_slowpath
   __check_object_size
+  __class_create
+  class_destroy
   complete
   __const_udelay
   consume_skb
+  _copy_from_iter_full
   _copy_to_iter
   cpu_hwcap_keys
   cpu_hwcaps
@@ -59,6 +63,7 @@
   free_irq
   free_netdev
   __free_pages
+  freezing_slow_path
   get_device
   get_random_bytes
   get_unused_fd_flags
@@ -127,6 +132,7 @@
   netif_tx_stop_all_queues
   netif_tx_wake_queue
   no_llseek
+  nonseekable_open
   noop_llseek
   nr_cpu_ids
   of_find_property
@@ -185,6 +191,7 @@
   __rcu_read_unlock
   refcount_dec_and_test_checked
   refcount_inc_checked
+  __refrigerator
   register_netdev
   register_netdevice_notifier
   register_virtio_device
@@ -203,6 +210,7 @@
   sg_init_table
   sg_next
   skb_clone
+  skb_dequeue
   skb_put
   sk_free
   snd_device_new
@@ -221,7 +229,10 @@
   strstr
   synchronize_irq
   synchronize_net
+  sysfs_create_group
   sysfs_create_groups
+  sysfs_remove_group
+  system_freezing_cnt
   system_wq
   trace_define_field
   trace_event_buffer_commit
@@ -234,6 +245,7 @@
   trace_raw_output_prep
   trace_seq_printf
   __udelay
+  unlock_page
   unregister_netdev
   unregister_netdevice_notifier
   unregister_netdevice_queue
@@ -265,6 +277,7 @@
   vring_del_virtqueue
   vring_interrupt
   vring_transport_features
+  wait_for_completion
   wait_woken
   __wake_up
   __warn_printk
@@ -381,6 +394,19 @@
   serdev_device_write
   serdev_device_write_wakeup
 
+# required by hci_vhci.ko
+  bt_err
+  hci_alloc_dev
+  hci_free_dev
+  hci_recv_frame
+  hci_register_dev
+  hci_unregister_dev
+  skb_pull
+  skb_push
+  skb_queue_head
+  skb_queue_purge
+  skb_queue_tail
+
 # required by incrementalfs.ko
   bin2hex
   __break_lease
@@ -429,10 +455,12 @@
   match_int
   match_token
   notify_change
+  override_creds
   pagecache_get_page
   path_get
   path_put
   register_filesystem
+  revert_creds
   seq_puts
   set_anon_super
   sget
@@ -441,11 +469,8 @@
   simple_statfs
   strndup_user
   sync_filesystem
-  sysfs_create_group
-  sysfs_remove_group
   truncate_inode_pages
   unlock_new_inode
-  unlock_page
   unlock_rename
   unregister_filesystem
   user_path_at_empty
@@ -467,7 +492,6 @@
   dma_buf_export
   dma_buf_fd
   dma_buf_put
-  freezing_slow_path
   kernel_kobj
   kthread_create_on_node
   __ll_sc_atomic64_sub_return
@@ -476,7 +500,6 @@
   ptr_to_hashval
   rb_erase
   rb_insert_color
-  __refrigerator
   register_shrinker
   remap_pfn_range
   sched_setscheduler
@@ -484,7 +507,6 @@
   __sg_page_iter_next
   __sg_page_iter_start
   split_page
-  system_freezing_cnt
   totalram_pages
   vmap
   vunmap
@@ -575,8 +597,6 @@
   cdev_device_add
   cdev_device_del
   cdev_init
-  __class_create
-  class_destroy
   __compat_only_sysfs_link_entry_to_kobj
   del_timer_sync
   device_initialize
@@ -614,7 +634,6 @@
   blk_queue_update_dma_pad
   bpf_trace_run4
   bpf_trace_run5
-  cancel_work_sync
   clk_disable
   clk_enable
   clk_prepare
@@ -836,7 +855,6 @@
   ww_mutex_unlock
 
 # required by virtio-rng.ko
-  wait_for_completion
   wait_for_completion_killable
 
 # required by virtio_blk.ko
@@ -878,6 +896,29 @@
   string_get_size
   __sysfs_match_string
   unregister_blkdev
+
+# required by virtio_console.ko
+  cdev_add
+  cdev_alloc
+  cdev_del
+  device_create
+  device_destroy
+  dma_alloc_from_dev_coherent
+  dma_release_from_dev_coherent
+  fasync_helper
+  hvc_alloc
+  hvc_instantiate
+  hvc_kick
+  hvc_poll
+  hvc_remove
+  __hvc_resize
+  kill_fasync
+  kobject_uevent
+  pipe_lock
+  pipe_unlock
+  __register_chrdev
+  __splice_from_pipe
+  __unregister_chrdev
 
 # required by virtio_input.ko
   input_alloc_absinfo
@@ -987,12 +1028,10 @@
 
 # required by vmw_vsock_virtio_transport_common.ko
   bpf_trace_run10
-  _copy_from_iter_full
 
 # required by vsock.ko
   autoremove_wake_function
   init_user_ns
-  nonseekable_open
   ns_capable_noaudit
   prandom_u32
   prepare_to_wait
@@ -1000,9 +1039,9 @@
   proto_unregister
   _raw_write_lock_bh
   _raw_write_unlock_bh
+  security_sk_clone
   security_sock_graft
   sk_alloc
-  skb_dequeue
   sock_init_data
   sock_no_accept
   sock_no_getsockopt

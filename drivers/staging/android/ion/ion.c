@@ -470,21 +470,6 @@ static int ion_dma_buf_begin_cpu_access(struct dma_buf *dmabuf,
 {
 	struct ion_buffer *buffer = dmabuf->priv;
 	struct ion_dma_buf_attachment *a;
-	void *vaddr;
-	int ret = 0;
-
-	/*
-	 * TODO: Move this elsewhere because we don't always need a vaddr
-	 */
-	if (buffer->heap->ops->map_kernel) {
-		mutex_lock(&buffer->lock);
-		vaddr = ion_buffer_kmap_get(buffer);
-		if (IS_ERR(vaddr)) {
-			ret = PTR_ERR(vaddr);
-			goto unlock;
-		}
-		mutex_unlock(&buffer->lock);
-	}
 
 	if (direction == DMA_TO_DEVICE)
 		return 0;
@@ -516,7 +501,7 @@ static int ion_dma_buf_begin_cpu_access(struct dma_buf *dmabuf,
 unlock:
 	mutex_unlock(&buffer->lock);
 
-	return ret;
+	return 0;
 }
 
 static int ion_dma_buf_end_cpu_access(struct dma_buf *dmabuf,
@@ -524,12 +509,6 @@ static int ion_dma_buf_end_cpu_access(struct dma_buf *dmabuf,
 {
 	struct ion_buffer *buffer = dmabuf->priv;
 	struct ion_dma_buf_attachment *a;
-
-	if (buffer->heap->ops->map_kernel) {
-		mutex_lock(&buffer->lock);
-		ion_buffer_kmap_put(buffer);
-		mutex_unlock(&buffer->lock);
-	}
 
 	if (buffer->size >= SZ_1M) {
 		if (direction == DMA_FROM_DEVICE) {
