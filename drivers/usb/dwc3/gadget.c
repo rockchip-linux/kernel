@@ -268,10 +268,10 @@ static int dwc3_gadget_resize_tx_fifos(struct dwc3 *dwc)
 
 			/*
 			 * REVIST: we assume that the maxpacket of interrupt
-			 * endpoint is 16 Bytes.
+			 * endpoint is 64 Bytes for MTP and the other functions.
 			 */
 			mult = 1;
-			maxpacket = 16;
+			maxpacket = 64;
 			break;
 		default:
 			/*
