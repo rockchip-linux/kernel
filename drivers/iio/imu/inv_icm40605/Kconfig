@@ -1,0 +1,34 @@
+# SPDX-License-Identifier: GPL-2.0
+# Copyright (C) 2021 Rockchip Electronics Co., Ltd
+#
+# ICM40605 IMU driver
+#
+
+config ICM40605
+	tristate
+	select IIO_BUFFER
+	select IIO_TRIGGERED_BUFFER
+
+config ICM40605_I2C
+	tristate "Invensense ICM40605 I2C driver"
+	depends on I2C
+	select ICM40605
+	select REGMAP_I2C
+	help
+	  If you say yes here you get support for ICM40605 IMU on I2C with
+	  accelerometer, gyroscope.
+
+	  This driver can also be built as a module. If so, the module will be
+	  called ICM40605_i2c.
+
+config ICM40605_SPI
+	tristate "Invensense ICM40605 SPI driver"
+	depends on SPI
+	select ICM40605
+	select REGMAP_SPI
+	help
+	  If you say yes here you get support for ICM40605 IMU on SPI with
+	  accelerometer, gyroscope.
+
+	  This driver can also be built as a module. If so, the module will be
+	  called ICM40605_spi.
