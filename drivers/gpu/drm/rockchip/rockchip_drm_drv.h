@@ -54,6 +54,7 @@ struct rockchip_crtc_funcs {
 	void (*disable_vblank)(struct drm_crtc *crtc);
 	size_t (*bandwidth)(struct drm_crtc *crtc,
 			    struct drm_crtc_state *crtc_state,
+			    size_t *frame_bw_mbyte,
 			    unsigned int *plane_num_total);
 	void (*cancel_pending_vblank)(struct drm_crtc *crtc,
 				      struct drm_file *file_priv);
@@ -70,7 +71,8 @@ struct rockchip_crtc_funcs {
 struct rockchip_atomic_commit {
 	struct drm_atomic_state *state;
 	struct drm_device *dev;
-	size_t bandwidth;
+	size_t line_bw_mbyte;
+	size_t frame_bw_mbyte;
 	unsigned int plane_num;
 };
 

@@ -2663,6 +2663,7 @@ static u64 vop_calc_max_bandwidth(struct vop_bandwidth *bw, int start,
 
 static size_t vop_crtc_bandwidth(struct drm_crtc *crtc,
 				 struct drm_crtc_state *crtc_state,
+				 size_t *frame_bw_mbyte,
 				 unsigned int *plane_num_total)
 {
 	struct drm_display_mode *adjusted_mode = &crtc_state->adjusted_mode;

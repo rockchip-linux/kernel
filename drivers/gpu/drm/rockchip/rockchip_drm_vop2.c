@@ -3992,6 +3992,7 @@ static u64 vop2_calc_max_bandwidth(struct vop2_bandwidth *bw, int start,
 
 static size_t vop2_crtc_bandwidth(struct drm_crtc *crtc,
 				  struct drm_crtc_state *crtc_state,
+				  size_t *frame_bw_mbyte,
 				  unsigned int *plane_num_total)
 {
 	struct drm_display_mode *adjusted_mode = &crtc_state->adjusted_mode;
@@ -4003,7 +4004,7 @@ static size_t vop2_crtc_bandwidth(struct drm_crtc *crtc,
 	struct drm_plane_state *pstate;
 	struct vop2_bandwidth *pbandwidth;
 	struct drm_plane *plane;
-	uint64_t bandwidth;
+	uint64_t line_bandwidth;
 	int8_t cnt = 0, plane_num = 0;
 #if defined(CONFIG_ROCKCHIP_DRM_DEBUG)
 	struct vop_dump_list *pos, *n;
@@ -4036,29 +4037,39 @@ static size_t vop2_crtc_bandwidth(struct drm_crtc *crtc,
 	if (!pbandwidth)
 		return -ENOMEM;
 	drm_atomic_crtc_state_for_each_plane(plane, crtc_state) {
+		int act_w, act_h, bpp, afbc_fac;
+
 		pstate = drm_atomic_get_new_plane_state(state, plane);
 		if (!pstate || pstate->crtc != crtc || !pstate->fb)
 			continue;
+		/* This is an empirical value, if it's afbc format, the frame buffer size div 2 */
+		afbc_fac = rockchip_afbc(plane, pstate->fb->modifier) ? 2 : 1;
 
 		vpstate = to_vop2_plane_state(pstate);
 		pbandwidth[cnt].y1 = vpstate->dest.y1;
 		pbandwidth[cnt].y2 = vpstate->dest.y2;
-		pbandwidth[cnt++].bandwidth = vop2_plane_line_bandwidth(pstate);
+		pbandwidth[cnt++].bandwidth = vop2_plane_line_bandwidth(pstate) / afbc_fac;
+
+		act_w = drm_rect_width(&pstate->src) >> 16;
+		act_h = drm_rect_height(&pstate->src) >> 16;
+		bpp = pstate->fb->format->bpp[0];
+
+		*frame_bw_mbyte += act_w * act_h / 1000 * bpp / 8 * adjusted_mode->vrefresh / afbc_fac / 1000;
 	}
 
 	sort(pbandwidth, cnt, sizeof(pbandwidth[0]), vop2_bandwidth_cmp, NULL);
 
-	bandwidth = vop2_calc_max_bandwidth(pbandwidth, 0, cnt, vdisplay);
+	line_bandwidth = vop2_calc_max_bandwidth(pbandwidth, 0, cnt, vdisplay);
 	kfree(pbandwidth);
 	/*
-	 * bandwidth(MB/s)
-	 *    = line_bandwidth / line_time
+	 * line_bandwidth(MB/s)
+	 *    = line_bandwidth(Byte) / line_time(s)
 	 *    = line_bandwidth(Byte) * clock(KHZ) / 1000 / htotal
 	 */
-	bandwidth *= clock;
-	do_div(bandwidth, htotal * 1000);
+	line_bandwidth *= clock;
+	do_div(line_bandwidth, htotal * 1000);
 
-	return bandwidth;
+	return line_bandwidth;
 }
 
 static void vop2_crtc_close(struct drm_crtc *crtc)

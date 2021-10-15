@@ -2468,7 +2468,8 @@ static void rockchip_dmcfreq_msch_rl_init(struct rockchip_dmcfreq *dmcfreq)
 }
 
 void rockchip_dmcfreq_vop_bandwidth_update(struct devfreq *devfreq,
-					   unsigned int bw_mbyte,
+					   unsigned int line_bw_mbyte,
+					   unsigned int frame_bw_mbyte,
 					   unsigned int plane_num)
 {
 	struct device *dev;
@@ -2509,11 +2510,11 @@ vop_bw_tbl:
 		return;
 
 	for (i = 0; dmcfreq->vop_bw_tbl[i].freq != CPUFREQ_TABLE_END; i++) {
-		if (bw_mbyte >= dmcfreq->vop_bw_tbl[i].min)
+		if (line_bw_mbyte >= dmcfreq->vop_bw_tbl[i].min)
 			target = dmcfreq->vop_bw_tbl[i].freq;
 	}
 
-	dev_dbg(dmcfreq->dev, "bw=%u\n", bw_mbyte);
+	dev_dbg(dmcfreq->dev, "bw=%u\n", line_bw_mbyte);
 
 	if (!target || target == dmcfreq->vop_req_rate)
 		return;
