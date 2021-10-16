@@ -41,12 +41,12 @@
 			drive-strength-s = <6>;
 		};
 		pcfg_pull_up_4_6ma: pcfg-pull-up-4-6ma {
-			bias-disable;
+			bias-pull-up;
 			drive-strength = <4>;
 			drive-strength-s = <6>;
 		};
 		pcfg_pull_down_4_6ma: pcfg-pull-down-4-6ma {
-			bias-disable;
+			bias-pull-down;
 			drive-strength = <4>;
 			drive-strength-s = <6>;
 		};
