@@ -3021,8 +3021,10 @@ static void dwc3_endpoint_interrupt(struct dwc3 *dwc,
 
 	if (epnum == 0 || epnum == 1) {
 		if (!dwc->connected &&
-		    event->endpoint_event == DWC3_DEPEVT_XFERCOMPLETE)
+		    event->endpoint_event == DWC3_DEPEVT_XFERCOMPLETE) {
+			reinit_completion(&dwc->discon_done);
 			dwc->connected = true;
+		}
 		dwc3_ep0_interrupt(dwc, event);
 		return;
 	}
@@ -3187,6 +3189,7 @@ static void dwc3_gadget_disconnect_interrupt(struct dwc3 *dwc)
 	usb_gadget_set_state(&dwc->gadget, USB_STATE_NOTATTACHED);
 
 	dwc->connected = false;
+	complete(&dwc->discon_done);
 }
 
 static void dwc3_gadget_reset_interrupt(struct dwc3 *dwc)
@@ -3786,6 +3789,7 @@ int dwc3_gadget_init(struct dwc3 *dwc)
 	}
 
 	init_completion(&dwc->ep0_in_setup);
+	init_completion(&dwc->discon_done);
 
 	dwc->gadget.ops			= &dwc3_gadget_ops;
 	dwc->gadget.speed		= USB_SPEED_UNKNOWN;

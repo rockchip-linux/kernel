@@ -284,6 +284,14 @@ disconnect:
 			}
 			break;
 		case DWC3_GCTL_PRTCAP_DEVICE:
+			if (dwc->connected) {
+				ret = wait_for_completion_timeout(&dwc->discon_done,
+						msecs_to_jiffies(DWC3_DISCON_TIMEOUT));
+				if (!ret)
+					dev_warn(dwc->dev,
+						 "timed out waiting for disconnect\n");
+			}
+
 			break;
 		case DWC3_GCTL_PRTCAP_OTG:
 			break;

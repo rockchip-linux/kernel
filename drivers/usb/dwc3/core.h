@@ -32,6 +32,7 @@
 #define DWC3_MSG_MAX	500
 
 /* Global constants */
+#define DWC3_DISCON_TIMEOUT	1000	/* ms */
 #define DWC3_PULL_UP_TIMEOUT	500	/* ms */
 #define DWC3_BOUNCE_SIZE	1024	/* size of a superspeed bulk */
 #define DWC3_EP0_SETUP_SIZE	512
@@ -929,6 +930,7 @@ struct dwc3_scratchpad_array {
  * @ep0_usb_req: dummy req used while handling STD USB requests
  * @scratch_addr: dma address of scratchbuf
  * @ep0_in_setup: one control transfer is completed and enter setup phase
+ * @discon_done: disconnect event is completed
  * @lock: for synchronizing
  * @dev: pointer to our struct device
  * @sysdev: pointer to the DMA-capable device
@@ -1071,6 +1073,7 @@ struct dwc3 {
 	dma_addr_t		scratch_addr;
 	struct dwc3_request	ep0_usb_req;
 	struct completion	ep0_in_setup;
+	struct completion	discon_done;
 
 	/* device lock */
 	spinlock_t		lock;
