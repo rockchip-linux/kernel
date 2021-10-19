@@ -138,6 +138,7 @@ struct rockchip_dmcfreq {
 	struct notifier_block status_nb;
 	struct list_head video_info_list;
 	struct freq_map_table *vop_bw_tbl;
+	struct freq_map_table *vop_frame_bw_tbl;
 	struct freq_map_table *cpu_bw_tbl;
 	struct work_struct boost_work;
 	struct input_handler input_handler;
@@ -2486,13 +2487,15 @@ void rockchip_dmcfreq_vop_bandwidth_update(struct devfreq *devfreq,
 	if (!dmcfreq)
 		return;
 
+	dev_dbg(dmcfreq->dev, "line bw=%u, frame bw=%u, pn=%u\n",
+		line_bw_mbyte, frame_bw_mbyte, plane_num);
+
 	if (!dmcfreq->vop_pn_rl_tbl || !dmcfreq->set_msch_readlatency)
 		goto vop_bw_tbl;
 	for (i = 0; dmcfreq->vop_pn_rl_tbl[i].rl != CPUFREQ_TABLE_END; i++) {
 		if (plane_num >= dmcfreq->vop_pn_rl_tbl[i].pn)
 			readlatency = dmcfreq->vop_pn_rl_tbl[i].rl;
 	}
-	dev_dbg(dmcfreq->dev, "pn=%u\n", plane_num);
 	if (readlatency) {
 		cancel_delayed_work_sync(&dmcfreq->msch_rl_work);
 		dmcfreq->is_msch_rl_work_started = false;
@@ -2507,21 +2510,26 @@ void rockchip_dmcfreq_vop_bandwidth_update(struct devfreq *devfreq,
 
 vop_bw_tbl:
 	if (!dmcfreq->auto_freq_en || !dmcfreq->vop_bw_tbl)
-		return;
-
+		goto vop_frame_bw_tbl;
 	for (i = 0; dmcfreq->vop_bw_tbl[i].freq != CPUFREQ_TABLE_END; i++) {
 		if (line_bw_mbyte >= dmcfreq->vop_bw_tbl[i].min)
 			target = dmcfreq->vop_bw_tbl[i].freq;
 	}
 
-	dev_dbg(dmcfreq->dev, "bw=%u\n", line_bw_mbyte);
+vop_frame_bw_tbl:
+	if (!dmcfreq->auto_freq_en || !dmcfreq->vop_frame_bw_tbl)
+		goto next;
+	for (i = 0; dmcfreq->vop_frame_bw_tbl[i].freq != CPUFREQ_TABLE_END;
+	     i++) {
+		if (frame_bw_mbyte >= dmcfreq->vop_frame_bw_tbl[i].min) {
+			if (target < dmcfreq->vop_frame_bw_tbl[i].freq)
+				target = dmcfreq->vop_frame_bw_tbl[i].freq;
+		}
+	}
 
-	if (!target || target == dmcfreq->vop_req_rate)
-		return;
-
+next:
 	vop_last_rate = dmcfreq->vop_req_rate;
 	dmcfreq->vop_req_rate = target;
-
 	if (target > vop_last_rate)
 		rockchip_dmcfreq_update_target(dmcfreq);
 }
@@ -2896,7 +2904,9 @@ static void rockchip_dmcfreq_parse_dt(struct rockchip_dmcfreq *dmcfreq)
 	if (rockchip_get_freq_map_talbe(np, "cpu-bw-dmc-freq",
 					&dmcfreq->cpu_bw_tbl))
 		dev_dbg(dev, "failed to get cpu bandwidth to dmc rate\n");
-
+	if (rockchip_get_freq_map_talbe(np, "vop-frame-bw-dmc-freq",
+					&dmcfreq->vop_frame_bw_tbl))
+		dev_dbg(dev, "failed to get vop frame bandwidth to dmc rate\n");
 	if (rockchip_get_freq_map_talbe(np, "vop-bw-dmc-freq",
 					&dmcfreq->vop_bw_tbl))
 		dev_err(dev, "failed to get vop bandwidth to dmc rate\n");
