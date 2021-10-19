@@ -23,9 +23,11 @@ struct rk_spdifrx_dev {
 	struct device *dev;
 	struct clk *mclk;
 	struct clk *hclk;
+	struct snd_pcm_substream *substream;
 	struct snd_dmaengine_dai_dma_data capture_dma_data;
 	struct regmap *regmap;
 	struct reset_control *reset;
+	spinlock_t irq_lock;
 	int irq;
 };
 
@@ -67,9 +69,15 @@ static int rk_spdifrx_hw_params(struct snd_pcm_substream *substream,
 
 	regmap_update_bits(spdifrx->regmap, SPDIFRX_INTEN,
 			   SPDIFRX_INTEN_SYNCIE_MASK |
-			   SPDIFRX_INTEN_NSYNCIE_MASK,
+			   SPDIFRX_INTEN_NSYNCIE_MASK |
+			   SPDIFRX_INTMASK_BMDEIMSK |
+			   SPDIFRX_INTMASK_PEIMSK |
+			   SPDIFRX_INTEN_RXOIE_MASK,
 			   SPDIFRX_INTEN_SYNCIE_EN |
-			   SPDIFRX_INTEN_NSYNCIE_EN);
+			   SPDIFRX_INTEN_NSYNCIE_EN |
+			   SPDIFRX_INTEN_BMDEIE_EN |
+			   SPDIFRX_INTEN_PEIE_EN |
+			   SPDIFRX_INTEN_RXOIE_MASK);
 	regmap_update_bits(spdifrx->regmap, SPDIFRX_DMACR,
 			   SPDIFRX_DMACR_RDL_MASK, SPDIFRX_DMACR_RDL(8));
 	regmap_update_bits(spdifrx->regmap, SPDIFRX_CDR,
@@ -138,9 +146,35 @@ static int rk_spdifrx_dai_probe(struct snd_soc_dai *dai)
 	return 0;
 }
 
+static int rk_spdifrx_startup(struct snd_pcm_substream *substream,
+			      struct snd_soc_dai *cpu_dai)
+{
+	struct rk_spdifrx_dev *spdifrx = snd_soc_dai_get_drvdata(cpu_dai);
+	unsigned long flags;
+
+	spin_lock_irqsave(&spdifrx->irq_lock, flags);
+	spdifrx->substream = substream;
+	spin_unlock_irqrestore(&spdifrx->irq_lock, flags);
+
+	return 0;
+}
+
+static void rk_spdifrx_shutdown(struct snd_pcm_substream *substream,
+				struct snd_soc_dai *cpu_dai)
+{
+	struct rk_spdifrx_dev *spdifrx = snd_soc_dai_get_drvdata(cpu_dai);
+	unsigned long flags;
+
+	spin_lock_irqsave(&spdifrx->irq_lock, flags);
+	spdifrx->substream = NULL;
+	spin_unlock_irqrestore(&spdifrx->irq_lock, flags);
+}
+
 static const struct snd_soc_dai_ops rk_spdifrx_dai_ops = {
 	.hw_params = rk_spdifrx_hw_params,
 	.trigger = rk_spdifrx_trigger,
+	.startup = rk_spdifrx_startup,
+	.shutdown = rk_spdifrx_shutdown,
 };
 
 static struct snd_soc_dai_driver rk_spdifrx_dai = {
@@ -250,17 +284,50 @@ static irqreturn_t rk_spdifrx_isr(int irq, void *dev_id)
 {
 	struct rk_spdifrx_dev *spdifrx = dev_id;
 	u32 intsr;
+	int err_xrun = 0;
 
 	regmap_read(spdifrx->regmap, SPDIFRX_INTSR, &intsr);
 
-	if (intsr & BIT(7)) {
+	if (intsr & SPDIFRX_INTSR_NSYNCISR_ACTIVE) {
 		dev_dbg(spdifrx->dev, "NSYNC\n");
-		regmap_write(spdifrx->regmap, SPDIFRX_INTCLR, BIT(7));
+		regmap_write(spdifrx->regmap,
+			     SPDIFRX_INTCLR, SPDIFRX_INTCLR_NSYNCICLR);
+		err_xrun = 1;
 	}
 
-	if (intsr & BIT(9)) {
+	if (intsr & SPDIFRX_INTSR_SYNCISR_ACTIVE) {
 		dev_dbg(spdifrx->dev, "SYNC\n");
-		regmap_write(spdifrx->regmap, SPDIFRX_INTCLR, BIT(9));
+		regmap_write(spdifrx->regmap,
+			     SPDIFRX_INTCLR, SPDIFRX_INTCLR_SYNCICLR);
+		err_xrun = 1;
+	}
+
+	if (intsr & SPDIFRX_INTSR_BMDEISR_ACTIVE) {
+		dev_dbg(spdifrx->dev, "bi-phase mark decoding error\n");
+		regmap_write(spdifrx->regmap,
+			     SPDIFRX_INTCLR, SPDIFRX_INTCLR_BMDEICLR);
+		err_xrun = 1;
+	}
+
+	if (intsr & SPDIFRX_INTSR_RXOIS_ACTIVE) {
+		dev_dbg(spdifrx->dev, "overrun error\n");
+		regmap_write(spdifrx->regmap,
+			     SPDIFRX_INTCLR, SPDIFRX_INTCLR_RXOICLR);
+		err_xrun = 1;
+	}
+
+	if (intsr & SPDIFRX_INTSR_PEIS_ACTIVE) {
+		dev_dbg(spdifrx->dev, "parity error\n");
+		regmap_write(spdifrx->regmap,
+			     SPDIFRX_INTCLR, SPDIFRX_INTCLR_PEICLR);
+		err_xrun = 1;
+	}
+
+	if (err_xrun) {
+		spin_lock(&spdifrx->irq_lock);
+		if (spdifrx->substream)
+			snd_pcm_stop_xrun(spdifrx->substream);
+		spin_unlock(&spdifrx->irq_lock);
 	}
 
 	return IRQ_HANDLED;
@@ -295,6 +362,8 @@ static int rk_spdifrx_probe(struct platform_device *pdev)
 	spdifrx->irq = platform_get_irq(pdev, 0);
 	if (spdifrx->irq < 0)
 		return spdifrx->irq;
+
+	spin_lock_init(&spdifrx->irq_lock);
 
 	ret = devm_request_threaded_irq(&pdev->dev, spdifrx->irq, NULL,
 					rk_spdifrx_isr,
