@@ -100,6 +100,9 @@ void device_links_read_unlock(int not_used)
 }
 #endif /* !CONFIG_SRCU */
 
+EXPORT_SYMBOL(device_links_read_lock);
+EXPORT_SYMBOL(device_links_read_unlock);
+
 static bool device_is_ancestor(struct device *dev, struct device *target)
 {
 	while (target->parent) {
