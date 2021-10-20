@@ -660,6 +660,7 @@ static int rockchip_iodomain_probe(struct platform_device *pdev)
 			goto unreg_notify;
 		}
 
+		dev_info(supply->iod->dev, "%s supplied by %d uV\n", supply_name, uV);
 		/* register regulator notifier */
 		ret = regulator_register_notifier(reg, &supply->nb);
 		if (ret) {
