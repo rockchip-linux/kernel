@@ -370,6 +370,9 @@ static int rk618_cru_probe(struct platform_device *pdev)
 		strlcpy(lcdc1_dclkp_name, parent_name,
 			sizeof(lcdc1_dclkp_name));
 
+	regmap_write(cru->regmap, RK618_CRU_PLL0_CON0, 0x80008000);
+	regmap_write(cru->regmap, RK618_CRU_PLL1_CON0, 0x80008000);
+
 	rk618_clk_register_plls(cru);
 	rk618_clk_register_muxes(cru);
 	rk618_clk_register_dividers(cru);
