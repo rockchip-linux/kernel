@@ -414,6 +414,25 @@ static int rk_nfc_hw_ecc_read_oob(struct mtd_info *mtd,
 	return nand->ecc.read_page(mtd, nand, nand->data_buf, 1, page);
 }
 
+static int rk_nfc_hw_ecc_read_oob_raw(struct mtd_info *mtd,
+				      struct nand_chip *nand,
+				      int page)
+{
+	struct nand_chip *chip = mtd_to_nand(mtd);
+	struct rk_nfc *nfc = nand_get_controller_data(mtd_to_nand(mtd));
+	int ret;
+
+	ret = nand_read_page_op(chip, page, 0, nfc->page_buf, mtd->writesize);
+	if (ret)
+		return ret;
+
+	ret = nand_read_data_op(chip, chip->oob_poi, mtd->oobsize, false);
+	if (ret)
+		return ret;
+
+	return 0;
+}
+
 static int rk_nfc_hw_ecc_write_oob(struct mtd_info *mtd,
 				   struct nand_chip *nand,
 				   int page)
@@ -772,6 +791,7 @@ static int rk_nand_chip_init(struct device *dev, struct rk_nfc *nfc,
 	nand->ecc.write_oob = rk_nfc_hw_ecc_write_oob;
 	nand->ecc.read_page = rk_nfc_hw_syndrome_ecc_read_page;
 	nand->ecc.read_oob = rk_nfc_hw_ecc_read_oob;
+	nand->ecc.read_oob_raw = rk_nfc_hw_ecc_read_oob_raw;
 
 	mtd = nand_to_mtd(nand);
 	mtd_set_ooblayout(mtd, &rk_nfc_ooblayout_ops);
