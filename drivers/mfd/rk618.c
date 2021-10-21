@@ -178,12 +178,14 @@ rk618_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	if (ret)
 		goto err_clk_disable;
 
-	ret = regmap_add_irq_chip(rk618->regmap, client->irq,
-				  IRQF_ONESHOT | IRQF_TRIGGER_HIGH,
-				  0, &rk618_irq_chip, &rk618->irq_data);
-	if (ret) {
-		dev_err(dev, "failed to add irq chip: %d\n", ret);
-		goto err_clk_disable;
+	if (client->irq > 0) {
+		ret = regmap_add_irq_chip(rk618->regmap, client->irq,
+					  IRQF_ONESHOT | IRQF_TRIGGER_HIGH,
+					  0, &rk618_irq_chip, &rk618->irq_data);
+		if (ret) {
+			dev_err(dev, "failed to add irq chip: %d\n", ret);
+			goto err_clk_disable;
+		}
 	}
 
 	ret = mfd_add_devices(dev, -1, rk618_devs, ARRAY_SIZE(rk618_devs),
@@ -218,7 +220,8 @@ static void rk618_shutdown(struct i2c_client *client)
 {
 	struct rk618 *rk618 = i2c_get_clientdata(client);
 
-	disable_irq(client->irq);
+	if (client->irq > 0)
+		disable_irq(client->irq);
 	rk618_power_off(rk618);
 	clk_disable_unprepare(rk618->clkin);
 }
