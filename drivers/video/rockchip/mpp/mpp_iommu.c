@@ -20,7 +20,7 @@
 #include <linux/kref.h>
 #include <linux/slab.h>
 #include <linux/pm_runtime.h>
-#include "../../../base/base.h"
+#include <soc/rockchip/rockchip_iommu.h>
 
 #include "mpp_debug.h"
 #include "mpp_iommu.h"
@@ -460,27 +460,15 @@ int mpp_iommu_remove(struct mpp_iommu_info *info)
 
 int mpp_iommu_refresh(struct mpp_iommu_info *info, struct device *dev)
 {
-	int idx, i;
-	int usage_count;
-	struct device_link *link;
-	struct device *iommu_dev = &info->pdev->dev;
+	int ret;
 
-	idx = device_links_read_lock();
+	/* disable iommu */
+	ret = rockchip_iommu_disable(dev);
+	if (ret)
+		return ret;
 
-	usage_count = atomic_read(&iommu_dev->power.usage_count);
-	list_for_each_entry_rcu(link, &dev->links.suppliers, c_node) {
-		for (i = 0; i < usage_count; i++)
-			pm_runtime_put_sync(link->supplier);
-	}
-
-	list_for_each_entry_rcu(link, &dev->links.suppliers, c_node) {
-		for (i = 0; i < usage_count; i++)
-			pm_runtime_get_sync(link->supplier);
-	}
-
-	device_links_read_unlock(idx);
-
-	return 0;
+	/* re-enable iommu */
+	return rockchip_iommu_enable(dev);
 }
 
 int mpp_iommu_flush_tlb(struct mpp_iommu_info *info)
