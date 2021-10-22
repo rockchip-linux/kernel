@@ -2151,6 +2151,12 @@ static int rk3308_codec_power_on(struct rk3308_codec_priv *rk3308)
 				   RK3308_DAC_CURRENT_CHARGE_MSK, 0xf);
 	}
 
+	if (rk3308->codec_ver == ACODEC_VERSION_C) {
+		/* Using large driver strength for HPOUT and LINEOUT */
+		regmap_write(rk3308->regmap, RK3308_DAC_ANA_CON07, 0x11);
+		regmap_write(rk3308->regmap, RK3308_DAC_ANA_CON08, 0x11);
+	}
+
 	return 0;
 }
 
