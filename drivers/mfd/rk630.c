@@ -13,10 +13,40 @@
 #include <linux/gpio/consumer.h>
 #include <linux/mfd/rk630.h>
 
+static const struct regmap_irq rk630_irqs[] = {
+
+	/* RTC INT_STS0 */
+	[RK630_IRQ_RTC_ALARM] = {
+		.mask = RK630_IRQ_RTC_ALARM_MSK,
+		.reg_offset = 0,
+	},
+	/* RTC INT_STS1 */
+	[RK630_IRQ_SYS_INT] = {
+		.mask = RK630_IRQ_SYS_MSK,
+		.reg_offset = 4,
+	},
+};
+
+static const struct regmap_irq_chip rk630_irq_chip = {
+	.name = "rk630",
+	.irqs = rk630_irqs,
+	.num_irqs = ARRAY_SIZE(rk630_irqs),
+	.num_regs = 2,
+	.irq_reg_stride = 4,
+	.status_base = RTC_STATUS0,
+	.mask_base = RTC_INT0_EN,
+	.ack_base = RTC_STATUS0,
+	.init_ack_masked = true,
+};
+
 static const struct mfd_cell rk630_devs[] = {
 	{
 		.name = "rk630-tve",
 		.of_compatible = "rockchip,rk630-tve",
+	},
+	{
+		.name = "rk630-rtc",
+		.of_compatible = "rockchip,rk630-rtc",
 	},
 };
 
@@ -76,6 +106,26 @@ const struct regmap_config rk630_cru_regmap_config = {
 	.rd_table = &rk630_cru_readable_table,
 };
 
+static const struct regmap_range rk630_rtc_readable_ranges[] = {
+	regmap_reg_range(RTC_SET_SECONDS, RTC_CNT_3),
+};
+
+static const struct regmap_access_table rk630_rtc_readable_table = {
+	.yes_ranges = rk630_rtc_readable_ranges,
+	.n_yes_ranges = ARRAY_SIZE(rk630_rtc_readable_ranges),
+};
+
+const struct regmap_config rk630_rtc_regmap_config = {
+	.name = "rtc",
+	.reg_bits = 32,
+	.val_bits = 32,
+	.reg_stride = 4,
+	.max_register = RTC_MAX_REGISTER,
+	.reg_format_endian = REGMAP_ENDIAN_NATIVE,
+	.val_format_endian = REGMAP_ENDIAN_NATIVE,
+	.rd_table = &rk630_rtc_readable_table,
+};
+
 int rk630_core_probe(struct rk630 *rk630)
 {
 	int ret;
@@ -92,6 +142,21 @@ int rk630_core_probe(struct rk630 *rk630)
 	gpiod_direction_output(rk630->reset_gpio, 1);
 	usleep_range(50000, 60000);
 	gpiod_direction_output(rk630->reset_gpio, 0);
+
+	if (!rk630->irq) {
+		dev_err(rk630->dev, "No interrupt support, no core IRQ\n");
+		return -EINVAL;
+	}
+
+	rk630->regmap_irq_chip = &rk630_irq_chip;
+	ret = devm_regmap_add_irq_chip(rk630->dev, rk630->rtc, rk630->irq,
+				       IRQF_ONESHOT | IRQF_SHARED, -1,
+				       rk630->regmap_irq_chip,
+				       &rk630->irq_data);
+	if (ret) {
+		dev_err(rk630->dev, "Failed to add irq_chip %d\n", ret);
+		return ret;
+	}
 
 	ret = devm_mfd_add_devices(rk630->dev, PLATFORM_DEVID_NONE,
 				   rk630_devs, ARRAY_SIZE(rk630_devs),
