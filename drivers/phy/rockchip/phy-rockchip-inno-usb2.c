@@ -2040,8 +2040,26 @@ static int rk3308_usb2phy_tuning(struct rockchip_usb2phy *rphy)
 		if (ret)
 			return ret;
 
+		/* Set otg port squelch trigger point configure to 100mv */
+		ret = regmap_update_bits(rphy->grf, 0x004, GENMASK(7, 5), 0x40);
+		if (ret)
+			return ret;
+
+		ret = regmap_update_bits(rphy->grf, 0x008, BIT(0), 0x1);
+		if (ret)
+			return ret;
+
 		/* Enable host port pre-emphasis during non-chirp phase */
 		ret = regmap_update_bits(rphy->grf, 0x400, GENMASK(2, 0), BIT(2));
+		if (ret)
+			return ret;
+
+		/* Set host port squelch trigger point configure to 100mv */
+		ret = regmap_update_bits(rphy->grf, 0x404, GENMASK(7, 5), 0x40);
+		if (ret)
+			return ret;
+
+		ret = regmap_update_bits(rphy->grf, 0x408, BIT(0), 0x1);
 		if (ret)
 			return ret;
 	} else {
