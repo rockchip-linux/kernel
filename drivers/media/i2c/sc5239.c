@@ -558,7 +558,7 @@ static inline int sc5239_write_reg(struct sc5239 *sc5239, u16 addr, u8 value)
 	return ret;
 }
 
-static void sc5239_get_gain_reg(u32 total_gain, u32 *again, u32 *again_fine,
+static void sc5239_get_gain_reg(struct sc5239 *sc5239, u32 total_gain, u32 *again, u32 *again_fine,
 					 u32 *dgain, u32 *dgain_fine)
 {
 	if (total_gain < 0x40) {/* 1 ~ 2 gain */
@@ -576,12 +576,12 @@ static void sc5239_get_gain_reg(u32 total_gain, u32 *again, u32 *again_fine,
 		*again_fine = total_gain >> 2;
 		*dgain = 0x00;
 		*dgain_fine = 0x80;
-	} else if (total_gain < 0x200) {/* 8 ~ 16 gain */
-		*again = 0x01F;
+	} else if (total_gain <= 0x1F8) {/* 8 ~ 15.75 gain */
+		*again = 0x1F;
 		*again_fine = total_gain >> 3;
 		*dgain = 0x00;
 		*dgain_fine = 0x80;
-	} else if (total_gain < 0x400) {/* 16 ~ 32 gain */
+	} else if (total_gain < 0x400) {/* 15.75 ~ 32 gain */
 		*again = 0x1F;
 		*again_fine = 0x3F;
 		*dgain = 0x00;
@@ -593,7 +593,7 @@ static void sc5239_get_gain_reg(u32 total_gain, u32 *again, u32 *again_fine,
 		*dgain_fine = total_gain >> 3;
 	} else if (total_gain < 0x1000) {/* 64 ~ 128 gain */
 		*again = 0x1F;
-		*dgain_fine = 0x3F;
+		*again_fine = 0x3F;
 		*dgain = 0x03;
 		*dgain_fine = total_gain >> 4;
 	} else if (total_gain < 0x2000) {/* 128 ~ 256 gain */
@@ -601,11 +601,78 @@ static void sc5239_get_gain_reg(u32 total_gain, u32 *again, u32 *again_fine,
 		*again_fine = 0x3F;
 		*dgain = 0x07;
 		*dgain_fine = total_gain >> 5;
-	} else if (total_gain < 0x4000) {/* 256 ~ 512 gain */
+	} else if (total_gain < 0x4000) {/* 256 ~ 496 gain */
 		*again = 0x1F;
 		*again_fine = 0x3F;
 		*dgain = 0x0F;
 		*dgain_fine = total_gain >> 6;
+	}
+
+	if (sc5239->cur_mode->hdr_mode == NO_HDR) {
+		if (total_gain < 0x40) {/* 1 ~ 2 gain */
+			sc5239_write_reg(sc5239, 0x3301, 0x1c);
+			sc5239_write_reg(sc5239, 0x3630, 0x30);
+			sc5239_write_reg(sc5239, 0x3633, 0x23);
+			sc5239_write_reg(sc5239, 0x3622, 0xf6);
+			sc5239_write_reg(sc5239, 0x363a, 0x83);
+		} else if (total_gain < 0x80) {/* 2 ~ 4 gain */
+			sc5239_write_reg(sc5239, 0x3301, 0x26);
+			sc5239_write_reg(sc5239, 0x3630, 0x23);
+			sc5239_write_reg(sc5239, 0x3633, 0x33);
+			sc5239_write_reg(sc5239, 0x3622, 0xf6);
+			sc5239_write_reg(sc5239, 0x363a, 0x87);
+		} else if (total_gain < 0x100) {/* 4 ~ 8 gain */
+			sc5239_write_reg(sc5239, 0x3301, 0x2c);
+			sc5239_write_reg(sc5239, 0x3630, 0x24);
+			sc5239_write_reg(sc5239, 0x3633, 0x43);
+			sc5239_write_reg(sc5239, 0x3622, 0xf6);
+			sc5239_write_reg(sc5239, 0x363a, 0x9f);
+		} else if (total_gain <= 0x1F8) {/* 8 ~ 15.75 gain */
+			sc5239_write_reg(sc5239, 0x3301, 0x38);
+			sc5239_write_reg(sc5239, 0x3630, 0x28);
+			sc5239_write_reg(sc5239, 0x3633, 0x43);
+			sc5239_write_reg(sc5239, 0x3622, 0xf6);
+			sc5239_write_reg(sc5239, 0x363a, 0x9f);
+		} else {
+			sc5239_write_reg(sc5239, 0x3301, 0x44);
+			sc5239_write_reg(sc5239, 0x3630, 0x19);
+			sc5239_write_reg(sc5239, 0x3633, 0x55);
+			sc5239_write_reg(sc5239, 0x3622, 0x16);
+			sc5239_write_reg(sc5239, 0x363a, 0x9f);
+		}
+	} else if (sc5239->cur_mode->hdr_mode == HDR_X2) {
+		if (total_gain < 0x40) {/* 1 ~ 2 gain */
+			sc5239_write_reg(sc5239, 0x3301, 0x20);
+			sc5239_write_reg(sc5239, 0x3630, 0x30);
+			sc5239_write_reg(sc5239, 0x3633, 0x34);
+			sc5239_write_reg(sc5239, 0x3622, 0xf6);
+			sc5239_write_reg(sc5239, 0x363a, 0x83);
+		} else if (total_gain < 0x80) {/* 2 ~ 4 gain */
+			sc5239_write_reg(sc5239, 0x3301, 0x28);
+			sc5239_write_reg(sc5239, 0x3630, 0x34);
+			sc5239_write_reg(sc5239, 0x3633, 0x35);
+			sc5239_write_reg(sc5239, 0x3622, 0xf6);
+			sc5239_write_reg(sc5239, 0x363a, 0x87);
+		} else if (total_gain < 0x100) {/* 4 ~ 8 gain */
+			sc5239_write_reg(sc5239, 0x3301, 0x28);
+			sc5239_write_reg(sc5239, 0x3630, 0x24);
+			sc5239_write_reg(sc5239, 0x3633, 0x35);
+			sc5239_write_reg(sc5239, 0x3622, 0xf6);
+			sc5239_write_reg(sc5239, 0x363a, 0x9f);
+		} else if (total_gain <= 0x1F8) {/* 8 ~ 15.75 gain */
+			sc5239_write_reg(sc5239, 0x3301, 0x48);
+			sc5239_write_reg(sc5239, 0x3630, 0x16);
+			sc5239_write_reg(sc5239, 0x3633, 0x45);
+			sc5239_write_reg(sc5239, 0x3622, 0xf6);
+			sc5239_write_reg(sc5239, 0x363a, 0x9f);
+		} else {
+			sc5239_write_reg(sc5239, 0x3301, 0x48);
+			sc5239_write_reg(sc5239, 0x3630, 0x09);
+			sc5239_write_reg(sc5239, 0x3633, 0x46);
+			sc5239_write_reg(sc5239, 0x3622, 0x16);
+			sc5239_write_reg(sc5239, 0x363a, 0x9f);
+
+		}
 	}
 }
 
@@ -646,7 +713,7 @@ static int sc5239_set_ctrl(struct v4l2_ctrl *ctrl)
 		if (sc5239->cur_mode->hdr_mode != NO_HDR)
 			return ret;
 		dev_dbg(sc5239->dev, "set again 0x%x\n", ctrl->val);
-		sc5239_get_gain_reg(ctrl->val, &again, &again_fine, &dgain, &dgain_fine);
+		sc5239_get_gain_reg(sc5239, ctrl->val, &again, &again_fine, &dgain, &dgain_fine);
 		ret |= sc5239_write_reg(sc5239, SC5239_REG_LONG_DGAIN, dgain);
 		ret |= sc5239_write_reg(sc5239, SC5239_REG_LONG_FINE_DGAIN, dgain_fine);
 		ret |= sc5239_write_reg(sc5239, SC5239_REG_LONG_AGAIN, again);
@@ -910,8 +977,8 @@ static int sc5239_set_hdrae(struct sc5239 *sc5239,
 	ret |= sc5239_write_reg(sc5239, SC5239_REG_EXP_SHORT_H, (s_exp_time >> 4));
 
 	// set gain reg
-	sc5239_get_gain_reg(l_t_gain, &l_again, &l_again_fine, &l_dgain, &l_dgain_fine);
-	sc5239_get_gain_reg(s_t_gain, &s_again, &s_again_fine, &s_dgain, &s_dgain_fine);
+	sc5239_get_gain_reg(sc5239, l_t_gain, &l_again, &l_again_fine, &l_dgain, &l_dgain_fine);
+	sc5239_get_gain_reg(sc5239, s_t_gain, &s_again, &s_again_fine, &s_dgain, &s_dgain_fine);
 
 	ret |= sc5239_write_reg(sc5239, SC5239_REG_LONG_DGAIN, l_dgain);
 	ret |= sc5239_write_reg(sc5239, SC5239_REG_LONG_FINE_DGAIN, l_dgain_fine);
