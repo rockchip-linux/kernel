@@ -112,6 +112,9 @@ static int dw_mci_rk3288_execute_tuning(struct dw_mci_slot *slot, u32 opcode)
 
 	/* Try each phase and extract good ranges */
 	for (i = 0; i < NUM_PHASES; ) {
+		/* Cannot guarantee any phases larger than 270 would work well */
+		if (TUNING_ITERATION_TO_PHASE(i) > 270)
+			break;
 		clk_set_phase(priv->sample_clk, TUNING_ITERATION_TO_PHASE(i));
 
 		v = !mmc_send_tuning(mmc, opcode, NULL);
