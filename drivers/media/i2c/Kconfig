@@ -1541,6 +1541,17 @@ config VIDEO_GC0403
 	  To compile this driver as a module, choose M here: the
 	  module will be called gc0403.
 
+config VIDEO_GC1054
+	tristate "GalaxyCore GC1054 sensor support"
+	depends on I2C && VIDEO_V4L2 && VIDEO_V4L2_SUBDEV_API
+	depends on MEDIA_CAMERA_SUPPORT
+	select V4L2_FWNODE
+	help
+	  Support for the GalaxyCore GC1054 sensor.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called gc1054.
+
 config VIDEO_GC2035
 	tristate "GalaxyCore GC2035 sensor support"
 	depends on I2C && VIDEO_V4L2 && VIDEO_V4L2_SUBDEV_API
