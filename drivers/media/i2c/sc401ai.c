@@ -2,7 +2,7 @@
 /*
  * sc401ai driver
  *
- * Copyright (C) 2020 Rockchip Electronics Co., Ltd.
+ * Copyright (C) 2021 Rockchip Electronics Co., Ltd.
  *
  * V0.0X01.0X01 add poweron function.
  * V0.0X01.0X02 fix mclk issue when probe multiple camera.
@@ -22,6 +22,8 @@
 #include <linux/sysfs.h>
 #include <linux/slab.h>
 #include <linux/version.h>
+#include <linux/of.h>
+#include <linux/of_graph.h>
 #include <linux/rk-camera-module.h>
 #include <linux/rk-preisp.h>
 #include <media/media-entity.h>
@@ -36,12 +38,18 @@
 #define V4L2_CID_DIGITAL_GAIN		V4L2_CID_GAIN
 #endif
 
-#define SC401AI_LANES			4
 #define SC401AI_BITS_PER_SAMPLE		10
+
 #define SC401AI_LINK_FREQ_315		157500000// 315Mbps
+#define SC401AI_LINK_FREQ_630		315000000// 630Mbps
 
 #define PIXEL_RATE_WITH_315M_10BIT		(SC401AI_LINK_FREQ_315 * 2 * \
-					SC401AI_LANES / SC401AI_BITS_PER_SAMPLE)
+					4 / SC401AI_BITS_PER_SAMPLE)
+#define PIXEL_RATE_WITH_630M_10BIT		(SC401AI_LINK_FREQ_630 * 2 * \
+					2 / SC401AI_BITS_PER_SAMPLE)
+#define PIXEL_RATE_WITH_MAX			(SC401AI_LINK_FREQ_630 * 2 * \
+					2 / SC401AI_BITS_PER_SAMPLE)
+
 #define SC401AI_XVCLK_FREQ		27000000
 
 #define CHIP_ID				0xcd2e
@@ -66,7 +74,6 @@
 #define SC401AI_GAIN_MAX		(24 * 32 * 64)    //23.32*31.75*64
 #define SC401AI_GAIN_STEP		1
 #define SC401AI_GAIN_DEFAULT		0x0800
-
 
 #define SC401AI_REG_GROUP_HOLD		0x3812
 #define SC401AI_GROUP_HOLD_START	0x00
@@ -136,6 +143,7 @@ struct sc401ai_mode {
 	u32 exp_def;
 	const struct regval *reg_list;
 	u32 hdr_mode;
+	u32 mipi_freq_idx;
 	u32 vc[PAD_MAX];
 };
 
@@ -159,9 +167,13 @@ struct sc401ai {
 	struct v4l2_ctrl	*hblank;
 	struct v4l2_ctrl	*vblank;
 	struct v4l2_ctrl	*test_pattern;
+	struct v4l2_ctrl	*pixel_rate;
+	struct v4l2_ctrl	*link_freq;
 	struct mutex		mutex;
 	bool			streaming;
 	bool			power_on;
+	unsigned int		lane_num;
+	unsigned int		cfg_num;
 	const struct sc401ai_mode *cur_mode;
 	u32			module_index;
 	const char		*module_facing;
@@ -185,7 +197,7 @@ static const struct regval sc401ai_global_regs[] = {
  * max_framerate 30fps
  * mipi_datarate per lane 315Mbps, 4lane
  */
-static const struct regval sc401ai_linear_10_2560x1440_regs[] = {
+static const struct regval sc401ai_linear_10_2560x1440_4lane_regs[] = {
 	{0x0103, 0x01},
 	{0x0100, 0x00},
 	{0x36e9, 0x80},
@@ -285,6 +297,123 @@ static const struct regval sc401ai_linear_10_2560x1440_regs[] = {
 	{REG_NULL, 0x00},
 };
 
+/*
+ * Xclk 27Mhz
+ * max_framerate 30fps
+ * mipi_datarate per lane 630Mbps, 2lane
+ */
+static const struct regval sc401ai_linear_10_2560x1440_2lane_regs[] = {
+	{0x0103, 0x01},
+	{0x0100, 0x00},
+	{0x36e9, 0x80},
+	{0x36f9, 0x80},
+	{0x3018, 0x3a},
+	{0x3019, 0x0c},
+	{0x301c, 0x78},
+	{0x301f, 0x05},
+	{0x3208, 0x0a},
+	{0x3209, 0x00},
+	{0x320a, 0x05},
+	{0x320b, 0xa0},
+	{0x320e, 0x05},
+	{0x320f, 0xdc},
+	{0x3214, 0x11},
+	{0x3215, 0x11},
+	{0x3223, 0x80},
+	{0x3250, 0x00},
+	{0x3253, 0x08},
+	{0x3274, 0x01},
+	{0x3301, 0x20},
+	{0x3302, 0x18},
+	{0x3303, 0x10},
+	{0x3304, 0x50},
+	{0x3306, 0x38},
+	{0x3308, 0x18},
+	{0x3309, 0x60},
+	{0x330b, 0xc0},
+	{0x330d, 0x10},
+	{0x330e, 0x18},
+	{0x330f, 0x04},
+	{0x3310, 0x02},
+	{0x331c, 0x04},
+	{0x331e, 0x41},
+	{0x331f, 0x51},
+	{0x3320, 0x09},
+	{0x3333, 0x10},
+	{0x334c, 0x08},
+	{0x3356, 0x09},
+	{0x3364, 0x17},
+	{0x338e, 0xfd},
+	{0x3390, 0x08},
+	{0x3391, 0x18},
+	{0x3392, 0x38},
+	{0x3393, 0x20},
+	{0x3394, 0x20},
+	{0x3395, 0x20},
+	{0x3396, 0x08},
+	{0x3397, 0x18},
+	{0x3398, 0x38},
+	{0x3399, 0x20},
+	{0x339a, 0x20},
+	{0x339b, 0x20},
+	{0x339c, 0x20},
+	{0x33ac, 0x10},
+	{0x33ae, 0x18},
+	{0x33af, 0x19},
+	{0x360f, 0x01},
+	{0x3620, 0x08},
+	{0x3637, 0x25},
+	{0x363a, 0x12},
+	{0x3670, 0x0a},
+	{0x3671, 0x07},
+	{0x3672, 0x57},
+	{0x3673, 0x5e},
+	{0x3674, 0x84},
+	{0x3675, 0x88},
+	{0x3676, 0x8a},
+	{0x367a, 0x58},
+	{0x367b, 0x78},
+	{0x367c, 0x58},
+	{0x367d, 0x78},
+	{0x3690, 0x33},
+	{0x3691, 0x43},
+	{0x3692, 0x34},
+	{0x369c, 0x40},
+	{0x369d, 0x78},
+	{0x36ea, 0x39},
+	{0x36eb, 0x0d},
+	{0x36ec, 0x1c},
+	{0x36ed, 0x24},
+	{0x36fa, 0x39},
+	{0x36fb, 0x33},
+	{0x36fc, 0x10},
+	{0x36fd, 0x14},
+	{0x3908, 0x41},
+	{0x396c, 0x0e},
+	{0x3e00, 0x00},
+	{0x3e01, 0xb6},
+	{0x3e02, 0x00},
+	{0x3e03, 0x0b},
+	{0x3e08, 0x03},
+	{0x3e09, 0x40},
+	{0x3e1b, 0x2a},
+	{0x4509, 0x30},
+	{0x4819, 0x08},
+	{0x481b, 0x05},
+	{0x481d, 0x11},
+	{0x481f, 0x04},
+	{0x4821, 0x09},
+	{0x4823, 0x04},
+	{0x4825, 0x04},
+	{0x4827, 0x04},
+	{0x4829, 0x07},
+	{0x57a8, 0xd0},
+	{0x36e9, 0x14},
+	{0x36f9, 0x14},
+	//{0x0100, 0x01},
+	{REG_NULL, 0x00},
+};
+
 static const struct sc401ai_mode supported_modes[] = {
 	{
 		.width = 2560,
@@ -297,22 +426,32 @@ static const struct sc401ai_mode supported_modes[] = {
 		.hts_def = 0x0578 * 2,
 		.vts_def = 0x05dc,
 		.bus_fmt = MEDIA_BUS_FMT_SBGGR10_1X10,
-		.reg_list = sc401ai_linear_10_2560x1440_regs,
+		.reg_list = sc401ai_linear_10_2560x1440_4lane_regs,
 		.hdr_mode = NO_HDR,
+		.mipi_freq_idx = 0,
 		.vc[PAD0] = V4L2_MBUS_CSI2_CHANNEL_0,
-	}
+	},
+	{
+		.width = 2560,
+		.height = 1440,
+		.max_fps = {
+			.numerator = 10000,
+			.denominator = 300000,
+		},
+		.exp_def = 0x0080,
+		.hts_def = 0x0578 * 2,
+		.vts_def = 0x05dc,
+		.bus_fmt = MEDIA_BUS_FMT_SBGGR10_1X10,
+		.reg_list = sc401ai_linear_10_2560x1440_2lane_regs,
+		.hdr_mode = NO_HDR,
+		.mipi_freq_idx = 1,
+		.vc[PAD0] = V4L2_MBUS_CSI2_CHANNEL_0,
+	},
 };
 
 static const s64 link_freq_menu_items[] = {
-	SC401AI_LINK_FREQ_315
-};
-
-static const char * const sc401ai_test_pattern_menu[] = {
-	"Disabled",
-	"Vertical Color Bar Type 1",
-	"Vertical Color Bar Type 2",
-	"Vertical Color Bar Type 3",
-	"Vertical Color Bar Type 4"
+	SC401AI_LINK_FREQ_315,
+	SC401AI_LINK_FREQ_630,
 };
 
 /* Write registers up to 4 at a time */
@@ -628,7 +767,7 @@ static int sc401ai_enum_frame_sizes(struct v4l2_subdev *sd,
 	if (fse->index >= ARRAY_SIZE(supported_modes))
 		return -EINVAL;
 
-	if (fse->code != supported_modes[0].bus_fmt)
+	if (fse->code != supported_modes[1].bus_fmt)
 		return -EINVAL;
 
 	fse->min_width  = supported_modes[fse->index].width;
@@ -650,7 +789,6 @@ static int sc401ai_enable_test_pattern(struct sc401ai *sc401ai, u32 pattern)
 		val |= SC401AI_TEST_PATTERN_BIT_MASK;
 	else
 		val &= ~SC401AI_TEST_PATTERN_BIT_MASK;
-
 	ret |= sc401ai_write_reg(sc401ai->client, SC401AI_REG_TEST_PATTERN,
 				 SC401AI_REG_VALUE_08BIT, val);
 	return ret;
@@ -674,7 +812,9 @@ static int sc401ai_g_mbus_config(struct v4l2_subdev *sd,
 {
 	struct sc401ai *sc401ai = to_sc401ai(sd);
 	const struct sc401ai_mode *mode = sc401ai->cur_mode;
-	u32 val = 1 << (SC401AI_LANES - 1) |
+	u32 val = 0;
+
+	val = 1 << (sc401ai->lane_num - 1) |
 		V4L2_MBUS_CSI2_CHANNEL_0 |
 		V4L2_MBUS_CSI2_CONTINUOUS_CLOCK;
 
@@ -703,7 +843,6 @@ static long sc401ai_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 {
 	struct sc401ai *sc401ai = to_sc401ai(sd);
 	struct rkmodule_hdr_cfg *hdr;
-	u32 i, h, w;
 	long ret = 0;
 	u32 stream = 0;
 
@@ -718,28 +857,8 @@ static long sc401ai_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 		break;
 	case RKMODULE_SET_HDR_CFG:
 		hdr = (struct rkmodule_hdr_cfg *)arg;
-		w = sc401ai->cur_mode->width;
-		h = sc401ai->cur_mode->height;
-		for (i = 0; i < ARRAY_SIZE(supported_modes); i++) {
-			if (w == supported_modes[i].width &&
-			    h == supported_modes[i].height &&
-			    supported_modes[i].hdr_mode == hdr->hdr_mode) {
-				sc401ai->cur_mode = &supported_modes[i];
-				break;
-			}
-		}
-		if (i == ARRAY_SIZE(supported_modes)) {
-			dev_err(&sc401ai->client->dev,
-				"not find hdr mode:%d %dx%d config\n",
-				hdr->hdr_mode, w, h);
-			ret = -EINVAL;
-		} else {
-			w = sc401ai->cur_mode->hts_def - sc401ai->cur_mode->width;
-			h = sc401ai->cur_mode->vts_def - sc401ai->cur_mode->height;
-			__v4l2_ctrl_modify_range(sc401ai->hblank, w, w, 1, w);
-			__v4l2_ctrl_modify_range(sc401ai->vblank, h,
-						 SC401AI_VTS_MAX - sc401ai->cur_mode->height, 1, h);
-		}
+		if (hdr->hdr_mode != 0)
+			ret = -1;
 		break;
 	case PREISP_CMD_SET_HDRAE_EXP:
 		break;
@@ -748,11 +867,15 @@ static long sc401ai_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 		stream = *((u32 *)arg);
 
 		if (stream)
-			ret = sc401ai_write_reg(sc401ai->client, SC401AI_REG_CTRL_MODE,
-				 SC401AI_REG_VALUE_08BIT, SC401AI_MODE_STREAMING);
+			ret = sc401ai_write_reg(sc401ai->client,
+						SC401AI_REG_CTRL_MODE,
+						SC401AI_REG_VALUE_08BIT,
+						SC401AI_MODE_STREAMING);
 		else
-			ret = sc401ai_write_reg(sc401ai->client, SC401AI_REG_CTRL_MODE,
-				 SC401AI_REG_VALUE_08BIT, SC401AI_MODE_SW_STANDBY);
+			ret = sc401ai_write_reg(sc401ai->client,
+						SC401AI_REG_CTRL_MODE,
+						SC401AI_REG_VALUE_08BIT,
+						SC401AI_MODE_SW_STANDBY);
 		break;
 	default:
 		ret = -ENOIOCTLCMD;
@@ -771,7 +894,7 @@ static long sc401ai_compat_ioctl32(struct v4l2_subdev *sd,
 	struct rkmodule_awb_cfg *cfg;
 	struct rkmodule_hdr_cfg *hdr;
 	struct preisp_hdrae_exp_s *hdrae;
-	long ret;
+	long ret = 0;
 	u32 stream = 0;
 
 	switch (cmd) {
@@ -783,8 +906,11 @@ static long sc401ai_compat_ioctl32(struct v4l2_subdev *sd,
 		}
 
 		ret = sc401ai_ioctl(sd, cmd, inf);
-		if (!ret)
+		if (!ret) {
 			ret = copy_to_user(up, inf, sizeof(*inf));
+			if (ret)
+				ret = -EFAULT;
+		}
 		kfree(inf);
 		break;
 	case RKMODULE_AWB_CFG:
@@ -794,9 +920,12 @@ static long sc401ai_compat_ioctl32(struct v4l2_subdev *sd,
 			return ret;
 		}
 
-		ret = copy_from_user(cfg, up, sizeof(*cfg));
-		if (!ret)
-			ret = sc401ai_ioctl(sd, cmd, cfg);
+		if (copy_from_user(cfg, up, sizeof(*cfg))) {
+			kfree(cfg);
+			return -EFAULT;
+		}
+
+		sc401ai_ioctl(sd, cmd, cfg);
 		kfree(cfg);
 		break;
 	case RKMODULE_GET_HDR_CFG:
@@ -807,8 +936,11 @@ static long sc401ai_compat_ioctl32(struct v4l2_subdev *sd,
 		}
 
 		ret = sc401ai_ioctl(sd, cmd, hdr);
-		if (!ret)
+		if (!ret) {
 			ret = copy_to_user(up, hdr, sizeof(*hdr));
+			if (ret)
+				ret = -EFAULT;
+		}
 		kfree(hdr);
 		break;
 	case RKMODULE_SET_HDR_CFG:
@@ -818,9 +950,12 @@ static long sc401ai_compat_ioctl32(struct v4l2_subdev *sd,
 			return ret;
 		}
 
-		ret = copy_from_user(hdr, up, sizeof(*hdr));
-		if (!ret)
-			ret = sc401ai_ioctl(sd, cmd, hdr);
+		if (copy_from_user(hdr, up, sizeof(*hdr))) {
+			kfree(hdr);
+			return -EFAULT;
+		}
+
+		sc401ai_ioctl(sd, cmd, hdr);
 		kfree(hdr);
 		break;
 	case PREISP_CMD_SET_HDRAE_EXP:
@@ -830,15 +965,19 @@ static long sc401ai_compat_ioctl32(struct v4l2_subdev *sd,
 			return ret;
 		}
 
-		ret = copy_from_user(hdrae, up, sizeof(*hdrae));
-		if (!ret)
-			ret = sc401ai_ioctl(sd, cmd, hdrae);
+		if (copy_from_user(hdrae, up, sizeof(*hdrae))) {
+			kfree(hdrae);
+			return -EFAULT;
+		}
+
+		sc401ai_ioctl(sd, cmd, hdrae);
 		kfree(hdrae);
 		break;
 	case RKMODULE_SET_QUICK_STREAM:
-		ret = copy_from_user(&stream, up, sizeof(u32));
-		if (!ret)
-			ret = sc401ai_ioctl(sd, cmd, &stream);
+		if (copy_from_user(&stream, up, sizeof(u32)))
+			return -EFAULT;
+
+		sc401ai_ioctl(sd, cmd, &stream);
 		break;
 	default:
 		ret = -ENOIOCTLCMD;
@@ -862,14 +1001,18 @@ static int __sc401ai_start_stream(struct sc401ai *sc401ai)
 	if (ret)
 		return ret;
 
-	return sc401ai_write_reg(sc401ai->client, SC401AI_REG_CTRL_MODE,
-				 SC401AI_REG_VALUE_08BIT, SC401AI_MODE_STREAMING);
+	return sc401ai_write_reg(sc401ai->client,
+				 SC401AI_REG_CTRL_MODE,
+				 SC401AI_REG_VALUE_08BIT,
+				 SC401AI_MODE_STREAMING);
 }
 
 static int __sc401ai_stop_stream(struct sc401ai *sc401ai)
 {
-	return sc401ai_write_reg(sc401ai->client, SC401AI_REG_CTRL_MODE,
-				 SC401AI_REG_VALUE_08BIT, SC401AI_MODE_SW_STANDBY);
+	return sc401ai_write_reg(sc401ai->client,
+				 SC401AI_REG_CTRL_MODE,
+				 SC401AI_REG_VALUE_08BIT,
+				 SC401AI_MODE_SW_STANDBY);
 }
 
 static int sc401ai_s_stream(struct v4l2_subdev *sd, int on)
@@ -1189,14 +1332,16 @@ static int sc401ai_set_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_HFLIP:
 		ret = sc401ai_read_reg(sc401ai->client, SC401AI_FLIP_MIRROR_REG,
 				       SC401AI_REG_VALUE_08BIT, &val);
-		ret |= sc401ai_write_reg(sc401ai->client, SC401AI_FLIP_MIRROR_REG,
+		ret |= sc401ai_write_reg(sc401ai->client,
+					 SC401AI_FLIP_MIRROR_REG,
 					 SC401AI_REG_VALUE_08BIT,
 					 SC401AI_FETCH_MIRROR(val, ctrl->val));
 		break;
 	case V4L2_CID_VFLIP:
 		ret = sc401ai_read_reg(sc401ai->client, SC401AI_FLIP_MIRROR_REG,
 				       SC401AI_REG_VALUE_08BIT, &val);
-		ret |= sc401ai_write_reg(sc401ai->client, SC401AI_FLIP_MIRROR_REG,
+		ret |= sc401ai_write_reg(sc401ai->client,
+					 SC401AI_FLIP_MIRROR_REG,
 					 SC401AI_REG_VALUE_08BIT,
 					 SC401AI_FETCH_FLIP(val, ctrl->val));
 		break;
@@ -1215,14 +1360,50 @@ static const struct v4l2_ctrl_ops sc401ai_ctrl_ops = {
 	.s_ctrl = sc401ai_set_ctrl,
 };
 
+static int sc401ai_parse_of(struct sc401ai *sc401ai)
+{
+	struct device *dev = &sc401ai->client->dev;
+	struct device_node *endpoint;
+	struct fwnode_handle *fwnode;
+	int rval;
+
+	endpoint = of_graph_get_next_endpoint(dev->of_node, NULL);
+	if (!endpoint) {
+		dev_err(dev, "Failed to get endpoint\n");
+		return -EINVAL;
+	}
+	fwnode = of_fwnode_handle(endpoint);
+	rval = fwnode_property_read_u32_array(fwnode, "data-lanes", NULL, 0);
+	if (rval <= 0) {
+		dev_warn(dev, " Get mipi lane num failed!\n");
+		return -1;
+	}
+
+	sc401ai->lane_num = rval;
+
+	if (sc401ai->lane_num == 2) {
+		sc401ai->cur_mode = &supported_modes[1];
+		dev_info(dev, "lane_num(%d)\n", sc401ai->lane_num);
+	} else if (sc401ai->lane_num == 4) {
+		sc401ai->cur_mode = &supported_modes[0];
+		dev_info(dev, "lane_num(%d)\n", sc401ai->lane_num);
+	} else {
+		dev_err(dev, "unsupported lane_num(%d)\n", sc401ai->lane_num);
+		return -1;
+	}
+	return 0;
+}
+
 static int sc401ai_initialize_controls(struct sc401ai *sc401ai)
 {
 	const struct sc401ai_mode *mode;
 	struct v4l2_ctrl_handler *handler;
-	struct v4l2_ctrl *ctrl;
+	struct device *dev = &sc401ai->client->dev;
+
 	s64 exposure_max, vblank_def;
 	u32 h_blank;
 	int ret;
+	int dst_pixel_rate = 0;
 
 	handler = &sc401ai->ctrl_handler;
 	mode = sc401ai->cur_mode;
@@ -1231,13 +1412,24 @@ static int sc401ai_initialize_controls(struct sc401ai *sc401ai)
 		return ret;
 	handler->lock = &sc401ai->mutex;
 
-	ctrl = v4l2_ctrl_new_int_menu(handler, NULL, V4L2_CID_LINK_FREQ,
-				      0, 0, link_freq_menu_items);
-	if (ctrl)
-		ctrl->flags |= V4L2_CTRL_FLAG_READ_ONLY;
+	sc401ai->link_freq = v4l2_ctrl_new_int_menu(handler, NULL,
+				V4L2_CID_LINK_FREQ,
+				ARRAY_SIZE(link_freq_menu_items) - 1, 0,
+				link_freq_menu_items);
+	__v4l2_ctrl_s_ctrl(sc401ai->link_freq, mode->mipi_freq_idx);
 
-	v4l2_ctrl_new_std(handler, NULL, V4L2_CID_PIXEL_RATE,
-			  0, PIXEL_RATE_WITH_315M_10BIT, 1, PIXEL_RATE_WITH_315M_10BIT);
+	if (ret < 0)
+		dev_err(dev, "get data num failed");
+
+	if (mode->mipi_freq_idx == 0)
+		dst_pixel_rate = PIXEL_RATE_WITH_315M_10BIT;
+	else if (mode->mipi_freq_idx == 1)
+		dst_pixel_rate = PIXEL_RATE_WITH_630M_10BIT;
+
+	sc401ai->pixel_rate = v4l2_ctrl_new_std(handler, NULL,
+						V4L2_CID_PIXEL_RATE, 0,
+						PIXEL_RATE_WITH_MAX,
+						1, dst_pixel_rate);
 
 	h_blank = mode->hts_def - mode->width;
 	sc401ai->hblank = v4l2_ctrl_new_std(handler, NULL, V4L2_CID_HBLANK,
@@ -1251,22 +1443,21 @@ static int sc401ai_initialize_controls(struct sc401ai *sc401ai)
 					    1, vblank_def);
 	exposure_max = mode->vts_def - 4;
 	sc401ai->exposure = v4l2_ctrl_new_std(handler, &sc401ai_ctrl_ops,
-					      V4L2_CID_EXPOSURE, SC401AI_EXPOSURE_MIN,
-					      exposure_max, SC401AI_EXPOSURE_STEP,
+					      V4L2_CID_EXPOSURE,
+					      SC401AI_EXPOSURE_MIN,
+					      exposure_max,
+					      SC401AI_EXPOSURE_STEP,
 					      mode->exp_def);
 	sc401ai->anal_gain = v4l2_ctrl_new_std(handler, &sc401ai_ctrl_ops,
-					       V4L2_CID_ANALOGUE_GAIN, SC401AI_GAIN_MIN,
-					       SC401AI_GAIN_MAX, SC401AI_GAIN_STEP,
+					       V4L2_CID_ANALOGUE_GAIN,
+					       SC401AI_GAIN_MIN,
+					       SC401AI_GAIN_MAX,
+					       SC401AI_GAIN_STEP,
 					       SC401AI_GAIN_DEFAULT);
-	sc401ai->test_pattern = v4l2_ctrl_new_std_menu_items(handler,
-							    &sc401ai_ctrl_ops,
-					V4L2_CID_TEST_PATTERN,
-					ARRAY_SIZE(sc401ai_test_pattern_menu) - 1,
-					0, 0, sc401ai_test_pattern_menu);
 	v4l2_ctrl_new_std(handler, &sc401ai_ctrl_ops,
-				V4L2_CID_HFLIP, 0, 1, 1, 0);
+			  V4L2_CID_HFLIP, 0, 1, 1, 0);
 	v4l2_ctrl_new_std(handler, &sc401ai_ctrl_ops,
-				V4L2_CID_VFLIP, 0, 1, 1, 0);
+			  V4L2_CID_VFLIP, 0, 1, 1, 0);
 	if (handler->error) {
 		ret = handler->error;
 		dev_err(&sc401ai->client->dev,
@@ -1395,6 +1586,10 @@ static int sc401ai_probe(struct i2c_client *client,
 		dev_err(dev, "Failed to get power regulators\n");
 		return ret;
 	}
+
+	ret = sc401ai_parse_of(sc401ai);
+	if (ret != 0)
+		return -EINVAL;
 
 	mutex_init(&sc401ai->mutex);
 
