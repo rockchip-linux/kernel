@@ -6703,7 +6703,7 @@ static void find_best_target(struct sched_domain *sd, cpumask_t *cpus,
 	/* Scan CPUs in all SDs */
 	sg = sd->groups;
 	do {
-		for_each_cpu_and(i, &p->cpus_allowed, sched_group_span(sg)) {
+		for_each_cpu_and(i, p->cpus_ptr, sched_group_span(sg)) {
 			unsigned long capacity_curr = capacity_curr_of(i);
 			unsigned long capacity_orig = capacity_orig_of(i);
 			unsigned long wake_util, new_util;
@@ -7121,7 +7121,7 @@ static void select_cpu_candidates(struct sched_domain *sd, cpumask_t *cpus,
 		max_spare_cap = 0;
 
 		for_each_cpu_and(cpu, perf_domain_span(pd), sched_domain_span(sd)) {
-			if (!cpumask_test_cpu(cpu, &p->cpus_allowed))
+			if (!cpumask_test_cpu(cpu, p->cpus_ptr))
 				continue;
 
 			util = cpu_util_next(cpu, p, cpu);
@@ -7239,7 +7239,7 @@ static int find_energy_efficient_cpu(struct task_struct *p, int prev_cpu, int sy
 
 	if (sysctl_sched_sync_hint_enable && sync) {
 		cpu = smp_processor_id();
-		if (cpumask_test_cpu(cpu, &p->cpus_allowed))
+		if (cpumask_test_cpu(cpu, p->cpus_ptr))
 			return cpu;
 	}
 
@@ -7284,7 +7284,7 @@ static int find_energy_efficient_cpu(struct task_struct *p, int prev_cpu, int sy
 		goto unlock;
 	}
 
-	if (cpumask_test_cpu(prev_cpu, &p->cpus_allowed))
+	if (cpumask_test_cpu(prev_cpu, p->cpus_ptr))
 		prev_energy = best_energy = compute_energy(p, prev_cpu, pd);
 	else
 		prev_energy = best_energy = ULONG_MAX;

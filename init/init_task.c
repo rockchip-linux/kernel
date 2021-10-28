@@ -85,7 +85,6 @@ struct task_struct init_task
     defined(CONFIG_SCHED_DEBUG)
 	.pinned_on_cpu	= -1,
 #endif
-	.cpus_requested	= CPU_MASK_ALL,
 	.mm		= NULL,
 	.active_mm	= &init_mm,
 	.restart_block	= {
