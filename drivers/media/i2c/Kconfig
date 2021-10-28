@@ -1959,6 +1959,17 @@ config VIDEO_SC500AI
 	  To compile this driver as a module, choose M here: the
 	  module will be called SC500AI.
 
+config VIDEO_SC530AI
+	tristate "SmartSens SC530AI sensor support"
+	depends on I2C && VIDEO_V4L2 && VIDEO_V4L2_SUBDEV_API
+	depends on MEDIA_CAMERA_SUPPORT
+	select V4L2_FWNODE
+	help
+	  Support for the SmartSens SC530AI sensor.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called SC530AI.
+
 config VIDEO_SC5239
 	tristate "SmartSens SC5239 sensor support"
 	depends on I2C && VIDEO_V4L2 && VIDEO_V4L2_SUBDEV_API
