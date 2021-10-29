@@ -142,7 +142,7 @@ subdir-ccflags-y += $(ccflags-y)
 #
 # Kernel Modules
 #
-obj-$(CONFIG_MALI_MIDGARD) += bifrost_kbase.o
+obj-$(CONFIG_MALI_BIFROST) += bifrost_kbase.o
 obj-$(CONFIG_MALI_KUTF)    += tests/
 
 bifrost_kbase-y := \
