@@ -853,6 +853,15 @@ static int rk817_digital_mute(struct snd_soc_dai *dai, int mute)
 		switch (rk817->playback_path) {
 		case SPK_PATH:
 		case RING_SPK:
+			if (!rk817->use_ext_amplifier) {
+				snd_soc_write(codec, RK817_CODEC_ADAC_CFG1,
+					      PWD_DACBIAS_ON | PWD_DACD_ON |
+					      PWD_DACL_DOWN | PWD_DACR_DOWN);
+			} else {
+				snd_soc_write(codec, RK817_CODEC_ADAC_CFG1,
+					      PWD_DACBIAS_ON | PWD_DACD_DOWN |
+					      PWD_DACL_ON | PWD_DACR_ON);
+			}
 			rk817_codec_ctl_gpio(rk817, CODEC_SET_SPK, 1);
 			rk817_codec_ctl_gpio(rk817, CODEC_SET_HP, 0);
 			break;
@@ -860,11 +869,17 @@ static int rk817_digital_mute(struct snd_soc_dai *dai, int mute)
 		case HP_NO_MIC:
 		case RING_HP:
 		case RING_HP_NO_MIC:
+			snd_soc_write(codec, RK817_CODEC_ADAC_CFG1,
+				      PWD_DACBIAS_ON | PWD_DACD_DOWN |
+				      PWD_DACL_ON | PWD_DACR_ON);
 			rk817_codec_ctl_gpio(rk817, CODEC_SET_SPK, 0);
 			rk817_codec_ctl_gpio(rk817, CODEC_SET_HP, 1);
 			break;
 		case SPK_HP:
 		case RING_SPK_HP:
+			snd_soc_write(codec, RK817_CODEC_ADAC_CFG1,
+				      PWD_DACBIAS_ON | PWD_DACD_ON |
+				      PWD_DACL_ON | PWD_DACR_ON);
 			rk817_codec_ctl_gpio(rk817, CODEC_SET_SPK, 1);
 			rk817_codec_ctl_gpio(rk817, CODEC_SET_HP, 1);
 			break;
