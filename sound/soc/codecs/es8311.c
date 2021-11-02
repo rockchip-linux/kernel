@@ -244,10 +244,10 @@ static const struct snd_soc_dapm_widget es8311_dapm_widgets[] = {
 	SND_SOC_DAPM_MUX("SDP OUT MUX", SND_SOC_NOPM, 0, 0,
 			 &es8311_adc_sdp_mux_controls),
 	/* Digital Interface */
-	SND_SOC_DAPM_AIF_OUT("I2S OUT", "I2S1 Capture",  1,
+	SND_SOC_DAPM_AIF_OUT("I2S OUT", "Capture",  1,
 			     SND_SOC_NOPM, 0, 0),
 	/* Render path	*/
-	SND_SOC_DAPM_AIF_IN("I2S IN", "I2S1 Playback", 0,
+	SND_SOC_DAPM_AIF_IN("I2S IN", "Playback", 0,
 			    SND_SOC_NOPM, 0, 0),
 	/*DACs SDP DATA SRC MUX */
 	SND_SOC_DAPM_MUX("DAC SDP SRC MUX", SND_SOC_NOPM, 0, 0,
