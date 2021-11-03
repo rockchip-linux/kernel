@@ -982,7 +982,7 @@ static struct rockchip_clk_branch rk3568_clk_branches[] __initdata = {
 			RK3568_CLKSEL_CON(31), 4, 2, MFLAGS),
 	MUX(SCLK_GMAC0_RMII_SPEED, "clk_gmac0_rmii_speed", mux_gmac0_rmii_speed_p, 0,
 			RK3568_CLKSEL_CON(31), 3, 1, MFLAGS),
-	MUX(SCLK_GMAC0_RX_TX, "clk_gmac0_rx_tx", mux_gmac0_rx_tx_p,  CLK_SET_RATE_PARENT,
+	MUX(SCLK_GMAC0_RX_TX, "clk_gmac0_rx_tx", mux_gmac0_rx_tx_p,  CLK_SET_RATE_PARENT | CLK_SET_RATE_NO_REPARENT,
 			RK3568_CLKSEL_CON(31), 0, 2, MFLAGS),
 
 	/* PD_USB */
@@ -1036,7 +1036,7 @@ static struct rockchip_clk_branch rk3568_clk_branches[] __initdata = {
 			RK3568_CLKSEL_CON(33), 4, 2, MFLAGS),
 	MUX(SCLK_GMAC1_RMII_SPEED, "clk_gmac1_rmii_speed", mux_gmac1_rmii_speed_p, 0,
 			RK3568_CLKSEL_CON(33), 3, 1, MFLAGS),
-	MUX(SCLK_GMAC1_RX_TX, "clk_gmac1_rx_tx", mux_gmac1_rx_tx_p,  CLK_SET_RATE_PARENT,
+	MUX(SCLK_GMAC1_RX_TX, "clk_gmac1_rx_tx", mux_gmac1_rx_tx_p,  CLK_SET_RATE_PARENT | CLK_SET_RATE_NO_REPARENT,
 			RK3568_CLKSEL_CON(33), 0, 2, MFLAGS),
 
 	/* PD_PERI */
