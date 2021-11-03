@@ -678,6 +678,20 @@ err_free_rk_obj:
 	return ERR_PTR(ret);
 }
 
+static void rockchip_gem_destroy(struct drm_gem_object *obj, struct sg_table *sg)
+{
+	struct dma_buf_attachment *attach;
+	struct dma_buf *dma_buf;
+
+	attach = obj->import_attach;
+	if (sg)
+		dma_buf_unmap_attachment(attach, sg, DMA_BIDIRECTIONAL);
+	dma_buf = attach->dmabuf;
+	dma_buf_detach(attach->dmabuf, attach);
+	/* remove the reference */
+	dma_buf_put(dma_buf);
+}
+
 /*
  * rockchip_gem_free_object - (struct drm_driver)->gem_free_object_unlocked
  * callback function
@@ -696,7 +710,13 @@ void rockchip_gem_free_object(struct drm_gem_object *obj)
 				     rk_obj->sgt->nents, DMA_BIDIRECTIONAL);
 		}
 		drm_free_large(rk_obj->pages);
-#ifndef CONFIG_ARCH_ROCKCHIP
+#if defined(CONFIG_DMABUF_CACHE)
+		/*
+		 * The dma_buf_unmap_attachment and dma_buf_detach will be re-defined if
+		 * CONFIG_DMABUF_CACHE is enabled.
+		 */
+		rockchip_gem_destroy(obj, rk_obj->sgt);
+#elif !defined(CONFIG_ARCH_ROCKCHIP)
 		drm_prime_gem_destroy(obj, rk_obj->sgt);
 #endif
 	} else {

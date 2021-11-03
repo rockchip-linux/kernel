@@ -2,7 +2,7 @@ menu "DMABUF options"
 
 config DMABUF_CACHE
 	bool "DMABUF cache attachment"
-	default n
+	default ARCH_ROCKCHIP
 	help
 	  This option support to store attachments in a list and destroy them by
 	  set to a callback list in the dtor of dma-buf.

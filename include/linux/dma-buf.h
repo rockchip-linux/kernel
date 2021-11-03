@@ -146,7 +146,7 @@ struct dma_buf_ops {
 	/* TODO: Add try_map_dma_buf version, to return immed with -EBUSY
 	 * if the call would block.
 	 */
-#ifdef CONFIG_ARCH_ROCKCHIP
+#if !defined(CONFIG_DMABUF_CACHE)
 	int (*set_release_callback)(void (*release_callback)(void *data),
 				    void *data);
 	void *(*get_release_callback_data)(void *callback);
@@ -438,7 +438,7 @@ struct dma_buf {
 	size_t size;
 	struct file *file;
 	struct list_head attachments;
-#ifdef CONFIG_ARCH_ROCKCHIP
+#if !defined(CONFIG_DMABUF_CACHE)
 	struct list_head release_callbacks;
 	struct mutex release_lock;
 #endif
@@ -545,7 +545,7 @@ static inline void get_dma_buf(struct dma_buf *dmabuf)
 	get_file(dmabuf->file);
 }
 
-#ifdef CONFIG_ARCH_ROCKCHIP
+#if !defined(CONFIG_DMABUF_CACHE)
 int dma_buf_set_release_callback(struct dma_buf *dmabuf,
 				 void (*callback)(void *), void *data);
 
