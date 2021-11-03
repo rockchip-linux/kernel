@@ -123,7 +123,7 @@
 		compatible = "wlan-platdata";
 		rockchip,grf = <&grf>;
 		pinctrl-names = "default";
-		pinctrl-0 = <&wifi_wake_host>;
+		pinctrl-0 = <&wifi_wake_host>, <&rtc_32k>;
 		wifi_chip_type = "ap6255";
 		WIFI,host_wake_irq = <&gpio0 RK_PA0 GPIO_ACTIVE_HIGH>;
 		status = "okay";
