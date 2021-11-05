@@ -1,0 +1,21 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright (c) 2021 Rockchip Electronics Co., Ltd.
+ */
+
+/ {
+	rockchip_amp: rockchip-amp {
+		compatible = "rockchip,rk3568-amp";
+		clocks = <&cru SCLK_UART4>, <&cru PCLK_UART4>,
+			<&cru PCLK_TIMER>, <&cru CLK_TIMER4>, <&cru CLK_TIMER5>;
+		clock-names = "baudclk", "apb_pclk", "pclk", "timer";
+		assigned-clocks = <&cru SCLK_UART4>,
+				<&cru CLK_TIMER4>,
+				<&cru CLK_TIMER5>;
+		assigned-clock-rates = <24000000>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&uart4m1_xfer>;
+		status = "disabled";
+	};
+};
