@@ -118,40 +118,6 @@
 			drive-strength = <12>;
 			drive-strength-s = <6>;
 		};
-
-		/* 4ma for rk3308 and 10ma for rk3308bs */
-		pcfg_pull_none_4_10ma: pcfg-pull-none-4-10ma {
-			bias-disable;
-			drive-strength = <4>;
-			drive-strength-s = <10>;
-		};
-		pcfg_pull_up_4_10ma: pcfg-pull-up-4-10ma {
-			bias-pull-up;
-			drive-strength = <4>;
-			drive-strength-s = <10>;
-		};
-		pcfg_pull_down_4_10ma: pcfg-pull-down-4-10ma {
-			bias-pull-down;
-			drive-strength = <4>;
-			drive-strength-s = <10>;
-		};
-
-		/* 4ma for rk3308 and 8ma for rk3308bs */
-		pcfg_pull_none_4_8ma: pcfg-pull-none-4-8ma {
-			bias-disable;
-			drive-strength = <4>;
-			drive-strength-s = <8>;
-		};
-		pcfg_pull_up_4_8ma: pcfg-pull-up-4-8ma {
-			bias-pull-up;
-			drive-strength = <4>;
-			drive-strength-s = <8>;
-		};
-		pcfg_pull_down_4_8ma: pcfg-pull-down-4-8ma {
-			bias-pull-down;
-			drive-strength = <4>;
-			drive-strength-s = <8>;
-		};
 	};
 };
 
@@ -702,81 +668,81 @@
 		lcdc_ctl: lcdc-ctl {
 			rockchip,pins =
 				/* dclk */
-				<1 RK_PA0 RK_FUNC_1 &pcfg_pull_none_4_8ma>,
+				<1 RK_PA0 RK_FUNC_1 &pcfg_pull_none_4_6ma>,
 				/* hsync */
-				<1 RK_PA1 RK_FUNC_1 &pcfg_pull_none_4ma>,
+				<1 RK_PA1 RK_FUNC_1 &pcfg_pull_none_4_6ma>,
 				/* vsync */
-				<1 RK_PA2 RK_FUNC_1 &pcfg_pull_none_4ma>,
+				<1 RK_PA2 RK_FUNC_1 &pcfg_pull_none_4_6ma>,
 				/* den */
-				<1 RK_PA3 RK_FUNC_1 &pcfg_pull_none_4ma>,
+				<1 RK_PA3 RK_FUNC_1 &pcfg_pull_none_4_6ma>,
 				/* d0 */
-				<1 RK_PA4 RK_FUNC_1 &pcfg_pull_none_4_10ma>,
+				<1 RK_PA4 RK_FUNC_1 &pcfg_pull_none_4_6ma>,
 				/* d1 */
-				<1 RK_PA5 RK_FUNC_1 &pcfg_pull_none_4_10ma>,
+				<1 RK_PA5 RK_FUNC_1 &pcfg_pull_none_4_6ma>,
 				/* d2 */
-				<1 RK_PA6 RK_FUNC_1 &pcfg_pull_none_4_10ma>,
+				<1 RK_PA6 RK_FUNC_1 &pcfg_pull_none_4_6ma>,
 				/* d3 */
-				<1 RK_PA7 RK_FUNC_1 &pcfg_pull_none_4_10ma>,
+				<1 RK_PA7 RK_FUNC_1 &pcfg_pull_none_4_6ma>,
 				/* d4 */
-				<1 RK_PB0 RK_FUNC_1 &pcfg_pull_none_4_10ma>,
+				<1 RK_PB0 RK_FUNC_1 &pcfg_pull_none_4_6ma>,
 				/* d5 */
-				<1 RK_PB1 RK_FUNC_1 &pcfg_pull_none_4_10ma>,
+				<1 RK_PB1 RK_FUNC_1 &pcfg_pull_none_4_6ma>,
 				/* d6 */
-				<1 RK_PB2 RK_FUNC_1 &pcfg_pull_none_4_10ma>,
+				<1 RK_PB2 RK_FUNC_1 &pcfg_pull_none_4_6ma>,
 				/* d7 */
-				<1 RK_PB3 RK_FUNC_1 &pcfg_pull_none_4_10ma>,
+				<1 RK_PB3 RK_FUNC_1 &pcfg_pull_none_4_6ma>,
 				/* d8 */
-				<1 RK_PB4 RK_FUNC_1 &pcfg_pull_none_4_10ma>,
+				<1 RK_PB4 RK_FUNC_1 &pcfg_pull_none_4_6ma>,
 				/* d9 */
-				<1 RK_PB5 RK_FUNC_1 &pcfg_pull_none_4_10ma>,
+				<1 RK_PB5 RK_FUNC_1 &pcfg_pull_none_4_6ma>,
 				/* d10 */
-				<1 RK_PB6 RK_FUNC_1 &pcfg_pull_none_4_10ma>,
+				<1 RK_PB6 RK_FUNC_1 &pcfg_pull_none_4_6ma>,
 				/* d11 */
-				<1 RK_PB7 RK_FUNC_1 &pcfg_pull_none_4_10ma>,
+				<1 RK_PB7 RK_FUNC_1 &pcfg_pull_none_4_6ma>,
 				/* d12 */
-				<1 RK_PC0 RK_FUNC_1 &pcfg_pull_none_4_10ma>,
+				<1 RK_PC0 RK_FUNC_1 &pcfg_pull_none_4_6ma>,
 				/* d13 */
-				<1 RK_PC1 RK_FUNC_1 &pcfg_pull_none_4_10ma>,
+				<1 RK_PC1 RK_FUNC_1 &pcfg_pull_none_4_6ma>,
 				/* d14 */
-				<1 RK_PC2 RK_FUNC_1 &pcfg_pull_none_4_10ma>,
+				<1 RK_PC2 RK_FUNC_1 &pcfg_pull_none_4_6ma>,
 				/* d15 */
-				<1 RK_PC3 RK_FUNC_1 &pcfg_pull_none_4_10ma>,
+				<1 RK_PC3 RK_FUNC_1 &pcfg_pull_none_4_6ma>,
 				/* d16 */
-				<1 RK_PC4 RK_FUNC_1 &pcfg_pull_none_4_10ma>,
+				<1 RK_PC4 RK_FUNC_1 &pcfg_pull_none_4_6ma>,
 				/* d17 */
-				<1 RK_PC5 RK_FUNC_1 &pcfg_pull_none_4_10ma>;
+				<1 RK_PC5 RK_FUNC_1 &pcfg_pull_none_4_6ma>;
 		};
 
 		lcdc_rgb888_m0: lcdc-rgb888-m0 {
 			rockchip,pins =
 				/* d18 */
-				<1 RK_PC6 RK_FUNC_6 &pcfg_pull_none_4_10ma>,
+				<1 RK_PC6 RK_FUNC_6 &pcfg_pull_none_4_6ma>,
 				/* d19 */
-				<1 RK_PC7 RK_FUNC_6 &pcfg_pull_none_4_10ma>,
+				<1 RK_PC7 RK_FUNC_6 &pcfg_pull_none_4_6ma>,
 				/* d20 */
-				<2 RK_PB1 RK_FUNC_3 &pcfg_pull_none_4_10ma>,
+				<2 RK_PB1 RK_FUNC_3 &pcfg_pull_none_4_6ma>,
 				/* d21 */
-				<2 RK_PB2 RK_FUNC_3 &pcfg_pull_none_4_10ma>,
+				<2 RK_PB2 RK_FUNC_3 &pcfg_pull_none_4_6ma>,
 				/* d22 */
-				<2 RK_PB7 RK_FUNC_3 &pcfg_pull_none_4_10ma>,
+				<2 RK_PB7 RK_FUNC_3 &pcfg_pull_none_4_6ma>,
 				/* d23 */
-				<2 RK_PC0 RK_FUNC_3 &pcfg_pull_none_4_10ma>;
+				<2 RK_PC0 RK_FUNC_3 &pcfg_pull_none_4_6ma>;
 		};
 
 		lcdc_rgb888_m1: lcdc-rgb888-m1 {
 			rockchip,pins =
 				/* d18 */
-				<3 RK_PA6 RK_FUNC_3 &pcfg_pull_none_4_10ma>,
+				<3 RK_PA6 RK_FUNC_3 &pcfg_pull_none_4_6ma>,
 				/* d19 */
-				<3 RK_PA7 RK_FUNC_3 &pcfg_pull_none_4_10ma>,
+				<3 RK_PA7 RK_FUNC_3 &pcfg_pull_none_4_6ma>,
 				/* d20 */
-				<3 RK_PB0 RK_FUNC_3 &pcfg_pull_none_4_10ma>,
+				<3 RK_PB0 RK_FUNC_3 &pcfg_pull_none_4_6ma>,
 				/* d21 */
-				<3 RK_PB1 RK_FUNC_3 &pcfg_pull_none_4_10ma>,
+				<3 RK_PB1 RK_FUNC_3 &pcfg_pull_none_4_6ma>,
 				/* d22 */
-				<3 RK_PB2 RK_FUNC_4 &pcfg_pull_none_4_10ma>,
+				<3 RK_PB2 RK_FUNC_4 &pcfg_pull_none_4_6ma>,
 				/* d23 */
-				<3 RK_PB3 RK_FUNC_4 &pcfg_pull_none_4_10ma>;
+				<3 RK_PB3 RK_FUNC_4 &pcfg_pull_none_4_6ma>;
 		};
 	};
 };
