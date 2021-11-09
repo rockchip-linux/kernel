@@ -30,6 +30,7 @@
 #include <linux/io.h>
 #include <linux/dma-mapping.h>
 #include <linux/scatterlist.h>
+#include <linux/timer.h>
 
 #include "rk_crypto_bignum.h"
 
@@ -70,13 +71,13 @@ struct rk_crypto_dev {
 
 	/* device lock */
 	spinlock_t			lock;
-	struct mutex			mutex;
 
 	/* the public variable */
 	struct crypto_async_request	*async_req;
 	void				*addr_vir;
 	u32				vir_max;
 
+	struct timer_list		timer;
 	bool				busy;
 	void (*request_crypto)(struct rk_crypto_dev *rk_dev, const char *name);
 	void (*release_crypto)(struct rk_crypto_dev *rk_dev, const char *name);
@@ -112,8 +113,9 @@ struct rk_alg_ctx {
 	dma_addr_t			addr_in;
 	dma_addr_t			addr_out;
 
-	int				aligned;
+	bool				aligned;
 	int				align_size;
+	int				chunk_size;
 };
 
 /* the private variable of hash */
@@ -141,8 +143,10 @@ struct rk_cipher_ctx {
 	unsigned int			keylen;
 	u32				mode;
 	u8				iv[AES_BLOCK_SIZE];
+	u8				lastc[AES_BLOCK_SIZE];
 
 	/* for fallback */
+	bool				fallback_key_inited;
 	struct crypto_skcipher		*fallback_tfm;
 	struct skcipher_request		fallback_req;	// keep at the end
 };
@@ -174,6 +178,7 @@ struct rk_crypto_algt {
 	u32				algo;
 	u32				mode;
 	char				*name;
+	bool				use_soft_aes192;
 };
 
 enum rk_hash_algo {
@@ -218,7 +223,8 @@ enum rk_cipher_mode {
 		.base.cra_name		= #algo_name,\
 		.base.cra_driver_name	= #driver_name,\
 		.base.cra_priority	= RK_CRYPTO_PRIORITY,\
-		.base.cra_flags		= CRYPTO_ALG_ASYNC,\
+		.base.cra_flags		= CRYPTO_ALG_ASYNC |\
+					  CRYPTO_ALG_NEED_FALLBACK,\
 		.base.cra_blocksize	= cipher_algo##_BLOCK_SIZE,\
 		.base.cra_ctxsize	= sizeof(struct rk_cipher_ctx),\
 		.base.cra_alignmask	= 0x07,\
@@ -228,6 +234,7 @@ enum rk_cipher_mode {
 		.min_keysize	= cipher_algo##_MIN_KEY_SIZE,\
 		.max_keysize	= cipher_algo##_MAX_KEY_SIZE,\
 		.ivsize		= cipher_algo##_BLOCK_SIZE,\
+		.chunksize      = cipher_algo##_BLOCK_SIZE,\
 		.setkey		= rk_cipher_setkey,\
 		.encrypt	= rk_cipher_encrypt,\
 		.decrypt	= rk_cipher_decrypt,\
@@ -243,7 +250,8 @@ enum rk_cipher_mode {
 		.base.cra_name		= #algo_name,\
 		.base.cra_driver_name	= #driver_name,\
 		.base.cra_priority	= RK_CRYPTO_PRIORITY,\
-		.base.cra_flags		= CRYPTO_ALG_ASYNC,\
+		.base.cra_flags		= CRYPTO_ALG_ASYNC |\
+					  CRYPTO_ALG_NEED_FALLBACK,\
 		.base.cra_blocksize	= cipher_algo##_BLOCK_SIZE,\
 		.base.cra_ctxsize	= sizeof(struct rk_cipher_ctx),\
 		.base.cra_alignmask	= 0x07,\
@@ -253,6 +261,7 @@ enum rk_cipher_mode {
 		.min_keysize	= cipher_algo##_MAX_KEY_SIZE,\
 		.max_keysize	= cipher_algo##_MAX_KEY_SIZE * 2,\
 		.ivsize		= cipher_algo##_BLOCK_SIZE,\
+		.chunksize      = cipher_algo##_BLOCK_SIZE,\
 		.setkey		= rk_cipher_setkey,\
 		.encrypt	= rk_cipher_encrypt,\
 		.decrypt	= rk_cipher_decrypt,\
