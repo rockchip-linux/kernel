@@ -665,7 +665,6 @@ static int rkvdec2_link_reset(struct mpp_dev *mpp)
 	rockchip_dmcfreq_unlock();
 	mutex_unlock(&dec->sip_reset_lock);
 
-	mpp_iommu_detach(mpp->iommu_info);
 	rockchip_restore_qos(mpp->dev);
 
 	/* Note: if the domain does not change, iommu attach will be return
@@ -674,7 +673,6 @@ static int rkvdec2_link_reset(struct mpp_dev *mpp)
 	 */
 	mpp_iommu_refresh(mpp->iommu_info, mpp->dev);
 
-	mpp_iommu_attach(mpp->iommu_info);
 	mpp_reset_up_write(mpp->reset_group);
 	mpp_iommu_up_write(mpp->iommu_info);
 

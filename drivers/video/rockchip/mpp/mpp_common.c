@@ -625,8 +625,6 @@ int mpp_dev_reset(struct mpp_dev *mpp)
 	mpp_iommu_down_write(mpp->iommu_info);
 	mpp_reset_down_write(mpp->reset_group);
 	atomic_set(&mpp->reset_request, 0);
-	mpp_iommu_detach(mpp->iommu_info);
-
 	rockchip_save_qos(mpp->dev);
 	if (mpp->hw_ops->reset)
 		mpp->hw_ops->reset(mpp);
@@ -638,7 +636,6 @@ int mpp_dev_reset(struct mpp_dev *mpp)
 	 */
 	mpp_iommu_refresh(mpp->iommu_info, mpp->dev);
 
-	mpp_iommu_attach(mpp->iommu_info);
 	mpp_reset_up_write(mpp->reset_group);
 	mpp_iommu_up_write(mpp->iommu_info);
 
