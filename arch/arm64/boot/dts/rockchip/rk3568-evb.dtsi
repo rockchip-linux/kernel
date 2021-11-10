@@ -154,7 +154,7 @@
 		status = "disabled";
 		compatible = "rockchip,hdmi";
 		rockchip,mclk-fs = <128>;
-		rockchip,name = "rockchip,hdmi";
+		rockchip,card-name = "rockchip,hdmi";
 		rockchip,cpu = <&i2s0_8ch>;
 		rockchip,codec = <&hdmi>;
 	};
