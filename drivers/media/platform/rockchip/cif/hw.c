@@ -740,10 +740,13 @@ static irqreturn_t rkcif_irq_handler(int irq, void *ctx)
 	struct device *dev = ctx;
 	struct rkcif_hw *cif_hw = dev_get_drvdata(dev);
 	int i;
+	struct rkcif_device *tmp_dev = NULL;
 
 	for (i = 0; i < cif_hw->dev_num; i++) {
-		if (cif_hw->cif_dev[i]->isr_hdl)
-			cif_hw->cif_dev[i]->isr_hdl(irq, cif_hw->cif_dev[i]);
+		tmp_dev = cif_hw->cif_dev[i];
+		if (tmp_dev->isr_hdl &&
+		    (atomic_read(&tmp_dev->pipe.stream_cnt) != 0))
+			tmp_dev->isr_hdl(irq, tmp_dev);
 	}
 
 	return IRQ_HANDLED;
