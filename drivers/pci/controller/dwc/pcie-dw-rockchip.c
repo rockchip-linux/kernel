@@ -795,6 +795,12 @@ static int rk_pcie_host_init_dma_trx(struct rk_pcie *rk_pcie)
 {
 	rk_pcie->dma_obj = rk_pcie_dma_obj_probe(rk_pcie->pci->dev);
 	if (IS_ERR(rk_pcie->dma_obj)) {
+		if (rk_pcie->mode == RK_PCIE_RC_TYPE) {
+			/* dma_obj is optional for RC mode */
+			rk_pcie->dma_obj = NULL;
+			return 0;
+		}
+
 		dev_err(rk_pcie->pci->dev, "failed to prepare dma object\n");
 		return -EINVAL;
 	}
