@@ -1,0 +1,60 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright (c) 2021 Rockchip Electronics Co., Ltd.
+ */
+
+/dts-v1/;
+#include "rv1126-bat-evb-v10.dtsi"
+#include "rv1126-thunder-boot-spi-nor.dtsi"
+
+/ {
+	model = "Rockchip RV1126 trailcamera Board";
+	compatible = "rockchip,rv1126-trailcamera", "rockchip,rv1126";
+
+	reserved-memory {
+		/delete-node/ mmc@20f000;
+		/delete-node/ mmc@500000;
+	};
+};
+
+&emmc {
+	/delete-property/ memory-region-ecsd;
+	status = "disabled";
+};
+
+&thunderboot_ramoops {
+	reg = <0x00280000 0x00010000>;
+	record-size = <0x0000>;
+	console-size = <0x00000>;
+	ftrace-size = <0x00000>;
+	pmsg-size = <0x00000>;
+	mcu-log-size = <0x10000>;
+	mcu-log-count = <0x1>;
+};
+
+&rkisp_thunderboot {
+	reg = <0x08000000 (64 * 0x00100000)>;
+};
+
+&rkisp_vir1 {
+	status = "okay";
+};
+
+&rkispp_vir1 {
+	status = "okay";
+};
+
+&sdio {
+	status = "disabled";
+};
+
+&sfc {
+	/delete-property/ assigned-clocks;
+	/delete-property/ assigned-clock-rates;
+	status = "okay";
+};
+
+&thunder_boot_mmc {
+	/delete-property/ memory-region-idmac;
+	status = "disabled";
+};
