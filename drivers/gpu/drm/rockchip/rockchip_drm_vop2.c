@@ -4184,6 +4184,7 @@ static void vop2_dither_setup(struct drm_crtc *crtc)
 	case MEDIA_BUS_FMT_RGB565_1X16:
 		VOP_MODULE_SET(vop2, vp, dither_down_en, 1);
 		VOP_MODULE_SET(vop2, vp, dither_down_mode, RGB888_TO_RGB565);
+		VOP_MODULE_SET(vop2, vp, pre_dither_down_en, 1);
 		break;
 	case MEDIA_BUS_FMT_RGB666_1X18:
 	case MEDIA_BUS_FMT_RGB666_1X24_CPADHI:
@@ -4191,6 +4192,7 @@ static void vop2_dither_setup(struct drm_crtc *crtc)
 	case MEDIA_BUS_FMT_RGB666_1X7X3_JEIDA:
 		VOP_MODULE_SET(vop2, vp, dither_down_en, 1);
 		VOP_MODULE_SET(vop2, vp, dither_down_mode, RGB888_TO_RGB666);
+		VOP_MODULE_SET(vop2, vp, pre_dither_down_en, 1);
 		break;
 	case MEDIA_BUS_FMT_YUV8_1X24:
 	case MEDIA_BUS_FMT_UYYVYY8_0_5X24:
@@ -4199,6 +4201,7 @@ static void vop2_dither_setup(struct drm_crtc *crtc)
 		break;
 	case MEDIA_BUS_FMT_YUV10_1X30:
 	case MEDIA_BUS_FMT_UYYVYY10_0_5X30:
+	case MEDIA_BUS_FMT_RGB101010_1X30:
 		VOP_MODULE_SET(vop2, vp, dither_down_en, 0);
 		VOP_MODULE_SET(vop2, vp, pre_dither_down_en, 0);
 		break;
@@ -4209,12 +4212,10 @@ static void vop2_dither_setup(struct drm_crtc *crtc)
 	case MEDIA_BUS_FMT_RGB888_1X7X4_JEIDA:
 	default:
 		VOP_MODULE_SET(vop2, vp, dither_down_en, 0);
-		VOP_MODULE_SET(vop2, vp, pre_dither_down_en, 0);
+		VOP_MODULE_SET(vop2, vp, pre_dither_down_en, 1);
 		break;
 	}
 
-	VOP_MODULE_SET(vop2, vp, pre_dither_down_en,
-		       vcstate->output_mode == ROCKCHIP_OUT_MODE_AAAA ? 0 : 1);
 	VOP_MODULE_SET(vop2, vp, dither_down_sel, DITHER_DOWN_ALLEGRO);
 }
 
