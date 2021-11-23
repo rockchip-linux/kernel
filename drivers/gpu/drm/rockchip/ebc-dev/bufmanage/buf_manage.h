@@ -30,6 +30,7 @@ struct ebc_buf_s {
 	int win_y1;
 	int win_x2;
 	int win_y2;
+	int needpic;
 };
 
 struct ebc_buf_s *ebc_osd_buf_get(void);

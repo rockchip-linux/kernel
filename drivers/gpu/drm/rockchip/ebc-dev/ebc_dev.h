@@ -25,6 +25,9 @@
 #define EBC_SUCCESS		(0)
 #define EBC_ERROR		(-1)
 
+#define WF_4BIT		16
+#define WF_5BIT		32
+
 /*
  * ebc status notify
  */
@@ -98,6 +101,7 @@ struct ebc_buf_info {
 	int win_y2;
 	int width_mm;
 	int height_mm;
+	int needpic;
 };
 
 #if IS_ENABLED(CONFIG_ROCKCHIP_EBC_DEV)
