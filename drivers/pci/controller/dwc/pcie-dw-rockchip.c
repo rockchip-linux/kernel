@@ -1755,6 +1755,11 @@ static int rk_pcie_really_probe(void *p)
 		goto release_driver;
 	}
 
+	/* To ensure the ordering of pci device */
+	if (!device_property_read_u32(dev, "rockchip,init-delay-ms", &val)) {
+		msleep(val);
+	}
+
 	if (!IS_ERR_OR_NULL(rk_pcie->prsnt_gpio)) {
 		if (!gpiod_get_value(rk_pcie->prsnt_gpio)) {
 			ret = -ENODEV;
