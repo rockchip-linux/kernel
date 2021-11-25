@@ -14,7 +14,7 @@
 	.p2align 3,,7
 	.type	pvi_lut_init_wf_table, %function
 pvi_lut_init_wf_table:
-.LFB1557:
+.LFB1558:
 	.file 1 "drivers/gpu/drm/rockchip/ebc-dev/epdlut/pvi_waveform.c"
 	.loc 1 679 0
 	.cfi_startproc
@@ -88,13 +88,13 @@ pvi_lut_init_wf_table:
 .L14:
 	ret
 	.cfi_endproc
-.LFE1557:
+.LFE1558:
 	.size	pvi_lut_init_wf_table, .-pvi_lut_init_wf_table
 	.align	2
 	.p2align 3,,7
 	.type	get_wf_mode_index, %function
 get_wf_mode_index:
-.LFB1551:
+.LFB1552:
 	.loc 1 473 0
 	.cfi_startproc
 .LVL8:
@@ -500,14 +500,14 @@ get_wf_mode_index:
 	add	x19, x19, 24
 	b	.L28
 	.cfi_endproc
-.LFE1551:
+.LFE1552:
 	.size	get_wf_mode_index, .-get_wf_mode_index
 	.align	2
 	.p2align 3,,7
 	.global	decodewaveform
 	.type	decodewaveform, %function
 decodewaveform:
-.LFB1547:
+.LFB1548:
 	.loc 1 67 0
 	.cfi_startproc
 .LVL29:
@@ -805,14 +805,14 @@ decodewaveform:
 	mov	w0, -22
 	b	.L65
 	.cfi_endproc
-.LFE1547:
+.LFE1548:
 	.size	decodewaveform, .-decodewaveform
 	.align	2
 	.p2align 3,,7
 	.global	decodewaveform_32
 	.type	decodewaveform_32, %function
 decodewaveform_32:
-.LFB1548:
+.LFB1549:
 	.loc 1 163 0
 	.cfi_startproc
 .LVL47:
@@ -1059,14 +1059,14 @@ decodewaveform_32:
 	mov	w0, -22
 	b	.L103
 	.cfi_endproc
-.LFE1548:
+.LFE1549:
 	.size	decodewaveform_32, .-decodewaveform_32
 	.align	2
 	.p2align 3,,7
 	.global	decodewaveform_auto
 	.type	decodewaveform_auto, %function
 decodewaveform_auto:
-.LFB1549:
+.LFB1550:
 	.loc 1 250 0
 	.cfi_startproc
 .LVL67:
@@ -1450,14 +1450,14 @@ decodewaveform_auto:
 	mov	w0, -22
 	b	.L129
 	.cfi_endproc
-.LFE1549:
+.LFE1550:
 	.size	decodewaveform_auto, .-decodewaveform_auto
 	.align	2
 	.p2align 3,,7
 	.global	pvi_wf_get_lut
 	.type	pvi_wf_get_lut, %function
 pvi_wf_get_lut:
-.LFB1559:
+.LFB1560:
 	.loc 1 744 0
 	.cfi_startproc
 .LVL93:
@@ -2193,14 +2193,14 @@ pvi_wf_get_lut:
 	.cfi_def_cfa 31, 0
 	ret
 	.cfi_endproc
-.LFE1559:
+.LFE1560:
 	.size	pvi_wf_get_lut, .-pvi_wf_get_lut
 	.align	2
 	.p2align 3,,7
 	.global	pvi_wf_input
 	.type	pvi_wf_input, %function
 pvi_wf_input:
-.LFB1560:
+.LFB1561:
 	.loc 1 806 0
 	.cfi_startproc
 .LVL160:
@@ -2295,14 +2295,14 @@ pvi_wf_input:
 	beq	.L248
 	b	.L245
 	.cfi_endproc
-.LFE1560:
+.LFE1561:
 	.size	pvi_wf_input, .-pvi_wf_input
 	.align	2
 	.p2align 3,,7
 	.global	pvi_wf_get_version
 	.type	pvi_wf_get_version, %function
 pvi_wf_get_version:
-.LFB1561:
+.LFB1562:
 	.loc 1 845 0
 	.cfi_startproc
 	.loc 1 846 0
@@ -2334,24 +2334,24 @@ pvi_wf_get_version:
 	.loc 1 859 0
 	ret
 	.cfi_endproc
-.LFE1561:
+.LFE1562:
 	.size	pvi_wf_get_version, .-pvi_wf_get_version
 	.section	.rodata
 	.align	3
 	.set	.LANCHOR2,. + 0
-	.type	__func__.16936, %object
-	.size	__func__.16936, 18
-__func__.16936:
+	.type	__func__.16939, %object
+	.size	__func__.16939, 18
+__func__.16939:
 	.string	"get_wf_frm_num_32"
 	.zero	6
-	.type	__func__.16925, %object
-	.size	__func__.16925, 15
-__func__.16925:
+	.type	__func__.16928, %object
+	.size	__func__.16928, 15
+__func__.16928:
 	.string	"get_wf_frm_num"
 	.zero	1
-	.type	__func__.16948, %object
-	.size	__func__.16948, 20
-__func__.16948:
+	.type	__func__.16951, %object
+	.size	__func__.16951, 20
+__func__.16951:
 	.string	"get_wf_frm_num_auto"
 	.data
 	.align	2
@@ -2360,13 +2360,13 @@ __func__.16948:
 	.size	maxpic, 4
 maxpic:
 	.word	16
-	.type	sftemp.17006, %object
-	.size	sftemp.17006, 4
-sftemp.17006:
+	.type	sftemp.17009, %object
+	.size	sftemp.17009, 4
+sftemp.17009:
 	.word	-1
-	.type	stype.17005, %object
-	.size	stype.17005, 4
-stype.17005:
+	.type	stype.17008, %object
+	.size	stype.17008, 4
+stype.17008:
 	.word	12
 	.bss
 	.align	3
@@ -2375,18 +2375,18 @@ stype.17005:
 	.size	waveformdata, 8
 waveformdata:
 	.zero	8
-	.type	pvi_modes.16876, %object
-	.size	pvi_modes.16876, 36
-pvi_modes.16876:
+	.type	pvi_modes.16879, %object
+	.size	pvi_modes.16879, 36
+pvi_modes.16879:
 	.zero	36
 	.zero	4
 	.type	global_waveform, %object
 	.size	global_waveform, 8
 global_waveform:
 	.zero	8
-	.type	spi_id_buffer.17042, %object
-	.size	spi_id_buffer.17042, 32
-spi_id_buffer.17042:
+	.type	spi_id_buffer.17045, %object
+	.size	spi_id_buffer.17045, 32
+spi_id_buffer.17045:
 	.zero	32
 	.section	.rodata.str1.8,"aMS",@progbits,1
 	.align	3
@@ -14441,8 +14441,8 @@ spi_id_buffer.17042:
 	.byte	0x1
 	.2byte	0x34c
 	.4byte	0x55
-	.8byte	.LFB1561
-	.8byte	.LFE1561-.LFB1561
+	.8byte	.LFB1562
+	.8byte	.LFE1562-.LFB1562
 	.uleb128 0x1
 	.byte	0x9c
 	.4byte	0x6283
@@ -14460,7 +14460,7 @@ spi_id_buffer.17042:
 	.4byte	0x6283
 	.uleb128 0x9
 	.byte	0x3
-	.8byte	spi_id_buffer.17042
+	.8byte	spi_id_buffer.17045
 	.uleb128 0x48
 	.string	"i"
 	.byte	0x1
@@ -14479,8 +14479,8 @@ spi_id_buffer.17042:
 	.byte	0x1
 	.2byte	0x325
 	.4byte	0xbb
-	.8byte	.LFB1560
-	.8byte	.LFE1560-.LFB1560
+	.8byte	.LFB1561
+	.8byte	.LFE1561-.LFB1561
 	.uleb128 0x1
 	.byte	0x9c
 	.4byte	0x62ec
@@ -14507,8 +14507,8 @@ spi_id_buffer.17042:
 	.byte	0x1
 	.2byte	0x2e7
 	.4byte	0xbb
-	.8byte	.LFB1559
-	.8byte	.LFE1559-.LFB1559
+	.8byte	.LFB1560
+	.8byte	.LFE1560-.LFB1560
 	.uleb128 0x1
 	.byte	0x9c
 	.4byte	0x6651
@@ -14543,7 +14543,7 @@ spi_id_buffer.17042:
 	.4byte	0x5fdb
 	.uleb128 0x9
 	.byte	0x3
-	.8byte	stype.17005
+	.8byte	stype.17008
 	.uleb128 0x47
 	.4byte	.LASF1484
 	.byte	0x1
@@ -14551,7 +14551,7 @@ spi_id_buffer.17042:
 	.4byte	0xbb
 	.uleb128 0x9
 	.byte	0x3
-	.8byte	sftemp.17006
+	.8byte	sftemp.17009
 	.uleb128 0x4a
 	.4byte	.LASF1485
 	.byte	0x1
@@ -14844,8 +14844,8 @@ spi_id_buffer.17042:
 	.4byte	.LASF1522
 	.byte	0x1
 	.2byte	0x2a6
-	.8byte	.LFB1557
-	.8byte	.LFE1557-.LFB1557
+	.8byte	.LFB1558
+	.8byte	.LFE1558-.LFB1558
 	.uleb128 0x1
 	.byte	0x9c
 	.4byte	0x6774
@@ -15193,8 +15193,8 @@ spi_id_buffer.17042:
 	.byte	0x1
 	.2byte	0x1d8
 	.4byte	0xbb
-	.8byte	.LFB1551
-	.8byte	.LFE1551-.LFB1551
+	.8byte	.LFB1552
+	.8byte	.LFE1552-.LFB1552
 	.uleb128 0x1
 	.byte	0x9c
 	.4byte	0x6aa9
@@ -15237,7 +15237,7 @@ spi_id_buffer.17042:
 	.4byte	0x6acc
 	.uleb128 0x9
 	.byte	0x3
-	.8byte	pvi_modes.16876
+	.8byte	pvi_modes.16879
 	.uleb128 0x4b
 	.8byte	.LVL26
 	.4byte	0x6cfd
@@ -15269,7 +15269,7 @@ spi_id_buffer.17042:
 	.4byte	0x6ae3
 	.uleb128 0x9
 	.byte	0x3
-	.8byte	pvi_modes.16876
+	.8byte	pvi_modes.16879
 	.byte	0
 	.uleb128 0x5
 	.4byte	0xbb
@@ -15283,8 +15283,8 @@ spi_id_buffer.17042:
 	.byte	0x1
 	.byte	0xf9
 	.4byte	0xbb
-	.8byte	.LFB1549
-	.8byte	.LFE1549-.LFB1549
+	.8byte	.LFB1550
+	.8byte	.LFE1550-.LFB1550
 	.uleb128 0x1
 	.byte	0x9c
 	.4byte	0x6bb5
@@ -15356,8 +15356,8 @@ spi_id_buffer.17042:
 	.byte	0x1
 	.byte	0xa2
 	.4byte	0xbb
-	.8byte	.LFB1548
-	.8byte	.LFE1548-.LFB1548
+	.8byte	.LFB1549
+	.8byte	.LFE1549-.LFB1549
 	.uleb128 0x1
 	.byte	0x9c
 	.4byte	0x6c5b
@@ -15418,8 +15418,8 @@ spi_id_buffer.17042:
 	.byte	0x1
 	.byte	0x42
 	.4byte	0xbb
-	.8byte	.LFB1547
-	.8byte	.LFE1547-.LFB1547
+	.8byte	.LFB1548
+	.8byte	.LFE1548-.LFB1548
 	.uleb128 0x1
 	.byte	0x9c
 	.4byte	0x6cfd
@@ -16793,7 +16793,7 @@ spi_id_buffer.17042:
 	.2byte	0x1
 	.byte	0x50
 	.8byte	.LVL164-.Ltext0
-	.8byte	.LFE1560-.Ltext0
+	.8byte	.LFE1561-.Ltext0
 	.2byte	0x1
 	.byte	0x64
 	.8byte	0
@@ -16855,7 +16855,7 @@ spi_id_buffer.17042:
 	.2byte	0x1
 	.byte	0x66
 	.8byte	.LVL156-.Ltext0
-	.8byte	.LFE1559-.Ltext0
+	.8byte	.LFE1560-.Ltext0
 	.2byte	0x1
 	.byte	0x51
 	.8byte	0
@@ -16882,7 +16882,7 @@ spi_id_buffer.17042:
 	.2byte	0x1
 	.byte	0x53
 	.8byte	.LVL156-.Ltext0
-	.8byte	.LFE1559-.Ltext0
+	.8byte	.LFE1560-.Ltext0
 	.2byte	0x1
 	.byte	0x52
 	.8byte	0
@@ -16921,7 +16921,7 @@ spi_id_buffer.17042:
 	.2byte	0x1
 	.byte	0x63
 	.8byte	.LVL156-.Ltext0
-	.8byte	.LFE1559-.Ltext0
+	.8byte	.LFE1560-.Ltext0
 	.2byte	0x1
 	.byte	0x53
 	.8byte	0
@@ -17109,7 +17109,7 @@ spi_id_buffer.17042:
 	.2byte	0x1
 	.byte	0x64
 	.8byte	.LVL17-.Ltext0
-	.8byte	.LFE1551-.Ltext0
+	.8byte	.LFE1552-.Ltext0
 	.2byte	0x1
 	.byte	0x64
 	.8byte	0

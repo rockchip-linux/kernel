@@ -50,6 +50,12 @@ int epd_lut_from_file_init(struct device *dev, void *waveform, int size);
 const char *epd_lut_get_wf_version(void);
 int epd_lut_get(struct epd_lut_data *output, enum epd_lut_type lut_type, int temperture, int needpic);
 
+//you can change overlay lut mode here
+static inline int epd_overlay_lut(void)
+{
+	return WF_TYPE_AUTO;
+}
+
 /*
  * PVI Waveform Interfaces
  */

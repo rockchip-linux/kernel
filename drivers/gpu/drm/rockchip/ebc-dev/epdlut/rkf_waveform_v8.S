@@ -14,7 +14,7 @@
 	.p2align 3,,7
 	.type	decode_wf_data, %function
 decode_wf_data:
-.LFB1556:
+.LFB1557:
 	.file 1 "drivers/gpu/drm/rockchip/ebc-dev/epdlut/rkf_waveform.c"
 	.loc 1 242 0
 	.cfi_startproc
@@ -87,13 +87,13 @@ decode_wf_data:
 	.cfi_def_cfa 31, 0
 	ret
 	.cfi_endproc
-.LFE1556:
+.LFE1557:
 	.size	decode_wf_data, .-decode_wf_data
 	.align	2
 	.p2align 3,,7
 	.type	parse_wf_gray16.isra.3, %function
 parse_wf_gray16.isra.3:
-.LFB1569:
+.LFB1570:
 	.loc 1 352 0
 	.cfi_startproc
 .LVL6:
@@ -288,14 +288,14 @@ parse_wf_gray16.isra.3:
 .LBE232:
 .LBE235:
 	.cfi_endproc
-.LFE1569:
+.LFE1570:
 	.size	parse_wf_gray16.isra.3, .-parse_wf_gray16.isra.3
 	.align	2
 	.p2align 3,,7
 	.global	rkf_wf_input
 	.type	rkf_wf_input, %function
 rkf_wf_input:
-.LFB1551:
+.LFB1552:
 	.loc 1 128 0
 	.cfi_startproc
 .LVL33:
@@ -532,14 +532,14 @@ rkf_wf_input:
 	.loc 1 138 0
 	b	.L35
 	.cfi_endproc
-.LFE1551:
+.LFE1552:
 	.size	rkf_wf_input, .-rkf_wf_input
 	.align	2
 	.p2align 3,,7
 	.global	rkf_wf_get_version
 	.type	rkf_wf_get_version, %function
 rkf_wf_get_version:
-.LFB1552:
+.LFB1553:
 	.loc 1 161 0
 	.cfi_startproc
 	.loc 1 162 0
@@ -552,14 +552,14 @@ rkf_wf_get_version:
 	csel	x0, x0, xzr, ne
 	ret
 	.cfi_endproc
-.LFE1552:
+.LFE1553:
 	.size	rkf_wf_get_version, .-rkf_wf_get_version
 	.align	2
 	.p2align 3,,7
 	.global	rkf_wf_get_lut
 	.type	rkf_wf_get_lut, %function
 rkf_wf_get_lut:
-.LFB1565:
+.LFB1566:
 	.loc 1 486 0
 	.cfi_startproc
 .LVL58:
@@ -1418,25 +1418,25 @@ rkf_wf_get_lut:
 	lsl	x0, x0, 2
 	b	.L76
 	.cfi_endproc
-.LFE1565:
+.LFE1566:
 	.size	rkf_wf_get_lut, .-rkf_wf_get_lut
 	.section	.rodata
 	.align	3
 	.set	.LANCHOR2,. + 0
-	.type	__func__.16923, %object
-	.size	__func__.16923, 15
-__func__.16923:
+	.type	__func__.16926, %object
+	.size	__func__.16926, 15
+__func__.16926:
 	.string	"decode_wf_auto"
 	.data
 	.align	2
 	.set	.LANCHOR1,. + 0
-	.type	sftemp.16994, %object
-	.size	sftemp.16994, 4
-sftemp.16994:
+	.type	sftemp.16997, %object
+	.size	sftemp.16997, 4
+sftemp.16997:
 	.word	-1
-	.type	stype.16993, %object
-	.size	stype.16993, 4
-stype.16993:
+	.type	stype.16996, %object
+	.size	stype.16996, 4
+stype.16996:
 	.word	12
 	.bss
 	.align	3
@@ -13460,8 +13460,8 @@ crc32_table:
 	.byte	0x1
 	.2byte	0x1e5
 	.4byte	0xc0
-	.8byte	.LFB1565
-	.8byte	.LFE1565-.LFB1565
+	.8byte	.LFB1566
+	.8byte	.LFE1566-.LFB1566
 	.uleb128 0x1
 	.byte	0x9c
 	.4byte	0x69b6
@@ -13496,7 +13496,7 @@ crc32_table:
 	.4byte	0x5fb2
 	.uleb128 0x9
 	.byte	0x3
-	.8byte	stype.16993
+	.8byte	stype.16996
 	.uleb128 0x48
 	.4byte	.LASF1471
 	.byte	0x1
@@ -13504,7 +13504,7 @@ crc32_table:
 	.4byte	0xc0
 	.uleb128 0x9
 	.byte	0x3
-	.8byte	sftemp.16994
+	.8byte	sftemp.16997
 	.uleb128 0x49
 	.string	"ret"
 	.byte	0x1
@@ -14491,8 +14491,8 @@ crc32_table:
 	.byte	0x1
 	.byte	0xf0
 	.4byte	0x2d56
-	.8byte	.LFB1556
-	.8byte	.LFE1556-.LFB1556
+	.8byte	.LFB1557
+	.8byte	.LFE1557-.LFB1557
 	.uleb128 0x1
 	.byte	0x9c
 	.4byte	0x6dba
@@ -14665,8 +14665,8 @@ crc32_table:
 	.byte	0x1
 	.byte	0xa0
 	.4byte	0x55
-	.8byte	.LFB1552
-	.8byte	.LFE1552-.LFB1552
+	.8byte	.LFB1553
+	.8byte	.LFE1553-.LFB1553
 	.uleb128 0x1
 	.byte	0x9c
 	.uleb128 0x66
@@ -14674,8 +14674,8 @@ crc32_table:
 	.byte	0x1
 	.byte	0x7f
 	.4byte	0xc0
-	.8byte	.LFB1551
-	.8byte	.LFE1551-.LFB1551
+	.8byte	.LFB1552
+	.8byte	.LFE1552-.LFB1552
 	.uleb128 0x1
 	.byte	0x9c
 	.4byte	0x7049
@@ -15038,8 +15038,8 @@ crc32_table:
 	.byte	0
 	.uleb128 0x6a
 	.4byte	0x6b2c
-	.8byte	.LFB1569
-	.8byte	.LFE1569-.LFB1569
+	.8byte	.LFB1570
+	.8byte	.LFE1570-.LFB1570
 	.uleb128 0x1
 	.byte	0x9c
 	.4byte	0x735a
@@ -16651,7 +16651,7 @@ crc32_table:
 	.2byte	0x1
 	.byte	0x50
 	.8byte	.LVL133-.Ltext0
-	.8byte	.LFE1565-.Ltext0
+	.8byte	.LFE1566-.Ltext0
 	.2byte	0x1
 	.byte	0x63
 	.8byte	0
@@ -16694,7 +16694,7 @@ crc32_table:
 	.2byte	0x1
 	.byte	0x64
 	.8byte	.LVL146-.Ltext0
-	.8byte	.LFE1565-.Ltext0
+	.8byte	.LFE1566-.Ltext0
 	.2byte	0x1
 	.byte	0x64
 	.8byte	0
@@ -16872,7 +16872,7 @@ crc32_table:
 	.2byte	0x1
 	.byte	0x52
 	.8byte	.LVL146-.Ltext0
-	.8byte	.LFE1565-.Ltext0
+	.8byte	.LFE1566-.Ltext0
 	.2byte	0x1
 	.byte	0x52
 	.8byte	0
@@ -16883,7 +16883,7 @@ crc32_table:
 	.2byte	0x1
 	.byte	0x53
 	.8byte	.LVL146-.Ltext0
-	.8byte	.LFE1565-.Ltext0
+	.8byte	.LFE1566-.Ltext0
 	.2byte	0x1
 	.byte	0x53
 	.8byte	0
@@ -16894,7 +16894,7 @@ crc32_table:
 	.2byte	0x1
 	.byte	0x55
 	.8byte	.LVL146-.Ltext0
-	.8byte	.LFE1565-.Ltext0
+	.8byte	.LFE1566-.Ltext0
 	.2byte	0x1
 	.byte	0x55
 	.8byte	0
@@ -17096,7 +17096,7 @@ crc32_table:
 	.2byte	0x1
 	.byte	0x65
 	.8byte	.LVL55-.Ltext0
-	.8byte	.LFE1551-.Ltext0
+	.8byte	.LFE1552-.Ltext0
 	.2byte	0x1
 	.byte	0x65
 	.8byte	0
@@ -17167,7 +17167,7 @@ crc32_table:
 	.2byte	0x1
 	.byte	0x52
 	.8byte	.LVL21-.Ltext0
-	.8byte	.LFE1569-.Ltext0
+	.8byte	.LFE1570-.Ltext0
 	.2byte	0x1
 	.byte	0x52
 	.8byte	0
@@ -17182,7 +17182,7 @@ crc32_table:
 	.2byte	0x1
 	.byte	0x53
 	.8byte	.LVL21-.Ltext0
-	.8byte	.LFE1569-.Ltext0
+	.8byte	.LFE1570-.Ltext0
 	.2byte	0x1
 	.byte	0x53
 	.8byte	0
@@ -17204,7 +17204,7 @@ crc32_table:
 	.2byte	0x1
 	.byte	0x50
 	.8byte	.LVL20-.Ltext0
-	.8byte	.LFE1569-.Ltext0
+	.8byte	.LFE1570-.Ltext0
 	.2byte	0x1
 	.byte	0x50
 	.8byte	0
@@ -17235,7 +17235,7 @@ crc32_table:
 	.2byte	0x1
 	.byte	0x56
 	.8byte	.LVL32-.Ltext0
-	.8byte	.LFE1569-.Ltext0
+	.8byte	.LFE1570-.Ltext0
 	.2byte	0x1
 	.byte	0x56
 	.8byte	0
@@ -17266,7 +17266,7 @@ crc32_table:
 	.2byte	0x1
 	.byte	0x54
 	.8byte	.LVL31-.Ltext0
-	.8byte	.LFE1569-.Ltext0
+	.8byte	.LFE1570-.Ltext0
 	.2byte	0x1
 	.byte	0x54
 	.8byte	0
