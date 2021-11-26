@@ -99,18 +99,19 @@
 #define     PCIE_ISR0_MSI_INT_PENDING		BIT(24)
 #define     PCIE_ISR0_INTX_ASSERT(val)		BIT(16 + (val))
 #define     PCIE_ISR0_INTX_DEASSERT(val)	BIT(20 + (val))
-#define	    PCIE_ISR0_ALL_MASK			GENMASK(26, 0)
+#define     PCIE_ISR0_ALL_MASK			GENMASK(31, 0)
 #define PCIE_ISR1_REG				(CONTROL_BASE_ADDR + 0x48)
 #define PCIE_ISR1_MASK_REG			(CONTROL_BASE_ADDR + 0x4C)
 #define     PCIE_ISR1_POWER_STATE_CHANGE	BIT(4)
 #define     PCIE_ISR1_FLUSH			BIT(5)
 #define     PCIE_ISR1_INTX_ASSERT(val)		BIT(8 + (val))
-#define     PCIE_ISR1_ALL_MASK			GENMASK(11, 4)
+#define     PCIE_ISR1_ALL_MASK			GENMASK(31, 0)
 #define PCIE_MSI_ADDR_LOW_REG			(CONTROL_BASE_ADDR + 0x50)
 #define PCIE_MSI_ADDR_HIGH_REG			(CONTROL_BASE_ADDR + 0x54)
 #define PCIE_MSI_STATUS_REG			(CONTROL_BASE_ADDR + 0x58)
 #define PCIE_MSI_MASK_REG			(CONTROL_BASE_ADDR + 0x5C)
 #define PCIE_MSI_PAYLOAD_REG			(CONTROL_BASE_ADDR + 0x9C)
+#define     PCIE_MSI_DATA_MASK			GENMASK(15, 0)
 
 /* LMI registers base address and register offsets */
 #define LMI_BASE_ADDR				0x6000
@@ -150,7 +151,7 @@
 #define     PCIE_IRQ_MSI_INT2_DET		BIT(21)
 #define     PCIE_IRQ_RC_DBELL_DET		BIT(22)
 #define     PCIE_IRQ_EP_STATUS			BIT(23)
-#define     PCIE_IRQ_ALL_MASK			0xfff0fb
+#define     PCIE_IRQ_ALL_MASK			GENMASK(31, 0)
 #define     PCIE_IRQ_ENABLE_INTS_MASK		PCIE_IRQ_CORE_INT
 
 /* Transaction types */
@@ -403,7 +404,7 @@ static int advk_pcie_check_pio_status(struct advk_pcie *pcie, u32 *val)
 	else
 		str_posted = "Posted";
 
-	dev_err(dev, "%s PIO Response Status: %s, %#x @ %#x\n",
+	dev_dbg(dev, "%s PIO Response Status: %s, %#x @ %#x\n",
 		str_posted, strcomp_status, reg, advk_readl(pcie, PIO_ADDR_LS));
 
 	return -EFAULT;
@@ -627,7 +628,7 @@ static int advk_msi_irq_domain_alloc(struct irq_domain *domain,
 				    domain->host_data, handle_simple_irq,
 				    NULL, NULL);
 
-	return hwirq;
+	return 0;
 }
 
 static void advk_msi_irq_domain_free(struct irq_domain *domain,
@@ -805,8 +806,12 @@ static void advk_pcie_handle_msi(struct advk_pcie *pcie)
 		if (!(BIT(msi_idx) & msi_status))
 			continue;
 
+		/*
+		 * msi_idx contains bits [4:0] of the msi_data and msi_data
+		 * contains 16bit MSI interrupt number
+		 */
 		advk_writel(pcie, BIT(msi_idx), PCIE_MSI_STATUS_REG);
-		msi_data = advk_readl(pcie, PCIE_MSI_PAYLOAD_REG) & 0xFF;
+		msi_data = advk_readl(pcie, PCIE_MSI_PAYLOAD_REG) & PCIE_MSI_DATA_MASK;
 		generic_handle_irq(msi_data);
 	}
 
@@ -827,12 +832,6 @@ static void advk_pcie_handle_int(struct advk_pcie *pcie)
 	isr1_val = advk_readl(pcie, PCIE_ISR1_REG);
 	isr1_mask = advk_readl(pcie, PCIE_ISR1_MASK_REG);
 	isr1_status = isr1_val & ((~isr1_mask) & PCIE_ISR1_ALL_MASK);
-
-	if (!isr0_status && !isr1_status) {
-		advk_writel(pcie, isr0_val, PCIE_ISR0_REG);
-		advk_writel(pcie, isr1_val, PCIE_ISR1_REG);
-		return;
-	}
 
 	/* Process MSI interrupts */
 	if (isr0_status & PCIE_ISR0_MSI_INT_PENDING)
