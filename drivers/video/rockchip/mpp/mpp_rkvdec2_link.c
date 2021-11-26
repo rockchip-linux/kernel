@@ -1030,6 +1030,11 @@ static void rkvdec2_link_power_on(struct mpp_dev *mpp)
 			enable_irq(mpp->irq);
 			link_dec->irq_enabled = 1;
 		}
+
+		mpp_clk_set_rate(&dec->aclk_info, CLK_MODE_ADVANCED);
+		mpp_clk_set_rate(&dec->core_clk_info, CLK_MODE_ADVANCED);
+		mpp_clk_set_rate(&dec->cabac_clk_info, CLK_MODE_ADVANCED);
+		mpp_clk_set_rate(&dec->hevc_cabac_clk_info, CLK_MODE_ADVANCED);
 	}
 }
 
