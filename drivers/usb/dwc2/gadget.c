@@ -2798,14 +2798,21 @@ static void dwc2_gadget_handle_incomplete_isoc_in(struct dwc2_hsotg *hsotg)
 {
 	struct dwc2_hsotg_ep *hs_ep;
 	u32 epctrl;
+	u32 daintmsk;
 	u32 idx;
 
 	dev_dbg(hsotg->dev, "Incomplete isoc in interrupt received:\n");
 
+	daintmsk = dwc2_readl(hsotg->regs + DAINTMSK);
+
 	for (idx = 1; idx <= hsotg->num_of_eps; idx++) {
 		hs_ep = hsotg->eps_in[idx];
+		/* Proceed only unmasked ISOC EPs */
+		if ((BIT(idx) & ~daintmsk) || !hs_ep->isochronous)
+			continue;
+
 		epctrl = dwc2_readl(hsotg->regs + DIEPCTL(idx));
-		if ((epctrl & DXEPCTL_EPENA) && hs_ep->isochronous &&
+		if ((epctrl & DXEPCTL_EPENA) &&
 		    dwc2_gadget_target_frame_elapsed(hs_ep)) {
 			epctrl |= DXEPCTL_SNAK;
 			epctrl |= DXEPCTL_EPDIS;
@@ -2834,16 +2841,24 @@ static void dwc2_gadget_handle_incomplete_isoc_out(struct dwc2_hsotg *hsotg)
 {
 	u32 gintsts;
 	u32 gintmsk;
+	u32 daintmsk;
 	u32 epctrl;
 	struct dwc2_hsotg_ep *hs_ep;
 	int idx;
 
 	dev_dbg(hsotg->dev, "%s: GINTSTS_INCOMPL_SOOUT\n", __func__);
 
+	daintmsk = dwc2_readl(hsotg->regs + DAINTMSK);
+	daintmsk >>= DAINT_OUTEP_SHIFT;
+
 	for (idx = 1; idx <= hsotg->num_of_eps; idx++) {
 		hs_ep = hsotg->eps_out[idx];
+		/* Proceed only unmasked ISOC EPs */
+		if ((BIT(idx) & ~daintmsk) || !hs_ep->isochronous)
+			continue;
+
 		epctrl = dwc2_readl(hsotg->regs + DOEPCTL(idx));
-		if ((epctrl & DXEPCTL_EPENA) && hs_ep->isochronous &&
+		if ((epctrl & DXEPCTL_EPENA) &&
 		    dwc2_gadget_target_frame_elapsed(hs_ep)) {
 			/* Unmask GOUTNAKEFF interrupt */
 			gintmsk = dwc2_readl(hsotg->regs + GINTMSK);
@@ -2851,8 +2866,10 @@ static void dwc2_gadget_handle_incomplete_isoc_out(struct dwc2_hsotg *hsotg)
 			dwc2_writel(gintmsk, hsotg->regs + GINTMSK);
 
 			gintsts = dwc2_readl(hsotg->regs + GINTSTS);
-			if (!(gintsts & GINTSTS_GOUTNAKEFF))
+			if (!(gintsts & GINTSTS_GOUTNAKEFF)) {
 				__orr32(hsotg->regs + DCTL, DCTL_SGOUTNAK);
+				break;
+			}
 		}
 	}
 
@@ -2999,8 +3016,11 @@ irq_retry:
 		u8 idx;
 		u32 epctrl;
 		u32 gintmsk;
+		u32 daintmsk;
 		struct dwc2_hsotg_ep *hs_ep;
 
+		daintmsk = dwc2_readl(hsotg->regs + DAINTMSK);
+		daintmsk >>= DAINT_OUTEP_SHIFT;
 		/* Mask this interrupt */
 		gintmsk = dwc2_readl(hsotg->regs + GINTMSK);
 		gintmsk &= ~GINTSTS_GOUTNAKEFF;
@@ -3009,9 +3029,13 @@ irq_retry:
 		dev_dbg(hsotg->dev, "GOUTNakEff triggered\n");
 		for (idx = 1; idx <= hsotg->num_of_eps; idx++) {
 			hs_ep = hsotg->eps_out[idx];
+			/* Proceed only unmasked ISOC EPs */
+			if ((BIT(idx) & ~daintmsk) || !hs_ep->isochronous)
+				continue;
+
 			epctrl = dwc2_readl(hsotg->regs + DOEPCTL(idx));
 
-			if ((epctrl & DXEPCTL_EPENA) && hs_ep->isochronous) {
+			if (epctrl & DXEPCTL_EPENA) {
 				epctrl |= DXEPCTL_SNAK;
 				epctrl |= DXEPCTL_EPDIS;
 				dwc2_writel(epctrl, hsotg->regs + DOEPCTL(idx));
