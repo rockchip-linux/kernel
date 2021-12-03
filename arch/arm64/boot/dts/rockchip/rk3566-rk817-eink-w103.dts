@@ -224,8 +224,7 @@
 &ebc {
 	/* clock rate 1000M/n, (n=1~32) */
 	assigned-clocks = <&cru CPLL_333M>, <&cru DCLK_EBC>;
-	//assigned-clock-rates = <340000000>, <340000000>;
-	assigned-clock-rates = <250000000>, <250000000>;
+	assigned-clock-rates = <34000000>, <34000000>;
 	status = "okay";
 };
 
@@ -261,7 +260,7 @@
 	panel,height = <1404>;
 	panel,vir_width = <1872>;
 	panel,vir_height = <1404>;
-	panel,sdck = <33300000>;
+	panel,sdck = <34000000>;
 	panel,lsl = <18>;
 	panel,lbl = <17>;
 	panel,ldl = <234>;
