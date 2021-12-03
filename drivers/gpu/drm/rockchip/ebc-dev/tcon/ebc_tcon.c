@@ -209,7 +209,7 @@ static int tcon_enable(struct ebc_tcon *tcon, struct ebc_panel *panel)
 				| EPD_SDSHR(1));
 	tcon_write(tcon, EBC_DSP_START, DSP_SDCE_WIDTH(panel->ldl) | SW_BURST_CTRL);
 	tcon_write(tcon, EBC_DSP_CTRL,
-				DSP_SWAP_MODE(panel->panel_16bit ? 2 : 3) | DSP_VCOM_MODE(1) | DSP_SDCLK_DIV(panel->panel_16bit ? 7 : 3));
+				DSP_SWAP_MODE(panel->panel_16bit ? 2 : 3) | DSP_VCOM_MODE(1) | DSP_SDCLK_DIV(0));
 	tcon_cfg_done(tcon);
 
 	enable_irq(tcon->irq);
