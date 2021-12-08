@@ -106,6 +106,14 @@ struct rockchip_hdr_state {
 #define VOP_COLOR_KEY_NONE	(0 << 31)
 #define VOP_COLOR_KEY_MASK	(1 << 31)
 
+struct rockchip_bcsh_state {
+	int brightness;
+	int contrast;
+	int saturation;
+	int sin_hue;
+	int cos_hue;
+};
+
 #define VOP_OUTPUT_IF_RGB	BIT(0)
 #define VOP_OUTPUT_IF_BT1120	BIT(1)
 #define VOP_OUTPUT_IF_BT656	BIT(2)
