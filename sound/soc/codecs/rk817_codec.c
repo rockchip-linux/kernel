@@ -356,6 +356,13 @@ static int rk817_codec_power_up(struct snd_soc_codec *codec, int type)
 			snd_soc_write(codec, playback_power_up_list[i].reg,
 				      playback_power_up_list[i].value);
 		}
+
+		snd_soc_update_bits(codec, RK817_CODEC_DTOP_DIGEN_CLKE,
+				    DAC_DIG_CLK_MASK, DAC_DIG_CLK_DIS);
+		usleep_range(2000, 2500);
+		snd_soc_update_bits(codec, RK817_CODEC_DTOP_DIGEN_CLKE,
+				    DAC_DIG_CLK_MASK, DAC_DIG_CLK_EN);
+		DBG("%s: %d - Playback DIG CLK OPS\n", __func__, __LINE__);
 	}
 
 	if (type & RK817_CODEC_CAPTURE) {
@@ -365,6 +372,13 @@ static int rk817_codec_power_up(struct snd_soc_codec *codec, int type)
 			snd_soc_write(codec, capture_power_up_list[i].reg,
 				      capture_power_up_list[i].value);
 		}
+
+		snd_soc_update_bits(codec, RK817_CODEC_DTOP_DIGEN_CLKE,
+				    ADC_DIG_CLK_MASK, DAC_DIG_CLK_DIS);
+		usleep_range(2000, 2500);
+		snd_soc_update_bits(codec, RK817_CODEC_DTOP_DIGEN_CLKE,
+				    ADC_DIG_CLK_MASK, ADC_DIG_CLK_EN);
+		DBG("%s: %d - Capture DIG CLK OPS\n", __func__, __LINE__);
 
 		if (rk817->mic_in_differential)
 			snd_soc_update_bits(codec, RK817_CODEC_AMIC_CFG0,
