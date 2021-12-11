@@ -102,6 +102,7 @@ struct ebc_buf_info {
 	int width_mm;
 	int height_mm;
 	int needpic;
+	char tid_name[16];
 };
 
 #if IS_ENABLED(CONFIG_ROCKCHIP_EBC_DEV)

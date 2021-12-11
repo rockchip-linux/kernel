@@ -196,7 +196,7 @@ struct ebc_buf_s *ebc_osd_buf_clone(void)
 	return temp_buf;
 }
 
-struct ebc_buf_s *ebc_empty_buf_get(void)
+struct ebc_buf_s *ebc_empty_buf_get(const char *tid_name)
 {
 	struct ebc_buf_s *temp_buf = NULL;
 	int temp_pos;
@@ -210,11 +210,12 @@ struct ebc_buf_s *ebc_empty_buf_get(void)
 			if (temp_buf) {
 				if (temp_buf->status == buf_idle) {
 					temp_buf->status = buf_user;
-					memcpy(temp_buf->tid_name, current->comm, TASK_COMM_LEN); //store user thread name
+					memcpy(temp_buf->tid_name, tid_name, TASK_COMM_LEN - 1); //store user thread name
 					goto OUT;
 				}
 				// one tid only can get one buf at one time
-				else if ((temp_buf->status == buf_user) && (!strncmp(temp_buf->tid_name, current->comm, TASK_COMM_LEN - 7))) {
+				else if ((temp_buf->status == buf_user) && (!strncmp(temp_buf->tid_name, tid_name, TASK_COMM_LEN - 1))) {
+					printk("[%s]: one tid only can get one buf at one time\n", tid_name);
 					goto OUT;
 				}
 			}
@@ -248,7 +249,7 @@ int ebc_buf_state_show(char *buf)
 	if (ebc_buf_info.buf_list) {
 		for (i = 0; i < ebc_buf_info.buf_list->nb_elt; i++) {
 			temp_buf = (struct ebc_buf_s *)buf_list_get(ebc_buf_info.buf_list, i);
-			ret += sprintf(buf + ret, "ebc_buf[%d]: s = %d, m = %d\n", i, temp_buf->status, temp_buf->buf_mode);
+			ret += sprintf(buf + ret, "ebc_buf[%d]: s = %d, m = %d, tid = %s\n", i, temp_buf->status, temp_buf->buf_mode, temp_buf->tid_name);
 		}
 	}
 
