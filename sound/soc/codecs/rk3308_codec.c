@@ -250,6 +250,8 @@ static bool handle_loopback(struct rk3308_codec_priv *rk3308);
 
 static int check_micbias(int micbias);
 
+static void rk3308_codec_dac_mclk_enable(struct rk3308_codec_priv *rk3308);
+
 static int rk3308_codec_micbias_enable(struct rk3308_codec_priv *rk3308,
 				       int micbias);
 static int rk3308_codec_micbias_disable(struct rk3308_codec_priv *rk3308);
@@ -2239,6 +2241,9 @@ static int rk3308_codec_power_off(struct rk3308_codec_priv *rk3308)
 
 static int rk3308_codec_headset_detect_enable(struct rk3308_codec_priv *rk3308)
 {
+	if (rk3308->codec_ver == ACODEC_VERSION_C)
+		rk3308_codec_dac_mclk_enable(rk3308);
+
 	/*
 	 * Set ACODEC_DAC_ANA_CON0[1] to 0x1, to enable the headset insert
 	 * detection
@@ -3065,6 +3070,9 @@ static void rk3308_codec_adc_mclk_enable(struct rk3308_codec_priv *rk3308)
 
 static void rk3308_codec_dac_mclk_disable(struct rk3308_codec_priv *rk3308)
 {
+	if (!rk3308->no_hp_det && rk3308->codec_ver == ACODEC_VERSION_C)
+		return;
+
 	regmap_update_bits(rk3308->regmap, RK3308_GLB_CON,
 			   RK3308_DAC_MCLK_MSK,
 			   RK3308_DAC_MCLK_DIS);
