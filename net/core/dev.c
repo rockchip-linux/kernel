@@ -3838,9 +3838,12 @@ static int __dev_queue_xmit(struct sk_buff *skb, struct net_device *sb_dev)
 		int cpu = smp_processor_id(); /* ok because BHs are off */
 
 #ifdef CONFIG_PREEMPT_RT_FULL
-		if (txq->xmit_lock_owner != current) {
+		if (READ_ONCE(txq->xmit_lock_owner) != current) {
 #else
-		if (txq->xmit_lock_owner != cpu) {
+		/* Other cpus might concurrently change txq->xmit_lock_owner
+		 * to -1 or to their cpu id, but not to our id.
+		 */
+		if (READ_ONCE(txq->xmit_lock_owner) != cpu) {
 #endif
 			if (dev_xmit_recursion())
 				goto recursion_alert;
