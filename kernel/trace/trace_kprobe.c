@@ -836,8 +836,9 @@ static int create_trace_kprobe(int argc, char **argv)
 			pr_info("Failed to parse either an address or a symbol.\n");
 			return ret;
 		}
+		/* Defer the ENOENT case until register kprobe */
 		if (offset && is_return &&
-		    !kprobe_on_func_entry(NULL, symbol, offset)) {
+		    kprobe_on_func_entry(NULL, symbol, offset) == -EINVAL) {
 			pr_info("Given offset is not valid for return probe.\n");
 			return -EINVAL;
 		}

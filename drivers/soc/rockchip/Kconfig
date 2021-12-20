@@ -32,7 +32,7 @@ config ROCKCHIP_CPUINFO
 	  If unsure, say N.
 
 config ROCKCHIP_GRF
-	tristate "Rockchip GRF"
+	tristate "Rockchip General Register Files support"
 	default y
 	help
 	  The General Register Files are a central component providing
