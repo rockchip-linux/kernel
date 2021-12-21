@@ -452,8 +452,15 @@ u32 nandc_flash_init(void __iomem *nandc_addr)
 			    id_byte[0][1] != 0xA1 &&
 			    id_byte[0][1] != 0xAA &&
 			    id_byte[0][1] != 0xAC &&
-			    id_byte[0][1] != 0x6A) {
+			    id_byte[0][1] != 0x6A &&
+			    id_byte[0][1] != 0xD7) {
 				pr_err("The device not support yet!\n");
+
+				return FTL_UNSUPPORTED_FLASH;
+			}
+
+			if (id_byte[0][1] != 0xD7 && nandc_get_version() != 9) {
+				pr_err("This device is not compatible, Insufficient ECC capability\n");
 
 				return FTL_UNSUPPORTED_FLASH;
 			}
@@ -490,6 +497,11 @@ u32 nandc_flash_init(void __iomem *nandc_addr)
 		nand_para.page_per_blk = 64;
 		nand_para.plane_per_die = 2;
 		nand_para.blk_per_plane = 2048;
+	} else if (id_byte[0][1] == 0xD7 && id_byte[0][3] == 0x32) {
+		nand_para.blk_per_plane = 2048;
+		nand_para.sec_per_page = 16;
+		nand_para.page_per_blk = 128;
+		nand_para.plane_per_die = 2;
 	}
 	flash_die_info_init();
 	flash_bch_sel(nand_para.ecc_bits);
