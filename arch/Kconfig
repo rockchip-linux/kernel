@@ -982,6 +982,9 @@ config HAVE_ARCH_PREL32_RELOCATIONS
 	  architectures, and don't require runtime relocation on relocatable
 	  kernels.
 
+config ARCH_USE_MEMREMAP_PROT
+	bool
+
 # Select if the architecture has support for applying RELR relocations.
 config ARCH_HAS_RELR
 	bool
