@@ -22,6 +22,20 @@
 	status = "disabled";
 };
 
+&i2c5 {
+	status = "okay";
+	clock-frequency = <400000>;
+
+	gt1x: gt1x@14 {
+		compatible = "goodix,gt1x";
+		reg = <0x14>;
+		gtp_ics_slot_report;
+		power-supply = <&vcc18_lcd_n>;
+		goodix,rst-gpio = <&gpio2 RK_PA6 GPIO_ACTIVE_HIGH>;
+		goodix,irq-gpio = <&gpio2 RK_PA7 GPIO_ACTIVE_LOW>;
+	};
+};
+
 &thunderboot_ramoops {
 	reg = <0x00280000 0x00010000>;
 	record-size = <0x0000>;
