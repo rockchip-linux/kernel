@@ -34,6 +34,7 @@
 
 #include <linux/version.h>
 #include <linux/pm_opp.h>
+#include <linux/pm_runtime.h>
 
 #include <soc/rockchip/rockchip_ipa.h>
 #include <soc/rockchip/rockchip_opp_select.h>
@@ -227,6 +228,8 @@ kbase_devfreq_target(struct device *dev, unsigned long *target_freq, u32 flags)
 	}
 #endif
 
+	/* enable pd for pvtpll clk for px30s/rk3326s */
+	pm_runtime_get_sync(dev);
 	for (i = 0; i < kbdev->nr_clocks; i++) {
 		if (kbdev->clocks[i]) {
 			int err;
@@ -237,10 +240,12 @@ kbase_devfreq_target(struct device *dev, unsigned long *target_freq, u32 flags)
 			} else {
 				dev_err(dev, "Failed to set clock %lu (target %lu)\n",
 					freqs[i], *target_freq);
+				pm_runtime_put_sync(dev);
 				return err;
 			}
 		}
 	}
+	pm_runtime_put_sync(dev);
 
 #if IS_ENABLED(CONFIG_REGULATOR)
 	for (i = 0; i < kbdev->nr_clocks; i++) {
