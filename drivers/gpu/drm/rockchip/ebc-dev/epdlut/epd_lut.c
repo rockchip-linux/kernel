@@ -70,3 +70,9 @@ int epd_lut_get(struct epd_lut_data *output, enum epd_lut_type lut_type, int tem
 {
 	return lut_get(output, lut_type, temperture, needpic);
 }
+
+//you can change overlay lut mode here
+int epd_overlay_lut(void)
+{
+	return WF_TYPE_AUTO;
+}
