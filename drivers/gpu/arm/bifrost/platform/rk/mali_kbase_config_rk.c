@@ -169,11 +169,25 @@ struct kbase_platform_funcs_conf platform_funcs = {
 
 static int rk_pm_callback_runtime_on(struct kbase_device *kbdev)
 {
+	int i;
+
+	for (i = 0; i < kbdev->nr_clocks; i++) {
+		if (kbdev->clocks[i])
+			clk_set_rate(kbdev->clocks[i], kbdev->current_freqs[i]);
+	}
+
 	return 0;
 }
 
 static void rk_pm_callback_runtime_off(struct kbase_device *kbdev)
 {
+	int i;
+
+	for (i = 0; i < kbdev->nr_clocks; i++) {
+		/* switch to normal pll(200M) before disable pd */
+		if (kbdev->clocks[i])
+			clk_set_rate(kbdev->clocks[i], 200000000);
+	}
 }
 
 static int rk_pm_callback_power_on(struct kbase_device *kbdev)
