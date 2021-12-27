@@ -1112,6 +1112,8 @@ static int analogix_dp_loader_protect(struct drm_connector *connector, bool on)
 
 		pm_runtime_get_sync(dp->dev);
 
+		analogix_dp_phy_power_on(dp);
+
 		ret = analogix_dp_detect_sink_psr(dp);
 		if (ret)
 			return ret;
