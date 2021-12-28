@@ -169,6 +169,20 @@
  * 13.disable tmo interrupt
  * 14.fix bottom image for debayer with extend line
  * 15.unregister dmarx at driver remove
+ *
+ * v1.8.0:
+ * 1.sync alloc buf with dma sg case
+ * 2.sync multi vir dev stream on/off
+ * 3.replace iommu detach/attach
+ * 4.fix CSI2RX_DATA_IDS_1 config err
+ * 5.improve snapshot feature(tb in RISC-V)
+ * 6.adjust params common api
+ * 7.fix first params config two times for readback mode
+ * 8.useless version return -EINVAL
+ * 9.fix first frame abnormal
+ * 10.dynamic memory alloc for params and stats function
+ * 11.fix rawhist weight config error for multi device
+ * 12.add csm params config for isp21
  */
 
 #define RKISP_DRIVER_VERSION RKISP_API_VERSION
