@@ -981,7 +981,7 @@ int rockchip_gem_dumb_map_offset(struct drm_file *file_priv,
 				 uint64_t *offset)
 {
 	struct drm_gem_object *obj;
-	int ret;
+	int ret = 0;
 
 	obj = drm_gem_object_lookup(file_priv, handle);
 	if (!obj) {
@@ -999,7 +999,7 @@ int rockchip_gem_dumb_map_offset(struct drm_file *file_priv,
 out:
 	drm_gem_object_unreference_unlocked(obj);
 
-	return 0;
+	return ret;
 }
 
 int rockchip_gem_create_ioctl(struct drm_device *dev, void *data,
