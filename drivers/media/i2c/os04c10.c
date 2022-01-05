@@ -969,6 +969,9 @@ static int os04c10_s_power(struct v4l2_subdev *sd, int on)
 	struct i2c_client *client = os04c10->client;
 	int ret = 0;
 
+	if (os04c10->is_thunderboot)
+		return 0;
+
 	mutex_lock(&os04c10->mutex);
 
 	/* If the power state is not modified - no work to do. */
