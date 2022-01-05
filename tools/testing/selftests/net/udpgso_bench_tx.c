@@ -247,6 +247,7 @@ static void usage(const char *filepath)
 
 static void parse_opts(int argc, char **argv)
 {
+	const char *bind_addr = NULL;
 	int max_len, hdrlen;
 	int c;
 
@@ -271,7 +272,7 @@ static void parse_opts(int argc, char **argv)
 			cfg_cpu = strtol(optarg, NULL, 0);
 			break;
 		case 'D':
-			setup_sockaddr(cfg_family, optarg, &cfg_dst_addr);
+			bind_addr = optarg;
 			break;
 		case 'l':
 			cfg_runtime_ms = strtoul(optarg, NULL, 10) * 1000;
@@ -299,6 +300,11 @@ static void parse_opts(int argc, char **argv)
 			break;
 		}
 	}
+
+	if (!bind_addr)
+		bind_addr = cfg_family == PF_INET6 ? "::" : "0.0.0.0";
+
+	setup_sockaddr(cfg_family, bind_addr, &cfg_dst_addr);
 
 	if (optind != argc)
 		usage(argv[0]);
