@@ -2271,6 +2271,9 @@ static int rkisp_isp_sd_s_power(struct v4l2_subdev *sd, int on)
 	struct rkisp_device *isp_dev = sd_to_isp_dev(sd);
 	int ret;
 
+	if (isp_dev->hw_dev->is_thunderboot)
+		return 0;
+
 	v4l2_dbg(1, rkisp_debug, &isp_dev->v4l2_dev,
 		 "%s on:%d\n", __func__, on);
 
@@ -2764,23 +2767,22 @@ void rkisp_chk_tb_over(struct rkisp_device *isp_dev)
 	enum rkisp_tb_state tb_state;
 	void *resmem_va;
 
-	if (!isp_dev->resmem_pa || !isp_dev->resmem_size) {
-		v4l2_info(&isp_dev->v4l2_dev,
-			  "no reserved memory for thunderboot\n");
-		if (isp_dev->hw_dev->is_thunderboot) {
-			rkisp_tb_set_state(RKISP_TB_NG);
-			rkisp_tb_unprotect_clk();
-			rkisp_register_irq(isp_dev->hw_dev);
-			isp_dev->hw_dev->is_thunderboot = false;
-		}
+	if (!isp_dev->hw_dev->is_thunderboot)
+		return;
+
+	if (!atomic_read(&isp_dev->hw_dev->tb_ref)) {
+		rkisp_tb_set_state(RKISP_TB_NG);
+		rkisp_tb_unprotect_clk();
+		rkisp_register_irq(isp_dev->hw_dev);
+		isp_dev->hw_dev->is_thunderboot = false;
 		return;
 	}
 
 	resmem_va = phys_to_virt(isp_dev->resmem_pa);
 	head = (struct rkisp_thunderboot_resmem_head *)resmem_va;
-	if (isp_dev->hw_dev->is_thunderboot) {
+	if (isp_dev->is_thunderboot) {
 		shm_head_poll_timeout(isp_dev, !!head->enable, 2000, 200 * USEC_PER_MSEC);
-		shm_head_poll_timeout(isp_dev, !!head->complete, 5000, 500 * USEC_PER_MSEC);
+		shm_head_poll_timeout(isp_dev, !!head->complete, 5000, 600 * USEC_PER_MSEC);
 		if (head->complete != RKISP_TB_OK)
 			v4l2_info(&isp_dev->v4l2_dev,
 				  "wait thunderboot over timeout\n");
@@ -2800,11 +2802,13 @@ void rkisp_chk_tb_over(struct rkisp_device *isp_dev)
 			head->frm_total = 0;
 			tb_state = RKISP_TB_NG;
 		}
-
 		rkisp_tb_set_state(tb_state);
 		rkisp_tb_unprotect_clk();
 		rkisp_register_irq(isp_dev->hw_dev);
+		pm_runtime_put(isp_dev->hw_dev->dev);
 		isp_dev->hw_dev->is_thunderboot = false;
+		isp_dev->is_thunderboot = false;
+		atomic_dec(&isp_dev->hw_dev->tb_ref);
 	}
 }
 #endif

@@ -689,6 +689,9 @@ static int rkisp_get_reserved_mem(struct rkisp_device *isp_dev)
 					      DMA_BIDIRECTIONAL);
 	ret = dma_mapping_error(dev, isp_dev->resmem_addr);
 
+	isp_dev->is_thunderboot = true;
+	atomic_inc(&isp_dev->hw_dev->tb_ref);
+
 	dev_info(dev, "Allocated reserved memory, paddr: 0x%x\n",
 		(u32)isp_dev->resmem_pa);
 	return ret;
@@ -729,9 +732,11 @@ static int rkisp_plat_probe(struct platform_device *pdev)
 	sprintf(isp_dev->media_dev.model, "%s%d",
 		DRIVER_NAME, isp_dev->dev_id);
 
-	ret = rkisp_get_reserved_mem(isp_dev);
-	if (ret)
-		return ret;
+	if (isp_dev->hw_dev->is_thunderboot) {
+		ret = rkisp_get_reserved_mem(isp_dev);
+		if (ret)
+			return ret;
+	}
 
 	mutex_init(&isp_dev->apilock);
 	mutex_init(&isp_dev->iqlock);
@@ -790,6 +795,8 @@ static int rkisp_plat_probe(struct platform_device *pdev)
 	mutex_unlock(&rkisp_dev_mutex);
 
 	pm_runtime_enable(dev);
+	if (isp_dev->hw_dev->is_thunderboot && isp_dev->is_thunderboot)
+		pm_runtime_get_noresume(isp_dev->hw_dev->dev);
 	return 0;
 
 err_unreg_media_dev:

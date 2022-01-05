@@ -79,6 +79,7 @@ struct rkisp_hw_dev {
 	bool is_thunderboot;
 	bool is_buf_init;
 	bool is_shutdown;
+	atomic_t tb_ref;
 };
 
 int rkisp_register_irq(struct rkisp_hw_dev *dev);

@@ -228,6 +228,7 @@ struct rkisp_device {
 	bool send_fbcgain;
 	struct rkisp_ispp_buf *cur_fbcgain;
 	struct rkisp_buffer *cur_spbuf;
+	bool is_thunderboot;
 
 	struct kfifo rdbk_kfifo;
 	spinlock_t rdbk_lock;

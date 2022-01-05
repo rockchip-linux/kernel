@@ -729,6 +729,7 @@ static int rkisp_hw_probe(struct platform_device *pdev)
 	mutex_init(&hw_dev->dev_lock);
 	spin_lock_init(&hw_dev->rdbk_lock);
 	atomic_set(&hw_dev->refcnt, 0);
+	atomic_set(&hw_dev->tb_ref, 0);
 	spin_lock_init(&hw_dev->buf_lock);
 	INIT_LIST_HEAD(&hw_dev->list);
 	INIT_LIST_HEAD(&hw_dev->rpt_list);
