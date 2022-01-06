@@ -1228,6 +1228,7 @@ static enum vop2_afbc_format vop2_convert_afbc_format(uint32_t format)
 	case DRM_FORMAT_NV12_10:
 		return VOP2_AFBC_FMT_YUV420_10BIT;
 	case DRM_FORMAT_NV16:
+	case DRM_FORMAT_YUYV:
 		return VOP2_AFBC_FMT_YUV422;
 	case DRM_FORMAT_NV16_10:
 		return VOP2_AFBC_FMT_YUV422_10BIT;
@@ -1295,6 +1296,7 @@ static bool vop2_afbc_uv_swap(uint32_t format)
 	switch (format) {
 	case DRM_FORMAT_NV12:
 	case DRM_FORMAT_NV16:
+	case DRM_FORMAT_YUYV:
 	case DRM_FORMAT_NV12_10:
 	case DRM_FORMAT_NV16_10:
 		return true;
