@@ -51,6 +51,32 @@
 
 / {
 
+	aliases {
+		dsi0 = &dsi;
+		dsi1 = &dsi1;
+		ethernet0 = &gmac;
+		i2c0 = &i2c0;
+		i2c1 = &i2c1;
+		i2c2 = &i2c2;
+		i2c3 = &i2c3;
+		i2c4 = &i2c4;
+		i2c5 = &i2c5;
+		i2c6 = &i2c6;
+		i2c7 = &i2c7;
+		i2c8 = &i2c8;
+		serial0 = &uart0;
+		serial1 = &uart1;
+		serial2 = &uart2;
+		serial3 = &uart3;
+		serial4 = &uart4;
+		spi0 = &spi0;
+		spi1 = &spi1;
+		spi2 = &spi2;
+		spi3 = &spi3;
+		spi4 = &spi4;
+		spi5 = &spi5;
+	};
+
 	fiq_debugger: fiq-debugger {
 		status = "disabled";
 		compatible = "rockchip,fiq-debugger";
