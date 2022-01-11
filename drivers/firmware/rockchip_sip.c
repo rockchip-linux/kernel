@@ -232,6 +232,24 @@ struct arm_smccc_res sip_smc_lastlog_request(void)
 
 	return res;
 }
+
+int sip_smc_amp_config(u32 sub_func_id, u32 arg1, u32 arg2, u32 arg3)
+{
+	struct arm_smccc_res res;
+
+	arm_smccc_smc(RK_SIP_AMP_CFG, sub_func_id, arg1, arg2, arg3,
+		      0, 0, 0, &res);
+	return res.a0;
+}
+
+struct arm_smccc_res sip_smc_get_amp_info(u32 sub_func_id, u32 arg1)
+{
+	struct arm_smccc_res res;
+
+	arm_smccc_smc(RK_SIP_AMP_CFG, sub_func_id, arg1, 0, 0, 0, 0, 0, &res);
+	return res;
+}
+
 EXPORT_SYMBOL_GPL(sip_smc_lastlog_request);
 
 /************************** fiq debugger **************************************/

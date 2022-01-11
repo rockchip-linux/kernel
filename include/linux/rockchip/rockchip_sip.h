@@ -51,6 +51,7 @@
 #define SIP_SCMI_AGENT15		0x8200001f
 #define SIP_SDEI_FIQ_DBG_SWITCH_CPU	0x82000020
 #define SIP_SDEI_FIQ_DBG_GET_EVENT_ID	0x82000021
+#define RK_SIP_AMP_CFG			0x82000022
 
 /* Rockchip Sip version */
 #define SIP_IMPLEMENT_V1                (1)
@@ -109,6 +110,18 @@
 /* wakeup state */
 #define REMOTECTL_PWRKEY_WAKEUP		0xdeadbeaf
 
+/* AMP Ctrl */
+enum {
+	RK_AMP_SUB_FUNC_CFG_MODE = 0,
+	RK_AMP_SUB_FUNC_BOOT_ARG01,
+	RK_AMP_SUB_FUNC_BOOT_ARG23,
+	RK_AMP_SUB_FUNC_REQ_CPU_OFF,
+	RK_AMP_SUB_FUNC_GET_CPU_STATUS,
+	RK_AMP_SUB_FUNC_RSV, /* for RTOS */
+	RK_AMP_SUB_FUNC_CPU_ON,
+	RK_AMP_SUB_FUNC_END,
+};
+
 enum {
 	FIRMWARE_NONE,
 	FIRMWARE_TEE_32BIT,
@@ -153,6 +166,8 @@ int sip_smc_remotectl_config(u32 func, u32 data);
 int sip_smc_secure_reg_write(u32 addr_phy, u32 val);
 u32 sip_smc_secure_reg_read(u32 addr_phy);
 struct arm_smccc_res sip_smc_bus_config(u32 arg0, u32 arg1, u32 arg2);
+int sip_smc_amp_config(u32 sub_func_id, u32 arg1, u32 arg2, u32 arg3);
+struct arm_smccc_res sip_smc_get_amp_info(u32 sub_func_id, u32 arg1);
 
 /***************************fiq debugger **************************************/
 void sip_fiq_debugger_enable_fiq(bool enable, uint32_t tgt_cpu);
@@ -226,6 +241,20 @@ static inline int sip_smc_remotectl_config(u32 func, u32 data) { return 0; }
 static inline u32 sip_smc_secure_reg_read(u32 addr_phy) { return 0; }
 static inline int sip_smc_secure_reg_write(u32 addr_phy, u32 val) { return 0; }
 static inline int sip_smc_soc_bus_div(u32 arg0, u32 arg1, u32 arg2)
+{
+	return 0;
+}
+
+static inline int sip_smc_amp_config(u32 sub_func_id,
+				     u32 arg1,
+				     u32 arg2,
+				     u32 arg3)
+{
+	return 0;
+}
+
+static inline struct arm_smccc_res sip_smc_get_amp_info(u32 sub_func_id,
+							u32 arg1)
 {
 	return 0;
 }
