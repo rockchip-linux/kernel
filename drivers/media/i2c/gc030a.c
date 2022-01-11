@@ -156,7 +156,7 @@ static const struct regval gc030a_global_regs[] = {
 	{0xfc, 0x0f},
 	{0xfe, 0x00},
 	/*ANALOG & CISCTL*/
-	{0x03, 0x05},
+	{0x03, 0x01},
 	{0x04, 0xc8},
 	{0x05, 0x03},
 	{0x06, 0x7b},
@@ -564,6 +564,7 @@ static int __gc030a_start_stream(struct gc030a *gc030a)
 	int ret;
 
 	ret = gc030a_write_array(gc030a->client, gc030a->cur_mode->reg_list);
+	msleep(100);
 	if (ret)
 		return ret;
 	gc030a_write_reg(gc030a->client, 0xfe, 0x00);
@@ -571,6 +572,8 @@ static int __gc030a_start_stream(struct gc030a *gc030a)
 	gc030a_write_reg(gc030a->client, 0xfe, 0x03);
 	gc030a_write_reg(gc030a->client, 0x10, 0x90);
 	gc030a_write_reg(gc030a->client, 0xfe, 0x00);
+	msleep(20);
+
 	return ret;
 }
 
@@ -578,7 +581,11 @@ static int __gc030a_stop_stream(struct gc030a *gc030a)
 {
 	int ret = 0;
 
+	msleep(20);
+	gc030a_write_reg(gc030a->client, 0xfe, 0x03);
+	gc030a_write_reg(gc030a->client, 0x10, 0x00);
 	gc030a_write_reg(gc030a->client, 0xfe, 0x00);
+	msleep(100);
 
 	return ret;
 }
