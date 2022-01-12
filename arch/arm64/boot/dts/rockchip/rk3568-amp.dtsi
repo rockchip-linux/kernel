@@ -17,5 +17,19 @@
 		pinctrl-names = "default";
 		pinctrl-0 = <&uart4m1_xfer>;
 		status = "disabled";
+
+		amp_cpus: amp-cpus {
+			amp-cpu2 {
+				id = <0x0 0x200>;
+				entry = <0x0 0x3800000>;
+				mode = <0>;
+			};
+
+			amp-cpu3 {
+				id = <0x0 0x300>;
+				entry = <0x0 0x5800000>;
+				mode = <0>;
+			};
+		};
 	};
 };
