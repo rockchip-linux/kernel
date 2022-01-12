@@ -459,7 +459,7 @@ u32 nandc_flash_init(void __iomem *nandc_addr)
 				return FTL_UNSUPPORTED_FLASH;
 			}
 
-			if (id_byte[0][1] != 0xD7 && nandc_get_version() != 9) {
+			if (id_byte[0][1] == 0xD7 && nandc_get_version() != 9) {
 				pr_err("This device is not compatible, Insufficient ECC capability\n");
 
 				return FTL_UNSUPPORTED_FLASH;
@@ -479,7 +479,8 @@ u32 nandc_flash_init(void __iomem *nandc_addr)
 			nand_para.plane_per_die = 2;
 			nand_para.sec_per_page = 8;
 		} else if ((id_byte[0][0] == 0x98 && id_byte[0][3] == 0x26) ||
-			   (id_byte[0][0] == 0xC8 && ((id_byte[0][3] & 0x3) == 1))) {
+			   (id_byte[0][0] == 0xC8 && id_byte[0][2] == 0x80 && ((id_byte[0][3] & 0x3) == 1)) || /* F59L4G81KA (2R) */
+			   (id_byte[0][0] == 0xC8 && id_byte[0][2] == 0x90 && ((id_byte[0][3] & 0x3) == 2))) { /* GD9F4GxF2A */
 			nand_para.blk_per_plane = 1024;
 			nand_para.sec_per_page = 8;
 			nand_para.plane_per_die = 2;
@@ -493,11 +494,20 @@ u32 nandc_flash_init(void __iomem *nandc_addr)
 		nand_para.plane_per_die = 2;
 		nand_para.blk_per_plane = 2048;
 	} else if (id_byte[0][1] == 0xD3) {
-		nand_para.sec_per_page = 8;
-		nand_para.page_per_blk = 64;
-		nand_para.plane_per_die = 2;
-		nand_para.blk_per_plane = 2048;
-	} else if (id_byte[0][1] == 0xD7 && id_byte[0][3] == 0x32) {
+		if ((id_byte[0][2] == 0xD1 && id_byte[0][4] == 0x5a) || /* S34ML08G2 */
+		    (id_byte[0][3] == 0x05 && id_byte[0][4] == 0x04)) { /* S34ML08G3 */
+			nand_para.sec_per_page = 4;
+			nand_para.page_per_blk = 64;
+			nand_para.plane_per_die = 2;
+			nand_para.blk_per_plane = 4096;
+		} else {
+			nand_para.sec_per_page = 8;
+			nand_para.page_per_blk = 64;
+			nand_para.plane_per_die = 2;
+			nand_para.blk_per_plane = 2048;
+		}
+	} else if (id_byte[0][1] == 0xD7 && id_byte[0][3] == 0x32) { /* TC58NVG5H2HTAI0 */
+		nand_para.ecc_bits = 70;
 		nand_para.blk_per_plane = 2048;
 		nand_para.sec_per_page = 16;
 		nand_para.page_per_blk = 128;
