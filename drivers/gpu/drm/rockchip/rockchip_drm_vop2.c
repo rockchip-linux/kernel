@@ -2348,6 +2348,23 @@ static void vop2_crtc_load_lut(struct drm_crtc *crtc)
 	vp->gamma_lut_active = true;
 
 	spin_unlock(&vop2->reg_lock);
+/*
+ * maybe appear the following case:
+ * -> set gamma
+ * -> config done
+ * -> atomic commit
+ *  --> update win format
+ *  --> update win address
+ *  ---> here maybe meet vop hardware frame start, and triggle some config take affect.
+ *  ---> as only some config take affect, this maybe lead to iommu pagefault.
+ *  --> update win size
+ *  --> update win other parameters
+ * -> config done
+ *
+ * so we add readx_poll_timeout() to make sure the first config done take
+ * effect and then to do next frame config.
+ */
+	readx_poll_timeout(CTRL_GET, dsp_lut_en, dle, dle, 5, 33333);
 #undef CTRL_GET
 }
 
