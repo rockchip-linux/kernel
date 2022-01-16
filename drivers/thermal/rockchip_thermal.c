@@ -94,6 +94,7 @@ struct chip_tsadc_table {
  * struct rockchip_tsadc_chip - hold the private data of tsadc chip
  * @chn_id[SOC_MAX_SENSORS]: the sensor id of chip correspond to the channel
  * @chn_num: the channel number of tsadc chip
+ * @conversion_time: the conversion time of tsadc
  * @tshut_temp: the hardware-controlled shutdown temperature value
  * @tshut_mode: the hardware-controlled shutdown mode (0:CRU 1:GPIO)
  * @tshut_polarity: the hardware-controlled active polarity (0:LOW 1:HIGH)
@@ -110,6 +111,9 @@ struct rockchip_tsadc_chip {
 	/* The sensor id of chip correspond to the ADC channel */
 	int chn_id[SOC_MAX_SENSORS];
 	int chn_num;
+
+	/* The sensor electrical characteristics */
+	int conversion_time;
 
 	/* The hardware-controlled tshut property */
 	int tshut_temp;
@@ -1110,6 +1114,8 @@ static const struct rockchip_tsadc_chip rk3308bs_tsadc_data = {
 	.chn_id[SENSOR_CPU] = 0, /* cpu sensor is channel 0 */
 	.chn_num = 1, /* 1 channels for tsadc */
 
+	.conversion_time = 2100, /* us */
+
 	.tshut_mode = TSHUT_MODE_CRU, /* default TSHUT via CRU */
 	.tshut_temp = 95000,
 
@@ -1157,6 +1163,7 @@ static const struct rockchip_tsadc_chip px30s_tsadc_data = {
 	.chn_id[SENSOR_CPU] = 0, /* cpu sensor is channel 0 */
 	.chn_id[SENSOR_GPU] = 1, /* gpu sensor is channel 1 */
 	.chn_num = 2, /* 1 channels for tsadc */
+	.conversion_time = 2100, /* us */
 	.tshut_mode = TSHUT_MODE_CRU, /* default TSHUT via CRU */
 	.tshut_temp = 95000,
 	.initialize = rk_tsadcv9_initialize,
@@ -1707,6 +1714,9 @@ static int rockchip_thermal_probe(struct platform_device *pdev)
 	}
 
 	thermal->chip->control(thermal->regs, true);
+	if (thermal->chip->conversion_time)
+		usleep_range(thermal->chip->conversion_time,
+			     thermal->chip->conversion_time + 50);
 
 	for (i = 0; i < thermal->chip->chn_num; i++)
 		rockchip_thermal_toggle_sensor(&thermal->sensors[i], true);
@@ -1818,6 +1828,9 @@ static int __maybe_unused rockchip_thermal_resume(struct device *dev)
 	}
 
 	thermal->chip->control(thermal->regs, true);
+	if (thermal->chip->conversion_time)
+		usleep_range(thermal->chip->conversion_time,
+			     thermal->chip->conversion_time + 50);
 
 	for (i = 0; i < thermal->chip->chn_num; i++)
 		rockchip_thermal_toggle_sensor(&thermal->sensors[i], true);
