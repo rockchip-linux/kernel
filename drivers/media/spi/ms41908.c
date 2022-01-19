@@ -267,6 +267,10 @@ static int set_motor_running_status(struct motor_dev *motor,
 			ext_dev->mv_tim.vcm_start_t = ns_to_timeval(ktime_get_ns());
 			ext_dev->mv_tim.vcm_end_t = ext_dev->mv_tim.vcm_start_t;
 			ext_dev->is_mv_tim_update = true;
+			if (motor->wait_cnt == 0) {
+				mutex_unlock(&motor->mutex);
+				return 0;
+			}
 		}
 		if (is_should_wait) {
 			motor->wait_cnt++;
@@ -1326,13 +1330,13 @@ static int motor_set_zoom_follow(struct motor_dev *motor, struct rk_cam_set_zoom
 						       mv_param->zoom_pos[i].focus_pos,
 						       true,
 						       true,
-						       is_need_zoom_reback);
+						       is_need_focus_reback);
 			ret = set_motor_running_status(motor,
 						       motor->zoom,
 						       mv_param->zoom_pos[i].zoom_pos,
 						       true,
 						       false,
-						       is_need_focus_reback);
+						       is_need_zoom_reback);
 		} else {
 			set_motor_running_status(motor,
 						 motor->focus,
@@ -1960,30 +1964,45 @@ static long motor_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 static long motor_compat_ioctl32(struct v4l2_subdev *sd, unsigned int cmd, unsigned long arg)
 {
 	void __user *up = compat_ptr(arg);
-	struct rk_cam_vcm_tim *mv_tim;
-	int ret = 0;
-	u32 val = 0;
+	struct rk_cam_compat_vcm_tim *compat_mv_tim;
 	struct rk_cam_set_zoom *mv_param;
 	struct rk_cam_set_focus *focus_param;
+	struct rk_cam_vcm_tim ioctl_mv_tim;
+	unsigned int ioctl_cmd;
+	int ret = 0;
+	u32 val = 0;
 
 	switch (cmd) {
-	case RK_VIDIOC_IRIS_TIMEINFO:
-	case RK_VIDIOC_VCM_TIMEINFO:
-	case RK_VIDIOC_ZOOM_TIMEINFO:
-	case RK_VIDIOC_ZOOM1_TIMEINFO:
-		mv_tim = kzalloc(sizeof(*mv_tim), GFP_KERNEL);
-		if (!mv_tim) {
+	case RK_VIDIOC_COMPAT_VCM_TIMEINFO:
+		ioctl_cmd = RK_VIDIOC_VCM_TIMEINFO;
+		goto handle_mvtime;
+	case RK_VIDIOC_COMPAT_IRIS_TIMEINFO:
+		ioctl_cmd = RK_VIDIOC_IRIS_TIMEINFO;
+		goto handle_mvtime;
+	case RK_VIDIOC_COMPAT_ZOOM_TIMEINFO:
+		ioctl_cmd = RK_VIDIOC_ZOOM_TIMEINFO;
+		goto handle_mvtime;
+	case RK_VIDIOC_COMPAT_ZOOM1_TIMEINFO:
+		ioctl_cmd = RK_VIDIOC_ZOOM1_TIMEINFO;
+
+handle_mvtime:
+		compat_mv_tim = kzalloc(sizeof(*compat_mv_tim), GFP_KERNEL);
+		if (!compat_mv_tim) {
 			ret = -ENOMEM;
 			return ret;
 		}
-		ret = motor_ioctl(sd, cmd, mv_tim);
+		ret = motor_ioctl(sd, ioctl_cmd, &ioctl_mv_tim);
 		if (!ret) {
-			if (copy_to_user(up, mv_tim, sizeof(*mv_tim))) {
-				kfree(mv_tim);
+			compat_mv_tim->vcm_start_t.tv_sec = ioctl_mv_tim.vcm_start_t.tv_sec;
+			compat_mv_tim->vcm_start_t.tv_usec = ioctl_mv_tim.vcm_start_t.tv_usec;
+			compat_mv_tim->vcm_end_t.tv_sec = ioctl_mv_tim.vcm_end_t.tv_sec;
+			compat_mv_tim->vcm_end_t.tv_usec = ioctl_mv_tim.vcm_end_t.tv_usec;
+			if (copy_to_user(up, compat_mv_tim, sizeof(*compat_mv_tim))) {
+				kfree(compat_mv_tim);
 				return -EFAULT;
 			}
 		}
-		kfree(mv_tim);
+		kfree(compat_mv_tim);
 		break;
 	case RK_VIDIOC_IRIS_SET_BACKLASH:
 	case RK_VIDIOC_FOCUS_SET_BACKLASH:
