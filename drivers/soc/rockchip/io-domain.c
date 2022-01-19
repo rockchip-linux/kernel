@@ -714,7 +714,11 @@ static struct platform_driver rockchip_iodomain_driver = {
 	},
 };
 
-module_platform_driver(rockchip_iodomain_driver);
+static int __init rockchip_iodomain_init(void)
+{
+    return platform_driver_register(&rockchip_iodomain_driver);
+}
+arch_initcall(rockchip_iodomain_init);
 
 MODULE_DESCRIPTION("Rockchip IO-domain driver");
 MODULE_AUTHOR("Heiko Stuebner <heiko@sntech.de>");
