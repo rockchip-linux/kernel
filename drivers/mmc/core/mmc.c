@@ -697,7 +697,7 @@ static int mmc_read_ext_csd(struct mmc_card *card)
 	u8 *ext_csd;
 	int err;
 #ifdef CONFIG_ROCKCHIP_THUNDER_BOOT
-	void *ecsd;
+	void *ecsd = NULL;
 	bool valid_ecsd = false;
 	struct device_node *mem;
 	struct resource reg;
