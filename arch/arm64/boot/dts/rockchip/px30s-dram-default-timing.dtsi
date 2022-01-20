@@ -311,12 +311,12 @@
 		phy_dll_dis_freq = <IGNORE_THIS>;
 		/* drv when odt on */
 		phy_dq_drv_odten = <35>;
-		phy_ca_drv_odten = <51>;
+		phy_ca_drv_odten = <38>;
 		phy_clk_drv_odten = <47>;
 		dram_dq_drv_odten = <40>;
 		/* drv when odt off */
 		phy_dq_drv_odtoff = <35>;
-		phy_ca_drv_odtoff = <51>;
+		phy_ca_drv_odtoff = <38>;
 		phy_clk_drv_odtoff = <47>;
 		dram_dq_drv_odtoff = <40>;
 		/* odt info */
@@ -329,12 +329,12 @@
 		phy_odt_en_freq = <800>;
 		/* slew rate when odt enable */
 		phy_dq_sr_odten = <0xf>;
-		phy_ca_sr_odten = <0x0>;
-		phy_clk_sr_odten = <0x0>;
+		phy_ca_sr_odten = <0x1>;
+		phy_clk_sr_odten = <0x1>;
 		/* slew rate when odt disable */
 		phy_dq_sr_odtoff = <0xf>;
-		phy_ca_sr_odtoff = <0x0>;
-		phy_clk_sr_odtoff = <0x0>;
+		phy_ca_sr_odtoff = <0x1>;
+		phy_clk_sr_odtoff = <0x1>;
 		/* ssmod setting*/
 		ssmod_downspread = <0>;
 		ssmod_div = <0>;
@@ -353,7 +353,7 @@
 		dq_map_cs1_dq_l = <0>;
 		dq_map_cs1_dq_h = <0>;
 		/* lp4 odt info */
-		lp4_ca_odt = <60>;
+		lp4_ca_odt = <120>;
 		lp4_drv_pu_cal_odten = <LP4_VDDQ_2_5>;
 		lp4_drv_pu_cal_odtoff = <LP4_VDDQ_2_5>;
 		phy_lp4_drv_pulldown_en_odten = <0>;
@@ -369,7 +369,7 @@
 		/* lp4 vref info when odt enable */
 		phy_lp4_dq_vref_odten = <200>;
 		lp4_dq_vref_odten = <316>;
-		lp4_ca_vref_odten = <420>;	/* CA ODT pins have no action */
+		lp4_ca_vref_odten = <380>;
 		/* lp4 vref info when odt disable */
 		phy_lp4_dq_vref_odtoff = <300>;
 		lp4_dq_vref_odtoff = <420>;
