@@ -368,7 +368,7 @@ static ssize_t f_hidg_write(struct file *file, const char __user *buffer,
 	}
 
 	hidg->req->status   = 0;
-	hidg->req->zero     = 0;
+	hidg->req->zero     = ((count % hidg->in_ep->maxpacket) == 0);
 	hidg->req->length   = count;
 	hidg->req->complete = f_hidg_req_complete;
 	hidg->req->context  = hidg;
