@@ -11,6 +11,8 @@
 
 #define RKMODULE_API_VERSION		KERNEL_VERSION(0, 1, 0x2)
 
+/* using for rk3588 dual isp unite */
+#define RKMOUDLE_UNITE_EXTEND_PIXEL	128
 /* using for rv1109 and rv1126 */
 #define RKMODULE_EXTEND_LINE		24
 
@@ -27,6 +29,11 @@
 #define RKMODULE_CAMERA_MODULE_FACING	"rockchip,camera-module-facing"
 #define RKMODULE_CAMERA_MODULE_NAME	"rockchip,camera-module-name"
 #define RKMODULE_CAMERA_LENS_NAME	"rockchip,camera-module-lens-name"
+
+#define RKMODULE_CAMERA_SYNC_MODE	"rockchip,camera-module-sync-mode"
+#define RKMODULE_INTERNAL_MASTER_MODE	"internal_master"
+#define RKMODULE_EXTERNAL_MASTER_MODE	"external_master"
+#define RKMODULE_SLAVE_MODE		"slave"
 
 /* BT.656 & BT.1120 multi channel
  * On which channels it can send video data
@@ -106,6 +113,64 @@
 
 #define RKMODULE_GET_SONY_BRL	\
 	_IOR('V', BASE_VIDIOC_PRIVATE + 19, __u32)
+
+#define RKMODULE_GET_CHANNEL_INFO	\
+	_IOWR('V', BASE_VIDIOC_PRIVATE + 20, struct rkmodule_channel_info)
+
+#define RKMODULE_GET_SYNC_MODE       \
+	_IOR('V', BASE_VIDIOC_PRIVATE + 21, __u32)
+
+#define RKMODULE_SET_SYNC_MODE       \
+	_IOW('V', BASE_VIDIOC_PRIVATE + 22, __u32)
+
+#define RKMODULE_SET_MCLK       \
+	_IOW('V', BASE_VIDIOC_PRIVATE + 23, __u32)
+
+#define RKMODULE_SET_LINK_FREQ       \
+	_IOW('V', BASE_VIDIOC_PRIVATE + 24, __s64)
+
+#define RKMODULE_SET_BUS_CONFIG       \
+	_IOW('V', BASE_VIDIOC_PRIVATE + 25, struct rkmodule_bus_config)
+
+#define RKMODULE_GET_BUS_CONFIG       \
+	_IOR('V', BASE_VIDIOC_PRIVATE + 26, struct rkmodule_bus_config)
+
+#define RKMODULE_SET_REGISTER       \
+	_IOW('V', BASE_VIDIOC_PRIVATE + 27, struct rkmodule_reg)
+
+#define RKMODULE_SYNC_I2CDEV       \
+	_IOW('V', BASE_VIDIOC_PRIVATE + 28, __u8)
+
+#define RKMODULE_SYNC_I2CDEV_COMPLETE       \
+	_IOW('V', BASE_VIDIOC_PRIVATE + 29, __u8)
+
+/* csi0/csi1 phy support full/split mode */
+enum rkmodule_phy_mode {
+	PHY_FULL_MODE,
+	PHY_SPLIT_01,
+	PHY_SPLIT_23,
+};
+
+struct rkmodule_mipi_lvds_bus {
+	__u32 bus_type;
+	__u32 lanes;
+	__u32 phy_mode; /* data type enum rkmodule_phy_mode */
+};
+
+struct rkmodule_bus_config {
+	union {
+		struct rkmodule_mipi_lvds_bus bus;
+		__u32 reserved[32];
+	};
+} __attribute__ ((packed));
+
+struct rkmodule_reg {
+	__u64 num_regs;
+	__u64 preg_addr;
+	__u64 preg_value;
+	__u64 preg_addr_bytes;
+	__u64 preg_value_bytes;
+} __attribute__ ((packed));
 
 /**
  * struct rkmodule_base_inf - module base information
@@ -498,4 +563,23 @@ struct rkmodule_dcg_ratio {
 	__u32 div_coeff;
 };
 
+struct rkmodule_channel_info {
+	__u32 index;
+	__u32 vc;
+	__u32 width;
+	__u32 height;
+	__u32 bus_fmt;
+	__u32 data_type;
+	__u32 data_bit;
+} __attribute__ ((packed));
+
+/*
+ * sensor exposure sync mode
+ */
+enum rkmodule_sync_mode {
+	NO_SYNC_MODE = 0,
+	EXTERNAL_MASTER_MODE,
+	INTERNAL_MASTER_MODE,
+	SLAVE_MODE,
+};
 #endif /* _UAPI_RKMODULE_CAMERA_H */
