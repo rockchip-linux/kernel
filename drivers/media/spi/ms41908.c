@@ -166,6 +166,7 @@ struct motor_dev {
 	struct gpio_desc *reset_gpio;
 	struct gpio_desc *vd_fz_gpio;
 	bool is_timer_restart;
+	bool is_timer_restart_bywq;
 	bool is_should_wait;
 	struct motor_work_s *wk;
 	u32 vd_fz_period_us;
@@ -276,6 +277,8 @@ static int set_motor_running_status(struct motor_dev *motor,
 		if (is_should_wait) {
 			motor->wait_cnt++;
 		} else if (motor->is_timer_restart == false && motor->wait_cnt) {
+			motor->is_timer_restart = true;
+			motor->is_timer_restart_bywq = false;
 			hrtimer_start(&motor->timer, ktime_set(0, 0), HRTIMER_MODE_REL);
 			motor->wait_cnt = 0;
 		} else {
@@ -364,6 +367,8 @@ static int set_motor_running_status(struct motor_dev *motor,
 	if (is_should_wait) {
 		motor->wait_cnt++;
 	} else if (motor->is_timer_restart == false) {
+		motor->is_timer_restart = true;
+		motor->is_timer_restart_bywq = false;
 		hrtimer_start(&motor->timer, ktime_set(0, 0), HRTIMER_MODE_REL);
 		motor->wait_cnt = 0;
 	} else {
@@ -1141,7 +1146,7 @@ static void motor_op_work(struct work_struct *work)
 	do_gettimeofday(&tv);
 	time_dist = tv.tv_sec * 1000000 + tv.tv_usec - (tv_last.tv_sec * 1000000 + tv_last.tv_usec);
 	tv_last = tv;
-	if (time_dist < motor->vd_fz_period_us && motor->is_timer_restart)
+	if (time_dist < motor->vd_fz_period_us && motor->is_timer_restart_bywq)
 		dev_info(&motor->spi->dev,
 			 "Timer error, Current interrupt interval %llu\n", time_dist);
 	mutex_lock(&motor->mutex);
@@ -1177,11 +1182,13 @@ static void motor_op_work(struct work_struct *work)
 	if ((motor->dev0 && motor->dev0->run_data.cur_count > 0) ||
 	   (motor->dev1 && motor->dev1->run_data.cur_count > 0)) {
 		motor->is_timer_restart = true;
+		motor->is_timer_restart_bywq = true;
 		hrtimer_start(&motor->timer,
 			      motor->vd_fz_period_us * 1000,
 			      HRTIMER_MODE_REL);
 	} else {
 		motor->is_timer_restart = false;
+		motor->is_timer_restart_bywq = false;
 	}
 	usleep_range(660, 700);//delay more than DT1
 
@@ -1344,6 +1351,13 @@ static int motor_set_zoom_follow(struct motor_dev *motor, struct rk_cam_set_zoom
 	bool is_need_focus_reback = mv_param->is_need_focus_reback;
 
 	for (i = 0; i < mv_param->setzoom_cnt; i++) {
+		dev_dbg(&motor->spi->dev,
+			"%s zoom %d, focus %d, i %d\n",
+			__func__,
+			mv_param->zoom_pos[i].zoom_pos,
+			mv_param->zoom_pos[i].focus_pos,
+			i);
+
 		if (i == (mv_param->setzoom_cnt - 1)) {
 			ret = set_motor_running_status(motor,
 						       motor->focus,
@@ -1373,12 +1387,6 @@ static int motor_set_zoom_follow(struct motor_dev *motor, struct rk_cam_set_zoom
 		}
 		wait_for_motor_stop(motor, motor->focus);
 		wait_for_motor_stop(motor, motor->zoom);
-		dev_dbg(&motor->spi->dev,
-			"%s zoom %d, focus %d, i %d\n",
-			__func__,
-			mv_param->zoom_pos[i].zoom_pos,
-			mv_param->zoom_pos[i].focus_pos,
-			i);
 	}
 	return ret;
 }
@@ -1831,6 +1839,10 @@ static int motor_set_focus(struct motor_dev *motor, struct rk_cam_set_focus *mv_
 	else
 		is_need_reback = true;
 #endif
+
+	dev_dbg(&motor->spi->dev,
+		"%s focus %d\n", __func__, mv_param->focus_pos);
+
 	ret = set_motor_running_status(motor,
 				       motor->focus,
 				       mv_param->focus_pos,
@@ -2669,6 +2681,7 @@ static void dev_param_init(struct motor_dev *motor)
 
 	motor->is_should_wait = false;
 	motor->is_timer_restart = false;
+	motor->is_timer_restart_bywq = false;
 	motor->wait_cnt = 0;
 	motor->pi_gpio_usecnt = 0;
 }
