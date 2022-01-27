@@ -118,6 +118,7 @@ struct ext_dev {
 	bool is_need_update_tim;
 	bool is_dir_opp;
 	bool is_need_reback;
+	bool reback_ctrl;
 	struct rk_cam_vcm_tim mv_tim;
 	struct run_data_s run_data;
 	struct run_data_s reback_data;
@@ -1235,7 +1236,7 @@ static void wait_for_motor_stop(struct motor_dev *motor, struct ext_dev *dev)
 		ret = wait_for_completion_timeout(&dev->complete_out, 10 * HZ);
 		if (ret == 0)
 			dev_info(&motor->spi->dev,
-				 "wait for complete timeout\n");
+				 "dev->type %d, wait for complete timeout\n", dev->type);
 	}
 }
 
@@ -1248,6 +1249,7 @@ static int motor_s_ctrl(struct v4l2_ctrl *ctrl)
 	int ret = 0;
 	struct motor_dev *motor = container_of(ctrl->handler,
 					     struct motor_dev, ctrl_handler);
+	bool is_need_reback = false;
 
 	switch (ctrl->id) {
 	case V4L2_CID_IRIS_ABSOLUTE:
@@ -1280,32 +1282,50 @@ static int motor_s_ctrl(struct v4l2_ctrl *ctrl)
 		}
 		break;
 	case V4L2_CID_FOCUS_ABSOLUTE:
+		if (motor->focus->reback_ctrl) {
+			if (ctrl->val >= motor->focus->last_pos)
+				is_need_reback = false;
+			else
+				is_need_reback = true;
+		}
 		ret = set_motor_running_status(motor,
 					       motor->focus,
 					       ctrl->val,
 					       true,
 					       false,
-					       false);
+					       is_need_reback);
 		wait_for_motor_stop(motor, motor->focus);
 		dev_dbg(&motor->spi->dev, "set focus pos %d\n", ctrl->val);
 		break;
 	case V4L2_CID_ZOOM_ABSOLUTE:
+		if (motor->zoom->reback_ctrl) {
+			if (ctrl->val >= motor->zoom->last_pos)
+				is_need_reback = false;
+			else
+				is_need_reback = true;
+		}
 		ret = set_motor_running_status(motor,
 					       motor->zoom,
 					       ctrl->val,
 					       true,
 					       false,
-					       false);
+					       is_need_reback);
 		wait_for_motor_stop(motor, motor->zoom);
 		dev_dbg(&motor->spi->dev, "set zoom pos %d\n", ctrl->val);
 		break;
 	case V4L2_CID_ZOOM_CONTINUOUS:
+		if (motor->zoom1->reback_ctrl) {
+			if (ctrl->val >= motor->zoom1->last_pos)
+				is_need_reback = false;
+			else
+				is_need_reback = true;
+		}
 		ret = set_motor_running_status(motor,
 					       motor->zoom1,
 					       ctrl->val,
 					       true,
 					       false,
-					       false);
+					       is_need_reback);
 		wait_for_motor_stop(motor, motor->zoom1);
 		dev_dbg(&motor->spi->dev, "set zoom1 pos %d\n", ctrl->val);
 		break;
@@ -2313,6 +2333,46 @@ static ssize_t reinit_zoom1_pos(struct device *dev,
 	return count;
 }
 
+static ssize_t set_focus_reback_ctrl(struct device *dev,
+	struct device_attribute *attr,
+	const char *buf,
+	size_t count)
+{
+	struct v4l2_subdev *sd = dev_get_drvdata(dev);
+	struct motor_dev *motor = to_motor_dev(sd);
+	int val = 0;
+	int ret = 0;
+
+	ret = kstrtoint(buf, 0, &val);
+	if (!ret) {
+		if (val == 1)
+			motor->focus->reback_ctrl = true;
+		else
+			motor->focus->reback_ctrl = false;
+	}
+	return count;
+}
+
+static ssize_t set_zoom_reback_ctrl(struct device *dev,
+	struct device_attribute *attr,
+	const char *buf,
+	size_t count)
+{
+	struct v4l2_subdev *sd = dev_get_drvdata(dev);
+	struct motor_dev *motor = to_motor_dev(sd);
+	int val = 0;
+	int ret = 0;
+
+	ret = kstrtoint(buf, 0, &val);
+	if (!ret) {
+		if (val == 1)
+			motor->zoom->reback_ctrl = true;
+		else
+			motor->zoom->reback_ctrl = false;
+	}
+	return count;
+}
+
 static struct device_attribute attributes[] = {
 	__ATTR(pid_dgain, S_IWUSR, NULL, set_pid_dgain),
 	__ATTR(pid_zero, S_IWUSR, NULL, set_pid_zero),
@@ -2324,6 +2384,8 @@ static struct device_attribute attributes[] = {
 	__ATTR(reinit_focus, S_IWUSR, NULL, reinit_focus_pos),
 	__ATTR(reinit_zoom, S_IWUSR, NULL, reinit_zoom_pos),
 	__ATTR(reinit_zoom1, S_IWUSR, NULL, reinit_zoom1_pos),
+	__ATTR(focus_reback_ctrl, S_IWUSR, NULL, set_focus_reback_ctrl),
+	__ATTR(zoom_reback_ctrl, S_IWUSR, NULL, set_zoom_reback_ctrl),
 };
 
 static int add_sysfs_interfaces(struct device *dev)
@@ -2504,6 +2566,7 @@ static void dev_param_init(struct motor_dev *motor)
 		motor->focus->run_data.intct = 27 * motor->vd_fz_period_us /
 					       (motor->focus->run_data.psum * 24);
 		motor->focus->is_running = false;
+		motor->focus->reback_ctrl = false;
 		dev_info(&motor->spi->dev,
 			 "focus vd_fz_period_us %u, inict %d\n",
 			 motor->vd_fz_period_us,
@@ -2550,6 +2613,7 @@ static void dev_param_init(struct motor_dev *motor)
 		motor->zoom->run_data.intct = 27 * motor->vd_fz_period_us /
 					      (motor->zoom->run_data.psum * 24);
 		motor->zoom->is_running = false;
+		motor->zoom->reback_ctrl = false;
 		if (motor->zoom->reback != 0) {
 			motor->zoom->cur_back_delay = 0;
 			motor->zoom->max_back_delay = ZOOM_MAX_BACK_DELAY;
@@ -2596,6 +2660,7 @@ static void dev_param_init(struct motor_dev *motor)
 		motor->zoom1->run_data.intct = 27 * motor->vd_fz_period_us /
 					       (motor->zoom1->run_data.psum * 24);
 		motor->zoom1->is_running = false;
+		motor->zoom1->reback_ctrl = false;
 		dev_info(&motor->spi->dev,
 			 "zoom1 vd_fz_period_us %u, inict %d\n",
 			 motor->vd_fz_period_us,
