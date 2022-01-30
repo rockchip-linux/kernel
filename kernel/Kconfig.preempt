@@ -6,6 +6,9 @@ config PREEMPT_RT_BASE
 	bool
 	select PREEMPT
 
+config PREEMPT_RT
+       bool
+
 config HAVE_PREEMPT_LAZY
 	bool
 
@@ -80,6 +83,7 @@ config PREEMPT_RT_FULL
 	depends on IRQ_FORCED_THREADING
 	select PREEMPT_RT_BASE
 	select PREEMPT_RCU
+	select PREEMPT_RT
 	help
 	  All and everything
 
