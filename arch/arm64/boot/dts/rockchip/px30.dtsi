@@ -636,7 +636,7 @@
 
 	crypto: crypto@ff0b0000 {
 		compatible = "rockchip,px30-crypto";
-		reg = <0x0 0xff0b0000 0x0 0x4000>;
+		reg = <0x0 0xff0b0000 0x0 0x400>, <0x0 0xff0b0480 0x0 0x3B80>;
 		interrupts = <GIC_SPI 82 IRQ_TYPE_LEVEL_HIGH>;
 		clocks = <&cru ACLK_CRYPTO >, <&cru HCLK_CRYPTO >,
 			<&cru SCLK_CRYPTO>, <&cru SCLK_CRYPTO_APK>;
@@ -648,7 +648,7 @@
 
 	rng: rng@ff0b0000 {
 		compatible = "rockchip,cryptov2-rng";
-		reg = <0x0 0xff0b0000 0x0 0x4000>;
+		reg = <0x0 0xff0b0400 0x0 0x80>;
 		clocks = <&cru SCLK_CRYPTO>, <&cru SCLK_CRYPTO_APK>,
 			<&cru ACLK_CRYPTO>, <&cru HCLK_CRYPTO>;
 		clock-names = "clk_crypto", "clk_crypto_apk",
@@ -656,7 +656,7 @@
 		assigned-clocks = <&cru SCLK_CRYPTO>, <&cru SCLK_CRYPTO_APK>,
 					<&cru ACLK_CRYPTO>, <&cru HCLK_CRYPTO>;
 		assigned-clock-rates = <150000000>, <150000000>,
-					<200000000>, <100000000>;
+					<200000000>, <200000000>;
 		resets = <&cru SRST_CRYPTO>;
 		reset-names = "reset";
 		status = "disabled";
