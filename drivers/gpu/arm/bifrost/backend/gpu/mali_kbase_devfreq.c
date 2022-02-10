@@ -127,15 +127,31 @@ void kbase_devfreq_opp_translate(struct kbase_device *kbdev, unsigned long freq,
 	}
 }
 
+static int kbase_devfreq_opp_set_supply_mem(struct dev_pm_set_opp_data *data,
+		struct dev_pm_opp_supply *supplies)
+{
+	int ret = 0;
+
+	if (data->regulator_count > 1) {
+		struct regulator *mem_reg = data->regulators[1];
+		struct dev_pm_opp_supply *supply_mem = supplies + 1;
+
+		ret = regulator_set_voltage(mem_reg, supply_mem->u_volt, INT_MAX);
+		if (ret) {
+			dev_err(data->dev, "failed to set volt %lu uV for mem reg\n",
+				supply_mem->u_volt);
+		}
+	}
+
+	return ret;
+}
+
 int kbase_devfreq_opp_helper(struct dev_pm_set_opp_data *data)
 {
 	struct device *dev = data->dev;
 	struct dev_pm_opp_supply *old_supply_vdd = &data->old_opp.supplies[0];
-	struct dev_pm_opp_supply *old_supply_mem = &data->old_opp.supplies[1];
 	struct dev_pm_opp_supply *new_supply_vdd = &data->new_opp.supplies[0];
-	struct dev_pm_opp_supply *new_supply_mem = &data->new_opp.supplies[1];
 	struct regulator *vdd_reg = data->regulators[0];
-	struct regulator *mem_reg = data->regulators[1];
 	struct clk *clk = data->clk;
 	struct kbase_device *kbdev = dev_get_drvdata(dev);
 	struct rockchip_opp_info *opp_info = &kbdev->opp_info;
@@ -166,11 +182,8 @@ int kbase_devfreq_opp_helper(struct dev_pm_set_opp_data *data)
 	if (new_freq >= old_freq) {
 		rockchip_set_intermediate_rate(dev, opp_info, clk, old_freq,
 					       new_freq, true, is_set_clk);
-		ret = regulator_set_voltage(mem_reg, new_supply_mem->u_volt,
-					    INT_MAX);
+		ret = kbase_devfreq_opp_set_supply_mem(data, data->new_opp.supplies);
 		if (ret) {
-			dev_err(dev, "failed to set volt %lu uV for mem reg\n",
-				new_supply_mem->u_volt);
 			goto restore_voltage;
 		}
 		ret = regulator_set_voltage(vdd_reg, new_supply_vdd->u_volt,
@@ -201,11 +214,8 @@ int kbase_devfreq_opp_helper(struct dev_pm_set_opp_data *data)
 				new_supply_vdd->u_volt);
 			goto restore_freq;
 		}
-		ret = regulator_set_voltage(mem_reg, new_supply_mem->u_volt,
-					    INT_MAX);
+		ret = kbase_devfreq_opp_set_supply_mem(data, data->new_opp.supplies);
 		if (ret) {
-			dev_err(dev, "failed to set volt %lu uV for mem reg\n",
-				new_supply_mem->u_volt);
 			goto restore_freq;
 		}
 	}
@@ -222,7 +232,7 @@ restore_rm:
 				 &target_rm);
 	rockchip_set_read_margin(dev, opp_info, opp_info->target_rm, is_set_rm);
 restore_voltage:
-	regulator_set_voltage(mem_reg, old_supply_mem->u_volt, INT_MAX);
+	kbase_devfreq_opp_set_supply_mem(data, data->old_opp.supplies);
 	regulator_set_voltage(vdd_reg, old_supply_vdd->u_volt, INT_MAX);
 	clk_bulk_disable_unprepare(opp_info->num_clks, opp_info->clks);
 
