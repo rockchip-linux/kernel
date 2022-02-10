@@ -37,7 +37,6 @@ struct ebc_tcon {
 	void (*frame_addr_set)(struct ebc_tcon *tcon, u32 frame_addr);
 	int (*lut_data_set)(struct ebc_tcon *tcon, unsigned int *lut_data, int frame_count, int lut_32);
 	void (*frame_start)(struct ebc_tcon *tcon, int frame_total);
-	void (*line_flag_callback)(void);
 	void (*dsp_end_callback)(void);
 };
 
