@@ -361,6 +361,7 @@ struct dw_hdmi {
 	hdmi_codec_plugged_cb plugged_cb;
 	struct device *codec_dev;
 	enum drm_connector_status last_connector_result;
+	bool rgb_quant_range_selectable;
 };
 
 #define HDMI_IH_PHY_STAT0_RX_SENSE \
@@ -1896,12 +1897,10 @@ static void hdmi_config_AVI(struct dw_hdmi *hdmi, struct drm_display_mode *mode)
 	/* Initialise info frame from DRM mode */
 	drm_hdmi_avi_infoframe_from_display_mode(&frame, mode, is_hdmi2);
 
-	/*
-	 * Ignore monitor selectable quantization, use quantization set
-	 * by the user
-	 */
 	drm_hdmi_avi_infoframe_quant_range(&frame, mode, rgb_quant_range,
-					   true, is_hdmi2);
+					   hdmi->rgb_quant_range_selectable || is_hdmi2,
+					   is_hdmi2);
+
 	if (hdmi_bus_fmt_is_yuv444(hdmi->hdmi_data.enc_out_bus_format))
 		frame.colorspace = HDMI_COLORSPACE_YUV444;
 	else if (hdmi_bus_fmt_is_yuv422(hdmi->hdmi_data.enc_out_bus_format))
@@ -2799,6 +2798,7 @@ static int dw_hdmi_connector_get_modes(struct drm_connector *connector)
 
 		hdmi->support_hdmi = drm_detect_hdmi_monitor(edid);
 		hdmi->sink_has_audio = drm_detect_monitor_audio(edid);
+		hdmi->rgb_quant_range_selectable = drm_rgb_quant_range_selectable(edid);
 		drm_connector_update_edid_property(connector, edid);
 		cec_notifier_set_phys_addr_from_edid(hdmi->cec_notifier, edid);
 		ret = drm_add_edid_modes(connector, edid);
@@ -2807,6 +2807,7 @@ static int dw_hdmi_connector_get_modes(struct drm_connector *connector)
 	} else {
 		hdmi->support_hdmi = true;
 		hdmi->sink_has_audio = true;
+		hdmi->rgb_quant_range_selectable = false;
 
 		for (i = 0; i < ARRAY_SIZE(dw_hdmi_default_modes); i++) {
 			const struct drm_display_mode *ptr =
