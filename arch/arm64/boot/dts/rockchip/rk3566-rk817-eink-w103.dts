@@ -681,6 +681,7 @@
 
 &i2c1 {
 	status = "okay";
+	clock-frequency = <400000>;
 
 	wacom: wacom@9 {
 		compatible = "wacom,w9013";
