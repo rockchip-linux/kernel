@@ -21,6 +21,8 @@ while [ $# -gt 0 ]; do
 			DTB=$2
 			shift 2
 			;;
+		--keep-dtb-name)
+			DTB_ARGS="--dtbname"; shift 1;;
 		-h)
 			usage
 			exit 0
@@ -62,7 +64,7 @@ else
 fi
 KERNEL_ZIMAGE_PATH=${objtree}/arch/${ARCH}/boot/${ZIMAGE}
 KERNEL_ZIMAGE_ARG="--kernel ${KERNEL_ZIMAGE_PATH}"
-if [ ! -f ${DTB_PATH} ]; then
+if ! find ${DTB_PATH} >/dev/null; then
 	echo "No dtb" >&2
 	usage
 	exit 1
@@ -85,6 +87,7 @@ make_boot_img()
 		--second resource.img \
 		-o boot.img && \
 	echo "  Image:  boot.img (with Image ${RAMDISK_IMG} resource.img) is ready";
+	[ -f ${KERNEL_ZIMAGE_PATH} ] || return 0
 	${srctree}/scripts/mkbootimg \
 		${KERNEL_ZIMAGE_ARG} \
 		${RAMDISK_ARG} \
@@ -243,7 +246,8 @@ if [ "${srctree}" != "${objtree}" ]; then
 		cp -a ${LOGO_KERNEL_PATH} ${objtree}/;
 	fi
 fi
-scripts/resource_tool ${DTB_PATH} ${LOGO} ${LOGO_KERNEL} >/dev/null
+
+scripts/resource_tool ${DTB_ARGS} ${DTB_PATH} ${LOGO} ${LOGO_KERNEL} >/dev/null
 echo "  Image:  resource.img (with ${DTB} ${LOGO} ${LOGO_KERNEL}) is ready"
 
 if [ -f "${BOOT_IMG}" ]; then

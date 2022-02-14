@@ -624,8 +624,9 @@ typedef struct {
 #define OPT_TEST_CHARGE "--test_charge"
 #define OPT_IMAGE "--image="
 #define OPT_ROOT "--root="
+#define OPT_DTBNAME "--dtbname"
 
-#define VERSION "2014-5-31 14:43:42"
+#define VERSION "2020-03-03 18:01:11"
 
 typedef struct {
 	char path[MAX_INDEX_ENTRY_PATH_LEN];
@@ -1132,6 +1133,7 @@ end:
 static const char *PROG = NULL;
 static resource_ptn_header header;
 static bool just_print = false;
+static bool keep_dtbname = false;
 static char root_path[MAX_INDEX_ENTRY_PATH_LEN] = "\0";
 
 static void version(void)
@@ -1188,6 +1190,8 @@ int main(int argc, char **argv)
 			return 0;
 		} else if (!strcmp(OPT_PRINT, arg)) {
 			just_print = true;
+		} else if (!strcmp(OPT_DTBNAME, arg)) {
+			keep_dtbname = true;
 		} else if (!strcmp(OPT_PACK, arg)) {
 			action = ACTION_PACK;
 		} else if (!strcmp(OPT_UNPACK, arg)) {
@@ -1501,22 +1505,34 @@ static bool write_index_tbl(const int file_num, const char **files)
 		fix_entry(&entry);
 		memset(entry.path, 0, sizeof(entry.path));
 		const char *path = files[i];
-		if (root_path[0]) {
-			if (!strncmp(path, root_path, strlen(root_path))) {
-				path += strlen(root_path);
-				if (path[0] == '/')
-					path++;
+
+		if (strstr(path, ".dtb") && keep_dtbname) {
+			path = rindex(path, '/');
+			if (!path)
+				path = files[i];
+			else
+				path++;
+			LOGD("using dtb name: %s", path);
+
+		} else {
+			if (root_path[0]) {
+				if (!strncmp(path, root_path, strlen(root_path))) {
+					path += strlen(root_path);
+					if (path[0] == '/')
+						path++;
+				}
+			}
+			path = fix_path(path);
+			if (!strcmp(files[i] + strlen(files[i]) - strlen(DTD_SUBFIX), DTD_SUBFIX)) {
+				if (!foundFdt) {
+					/* use default path. */
+					LOGD("mod fdt path:%s -> %s...", files[i], FDT_PATH);
+					path = FDT_PATH;
+					foundFdt = true;
+				}
 			}
 		}
-		path = fix_path(path);
-		if (!strcmp(files[i] + strlen(files[i]) - strlen(DTD_SUBFIX), DTD_SUBFIX)) {
-			if (!foundFdt) {
-				/* use default path. */
-				LOGD("mod fdt path:%s -> %s...", files[i], FDT_PATH);
-				path = FDT_PATH;
-				foundFdt = true;
-			}
-		}
+
 		snprintf(entry.path, sizeof(entry.path), "%s", path);
 		offset += fix_blocks(file_size);
 		if (!write_data(header.header_size + i * header.tbl_entry_size, &entry,
