@@ -626,6 +626,7 @@ static int setup_initial_state(struct drm_device *drm_dev,
 	const struct drm_connector_helper_funcs *funcs;
 	int pipe = drm_crtc_index(crtc);
 	bool is_crtc_enabled = true;
+	bool is_clock_match;
 	int hdisplay, vdisplay;
 	int fb_width, fb_height;
 	int found = 0, match = 0;
@@ -658,7 +659,11 @@ static int setup_initial_state(struct drm_device *drm_dev,
 	}
 
 	list_for_each_entry(mode, &connector->modes, head) {
-		if (mode->clock == set->clock &&
+		/* allow different clock for eDP */
+		is_clock_match = (mode->clock == set->clock) ||
+			(connector->connector_type == DRM_MODE_CONNECTOR_eDP);
+
+		if (is_clock_match &&
 		    mode->hdisplay == set->hdisplay &&
 		    mode->vdisplay == set->vdisplay &&
 		    mode->crtc_hsync_end == set->crtc_hsync_end &&
