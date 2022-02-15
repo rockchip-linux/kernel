@@ -3491,7 +3491,7 @@ static s32 wl_cfg80211_hostapd_sec(
 			}
 		}
 	} else {
-		WL_ERR(("No WPSIE in beacon \n"));
+		WL_DBG(("No WPSIE in beacon \n"));
 	}
 	return 0;
 }
