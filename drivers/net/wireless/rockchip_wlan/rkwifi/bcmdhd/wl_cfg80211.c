@@ -15514,8 +15514,12 @@ fail:
 struct bcm_cfg80211 *wl_get_cfg(struct net_device *ndev)
 {
 	struct wireless_dev *wdev = ndev->ieee80211_ptr;
+	struct device *pdev = wl_cfg80211_get_parent_dev();
 
 	if (!wdev || !wdev->wiphy)
+		return NULL;
+
+	if (pdev && pdev != wiphy_dev(wdev->wiphy))
 		return NULL;
 
 	return wiphy_priv(wdev->wiphy);
