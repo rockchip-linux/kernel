@@ -2,13 +2,14 @@
 /*
  * techpoint dev driver
  *
- * Copyright (C) 2021 Rockchip Electronics Co., Ltd.
+ * Copyright (C) 2022 Rockchip Electronics Co., Ltd.
  *
  * V0.0X01.0X00 first version.
  */
 
 #include "techpoint_dev.h"
 #include "techpoint_tp9930.h"
+#include "techpoint_tp9950.h"
 #include "techpoint_tp2855.h"
 #include "techpoint_tp2815.h"
 
@@ -118,6 +119,13 @@ static int check_chip_id(struct techpoint *techpoint)
 		techpoint->chip_id = CHIP_TP2855;
 		techpoint->input_type = TECHPOINT_MIPI;
 		return 0;
+	} else if (chip_id_h == TP9950_CHIP_ID_H_VALUE &&
+		   chip_id_l == TP9950_CHIP_ID_L_VALUE) {
+		dev_info(&client->dev,
+			 "techpoint check chip id CHIP_TP9950 !\n");
+		techpoint->chip_id = CHIP_TP9950;
+		techpoint->input_type = TECHPOINT_MIPI;
+		return 0;
 	} else {
 		dev_info(&client->dev, "techpoint check chip id failed !\n");
 	}
@@ -134,6 +142,8 @@ int techpoint_initialize_devices(struct techpoint *techpoint)
 		tp9930_initialize(techpoint);
 	} else if (techpoint->chip_id == CHIP_TP2855) {
 		tp2855_initialize(techpoint);
+	} else if (techpoint->chip_id == CHIP_TP9950) {
+		tp9950_initialize(techpoint);
 	}
 
 	sema_init(&reg_sem, 1);
@@ -256,6 +266,11 @@ static __maybe_unused int auto_detect_channel_fmt(struct techpoint *techpoint)
 			reso = tp2855_get_channel_reso(client, ch);
 			tp2855_set_channel_reso(client, ch, reso);
 		}
+	}
+
+	if (techpoint->chip_id == CHIP_TP9950) {
+		reso = tp9950_get_channel_reso(client, 0);
+		tp9950_set_channel_reso(client, 0, reso);
 	}
 
 	up(&reg_sem);
