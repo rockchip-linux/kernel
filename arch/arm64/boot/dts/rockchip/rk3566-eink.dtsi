@@ -77,14 +77,8 @@
 };
 
 &gpu_opp_table {
-	opp-100000000 {
-		opp-hz = /bits/ 64 <100000000>;
-		opp-microvolt = <825000>;
-	};
-	opp-150000000 {
-		opp-hz = /bits/ 64 <150000000>;
-		opp-microvolt = <825000>;
-	};
+	/delete-node/ opp-200000000;
+	/delete-node/ opp-300000000;
 };
 
 &lpddr4_params {
