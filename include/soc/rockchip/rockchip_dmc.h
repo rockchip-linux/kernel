@@ -74,6 +74,7 @@ int rockchip_dmcfreq_wait_complete(void);
 int rockchip_dmcfreq_vop_bandwidth_init(struct dmcfreq_common_info *info);
 int rockchip_dmcfreq_vop_bandwidth_request(struct dmcfreq_vop_info *vop_info);
 void rockchip_dmcfreq_vop_bandwidth_update(struct dmcfreq_vop_info *vop_info);
+bool rockchip_dmcfreq_vop_bandwidth_avail(void);
 #else
 static inline void rockchip_dmcfreq_lock(void)
 {
@@ -115,6 +116,11 @@ rockchip_dmcfreq_vop_bandwidth_update(struct dmcfreq_vop_info *vop_info)
 static inline void
 rockchip_dmcfreq_vop_bandwidth_init(struct dmcfreq_common_info *info)
 {
+}
+
+bool inline int rockchip_dmcfreq_vop_bandwidth_avail(void)
+{
+	return false;
 }
 #endif
 

@@ -161,9 +161,10 @@ static void rockchip_drm_atomic_helper_commit_tail_rpm(struct drm_atomic_state *
 
 	drm_atomic_helper_commit_modeset_enables(dev, old_state);
 
-	rockchip_drm_bandwidth_atomic_check(dev, old_state, &vop_bw_info);
-
-	rockchip_dmcfreq_vop_bandwidth_update(&vop_bw_info);
+	if (rockchip_dmcfreq_vop_bandwidth_avail()) {
+		rockchip_drm_bandwidth_atomic_check(dev, old_state, &vop_bw_info);
+		rockchip_dmcfreq_vop_bandwidth_update(&vop_bw_info);
+	}
 
 	mutex_lock(&prv->ovl_lock);
 	drm_atomic_helper_commit_planes(dev, old_state, DRM_PLANE_COMMIT_ACTIVE_ONLY);
