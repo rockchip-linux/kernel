@@ -81,7 +81,7 @@ static int analogix_dp_init_dp(struct analogix_dp_device *dp)
 
 static int analogix_dp_panel_prepare(struct analogix_dp_device *dp)
 {
-	int ret;
+	int ret = 0;
 
 	mutex_lock(&dp->panel_lock);
 
@@ -96,7 +96,7 @@ static int analogix_dp_panel_prepare(struct analogix_dp_device *dp)
 
 out:
 	mutex_unlock(&dp->panel_lock);
-	return 0;
+	return ret;
 }
 
 static int analogix_dp_panel_unprepare(struct analogix_dp_device *dp)
@@ -1221,10 +1221,15 @@ analogix_dp_detect(struct analogix_dp_device *dp)
 
 	ret = analogix_dp_phy_power_on(dp);
 	if (ret)
-		return connector_status_disconnected;
+		return status;
 
-	if (dp->plat_data->panel)
-		analogix_dp_panel_prepare(dp);
+	if (dp->plat_data->panel) {
+		ret = analogix_dp_panel_prepare(dp);
+		if (ret < 0) {
+			dev_dbg(dp->dev, "failed to prepare panel (%d)\n", ret);
+			return status;
+		}
+	}
 
 	if (!analogix_dp_detect_hpd(dp)) {
 		ret = analogix_dp_get_max_rx_bandwidth(dp, &dp->link_train.link_rate);
