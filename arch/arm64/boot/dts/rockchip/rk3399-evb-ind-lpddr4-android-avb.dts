@@ -147,6 +147,29 @@
 		rockchip,camera-module-facing = "back";
 	};
 
+	gc8034: gc8034@37 {
+		compatible = "galaxycore,gc8034";
+		status = "okay";
+		reg = <0x37>;
+		clocks = <&cru SCLK_CIF_OUT>;
+		clock-names = "xvclk";
+		pinctrl-names = "rockchip,camera_default";
+		pinctrl-0 = <&cif_clkout>;
+		reset-gpios = <&gpio1 3 GPIO_ACTIVE_LOW>;
+		pwdn-gpios = <&gpio1 24 GPIO_ACTIVE_LOW>;
+		rockchip,camera-module-index = <0>;
+		rockchip,camera-module-facing = "back";
+		rockchip,camera-module-name = "LH-RK-8034-v1.0";
+		rockchip,camera-module-lens-name = "CK8401";
+		lens-focus = <&vm149c>;
+		port {
+			gc8034_out: endpoint {
+				remote-endpoint = <&mipi_in_gc8034>;
+				data-lanes = <1 2 3 4>;
+			};
+		};
+	};
+
 	gc2145: gc2145@3c{
 		status = "okay";
 		compatible = "galaxycore,gc2145";
@@ -288,6 +311,11 @@
 				reg = <1>;
 				remote-endpoint = <&ucam_out0>;
 				data-lanes = <1 2>;
+			};
+			mipi_in_gc8034: endpoint@0 {
+				reg = <0>;
+				remote-endpoint = <&gc8034_out>;
+				data-lanes = <1 2 3 4>;
 			};
 		};
 
