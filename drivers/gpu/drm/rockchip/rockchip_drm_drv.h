@@ -131,6 +131,8 @@ struct rockchip_bcsh_state {
 struct rockchip_crtc_state {
 	struct drm_crtc_state base;
 
+	int vp_id;
+
 	/**
 	 * @hold_mode: enabled when it's:
 	 * (1) mcu hold mode
