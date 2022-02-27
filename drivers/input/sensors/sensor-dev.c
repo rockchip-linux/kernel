@@ -40,6 +40,7 @@
 #include <linux/compat.h>
 #endif
 #include <linux/soc/rockchip/rk_vendor_storage.h>
+#include <linux/regulator/consumer.h>
 
 #define SENSOR_CALIBRATION_LEN 64
 struct sensor_calibration_data {
@@ -545,8 +546,10 @@ static irqreturn_t sensor_interrupt(int irq, void *dev_id)
 	struct i2c_client *client = sensor->client;
 
 	mutex_lock(&sensor->sensor_mutex);
+	pm_stay_awake(&client->dev);
 	if (sensor->ops->report(client) < 0)
 		dev_err(&client->dev, "%s: Get data failed\n", __func__);
+	pm_relax(&client->dev);
 	mutex_unlock(&sensor->sensor_mutex);
 
 	return IRQ_HANDLED;
@@ -559,7 +562,7 @@ static int sensor_irq_init(struct i2c_client *client)
 	int result = 0;
 	int irq;
 
-	if ((sensor->pdata->irq_enable) && (sensor->pdata->irq_flags != SENSOR_UNKNOW_DATA)) {
+	if ((sensor->pdata->irq_enable || sensor->pdata->wake_enable) && (sensor->pdata->irq_flags != SENSOR_UNKNOW_DATA)) {
 		if (sensor->pdata->poll_delay_ms <= 0)
 			sensor->pdata->poll_delay_ms = 30;
 		result = gpio_request(client->irq, sensor->i2c_id->name);
@@ -575,9 +578,10 @@ static int sensor_irq_init(struct i2c_client *client)
 
 		client->irq = irq;
 		disable_irq_nosync(client->irq);
-
 		dev_info(&client->dev, "%s:use irq=%d\n", __func__, irq);
-	} else if (!sensor->pdata->irq_enable) {
+	}
+
+	if (!sensor->pdata->irq_enable) {
 		INIT_DELAYED_WORK(&sensor->delaywork, sensor_delaywork_func);
 		sensor->stop_work = 1;
 		if (sensor->pdata->poll_delay_ms <= 0)
@@ -630,6 +634,13 @@ static int __maybe_unused sensor_of_suspend(struct device *dev)
 	if (sensor->ops->suspend)
 		sensor->ops->suspend(sensor->client);
 
+	if (mem_sleep_current == PM_SUSPEND_MEM_LITE) {
+		if (sensor->pdata->wake_enable) {
+			enable_irq(sensor->client->irq);
+			enable_irq_wake(sensor->client->irq);
+		}
+	}
+
 	return 0;
 }
 
@@ -639,6 +650,15 @@ static int __maybe_unused sensor_of_resume(struct device *dev)
 
 	if (sensor->ops->resume)
 		sensor->ops->resume(sensor->client);
+
+	if (mem_sleep_current == PM_SUSPEND_MEM_LITE) {
+		if (sensor->pdata->wake_enable) {
+			disable_irq_wake(sensor->client->irq);
+			disable_irq(sensor->client->irq);
+		}
+		return 0;
+	}
+
 	if (sensor->pdata->power_off_in_suspend)
 		sensor_initial(sensor->client);
 
@@ -1609,7 +1629,7 @@ static int sensor_probe(struct i2c_client *client, const struct i2c_device_id *d
 	pdata->irq_pin = of_get_named_gpio_flags(np, "irq-gpio", 0, (enum of_gpio_flags *)&irq_flags);
 	pdata->reset_pin = of_get_named_gpio_flags(np, "reset-gpio", 0, &rst_flags);
 	pdata->power_pin = of_get_named_gpio_flags(np, "power-gpio", 0, &pwr_flags);
-
+	pdata->wake_enable = of_property_read_bool(np, "wakeup-source");
 	of_property_read_u32(np, "irq_enable", &(pdata->irq_enable));
 	of_property_read_u32(np, "poll_delay_ms", &(pdata->poll_delay_ms));
 

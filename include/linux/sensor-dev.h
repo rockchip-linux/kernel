@@ -218,6 +218,7 @@ struct sensor_platform_data {
 	short m_layout[4][3][3];
 	int *project_name;
 	int power_off_in_suspend;
+	int wake_enable;
 };
 
 struct gsensor_platform_data {
