@@ -45,6 +45,7 @@
 #define	MXC6655_DEVICE_ID_A	0x05
 #define MXC6655_POWER_DOWN	BIT(0)
 #define MXC6655_INT_ENABLE	BIT(0)
+#define MXC6655_ORXY_INT_ENABLE	BIT(6)
 #define MXC6655_RANGE		(16384 * 2)
 #define MXC6655_PRECISION	12
 #define MXC6655_BOUNDARY	(0x1 << (MXC6655_PRECISION - 1))
@@ -107,6 +108,12 @@ static int sensor_init(struct i2c_client *client)
 	if (result) {
 		dev_err(&client->dev,
 			"%s:fail to set MXC6655_INT_MASK1.\n", __func__);
+		return result;
+	}
+	result = sensor_write_reg(client, MXC6655_INT_MASK0, 0);
+	if (result) {
+		dev_err(&client->dev,
+			"%s:fail to set MXC6655_INT_MASK0.\n", __func__);
 		return result;
 	}
 
@@ -205,7 +212,48 @@ static int sensor_report_value(struct i2c_client *client)
 		}
 	}
 
+	if (sensor->pdata->wake_enable)
+		sensor_write_reg(client, MXC6655_INT_CLR0, 0xff);
+
 	return ret;
+}
+
+static int sensor_suspend(struct i2c_client *client)
+{
+	int status = 0;
+	struct sensor_private_data *sensor =
+		(struct sensor_private_data *)i2c_get_clientdata(client);
+
+	/* Enable or Disable for orientation Interrupt */
+	if (sensor->pdata->wake_enable) {
+		status = sensor_write_reg(client, MXC6655_INT_MASK0, MXC6655_ORXY_INT_ENABLE);
+		if (status) {
+			dev_err(&client->dev,
+				"%s:fail to set MXC6655_INT_MASK0.\n", __func__);
+			return status;
+		}
+	}
+
+	return status;
+}
+
+static int sensor_resume(struct i2c_client *client)
+{
+	int status = 0;
+	struct sensor_private_data *sensor =
+		(struct sensor_private_data *)i2c_get_clientdata(client);
+
+	/* Enable or Disable for orientation Interrupt */
+	if (sensor->pdata->wake_enable) {
+		status = sensor_write_reg(client, MXC6655_INT_MASK0, 0);
+		if (status) {
+			dev_err(&client->dev,
+				"%s:fail to set MXC6655_INT_MASK0.\n", __func__);
+			return status;
+		}
+	}
+
+	return status;
 }
 
 static struct sensor_operate gsensor_mxc6655_ops = {
@@ -224,6 +272,8 @@ static struct sensor_operate gsensor_mxc6655_ops = {
 	.active		= sensor_active,
 	.init		= sensor_init,
 	.report		= sensor_report_value,
+	.suspend	= sensor_suspend,
+	.resume		= sensor_resume,
 };
 
 static int gsensor_mxc6655_probe(struct i2c_client *client,
