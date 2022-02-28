@@ -6225,7 +6225,7 @@ void rkcif_irq_pingpong(struct rkcif_device *cif_dev)
 					v4l2_info(&cif_dev->v4l2_dev, "frmid:%d, frmstat:0x%x\n",
 						  frmid, cif_frmst);
 					rkcif_write_register(cif_dev, CIF_REG_DVP_FRAME_STATUS,
-							     FRAME_STAT_CLS);
+							     cif_frmst & 0x3);
 				}
 
 				if (lastline != stream->pixm.height ||
@@ -6313,7 +6313,7 @@ void rkcif_irq_pingpong(struct rkcif_device *cif_dev)
 					v4l2_info(&cif_dev->v4l2_dev, "frmid:%d, frmstat:0x%x\n",
 						  frmid, cif_frmst);
 					rkcif_write_register(cif_dev, CIF_REG_DVP_FRAME_STATUS,
-							     FRAME_STAT_CLS);
+							     cif_frmst & 0xffff);
 				}
 				rkcif_update_stream(cif_dev, stream, ch_id);
 				cif_dev->irq_stats.all_frm_end_cnt++;
