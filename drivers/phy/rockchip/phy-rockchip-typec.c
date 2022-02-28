@@ -55,6 +55,8 @@
 #include <linux/mfd/syscon.h>
 #include <linux/phy/phy.h>
 #include <linux/phy/phy-rockchip-typec.h>
+#include <linux/usb/typec_dp.h>
+#include <linux/usb/typec_mux.h>
 
 #define CMN_SSM_BANDGAP			(0x21 << 2)
 #define CMN_SSM_BIAS			(0x22 << 2)
@@ -423,6 +425,12 @@ struct rockchip_typec_phy {
 	const struct rockchip_usb3phy_port_cfg *port_cfgs;
 	/* mutex to protect access to individual PHYs */
 	struct mutex lock;
+
+	struct typec_switch *sw;
+	struct typec_mux *mux;
+	struct phy *dp_phy;
+	int dp_lanes;
+	int new_mode;
 
 	bool flip;
 	u8 mode;
@@ -1270,6 +1278,7 @@ static int tcphy_phy_init(struct rockchip_typec_phy *tcphy, u8 mode)
 		for (i = 0; i < 4; i++)
 			tcphy_dp_cfg_lane(tcphy, i);
 	} else {
+		tcphy_cfg_usb3_to_usb2_only(tcphy, false);
 		tcphy_cfg_usb3_pll(tcphy);
 		tcphy_cfg_dp_pll(tcphy, DP_DEFAULT_RATE);
 		if (tcphy->flip) {
@@ -1332,8 +1341,14 @@ static int tcphy_get_mode(struct rockchip_typec_phy *tcphy)
 	u8 mode;
 	int ret;
 
-	if (!edev)
+	if (tcphy->mux) {
+		dev_dbg(tcphy->dev, "new_mode %d\n", tcphy->new_mode);
+		return tcphy->new_mode;
+
+	} else if (!edev) {
+		dev_dbg(tcphy->dev, "force USB\n");
 		return MODE_DFP_USB;
+	}
 
 	ufp = extcon_get_state(edev, EXTCON_USB);
 	dp = extcon_get_state(edev, EXTCON_DISP_DP);
@@ -1386,11 +1401,9 @@ static int _rockchip_usb3_phy_power_on(struct rockchip_typec_phy *tcphy)
 		goto unlock_ret;
 	}
 
-	/* DP-only mode; fall back to USB2 */
-	if (!(new_mode & (MODE_DFP_USB | MODE_UFP_USB))) {
-		tcphy_cfg_usb3_to_usb2_only(tcphy, true);
+	/* DP-only mode: nothing */
+	if (!(new_mode & (MODE_DFP_USB | MODE_UFP_USB)))
 		goto unlock_ret;
-	}
 
 	if (tcphy->mode == new_mode)
 		goto unlock_ret;
@@ -1407,8 +1420,6 @@ static int _rockchip_usb3_phy_power_on(struct rockchip_typec_phy *tcphy)
 		if (!(val & BIT(reg->enable_bit))) {
 			tcphy->mode |= new_mode & (MODE_DFP_USB | MODE_UFP_USB);
 
-			/* enable usb3 host */
-			tcphy_cfg_usb3_to_usb2_only(tcphy, false);
 			goto unlock_ret;
 		}
 		usleep_range(10, 20);
@@ -1447,7 +1458,6 @@ static int rockchip_usb3_phy_power_off(struct phy *phy)
 	struct rockchip_typec_phy *tcphy = phy_get_drvdata(phy);
 
 	mutex_lock(&tcphy->lock);
-	tcphy_cfg_usb3_to_usb2_only(tcphy, false);
 
 	if (tcphy->mode == MODE_DISCONNECT)
 		goto unlock;
@@ -1466,6 +1476,114 @@ static const struct phy_ops rockchip_usb3_phy_ops = {
 	.power_off	= rockchip_usb3_phy_power_off,
 	.owner		= THIS_MODULE,
 };
+
+static int rockchip_typec_mux_set(struct typec_mux *mux,
+				  struct typec_mux_state *state)
+{
+	struct rockchip_typec_phy *tcphy = typec_mux_get_drvdata(mux);
+	int lanes = 0;
+	int new_mode = MODE_DFP_USB;
+
+	switch (state->mode) {
+	case TYPEC_STATE_SAFE:
+		break;
+
+	case TYPEC_DP_STATE_C:
+		fallthrough;
+	case TYPEC_DP_STATE_E:
+		lanes = 4;
+		new_mode = MODE_DFP_DP;
+		break;
+
+	case TYPEC_DP_STATE_D:
+		fallthrough;
+	default:
+		lanes = 2;
+		new_mode = (MODE_DFP_DP | MODE_DFP_USB);
+		break;
+	}
+
+	tcphy->new_mode = new_mode;
+
+	if (tcphy->dp_phy && tcphy->dp_lanes != lanes) {
+		phy_set_bus_width(tcphy->dp_phy, lanes);
+		tcphy->dp_lanes = lanes;
+	}
+
+	return 0;
+}
+
+static int rockchip_typec_setup_mux(struct rockchip_typec_phy *tcphy)
+{
+	struct typec_mux_desc mux_desc = {};
+
+	mux_desc.drvdata = tcphy;
+	mux_desc.fwnode = dev_fwnode(tcphy->dev);
+	mux_desc.set = rockchip_typec_mux_set;
+
+	tcphy->new_mode = MODE_DFP_USB;
+
+	tcphy->mux = typec_mux_register(tcphy->dev, &mux_desc);
+	if (IS_ERR(tcphy->mux)) {
+		dev_err(tcphy->dev, "Error register typec mux: %ld\n",
+			PTR_ERR(tcphy->mux));
+		return PTR_ERR(tcphy->mux);
+	}
+
+	return 0;
+}
+
+static void rockchip_typec_mux_unregister(void *data)
+{
+	struct rockchip_typec_phy *tcphy = data;
+
+	typec_mux_unregister(tcphy->mux);
+}
+
+static int rockchip_typec_switch_set(struct typec_switch *sw,
+				       enum typec_orientation orien)
+{
+	struct rockchip_typec_phy *tcphy = typec_switch_get_drvdata(sw);
+
+	mutex_lock(&tcphy->lock);
+
+	if (orien == TYPEC_ORIENTATION_NONE) {
+		goto unlock_ret;
+	}
+
+	tcphy->flip = (orien == TYPEC_ORIENTATION_REVERSE) ? true : false;
+
+unlock_ret:
+	mutex_unlock(&tcphy->lock);
+
+	dev_dbg(tcphy->dev, "typec orientation %d, flip %d\n", orien, tcphy->flip);
+	return 0;
+}
+
+static int rockchip_typec_setup_switch(struct rockchip_typec_phy *tcphy)
+{
+	struct typec_switch_desc sw_desc = { };
+
+	sw_desc.drvdata = tcphy;
+	sw_desc.fwnode = dev_fwnode(tcphy->dev);
+	sw_desc.set = rockchip_typec_switch_set;
+
+	tcphy->sw = typec_switch_register(tcphy->dev, &sw_desc);
+	if (IS_ERR(tcphy->sw)) {
+		dev_err(tcphy->dev, "Error register typec orientation switch: %ld\n",
+			PTR_ERR(tcphy->sw));
+		return PTR_ERR(tcphy->sw);
+	}
+
+	return 0;
+}
+
+static void rockchip_typec_switch_unregister(void *data)
+{
+	struct rockchip_typec_phy *tcphy = data;
+
+	typec_switch_unregister(tcphy->sw);
+}
 
 static int rockchip_dp_phy_power_on(struct phy *phy)
 {
@@ -1535,6 +1653,7 @@ unlock_ret:
 static int rockchip_dp_phy_power_off(struct phy *phy)
 {
 	struct rockchip_typec_phy *tcphy = phy_get_drvdata(phy);
+	const struct rockchip_usb3phy_port_cfg *cfg = tcphy->port_cfgs;
 	int ret;
 
 	mutex_lock(&tcphy->lock);
@@ -1549,6 +1668,10 @@ static int rockchip_dp_phy_power_off(struct phy *phy)
 		dev_err(tcphy->dev, "failed to enter A2 power state\n");
 		goto unlock;
 	}
+
+	property_enable(tcphy, &cfg->uphy_dp_sel, 0);
+
+	tcphy_cfg_usb3_to_usb2_only(tcphy, false);
 
 	if (tcphy->mode == MODE_DISCONNECT)
 		tcphy_phy_deinit(tcphy);
@@ -1700,14 +1823,38 @@ static int rockchip_typec_phy_probe(struct platform_device *pdev)
 		}
 	}
 
+	if (device_property_present(dev, "svid")) {
+		ret = rockchip_typec_setup_mux(tcphy);
+		if (ret)
+			return ret;
+
+		ret = devm_add_action_or_reset(dev,
+					       rockchip_typec_mux_unregister, tcphy);
+		if (ret)
+			return ret;
+	}
+
+	if (device_property_present(dev, "orientation-switch")) {
+		ret = rockchip_typec_setup_switch(tcphy);
+		if (ret)
+			return ret;
+
+		ret = devm_add_action_or_reset(dev,
+					       rockchip_typec_switch_unregister, tcphy);
+		if (ret)
+			return ret;
+	}
+
 	pm_runtime_enable(dev);
 
 	for_each_available_child_of_node(np, child_np) {
 		struct phy *phy;
 
-		if (of_node_name_eq(child_np, "dp-port"))
+		if (of_node_name_eq(child_np, "dp-port")) {
 			phy = devm_phy_create(dev, child_np,
 					      &rockchip_dp_phy_ops);
+			tcphy->dp_phy = phy;
+		}
 		else if (of_node_name_eq(child_np, "usb3-port"))
 			phy = devm_phy_create(dev, child_np,
 					      &rockchip_usb3_phy_ops);
