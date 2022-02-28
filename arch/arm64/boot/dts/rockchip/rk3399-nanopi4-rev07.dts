@@ -1,0 +1,172 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright (c) 2020 FriendlyElec Computer Tech. Co., Ltd.
+ * (http://www.friendlyarm.com)
+ */
+
+/dts-v1/;
+#include <dt-bindings/sensor-dev.h>
+#include "rk3399-nanopi4-common.dtsi"
+
+/ {
+	model = "FriendlyElec SOM-RK3399";
+	compatible = "friendlyelec,som-rk3399", "rockchip,rk3399";
+
+	hdmiin-sound {
+		compatible = "rockchip,rockchip-rt5651-sound";
+		rockchip,cpu = <&i2s1>;
+		rockchip,codec = <&rt5651 &rt5651>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&hp_det>;
+		status = "okay";
+	};
+};
+
+&mach {
+	hwrev = <7>;
+	model = "SOM-RK3399";
+};
+
+&i2c2 {
+    sensor@23 {
+        compatible = "light_bh1750";
+        reg = <0x23>;
+        status = "okay";
+
+        type = <SENSOR_TYPE_LIGHT>;
+        poll_delay_ms = <64>;
+    };
+};
+
+&i2c3 {
+	status = "okay";
+	i2c-scl-rising-time-ns = <160>;
+	i2c-scl-falling-time-ns = <30>;
+	clock-frequency = <400000>;
+
+	sensor@18 {
+		status = "okay";
+		compatible = "gs_lis3dh";
+		reg = <0x18>;
+		type = <SENSOR_TYPE_ACCEL>;
+		irq-gpio = <&gpio1 22 IRQ_TYPE_LEVEL_LOW>;
+		irq_enable = <0>;
+		poll_delay_ms = <64>;
+		layout = <2>;
+		reprobe_en = <1>;
+	};
+};
+
+&i2s1 {
+	status = "okay";
+	rockchip,playback-channels = <2>;
+	rockchip,capture-channels = <2>;
+	#sound-dai-cells = <0>;
+};
+
+&pcie0 {
+	ep-gpios = <&gpio2 4 GPIO_ACTIVE_HIGH>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pcie_gpios>;
+	num-lanes = <4>;
+	max-link-speed = <2>;
+};
+
+&rt5651_card {
+	status = "disabled";
+
+	simple-audio-card,cpu {
+		sound-dai = <&i2s1>;
+	};
+};
+
+&tc358749x {
+	rockchip,camera-module-index = <0>;
+	rockchip,camera-module-facing = "back";
+	rockchip,camera-module-name = "HDMIIN";
+	rockchip,camera-module-lens-name = "NA";
+
+	status = "okay";
+};
+
+&mipi_in_ucam0c {
+	status = "okay";
+};
+
+&dfi {
+	status = "okay";
+};
+
+&dmc {
+	status = "okay";
+	center-supply = <&vdd_center>;
+	upthreshold = <40>;
+	downdifferential = <20>;
+	system-status-freq = <
+		/*system status         freq(KHz)*/
+		SYS_STATUS_NORMAL       856000
+		SYS_STATUS_REBOOT       416000
+		SYS_STATUS_SUSPEND      416000
+		SYS_STATUS_VIDEO_1080P  666000
+		SYS_STATUS_VIDEO_4K     856000
+		SYS_STATUS_VIDEO_4K_10B 856000
+		SYS_STATUS_PERFORMANCE  856000
+		SYS_STATUS_BOOST        856000
+		SYS_STATUS_DUALVIEW     856000
+		SYS_STATUS_ISP          856000
+	>;
+	vop-bw-dmc-freq = <
+	/* min_bw(MB/s) max_bw(MB/s) freq(KHz) */
+		0       924      416000
+		925     1893     666000
+		1894    99999    856000
+	>;
+
+	vop-pn-msch-readlatency = <
+		0   0x20
+		4   0x20
+	>;
+
+	auto-min-freq = <328000>;
+	auto-freq-en = <1>;
+};
+
+&dmc_opp_table {
+	compatible = "operating-points-v2";
+
+	/delete-node/ opp-200000000;
+	/delete-node/ opp-300000000;
+	/delete-node/ opp-400000000;
+	/delete-node/ opp-528000000;
+	/delete-node/ opp-600000000;
+	/delete-node/ opp-800000000;
+
+	opp-328000000 {
+		opp-hz = /bits/ 64 <328000000>;
+		opp-microvolt = <900000>;
+	};
+	opp-416000000 {
+		opp-hz = /bits/ 64 <416000000>;
+		opp-microvolt = <900000>;
+	};
+	opp-666000000 {
+		opp-hz = /bits/ 64 <666000000>;
+		opp-microvolt = <900000>;
+	};
+	opp-856000000 {
+		opp-hz = /bits/ 64 <856000000>;
+		opp-microvolt = <900000>;
+	};
+};
+
+&pinctrl {
+	hdmiin {
+		hdmiin_gpios: hdmiin-gpios {
+			rockchip,pins =
+				<1 0 RK_FUNC_GPIO &pcfg_output_high>,
+				<2 6 RK_FUNC_GPIO &pcfg_output_high>,
+				<2 5 RK_FUNC_GPIO &pcfg_output_high>,
+				<0 2 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+};

@@ -1,0 +1,40 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright (c) 2020 FriendlyElec Computer Tech. Co., Ltd.
+ * (http://www.friendlyarm.com)
+ */
+
+/dts-v1/;
+#include "rk3399-nanopi4-common.dtsi"
+
+/ {
+	model = "FriendlyElec NanoPi M4";
+	compatible = "friendlyelec,nanopi-m4", "rockchip,rk3399";
+};
+
+&mach {
+	hwrev = <1>;
+	model = "NanoPi M4";
+};
+
+&sdhci {
+	mmc-hs200-1_8v;
+	/delete-property/ mmc-hs400-1_8v;
+	/delete-property/ mmc-hs400-enhanced-strobe;
+};
+
+&i2s1 {
+	status = "okay";
+	rockchip,playback-channels = <2>;
+	rockchip,capture-channels = <2>;
+	#sound-dai-cells = <0>;
+};
+
+&rt5651_card {
+	/delete-property/ pinctrl-0;
+	/delete-property/ simple-audio-card,hp-det-gpio;
+
+	simple-audio-card,cpu {
+		sound-dai = <&i2s1>;
+	};
+};

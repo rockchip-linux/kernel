@@ -1,0 +1,67 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright (c) 2020 FriendlyElec Computer Tech. Co., Ltd.
+ * (http://www.friendlyarm.com)
+ */
+
+/dts-v1/;
+#include "rk3399-nanopi4-common.dtsi"
+
+/ {
+	model = "FriendlyElec NanoPC-T4";
+	compatible = "friendlyelec,nanopc-t4", "rockchip,rk3399";
+};
+
+&mach {
+	hwrev = <0>;
+	model = "NanoPC-T4";
+};
+
+&dfi {
+	status = "okay";
+};
+
+&dmc {
+	status = "okay";
+	center-supply = <&vdd_center>;
+	upthreshold = <40>;
+	downdifferential = <20>;
+	system-status-freq = <
+		/*system status         freq(KHz)*/
+		SYS_STATUS_NORMAL       800000
+		SYS_STATUS_REBOOT       528000
+		SYS_STATUS_SUSPEND      200000
+		SYS_STATUS_VIDEO_1080P  200000
+		SYS_STATUS_VIDEO_4K     600000
+		SYS_STATUS_VIDEO_4K_10B 800000
+		SYS_STATUS_PERFORMANCE  800000
+		SYS_STATUS_BOOST        600000
+		SYS_STATUS_DUALVIEW     600000
+		SYS_STATUS_ISP          600000
+	>;
+	vop-bw-dmc-freq = <
+	/* min_bw(MB/s) max_bw(MB/s) freq(KHz) */
+		0       577      200000
+		578     924      400000
+		925     2075     600000
+		2076    99999    800000
+	>;
+	auto-min-freq = <200000>;
+	auto-freq-en = <1>;
+};
+
+&pcie0 {
+	ep-gpios = <&gpio2 4 GPIO_ACTIVE_HIGH>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pcie_gpios>;
+	num-lanes = <4>;
+	max-link-speed = <2>;
+};
+
+&pwm3 {
+	status = "okay";
+};
+
+&i2s0 {
+	pinctrl-0 = <&i2s0_2ch_bus>;
+};
