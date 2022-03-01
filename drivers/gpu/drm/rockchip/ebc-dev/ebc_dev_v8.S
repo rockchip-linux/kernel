@@ -11243,7 +11243,7 @@ ebc_thread:
 	.loc 1 2138 0
 	ldr	w20, [x28, 632]
 .LVL981:
-	cbnz	w20, .L1208
+	cbnz	w20, .L1212
 .L1010:
 	.loc 1 2144 0
 	bl	ebc_dsp_buf_get
@@ -11277,7 +11277,7 @@ ebc_thread:
 	.loc 1 2192 0
 	ldr	w0, [x25, 64]
 	cmp	w0, 32
-	beq	.L1209
+	beq	.L1213
 	.loc 1 2195 0
 	ldrsw	x2, [x28, 20]
 	ldr	x1, [x25, 16]
@@ -11296,7 +11296,7 @@ ebc_thread:
 	.loc 1 2200 0
 	ldr	w0, [x28, 52]
 	cbnz	w0, .L1026
-.L1227:
+.L1231:
 	.loc 1 2201 0
 	ldr	x1, [x28, 232]
 	mov	x4, x28
@@ -11318,7 +11318,7 @@ ebc_thread:
 	.loc 1 2208 0
 	str	wzr, [x28, 100]
 	.loc 1 2209 0
-	cbz	w0, .L1210
+	cbz	w0, .L1214
 .L1028:
 	.loc 1 2211 0
 	ldrb	w3, [x28, 49]
@@ -11339,7 +11339,7 @@ ebc_thread:
 .LVL988:
 	.loc 1 1640 0
 	ldr	w0, [x28, 52]
-	cbnz	w0, .L1211
+	cbnz	w0, .L1215
 	.loc 1 1648 0
 	ldr	x0, [x28, 112]
 	adrp	x2, .LANCHOR3
@@ -11363,11 +11363,11 @@ ebc_thread:
 	cbz	w20, .L1010
 .LVL990:
 	.p2align 2
-.L1208:
+.L1212:
 	.loc 1 2139 0
 	ldr	w0, [x28, 208]
 	cmp	w0, 1
-	beq	.L1212
+	beq	.L1216
 .L1011:
 	.loc 1 2510 0
 	adrp	x0, __stack_chk_guard
@@ -11378,7 +11378,7 @@ ebc_thread:
 	eor	x1, x2, x1
 .LVL992:
 	mov	w0, 0
-	cbnz	x1, .L1213
+	cbnz	x1, .L1217
 	ldp	x19, x20, [sp, 16]
 	ldp	x21, x22, [sp, 32]
 .LVL993:
@@ -11410,7 +11410,7 @@ ebc_thread:
 	.loc 1 2478 0
 	ldr	w0, [x28, 104]
 .LVL997:
-	cbz	w0, .L1214
+	cbz	w0, .L1218
 	.loc 1 2483 0
 	str	wzr, [x28, 104]
 	.loc 1 2484 0
@@ -11445,23 +11445,23 @@ ebc_thread:
 	.loc 1 2225 0
 	ldr	w0, [x28, 44]
 	cmp	w0, 1
-	beq	.L1215
-.L1201:
+	beq	.L1219
+.L1205:
 	ldr	w2, [x25, 40]
 .L1032:
 	.loc 1 2232 0
 	cmp	w2, 23
-	bls	.L1216
+	bls	.L1220
 	.loc 1 2438 0
 	ldr	x0, [x28, 112]
 	adrp	x1, .LC102
 	add	x1, x1, :lo12:.LC102
 	bl	_dev_err
 .LVL1001:
-.L1199:
+.L1203:
 	.loc 1 2439 0
 	mov	x0, x25
-.L1200:
+.L1204:
 	bl	ebc_remove_from_dsp_buf_list
 .LVL1002:
 	.loc 1 2440 0
@@ -11497,10 +11497,10 @@ ebc_thread:
 	bl	check_black_percent.isra.15
 .LVL1007:
 	cbz	w0, .L1014
-	b	.L1199
+	b	.L1203
 .LVL1008:
 	.p2align 3
-.L1214:
+.L1218:
 .LBB2125:
 .LBB2115:
 	.loc 1 2479 0
@@ -11523,14 +11523,14 @@ ebc_thread:
 	cset	w2, ne
 .LVL1012:
 	.p2align 2
-.L1120:
+.L1121:
 .LBE2108:
 	.loc 1 2479 0 is_stmt 0 discriminator 9
 	orr	w1, w1, w2
-	cbnz	w1, .L1119
+	cbnz	w1, .L1120
 .LVL1013:
 	.loc 1 2479 0 discriminator 11
-	cbnz	x0, .L1118
+	cbnz	x0, .L1119
 	.loc 1 2479 0 discriminator 13
 	mov	x0, x20
 .LVL1014:
@@ -11550,8 +11550,8 @@ ebc_thread:
 	cmp	x20, 0
 	cset	w1, eq
 	tst	w2, w1
-	beq	.L1120
-.L1119:
+	beq	.L1121
+.L1120:
 .LBE2109:
 .LBE2112:
 	.loc 1 2479 0
@@ -11559,7 +11559,7 @@ ebc_thread:
 	mov	x0, x19
 	bl	finish_wait
 .LVL1018:
-.L1118:
+.L1119:
 .LBE2115:
 .LBE2125:
 	.loc 1 2480 0 is_stmt 1 discriminator 16
@@ -11569,12 +11569,12 @@ ebc_thread:
 	.loc 1 2487 0
 	ldr	w0, [x28, 44]
 	cmp	w0, 1
-	beq	.L1217
+	beq	.L1221
 	.loc 1 2496 0
 	ldr	w0, [x28, 208]
 	cmp	w0, 1
-	beq	.L1127
-.L1129:
+	beq	.L1128
+.L1130:
 .LBB2126:
 .LBB2127:
 	.loc 1 2500 0
@@ -11582,17 +11582,17 @@ ebc_thread:
 	add	x0, x29, 120
 	bl	init_wait_entry
 .LVL1020:
-	b	.L1128
+	b	.L1129
 	.p2align 3
-.L1218:
+.L1222:
 .LVL1021:
 .LBB2128:
 	.loc 1 2500 0 is_stmt 0 discriminator 5
-	cbnz	x0, .L1130
+	cbnz	x0, .L1131
 	.loc 1 2500 0 discriminator 7
 	bl	schedule
 .LVL1022:
-.L1128:
+.L1129:
 	.loc 1 2500 0 discriminator 9
 	add	x1, x29, 120
 	mov	w2, 1
@@ -11600,15 +11600,15 @@ ebc_thread:
 	bl	prepare_to_wait_event
 .LVL1023:
 	ldr	w1, [x28, 104]
-	cbz	w1, .L1218
+	cbz	w1, .L1222
 .LBE2128:
 	.loc 1 2500 0 discriminator 4
 	add	x1, x29, 120
 	mov	x0, x19
 	bl	finish_wait
 .LVL1024:
-.L1132:
-.L1130:
+.L1133:
+.L1131:
 .LBE2127:
 .LBE2126:
 	.loc 1 2504 0 is_stmt 1
@@ -11618,7 +11618,7 @@ ebc_thread:
 	str	wzr, [x28, 104]
 	.loc 1 2504 0
 	cbnz	w0, .L1009
-.L1246:
+.L1250:
 	.loc 1 2505 0
 	mov	x0, x21
 	bl	ebc_power_set.constprop.18
@@ -11626,7 +11626,7 @@ ebc_thread:
 	b	.L1009
 .LVL1027:
 	.p2align 3
-.L1216:
+.L1220:
 	.loc 1 2232 0
 	adrp	x0, .L1040
 	add	x0, x0, :lo12:.L1040
@@ -11641,30 +11641,30 @@ ebc_thread:
 .L1040:
 	.2byte	(.L1039 - .Lrtx1040) / 4
 	.2byte	(.L1041 - .Lrtx1040) / 4
-	.2byte	(.L1135 - .Lrtx1040) / 4
-	.2byte	(.L1135 - .Lrtx1040) / 4
-	.2byte	(.L1135 - .Lrtx1040) / 4
-	.2byte	(.L1135 - .Lrtx1040) / 4
-	.2byte	(.L1135 - .Lrtx1040) / 4
+	.2byte	(.L1136 - .Lrtx1040) / 4
+	.2byte	(.L1136 - .Lrtx1040) / 4
+	.2byte	(.L1136 - .Lrtx1040) / 4
+	.2byte	(.L1136 - .Lrtx1040) / 4
+	.2byte	(.L1136 - .Lrtx1040) / 4
 	.2byte	(.L1043 - .Lrtx1040) / 4
 	.2byte	(.L1043 - .Lrtx1040) / 4
-	.2byte	(.L1135 - .Lrtx1040) / 4
-	.2byte	(.L1135 - .Lrtx1040) / 4
+	.2byte	(.L1136 - .Lrtx1040) / 4
+	.2byte	(.L1136 - .Lrtx1040) / 4
 	.2byte	(.L1043 - .Lrtx1040) / 4
-	.2byte	(.L1135 - .Lrtx1040) / 4
-	.2byte	(.L1135 - .Lrtx1040) / 4
+	.2byte	(.L1136 - .Lrtx1040) / 4
+	.2byte	(.L1136 - .Lrtx1040) / 4
 	.2byte	(.L1043 - .Lrtx1040) / 4
 	.2byte	(.L1043 - .Lrtx1040) / 4
-	.2byte	(.L1135 - .Lrtx1040) / 4
-	.2byte	(.L1135 - .Lrtx1040) / 4
-	.2byte	(.L1135 - .Lrtx1040) / 4
-	.2byte	(.L1135 - .Lrtx1040) / 4
-	.2byte	(.L1135 - .Lrtx1040) / 4
-	.2byte	(.L1135 - .Lrtx1040) / 4
+	.2byte	(.L1136 - .Lrtx1040) / 4
+	.2byte	(.L1136 - .Lrtx1040) / 4
+	.2byte	(.L1136 - .Lrtx1040) / 4
+	.2byte	(.L1136 - .Lrtx1040) / 4
+	.2byte	(.L1136 - .Lrtx1040) / 4
+	.2byte	(.L1136 - .Lrtx1040) / 4
 	.2byte	(.L1039 - .Lrtx1040) / 4
 	.2byte	(.L1039 - .Lrtx1040) / 4
 	.text
-.L1135:
+.L1136:
 	.loc 1 2347 0
 	mov	w4, 1
 .LVL1028:
@@ -11679,7 +11679,7 @@ ebc_thread:
 	.loc 1 2359 0
 	cmp	w1, 1
 	ccmp	w0, 1, 0, hi
-	bhi	.L1089
+	bhi	.L1090
 	.loc 1 2363 0
 	ldr	x0, [x28, 160]
 	str	x0, [x29, 176]
@@ -11689,7 +11689,7 @@ ebc_thread:
 	.loc 1 2364 0
 	mov	w0, 16
 	str	w0, [x29, 224]
-.L1089:
+.L1090:
 	.loc 1 2366 0
 	str	wzr, [x28, 100]
 	.loc 1 2367 0
@@ -11699,13 +11699,13 @@ ebc_thread:
 	sub	w1, w0, #7
 	.loc 1 2369 0
 	cmp	w1, 1
-	bls	.L1219
-.L1090:
+	bls	.L1223
+.L1091:
 	.loc 1 2386 0
 	sub	w0, w0, #2
 	.loc 1 2385 0
 	cmp	w0, 14
-	bhi	.L1098
+	bhi	.L1099
 	.loc 1 2387 0
 	ldr	x1, [x28, 224]
 	ldr	w0, [x25, 64]
@@ -11714,23 +11714,23 @@ ebc_thread:
 	.loc 1 2056 0
 	ldr	w2, [x1, 64]
 	cmp	w0, w2
-	beq	.L1220
+	beq	.L1224
 .LVL1029:
-.L1098:
+.L1099:
 .LBE2130:
 .LBE2129:
 	.loc 1 2396 0
-	cbnz	w4, .L1104
+	cbnz	w4, .L1105
 	.loc 1 2400 0
 	ldr	w0, [x28, 72]
 	mov	w20, w27
 	cmp	w0, 0
-	ble	.L1104
+	ble	.L1105
 	.loc 1 2401 0
 	add	w20, w27, 1
 	.loc 1 2402 0
 	cmp	w0, w20
-	bgt	.L1104
+	bgt	.L1105
 	.loc 1 2403 0
 	mov	w0, 2
 	.loc 1 2404 0
@@ -11738,18 +11738,18 @@ ebc_thread:
 	.loc 1 2403 0
 	str	w0, [x25, 40]
 	.p2align 2
-.L1104:
+.L1105:
 	.loc 1 2408 0
 	ldr	w0, [x28, 208]
-	cbz	w0, .L1221
-.L1105:
+	cbz	w0, .L1225
+.L1106:
 	.loc 1 2411 0
 	ldr	x0, [x28, 232]
 	ldr	w1, [x0, 64]
 	mov	x0, x21
 	bl	ebc_lut_update
 .LVL1030:
-	cbz	w0, .L1106
+	cbz	w0, .L1107
 	.loc 1 2412 0
 	ldr	x0, [x28, 112]
 	.loc 1 2415 0
@@ -11762,28 +11762,28 @@ ebc_thread:
 	.loc 1 2414 0
 	str	x26, [x28, 224]
 .LVL1032:
-.L1075:
+.L1076:
 	.loc 1 2449 0
 	ldr	x0, [x28, 232]
 	ldr	w0, [x0, 40]
 	cmp	w0, 20
-	beq	.L1222
-.L1111:
+	beq	.L1226
+.L1112:
 	.loc 1 2455 0
 	cmp	w0, 18
-	beq	.L1223
-.L1112:
+	beq	.L1227
+.L1113:
 	.loc 1 2466 0
 	mov	x0, x25
 	bl	ebc_remove_from_dsp_buf_list
 .LVL1033:
 	.loc 1 2468 0
 	ldr	w0, [x28, 452]
-	cbnz	w0, .L1224
+	cbnz	w0, .L1228
 	.loc 1 2471 0
 	mov	w0, 1
 	str	w0, [x28, 452]
-.L1115:
+.L1116:
 	.loc 1 2473 0
 	ldr	x0, [x28, 232]
 	str	x0, [x28, 224]
@@ -11791,17 +11791,20 @@ ebc_thread:
 	b	.L1009
 .LVL1034:
 .L1041:
-	.loc 1 2235 0
+	.loc 1 2234 0
 	add	x0, x22, :lo12:.LANCHOR0
+	str	wzr, [x0, 16]
+	.loc 1 2235 0
+	ldr	w0, [x28, 636]
+	cbz	w0, .L1044
+	.loc 1 2236 0
+	mov	w0, 1
+	str	w0, [x28, 640]
+.L1044:
 	.loc 1 2247 0
 	ldr	x2, [x28, 224]
 	.loc 1 2246 0
 	str	x25, [x28, 232]
-	.loc 1 2235 0
-	str	wzr, [x0, 16]
-	.loc 1 2236 0
-	mov	w0, 1
-	str	w0, [x28, 640]
 	.loc 1 2247 0
 	ldr	w0, [x2, 40]
 	.loc 1 2250 0
@@ -11810,21 +11813,21 @@ ebc_thread:
 	sub	w1, w0, #22
 	.loc 1 2250 0
 	ccmp	w1, 1, 0, hi
-	bls	.L1044
+	bls	.L1045
 	.loc 1 2251 0
 	ldr	w0, [x2, 64]
 	cmp	w0, 32
-	beq	.L1225
+	beq	.L1229
 	.loc 1 2254 0
 	ldr	x1, [x2, 16]
 	ldr	x0, [x28, 168]
 	ldrsw	x2, [x28, 20]
 	bl	memcpy
 .LVL1035:
-.L1202:
+.L1206:
 	ldr	w2, [x28, 20]
 	ldr	x1, [x28, 168]
-.L1046:
+.L1047:
 	.loc 1 2255 0
 	ldr	x0, [x28, 152]
 	sxtw	x2, w2
@@ -11836,7 +11839,7 @@ ebc_thread:
 	bl	memcpy
 .LVL1037:
 	ldr	x0, [x28, 232]
-	b	.L1048
+	b	.L1049
 .L1039:
 	.loc 1 2288 0
 	str	wzr, [x28, 640]
@@ -11854,11 +11857,11 @@ ebc_thread:
 	.loc 1 2295 0
 	cmp	w2, 1
 	ccmp	w0, 1, 0, hi
-	bls	.L1076
+	bls	.L1077
 	.loc 1 2296 0
 	ldr	w0, [x1, 64]
 	cmp	w0, 32
-	bne	.L1077
+	bne	.L1078
 	.loc 1 2297 0
 	ldr	w2, [x28, 20]
 	ldr	x4, [x1, 16]
@@ -11873,11 +11876,11 @@ ebc_thread:
 .LBB2135:
 .LBB2134:
 	.loc 1 2116 0
-	ble	.L1078
+	ble	.L1079
 	mov	x0, 0
 .LVL1039:
 	.p2align 2
-.L1079:
+.L1080:
 	.loc 1 2118 0
 	ldrb	w1, [x4], 2
 	.loc 1 2120 0
@@ -11889,15 +11892,15 @@ ebc_thread:
 	add	x0, x0, 1
 	.loc 1 2116 0
 	cmp	w2, w0
-	bgt	.L1079
-.L1080:
+	bgt	.L1080
+.L1081:
 .LBE2134:
 .LBE2135:
 	.loc 1 2300 0
 	ldr	x0, [x28, 232]
 	ldr	w1, [x0, 64]
 	cmp	w1, 32
-	bne	.L1081
+	bne	.L1082
 	.loc 1 2301 0
 	ldr	w4, [x28, 20]
 .LVL1040:
@@ -11915,9 +11918,9 @@ ebc_thread:
 .LBB2139:
 .LBB2138:
 	.loc 1 2116 0
-	ble	.L1083
+	ble	.L1084
 	.p2align 2
-.L1168:
+.L1171:
 	.loc 1 2118 0
 	ldrb	w1, [x3], 2
 	.loc 1 2120 0
@@ -11929,8 +11932,8 @@ ebc_thread:
 	add	x0, x0, 1
 	.loc 1 2116 0
 	cmp	w4, w0
-	bgt	.L1168
-	b	.L1083
+	bgt	.L1171
+	b	.L1084
 .LVL1042:
 .L1043:
 .LBE2138:
@@ -11953,7 +11956,7 @@ ebc_thread:
 	cbz	x2, .L1014
 	.loc 1 2162 0
 	cmp	w1, 19
-	bne	.L1200
+	bne	.L1204
 	.loc 1 2163 0
 	str	wzr, [x28, 624]
 	.loc 1 2164 0
@@ -11980,17 +11983,17 @@ ebc_thread:
 	bl	check_black_percent.isra.15
 .LVL1049:
 	cbz	w0, .L1014
-	b	.L1199
+	b	.L1203
 .LVL1050:
 	.p2align 3
-.L1224:
+.L1228:
 	.loc 1 2469 0
 	ldr	x0, [x28, 224]
 	bl	ebc_buf_release
 .LVL1051:
-	b	.L1115
+	b	.L1116
 .LVL1052:
-.L1106:
+.L1107:
 	.loc 1 2423 0
 	ldr	x0, [x28, 232]
 	adrp	x1, .LC101
@@ -12023,10 +12026,10 @@ ebc_thread:
 .LBB2140:
 	.loc 1 2428 0
 	ldr	w0, [x28, 100]
-	cbz	w0, .L1226
-.L1109:
+	cbz	w0, .L1230
+.L1110:
 .LVL1056:
-.L1107:
+.L1108:
 .LBE2140:
 	.loc 1 2430 0 discriminator 11
 	ldr	x2, [x23, #:lo12:jiffies]
@@ -12048,9 +12051,9 @@ ebc_thread:
 	.loc 1 2449 0 discriminator 11
 	ldr	w0, [x0, 40]
 	cmp	w0, 20
-	bne	.L1111
+	bne	.L1112
 .LVL1059:
-.L1222:
+.L1226:
 	.loc 1 2452 0
 	ldr	x0, [x28, 112]
 	.loc 1 2450 0
@@ -12072,8 +12075,8 @@ ebc_thread:
 	add	x0, x24, 328
 	bl	__wake_up_sync
 .LVL1062:
-	b	.L1112
-.L1209:
+	b	.L1113
+.L1213:
 	.loc 1 2193 0
 	ldr	w4, [x28, 20]
 .LBB2144:
@@ -12092,7 +12095,7 @@ ebc_thread:
 	.loc 1 2116 0
 	ble	.L1023
 	.p2align 2
-.L1167:
+.L1170:
 	.loc 1 2118 0
 	ldrb	w1, [x3], 2
 	.loc 1 2120 0
@@ -12104,7 +12107,7 @@ ebc_thread:
 	add	x0, x0, 1
 	.loc 1 2116 0
 	cmp	w4, w0
-	bgt	.L1167
+	bgt	.L1170
 .LBE2146:
 .LBE2147:
 	.loc 1 2197 0
@@ -12117,7 +12120,7 @@ ebc_thread:
 .LVL1065:
 	.loc 1 2200 0
 	ldr	w0, [x28, 52]
-	cbz	w0, .L1227
+	cbz	w0, .L1231
 .L1026:
 .LBB2148:
 .LBB2149:
@@ -12130,7 +12133,7 @@ ebc_thread:
 .LVL1066:
 	b	.L1027
 .LVL1067:
-.L1215:
+.L1219:
 .LBE2149:
 .LBE2148:
 	.loc 1 2226 0
@@ -12142,7 +12145,7 @@ ebc_thread:
 .LBB2150:
 	.loc 1 2227 0
 	ldr	w0, [x28, 100]
-	cbz	w0, .L1228
+	cbz	w0, .L1232
 .L1036:
 .LVL1069:
 .L1034:
@@ -12154,8 +12157,8 @@ ebc_thread:
 	add	x1, x1, :lo12:.LC95
 	bl	_dev_info
 .LVL1071:
-	b	.L1201
-.L1076:
+	b	.L1205
+.L1077:
 	.loc 1 2306 0
 	ldr	w0, [x25, 64]
 	.loc 1 2307 0
@@ -12167,18 +12170,18 @@ ebc_thread:
 	ldr	x2, [x28, 176]
 	ldr	x0, [x28, 152]
 	.loc 1 2306 0
-	beq	.L1229
+	beq	.L1233
 	.loc 1 2310 0
 	bl	refresh_new_image_auto
 .LVL1072:
-.L1083:
+.L1084:
 	.loc 1 2313 0
 	add	x0, x24, 680
 	bl	up_write
 .LVL1073:
 	.loc 1 2315 0
 	ldr	w0, [x28, 44]
-	cbnz	w0, .L1075
+	cbnz	w0, .L1076
 	.loc 1 2318 0
 	ldr	w0, [x28, 208]
 	.loc 1 2316 0
@@ -12188,15 +12191,15 @@ ebc_thread:
 	.loc 1 2316 0
 	str	w1, [x28, 44]
 	.loc 1 2318 0
-	cbz	w0, .L1230
-.L1087:
+	cbz	w0, .L1234
+.L1088:
 	.loc 1 2320 0
 	mov	w1, 16
 	mov	x0, x21
 	bl	ebc_lut_update
 .LVL1074:
 	cmn	w0, #1
-	beq	.L1231
+	beq	.L1235
 	.loc 1 2325 0
 	ldr	w3, [x28, 120]
 	.loc 1 2328 0
@@ -12217,20 +12220,20 @@ ebc_thread:
 	mov	x0, x21
 	bl	ebc_frame_start
 .LVL1076:
-	b	.L1075
-.L1044:
+	b	.L1076
+.L1045:
 	.loc 1 2259 0
 	cmp	w0, 0
 	mov	x0, x25
 	ccmp	w1, 1, 0, ne
-	bhi	.L1048
+	bhi	.L1049
 	.loc 1 2260 0
 	ldrsw	x2, [x28, 20]
 	ldp	x1, x0, [x28, 160]
 	bl	memcpy
 .LVL1077:
 	ldr	x0, [x28, 232]
-.L1048:
+.L1049:
 .LBB2154:
 .LBB2155:
 	.loc 1 448 0
@@ -12299,90 +12302,90 @@ ebc_thread:
 .LBB2160:
 .LBB2157:
 	.loc 1 458 0
-	bgt	.L1056
+	bgt	.L1057
 .LVL1082:
 	.p2align 2
-.L1169:
+.L1172:
 	.loc 1 463 0
 	mov	w5, w17
 	cmp	w17, w10
-	ble	.L1170
-	b	.L1073
+	ble	.L1173
+	b	.L1074
 .LVL1083:
 	.p2align 3
-.L1057:
+.L1058:
 	.loc 1 476 0
 	tst	x2, 65280
-	bne	.L1058
+	bne	.L1059
 	.loc 1 477 0
 	and	w26, w0, 240
 	cmp	w26, 224
-	beq	.L1232
+	beq	.L1236
 	.loc 1 480 0
 	orr	w3, w3, 240
-.L1058:
+.L1059:
 	.loc 1 482 0
 	tst	x2, 16711680
-	bne	.L1060
+	bne	.L1061
 	.loc 1 483 0
 	and	w26, w0, 3840
 	cmp	w26, 3584
-	beq	.L1233
+	beq	.L1237
 	.loc 1 486 0
 	orr	w3, w3, 3840
-.L1060:
+.L1061:
 	.loc 1 488 0
 	tst	x2, 4278190080
-	bne	.L1062
+	bne	.L1063
 	.loc 1 489 0
 	and	w26, w0, 61440
 	cmp	w26, 57344
-	beq	.L1234
+	beq	.L1238
 	.loc 1 492 0
 	orr	w3, w3, 61440
-.L1062:
+.L1063:
 	.loc 1 494 0
 	tst	x2, 1095216660480
-	bne	.L1064
+	bne	.L1065
 	.loc 1 495 0
 	and	w26, w0, 983040
 	cmp	w26, 917504
-	beq	.L1235
+	beq	.L1239
 	.loc 1 498 0
 	orr	w3, w3, 983040
-.L1064:
+.L1065:
 	.loc 1 500 0
 	tst	x2, 280375465082880
-	bne	.L1066
+	bne	.L1067
 	.loc 1 501 0
 	and	w26, w0, 15728640
 	cmp	w26, 14680064
-	beq	.L1236
+	beq	.L1240
 	.loc 1 504 0
 	orr	w3, w3, 15728640
-.L1066:
+.L1067:
 	.loc 1 506 0
 	tst	x2, 71776119061217280
-	bne	.L1068
+	bne	.L1069
 	.loc 1 507 0
 	and	w26, w0, 251658240
 	cmp	w26, w15
-	beq	.L1237
+	beq	.L1241
 	.loc 1 510 0
 	orr	w3, w3, 251658240
-.L1068:
+.L1069:
 	.loc 1 512 0
 	tst	x2, -72057594037927936
-	bne	.L1070
+	bne	.L1071
 	.loc 1 513 0
 	and	w2, w0, -268435456
 .LVL1084:
 	cmp	w2, w14
-	beq	.L1238
+	beq	.L1242
 	.loc 1 516 0
 	orr	w3, w3, -268435456
 .LVL1085:
-.L1070:
+.L1071:
 	.loc 1 519 0
 	and	w0, w0, w23
 .LVL1086:
@@ -12396,9 +12399,9 @@ ebc_thread:
 	.loc 1 520 0
 	str	w0, [x8, x1]
 	.loc 1 463 0
-	bgt	.L1073
+	bgt	.L1074
 .LVL1087:
-.L1170:
+.L1173:
 	.loc 1 464 0
 	sxtw	x1, w5
 .LVL1088:
@@ -12424,7 +12427,7 @@ ebc_thread:
 	ldr	w23, [x12, x1]
 .LVL1091:
 	.loc 1 470 0
-	cbnz	x26, .L1057
+	cbnz	x26, .L1058
 .LVL1092:
 	.loc 1 471 0
 	and	w26, w0, 15
@@ -12432,17 +12435,17 @@ ebc_thread:
 	mov	w3, 15
 	.loc 1 471 0
 	cmp	w26, 14
-	bne	.L1057
+	bne	.L1058
 	.loc 1 472 0
 	orr	w4, w4, w3
 .LVL1093:
 	.loc 1 468 0
 	mov	w3, 0
 .LVL1094:
-	b	.L1057
+	b	.L1058
 .LVL1095:
 	.p2align 3
-.L1238:
+.L1242:
 	.loc 1 514 0
 	orr	w4, w4, -268435456
 .LVL1096:
@@ -12460,21 +12463,21 @@ ebc_thread:
 	.loc 1 520 0
 	str	w0, [x8, x1]
 	.loc 1 463 0
-	ble	.L1170
+	ble	.L1173
 .LVL1099:
 	.p2align 2
-.L1073:
+.L1074:
 	.loc 1 458 0
 	add	w16, w16, 1
 	add	w6, w6, w18
 	cmp	w16, w20
-	ble	.L1169
-.L1056:
+	ble	.L1172
+.L1057:
 .LBE2157:
 .LBE2160:
 	.loc 1 2267 0
 	ldr	w0, [x28, 44]
-	cbnz	w0, .L1239
+	cbnz	w0, .L1243
 	.loc 1 2270 0
 	ldr	w0, [x28, 208]
 	.loc 1 2268 0
@@ -12484,15 +12487,15 @@ ebc_thread:
 	.loc 1 2268 0
 	str	w1, [x28, 44]
 	.loc 1 2270 0
-	cbz	w0, .L1240
-.L1074:
+	cbz	w0, .L1244
+.L1075:
 	.loc 1 2272 0
 	mov	w1, 16
 	mov	x0, x21
 	bl	ebc_lut_update
 .LVL1100:
 	cmn	w0, #1
-	beq	.L1075
+	beq	.L1076
 	.loc 1 2276 0
 	ldr	w2, [x28, 120]
 	.loc 1 2279 0
@@ -12515,42 +12518,42 @@ ebc_thread:
 	mov	x0, x21
 	bl	ebc_frame_start
 .LVL1102:
-	b	.L1075
+	b	.L1076
 .LVL1103:
 	.p2align 3
-.L1232:
+.L1236:
 .LBB2161:
 .LBB2158:
 	.loc 1 478 0
 	orr	w4, w4, 240
-	b	.L1058
-	.p2align 3
-.L1233:
-	.loc 1 484 0
-	orr	w4, w4, 3840
-	b	.L1060
-	.p2align 3
-.L1234:
-	.loc 1 490 0
-	orr	w4, w4, 61440
-	b	.L1062
-	.p2align 3
-.L1235:
-	.loc 1 496 0
-	orr	w4, w4, 983040
-	b	.L1064
-	.p2align 3
-.L1236:
-	.loc 1 502 0
-	orr	w4, w4, 15728640
-	b	.L1066
+	b	.L1059
 	.p2align 3
 .L1237:
+	.loc 1 484 0
+	orr	w4, w4, 3840
+	b	.L1061
+	.p2align 3
+.L1238:
+	.loc 1 490 0
+	orr	w4, w4, 61440
+	b	.L1063
+	.p2align 3
+.L1239:
+	.loc 1 496 0
+	orr	w4, w4, 983040
+	b	.L1065
+	.p2align 3
+.L1240:
+	.loc 1 502 0
+	orr	w4, w4, 15728640
+	b	.L1067
+	.p2align 3
+.L1241:
 	.loc 1 508 0
 	orr	w4, w4, 251658240
-	b	.L1068
+	b	.L1069
 .LVL1104:
-.L1219:
+.L1223:
 .LBE2158:
 .LBE2161:
 	.loc 1 2371 0
@@ -12558,7 +12561,7 @@ ebc_thread:
 	.loc 1 2372 0
 	sub	w2, w1, #1
 	cmp	w2, 99
-	bhi	.L1090
+	bhi	.L1091
 .LBB2162:
 	.loc 1 2373 0
 	ldr	x5, [x28, 224]
@@ -12569,24 +12572,24 @@ ebc_thread:
 	ldr	w2, [x25, 64]
 	ldr	w3, [x5, 64]
 	cmp	w2, w3
-	beq	.L1241
-.L1091:
+	beq	.L1245
+.L1092:
 .LBE2164:
 .LBE2163:
 	.loc 1 2382 0
 	mov	w1, 2
 	str	w1, [x0, 40]
-	b	.L1104
+	b	.L1105
 .LVL1105:
-.L1221:
+.L1225:
 .LBE2162:
 	.loc 1 2409 0
 	mov	x0, x21
 	bl	ebc_power_set.constprop.18
 .LVL1106:
-	b	.L1105
+	b	.L1106
 .LVL1107:
-.L1223:
+.L1227:
 	.loc 1 2456 0
 	ldr	x0, [x28, 112]
 	adrp	x1, .LC104
@@ -12595,8 +12598,8 @@ ebc_thread:
 .LVL1108:
 	.loc 1 2457 0
 	ldr	w0, [x28, 624]
-	cbz	w0, .L1242
-.L1113:
+	cbz	w0, .L1246
+.L1114:
 	.loc 1 2462 0
 	add	x0, x22, :lo12:.LANCHOR0
 	.loc 1 2460 0
@@ -12613,9 +12616,9 @@ ebc_thread:
 	add	x0, x24, 328
 	bl	__wake_up_sync
 .LVL1109:
-	b	.L1112
+	b	.L1113
 .LVL1110:
-.L1220:
+.L1224:
 	.loc 1 2387 0
 	ldr	w2, [x28, 20]
 .LBB2169:
@@ -12633,21 +12636,21 @@ ebc_thread:
 	asr	w0, w0, 3
 .LVL1113:
 	cmp	w0, 0
-	ble	.L1100
+	ble	.L1101
 	ldr	x6, [x1, 16]
 	ldr	x5, [x25, 16]
 	.loc 1 2065 0
 	ldr	x2, [x6]
 	ldr	x1, [x5]
 	cmp	x2, x1
-	bne	.L1098
+	bne	.L1099
 	sub	w1, w0, #1
 	mov	x0, 8
 	add	x1, x1, 1
 	lsl	x1, x1, 3
-	b	.L1102
+	b	.L1103
 	.p2align 3
-.L1103:
+.L1104:
 	.loc 1 2062 0
 	ldr	x3, [x5, x0]
 	add	x0, x0, 8
@@ -12656,13 +12659,13 @@ ebc_thread:
 	.loc 1 2065 0
 	ldr	x2, [x2, -8]
 	cmp	x3, x2
-	bne	.L1098
-.L1102:
+	bne	.L1099
+.L1103:
 	.loc 1 2061 0
 	cmp	x1, x0
-	bne	.L1103
+	bne	.L1104
 .LVL1114:
-.L1100:
+.L1101:
 .LBE2131:
 .LBE2169:
 	.loc 1 2388 0
@@ -12674,8 +12677,8 @@ ebc_thread:
 	.loc 1 2390 0
 	str	x26, [x28, 224]
 	.loc 1 2392 0
-	b	.L1075
-.L1226:
+	b	.L1076
+.L1230:
 .LBB2170:
 .LBB2141:
 .LBB2142:
@@ -12686,17 +12689,17 @@ ebc_thread:
 	add	x0, x29, 120
 	bl	init_wait_entry
 .LVL1116:
-	b	.L1110
+	b	.L1111
 	.p2align 3
-.L1243:
+.L1247:
 .LVL1117:
 .LBB2143:
 	.loc 1 2428 0 is_stmt 0 discriminator 5
-	cbnz	x0, .L1107
+	cbnz	x0, .L1108
 	.loc 1 2428 0 discriminator 7
 	bl	schedule
 .LVL1118:
-.L1110:
+.L1111:
 	.loc 1 2428 0 discriminator 9
 	add	x1, x29, 120
 	mov	w2, 1
@@ -12704,15 +12707,15 @@ ebc_thread:
 	bl	prepare_to_wait_event
 .LVL1119:
 	ldr	w1, [x28, 100]
-	cbz	w1, .L1243
+	cbz	w1, .L1247
 .LBE2143:
 	.loc 1 2428 0 discriminator 4
 	mov	x0, x27
 	add	x1, x29, 120
 	bl	finish_wait
 .LVL1120:
-	b	.L1107
-.L1225:
+	b	.L1108
+.L1229:
 .LBE2141:
 .LBE2170:
 	.loc 1 2252 0 is_stmt 1
@@ -12723,11 +12726,11 @@ ebc_thread:
 .LBB2172:
 	.loc 1 2116 0
 	cmp	w2, 0
-	ble	.L1046
+	ble	.L1047
 	mov	x0, 0
 .LVL1121:
 	.p2align 2
-.L1047:
+.L1048:
 	.loc 1 2118 0
 	ldrb	w3, [x5], 2
 	.loc 1 2120 0
@@ -12739,10 +12742,10 @@ ebc_thread:
 	add	x0, x0, 1
 	.loc 1 2116 0
 	cmp	w2, w0
-	bgt	.L1047
-	b	.L1202
+	bgt	.L1048
+	b	.L1206
 .LVL1122:
-.L1211:
+.L1215:
 .LBE2172:
 .LBE2171:
 .LBB2173:
@@ -12766,7 +12769,7 @@ ebc_thread:
 	bl	get_overlay_image
 .LVL1124:
 	b	.L1009
-.L1210:
+.L1214:
 .LBE2123:
 .LBE2173:
 	.loc 1 2210 0
@@ -12775,7 +12778,7 @@ ebc_thread:
 .LVL1125:
 	b	.L1028
 .LVL1126:
-.L1228:
+.L1232:
 .LBB2174:
 .LBB2151:
 .LBB2152:
@@ -12789,7 +12792,7 @@ ebc_thread:
 .LVL1128:
 	b	.L1037
 	.p2align 3
-.L1244:
+.L1248:
 .LVL1129:
 .LBB2153:
 	.loc 1 2227 0 is_stmt 0 discriminator 5
@@ -12805,7 +12808,7 @@ ebc_thread:
 	bl	prepare_to_wait_event
 .LVL1131:
 	ldr	w1, [x28, 100]
-	cbz	w1, .L1244
+	cbz	w1, .L1248
 .LBE2153:
 	.loc 1 2227 0 discriminator 4
 	mov	x0, x26
@@ -12814,7 +12817,7 @@ ebc_thread:
 .LVL1132:
 	b	.L1034
 .LVL1133:
-.L1239:
+.L1243:
 .LBE2151:
 .LBE2174:
 	.loc 1 2282 0 is_stmt 1
@@ -12822,9 +12825,9 @@ ebc_thread:
 	ldr	x0, [x0, 8]
 	bl	wake_up_process
 .LVL1134:
-	b	.L1075
+	b	.L1076
 .LVL1135:
-.L1212:
+.L1216:
 .LBB2175:
 .LBB2176:
 	mov	w1, 0
@@ -12833,22 +12836,22 @@ ebc_thread:
 .LVL1136:
 	b	.L1011
 .LVL1137:
-.L1240:
+.L1244:
 .LBE2176:
 .LBE2175:
 	.loc 1 2271 0
 	mov	x0, x21
 	bl	ebc_power_set.constprop.18
 .LVL1138:
-	b	.L1074
+	b	.L1075
 .LVL1139:
-.L1229:
+.L1233:
 	.loc 1 2307 0
 	bl	refresh_new_image_auto_32
 .LVL1140:
-	b	.L1083
+	b	.L1084
 .LVL1141:
-.L1217:
+.L1221:
 .LBB2177:
 .LBB2178:
 	.loc 1 2488 0 discriminator 3
@@ -12856,20 +12859,20 @@ ebc_thread:
 	add	x0, x29, 120
 	bl	init_wait_entry
 .LVL1142:
-	b	.L1126
+	b	.L1127
 	.p2align 3
-.L1245:
+.L1249:
 .LBB2179:
 	.loc 1 2488 0 is_stmt 0 discriminator 7
 	ldr	w1, [x28, 104]
-	cbnz	w1, .L1123
+	cbnz	w1, .L1124
 .LVL1143:
 	.loc 1 2488 0 discriminator 9
-	cbnz	x0, .L1125
+	cbnz	x0, .L1126
 	.loc 1 2488 0 discriminator 11
 	bl	schedule
 .LVL1144:
-.L1126:
+.L1127:
 	.loc 1 2488 0 discriminator 13
 	add	x1, x29, 120
 	mov	w2, 1
@@ -12877,8 +12880,8 @@ ebc_thread:
 	bl	prepare_to_wait_event
 .LVL1145:
 	ldr	w1, [x28, 44]
-	cbnz	w1, .L1245
-.L1123:
+	cbnz	w1, .L1249
+.L1124:
 .LBE2179:
 	.loc 1 2488 0 discriminator 8
 	mov	x0, x19
@@ -12889,49 +12892,49 @@ ebc_thread:
 .LBE2178:
 .LBE2177:
 	.loc 1 2491 0 is_stmt 1 discriminator 8
-	cbnz	w0, .L1125
+	cbnz	w0, .L1126
 	.loc 1 2492 0
 	ldr	w0, [x28, 208]
 	cmp	w0, 1
-	bne	.L1125
+	bne	.L1126
 .LVL1147:
-.L1127:
+.L1128:
 .LBB2180:
 .LBB2181:
 	mov	w1, 0
 	mov	x0, x21
 	bl	ebc_power_set.part.13
 .LVL1148:
-.L1125:
+.L1126:
 .LBE2181:
 .LBE2180:
 	.loc 1 2499 0
 	ldr	w0, [x28, 104]
 .LVL1149:
-	cbz	w0, .L1129
+	cbz	w0, .L1130
 	.loc 1 2504 0
 	ldr	w0, [x28, 208]
 	.loc 1 2501 0
 	str	wzr, [x28, 104]
 	.loc 1 2504 0
 	cbnz	w0, .L1009
-	b	.L1246
+	b	.L1250
 .LVL1150:
-.L1230:
+.L1234:
 	.loc 1 2319 0
 	mov	x0, x21
 	bl	ebc_power_set.constprop.18
 .LVL1151:
-	b	.L1087
+	b	.L1088
 .LVL1152:
-.L1242:
+.L1246:
 	.loc 1 2458 0
 	mov	x0, 2
 	bl	ebc_notify
 .LVL1153:
-	b	.L1113
+	b	.L1114
 .LVL1154:
-.L1231:
+.L1235:
 	.loc 1 2321 0
 	ldr	x0, [x28, 112]
 	adrp	x1, .LC97
@@ -12939,28 +12942,28 @@ ebc_thread:
 	bl	_dev_err
 .LVL1155:
 	.loc 1 2322 0
-	b	.L1075
-.L1077:
+	b	.L1076
+.L1078:
 	.loc 1 2299 0
 	ldrsw	x2, [x28, 20]
 	ldr	x1, [x1, 16]
 	ldr	x0, [x28, 160]
 	bl	memcpy
 .LVL1156:
-	b	.L1080
+	b	.L1081
 .LVL1157:
-.L1081:
+.L1082:
 	ldr	w2, [x28, 20]
-.L1133:
+.L1134:
 	.loc 1 2303 0
 	ldr	x1, [x0, 16]
 	sxtw	x2, w2
 	ldr	x0, [x28, 152]
 	bl	memcpy
 .LVL1158:
-	b	.L1083
+	b	.L1084
 .LVL1159:
-.L1241:
+.L1245:
 	ldr	w0, [x21, 204]
 .LBB2182:
 .LBB2167:
@@ -12990,7 +12993,7 @@ ebc_thread:
 	sub	w2, w2, w0, asr 31
 .LVL1163:
 	.loc 1 2093 0
-	ble	.L1100
+	ble	.L1101
 	ldr	x11, [x25, 16]
 	mov	w10, 0
 .LVL1164:
@@ -12998,41 +13001,41 @@ ebc_thread:
 	mov	x0, 0
 	mov	w5, 0
 .LVL1165:
-.L1096:
+.L1097:
 	.loc 1 2097 0
 	ldr	x8, [x11, x0, lsl 3]
 	ldr	x6, [x12, x0, lsl 3]
 	cmp	x8, x6
-	beq	.L1094
+	beq	.L1095
 	.loc 1 2099 0
 	add	w5, w5, 1
 	.loc 1 2098 0
 	mov	w10, 1
-.L1094:
+.L1095:
 	.loc 1 2101 0
 	cmp	w2, w5, lsl 3
-	blt	.L1247
+	blt	.L1251
 	add	x0, x0, 1
 	.loc 1 2093 0
 	cmp	w3, w0
-	bgt	.L1096
+	bgt	.L1097
 .LBE2165:
 .LBE2167:
 	.loc 1 2374 0
-	cbz	w10, .L1100
-	b	.L1098
+	cbz	w10, .L1101
+	b	.L1099
 .LVL1166:
 	.p2align 3
-.L1078:
+.L1079:
 .LBE2182:
 	.loc 1 2300 0
 	ldr	w0, [x25, 64]
 	cmp	w0, 32
-	beq	.L1083
+	beq	.L1084
 	mov	x0, x25
-	b	.L1133
+	b	.L1134
 .LVL1167:
-.L1247:
+.L1251:
 .LBB2183:
 .LBB2168:
 .LBB2166:
@@ -13042,9 +13045,9 @@ ebc_thread:
 	bl	printk
 .LVL1168:
 	ldr	x0, [x28, 232]
-	b	.L1091
+	b	.L1092
 .LVL1169:
-.L1213:
+.L1217:
 .LBE2166:
 .LBE2168:
 .LBE2183:
@@ -13339,7 +13342,7 @@ __exitcall_ebc_exit:
 	.string	"%d\n"
 	.zero	4
 .LC21:
-	.string	"3.02"
+	.string	"3.03"
 	.zero	3
 .LC22:
 	.string	"%s\n"
@@ -46241,7 +46244,7 @@ __exitcall_ebc_exit:
 	.4byte	.LASF3106
 	.byte	0x1
 	.2byte	0x990
-	.8byte	.L1075
+	.8byte	.L1076
 	.uleb128 0x63
 	.4byte	.Ldebug_ranges0+0x1510
 	.4byte	0x120b2
@@ -46366,7 +46369,7 @@ __exitcall_ebc_exit:
 	.4byte	.LASF3105
 	.byte	0x1
 	.2byte	0x97c
-	.8byte	.L1109
+	.8byte	.L1110
 	.uleb128 0x4d
 	.4byte	.LASF3094
 	.byte	0x1
@@ -46426,7 +46429,7 @@ __exitcall_ebc_exit:
 	.4byte	.LASF3105
 	.byte	0x1
 	.2byte	0x9af
-	.8byte	.L1118
+	.8byte	.L1119
 	.uleb128 0x4d
 	.4byte	.LASF3094
 	.byte	0x1
@@ -46548,7 +46551,7 @@ __exitcall_ebc_exit:
 	.4byte	.LASF3105
 	.byte	0x1
 	.2byte	0x9c4
-	.8byte	.L1132
+	.8byte	.L1133
 	.uleb128 0x4d
 	.4byte	.LASF3094
 	.byte	0x1
