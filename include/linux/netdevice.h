@@ -3914,7 +3914,7 @@ static inline void netdev_queue_clear_owner(struct netdev_queue *txq)
 
 static inline bool netdev_queue_has_owner(struct netdev_queue *txq)
 {
-	if (READ_ONCE(txq->xmit_lock_owner != -1))
+	if (READ_ONCE(txq->xmit_lock_owner) != -1)
 		return true;
 	return false;
 }
