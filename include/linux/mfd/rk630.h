@@ -13,9 +13,11 @@
 #include <linux/regmap.h>
 #include <linux/mfd/core.h>
 
+#ifndef HIWORD_UPDATE
 #define UPDATE(x, h, l)		(((x) << (l)) & GENMASK((h), (l)))
 #define HIWORD_MASK(h, l)	((GENMASK((h), (l)) << 16) | GENMASK((h), (l)))
 #define HIWORD_UPDATE(v, h, l)	((((v) << (l)) & GENMASK((h), (l))) | (GENMASK((h), (l)) << 16))
+#endif
 
 #define RTC_REG(x)			((x) + 0x6000)
 #define RTC_SET_SECONDS			RTC_REG(0x0)
@@ -127,7 +129,9 @@
 #define PLUMAGE_GRF_GPIO0_REN0		GRF_REG(0x0500)
 #define PLUMAGE_GRF_GPIO0_REN1		GRF_REG(0x0504)
 #define PLUMAGE_GRF_GPIO1_REN0		GRF_REG(0x0508)
+#ifndef GRF_MAX_REGISTER
 #define GRF_MAX_REGISTER		PLUMAGE_GRF_GPIO1_REN0
+#endif
 
 #define CRU_REG(x)			((x) + 0x140000)
 #define CRU_SPLL_CON0			CRU_REG(0x0000)
@@ -154,6 +158,8 @@
 #define CRU_CLKSEL_CON2			CRU_REG(0x0038)
 #define CRU_CLKSEL_CON3			CRU_REG(0x003c)
 #define CRU_GATE_CON0			CRU_REG(0x0040)
+#define PCLK_EFUSE_EN_MASK		BIT(14 + 16)
+#define PCLK_EFUSE_EN			BIT(14)
 #define DCLK_CVBS_1X_PLL_CLK_EN_MASK	HIWORD_MASK(12, 12)
 #define DCLK_CVBS_1X_PLL_CLK_EN(x)	HIWORD_UPDATE(x, 12, 12)
 #define DCLK_CVBS_4X_PLL_CLK_EN_MASK	HIWORD_MASK(11, 11)
@@ -221,12 +227,14 @@ struct rk630 {
 	struct regmap *cru;
 	struct regmap *tve;
 	struct regmap *rtc;
+	struct regmap *efuse;
 	struct gpio_desc *reset_gpio;
 	int irq;
 	struct regmap_irq_chip_data *irq_data;
 	const struct regmap_irq_chip *regmap_irq_chip;
 };
 
+extern const struct regmap_config rk630_efuse_regmap_config;
 extern const struct regmap_config rk630_rtc_regmap_config;
 extern const struct regmap_config rk630_grf_regmap_config;
 extern const struct regmap_config rk630_cru_regmap_config;

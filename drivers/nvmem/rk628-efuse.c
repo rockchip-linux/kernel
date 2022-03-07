@@ -21,6 +21,7 @@
 #include <linux/platform_device.h>
 #include <linux/regmap.h>
 #include <linux/mfd/rk628.h>
+#include <linux/mfd/rk630.h>
 
 #define EFUSE_SIZE		64
 
@@ -58,6 +59,7 @@
 #define EFUSE_REVISION		0x50
 
 #define RK628_EFUSE_BASE	0xb0000
+#define RK630_EFUSE_BASE	0x50000
 #define RK628_MOD		0x00
 #define RK628_INT_STATUS	0x0018
 #define RK628_DOUT		0x0020
@@ -75,11 +77,22 @@
 #define REG_EFUSE_CTRL		0x0000
 #define REG_EFUSE_DOUT		0x0004
 
+enum {
+	RK628_EFUSE,
+	RK630_EFUSE,
+};
+
+struct rk6xx_efuse_plat_data {
+	int device_type;
+	struct nvmem_config *econfig;
+};
+
 struct rk628_efuse_chip {
 	struct device *dev;
 	u32 base;
 	struct clk *clk;
 	struct regmap *regmap;
+	struct regmap *cru;
 	struct gpio_desc *avdd_gpio;
 };
 
@@ -158,12 +171,16 @@ static int rk628_efuse_read(void *context, unsigned int offset,
 	unsigned int addr_start, addr_end, addr_offset, addr_len;
 	u32 out_value, status;
 	u8 *buf;
-	int ret, i = 0;
+	int ret = 0, i = 0;
 
-	ret = clk_prepare_enable(efuse->clk);
-	if (ret < 0) {
-		dev_err(efuse->dev, "failed to prepare/enable efuse pclk\n");
-		return ret;
+	if (efuse->clk) {
+		ret = clk_prepare_enable(efuse->clk);
+		if (ret < 0) {
+			dev_err(efuse->dev, "failed to prepare/enable efuse pclk\n");
+			return ret;
+		}
+	} else {
+		regmap_write(efuse->cru, CRU_GATE_CON0, PCLK_EFUSE_EN_MASK | PCLK_EFUSE_EN);
 	}
 
 	addr_start = rounddown(offset, RK628_NBYTES) / RK628_NBYTES;
@@ -200,13 +217,24 @@ err:
 	rk628_efuse_timing_deinit(efuse);
 	kfree(buf);
 nomem:
-	clk_disable_unprepare(efuse->clk);
+	if (efuse->clk)
+		clk_disable_unprepare(efuse->clk);
+	else
+		regmap_write(efuse->cru, CRU_GATE_CON0, PCLK_EFUSE_EN_MASK);
 
 	return ret;
 }
 
-static struct nvmem_config econfig = {
+static struct nvmem_config rk628_econfig = {
 	.name = "rk628-efuse",
+	.owner = THIS_MODULE,
+	.stride = 1,
+	.word_size = 1,
+	.read_only = true,
+};
+
+static struct nvmem_config rk630_econfig = {
+	.name = "rk630-efuse",
 	.owner = THIS_MODULE,
 	.stride = 1,
 	.word_size = 1,
@@ -233,9 +261,45 @@ static const struct regmap_config rk628_efuse_regmap_config = {
 	.rd_table = &rk628_efuse_readable_table,
 };
 
+static const struct regmap_range rk630_efuse_readable_ranges[] = {
+	regmap_reg_range(RK630_EFUSE_BASE, RK630_EFUSE_BASE + EFUSE_REVISION),
+};
+
+static const struct regmap_access_table rk630_efuse_readable_table = {
+	.yes_ranges     = rk630_efuse_readable_ranges,
+	.n_yes_ranges   = ARRAY_SIZE(rk630_efuse_readable_ranges),
+};
+
+const struct regmap_config rk630_efuse_regmap_config = {
+	.name = "rk630-efuse",
+	.reg_bits = 32,
+	.val_bits = 32,
+	.reg_stride = 4,
+	.max_register = RK630_EFUSE_BASE + EFUSE_REVISION,
+	.reg_format_endian = REGMAP_ENDIAN_LITTLE,
+	.val_format_endian = REGMAP_ENDIAN_LITTLE,
+	.rd_table = &rk630_efuse_readable_table,
+};
+EXPORT_SYMBOL_GPL(rk630_efuse_regmap_config);
+
+static const struct rk6xx_efuse_plat_data rk628_efuse_drv_data = {
+	.device_type = RK628_EFUSE,
+	.econfig = &rk628_econfig,
+};
+
+static const struct rk6xx_efuse_plat_data rk630_efuse_drv_data = {
+	.device_type = RK630_EFUSE,
+	.econfig = &rk630_econfig,
+};
+
 static const struct of_device_id rk628_efuse_match[] = {
 	{
 		.compatible = "rockchip,rk628-efuse",
+		.data = &rk628_efuse_drv_data
+	},
+	{
+		.compatible = "rockchip,rk630-efuse",
+		.data = &rk630_efuse_drv_data
 	},
 	{ /* sentinel */ },
 };
@@ -246,7 +310,8 @@ static int rk628_efuse_probe(struct platform_device *pdev)
 	struct nvmem_device *nvmem;
 	struct rk628_efuse_chip *efuse;
 	struct device *dev = &pdev->dev;
-	struct rk628 *rk628 = dev_get_drvdata(pdev->dev.parent);
+	struct rk6xx_efuse_plat_data *plat_data;
+	const struct of_device_id *match;
 	int ret;
 
 	efuse = devm_kzalloc(&pdev->dev, sizeof(struct rk628_efuse_chip),
@@ -254,29 +319,50 @@ static int rk628_efuse_probe(struct platform_device *pdev)
 	if (!efuse)
 		return -ENOMEM;
 
-	efuse->regmap = devm_regmap_init_i2c(rk628->client,
-					     &rk628_efuse_regmap_config);
-	if (IS_ERR(efuse->regmap)) {
-		ret = PTR_ERR(efuse->regmap);
-		dev_err(dev, "failed to allocate register map: %d\n",
-				   ret);
-		return ret;
-	}
+	match = of_match_node(rk628_efuse_match, pdev->dev.of_node);
+	plat_data = (struct rk6xx_efuse_plat_data *)match->data;
+	if (!plat_data)
+		return -ENOMEM;
 
-	efuse->clk = devm_clk_get(&pdev->dev, "pclk");
-	if (IS_ERR(efuse->clk)) {
-		dev_err(dev, "failed to get pclk: %ld\n", PTR_ERR(efuse->clk));
-		return PTR_ERR(efuse->clk);
+	if (plat_data->device_type == RK628_EFUSE) {
+		struct rk628 *rk628 = dev_get_drvdata(pdev->dev.parent);
+
+		efuse->regmap = devm_regmap_init_i2c(rk628->client,
+						     &rk628_efuse_regmap_config);
+		if (IS_ERR(efuse->regmap)) {
+			ret = PTR_ERR(efuse->regmap);
+			dev_err(dev, "failed to allocate register map: %d\n",
+					   ret);
+			return ret;
+		}
+
+		efuse->clk = devm_clk_get(&pdev->dev, "pclk");
+		if (IS_ERR(efuse->clk)) {
+			dev_err(dev, "failed to get pclk: %ld\n", PTR_ERR(efuse->clk));
+			return PTR_ERR(efuse->clk);
+		}
+
+		efuse->base = RK628_EFUSE_BASE;
+	} else {
+		struct rk630 *rk630 = dev_get_drvdata(pdev->dev.parent);
+
+		efuse->regmap = rk630->efuse;
+		efuse->cru = rk630->cru;
+		efuse->base = RK630_EFUSE_BASE;
+
+		if (!efuse->regmap | !efuse->cru)
+			return -ENODEV;
+
+		efuse->clk = NULL;
 	}
 
 	efuse->avdd_gpio = devm_gpiod_get_optional(dev, "efuse", GPIOD_OUT_LOW);
-	efuse->base = RK628_EFUSE_BASE;
 	efuse->dev = &pdev->dev;
-	econfig.size = EFUSE_SIZE;
-	econfig.reg_read = (void *)&rk628_efuse_read;
-	econfig.priv = efuse;
-	econfig.dev = efuse->dev;
-	nvmem = devm_nvmem_register(dev, &econfig);
+	plat_data->econfig->size = EFUSE_SIZE;
+	plat_data->econfig->reg_read = (void *)&rk628_efuse_read;
+	plat_data->econfig->priv = efuse;
+	plat_data->econfig->dev = efuse->dev;
+	nvmem = devm_nvmem_register(dev, plat_data->econfig);
 	if (IS_ERR(nvmem))
 		return PTR_ERR(nvmem);
 
