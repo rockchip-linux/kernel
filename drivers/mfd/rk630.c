@@ -124,6 +124,10 @@ static const struct regmap_irq_chip rk630_irq_chip = {
 
 static const struct mfd_cell rk630_devs[] = {
 	{
+		.name = "rk630-efuse",
+		.of_compatible = "rockchip,rk630-efuse",
+	},
+	{
 		.name = "rk630-tve",
 		.of_compatible = "rockchip,rk630-tve",
 	},

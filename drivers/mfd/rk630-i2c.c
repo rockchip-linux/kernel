@@ -56,6 +56,13 @@ rk630_i2c_probe(struct i2c_client *client, const struct i2c_device_id *id)
 		return ret;
 	}
 
+	rk630->efuse = devm_regmap_init_i2c(client, &rk630_efuse_regmap_config);
+	if (IS_ERR(rk630->efuse)) {
+		ret = PTR_ERR(rk630->efuse);
+		dev_err(dev, "failed to allocate efuse register map: %d\n", ret);
+		return ret;
+	}
+
 	rk630->irq = client->irq;
 
 	return rk630_core_probe(rk630);

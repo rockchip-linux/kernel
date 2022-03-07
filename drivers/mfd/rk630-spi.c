@@ -221,6 +221,16 @@ rk630_spi_probe(struct spi_device *spi)
 			ret);
 		return ret;
 	}
+
+	rk630->efuse = devm_regmap_init(&spi->dev, &rk630_regmap,
+					&spi->dev, &rk630_efuse_regmap_config);
+	if (IS_ERR(rk630->efuse)) {
+		ret = PTR_ERR(rk630->efuse);
+		dev_err(rk630->dev, "Failed to initialize efuse regmap: %d\n",
+			ret);
+		return ret;
+	}
+
 	rk630->irq = spi->irq;
 
 	ret = rk630_core_probe(rk630);
