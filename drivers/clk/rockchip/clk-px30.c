@@ -992,6 +992,7 @@ static const char *const px30_pmucru_critical_clocks[] __initconst = {
 	"usb480m",
 	"clk_uart2",
 	"pclk_uart2",
+	"clk_rtc32k_pmu",
 };
 
 static struct rockchip_clk_branch px30_clk_ddrphy_otp[] __initdata = {
