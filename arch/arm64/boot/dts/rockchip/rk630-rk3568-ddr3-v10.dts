@@ -491,6 +491,26 @@
 	};
 };
 
+&i2c3 {
+	status = "okay";
+
+	rk630: rk630@51 {
+		reg = <0x51>;
+		interrupt-parent = <&gpio0>;
+		interrupts = <8 IRQ_TYPE_LEVEL_HIGH>;
+		reset-gpios = <&gpio3 RK_PC7 GPIO_ACTIVE_HIGH>;
+		clocks = <&cru CLK_MAC1_OUT>;
+		clock-names = "ref";
+		assigned-clocks = <&cru CLK_MAC1_OUT>;
+		assigned-clock-rates = <25000000>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&eth1m0_pins>;
+		status = "okay";
+	};
+};
+
+#include "rk630.dtsi"
+
 &pinctrl {
 	pmic {
 		pmic_int: pmic_int {
