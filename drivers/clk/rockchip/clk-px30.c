@@ -991,6 +991,7 @@ static const char *const px30_pmucru_critical_clocks[] __initconst = {
 	"usb480m",
 	"clk_uart2",
 	"pclk_uart2",
+	"clk_rtc32k_pmu",
 };
 
 static void __iomem *px30_cru_base;
