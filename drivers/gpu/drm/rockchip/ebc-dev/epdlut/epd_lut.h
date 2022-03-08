@@ -39,7 +39,8 @@ enum pvi_wf_mode {
 struct epd_lut_data {
 	unsigned int frame_num;
 	unsigned int *data;
-	u8 *wf_table;
+	u8 *wf_table[3];
+	unsigned int auto_wf_size;
 };
 
 /*

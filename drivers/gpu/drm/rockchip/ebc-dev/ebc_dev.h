@@ -19,6 +19,7 @@
 #define EBC_FB_SIZE		0x200000 /* 2M */
 #define EINK_FB_SIZE		0x400000 /* 4M */
 #define DIRECT_FB_SIZE		0x100000 /* 1M */
+#define LUT_TABLE_SIZE		0x1000000 /* 16M */
 
 #define MAX_FB_NUM		4
 
