@@ -223,6 +223,7 @@
 struct rk630 {
 	struct device *dev;
 	struct i2c_client *client;
+	struct clk *ref_clk;
 	struct regmap *grf;
 	struct regmap *cru;
 	struct regmap *tve;

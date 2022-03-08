@@ -223,6 +223,23 @@ int rk630_core_probe(struct rk630 *rk630)
 	struct device_node *np;
 	int ret;
 
+	rk630->ref_clk = devm_clk_get(rk630->dev, "ref");
+	if (IS_ERR(rk630->ref_clk)) {
+		dev_err(rk630->dev, "failed to get ref clk source\n");
+		return PTR_ERR(rk630->ref_clk);
+	}
+
+	ret = clk_prepare_enable(rk630->ref_clk);
+	if (ret < 0) {
+		dev_err(rk630->dev, "failed to enable ref clk - %d\n", ret);
+		return ret;
+	}
+
+	ret = devm_add_action_or_reset(rk630->dev, (void (*) (void *))clk_disable_unprepare,
+				       rk630->ref_clk);
+	if (ret)
+		return ret;
+
 	rk630->reset_gpio = devm_gpiod_get(rk630->dev, "reset", 0);
 	if (IS_ERR(rk630->reset_gpio)) {
 		ret = PTR_ERR(rk630->reset_gpio);
