@@ -263,8 +263,8 @@ static int rk630_tve_enable(struct rk630_tve *tve)
 	/* config bt656 input gpio*/
 	regmap_write(tve->grf, PLUMAGE_GRF_GPIO0A_IOMUX, 0x55555555);
 
-	regmap_update_bits(tve->grf, PLUMAGE_GRF_GPIO0B_IOMUX, GPIO0B0_SEL_MASK,
-			   GPIO0B0_SEL(1));
+	regmap_update_bits(tve->grf, PLUMAGE_GRF_GPIO0B_IOMUX, PIN0_SEL_MASK,
+			   PIN0_SEL(1));
 
 	regmap_update_bits(tve->grf, PLUMAGE_GRF_SOC_CON3, VDAC_ENDAC0_MASK,
 			   VDAC_ENDAC0(0));
