@@ -177,6 +177,35 @@
 #define PRESETN_GRF(x)			HIWORD_UPDATE(x, 3, 3)
 #define CRU_MAX_REGISTER		CRU_SOFTRST_CON0
 
+#define GPIO0_BASE			0x30000
+#define GPIO1_BASE			0x40000
+#define GPIO_SWPORT_DR_L		0x00
+#define GPIO_SWPORT_DR_H		0x04
+#define GPIO_SWPORT_DDR_L		0x08
+#define GPIO_SWPORT_DDR_H		0x0c
+#define GPIO_INT_EN_L			0x10
+#define GPIO_INT_EN_H			0x14
+#define GPIO_INT_MASK_L			0x18
+#define GPIO_INT_MASK_H			0x1c
+#define GPIO_INT_TYPE_L			0x20
+#define GPIO_INT_TYPE_H			0x24
+#define GPIO_INT_POLARITY_L		0x28
+#define GPIO_INT_POLARITY_H		0x2c
+#define GPIO_INT_BOTHEDGE_L		0x30
+#define GPIO_INT_BOTHEDGE_H		0x34
+#define GPIO_DEBOUNCE_L			0x38
+#define GPIO_DEBOUNCE_H			0x3c
+#define GPIO_DBCLK_DIV_EN_L		0x40
+#define GPIO_DBCLK_DIV_EN_H		0x44
+#define GPIO_DBCLK_DIV_CON		0x48
+#define GPIO_INT_STATUS			0x50
+#define GPIO_INT_RAWSTATUS		0x58
+#define GPIO_PORT_EOI_L			0x60
+#define GPIO_PORT_EOI_H			0x64
+#define GPIO_EXT_PORT			0x70
+#define GPIO_VER_ID			0x78
+#define GPIO_MAX_REGISTER		(GPIO1_BASE + GPIO_VER_ID)
+
 #define TVE_REG(x)			((x) + 0x10000)
 #define BT656_DECODER_CTRL		TVE_REG(0x3D00)
 #define BT656_DECODER_CROP		TVE_REG(0x3D04)
@@ -227,6 +256,7 @@ struct rk630 {
 	struct i2c_client *client;
 	struct clk *ref_clk;
 	struct regmap *grf;
+	struct regmap *pinctrl;
 	struct regmap *cru;
 	struct regmap *tve;
 	struct regmap *rtc;
@@ -240,6 +270,7 @@ struct rk630 {
 extern const struct regmap_config rk630_efuse_regmap_config;
 extern const struct regmap_config rk630_rtc_regmap_config;
 extern const struct regmap_config rk630_grf_regmap_config;
+extern const struct regmap_config rk630_pinctrl_regmap_config;
 extern const struct regmap_config rk630_cru_regmap_config;
 extern const struct regmap_config rk630_tve_regmap_config;
 

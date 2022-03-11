@@ -143,6 +143,10 @@ static const struct mfd_cell rk630_devs[] = {
 		.of_compatible = "rockchip,rk630-efuse",
 	},
 	{
+		.name = "rk630-pinctrl",
+		.of_compatible = "rockchip,rk630-pinctrl",
+	},
+	{
 		.name = "rk630-tve",
 		.of_compatible = "rockchip,rk630-tve",
 	},
@@ -187,6 +191,27 @@ const struct regmap_config rk630_grf_regmap_config = {
 	.rd_table = &rk630_grf_readable_table,
 };
 EXPORT_SYMBOL_GPL(rk630_grf_regmap_config);
+
+static const struct regmap_range rk630_pinctrl_readable_ranges[] = {
+	regmap_reg_range(GPIO0_BASE, GPIO0_BASE + GPIO_VER_ID),
+	regmap_reg_range(GPIO1_BASE, GPIO1_BASE + GPIO_VER_ID),
+};
+
+static const struct regmap_access_table rk630_pinctrl_readable_table = {
+	.yes_ranges = rk630_pinctrl_readable_ranges,
+	.n_yes_ranges = ARRAY_SIZE(rk630_pinctrl_readable_ranges),
+};
+
+const struct regmap_config rk630_pinctrl_regmap_config = {
+	.name = "pinctrl",
+	.reg_bits = 32,
+	.val_bits = 32,
+	.reg_stride = 4,
+	.max_register = GPIO_MAX_REGISTER,
+	.reg_format_endian = REGMAP_ENDIAN_NATIVE,
+	.val_format_endian = REGMAP_ENDIAN_NATIVE,
+	.rd_table = &rk630_pinctrl_readable_table,
+};
 
 static const struct regmap_range rk630_cru_readable_ranges[] = {
 	regmap_reg_range(CRU_SPLL_CON0, CRU_SPLL_CON2),

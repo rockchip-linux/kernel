@@ -196,6 +196,14 @@ rk630_spi_probe(struct spi_device *spi)
 		return ret;
 	}
 
+	rk630->pinctrl = devm_regmap_init(&spi->dev, &rk630_regmap,
+					  &spi->dev, &rk630_pinctrl_regmap_config);
+	if (IS_ERR(rk630->pinctrl)) {
+		ret = PTR_ERR(rk630->pinctrl);
+		dev_err(dev, "failed to allocate pinctrl register map: %d\n", ret);
+		return ret;
+	}
+
 	rk630->cru = devm_regmap_init(&spi->dev, &rk630_regmap,
 				      &spi->dev, &rk630_cru_regmap_config);
 	if (IS_ERR(rk630->cru)) {

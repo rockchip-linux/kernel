@@ -34,6 +34,13 @@ rk630_i2c_probe(struct i2c_client *client, const struct i2c_device_id *id)
 		return ret;
 	}
 
+	rk630->pinctrl = devm_regmap_init_i2c(client, &rk630_pinctrl_regmap_config);
+	if (IS_ERR(rk630->pinctrl)) {
+		ret = PTR_ERR(rk630->pinctrl);
+		dev_err(dev, "failed to allocate pinctrl register map: %d\n", ret);
+		return ret;
+	}
+
 	rk630->cru = devm_regmap_init_i2c(client, &rk630_cru_regmap_config);
 	if (IS_ERR(rk630->cru)) {
 		ret = PTR_ERR(rk630->cru);
