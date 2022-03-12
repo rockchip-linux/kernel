@@ -217,6 +217,27 @@
 	status = "okay";
 };
 
+&gmac1_clkin {
+	clock-frequency = <50000000>;
+};
+
+&gmac1 {
+	phy-mode = "rmii";
+	clock_in_out = "input";
+
+	assigned-clocks = <&cru SCLK_GMAC1_RX_TX>, <&cru SCLK_GMAC1>;
+	assigned-clock-parents = <&cru SCLK_GMAC1_RMII_SPEED>, <&gmac1_clkin>;
+
+	pinctrl-names = "default";
+	pinctrl-0 = <&gmac1m1_miim
+		     &gmac1m1_tx_bus2
+		     &gmac1m1_rx_bus2
+		     &gmac1m1_clkinout>;
+
+	phy-handle = <&rmii_phy1>;
+	status = "okay";
+};
+
 &gpu {
 	mali-supply = <&vdd_gpu>;
 	status = "okay";
@@ -511,6 +532,13 @@
 
 #include "rk630.dtsi"
 
+&mdio1 {
+	rmii_phy1: phy@1 {
+		compatible = "ethernet-phy-id0044.1400", "ethernet-phy-ieee802.3-c22";
+		reg = <0x1>;
+	};
+};
+
 &pinctrl {
 	pmic {
 		pmic_int: pmic_int {
@@ -582,6 +610,10 @@
 	vccio5-supply = <&vcc_3v3>;
 	vccio6-supply = <&vcc_1v8>;
 	vccio7-supply = <&vcc_3v3>;
+};
+
+&rk630_macphy {
+	status = "okay";
 };
 
 &saradc {
