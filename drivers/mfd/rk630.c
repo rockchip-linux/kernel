@@ -259,6 +259,9 @@ int rk630_core_probe(struct rk630 *rk630)
 	}
 
 	rk630->regmap_irq_chip = &rk630_irq_chip;
+
+	regmap_update_bits(rk630->grf, PLUMAGE_GRF_SOC_CON0,
+			   RTC_CLAMP_EN_MASK, RTC_CLAMP_EN(1));
 	ret = devm_regmap_add_irq_chip(rk630->dev, rk630->rtc, rk630->irq,
 				       IRQF_ONESHOT | IRQF_SHARED, -1,
 				       rk630->regmap_irq_chip,
