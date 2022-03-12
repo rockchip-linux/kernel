@@ -180,7 +180,7 @@ static int rk628_efuse_read(void *context, unsigned int offset,
 			return ret;
 		}
 	} else {
-		regmap_write(efuse->cru, CRU_GATE_CON0, PCLK_EFUSE_EN_MASK | PCLK_EFUSE_EN);
+		regmap_write(efuse->cru, CRU_GATE_CON0, PCLK_EFUSE_EN_MASK);
 	}
 
 	addr_start = rounddown(offset, RK628_NBYTES) / RK628_NBYTES;
@@ -220,7 +220,7 @@ nomem:
 	if (efuse->clk)
 		clk_disable_unprepare(efuse->clk);
 	else
-		regmap_write(efuse->cru, CRU_GATE_CON0, PCLK_EFUSE_EN_MASK);
+		regmap_write(efuse->cru, CRU_GATE_CON0, PCLK_EFUSE_EN_MASK | PCLK_EFUSE_DISABLE);
 
 	return ret;
 }
