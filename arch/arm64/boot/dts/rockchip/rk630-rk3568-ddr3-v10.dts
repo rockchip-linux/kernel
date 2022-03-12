@@ -497,14 +497,14 @@
 	rk630: rk630@51 {
 		reg = <0x51>;
 		interrupt-parent = <&gpio0>;
-		interrupts = <8 IRQ_TYPE_LEVEL_HIGH>;
-		reset-gpios = <&gpio3 RK_PC7 GPIO_ACTIVE_HIGH>;
+		interrupts = <8 IRQ_TYPE_LEVEL_LOW>;
+		reset-gpios = <&gpio3 RK_PC7 GPIO_ACTIVE_LOW>;
 		clocks = <&cru CLK_MAC1_OUT>;
 		clock-names = "ref";
 		assigned-clocks = <&cru CLK_MAC1_OUT>;
 		assigned-clock-rates = <25000000>;
 		pinctrl-names = "default";
-		pinctrl-0 = <&eth1m0_pins>;
+		pinctrl-0 = <&eth1m1_pins>;
 		status = "okay";
 	};
 };
@@ -713,4 +713,8 @@
 	phy-names = "usb2-phy";
 	maximum-speed = "high-speed";
 	status = "okay";
+};
+
+&xin32k {
+	status = "disabled";
 };
