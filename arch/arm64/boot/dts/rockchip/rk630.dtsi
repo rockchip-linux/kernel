@@ -4,6 +4,11 @@
 &rk630 {
 	compatible = "rockchip,rk630";
 
+	rk630_codec: codec {
+		compatible = "rockchip,rk630-codec";
+		status = "disabled";
+	};
+
 	rk630_efuse: efuse {
 		compatible = "rockchip,rk628-efuse";
 		#phy-cells = <0>;
