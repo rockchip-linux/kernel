@@ -15,6 +15,11 @@
 		status = "disabled";
 	};
 
+	rk630_macphy: macphy {
+		compatible = "rockchip,rk630-macphy";
+		status = "disabled";
+	};
+
 	rk630_tve: tve {
 		compatible = "rockchip,rk630-tve";
 		status = "disabled";
