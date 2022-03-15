@@ -74,6 +74,20 @@
 		regulator-max-microvolt = <12000000>;
 	};
 
+	rk630_sound: rk630-sound {
+		status = "okay";
+		compatible = "simple-audio-card";
+		simple-audio-card,format = "i2s";
+		simple-audio-card,name = "rockchip,rk630-codec";
+		simple-audio-card,mclk-fs = <256>;
+		simple-audio-card,cpu {
+			sound-dai = <&i2s1_8ch>;
+		};
+		simple-audio-card,codec {
+			sound-dai = <&rk630_codec>;
+		};
+	};
+
 	vcc3v3_sys: vcc3v3-sys {
 		compatible = "regulator-fixed";
 		regulator-name = "vcc3v3_sys";
@@ -530,6 +544,17 @@
 	};
 };
 
+&i2s1_8ch {
+	status = "okay";
+	#sound-dai-cells = <0>;
+	rockchip,clk-trcm = <1>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2s1m0_sclktx
+		     &i2s1m0_lrcktx
+		     &i2s1m0_sdi0
+		     &i2s1m0_sdo0>;
+};
+
 #include "rk630.dtsi"
 
 &mdio1 {
@@ -610,6 +635,24 @@
 	vccio5-supply = <&vcc_3v3>;
 	vccio6-supply = <&vcc_1v8>;
 	vccio7-supply = <&vcc_3v3>;
+};
+
+&rk630_codec {
+	status = "okay";
+	#sound-dai-cells = <0>;
+	compatible = "rockchip,rk630-codec";
+	clocks = <&cru I2S1_MCLKOUT>;
+	clock-names = "mclk";
+	assigned-clocks = <&cru I2S1_MCLKOUT>, <&cru I2S1_MCLK_TX_IOE>;
+	assigned-clock-rates = <11289600>;
+	assigned-clock-parents = <&cru I2S1_MCLKOUT_TX>, <&cru I2S1_MCLKOUT_TX>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2s1m0_mclk>;
+	spk-ctl-gpios = <&gpio3 RK_PD3 GPIO_ACTIVE_HIGH>;
+	capture_volume = <31>;
+	hp_volume = <26>;
+	spk_volume = <26>;
+	gpio_debug;
 };
 
 &rk630_macphy {
