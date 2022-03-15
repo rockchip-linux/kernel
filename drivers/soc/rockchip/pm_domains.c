@@ -23,6 +23,7 @@
 #include <linux/mfd/syscon.h>
 #include <linux/pm_runtime.h>
 #include <linux/regulator/consumer.h>
+#include <linux/rockchip/cpu.h>
 #include <soc/rockchip/pm_domains.h>
 #include <soc/rockchip/rockchip_dmc.h>
 #include <dt-bindings/power/px30-power.h>
@@ -456,6 +457,11 @@ static int rockchip_pd_power(struct rockchip_pm_domain *pd, bool power_on)
 	struct rockchip_pmu *pmu = pd->pmu;
 	int ret = 0;
 	struct generic_pm_domain *genpd = &pd->genpd;
+
+	if (!power_on && (soc_is_px30s())) {
+		if (genpd->name && !strcmp(genpd->name, "pd_gpu"))
+			return 0;
+	}
 
 	rockchip_pmu_lock(pd);
 
