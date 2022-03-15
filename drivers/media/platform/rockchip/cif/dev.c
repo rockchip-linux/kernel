@@ -509,7 +509,6 @@ static int rkcif_pipeline_set_stream(struct rkcif_pipeline *p, bool on)
 			cif_dev->reset_watchdog_timer.is_running = false;
 			cif_dev->reset_watchdog_timer.last_buf_wakeup_cnt = 0;
 			cif_dev->reset_watchdog_timer.run_cnt = 0;
-			cif_dev->buf_wake_up_cnt = 0;
 		}
 
 		/* phy -> sensor */
@@ -556,7 +555,6 @@ static int rkcif_pipeline_set_stream(struct rkcif_pipeline *p, bool on)
 				cif_dev->reset_watchdog_timer.is_running = false;
 				cif_dev->reset_watchdog_timer.last_buf_wakeup_cnt = 0;
 				cif_dev->reset_watchdog_timer.run_cnt = 0;
-				cif_dev->buf_wake_up_cnt = 0;
 			}
 
 			/* phy -> sensor */
