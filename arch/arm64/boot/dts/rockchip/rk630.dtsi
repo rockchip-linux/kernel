@@ -10,7 +10,7 @@
 	};
 
 	rk630_efuse: efuse {
-		compatible = "rockchip,rk628-efuse";
+		compatible = "rockchip,rk630-efuse";
 		#phy-cells = <0>;
 		status = "disabled";
 	};
