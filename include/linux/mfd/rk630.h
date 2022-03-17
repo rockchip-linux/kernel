@@ -19,7 +19,7 @@
 #define HIWORD_UPDATE(v, h, l)	((((v) << (l)) & GENMASK((h), (l))) | (GENMASK((h), (l)) << 16))
 #endif
 
-#define RTC_REG(x)			((x) + 0x6000)
+#define RTC_REG(x)			((x) + 0x60000)
 #define RTC_SET_SECONDS			RTC_REG(0x0)
 #define RTC_SET_MINUTES			RTC_REG(0x4)
 #define RTC_SET_HOURS			RTC_REG(0x8)
@@ -133,8 +133,10 @@
 #define PLUMAGE_GRF_GPIO0_REN0		GRF_REG(0x0500)
 #define PLUMAGE_GRF_GPIO0_REN1		GRF_REG(0x0504)
 #define PLUMAGE_GRF_GPIO1_REN0		GRF_REG(0x0508)
+#define PLUMAGE_GRF_RTC_STATUS		GRF_REG(0x0610)
+
 #ifndef GRF_MAX_REGISTER
-#define GRF_MAX_REGISTER		PLUMAGE_GRF_GPIO1_REN0
+#define GRF_MAX_REGISTER		PLUMAGE_GRF_RTC_STATUS
 #endif
 
 #define CRU_REG(x)			((x) + 0x140000)
