@@ -111,32 +111,6 @@ static int rk630_macphy_disable(struct rk630 *rk630)
 	return 0;
 }
 
-static const struct regmap_irq rk630_irqs[] = {
-
-	/* RTC INT_STS0 */
-	[RK630_IRQ_RTC_ALARM] = {
-		.mask = RK630_IRQ_RTC_ALARM_MSK,
-		.reg_offset = 0,
-	},
-	/* RTC INT_STS1 */
-	[RK630_IRQ_SYS_INT] = {
-		.mask = RK630_IRQ_SYS_MSK,
-		.reg_offset = 4,
-	},
-};
-
-static const struct regmap_irq_chip rk630_irq_chip = {
-	.name = "rk630",
-	.irqs = rk630_irqs,
-	.num_irqs = ARRAY_SIZE(rk630_irqs),
-	.num_regs = 2,
-	.irq_reg_stride = 4,
-	.status_base = RTC_STATUS0,
-	.mask_base = RTC_INT0_EN,
-	.ack_base = RTC_STATUS0,
-	.init_ack_masked = true,
-};
-
 static const struct mfd_cell rk630_devs[] = {
 	{
 		.name = "rk630-efuse",
@@ -304,18 +278,11 @@ int rk630_core_probe(struct rk630 *rk630)
 		return -EINVAL;
 	}
 
-	rk630->regmap_irq_chip = &rk630_irq_chip;
-
 	regmap_update_bits(rk630->grf, PLUMAGE_GRF_SOC_CON0,
 			   RTC_CLAMP_EN_MASK, RTC_CLAMP_EN(1));
-	ret = devm_regmap_add_irq_chip(rk630->dev, rk630->rtc, rk630->irq,
-				       IRQF_ONESHOT | IRQF_SHARED, -1,
-				       rk630->regmap_irq_chip,
-				       &rk630->irq_data);
-	if (ret) {
-		dev_err(rk630->dev, "Failed to add irq_chip %d\n", ret);
-		return ret;
-	}
+
+	/* disable ext_off\vbat_det\msec\sys_int\periodic interrupt by default */
+	regmap_write(rk630->rtc, RTC_INT1_EN, 0);
 
 	ret = devm_mfd_add_devices(rk630->dev, PLATFORM_DEVID_NONE,
 				   rk630_devs, ARRAY_SIZE(rk630_devs),
