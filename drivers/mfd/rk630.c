@@ -158,6 +158,10 @@ static const struct mfd_cell rk630_devs[] = {
 		.name = "rk630-macphy",
 		.of_compatible = "rockchip,rk630-macphy",
 	},
+	{
+		.name = "rk630-codec",
+		.of_compatible = "rockchip,rk630-codec",
+	},
 };
 
 static const struct regmap_range rk630_grf_readable_ranges[] = {
