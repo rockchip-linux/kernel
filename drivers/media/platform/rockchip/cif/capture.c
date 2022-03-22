@@ -2714,10 +2714,15 @@ static int rkcif_sanity_check_fmt(struct rkcif_stream *stream,
 	struct v4l2_rect input, *crop;
 	int vc;
 
-	stream->cif_fmt_in = get_input_fmt(dev->terminal_sensor.sd,
-					   &input, stream->id, &vc);
-	if (!stream->cif_fmt_in) {
-		v4l2_err(v4l2_dev, "Input fmt is invalid\n");
+	if (dev->terminal_sensor.sd) {
+		stream->cif_fmt_in = get_input_fmt(dev->terminal_sensor.sd,
+						   &input, stream->id, &vc);
+		if (!stream->cif_fmt_in) {
+			v4l2_err(v4l2_dev, "Input fmt is invalid\n");
+			return -EINVAL;
+		}
+	} else {
+		v4l2_err(v4l2_dev, "terminal_sensor is invalid\n");
 		return -EINVAL;
 	}
 
@@ -3272,7 +3277,7 @@ static void rkcif_set_fmt(struct rkcif_stream *stream,
 	input_rect.width = RKCIF_DEFAULT_WIDTH;
 	input_rect.height = RKCIF_DEFAULT_HEIGHT;
 
-	if (dev->active_sensor && dev->active_sensor->sd) {
+	if (dev->terminal_sensor.sd) {
 		cif_fmt_in = get_input_fmt(dev->terminal_sensor.sd,
 			      &input_rect, stream->id, &vc);
 		stream->cif_fmt_in = cif_fmt_in;
