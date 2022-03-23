@@ -8,6 +8,9 @@
  * V0.0X01.0X01
  * 1. add workqueue to detect ahd state.
  * 2. add more resolution support.
+ * V0.0X01.0X02
+ * 1. get init status before start workqueue.
+ * 2. replace some dev_info to dev_dbg.
  */
 
 #include <linux/clk.h>
@@ -45,7 +48,7 @@
 #include "nvp6158_video_auto_detect.h"
 #include "nvp6158_drv.h"
 
-//#define WORK_QUEUE
+#define WORK_QUEUE
 
 #ifdef WORK_QUEUE
 #include <linux/workqueue.h>
@@ -57,7 +60,7 @@ struct sensor_state_check_work {
 
 #endif
 
-#define DRIVER_VERSION				KERNEL_VERSION(0, 0x01, 0x1)
+#define DRIVER_VERSION				KERNEL_VERSION(0, 0x01, 0x2)
 
 #ifndef V4L2_CID_DIGITAL_GAIN
 #define V4L2_CID_DIGITAL_GAIN			V4L2_CID_GAIN
@@ -325,7 +328,7 @@ static int nvp6158_write(struct i2c_client *client, u8 reg, u8 val)
 	u8 buf[2];
 	int ret;
 
-	dev_info(&client->dev, "write reg(0x%x val:0x%x)!\n", reg, val);
+	dev_dbg(&client->dev, "write reg(0x%x val:0x%x)!\n", reg, val);
 	buf[0] = reg & 0xFF;
 	buf[1] = val;
 
@@ -621,6 +624,7 @@ static void nvp6158_get_default_format(struct nvp6158 *nvp6158)
 	nvp6158->frame_size = match;
 }
 
+static inline bool nvp6158_no_signal(struct v4l2_subdev *sd, u8 *novid);
 static int nvp6158_stream(struct v4l2_subdev *sd, int on)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
@@ -648,6 +652,12 @@ static int nvp6158_stream(struct v4l2_subdev *sd, int on)
 		video_init.mode = nvp6158->mode;
 		nvp6158_start(&video_init, nvp6158->dual_edge ? true : false);
 #ifdef WORK_QUEUE
+		nvp6158->hot_plug = false;
+		nvp6158->is_reset = 0;
+		usleep_range(20000, 21000);
+		/* get power on state first*/
+		nvp6158_no_signal(sd, &nvp6158->last_detect_status);
+
 		if (nvp6158->plug_state_check.state_check_wq) {
 			dev_info(&client->dev, "%s queue_delayed_work 1000ms", __func__);
 			queue_delayed_work(nvp6158->plug_state_check.state_check_wq,
@@ -742,12 +752,12 @@ static inline bool nvp6158_no_signal(struct v4l2_subdev *sd, u8 *novid)
 		dev_err(&client->dev, "Failed to read videoloss state!\n");
 
 	*novid = videoloss;
-	dev_info(&client->dev, "%s: video loss status:0x%x.\n", __func__, videoloss);
+	dev_dbg(&client->dev, "%s: video loss status:0x%x.\n", __func__, videoloss);
 	if (videoloss == 0xf) {
-		dev_info(&client->dev, "%s: all channels No Video detected.\n", __func__);
+		dev_dbg(&client->dev, "%s: all channels No Video detected.\n", __func__);
 		no_signal = true;
 	} else {
-		dev_info(&client->dev, "%s: channel has some video detection.\n", __func__);
+		dev_dbg(&client->dev, "%s: channel has some video detection.\n", __func__);
 		no_signal = false;
 	}
 	return no_signal;
@@ -766,14 +776,14 @@ static inline bool nvp6158_sync(struct v4l2_subdev *sd, u8 *lock_st)
 	if (ret < 0)
 		dev_err(&client->dev, "Failed to read sync state!\n");
 
-	dev_info(&client->dev, "%s: video AGC LOCK status:0x%x.\n",
+	dev_dbg(&client->dev, "%s: video AGC LOCK status:0x%x.\n",
 			__func__, video_lock_status);
 	*lock_st = video_lock_status;
 	if (video_lock_status) {
-		dev_info(&client->dev, "%s: channel has AGC LOCK.\n", __func__);
+		dev_dbg(&client->dev, "%s: channel has AGC LOCK.\n", __func__);
 		has_sync = true;
 	} else {
-		dev_info(&client->dev, "%s: channel has no AGC LOCK.\n", __func__);
+		dev_dbg(&client->dev, "%s: channel has no AGC LOCK.\n", __func__);
 		has_sync = false;
 	}
 	return has_sync;
@@ -803,10 +813,8 @@ static void nvp6158_plug_state_check_work(struct work_struct *work)
 		nvp6158->hot_plug = false;
 	nvp6158->last_detect_status = nvp6158->cur_detect_status;
 
-	dev_info(&client->dev, "%s has plug motion? (%s)", __func__,
-			 nvp6158->hot_plug ? "true" : "false");
 	if (nvp6158->hot_plug) {
-		dev_info(&client->dev, "queue_delayed_work 1500ms, if has hot plug motion.");
+		dev_info(&client->dev, "queue_delayed_work 1500ms, has hot plug motion.");
 		queue_delayed_work(nvp6158->plug_state_check.state_check_wq,
 				   &nvp6158->plug_state_check.d_work, msecs_to_jiffies(1500));
 		nvp6158_write(client, 0xFF, 0x20);
@@ -814,7 +822,7 @@ static void nvp6158_plug_state_check_work(struct work_struct *work)
 		usleep_range(3000, 5000);
 		nvp6158_write(client, 0x00, 0xFF);
 	} else {
-		dev_info(&client->dev, "queue_delayed_work 100ms, if no hot plug motion.");
+		dev_dbg(&client->dev, "queue_delayed_work 100ms, if no hot plug motion.");
 		queue_delayed_work(nvp6158->plug_state_check.state_check_wq,
 				   &nvp6158->plug_state_check.d_work, msecs_to_jiffies(100));
 	}
