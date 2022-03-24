@@ -169,7 +169,7 @@ enum {
  * Default number of milliseconds given for other jobs on the GPU to be
  * soft-stopped when the GPU needs to be reset.
  */
-#define DEFAULT_RESET_TIMEOUT_MS (3000) /* 3s */
+#define DEFAULT_RESET_TIMEOUT_MS (1) /* 1 ms */
 
 /**
  * Default timeslice that a context is scheduled in for, in nanoseconds.
