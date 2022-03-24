@@ -243,31 +243,6 @@
 		};
 	};
 
-	gc2145: gc2145@3c{
-		status = "okay";
-		compatible = "galaxycore,gc2145";
-		reg = <0x3c>;
-		pinctrl-names = "default";
-		pinctrl-0 = <&cif_clkout>;
-
-		clocks = <&cru SCLK_CIF_OUT>;
-		clock-names = "xvclk";
-
-		/* avdd-supply = <>; */
-		/* dvdd-supply = <>; */
-		/* dovdd-supply = <>; */
-		pwdn-gpios = <&gpio2 28 GPIO_ACTIVE_HIGH>;	//ok
-		rockchip,camera-module-index = <1>;
-		rockchip,camera-module-facing = "front";
-		rockchip,camera-module-name = "CameraKing";
-		rockchip,camera-module-lens-name = "Largan";
-		port {
-			gc2145_out: endpoint {
-				remote-endpoint = <&dvp_in_fcam>;
-			};
-		};
-	};
-
 	vm149c: vm149c@0c {
 		compatible = "silicon touch,vm149c";
 		status = "okay";
@@ -473,10 +448,6 @@
 		isp1_mipi_in: endpoint@0 {
 			reg = <0>;
 			remote-endpoint = <&dphy_tx1rx1_out>;
-		};
-		dvp_in_fcam: endpoint@1 {
-			reg = <1>;
-			remote-endpoint = <&gc2145_out>;
 		};
 	};
 };
