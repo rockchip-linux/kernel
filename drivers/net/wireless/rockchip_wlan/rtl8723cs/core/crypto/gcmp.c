@@ -13,8 +13,9 @@
 #include "wlancrypto_wrap.h"
 
 
-static void gcmp_aad_nonce(const struct ieee80211_hdr *hdr, const u8 *data,
-			   u8 *aad, size_t *aad_len, u8 *nonce)
+static void gcmp_aad_nonce(_adapter * padapter, const struct ieee80211_hdr *hdr, const u8 *data,
+ 			   u8 *aad, size_t *aad_len, u8 *nonce)
+
 {
 	u16 fc, stype, seq;
 	int qos = 0, addr4 = 0;
@@ -54,7 +55,8 @@ static void gcmp_aad_nonce(const struct ieee80211_hdr *hdr, const u8 *data,
 	pos += addr4 * ETH_ALEN;
 	if (qos) {
 		pos[0] &= ~0x70;
-		if (1 /* FIX: either device has SPP A-MSDU Capab = 0 */)
+		/* only spp mode need to refer QoS bit7 */
+		if (padapter->registrypriv.amsdu_mode != RTW_AMSDU_MODE_SPP)
 			pos[0] &= ~0x80;
 		pos++;
 		*pos++ = 0x00;
@@ -81,8 +83,8 @@ static void gcmp_aad_nonce(const struct ieee80211_hdr *hdr, const u8 *data,
  * @data_len: length of @data (PN + enc_data + MIC)
  * @decrypted_len: length of the data decrypted
  */
-u8 * gcmp_decrypt(const u8 *tk, size_t tk_len, const struct ieee80211_hdr *hdr,
-		  const u8 *data, size_t data_len, size_t *decrypted_len)
+u8 * gcmp_decrypt(_adapter *padapter, const u8 *tk, size_t tk_len, const struct ieee80211_hdr *hdr,
+ 		  const u8 *data, size_t data_len, size_t *decrypted_len)
 {
 	u8 aad[30], nonce[12], *plain;
 	size_t aad_len, mlen;
@@ -99,7 +101,7 @@ u8 * gcmp_decrypt(const u8 *tk, size_t tk_len, const struct ieee80211_hdr *hdr,
 	mlen = data_len - 8 - 16;
 
 	os_memset(aad, 0, sizeof(aad));
-	gcmp_aad_nonce(hdr, data, aad, &aad_len, nonce);
+	gcmp_aad_nonce(padapter, hdr, data, aad, &aad_len, nonce);
 	wpa_hexdump(_MSG_EXCESSIVE_, "GCMP AAD", aad, aad_len);
 	wpa_hexdump(_MSG_EXCESSIVE_, "GCMP nonce", nonce, sizeof(nonce));
 
@@ -135,9 +137,9 @@ u8 * gcmp_decrypt(const u8 *tk, size_t tk_len, const struct ieee80211_hdr *hdr,
  * @encrypted_len: length of the encrypted frame 
  *                 including mac header, pn, payload and MIC
  */
-u8 * gcmp_encrypt(const u8 *tk, size_t tk_len, const u8 *frame, size_t len,
-		  size_t hdrlen, const u8 *qos,
-		  const u8 *pn, int keyid, size_t *encrypted_len)
+u8 * gcmp_encrypt(_adapter *padapter, const u8 *tk, size_t tk_len, const u8 *frame, size_t len,
+ 		  size_t hdrlen, const u8 *qos,
+ 		  const u8 *pn, int keyid, size_t *encrypted_len)
 {
 	u8 aad[30], nonce[12], *crypt, *pos;
 	const u8 *pdata;
@@ -174,7 +176,7 @@ u8 * gcmp_encrypt(const u8 *tk, size_t tk_len, const u8 *frame, size_t len,
 	}
 
 	os_memset(aad, 0, sizeof(aad));
-	gcmp_aad_nonce(hdr, crypt + hdrlen, aad, &aad_len, nonce);
+	gcmp_aad_nonce(padapter, hdr, crypt + hdrlen, aad, &aad_len, nonce);
 	wpa_hexdump(_MSG_EXCESSIVE_, "GCMP AAD", aad, aad_len);
 	wpa_hexdump(_MSG_EXCESSIVE_, "GCMP nonce", nonce, sizeof(nonce));
 

@@ -2146,6 +2146,17 @@ pre_validate_status_chk:
 		goto exit;
 	}
 
+	if ((psta->flags & WLAN_STA_AMSDU_DISABLE) && pattrib->amsdu) {
+		#ifdef DBG_RX_DROP_FRAME
+		RTW_INFO("DBG_RX_DROP_FRAME "FUNC_ADPT_FMT" amsdu not allowed"MAC_FMT"\n"
+			, FUNC_ADPT_ARG(adapter), MAC_ARG(psta->cmn.mac_addr));
+		#endif
+		ret = _FAIL;
+		goto exit;
+	
+	}
+
+
 	precv_frame->u.hdr.psta = psta;
 	precv_frame->u.hdr.preorder_ctrl = NULL;
 	pattrib->ack_policy = 0;
@@ -2193,6 +2204,87 @@ pre_validate_status_chk:
 			#endif
 			ret = _FAIL;
 			goto exit;
+		}
+	}
+
+	if (pattrib->privacy) {
+#ifdef CONFIG_TDLS
+		if ((psta->tdls_sta_state & TDLS_LINKED_STATE) && (psta->dot118021XPrivacy == _AES_))
+			pattrib->encrypt = psta->dot118021XPrivacy;
+		else
+#endif /* CONFIG_TDLS */
+			GET_ENCRY_ALGO(psecuritypriv, psta, pattrib->encrypt, IS_MCAST(pattrib->ra));
+
+
+		SET_ICE_IV_LEN(pattrib->iv_len, pattrib->icv_len, pattrib->encrypt);
+	} else {
+		pattrib->encrypt = 0;
+		pattrib->iv_len = pattrib->icv_len = 0;
+	}
+
+	/* drop unprotected frame in protected network. */
+	if (psecuritypriv->dot11PrivacyAlgrthm != _NO_PRIVACY_ ) {
+		if (IS_MCAST(pattrib->ra)) {
+			if (!pattrib->privacy) {
+			#ifdef DBG_RX_DROP_FRAME
+				RTW_INFO("DBG_RX_DROP_FRAME "FUNC_ADPT_FMT"recv plaintext bmc packet for sta="MAC_FMT"\n"
+					, FUNC_ADPT_ARG(adapter), MAC_ARG(psta->cmn.mac_addr));
+			#endif
+				ret = _FAIL;
+				goto exit;
+			}
+		} else {
+			/* unicast */
+			u16 ether_type;
+			u8* ether_ptr = NULL;
+			u16  eapol_type = 0x888e;
+			ether_ptr = ptr + pattrib->hdrlen + pattrib->iv_len + RATTRIB_GET_MCTRL_LEN(pattrib) + LLC_HEADER_SIZE;
+			_rtw_memcpy(&ether_type, ether_ptr, 2);
+			ether_type = ntohs((unsigned short)ether_type);
+	
+			if (psecuritypriv->dot11AuthAlgrthm == dot11AuthAlgrthm_8021X) {
+				/* CVE-2020-26140, CVE-2020-26143, CVE-2020-26147,	let eapol packet go through*/
+				if (!pattrib->privacy && ether_type != eapol_type ) {
+				#ifdef DBG_RX_DROP_FRAME
+					RTW_INFO("DBG_RX_DROP_FRAME "FUNC_ADPT_FMT"recv plaintext unicast packet for sta="MAC_FMT"\n"
+					, FUNC_ADPT_ARG(adapter), MAC_ARG(psta->cmn.mac_addr));
+				#endif
+					ret = _FAIL;
+					goto exit;
+				}
+				/* CVE-2020-26144, pevernt plaintext A-MSDU */
+				/* This can prevent plantext A-MSDU cloacked as an EAPOL frame */
+				if (!pattrib->privacy && pattrib->amsdu) {
+				#ifdef DBG_RX_DROP_FRAME
+					RTW_INFO("DBG_RX_DROP_FRAME "FUNC_ADPT_FMT"recv plaintext A-MSDU for sta="MAC_FMT"\n"
+					, FUNC_ADPT_ARG(adapter), MAC_ARG(psta->cmn.mac_addr));
+				#endif
+					ret = _FAIL;
+					goto exit;
+				}
+				/* CVE-2020-26139,	Drop any forwarding eapol packet until 4-way has done.	*/
+				if ((ether_type == eapol_type)
+					&& (MLME_IS_AP(adapter) || MLME_IS_MESH(adapter))
+					&& (psta->dot118021XPrivacy == _NO_PRIVACY_)
+					&& (!_rtw_memcmp( adapter_mac_addr(adapter), pattrib->dst, ETH_ALEN))) {
+				#ifdef DBG_RX_DROP_FRAME
+					RTW_INFO("DBG_RX_DROP_FRAME "FUNC_ADPT_FMT" recv eapol packet forwarding(dst:"MAC_FMT") before 4-way finish.\n"
+						, FUNC_ADPT_ARG(adapter), MAC_ARG(pattrib->dst));
+				#endif
+					ret = _FAIL;
+					goto exit;
+				}
+			} else {
+				/* CVE-2020-26140, CVE-2020-26143, CVE-2020-26147 */
+				if (!pattrib->privacy) {
+			#ifdef DBG_RX_DROP_FRAME
+				RTW_INFO("DBG_RX_DROP_FRAME "FUNC_ADPT_FMT"recv plaintext packet for sta="MAC_FMT"\n"
+					, FUNC_ADPT_ARG(adapter), MAC_ARG(psta->cmn.mac_addr));
+			#endif
+				ret = _FAIL;
+				goto exit;
+				}
+			}
 		}
 	}
 
@@ -2548,6 +2640,10 @@ union recv_frame *recvframe_defrag(_adapter *adapter, _queue *defrag_q)
 	union recv_frame *prframe, *pnextrframe;
 	_queue	*pfree_recv_queue;
 
+	u8 *pdata = NULL;
+	u64 tmp_iv_hdr = 0;
+	u64 pkt_pn = 0, cur_pn = 0;
+	struct rx_pkt_attrib *pattrib = NULL;
 
 	curfragnum = 0;
 	pfree_recv_queue = &adapter->recvpriv.free_recv_queue;
@@ -2555,6 +2651,15 @@ union recv_frame *recvframe_defrag(_adapter *adapter, _queue *defrag_q)
 	phead = get_list_head(defrag_q);
 	plist = get_next(phead);
 	prframe = LIST_CONTAINOR(plist, union recv_frame, u);
+	/* CVE-2020-26146 */
+	pattrib = &prframe->u.hdr.attrib;
+	if (pattrib->encrypt == _AES_  || pattrib->encrypt == _CCMP_256_
+		|| pattrib->encrypt == _GCMP_ || pattrib->encrypt == _GCMP_256_ ) {
+		pdata = prframe->u.hdr.rx_data;
+		tmp_iv_hdr = le64_to_cpu(*(u64*)(pdata + pattrib->hdrlen));
+		/* get the first frame's PN. */
+		cur_pn = CCMPH_2_PN(tmp_iv_hdr);
+	}	
 	pfhdr = &prframe->u.hdr;
 	rtw_list_delete(&(prframe->u.list));
 
@@ -2584,6 +2689,33 @@ union recv_frame *recvframe_defrag(_adapter *adapter, _queue *defrag_q)
 	while (rtw_end_of_queue_search(phead, plist) == _FALSE) {
 		pnextrframe = LIST_CONTAINOR(plist, union recv_frame , u);
 		pnfhdr = &pnextrframe->u.hdr;
+		/* CVE-2020-26146, check whether the PN is consecutive. */
+		pattrib = &pnextrframe->u.hdr.attrib;
+		if (pattrib->encrypt == _AES_  || pattrib->encrypt == _CCMP_256_
+			|| pattrib->encrypt == _GCMP_ || pattrib->encrypt == _GCMP_256_ ) {
+			pdata = pnextrframe->u.hdr.rx_data;
+			tmp_iv_hdr = le64_to_cpu(*(u64*)(pdata + pattrib->hdrlen));
+			pkt_pn = CCMPH_2_PN(tmp_iv_hdr);
+			if (pkt_pn != cur_pn + 1) {
+				RTW_INFO("%s non-consective PN! old:%llu, new:%llu\n",
+					__func__, cur_pn, pkt_pn);
+				/* PN must be consecutive */
+				/* release the defrag_q & prframe */
+				rtw_free_recvframe(prframe, pfree_recv_queue);
+				rtw_free_recvframe_queue(defrag_q, pfree_recv_queue);
+				return NULL;
+			} else {
+				cur_pn = pkt_pn;
+			}
+		}
+		
+		/* CVE-2020-24587, The keytrack of the fragment is supposed to be the same with other's */
+		if (pfhdr->keytrack != pnfhdr->keytrack) {
+			RTW_INFO("Inconsistent key track, drop fragmented frame!\n");
+			rtw_free_recvframe(prframe, pfree_recv_queue);
+			rtw_free_recvframe_queue(defrag_q, pfree_recv_queue);
+			return NULL;
+		}
 
 
 		/* check the fragment sequence  (2nd ~n fragment frame) */
@@ -2596,14 +2728,21 @@ union recv_frame *recvframe_defrag(_adapter *adapter, _queue *defrag_q)
 			return NULL;
 		}
 
-		curfragnum++;
-
 		/* copy the 2nd~n fragment frame's payload to the first fragment */
 		/* get the 2nd~last fragment frame's payload */
 
 		wlanhdr_offset = pnfhdr->attrib.hdrlen + pnfhdr->attrib.iv_len;
 
 		recvframe_pull(pnextrframe, wlanhdr_offset);
+
+		if ((pfhdr->rx_end - pfhdr->rx_tail) < pnfhdr->len) {
+			RTW_INFO("Not enough buffer space, drop fragmented frame!\n");
+			rtw_free_recvframe(prframe, pfree_recv_queue);
+			rtw_free_recvframe_queue(defrag_q, pfree_recv_queue);
+			return NULL;
+		}
+
+		curfragnum++;
 
 		/* append  to first fragment frame's tail (if privacy frame, pull the ICV) */
 		recvframe_pull_tail(prframe, pfhdr->attrib.icv_len);
@@ -2665,6 +2804,17 @@ union recv_frame *recvframe_chk_defrag(PADAPTER padapter, union recv_frame *prec
 
 	if ((ismfrag == 0) && (fragnum == 0)) {
 		prtnframe = precv_frame;/* isn't a fragment frame */
+	} else {
+		/* CVE-2020-26145, group addressed frame cannot use fragmentation!! */
+		if (IS_MCAST(pfhdr->attrib.ra)) {
+			RTW_INFO("DROP group addressed fragment!\n");
+			rtw_free_recvframe(precv_frame, pfree_recv_queue);
+			return NULL;
+		}
+		/* CVE-2020-24587 */
+		if ((psta) && (pdefrag_q))
+			precv_frame->u.hdr.keytrack = ATOMIC_READ(&psta->keytrack);
+		
 	}
 
 	if (ismfrag == 1) {
@@ -2902,6 +3052,47 @@ exit:
 }
 #endif /* defined(CONFIG_AP_MODE) || defined(CONFIG_RTW_MESH) */
 
+/*
+ * From WFA suggestion:						*
+ * If first subframe meets one of the following condition,	*
+ * the whole received AMSDU should drop.			*
+ * 1. subframe's DA is not the same as RA in From DS case.	*
+ * 2. subframe's SA is not the same as TA in To DS case.	*
+ * 3. subframe's DA is AA:AA:03:00:00:00			*
+								*/
+static u8 validate_amsdu_content(_adapter *padapter, union recv_frame *prframe,
+	const u8 *da, const u8 *sa)
+{
+	struct rx_pkt_attrib	*pattrib = &prframe->u.hdr.attrib;
+	u8 ret = _SUCCESS;
+
+	/* Use the recommendation method form Wi-Fi alliance to check subframe */
+	/* in protected network */
+	if (padapter->registrypriv.amsdu_mode == RTW_AMSDU_MODE_NON_SPP &&
+		padapter->securitypriv.dot11PrivacyAlgrthm != _NO_PRIVACY_) {
+
+		/* 1.check From DS */
+		if (pattrib->to_fr_ds == 2) {
+			if (_rtw_memcmp(da, pattrib->ra, ETH_ALEN) == _FALSE)
+			ret = _FAIL;
+		}
+
+		/* 2.check To DS */
+		if (pattrib->to_fr_ds == 1) {
+			if (_rtw_memcmp(sa, pattrib->ta, ETH_ALEN) == _FALSE)
+			ret = _FAIL;
+		}
+
+		/* 3.Check whether DA is AA:AA:03:00:00:00 */
+		if (_rtw_memcmp(da, rtw_rfc1042_header, ETH_ALEN) == _TRUE)
+			ret = _FAIL;
+
+	}
+
+	return ret;
+
+}
+
 int amsdu_to_msdu(_adapter *padapter, union recv_frame *prframe)
 {
 	struct rx_pkt_attrib *rattrib = &prframe->u.hdr.attrib;
@@ -2955,6 +3146,12 @@ int amsdu_to_msdu(_adapter *padapter, union recv_frame *prframe)
 
 			v_ret = rtw_mesh_rx_data_validate_mctrl(padapter, prframe
 				, mctrl, mda, msa, &mctrl_len, &da, &sa);
+
+			if (validate_amsdu_content(padapter, prframe, da, sa) == _FAIL) {
+				RTW_INFO("%s check subframe content fail!\n", __func__);
+				break;
+			}
+
 			if (v_ret != _SUCCESS)
 				goto move_to_next;
 
@@ -2968,6 +3165,12 @@ int amsdu_to_msdu(_adapter *padapter, union recv_frame *prframe)
 		{
 			da = pdata;
 			sa = pdata + ETH_ALEN;
+
+			if (validate_amsdu_content(padapter, prframe, da, sa) == _FAIL) {
+				RTW_INFO("%s check subframe content fail!\n", __func__);
+				break;
+			}
+
 			llc_hdl = rtw_recv_llc_parse(pdata + ETH_HLEN, nSubframe_Length);
 			#ifdef CONFIG_AP_MODE
 			if (MLME_IS_AP(padapter)) {
@@ -4664,9 +4867,13 @@ thread_return rtw_recv_thread(thread_context context)
 	s32 err = _SUCCESS;
 #ifdef RTW_RECV_THREAD_HIGH_PRIORITY
 #ifdef PLATFORM_LINUX
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 9, 0))
+	sched_set_fifo_low(current);
+#else
 	struct sched_param param = { .sched_priority = 1 };
-
+				
 	sched_setscheduler(current, SCHED_FIFO, &param);
+#endif
 #endif /* PLATFORM_LINUX */
 #endif /*RTW_RECV_THREAD_HIGH_PRIORITY*/
 	thread_enter("RTW_RECV_THREAD");

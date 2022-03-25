@@ -1567,8 +1567,6 @@ int hal_read_mac_hidden_rpt(_adapter *adapter)
 		rtw_msleep_os(10);
 	} while (rtw_get_passing_time_ms(start) < timeout_ms || cnt < min_cnt);
 
-	RTW_INFO("%s() delay patch\n", __func__);
-	rtw_msleep_os(1000);
 	if (id == C2H_MAC_HIDDEN_RPT) {
 		/* read data */
 		for (i = 0; i < MAC_HIDDEN_RPT_LEN + MAC_HIDDEN_RPT_2_LEN; i++)
@@ -1577,7 +1575,6 @@ int hal_read_mac_hidden_rpt(_adapter *adapter)
 
 	/* inform FW mac hidden rpt has read */
 	rtw_write8(adapter, REG_C2HEVT_MSG_NORMAL, C2H_DBG);
-	RTW_INFO_DUMP("hal_read_mac_hidden_rpt\n", mac_hidden_rpt, MAC_HIDDEN_RPT_LEN + MAC_HIDDEN_RPT_2_LEN);
 
 mac_hidden_rpt_hdl:
 	c2h_mac_hidden_rpt_hdl(adapter, mac_hidden_rpt, MAC_HIDDEN_RPT_LEN);

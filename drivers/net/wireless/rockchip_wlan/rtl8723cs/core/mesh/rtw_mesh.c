@@ -248,7 +248,7 @@ int rtw_bss_is_candidate_mesh_peer(_adapter *adapter, WLAN_BSSID_EX *target, u8 
 		rsn_ie = rtw_get_wpa2_ie(BSS_EX_TLV_IES(target), &rsn_ie_len, BSS_EX_TLV_IES_LEN(target));
 		if (!rsn_ie || rsn_ie_len == 0)
 			goto exit;
-		if (rtw_parse_wpa2_ie(rsn_ie, rsn_ie_len + 2, &group_cipher, &pairwise_cipher, &gmcs, NULL, &mfp_opt) != _SUCCESS)
+		if (rtw_parse_wpa2_ie(rsn_ie, rsn_ie_len + 2, &group_cipher, &pairwise_cipher, &gmcs, NULL, &mfp_opt, NULL) != _SUCCESS)
 			goto exit;
 		if ((sec->mfp_opt == MFP_REQUIRED && mfp_opt < MFP_OPTIONAL)
 			|| (mfp_opt == MFP_REQUIRED && sec->mfp_opt < MFP_OPTIONAL))
@@ -1171,7 +1171,7 @@ void dump_mesh_networks(void *sel, _adapter *adapter)
 				rsn_ie = rtw_get_wpa2_ie(BSS_EX_TLV_IES(&network->network)
 							, &rsn_ie_len, BSS_EX_TLV_IES_LEN(&network->network));
 				if (rsn_ie && rsn_ie_len)
-					rtw_parse_wpa2_ie(rsn_ie, rsn_ie_len + 2, &gcs, &pcs, &gmcs, NULL, &mfp_opt);
+					rtw_parse_wpa2_ie(rsn_ie, rsn_ie_len + 2, &gcs, &pcs, &gmcs, NULL, &mfp_opt, NULL);
 			}
 			RTW_PRINT_SEL(sel, "* "MAC_FMT" %3d            %-32s %2x%2x%2x%2x%2x"
 				" %03x %03x %c%03x"
@@ -1213,7 +1213,7 @@ void dump_mesh_networks(void *sel, _adapter *adapter)
 		if (auth_pid && auth_pid <= 2) {
 			rsn_ie = rtw_get_wpa2_ie(BSS_EX_TLV_IES(&network->network), &rsn_ie_len, BSS_EX_TLV_IES_LEN(&network->network));
 			if (rsn_ie && rsn_ie_len)
-				rtw_parse_wpa2_ie(rsn_ie, rsn_ie_len + 2, &gcs, &pcs, &gmcs, NULL, &mfp_opt);
+				rtw_parse_wpa2_ie(rsn_ie, rsn_ie_len + 2, &gcs, &pcs, &gmcs, NULL, &mfp_opt, NULL);
 		}
 		age_ms = rtw_get_passing_time_ms(network->last_scanned);
 		#if CONFIG_RTW_MESH_ACNODE_PREVENT

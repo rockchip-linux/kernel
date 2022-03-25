@@ -499,6 +499,12 @@ MODULE_PARM_DESC(ifname, "The default name to allocate for first interface");
 module_param(if2name, charp, 0644);
 MODULE_PARM_DESC(if2name, "The default name to allocate for second interface");
 
+#if defined(CONFIG_PLATFORM_ANDROID) && (CONFIG_IFACE_NUMBER > 2)
+char *if3name = "ap%d";
+module_param(if3name, charp, 0644);
+MODULE_PARM_DESC(if3name, "The default name to allocate for third interface");
+#endif
+
 char *rtw_initmac = 0;  /* temp mac address if users want to use instead of the mac address in Efuse */
 
 #ifdef CONFIG_CONCURRENT_MODE
@@ -688,6 +694,10 @@ uint rtw_dfs_region_domain = CONFIG_RTW_DFS_REGION_DOMAIN;
 module_param(rtw_dfs_region_domain, uint, 0644);
 MODULE_PARM_DESC(rtw_dfs_region_domain, "0:NONE, 1:FCC, 2:MKK, 3:ETSI");
 #endif
+
+uint rtw_amsdu_mode = RTW_AMSDU_MODE;
+module_param(rtw_amsdu_mode, uint, 0644);
+MODULE_PARM_DESC(rtw_amsdu_mode, "0:non-spp, 1:spp, 2:all drop");
 
 uint rtw_amplifier_type_2g = CONFIG_RTW_AMPLIFIER_TYPE_2G;
 module_param(rtw_amplifier_type_2g, uint, 0644);
@@ -1158,7 +1168,6 @@ uint loadparam(_adapter *padapter)
 	uint status = _SUCCESS;
 	struct registry_priv  *registry_par = &padapter->registrypriv;
 
-	_rtw_memset(&padapter->registrypriv, 0, sizeof(padapter->registrypriv));
 
 #ifdef CONFIG_RTW_DEBUG
 	if (rtw_drv_log_level >= _DRV_MAX_)
@@ -1180,7 +1189,6 @@ uint loadparam(_adapter *padapter)
 		rtw_wireless_mode &= ~WIRELESS_11B;
 #endif
 	registry_par->wireless_mode = (u8)rtw_wireless_mode;
-	RTW_INFO("%s:%d registry_par->wireless_mode:%d \n", __FUNCTION__, __LINE__, registry_par->wireless_mode);
 
 	if (IsSupported24G(registry_par->wireless_mode) && (!is_supported_5g(registry_par->wireless_mode))
 	    && (registry_par->channel > 14))
@@ -1383,7 +1391,9 @@ uint loadparam(_adapter *padapter)
 
 	snprintf(registry_par->ifname, 16, "%s", ifname);
 	snprintf(registry_par->if2name, 16, "%s", if2name);
-
+#if defined(CONFIG_PLATFORM_ANDROID) && (CONFIG_IFACE_NUMBER > 2)
+	snprintf(registry_par->if3name, 16, "%s", if3name);
+#endif
 	registry_par->notch_filter = (u8)rtw_notch_filter;
 
 #ifdef CONFIG_CONCURRENT_MODE
@@ -1461,6 +1471,8 @@ uint loadparam(_adapter *padapter)
 	}
 	#endif
 #endif
+
+	registry_par->amsdu_mode = (u8)rtw_amsdu_mode;
 
 #ifdef CONFIG_MCC_MODE
 	registry_par->en_mcc = (u8)rtw_en_mcc;
@@ -3720,6 +3732,10 @@ int rtw_os_ndevs_register(struct dvobj_priv *dvobj)
 				name = regsty->ifname;
 			else if (adapter->iface_id == IFACE_ID1)
 				name = regsty->if2name;
+#if defined(CONFIG_PLATFORM_ANDROID) && (CONFIG_IFACE_NUMBER > 2)
+			else if (adapter->iface_id == IFACE_ID2)
+				name = regsty->if3name;
+#endif
 			else
 				name = "wlan%d";
 

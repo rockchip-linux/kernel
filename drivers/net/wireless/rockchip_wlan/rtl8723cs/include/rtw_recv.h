@@ -580,7 +580,7 @@ struct recv_frame_hdr {
 	u8 fragcnt;
 
 	int frame_tag;
-
+	int keytrack;
 	struct rx_pkt_attrib attrib;
 
 	uint  len;

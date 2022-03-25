@@ -27,20 +27,21 @@
  * @frame: the frame including the mac header, pn and payload
  * @plen: payload length, i.e., length of the plain text, without PN and MIC
  */
-int _rtw_ccmp_encrypt(u8 *key, u32 key_len, uint hdrlen, u8 *frame, uint plen)
+int _rtw_ccmp_encrypt(_adapter *padapter, u8 *key, u32 key_len, uint hdrlen, u8 *frame, uint plen)
+
 {
 	u8 *enc = NULL;
 	size_t enc_len = 0;
 
 	if (key_len == 16) { /* 128 bits */
-		enc = ccmp_encrypt(key,
+		enc = ccmp_encrypt(padapter, key,
 			frame,
 			hdrlen + plen,
 			hdrlen,
 			(hdrlen == 26) ? (frame + hdrlen - 2) : NULL,
 			NULL, 0, &enc_len);
 	} else if (key_len == 32) { /* 256 bits */
-		enc = ccmp_256_encrypt(key,
+		enc = ccmp_256_encrypt(padapter, key,
 			frame,
 			hdrlen + plen,
 			hdrlen,
@@ -68,7 +69,7 @@ int _rtw_ccmp_encrypt(u8 *key, u32 key_len, uint hdrlen, u8 *frame, uint plen)
  * @frame: the raw frame (@hdrlen + PN + enc_data + MIC)
  * @plen: length of the frame (@hdrlen + PN + enc_data + MIC)
  */
-int _rtw_ccmp_decrypt(u8 *key, u32 key_len, uint hdrlen, u8 *frame,
+int _rtw_ccmp_decrypt(_adapter * padapter, u8 *key, u32 key_len, uint hdrlen, u8 *frame,
 	uint plen)
 {
 	u8 *plain = NULL;
@@ -78,13 +79,13 @@ int _rtw_ccmp_decrypt(u8 *key, u32 key_len, uint hdrlen, u8 *frame,
 	hdr = (const struct ieee80211_hdr *)frame;
 
 	if (key_len == 16) { /* 128 bits */
-		plain = ccmp_decrypt(key,
+		plain = ccmp_decrypt(padapter, key,
 			hdr,
 			frame + hdrlen, /* PN + enc_data + MIC */
 			plen - hdrlen, /* PN + enc_data + MIC */
 			&plain_len);
 	} else if (key_len == 32) { /* 256 bits */
-		plain = ccmp_256_decrypt(key,
+		plain = ccmp_256_decrypt(padapter, key,
 			hdr,
 			frame + hdrlen, /* PN + enc_data + MIC */
 			plen - hdrlen, /* PN + enc_data + MIC */
@@ -131,12 +132,12 @@ int _aes_siv_decrypt(const u8 *key, size_t key_len,
  * @frame: the frame including the mac header, pn and payload
  * @plen: payload length, i.e., length of the plain text, without PN and MIC
  */
-int _rtw_gcmp_encrypt(u8 *key, u32 key_len, uint hdrlen, u8 *frame, uint plen)
+int _rtw_gcmp_encrypt(_adapter * padapter, u8 *key, u32 key_len, uint hdrlen, u8 *frame, uint plen)
 {
 	u8 *enc = NULL;
 	size_t enc_len = 0;
 
-	enc = gcmp_encrypt(key, key_len,
+	enc = gcmp_encrypt(padapter, key, key_len,
 		frame,
 		hdrlen + plen,
 		hdrlen,
@@ -162,7 +163,7 @@ int _rtw_gcmp_encrypt(u8 *key, u32 key_len, uint hdrlen, u8 *frame, uint plen)
  * @frame: the raw frame (@hdrlen + PN + enc_data + MIC)
  * @plen: length of the frame (@hdrlen + PN + enc_data + MIC)
  */
-int _rtw_gcmp_decrypt(u8 *key, u32 key_len, uint hdrlen, u8 *frame, uint plen)
+int _rtw_gcmp_decrypt(_adapter *padapter, u8 *key, u32 key_len, uint hdrlen, u8 *frame, uint plen)
 {
 	u8 *plain = NULL;
 	size_t plain_len = 0;
@@ -170,7 +171,7 @@ int _rtw_gcmp_decrypt(u8 *key, u32 key_len, uint hdrlen, u8 *frame, uint plen)
 
 	hdr = (const struct ieee80211_hdr *)frame;
 
-	plain = gcmp_decrypt(key, key_len,
+	plain = gcmp_decrypt(padapter, key, key_len,
 		hdr,
 		frame + hdrlen, /* PN + enc_data + MIC */
 		plen - hdrlen, /* PN + enc_data + MIC */

@@ -1387,6 +1387,9 @@ static s32 update_attrib_sec_info(_adapter *padapter, struct pkt_attrib *pattrib
 		pattrib->bswenc = _FALSE;
 #endif
 
+	if ((pattrib->encrypt) && (eapol_type == EAPOL_4_4))
+		pattrib->bswenc = _TRUE;
+
 exit:
 
 	return res;
@@ -2693,12 +2696,19 @@ u32 rtw_calculate_wlan_pkt_size_by_attribue(struct pkt_attrib *pattrib)
 s32 check_amsdu(struct xmit_frame *pxmitframe)
 {
 	struct pkt_attrib *pattrib;
+	struct sta_info *psta = NULL;
 	s32 ret = _TRUE;
 
 	if (!pxmitframe)
 		ret = _FALSE;
 
 	pattrib = &pxmitframe->attrib;
+
+	psta = rtw_get_stainfo(&pxmitframe->padapter->stapriv, &pattrib->ra[0]);
+	if (psta) {
+		if (psta->flags & WLAN_STA_AMSDU_DISABLE)
+			ret =_FALSE;
+	}
 
 	if (IS_MCAST(pattrib->ra))
 		ret = _FALSE;
@@ -6147,9 +6157,13 @@ thread_return rtw_xmit_thread(thread_context context)
 	PADAPTER padapter;
 #ifdef RTW_XMIT_THREAD_HIGH_PRIORITY
 #ifdef PLATFORM_LINUX
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 9, 0))
+	sched_set_fifo_low(current);
+#else
 	struct sched_param param = { .sched_priority = 1 };
-
+					
 	sched_setscheduler(current, SCHED_FIFO, &param);
+#endif
 #endif /* PLATFORM_LINUX */
 #endif /* RTW_XMIT_THREAD_HIGH_PRIORITY */
 

@@ -78,6 +78,10 @@
 #ifdef CONFIG_RTW_ANDROID
 
 	#include <linux/version.h>
+
+	#ifndef CONFIG_PLATFORM_ANDROID
+	#define CONFIG_PLATFORM_ANDROID
+	#endif
 	
 	#ifndef CONFIG_IOCTL_CFG80211
 	#define CONFIG_IOCTL_CFG80211
@@ -168,8 +172,9 @@
 
 #ifdef CONFIG_RESUME_IN_WORKQUEUE /* this can be removed, because there is no case for this... */
 	#if !defined(CONFIG_WAKELOCK) && !defined(CONFIG_ANDROID_POWER)
-		#error "enable CONFIG_RESUME_IN_WORKQUEUE without CONFIG_WAKELOCK or CONFIG_ANDROID_POWER will suffer from the danger of wifi's unfunctionality..."
+/*		#error "enable CONFIG_RESUME_IN_WORKQUEUE without CONFIG_WAKELOCK or CONFIG_ANDROID_POWER will suffer from the danger of wifi's unfunctionality..."
 		#error "If you still want to enable CONFIG_RESUME_IN_WORKQUEUE in this case, mask this preprossor checking and GOOD LUCK..."
+*/
 	#endif
 #endif
 
@@ -796,5 +801,10 @@ defined(CONFIG_RTL8723F) /*|| defined(CONFIG_RTL8814A)*/
 #define DBG_THREAD_PID	/* Add thread pid to debug message prefix */
 #define DBG_CPU_INFO	/* Add CPU info to debug message prefix */
 #endif
+
+#ifndef RTW_AMSDU_MODE
+#define RTW_AMSDU_MODE 0 /* 0:non-SPP, 1:spp mode, 2:All drop */
+#endif
+
 
 #endif /* __DRV_CONF_H__ */

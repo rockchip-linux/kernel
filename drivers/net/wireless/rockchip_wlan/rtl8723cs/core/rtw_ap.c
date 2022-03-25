@@ -2089,7 +2089,7 @@ int rtw_check_beacon_data(_adapter *padapter, u8 *pbuf,  int len)
 	psecuritypriv->akmp = 0;
 	p = rtw_get_ie(ie + _BEACON_IE_OFFSET_, _RSN_IE_2_, &ie_len, (pbss_network->IELength - _BEACON_IE_OFFSET_));
 	if (p && ie_len > 0) {
-		if (rtw_parse_wpa2_ie(p, ie_len + 2, &group_cipher, &pairwise_cipher, &gmcs, &akm, &mfp_opt) == _SUCCESS) {
+		if (rtw_parse_wpa2_ie(p, ie_len + 2, &group_cipher, &pairwise_cipher, &gmcs, &akm, &mfp_opt, NULL) == _SUCCESS) {
 			psecuritypriv->dot11AuthAlgrthm = dot11AuthAlgrthm_8021X;
 			psecuritypriv->ndisauthtype = Ndis802_11AuthModeWPA2PSK;
 			psecuritypriv->dot8021xalg = 1;/* psk,  todo:802.1x */
@@ -2227,11 +2227,7 @@ int rtw_check_beacon_data(_adapter *padapter, u8 *pbuf,  int len)
 	}
 	psecuritypriv->mfp_opt = mfp_opt;
 
-#ifdef CONFIG_RTW_80211K
-	/* RRM */
-	update_rm_cap(pbuf, padapter, len, _BEACON_IE_OFFSET_);
-
-#endif /* CONFIG_RTW_80211K */
+	rm_update_cap(pbuf, padapter, len, _BEACON_IE_OFFSET_);
 
 	/* wmm */
 	ie_len = 0;
@@ -5230,6 +5226,7 @@ u16 rtw_ap_parse_sta_security_ie(_adapter *adapter, struct sta_info *sta, struct
 	int group_cipher = 0, pairwise_cipher = 0, gmcs = 0;
 	u32 akm = 0;
 	u8 mfp_opt = MFP_NO;
+	u8 spp_opt = 0;
 	u16 status = _STATS_SUCCESSFUL_;
 
 	sta->dot8021xalg = 0;
@@ -5244,7 +5241,7 @@ u16 rtw_ap_parse_sta_security_ie(_adapter *adapter, struct sta_info *sta, struct
 		wpa_ie = elems->rsn_ie;
 		wpa_ie_len = elems->rsn_ie_len;
 
-		if (rtw_parse_wpa2_ie(wpa_ie - 2, wpa_ie_len + 2, &group_cipher, &pairwise_cipher, &gmcs, &akm, &mfp_opt) == _SUCCESS) {
+		if (rtw_parse_wpa2_ie(wpa_ie - 2, wpa_ie_len + 2, &group_cipher, &pairwise_cipher, &gmcs, &akm, &mfp_opt, &spp_opt) == _SUCCESS) {
 			sta->dot8021xalg = 1;/* psk, todo:802.1x */
 			sta->wpa_psk |= BIT(1);
 
@@ -5306,6 +5303,11 @@ u16 rtw_ap_parse_sta_security_ie(_adapter *adapter, struct sta_info *sta, struct
 	} else {
 		wpa_ie = NULL;
 		wpa_ie_len = 0;
+	}
+	if (sec->dot11PrivacyAlgrthm != _NO_PRIVACY_) {
+		/*check if amsdu is allowed */
+		if (rtw_check_amsdu_disable(adapter->registrypriv.amsdu_mode, spp_opt) == _TRUE)
+			sta->flags |= WLAN_STA_AMSDU_DISABLE;
 	}
 
 	if ((sec->mfp_opt == MFP_REQUIRED && mfp_opt < MFP_OPTIONAL)

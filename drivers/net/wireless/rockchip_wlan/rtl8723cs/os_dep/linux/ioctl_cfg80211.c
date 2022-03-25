@@ -454,7 +454,20 @@ u8 rtw_cfg80211_ch_switch_notify(_adapter *adapter, u8 ch, u8 bw, u8 offset,
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0))
 	if (started) {
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 11, 0))
+
+		/* --- cfg80211_ch_switch_started_notfiy() ---
+		 *  A new parameter, bool quiet, is added from Linux kernel v5.11,
+		 *  to see if block-tx was requested by the AP. since currently,
+		 *  the API is used for station before connected in rtw_chk_start_clnt_join()
+		 *  the quiet is set to false here first. May need to refine it if
+		 *  called by others with block-tx.
+		 */
+
+		cfg80211_ch_switch_started_notify(adapter->pnetdev, &chdef, 0, false);
+#else
 		cfg80211_ch_switch_started_notify(adapter->pnetdev, &chdef, 0);
+#endif
 		goto exit;
 	}
 #endif
@@ -3000,8 +3013,8 @@ static int rtw_cfg80211_set_probe_req_wpsp2pie(_adapter *padapter, char *buf, in
 			_rtw_memcpy(pmlmepriv->p2p_probe_req_ie, p2p_ie, p2p_ielen);
 			pmlmepriv->p2p_probe_req_ie_len = p2p_ielen;
 
-			if (rtw_get_p2p_attr_content(p2p_ie, p2p_ielen, P2P_ATTR_LISTEN_CH, (u8 *)listen_ch_attr, (uint *) &attr_contentlen)
-				&& attr_contentlen == 5) {
+			attr_contentlen = sizeof(listen_ch_attr);
+			if (rtw_get_p2p_attr_content(p2p_ie, p2p_ielen, P2P_ATTR_LISTEN_CH, (u8 *)listen_ch_attr, (uint *) &attr_contentlen)) {
 				if (wdinfo->listen_channel !=  listen_ch_attr[4]) {
 					RTW_INFO(FUNC_ADPT_FMT" listen channel - country:%c%c%c, class:%u, ch:%u\n",
 						FUNC_ADPT_ARG(padapter), listen_ch_attr[0], listen_ch_attr[1], listen_ch_attr[2],
@@ -3816,7 +3829,7 @@ static int rtw_cfg80211_set_wpa_ie(_adapter *padapter, u8 *pie, size_t ielen)
 
 	pwpa2 = rtw_get_wpa2_ie(buf, &wpa2_ielen, ielen);
 	if (pwpa2 && wpa2_ielen > 0) {
-		if (rtw_parse_wpa2_ie(pwpa2, wpa2_ielen + 2, &group_cipher, &pairwise_cipher, NULL, NULL, &mfp_opt) == _SUCCESS) {
+		if (rtw_parse_wpa2_ie(pwpa2, wpa2_ielen + 2, &group_cipher, &pairwise_cipher, NULL, NULL, &mfp_opt, NULL) == _SUCCESS) {
 			padapter->securitypriv.dot11AuthAlgrthm = dot11AuthAlgrthm_8021X;
 			padapter->securitypriv.ndisauthtype = Ndis802_11AuthModeWPA2PSK;
 			_rtw_memcpy(padapter->securitypriv.supplicant_ie, &pwpa2[0], wpa2_ielen + 2);
@@ -6391,6 +6404,7 @@ static int rtw_cfg80211_set_probe_resp_wpsp2pie(struct net_device *net, char *bu
 			#endif
 
 			/* Check P2P Capability ATTR */
+			attr_contentlen = sizeof(cap_attr);
 			if (rtw_get_p2p_attr_content(p2p_ie, p2p_ielen, P2P_ATTR_CAPABILITY, (u8 *)&cap_attr, (uint *) &attr_contentlen)) {
 				u8 grp_cap = 0;
 				/* RTW_INFO( "[%s] Got P2P Capability Attr!!\n", __FUNCTION__ ); */
@@ -7169,6 +7183,7 @@ void rtw_cfg80211_issue_p2p_provision_request(_adapter *padapter, const u8 *buf,
 	pwdinfo->tx_prov_disc_info.wps_config_method_request = WPS_CM_PUSH_BUTTON;
 
 	rtw_get_wps_ie(frame_body + _PUBLIC_ACTION_IE_OFFSET_, frame_body_len - _PUBLIC_ACTION_IE_OFFSET_, wpsie, &wpsielen);
+	wps_devicepassword_id_len = sizeof(wps_devicepassword_id);
 	rtw_get_wps_attr_content(wpsie, wpsielen, WPS_ATTR_DEVICE_PWID, (u8 *) &wps_devicepassword_id, &wps_devicepassword_id_len);
 	wps_devicepassword_id = be16_to_cpu(wps_devicepassword_id);
 
@@ -7196,7 +7211,9 @@ void rtw_cfg80211_issue_p2p_provision_request(_adapter *padapter, const u8 *buf,
 
 	if (rtw_get_p2p_ie(frame_body + _PUBLIC_ACTION_IE_OFFSET_, frame_body_len - _PUBLIC_ACTION_IE_OFFSET_, p2p_ie, &p2p_ielen)) {
 
+		devinfo_contentlen = sizeof(devinfo_content);
 		rtw_get_p2p_attr_content(p2p_ie, p2p_ielen, P2P_ATTR_DEVICE_INFO, devinfo_content, &devinfo_contentlen);
+		capability_len = sizeof(capability);
 		rtw_get_p2p_attr_content(p2p_ie, p2p_ielen, P2P_ATTR_CAPABILITY, (u8 *)&capability, &capability_len);
 
 	}
@@ -9822,11 +9839,6 @@ static int rtw_cfg80211_init_wiphy_band(_adapter *padapter, struct wiphy *wiphy)
 		#if defined(CONFIG_80211N_HT)
 		rtw_cfg80211_init_ht_capab(padapter, &band->ht_cap, BAND_ON_2_4G, rf_type);
 		#endif
-	}
-	else
-	{
-		RTW_INFO("%s: %d not supported24G mode: %d\n", __FUNCTION__, __LINE__, padapter->registrypriv.wireless_mode);
-		goto exit;
 	}
 #if CONFIG_IEEE80211_BAND_5GHZ
 	if (is_supported_5g(padapter->registrypriv.wireless_mode)) {

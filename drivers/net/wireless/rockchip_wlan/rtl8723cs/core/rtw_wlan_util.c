@@ -2480,7 +2480,7 @@ int _rtw_get_bcn_keys(u8 *cap_info, u32 buf_len, u8 def_ch, ADAPTER *adapter
 		recv_beacon->encryp_protocol = ENCRYP_PROTOCOL_WPA2;
 		rtw_parse_wpa2_ie(elems.rsn_ie - 2, elems.rsn_ie_len + 2,
 			&recv_beacon->group_cipher, &recv_beacon->pairwise_cipher,
-			NULL, &recv_beacon->akm, NULL);
+			NULL, &recv_beacon->akm, NULL, NULL);
 	}
 	/* checking WPA secon */
 	else if (elems.wpa_ie && elems.wpa_ie_len) {

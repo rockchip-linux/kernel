@@ -1517,7 +1517,7 @@ void sd_int_dpc(PADAPTER padapter)
 		int alloc_fail_time = 0;
 		u32 hisr = 0, rx_cnt = 0, ret = 0;
 
-	/*		RTW_INFO("%s: RX Request, size=%d\n", __func__, phal->SdioRxFIFOSize); */
+		/*		RTW_INFO("%s: RX Request, size=%d\n", __func__, phal->SdioRxFIFOSize); */
 		phal->sdio_hisr ^= SDIO_HISR_RX_REQUEST;
 		do {
 			phal->SdioRxFIFOSize = SdioLocalCmd52Read2Byte(padapter, SDIO_REG_RX0_REQ_LEN);
@@ -1535,7 +1535,7 @@ void sd_int_dpc(PADAPTER padapter)
 					alloc_fail_time++;
 					if (ret == RTW_RBUF_UNAVAIL || ret == RTW_RBUF_PKT_UNAVAIL)
 						rtw_msleep_os(10);
-					else {
+				else {
 					RTW_INFO("%s: recv fail!(time=%d)\n", __func__, alloc_fail_time);
 						phal->SdioRxFIFOSize = 0;
 					}
