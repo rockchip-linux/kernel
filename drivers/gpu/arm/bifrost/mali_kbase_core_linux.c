@@ -4790,6 +4790,8 @@ static int kbase_device_resume(struct device *dev)
 		flush_workqueue(kbdev->devfreq_queue.workq);
 	}
 #endif
+	kbase_enable_quick_reset(kbdev);
+
 	return 0;
 }
 

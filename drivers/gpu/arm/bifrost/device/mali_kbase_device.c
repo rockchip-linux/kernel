@@ -209,6 +209,10 @@ int kbase_device_misc_init(struct kbase_device * const kbdev)
 
 	spin_lock_init(&kbdev->hwaccess_lock);
 
+	spin_lock_init(&kbdev->quick_reset_lock);
+	kbdev->quick_reset_enabled = true;
+	kbdev->num_of_atoms_hw_completed = 0;
+
 	return 0;
 term_trace:
 	kbase_ktrace_term(kbdev);
@@ -234,6 +238,31 @@ void kbase_device_misc_term(struct kbase_device *kbdev)
 	kbase_ktrace_term(kbdev);
 
 	kbase_device_all_as_term(kbdev);
+}
+
+void kbase_enable_quick_reset(struct kbase_device *kbdev)
+{
+	spin_lock(&kbdev->quick_reset_lock);
+
+	kbdev->quick_reset_enabled = true;
+	kbdev->num_of_atoms_hw_completed = 0;
+
+	spin_unlock(&kbdev->quick_reset_lock);
+}
+
+void kbase_disable_quick_reset(struct kbase_device *kbdev)
+{
+	spin_lock(&kbdev->quick_reset_lock);
+
+	kbdev->quick_reset_enabled = false;
+	kbdev->num_of_atoms_hw_completed = 0;
+
+	spin_unlock(&kbdev->quick_reset_lock);
+}
+
+bool kbase_is_quick_reset_enabled(struct kbase_device *kbdev)
+{
+	return kbdev->quick_reset_enabled;
 }
 
 void kbase_device_free(struct kbase_device *kbdev)
