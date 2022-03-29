@@ -10,6 +10,7 @@
  *  2. add get virtual channel hotplug status ioctl
  *  3. add virtual channel hotplug status event report to vicap
  *  4. fixup variables are reused when multiple devices use the same driver
+ * V0.0X01.0X02 add quick stream support
  */
 
 #include <linux/clk.h>
@@ -42,7 +43,7 @@
 #include <linux/platform_device.h>
 #include <linux/input.h>
 
-#define DRIVER_VERSION				KERNEL_VERSION(0, 0x01, 0x0)
+#define DRIVER_VERSION				KERNEL_VERSION(0, 0x01, 0x2)
 
 #ifndef V4L2_CID_DIGITAL_GAIN
 #define V4L2_CID_DIGITAL_GAIN			V4L2_CID_GAIN
@@ -1159,10 +1160,26 @@ static void nvp6188_set_vicap_rst_inf(struct nvp6188 *nvp6188,
 	nvp6188->is_reset = rst_info.is_reset;
 }
 
+static void nvp6188_set_streaming(struct nvp6188 *nvp6188, int on)
+{
+	struct i2c_client *client = nvp6188->client;
+
+	dev_info(&client->dev, "%s: on: %d\n", __func__, on);
+
+	if (on) {
+		nvp6188_write_reg(client, 0xff, 0x20);
+		nvp6188_write_reg(client, 0xff, 0xff);
+	} else {
+		nvp6188_write_reg(client, 0xff, 0x20);
+		nvp6188_write_reg(client, 0xff, 0x00);
+	}
+}
+
 static long nvp6188_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 {
 	struct nvp6188 *nvp6188 = to_nvp6188(sd);
 	long ret = 0;
+	u32 stream = 0;
 
 	switch (cmd) {
 	case RKMODULE_GET_MODULE_INFO:
@@ -1183,6 +1200,11 @@ static long nvp6188_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 	case RKMODULE_GET_START_STREAM_SEQ:
 		*(int *)arg = RKMODULE_START_STREAM_FRONT;
 		break;
+	case RKMODULE_SET_QUICK_STREAM:
+		stream = *((u32 *)arg);
+		nvp6188_set_streaming(nvp6188, !!stream);
+		break;
+
 	default:
 		ret = -ENOTTY;
 		break;
@@ -1213,8 +1235,11 @@ static long nvp6188_compat_ioctl32(struct v4l2_subdev *sd,
 		}
 
 		ret = nvp6188_ioctl(sd, cmd, inf);
-		if (!ret)
+		if (!ret) {
 			ret = copy_to_user(up, inf, sizeof(*inf));
+			if (ret)
+				ret = -EFAULT;
+		}
 		kfree(inf);
 		break;
 	case RKMODULE_AWB_CFG:
@@ -1227,6 +1252,8 @@ static long nvp6188_compat_ioctl32(struct v4l2_subdev *sd,
 		ret = copy_from_user(cfg, up, sizeof(*cfg));
 		if (!ret)
 			ret = nvp6188_ioctl(sd, cmd, cfg);
+		else
+			ret = -EFAULT;
 		kfree(cfg);
 		break;
 	case RKMODULE_GET_VC_FMT_INFO:
@@ -1237,8 +1264,11 @@ static long nvp6188_compat_ioctl32(struct v4l2_subdev *sd,
 		}
 
 		ret = nvp6188_ioctl(sd, cmd, vc_fmt_inf);
-		if (!ret)
+		if (!ret) {
 			ret = copy_to_user(up, vc_fmt_inf, sizeof(*vc_fmt_inf));
+			if (ret)
+				ret = -EFAULT;
+		}
 		kfree(vc_fmt_inf);
 		break;
 	case RKMODULE_GET_VC_HOTPLUG_INFO:
@@ -1249,8 +1279,11 @@ static long nvp6188_compat_ioctl32(struct v4l2_subdev *sd,
 		}
 
 		ret = nvp6188_ioctl(sd, cmd, vc_hp_inf);
-		if (!ret)
+		if (!ret) {
 			ret = copy_to_user(up, vc_hp_inf, sizeof(*vc_hp_inf));
+			if (ret)
+				ret = -EFAULT;
+		}
 		kfree(vc_hp_inf);
 		break;
 	case RKMODULE_GET_VICAP_RST_INFO:
@@ -1261,8 +1294,11 @@ static long nvp6188_compat_ioctl32(struct v4l2_subdev *sd,
 		}
 
 		ret = nvp6188_ioctl(sd, cmd, vicap_rst_inf);
-		if (!ret)
+		if (!ret) {
 			ret = copy_to_user(up, vicap_rst_inf, sizeof(*vicap_rst_inf));
+			if (ret)
+				ret = -EFAULT;
+		}
 		kfree(vicap_rst_inf);
 		break;
 	case RKMODULE_SET_VICAP_RST_INFO:
@@ -1275,6 +1311,8 @@ static long nvp6188_compat_ioctl32(struct v4l2_subdev *sd,
 		ret = copy_from_user(vicap_rst_inf, up, sizeof(*vicap_rst_inf));
 		if (!ret)
 			ret = nvp6188_ioctl(sd, cmd, vicap_rst_inf);
+		else
+			ret = -EFAULT;
 		kfree(vicap_rst_inf);
 		break;
 	case RKMODULE_GET_START_STREAM_SEQ:
@@ -1285,8 +1323,11 @@ static long nvp6188_compat_ioctl32(struct v4l2_subdev *sd,
 		}
 
 		ret = nvp6188_ioctl(sd, cmd, seq);
-		if (!ret)
+		if (!ret) {
 			ret = copy_to_user(up, seq, sizeof(*seq));
+			if (ret)
+				ret = -EFAULT;
+		}
 		kfree(seq);
 		break;
 	default:
