@@ -125,16 +125,16 @@ static struct env_config pal_tve_config[] = {
 	{ TVE_LUMA_FILTER7, 0x0ffa0e43 },
 	{ TVE_LUMA_FILTER8, 0x08200527 },
 	{ TVE_IMAGE_POSITION, 0x001500f6 },
-	{ TVE_ROUTING, 0x1000088a },
+	{ TVE_ROUTING, 0x10008882 },
 	{ TVE_SYNC_ADJUST, 0x00000000 },
 	{ TVE_STATUS, 0x000000b0 },
 	{ TVE_CTRL, 0x00000000 },
 	{ TVE_INTR_STATUS, 0x00000000 },
 	{ TVE_INTR_EN, 0x00000000 },
 	{ TVE_INTR_CLR, 0x00000000 },
-	{ TVE_COLOR_BUSRT_SAT, 0x002e553c },
+	{ TVE_COLOR_BUSRT_SAT, 0x00366044 },
 	{ TVE_CHROMA_BANDWIDTH, 0x00000022 },
-	{ TVE_BRIGHTNESS_CONTRAST, 0x00008900 },
+	{ TVE_BRIGHTNESS_CONTRAST, 0x0000a300 },
 	{ TVE_ID, 0x0a010000 },
 	{ TVE_REVISION, 0x00010108 },
 	{ TVE_CLAMP, 0x00000000 },
@@ -237,6 +237,10 @@ static int rk630_tve_cfg_set(struct rk630_tve *tve)
 				   SW_DCLK_UPSAMPLE_EN(upsample_en) |
 				   SW_TVE_MODE(0) | SW_TVE_EN(1));
 
+	regmap_update_bits(tve->grf, PLUMAGE_GRF_SOC_CON3,
+			   DCLK_UPSAMPLE_2X4X_MASK,
+			   DCLK_UPSAMPLE_2X4X(tve->is_4x - 1));
+
 	ret = rk630_tve_write_block(tve, tve_cfg, 27);
 	if (ret < 0) {
 		dev_err(tve->dev, "rk630 tve write err\n");
@@ -276,17 +280,20 @@ static int rk630_tve_enable(struct rk630_tve *tve)
 	/*config clk*/
 	if (!tve->is_4x) {
 		regmap_update_bits(tve->cru, CRU_GATE_CON0,
-				   DCLK_CVBS_4X_PLL_CLK_EN_MASK,
-				   DCLK_CVBS_4X_PLL_CLK_EN(0));
+				   DCLK_CVBS_4X_PLL_CLK_GATE_MASK,
+				   DCLK_CVBS_4X_PLL_CLK_GATE(1));
 	} else {
 		regmap_update_bits(tve->cru, CRU_CLKSEL_CON1,
 				   DCLK_CVBS_4X_DIV_CON_MASK,
-				   DCLK_CVBS_4X_DIV_CON(tve->is_4x - 1));
+				   DCLK_CVBS_4X_DIV_CON(0));
 
 		regmap_update_bits(tve->cru, CRU_GATE_CON0,
-				   DCLK_CVBS_4X_PLL_CLK_EN_MASK,
-				   DCLK_CVBS_4X_PLL_CLK_EN(1));
+				   DCLK_CVBS_4X_PLL_CLK_GATE_MASK,
+				   DCLK_CVBS_4X_PLL_CLK_GATE(0));
 	}
+
+	/* set vdac gain */
+	regmap_write(tve->grf, PLUMAGE_GRF_SOC_CON3, 0x003f003f);
 
 	/* enable vdac */
 	regmap_update_bits(tve->grf, PLUMAGE_GRF_SOC_CON3,
