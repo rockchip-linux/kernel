@@ -33,13 +33,15 @@ struct ebc_buf_s {
 	int needpic;
 };
 
-struct ebc_buf_s *ebc_osd_buf_get(void);
+struct ebc_buf_s *ebc_empty_osd_buf_get(void);
 struct ebc_buf_s *ebc_osd_buf_clone(void);
 int ebc_buf_release(struct ebc_buf_s *release_buf);
-int ebc_remove_from_dsp_buf_list(struct ebc_buf_s *remove_buf);
 int ebc_add_to_dsp_buf_list(struct ebc_buf_s *dsp_buf);
+int ebc_add_to_osd_buf_list(struct ebc_buf_s *dsp_buf);
 int ebc_get_dsp_list_enum_num(void);
+int ebc_get_osd_list_enum_num(void);
 struct ebc_buf_s *ebc_dsp_buf_get(void);
+struct ebc_buf_s *ebc_osd_buf_get(void);
 struct ebc_buf_s *ebc_find_buf_by_phy_addr(unsigned long phy_addr);
 struct ebc_buf_s *ebc_empty_buf_get(const char *tid_name);
 unsigned long ebc_phy_buf_base_get(void);

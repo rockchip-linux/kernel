@@ -16,7 +16,7 @@
 #include "../ebc_dev.h"
 #include "epd_lut.h"
 
-static int (*lut_get)(struct epd_lut_data *, enum epd_lut_type, int, int);
+static int (*lut_get)(struct epd_lut_data *, enum epd_lut_type, int);
 
 int epd_lut_from_mem_init(void *waveform)
 {
@@ -66,13 +66,13 @@ const char *epd_lut_get_wf_version(void)
 	return NULL;
 }
 
-int epd_lut_get(struct epd_lut_data *output, enum epd_lut_type lut_type, int temperture, int needpic)
+int epd_lut_get(struct epd_lut_data *output, enum epd_lut_type lut_type, int temperture)
 {
-	return lut_get(output, lut_type, temperture, needpic);
+	return lut_get(output, lut_type, temperture);
 }
 
 //you can change overlay lut mode here
 int epd_overlay_lut(void)
 {
-	return WF_TYPE_AUTO;
+	return WF_TYPE_GRAY2;
 }
