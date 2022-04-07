@@ -506,6 +506,8 @@ static void papyrus_pm_resume(struct ebc_pmic *pmic)
 	usleep_range(2 * 1000, 3 * 1000);
 	mutex_unlock(&s->power_lock);
 
+	s->enable_reg_shadow = 0;
+
 	//trigger temperature measurement
 	papyrus_hw_setreg(s, PAPYRUS_ADDR_TMST1, 0x80);
 	queue_delayed_work(s->tmp_monitor_wq, &s->tmp_delay_work,
