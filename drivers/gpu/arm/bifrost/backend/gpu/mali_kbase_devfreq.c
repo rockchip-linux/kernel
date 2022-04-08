@@ -48,47 +48,9 @@ static struct monitor_dev_profile mali_mdevp = {
 	.high_temp_adjust = rockchip_monitor_dev_high_temp_adjust,
 };
 
-/**
- * get_voltage() - Get the voltage value corresponding to the nominal frequency
- *                 used by devfreq.
- * @kbdev:    Device pointer
- * @freq:     Nominal frequency in Hz passed by devfreq.
- *
- * This function will be called only when the opp table which is compatible with
- * "operating-points-v2-mali", is not present in the devicetree for GPU device.
- *
- * Return: Voltage value in uV, 0 in case of error.
- */
-static unsigned long get_voltage(struct kbase_device *kbdev, unsigned long freq)
-{
-	struct dev_pm_opp *opp;
-	unsigned long voltage = 0;
-
-#if KERNEL_VERSION(4, 11, 0) > LINUX_VERSION_CODE
-	rcu_read_lock();
-#endif
-
-	opp = dev_pm_opp_find_freq_exact(kbdev->dev, freq, true);
-
-	if (IS_ERR_OR_NULL(opp))
-		dev_err(kbdev->dev, "Failed to get opp (%ld)\n", PTR_ERR(opp));
-	else {
-		voltage = dev_pm_opp_get_voltage(opp);
-#if KERNEL_VERSION(4, 11, 0) <= LINUX_VERSION_CODE
-		dev_pm_opp_put(opp);
-#endif
-	}
-
-#if KERNEL_VERSION(4, 11, 0) > LINUX_VERSION_CODE
-	rcu_read_unlock();
-#endif
-
-	/* Return the voltage in uV. */
-	return voltage;
-}
-
 void kbase_devfreq_opp_translate(struct kbase_device *kbdev, unsigned long freq,
-	u64 *core_mask, unsigned long *freqs, unsigned long *volts)
+				 unsigned long volt, u64 *core_mask,
+				 unsigned long *freqs, unsigned long *volts)
 {
 	unsigned int i;
 
@@ -112,13 +74,11 @@ void kbase_devfreq_opp_translate(struct kbase_device *kbdev, unsigned long freq,
 	 * and nominal frequency and the corresponding voltage.
 	 */
 	if (i == kbdev->num_opps) {
-		unsigned long voltage = get_voltage(kbdev, freq);
-
 		*core_mask = kbdev->gpu_props.props.raw_props.shader_present;
 
 		for (i = 0; i < kbdev->nr_clocks; i++) {
 			freqs[i] = freq;
-			volts[i] = voltage;
+			volts[i] = volt;
 		}
 	}
 }
@@ -158,6 +118,7 @@ kbase_devfreq_target(struct device *dev, unsigned long *target_freq, u32 flags)
 
 	kbase_devfreq_opp_translate(kbdev,
 				    nominal_freq,
+				    nominal_volt,
 				    &core_mask,
 				    freqs,
 				    volts);

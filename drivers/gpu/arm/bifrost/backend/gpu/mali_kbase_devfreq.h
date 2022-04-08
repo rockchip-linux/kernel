@@ -49,6 +49,7 @@ void kbase_devfreq_enqueue_work(struct kbase_device *kbdev,
  *                               core mask
  * @kbdev:     Device pointer
  * @freq:      Nominal frequency
+ * @volt:      Target voltage in microvolts corresponding to this frequency
  * @core_mask: Pointer to u64 to store core mask to
  * @freqs:     Pointer to array of frequencies
  * @volts:     Pointer to array of voltages
@@ -58,5 +59,5 @@ void kbase_devfreq_enqueue_work(struct kbase_device *kbdev,
  * untranslated frequency (and corresponding voltage) and all cores enabled.
  */
 void kbase_devfreq_opp_translate(struct kbase_device *kbdev, unsigned long freq,
-	u64 *core_mask, unsigned long *freqs, unsigned long *volts);
+	unsigned long volt, u64 *core_mask, unsigned long *freqs, unsigned long *volts);
 #endif /* _BASE_DEVFREQ_H_ */

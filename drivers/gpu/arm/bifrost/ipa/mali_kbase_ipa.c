@@ -539,8 +539,8 @@ static void opp_translate_freq_voltage(struct kbase_device *kbdev,
 {
 	u64 core_mask;
 
-	kbase_devfreq_opp_translate(kbdev, nominal_freq, &core_mask,
-				    freqs, volts);
+	kbase_devfreq_opp_translate(kbdev, nominal_freq, nominal_voltage,
+				    &core_mask, freqs, volts);
 	CSTD_UNUSED(core_mask);
 
 	if (kbdev->nr_clocks == 1) {
