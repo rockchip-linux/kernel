@@ -6922,14 +6922,10 @@ ebc_probe:
 	str	wzr, [x19, 44]
 	.loc 1 2465 0
 	str	wzr, [x19, 56]
-	.loc 1 2467 0
-	mov	w1, 80
-	.loc 1 2463 0
-	str	wzr, [x19, 100]
 	.loc 1 2466 0
 	mov	w26, 1
-	.loc 1 2467 0
-	str	w1, [x19, 260]
+	.loc 1 2463 0
+	str	wzr, [x19, 100]
 .LBB1622:
 .LBB1619:
 	.loc 4 43 0
@@ -6944,19 +6940,21 @@ ebc_probe:
 	add	x1, x1, :lo12:.LC56
 .LBE1620:
 .LBE1623:
-	.loc 1 2466 0
-	str	w26, [x19, 264]
+	.loc 1 2467 0
+	str	wzr, [x19, 260]
 	.loc 1 2474 0
 	add	x24, x20, 672
 .LVL605:
+	.loc 1 2466 0
+	str	w26, [x19, 264]
+	.loc 1 2475 0
+	adrp	x27, jiffies
 	.loc 1 2461 0
 	str	wzr, [x19, 656]
 	.loc 1 2475 0
-	adrp	x27, jiffies
+	mov	x28, 268435455
 	.loc 1 2462 0
 	str	wzr, [x19, 660]
-	.loc 1 2475 0
-	mov	x28, 268435455
 .LBB1624:
 .LBB1621:
 	.loc 4 42 0
@@ -10754,7 +10752,7 @@ __exitcall_ebc_exit:
 	.string	"%d\n"
 	.zero	4
 .LC23:
-	.string	"4.00"
+	.string	"4.01"
 	.zero	3
 .LC24:
 	.string	"%s\n"
