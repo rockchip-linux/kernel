@@ -51,6 +51,8 @@
 #define EBC_NEW_BUF_PREPARE	(0x7008)
 #define EBC_SET_DIFF_PERCENT	(0x7009)
 #define EBC_WAIT_NEW_BUF_TIME (0x700a)
+#define EBC_GET_OVERLAY_STATUS	(0x700b)
+
 /*
  * IMPORTANT: Those values is corresponding to android hardware program,
  * so *FORBID* to changes bellow values, unless you know what you're doing.
