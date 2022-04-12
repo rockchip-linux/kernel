@@ -256,7 +256,9 @@ static inline int sip_smc_amp_config(u32 sub_func_id,
 static inline struct arm_smccc_res sip_smc_get_amp_info(u32 sub_func_id,
 							u32 arg1)
 {
-	return 0;
+	struct arm_smccc_res tmp = { .a0 = SIP_RET_NOT_SUPPORTED, };
+
+	return tmp;
 }
 
 /***************************fiq debugger **************************************/
