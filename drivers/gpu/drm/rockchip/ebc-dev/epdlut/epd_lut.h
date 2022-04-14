@@ -8,32 +8,21 @@
 #ifndef EPD_LUT_H
 #define EPD_LUT_H
 
+// same to pvi_wf_mode
 enum epd_lut_type {
-	WF_TYPE_RESET	= 1,
-	WF_TYPE_GRAY16	= 2,
-	WF_TYPE_GRAY4	= 3,
-	WF_TYPE_GRAY2	= 4,
-	WF_TYPE_AUTO	= 5,
-	WF_TYPE_A2	= 6,
-	WF_TYPE_GC16	= 7,
-	WF_TYPE_GL16	= 8,
-	WF_TYPE_GLR16	= 9,
-	WF_TYPE_GLD16	= 10,
-	WF_TYPE_GCC16	= 11,
-	WF_TYPE_MAX	= 12,
-};
-
-enum pvi_wf_mode {
-	PVI_WF_RESET	= 0,
-	PVI_WF_DU	= 1,
-	PVI_WF_DU4	= 2,
-	PVI_WF_GC16	= 3,
-	PVI_WF_GL16	= 4,
-	PVI_WF_GLR16	= 5,
-	PVI_WF_GLD16	= 6,
-	PVI_WF_A2	= 7,
-	PVI_WF_GCC16	= 8,
+	WF_TYPE_RESET = 0,
+	WF_TYPE_GRAY2,	// like DU
+	WF_TYPE_GRAY4,  // like DU4
+	WF_TYPE_GC16,
+	WF_TYPE_GL16,
+	WF_TYPE_GLR16,
+	WF_TYPE_GLD16,
+	WF_TYPE_A2,
+	WF_TYPE_GCC16,
 	PVI_WF_MAX,
+
+	WF_TYPE_AUTO,	// like GC16, rk define
+	WF_TYPE_MAX,
 };
 
 struct epd_lut_data {
