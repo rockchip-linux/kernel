@@ -507,7 +507,8 @@ static int rkcif_pipeline_set_stream(struct rkcif_pipeline *p, bool on)
 			cif_dev->irq_stats.all_frm_end_cnt = 0;
 			cif_dev->reset_watchdog_timer.is_triggered = false;
 			cif_dev->reset_watchdog_timer.is_running = false;
-			cif_dev->reset_watchdog_timer.last_buf_wakeup_cnt = 0;
+			for (i = 0; i < cif_dev->num_channels; i++)
+				cif_dev->reset_watchdog_timer.last_buf_wakeup_cnt[i] = 0;
 			cif_dev->reset_watchdog_timer.run_cnt = 0;
 		}
 
@@ -553,7 +554,8 @@ static int rkcif_pipeline_set_stream(struct rkcif_pipeline *p, bool on)
 				cif_dev->is_start_hdr = true;
 				cif_dev->reset_watchdog_timer.is_triggered = false;
 				cif_dev->reset_watchdog_timer.is_running = false;
-				cif_dev->reset_watchdog_timer.last_buf_wakeup_cnt = 0;
+				for (i = 0; i < cif_dev->num_channels; i++)
+					cif_dev->reset_watchdog_timer.last_buf_wakeup_cnt[i] = 0;
 				cif_dev->reset_watchdog_timer.run_cnt = 0;
 			}
 
@@ -937,7 +939,7 @@ static int rkcif_register_platform_subdevs(struct rkcif_device *cif_dev)
 		stream_num = RKCIF_MAX_STREAM_MIPI;
 		ret = rkcif_register_stream_vdevs(cif_dev, stream_num, true);
 	}
-
+	cif_dev->num_channels = stream_num;
 	if (ret < 0) {
 		dev_err(cif_dev->dev, "cif register stream[%d] failed!\n", stream_num);
 		return -EINVAL;

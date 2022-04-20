@@ -364,7 +364,7 @@ struct rkcif_timer {
 	unsigned int		run_cnt;
 	unsigned int		max_run_cnt;
 	unsigned int		stop_index_of_run_cnt;
-	unsigned int		last_buf_wakeup_cnt;
+	unsigned int		last_buf_wakeup_cnt[RKCIF_MAX_CSI_CHANNEL];
 	unsigned long		csi2_err_cnt_even;
 	unsigned long		csi2_err_cnt_odd;
 	unsigned int		csi2_err_ref_cnt;

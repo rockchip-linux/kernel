@@ -4904,6 +4904,12 @@ static void rkcif_monitor_reset_event(struct rkcif_device *dev)
 	unsigned long flags, fps_flags;
 	int i = 0;
 
+	if (timer->is_running)
+		return;
+
+	if (timer->monitor_mode == RKCIF_MONITOR_MODE_IDLE)
+		return;
+
 	for (i = 0; i < RKCIF_MAX_STREAM_MIPI; i++) {
 		stream = &dev->stream[i];
 		if (stream->state == RKCIF_STATE_STREAMING)
@@ -4912,13 +4918,7 @@ static void rkcif_monitor_reset_event(struct rkcif_device *dev)
 	if (i >= RKCIF_MAX_STREAM_MIPI)
 		stream = &dev->stream[RKCIF_STREAM_MIPI_ID0];
 
-	if (timer->monitor_mode == RKCIF_MONITOR_MODE_IDLE)
-		return;
-
 	if (stream->state != RKCIF_STATE_STREAMING)
-		return;
-
-	if (timer->is_running)
 		return;
 
 	timer->is_triggered = rkcif_is_triggered_monitoring(dev);
@@ -4957,7 +4957,11 @@ static void rkcif_monitor_reset_event(struct rkcif_device *dev)
 		timer->run_cnt = 0;
 		timer->is_running = true;
 		timer->is_buf_stop_update = false;
-		timer->last_buf_wakeup_cnt = stream->buf_wake_up_cnt;
+		for (i = 0; i < dev->num_channels; i++) {
+			stream = &dev->stream[i];
+			if (stream->state == RKCIF_STATE_STREAMING)
+				timer->last_buf_wakeup_cnt[i] = stream->buf_wake_up_cnt;
+		}
 		/* in trigger mode, monitoring count is fps */
 		mode = timer->monitor_mode;
 		if (mode == RKCIF_MONITOR_MODE_CONTINUE ||
@@ -5547,14 +5551,11 @@ void rkcif_reset_work(struct work_struct *work)
 	struct rkcif_device *dev = container_of(reset_work,
 						struct rkcif_device,
 						reset_work);
-	struct rkcif_timer *timer = &dev->reset_watchdog_timer;
 	int ret;
 
 	ret = rkcif_do_reset_work(dev, reset_work->reset_src);
 	if (ret)
 		v4l2_info(&dev->v4l2_dev, "do reset work failed!\n");
-	timer->is_running = false;
-	timer->has_been_init = false;
 }
 
 static bool rkcif_is_reduced_frame_rate(struct rkcif_device *dev)
@@ -5635,32 +5636,26 @@ static void rkcif_init_reset_work(struct rkcif_timer *timer)
 	unsigned long flags;
 	int i = 0;
 
-	for (i = 0; i < RKCIF_MAX_STREAM_MIPI; i++) {
-		stream = &dev->stream[i];
-		if (stream->state == RKCIF_STATE_STREAMING)
-			break;
-	}
-
-	if (timer->has_been_init)
-		return;
-
 	v4l2_info(&dev->v4l2_dev,
 		  "do reset work schedule, run_cnt:%d, reset source:%d\n",
 		  timer->run_cnt, timer->reset_src);
 
 	spin_lock_irqsave(&timer->timer_lock, flags);
-	timer->is_running = true;
+	timer->is_running = false;
 	timer->is_triggered = false;
 	timer->csi2_err_cnt_odd = 0;
 	timer->csi2_err_cnt_even = 0;
 	timer->csi2_err_fs_fe_cnt = 0;
 	timer->notifer_called_cnt = 0;
-	timer->last_buf_wakeup_cnt = stream->buf_wake_up_cnt;
+	for (i = 0; i < dev->num_channels; i++) {
+		stream = &dev->stream[i];
+		if (stream->state == RKCIF_STATE_STREAMING)
+			timer->last_buf_wakeup_cnt[stream->id] = stream->buf_wake_up_cnt;
+	}
 	spin_unlock_irqrestore(&timer->timer_lock, flags);
 
 	dev->reset_work.reset_src = timer->reset_src;
 	if (schedule_work(&dev->reset_work.work)) {
-		timer->has_been_init = true;
 		v4l2_info(&dev->v4l2_dev,
 			 "schedule reset work successfully\n");
 	} else {
@@ -5669,55 +5664,26 @@ static void rkcif_init_reset_work(struct rkcif_timer *timer)
 	}
 }
 
-void rkcif_reset_watchdog_timer_handler(struct timer_list *t)
+static int rkcif_detect_reset_event(struct rkcif_stream *stream,
+				    struct rkcif_timer *timer,
+				    int check_cnt,
+				    bool *is_mod_timer)
 {
-	struct rkcif_timer *timer = container_of(t, struct rkcif_timer, timer);
-	struct rkcif_device *dev = container_of(timer,
-						struct rkcif_device,
-						reset_watchdog_timer);
+	struct rkcif_device *dev = stream->cifdev;
 	struct rkcif_sensor_info *terminal_sensor = &dev->terminal_sensor;
-	struct rkcif_stream *stream = NULL;
 	unsigned long flags;
-	unsigned int i, stream_num = 1;
 	int ret, is_reset = 0;
 	struct rkmodule_vicap_reset_info rst_info;
 
-	if (dev->hdr.mode == NO_HDR) {
-		for (i = 0; i < RKCIF_MAX_STREAM_MIPI; i++) {
-			stream = &dev->stream[i];
-			if (stream->state == RKCIF_STATE_STREAMING)
-				break;
-		}
-		if (i >= RKCIF_MAX_STREAM_MIPI)
-			goto end_detect;
-	} else {
-		if (dev->hdr.mode == HDR_X3)
-			stream_num = 3;
-		else if (dev->hdr.mode == HDR_X2)
-			stream_num = 2;
-
-		for (i = 0; i < stream_num; i++) {
-			stream = &dev->stream[i];
-			if (stream->state != RKCIF_STATE_STREAMING)
-				goto end_detect;
-		}
-	}
-
-	if (stream == NULL) {
-		v4l2_err(&dev->v4l2_dev, "there is no streaming id, stop detcting!\n");
-		goto end_detect;
-	}
-
-	timer->run_cnt += 1;
-
-	if (timer->last_buf_wakeup_cnt < stream->buf_wake_up_cnt) {
+	if (timer->last_buf_wakeup_cnt[stream->id] < stream->buf_wake_up_cnt &&
+	    check_cnt == 0) {
 
 		v4l2_dbg(1, rkcif_debug, &dev->v4l2_dev,
 			 "info: frame end still update(%d, %d) in detecting cnt:%d, mode:%d\n",
-			  timer->last_buf_wakeup_cnt, stream->buf_wake_up_cnt,
+			  timer->last_buf_wakeup_cnt[stream->id], stream->buf_wake_up_cnt,
 			  timer->run_cnt, timer->monitor_mode);
 
-		timer->last_buf_wakeup_cnt = stream->buf_wake_up_cnt;
+		timer->last_buf_wakeup_cnt[stream->id] = stream->buf_wake_up_cnt;
 
 		rkcif_is_reduced_frame_rate(dev);
 
@@ -5747,17 +5713,17 @@ void rkcif_reset_watchdog_timer_handler(struct timer_list *t)
 
 		if (is_reset) {
 			rkcif_init_reset_work(timer);
-			return;
+			return is_reset;
 		}
 
 		if (timer->monitor_mode == RKCIF_MONITOR_MODE_CONTINUE ||
 		    timer->monitor_mode == RKCIF_MONITOR_MODE_HOTPLUG) {
 			if (timer->run_cnt == timer->max_run_cnt)
 				timer->run_cnt = 0x0;
-			mod_timer(&timer->timer, jiffies + timer->cycle);
+			*is_mod_timer = true;
 		} else {
 			if (timer->run_cnt <= timer->max_run_cnt) {
-				mod_timer(&timer->timer, jiffies + timer->cycle);
+				*is_mod_timer = true;
 			} else {
 				spin_lock_irqsave(&timer->timer_lock, flags);
 				timer->is_triggered = false;
@@ -5766,12 +5732,12 @@ void rkcif_reset_watchdog_timer_handler(struct timer_list *t)
 				v4l2_info(&dev->v4l2_dev, "stop reset detecting!\n");
 			}
 		}
-	} else if (timer->last_buf_wakeup_cnt == stream->buf_wake_up_cnt) {
+	} else if (timer->last_buf_wakeup_cnt[stream->id] == stream->buf_wake_up_cnt) {
 
 		bool is_reduced = rkcif_is_reduced_frame_rate(dev);
 
 		if (is_reduced) {
-			mod_timer(&timer->timer, jiffies + timer->cycle);
+			*is_mod_timer = true;
 			v4l2_info(&dev->v4l2_dev, "%s fps is reduced\n", __func__);
 		} else {
 
@@ -5784,17 +5750,50 @@ void rkcif_reset_watchdog_timer_handler(struct timer_list *t)
 		}
 	}
 
-	return;
-end_detect:
+	return is_reset;
 
-	spin_lock_irqsave(&timer->timer_lock, flags);
-	timer->is_triggered = false;
-	timer->is_running = false;
-	spin_unlock_irqrestore(&timer->timer_lock, flags);
+}
 
-	v4l2_info(&dev->v4l2_dev,
-		  "stream[%d] is stopped, stop reset detect!\n",
-		  dev->stream[i].id);
+void rkcif_reset_watchdog_timer_handler(struct timer_list *t)
+{
+	struct rkcif_timer *timer = container_of(t, struct rkcif_timer, timer);
+	struct rkcif_device *dev = container_of(timer,
+						struct rkcif_device,
+						reset_watchdog_timer);
+	struct rkcif_stream *stream = NULL;
+	unsigned long flags;
+	unsigned int i;
+	int is_reset = 0;
+	int check_cnt = 0;
+	bool is_mod_timer = false;
+
+	for (i = 0; i < dev->num_channels; i++) {
+		stream = &dev->stream[i];
+		if (stream->state == RKCIF_STATE_STREAMING) {
+			is_reset = rkcif_detect_reset_event(stream,
+							    timer,
+							    check_cnt,
+							    &is_mod_timer);
+			check_cnt++;
+			if (is_reset)
+				break;
+		}
+	}
+
+	if (!is_reset && is_mod_timer)
+		mod_timer(&timer->timer, jiffies + timer->cycle);
+
+	timer->run_cnt += 1;
+
+	if (!check_cnt) {
+		spin_lock_irqsave(&timer->timer_lock, flags);
+		timer->is_triggered = false;
+		timer->is_running = false;
+		spin_unlock_irqrestore(&timer->timer_lock, flags);
+
+		v4l2_info(&dev->v4l2_dev,
+			  "all stream is stopped, stop reset detect!\n");
+	}
 }
 
 int rkcif_reset_notifier(struct notifier_block *nb,
