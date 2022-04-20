@@ -265,6 +265,7 @@ struct rk630 {
 	struct regmap *tve;
 	struct regmap *rtc;
 	struct regmap *efuse;
+	struct regmap *codec;
 	struct gpio_desc *reset_gpio;
 	int irq;
 	struct regmap_irq_chip_data *irq_data;
@@ -277,6 +278,7 @@ extern const struct regmap_config rk630_grf_regmap_config;
 extern const struct regmap_config rk630_pinctrl_regmap_config;
 extern const struct regmap_config rk630_cru_regmap_config;
 extern const struct regmap_config rk630_tve_regmap_config;
+extern const struct regmap_config rk630_codec_regmap_config;
 
 int rk630_core_probe(struct rk630 *rk630);
 int rk630_core_remove(struct rk630 *rk630);

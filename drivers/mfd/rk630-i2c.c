@@ -70,6 +70,15 @@ rk630_i2c_probe(struct i2c_client *client, const struct i2c_device_id *id)
 		return ret;
 	}
 
+	if (IS_REACHABLE(CONFIG_SND_SOC_RK630)) {
+		rk630->codec = devm_regmap_init_i2c(client, &rk630_codec_regmap_config);
+		if (IS_ERR(rk630->codec)) {
+			ret = PTR_ERR(rk630->codec);
+			dev_err(dev, "failed to allocate codec register map: %d\n", ret);
+			return ret;
+		}
+	}
+
 	rk630->irq = client->irq;
 
 	return rk630_core_probe(rk630);

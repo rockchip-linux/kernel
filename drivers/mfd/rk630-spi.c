@@ -239,6 +239,17 @@ rk630_spi_probe(struct spi_device *spi)
 		return ret;
 	}
 
+	if (IS_REACHABLE(CONFIG_SND_SOC_RK630)) {
+		rk630->codec = devm_regmap_init(&spi->dev, &rk630_regmap,
+						&spi->dev, &rk630_codec_regmap_config);
+		if (IS_ERR(rk630->codec)) {
+			ret = PTR_ERR(rk630->codec);
+			dev_err(rk630->dev, "Failed to initialize codec regmap: %d\n",
+				ret);
+			return ret;
+		}
+	}
+
 	rk630->irq = spi->irq;
 
 	ret = rk630_core_probe(rk630);
