@@ -145,6 +145,7 @@ struct rk_alg_ctx {
 	dma_addr_t			addr_aad_in;
 
 	bool				aligned;
+	bool				is_dma;
 	int				align_size;
 	int				chunk_size;
 };
@@ -158,6 +159,7 @@ struct rk_ahash_ctx {
 	struct scatterlist		hash_sg[2];
 	u8				*hash_tmp;
 	u32				hash_tmp_len;
+	bool				hash_tmp_mapped;
 	u32				calc_cnt;
 
 	u8				lastc[RK_DMA_ALIGNMENT];
