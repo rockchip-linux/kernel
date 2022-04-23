@@ -4,24 +4,31 @@
  * Author: Felix Zeng <felix.zeng@rock-chips.com>
  */
 
-#include <drm/drmP.h>
+#include <drm/drm_device.h>
 #include <drm/drm_vma_manager.h>
+#include <drm/drm_prime.h>
 
 #include <linux/shmem_fs.h>
 #include <linux/dma-buf.h>
 #include <linux/pfn_t.h>
+#include <linux/version.h>
+
+#if KERNEL_VERSION(5, 10, 0) <= LINUX_VERSION_CODE
+#include <linux/dma-map-ops.h>
+#endif
 
 #include "rknpu_drv.h"
 #include "rknpu_ioctl.h"
 #include "rknpu_gem.h"
 
-#define RKNPU_GEM_ALLOC_FROM_PAGES 0
+#define RKNPU_GEM_ALLOC_FROM_PAGES 1
 
 #if RKNPU_GEM_ALLOC_FROM_PAGES
 static int rknpu_gem_get_pages(struct rknpu_gem_object *rknpu_obj)
 {
 	struct drm_device *drm = rknpu_obj->base.dev;
 	struct scatterlist *s = NULL;
+	dma_addr_t dma_addr = 0;
 	int ret = -EINVAL, i = 0;
 
 	rknpu_obj->pages = drm_gem_get_pages(&rknpu_obj->base);
@@ -30,42 +37,55 @@ static int rknpu_gem_get_pages(struct rknpu_gem_object *rknpu_obj)
 
 	rknpu_obj->num_pages = rknpu_obj->base.size >> PAGE_SHIFT;
 
+#if KERNEL_VERSION(5, 10, 0) <= LINUX_VERSION_CODE
+	rknpu_obj->sgt = drm_prime_pages_to_sg(drm, rknpu_obj->pages,
+					       rknpu_obj->num_pages);
+#else
 	rknpu_obj->sgt =
 		drm_prime_pages_to_sg(rknpu_obj->pages, rknpu_obj->num_pages);
+#endif
 	if (IS_ERR(rknpu_obj->sgt)) {
 		ret = PTR_ERR(rknpu_obj->sgt);
 		goto put_pages;
 	}
 
-	for_each_sg(rknpu_obj->sgt->sgl, s, rknpu_obj->sgt->nents, i) {
-		sg_dma_address(s) = sg_phys(s);
-		LOG_DEBUG(
-			"gem pages alloc sgt[%d], phys_address: %#llx, length: %#x\n",
-			i, (__u64)s->dma_address, s->length);
-	}
-
-	ret = dma_map_sg_attrs(drm->dev, rknpu_obj->sgt->sgl,
-			       rknpu_obj->sgt->nents, DMA_BIDIRECTIONAL,
-			       rknpu_obj->dma_attrs);
+	ret = dma_map_sg(drm->dev, rknpu_obj->sgt->sgl, rknpu_obj->sgt->nents,
+			 DMA_BIDIRECTIONAL);
 	if (ret == 0) {
-		LOG_DEV_ERROR(drm->dev, "failed to map sg table.\n");
 		ret = -EFAULT;
 		goto free_sgt;
 	}
 
 	if (rknpu_obj->flags & RKNPU_MEM_KERNEL_MAPPING) {
-		rknpu_obj->kv_addr =
-			vmap(rknpu_obj->pages, rknpu_obj->num_pages, VM_MAP,
-			     PAGE_KERNEL);
+		rknpu_obj->cookie = vmap(rknpu_obj->pages, rknpu_obj->num_pages,
+					 VM_MAP, PAGE_KERNEL);
+		if (!rknpu_obj->cookie) {
+			ret = -ENOMEM;
+			goto unmap_sg;
+		}
+		rknpu_obj->kv_addr = rknpu_obj->cookie;
 	}
 
-	rknpu_obj->dma_addr = (__u64)sg_dma_address(rknpu_obj->sgt->sgl);
+	dma_addr = sg_dma_address(rknpu_obj->sgt->sgl);
+	rknpu_obj->dma_addr = dma_addr;
+
+	for_each_sg(rknpu_obj->sgt->sgl, s, rknpu_obj->sgt->nents, i) {
+		dma_addr += s->length;
+		LOG_DEBUG(
+			"gem pages alloc sgt[%d], dma_address: %#llx, length: %#x\n",
+			i, (__u64)dma_addr, s->length);
+	}
 
 	return 0;
+
+unmap_sg:
+	dma_unmap_sg(drm->dev, rknpu_obj->sgt->sgl, rknpu_obj->sgt->nents,
+		     DMA_BIDIRECTIONAL);
 
 free_sgt:
 	sg_free_table(rknpu_obj->sgt);
 	kfree(rknpu_obj->sgt);
+
 put_pages:
 	drm_gem_put_pages(&rknpu_obj->base, rknpu_obj->pages, false, false);
 
@@ -76,43 +96,19 @@ static void rknpu_gem_put_pages(struct rknpu_gem_object *rknpu_obj)
 {
 	struct drm_device *drm = rknpu_obj->base.dev;
 
-	if (rknpu_obj->flags & RKNPU_MEM_KERNEL_MAPPING)
+	if (rknpu_obj->flags & RKNPU_MEM_KERNEL_MAPPING) {
 		vunmap(rknpu_obj->kv_addr);
+		rknpu_obj->kv_addr = NULL;
+	}
 
-	dma_map_sg_attrs(drm->dev, rknpu_obj->sgt->sgl, rknpu_obj->sgt->nents,
-			 DMA_BIDIRECTIONAL, rknpu_obj->dma_attrs);
+	dma_unmap_sg(drm->dev, rknpu_obj->sgt->sgl, rknpu_obj->sgt->nents,
+		     DMA_BIDIRECTIONAL);
+
 	drm_gem_put_pages(&rknpu_obj->base, rknpu_obj->pages, true, true);
 	sg_free_table(rknpu_obj->sgt);
 	kfree(rknpu_obj->sgt);
 }
 #endif
-
-#ifndef arch_dma_alloc_attrs
-#define arch_dma_alloc_attrs(dev) (true)
-#endif
-
-static inline void *dma_alloc_attrs_gfp(struct device *dev, size_t size,
-					dma_addr_t *dma_handle, gfp_t flag,
-					unsigned long attrs)
-{
-	const struct dma_map_ops *ops = get_dma_ops(dev);
-	void *cpu_addr;
-
-	BUG_ON(!ops);
-	WARN_ON_ONCE(dev && !dev->coherent_dma_mask);
-
-	if (dma_alloc_from_dev_coherent(dev, size, dma_handle, &cpu_addr))
-		return cpu_addr;
-
-	if (!arch_dma_alloc_attrs(&dev))
-		return NULL;
-	if (!ops->alloc)
-		return NULL;
-
-	cpu_addr = ops->alloc(dev, size, dma_handle, flag, attrs);
-
-	return cpu_addr;
-}
 
 static int rknpu_gem_alloc_buf(struct rknpu_gem_object *rknpu_obj)
 {
@@ -121,7 +117,7 @@ static int rknpu_gem_alloc_buf(struct rknpu_gem_object *rknpu_obj)
 	unsigned int nr_pages = 0;
 	struct sg_table *sgt = NULL;
 	struct scatterlist *s = NULL;
-	gfp_t gfp = GFP_KERNEL;
+	gfp_t gfp_mask = GFP_KERNEL;
 	int ret = -EINVAL, i = 0;
 
 	if (rknpu_obj->dma_addr) {
@@ -141,9 +137,12 @@ static int rknpu_gem_alloc_buf(struct rknpu_gem_object *rknpu_obj)
 
 	// cacheable mapping or writecombine mapping
 	if (rknpu_obj->flags & RKNPU_MEM_CACHEABLE) {
+#ifdef DMA_ATTR_NON_CONSISTENT
 		rknpu_obj->dma_attrs |= DMA_ATTR_NON_CONSISTENT;
-		// force coherent
-		rknpu_obj->dma_attrs |= DMA_ATTR_FORCE_COHERENT;
+#endif
+#ifdef DMA_ATTR_SYS_CACHE_ONLY
+		rknpu_obj->dma_attrs |= DMA_ATTR_SYS_CACHE_ONLY;
+#endif
 	} else if (rknpu_obj->flags & RKNPU_MEM_WRITE_COMBINE) {
 		rknpu_obj->dma_attrs |= DMA_ATTR_WRITE_COMBINE;
 	}
@@ -151,8 +150,10 @@ static int rknpu_gem_alloc_buf(struct rknpu_gem_object *rknpu_obj)
 	if (!(rknpu_obj->flags & RKNPU_MEM_KERNEL_MAPPING))
 		rknpu_obj->dma_attrs |= DMA_ATTR_NO_KERNEL_MAPPING;
 
+#ifdef DMA_ATTR_SKIP_ZEROING
 	if (!(rknpu_obj->flags & RKNPU_MEM_ZEROING))
 		rknpu_obj->dma_attrs |= DMA_ATTR_SKIP_ZEROING;
+#endif
 
 #if RKNPU_GEM_ALLOC_FROM_PAGES
 	if ((rknpu_obj->flags & RKNPU_MEM_NON_CONTIGUOUS) &&
@@ -161,8 +162,13 @@ static int rknpu_gem_alloc_buf(struct rknpu_gem_object *rknpu_obj)
 	}
 #endif
 
-	if (!(rknpu_obj->flags & RKNPU_MEM_NON_DMA32))
-		gfp |= __GFP_DMA32;
+	if (rknpu_obj->flags & RKNPU_MEM_ZEROING)
+		gfp_mask |= __GFP_ZERO;
+
+	if (!(rknpu_obj->flags & RKNPU_MEM_NON_DMA32)) {
+		gfp_mask &= ~__GFP_HIGHMEM;
+		gfp_mask |= __GFP_DMA32;
+	}
 
 	nr_pages = rknpu_obj->size >> PAGE_SHIFT;
 
@@ -172,9 +178,9 @@ static int rknpu_gem_alloc_buf(struct rknpu_gem_object *rknpu_obj)
 		return -ENOMEM;
 	}
 
-	rknpu_obj->cookie = dma_alloc_attrs_gfp(drm->dev, rknpu_obj->size,
-						&rknpu_obj->dma_addr, gfp,
-						rknpu_obj->dma_attrs);
+	rknpu_obj->cookie =
+		dma_alloc_attrs(drm->dev, rknpu_obj->size, &rknpu_obj->dma_addr,
+				gfp_mask, rknpu_obj->dma_attrs);
 	if (!rknpu_obj->cookie) {
 		/*
 		 * when RKNPU_MEM_CONTIGUOUS and IOMMU is available
@@ -189,9 +195,9 @@ static int rknpu_gem_alloc_buf(struct rknpu_gem_object *rknpu_obj)
 			rknpu_obj->dma_attrs &= ~DMA_ATTR_FORCE_CONTIGUOUS;
 			rknpu_obj->flags |= RKNPU_MEM_NON_CONTIGUOUS;
 			rknpu_obj->cookie =
-				dma_alloc_attrs_gfp(drm->dev, rknpu_obj->size,
-						    &rknpu_obj->dma_addr, gfp,
-						    rknpu_obj->dma_attrs);
+				dma_alloc_attrs(drm->dev, rknpu_obj->size,
+						&rknpu_obj->dma_addr, gfp_mask,
+						rknpu_obj->dma_attrs);
 			if (!rknpu_obj->cookie) {
 				LOG_DEV_ERROR(
 					drm->dev,
@@ -318,7 +324,7 @@ static struct rknpu_gem_object *rknpu_gem_init(struct drm_device *drm,
 {
 	struct rknpu_gem_object *rknpu_obj = NULL;
 	struct drm_gem_object *obj = NULL;
-	struct address_space *mapping = NULL;
+	gfp_t gfp_mask;
 	int ret = -EINVAL;
 
 	rknpu_obj = kzalloc(sizeof(*rknpu_obj), GFP_KERNEL);
@@ -335,8 +341,17 @@ static struct rknpu_gem_object *rknpu_gem_init(struct drm_device *drm,
 		return ERR_PTR(ret);
 	}
 
-	mapping = obj->filp->f_mapping;
-	mapping_set_gfp_mask(mapping, GFP_HIGHUSER | __GFP_NOWARN);
+	gfp_mask = mapping_gfp_mask(obj->filp->f_mapping);
+
+	if (rknpu_obj->flags & RKNPU_MEM_ZEROING)
+		gfp_mask |= __GFP_ZERO;
+
+	if (!(rknpu_obj->flags & RKNPU_MEM_NON_DMA32)) {
+		gfp_mask &= ~__GFP_HIGHMEM;
+		gfp_mask |= __GFP_DMA32;
+	}
+
+	mapping_set_gfp_mask(obj->filp->f_mapping, gfp_mask);
 
 	ret = drm_gem_create_mmap_offset(obj);
 	if (ret < 0) {
@@ -453,7 +468,7 @@ int rknpu_gem_create_ioctl(struct drm_device *dev, void *data,
 	// rknpu_gem_object_get(&rknpu_obj->base);
 
 	args->size = rknpu_obj->size;
-	args->obj_addr = (__u64)rknpu_obj;
+	args->obj_addr = (__u64)(uintptr_t)rknpu_obj;
 	args->dma_addr = rknpu_obj->dma_addr;
 
 	return 0;
@@ -477,7 +492,6 @@ int rknpu_gem_destroy_ioctl(struct drm_device *dev, void *data,
 			    struct drm_file *file_priv)
 {
 	struct rknpu_gem_object *rknpu_obj = NULL;
-	struct drm_gem_object *obj = NULL;
 	struct rknpu_mem_destroy *args = data;
 
 	rknpu_obj = rknpu_gem_object_find(file_priv, args->handle);
@@ -485,10 +499,6 @@ int rknpu_gem_destroy_ioctl(struct drm_device *dev, void *data,
 		return -EINVAL;
 
 	// rknpu_gem_object_put(&rknpu_obj->base);
-
-	obj = &rknpu_obj->base;
-	if (obj->import_attach)
-		return 0;
 
 	return rknpu_gem_handle_destroy(file_priv, args->handle);
 }
@@ -819,7 +829,11 @@ struct sg_table *rknpu_gem_prime_get_sg_table(struct drm_gem_object *obj)
 
 	npages = rknpu_obj->size >> PAGE_SHIFT;
 
+#if KERNEL_VERSION(5, 10, 0) <= LINUX_VERSION_CODE
+	return drm_prime_pages_to_sg(obj->dev, rknpu_obj->pages, npages);
+#else
 	return drm_prime_pages_to_sg(rknpu_obj->pages, npages);
+#endif
 }
 
 struct drm_gem_object *
@@ -909,13 +923,12 @@ int rknpu_gem_sync_ioctl(struct drm_device *dev, void *data,
 	struct rknpu_gem_object *rknpu_obj = NULL;
 	struct rknpu_mem_sync *args = data;
 	struct scatterlist *sg;
-	dma_addr_t sg_dma_addr;
 	unsigned long length, offset = 0;
-	unsigned long sg_offset, sg_left, size = 0;
+	unsigned long sg_left, size = 0;
 	unsigned long len = 0;
 	int i;
 
-	rknpu_obj = (struct rknpu_gem_object *)args->obj_addr;
+	rknpu_obj = (struct rknpu_gem_object *)(uintptr_t)args->obj_addr;
 	if (!rknpu_obj)
 		return -EINVAL;
 
@@ -935,11 +948,6 @@ int rknpu_gem_sync_ioctl(struct drm_device *dev, void *data,
 						      DMA_FROM_DEVICE);
 		}
 	} else {
-		struct drm_device *drm = rknpu_obj->base.dev;
-		struct rknpu_device *rknpu_dev = drm->dev_private;
-
-		WARN_ON(!rknpu_dev->fake_dev);
-
 		length = args->size;
 		offset = args->offset;
 
@@ -949,21 +957,17 @@ int rknpu_gem_sync_ioctl(struct drm_device *dev, void *data,
 			if (len <= offset)
 				continue;
 
-			sg_dma_addr = sg_dma_address(sg);
 			sg_left = len - offset;
-			sg_offset = sg->length - sg_left;
 			size = (length < sg_left) ? length : sg_left;
 
 			if (args->flags & RKNPU_MEM_SYNC_TO_DEVICE) {
-				dma_sync_single_range_for_device(
-					rknpu_dev->fake_dev, sg_dma_addr,
-					sg_offset, size, DMA_TO_DEVICE);
+				dma_sync_sg_for_device(dev->dev, sg, 1,
+						       DMA_TO_DEVICE);
 			}
 
 			if (args->flags & RKNPU_MEM_SYNC_FROM_DEVICE) {
-				dma_sync_single_range_for_cpu(
-					rknpu_dev->fake_dev, sg_dma_addr,
-					sg_offset, size, DMA_FROM_DEVICE);
+				dma_sync_sg_for_cpu(dev->dev, sg, 1,
+						    DMA_FROM_DEVICE);
 			}
 
 			offset += size;

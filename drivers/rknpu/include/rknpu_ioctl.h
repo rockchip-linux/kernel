@@ -14,7 +14,9 @@
 #define __user
 #endif
 
-#define RKNPU_PC_DATA_EXTRA_AMOUNT 4
+#ifndef __packed
+#define __packed __attribute__((packed))
+#endif
 
 #define RKNPU_OFFSET_VERSION 0x0
 #define RKNPU_OFFSET_PC_OP_EN 0x8
@@ -27,6 +29,7 @@
 #define RKNPU_OFFSET_INT_MASK 0x20
 #define RKNPU_OFFSET_INT_CLEAR 0x24
 #define RKNPU_OFFSET_INT_STATUS 0x28
+#define RKNPU_OFFSET_INT_RAW_STATUS 0x2c
 
 #define RKNPU_OFFSET_CLR_ALL_RW_AMOUNT 0x8010
 #define RKNPU_OFFSET_DT_WR_AMOUNT 0x8034
@@ -36,6 +39,8 @@
 #define RKNPU_OFFSET_ENABLE_MASK 0xf008
 
 #define RKNPU_INT_CLEAR 0x1ffff
+
+#define RKNPU_PC_DATA_EXTRA_AMOUNT 4
 
 #define RKNPU_STR_HELPER(x) #x
 
@@ -91,9 +96,11 @@ enum e_rknpu_job_mode {
 	RKNPU_JOB_BLOCK = 0 << 1,
 	RKNPU_JOB_NONBLOCK = 1 << 1,
 	RKNPU_JOB_PINGPONG = 1 << 2,
-	RKNPU_JOB_FENCE = 1 << 3,
+	RKNPU_JOB_FENCE_IN = 1 << 3,
+	RKNPU_JOB_FENCE_OUT = 1 << 4,
 	RKNPU_JOB_MASK = RKNPU_JOB_PC | RKNPU_JOB_NONBLOCK |
-			 RKNPU_JOB_PINGPONG | RKNPU_JOB_FENCE
+			 RKNPU_JOB_PINGPONG | RKNPU_JOB_FENCE_IN |
+			 RKNPU_JOB_FENCE_OUT
 };
 
 /* action definitions */
@@ -118,6 +125,8 @@ enum e_rknpu_action {
 	RKNPU_GET_TOTAL_RW_AMOUNT = 17,
 	RKNPU_GET_IOMMU_EN = 18,
 	RKNPU_SET_PROC_NICE = 19,
+	RKNPU_POWER_ON = 20,
+	RKNPU_POWER_OFF = 21,
 };
 
 /**
@@ -156,10 +165,12 @@ struct rknpu_mem_map {
  *
  * @handle:	handle of the buffer.
  * @reserved: reserved for padding.
+ * @obj_addr: rknpu_mem_object addr.
  */
 struct rknpu_mem_destroy {
 	__u32 handle;
 	__u32 reserved;
+	__u64 obj_addr;
 };
 
 /**
@@ -191,7 +202,7 @@ struct rknpu_mem_sync {
  * @int_status: interrupt status
  * @regcfg_amount: register config number
  * @regcfg_offset: offset for register config
- * @regcmd_data: data for register command
+ * @regcmd_addr: address for register command
  *
  */
 struct rknpu_task {
@@ -203,8 +214,20 @@ struct rknpu_task {
 	__u32 int_status;
 	__u32 regcfg_amount;
 	__u32 regcfg_offset;
-	__u64 regcmd_data;
+	__u64 regcmd_addr;
 } __packed;
+
+/**
+ * struct rknpu_subcore_task structure for subcore task index
+ *
+ * @task_start: task start index
+ * @task_number: task number
+ *
+ */
+struct rknpu_subcore_task {
+	__u32 task_start;
+	__u32 task_number;
+};
 
 /**
  * struct rknpu_submit structure for job submit
@@ -217,10 +240,11 @@ struct rknpu_task {
  * @priority: submit priority
  * @task_obj_addr: address of task object
  * @regcfg_obj_addr: address of register config object
+ * @task_base_addr: task base address
  * @user_data: (optional) user data
- * @sequence: submit sequence
- * @core_id: core id of rknpu
+ * @core_mask: core mask of rknpu
  * @fence_fd: dma fence fd
+ * @subcore_task: subcore task
  *
  */
 struct rknpu_submit {
@@ -232,10 +256,11 @@ struct rknpu_submit {
 	__s32 priority;
 	__u64 task_obj_addr;
 	__u64 regcfg_obj_addr;
+	__u64 task_base_addr;
 	__u64 user_data;
-	__u64 sequence;
-	__u32 core_id;
+	__u32 core_mask;
 	__s32 fence_fd;
+	struct rknpu_subcore_task subcore_task[5];
 };
 
 /**
@@ -257,7 +282,10 @@ struct rknpu_action {
 #define RKNPU_MEM_DESTROY 0x04
 #define RKNPU_MEM_SYNC 0x05
 
-#if defined(__arm__) || defined(__aarch64__)
+#define RKNPU_IOC_MAGIC 'r'
+#define RKNPU_IOW(nr, type) _IOW(RKNPU_IOC_MAGIC, nr, type)
+#define RKNPU_IOR(nr, type) _IOR(RKNPU_IOC_MAGIC, nr, type)
+#define RKNPU_IOWR(nr, type) _IOWR(RKNPU_IOC_MAGIC, nr, type)
 
 #include <drm/drm.h>
 
@@ -274,6 +302,13 @@ struct rknpu_action {
 #define DRM_IOCTL_RKNPU_MEM_SYNC                                               \
 	DRM_IOWR(DRM_COMMAND_BASE + RKNPU_MEM_SYNC, struct rknpu_mem_sync)
 
-#endif
+#define IOCTL_RKNPU_ACTION RKNPU_IOWR(RKNPU_ACTION, struct rknpu_action)
+#define IOCTL_RKNPU_SUBMIT RKNPU_IOWR(RKNPU_SUBMIT, struct rknpu_submit)
+#define IOCTL_RKNPU_MEM_CREATE                                                 \
+	RKNPU_IOWR(RKNPU_MEM_CREATE, struct rknpu_mem_create)
+#define IOCTL_RKNPU_MEM_MAP RKNPU_IOWR(RKNPU_MEM_MAP, struct rknpu_mem_map)
+#define IOCTL_RKNPU_MEM_DESTROY                                                \
+	RKNPU_IOWR(RKNPU_MEM_DESTROY, struct rknpu_mem_destroy)
+#define IOCTL_RKNPU_MEM_SYNC RKNPU_IOWR(RKNPU_MEM_SYNC, struct rknpu_mem_sync)
 
 #endif
