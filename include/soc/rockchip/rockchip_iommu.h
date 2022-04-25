@@ -10,6 +10,7 @@ struct device;
 #if IS_ENABLED(CONFIG_ROCKCHIP_IOMMU)
 int rockchip_iommu_enable(struct device *dev);
 int rockchip_iommu_disable(struct device *dev);
+bool rockchip_iommu_is_enabled(struct device *dev);
 #else
 static inline int rockchip_iommu_enable(struct device *dev)
 {
@@ -18,6 +19,10 @@ static inline int rockchip_iommu_enable(struct device *dev)
 static inline int rockchip_iommu_disable(struct device *dev)
 {
 	return -ENODEV;
+}
+static inline bool rockchip_iommu_is_enabled(struct device *dev)
+{
+	return false;
 }
 #endif
 
