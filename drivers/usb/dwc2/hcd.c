@@ -3061,7 +3061,7 @@ static int dwc2_queue_transaction(struct dwc2_hsotg *hsotg,
 			if (!chan->xfer_started) {
 				dwc2_hc_start_transfer(hsotg, chan);
 				retval = 1;
-			} else {
+			} else if (!hsotg->params.host_dma) {
 				retval = dwc2_hc_continue_transfer(hsotg, chan);
 			}
 		} else {
@@ -3071,7 +3071,7 @@ static int dwc2_queue_transaction(struct dwc2_hsotg *hsotg,
 		if (!chan->xfer_started) {
 			dwc2_hc_start_transfer(hsotg, chan);
 			retval = 1;
-		} else {
+		} else if (!hsotg->params.host_dma) {
 			retval = dwc2_hc_continue_transfer(hsotg, chan);
 		}
 	}
