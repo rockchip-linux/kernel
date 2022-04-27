@@ -1107,7 +1107,7 @@ static int32_t vop2_pending_done_bits(struct vop2_video_port *vp)
 	return done_bits;
 }
 
-static inline void vop2_cfg_done(struct drm_crtc *crtc)
+static inline void rk3568_vop2_cfg_done(struct drm_crtc *crtc)
 {
 	struct vop2_video_port *vp = to_vop2_video_port(crtc);
 	struct vop2 *vop2 = vp->vop2;
@@ -1154,21 +1154,46 @@ static inline void vop2_cfg_done(struct drm_crtc *crtc)
 	}
 }
 
+static inline void rk3588_vop2_cfg_done(struct drm_crtc *crtc)
+{
+	struct vop2_video_port *vp = to_vop2_video_port(crtc);
+	struct vop2 *vop2 = vp->vop2;
+	uint32_t val;
+
+	val = RK3568_VOP2_GLB_CFG_DONE_EN | BIT(vp->id) | (BIT(vp->id) << 16);
+
+	vop2_writel(vop2, 0, val);
+}
+
 static inline void vop2_wb_cfg_done(struct vop2_video_port *vp)
 {
 	struct vop2 *vop2 = vp->vop2;
-	uint32_t val = RK3568_VOP2_WB_CFG_DONE | (RK3568_VOP2_WB_CFG_DONE << 16);
+	uint32_t val = RK3568_VOP2_WB_CFG_DONE | (RK3568_VOP2_WB_CFG_DONE << 16) |
+		       RK3568_VOP2_GLB_CFG_DONE_EN;
 	uint32_t done_bits;
 	unsigned long flags;
 
-	spin_lock_irqsave(&vop2->irq_lock, flags);
-	done_bits = vop2_pending_done_bits(vp);
+	if (vop2->version == VOP_VERSION_RK3568) {
+		spin_lock_irqsave(&vop2->irq_lock, flags);
+		done_bits = vop2_pending_done_bits(vp);
+		val |= done_bits;
+		vop2_writel(vop2, 0, val);
+		spin_unlock_irqrestore(&vop2->irq_lock, flags);
+	} else {
+		vop2_writel(vop2, 0, val);
+	}
 
-	val |=  RK3568_VOP2_GLB_CFG_DONE_EN | done_bits;
+}
 
-	vop2_writel(vop2, 0, val);
-	spin_unlock_irqrestore(&vop2->irq_lock, flags);
+static inline void vop2_cfg_done(struct drm_crtc *crtc)
+{
+	struct vop2_video_port *vp = to_vop2_video_port(crtc);
+	struct vop2 *vop2 = vp->vop2;
 
+	if (vop2->version == VOP_VERSION_RK3568)
+		return rk3568_vop2_cfg_done(crtc);
+	else
+		return rk3588_vop2_cfg_done(crtc);
 }
 
 static void vop2_win_multi_area_disable(struct vop2_win *parent)
