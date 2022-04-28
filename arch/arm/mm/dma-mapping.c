@@ -18,6 +18,7 @@
 #include <linux/list.h>
 #include <linux/init.h>
 #include <linux/device.h>
+#include <linux/dma-direct.h>
 #include <linux/dma-mapping.h>
 #include <linux/dma-contiguous.h>
 #include <linux/highmem.h>
@@ -28,6 +29,7 @@
 #include <linux/vmalloc.h>
 #include <linux/sizes.h>
 #include <linux/cma.h>
+#include <linux/swiotlb.h>
 
 #include <asm/memory.h>
 #include <asm/highmem.h>
@@ -130,6 +132,12 @@ static dma_addr_t arm_dma_map_page(struct device *dev, struct page *page,
 	     unsigned long offset, size_t size, enum dma_data_direction dir,
 	     unsigned long attrs)
 {
+#ifdef CONFIG_SWIOTLB
+	if (unlikely(!dma_capable(dev, phys_to_dma(dev, page_to_phys(page) +
+						   offset), size)))
+		return swiotlb_map_page(dev, page, offset, size, dir, attrs);
+#endif
+
 	if ((attrs & DMA_ATTR_SKIP_CPU_SYNC) == 0)
 		__dma_page_cpu_to_dev(page, offset, size, dir);
 	return pfn_to_dma(dev, page_to_pfn(page)) + offset;
@@ -162,6 +170,12 @@ static void arm_dma_unmap_page(struct device *dev, dma_addr_t handle,
 	if ((attrs & DMA_ATTR_SKIP_CPU_SYNC) == 0)
 		__dma_page_dev_to_cpu(pfn_to_page(dma_to_pfn(dev, handle)),
 				      handle & ~PAGE_MASK, size, dir);
+
+#ifdef CONFIG_SWIOTLB
+	if (unlikely(is_swiotlb_buffer(dma_to_phys(dev, handle))))
+		swiotlb_tbl_unmap_single(dev, dma_to_phys(dev, handle), size,
+					 dir, attrs);
+#endif
 }
 
 static void arm_dma_sync_single_for_cpu(struct device *dev,
@@ -169,7 +183,13 @@ static void arm_dma_sync_single_for_cpu(struct device *dev,
 {
 	unsigned int offset = handle & (PAGE_SIZE - 1);
 	struct page *page = pfn_to_page(dma_to_pfn(dev, handle-offset));
+
 	__dma_page_dev_to_cpu(page, offset, size, dir);
+#ifdef CONFIG_SWIOTLB
+	if (unlikely(is_swiotlb_buffer(dma_to_phys(dev, handle))))
+		swiotlb_tbl_sync_single(dev, dma_to_phys(dev, handle), size,
+					dir, SYNC_FOR_CPU);
+#endif
 }
 
 static void arm_dma_sync_single_for_device(struct device *dev,
@@ -177,6 +197,12 @@ static void arm_dma_sync_single_for_device(struct device *dev,
 {
 	unsigned int offset = handle & (PAGE_SIZE - 1);
 	struct page *page = pfn_to_page(dma_to_pfn(dev, handle-offset));
+
+#ifdef CONFIG_SWIOTLB
+	if (unlikely(is_swiotlb_buffer(dma_to_phys(dev, handle))))
+		swiotlb_tbl_sync_single(dev, dma_to_phys(dev, handle), size,
+					dir, SYNC_FOR_DEVICE);
+#endif
 	__dma_page_cpu_to_dev(page, offset, size, dir);
 }
 

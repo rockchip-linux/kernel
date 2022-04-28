@@ -25,6 +25,7 @@
 #include <linux/dma-contiguous.h>
 #include <linux/sizes.h>
 #include <linux/stop_machine.h>
+#include <linux/swiotlb.h>
 
 #include <asm/cp15.h>
 #include <asm/mach-types.h>
@@ -507,6 +508,10 @@ void __init mem_init(void)
 	/* These pointers are filled in on TCM detection */
 	extern u32 dtcm_end;
 	extern u32 itcm_end;
+#endif
+
+#ifdef CONFIG_ARM_LPAE
+	swiotlb_init(1);
 #endif
 
 	set_max_mapnr(pfn_to_page(max_pfn) - mem_map);
