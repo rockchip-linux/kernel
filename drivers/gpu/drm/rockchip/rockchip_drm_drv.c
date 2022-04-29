@@ -1701,6 +1701,8 @@ static int rockchip_drm_bind(struct device *dev)
 	/* init kms poll for handling hpd */
 	drm_kms_helper_poll_init(drm_dev);
 
+	private->page_pools = dmabuf_page_pool_create(GFP_HIGHUSER | __GFP_ZERO | __GFP_COMP, 0);
+
 	rockchip_gem_pool_init(drm_dev);
 #ifndef MODULE
 	show_loader_logo(drm_dev);
@@ -1738,6 +1740,7 @@ err_kms_helper_poll_fini:
 	rockchip_gem_pool_destroy(drm_dev);
 	drm_kms_helper_poll_fini(drm_dev);
 err_unbind_all:
+	dmabuf_page_pool_destroy(private->page_pools);
 	component_unbind_all(dev, drm_dev);
 err_mode_config_cleanup:
 	drm_mode_config_cleanup(drm_dev);
