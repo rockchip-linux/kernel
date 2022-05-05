@@ -32,6 +32,7 @@
 #define WEEKS_REG_MSK			0x7
 
 #define RTC_VREF_INIT			0x40
+#define RTC_XO_START_MIR		0x40
 
 #define NUM_TIME_REGS			8
 #define NUM_ALARM_REGS			7
@@ -561,12 +562,16 @@ static int rk630_rtc_probe(struct platform_device *pdev)
 	rk630_rtc->rk630 = rk630;
 
 	regmap_write(rk630->grf, PLUMAGE_GRF_SOC_CON0, RTC_CLAMP_EN(1));
+	/* setting d2a_lp_xo_start_mir */
+	regmap_write(rk630->rtc, RTC_XO_TRIM0, RTC_XO_START_MIR);
 	regmap_write(rk630->rtc, RTC_ANALOG_TEST, RTC_VREF_INIT);
 
 	rk630_rtc_compensation(&pdev->dev);
 
 	/* start rtc running by default, and use shadowed timer. */
-	ret = regmap_write(rk630->rtc, RTC_CTRL,
+	ret = regmap_update_bits(rk630->rtc, RTC_CTRL,
+			   RTC_CTRL_REG_RTC_READSEL_M |
+			   RTC_CTRL_REG_START_RTC,
 			   RTC_CTRL_REG_RTC_READSEL_M |
 			   RTC_CTRL_REG_START_RTC);
 	if (ret) {
