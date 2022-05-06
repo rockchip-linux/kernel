@@ -52,6 +52,8 @@
 #define EBC_SET_DIFF_PERCENT	(0x7009)
 #define EBC_WAIT_NEW_BUF_TIME (0x700a)
 #define EBC_GET_OVERLAY_STATUS	(0x700b)
+#define EBC_ENABLE_BG_CONTROL (0x700c)
+#define EBC_DISABLE_BG_CONTROL (0x700d)
 
 /*
  * IMPORTANT: Those values is corresponding to android hardware program,

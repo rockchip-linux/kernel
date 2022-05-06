@@ -23,6 +23,7 @@ enum epd_lut_type {
 
 	WF_TYPE_AUTO,	// like GC16, rk define
 	WF_TYPE_MAX,
+	WF_TYPE_GRAY16,
 };
 
 struct epd_lut_data {

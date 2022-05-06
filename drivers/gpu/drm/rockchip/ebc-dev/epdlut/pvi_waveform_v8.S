@@ -1028,9 +1028,9 @@ pvi_wf_get_version:
 	.section	.rodata
 	.align	3
 	.set	.LANCHOR1,. + 0
-	.type	__func__.16855, %object
-	.size	__func__.16855, 15
-__func__.16855:
+	.type	__func__.16856, %object
+	.size	__func__.16856, 15
+__func__.16856:
 	.string	"get_wf_frm_num"
 	.zero	1
 	.type	pvi_mode_table, %object
@@ -1123,13 +1123,13 @@ pvi_mode_table:
 	.size	maxpic, 4
 maxpic:
 	.word	16
-	.type	sftemp.16862, %object
-	.size	sftemp.16862, 4
-sftemp.16862:
+	.type	sftemp.16863, %object
+	.size	sftemp.16863, 4
+sftemp.16863:
 	.word	-1
-	.type	stype.16861, %object
-	.size	stype.16861, 4
-stype.16861:
+	.type	stype.16862, %object
+	.size	stype.16862, 4
+stype.16862:
 	.word	11
 	.bss
 	.align	3
@@ -1142,9 +1142,9 @@ global_waveform:
 	.size	waveformdata, 8
 waveformdata:
 	.zero	8
-	.type	spi_id_buffer.16887, %object
-	.size	spi_id_buffer.16887, 32
-spi_id_buffer.16887:
+	.type	spi_id_buffer.16888, %object
+	.size	spi_id_buffer.16888, 32
+spi_id_buffer.16888:
 	.zero	32
 	.section	.rodata.str1.8,"aMS",@progbits,1
 	.align	3
@@ -1265,15 +1265,15 @@ spi_id_buffer.16887:
 	.file 96 "drivers/gpu/drm/rockchip/ebc-dev/epdlut/epd_lut.h"
 	.section	.debug_info,"",@progbits
 .Ldebug_info0:
-	.4byte	0x66d4
+	.4byte	0x66da
 	.2byte	0x4
 	.4byte	.Ldebug_abbrev0
 	.byte	0x8
 	.uleb128 0x1
-	.4byte	.LASF1491
-	.byte	0x1
 	.4byte	.LASF1492
+	.byte	0x1
 	.4byte	.LASF1493
+	.4byte	.LASF1494
 	.8byte	.Ltext0
 	.8byte	.Letext0-.Ltext0
 	.4byte	.Ldebug_line0
@@ -9743,7 +9743,7 @@ spi_id_buffer.16887:
 	.2byte	0x510
 	.4byte	0x4615
 	.uleb128 0x40
-	.4byte	.LASF1494
+	.4byte	.LASF1495
 	.byte	0x21
 	.2byte	0x510
 	.4byte	0x6c
@@ -12893,7 +12893,7 @@ spi_id_buffer.16887:
 	.4byte	0x6c
 	.byte	0x60
 	.byte	0xc
-	.4byte	0x6026
+	.4byte	0x602c
 	.uleb128 0xc
 	.4byte	.LASF1419
 	.byte	0
@@ -12930,35 +12930,38 @@ spi_id_buffer.16887:
 	.uleb128 0xc
 	.4byte	.LASF1430
 	.byte	0xb
+	.uleb128 0xc
+	.4byte	.LASF1431
+	.byte	0xc
 	.byte	0
 	.uleb128 0xf
-	.4byte	.LASF1431
+	.4byte	.LASF1432
 	.byte	0x20
 	.byte	0x60
-	.byte	0x1c
-	.4byte	0x6057
-	.uleb128 0xe
-	.4byte	.LASF1432
-	.byte	0x60
 	.byte	0x1d
+	.4byte	0x605d
+	.uleb128 0xe
+	.4byte	.LASF1433
+	.byte	0x60
+	.byte	0x1e
 	.4byte	0x6c
 	.byte	0
 	.uleb128 0xe
 	.4byte	.LASF741
 	.byte	0x60
-	.byte	0x1e
+	.byte	0x1f
 	.4byte	0x2d7f
 	.byte	0x8
 	.uleb128 0xe
-	.4byte	.LASF1433
+	.4byte	.LASF1434
 	.byte	0x60
-	.byte	0x1f
-	.4byte	0x6057
+	.byte	0x20
+	.4byte	0x605d
 	.byte	0x10
 	.byte	0
 	.uleb128 0x5
-	.4byte	0x6067
-	.4byte	0x6067
+	.4byte	0x606d
+	.4byte	0x606d
 	.uleb128 0x6
 	.4byte	0x4e
 	.byte	0x1
@@ -12967,109 +12970,109 @@ spi_id_buffer.16887:
 	.byte	0x8
 	.4byte	0xfb
 	.uleb128 0xf
-	.4byte	.LASF1434
+	.4byte	.LASF1435
 	.byte	0x34
 	.byte	0x1
 	.byte	0xd
-	.4byte	0x618e
+	.4byte	0x6194
 	.uleb128 0xe
-	.4byte	.LASF1435
+	.4byte	.LASF1436
 	.byte	0x1
 	.byte	0xe
 	.4byte	0x120
 	.byte	0
 	.uleb128 0xe
-	.4byte	.LASF1436
+	.4byte	.LASF1437
 	.byte	0x1
 	.byte	0xf
 	.4byte	0x120
 	.byte	0x4
 	.uleb128 0xe
-	.4byte	.LASF1437
+	.4byte	.LASF1438
 	.byte	0x1
 	.byte	0x10
 	.4byte	0x120
 	.byte	0x8
 	.uleb128 0xe
-	.4byte	.LASF1438
+	.4byte	.LASF1439
 	.byte	0x1
 	.byte	0x11
 	.4byte	0xfb
 	.byte	0xc
 	.uleb128 0xe
-	.4byte	.LASF1439
+	.4byte	.LASF1440
 	.byte	0x1
 	.byte	0x12
 	.4byte	0xfb
 	.byte	0xd
 	.uleb128 0xe
-	.4byte	.LASF1440
+	.4byte	.LASF1441
 	.byte	0x1
 	.byte	0x13
 	.4byte	0x10a
 	.byte	0xe
 	.uleb128 0xe
-	.4byte	.LASF1441
+	.4byte	.LASF1442
 	.byte	0x1
 	.byte	0x14
 	.4byte	0xfb
 	.byte	0x10
 	.uleb128 0xe
-	.4byte	.LASF1442
+	.4byte	.LASF1443
 	.byte	0x1
 	.byte	0x15
 	.4byte	0xfb
 	.byte	0x11
 	.uleb128 0xe
-	.4byte	.LASF1443
+	.4byte	.LASF1444
 	.byte	0x1
 	.byte	0x16
 	.4byte	0xfb
 	.byte	0x12
 	.uleb128 0xe
-	.4byte	.LASF1444
+	.4byte	.LASF1445
 	.byte	0x1
 	.byte	0x17
 	.4byte	0xfb
 	.byte	0x13
 	.uleb128 0xe
-	.4byte	.LASF1445
+	.4byte	.LASF1446
 	.byte	0x1
 	.byte	0x18
 	.4byte	0xfb
 	.byte	0x14
 	.uleb128 0xe
-	.4byte	.LASF1446
+	.4byte	.LASF1447
 	.byte	0x1
 	.byte	0x19
 	.4byte	0xfb
 	.byte	0x15
 	.uleb128 0xe
-	.4byte	.LASF1447
+	.4byte	.LASF1448
 	.byte	0x1
 	.byte	0x1a
 	.4byte	0xfb
 	.byte	0x16
 	.uleb128 0xe
-	.4byte	.LASF1448
+	.4byte	.LASF1449
 	.byte	0x1
 	.byte	0x1b
 	.4byte	0xfb
 	.byte	0x17
 	.uleb128 0xe
-	.4byte	.LASF1449
+	.4byte	.LASF1450
 	.byte	0x1
 	.byte	0x1c
 	.4byte	0x120
 	.byte	0x18
 	.uleb128 0xe
-	.4byte	.LASF1450
+	.4byte	.LASF1451
 	.byte	0x1
 	.byte	0x1d
 	.4byte	0xfb
 	.byte	0x1c
 	.uleb128 0xe
-	.4byte	.LASF1451
+	.4byte	.LASF1452
 	.byte	0x1
 	.byte	0x1e
 	.4byte	0x81e
@@ -13081,67 +13084,67 @@ spi_id_buffer.16887:
 	.4byte	0xfb
 	.byte	0x20
 	.uleb128 0xe
-	.4byte	.LASF1452
+	.4byte	.LASF1453
 	.byte	0x1
 	.byte	0x20
-	.4byte	0x618e
+	.4byte	0x6194
 	.byte	0x21
 	.uleb128 0xe
-	.4byte	.LASF1453
+	.4byte	.LASF1454
 	.byte	0x1
 	.byte	0x21
 	.4byte	0xfb
 	.byte	0x25
 	.uleb128 0xe
-	.4byte	.LASF1454
+	.4byte	.LASF1455
 	.byte	0x1
 	.byte	0x22
 	.4byte	0xfb
 	.byte	0x26
 	.uleb128 0xe
-	.4byte	.LASF1455
-	.byte	0x1
-	.byte	0x23
-	.4byte	0x619e
-	.byte	0x27
-	.uleb128 0xe
 	.4byte	.LASF1456
 	.byte	0x1
+	.byte	0x23
+	.4byte	0x61a4
+	.byte	0x27
+	.uleb128 0xe
+	.4byte	.LASF1457
+	.byte	0x1
 	.byte	0x24
-	.4byte	0x61ae
+	.4byte	0x61b4
 	.byte	0x30
 	.byte	0
 	.uleb128 0x5
 	.4byte	0xfb
-	.4byte	0x619e
+	.4byte	0x61a4
 	.uleb128 0x6
 	.4byte	0x4e
 	.byte	0x3
 	.byte	0
 	.uleb128 0x5
 	.4byte	0xfb
-	.4byte	0x61ae
+	.4byte	0x61b4
 	.uleb128 0x6
 	.4byte	0x4e
 	.byte	0x8
 	.byte	0
 	.uleb128 0x5
 	.4byte	0xfb
-	.4byte	0x61be
+	.4byte	0x61c4
 	.uleb128 0x6
 	.4byte	0x4e
 	.byte	0
 	.byte	0
 	.uleb128 0x45
-	.4byte	.LASF1457
+	.4byte	.LASF1458
 	.byte	0x1
 	.byte	0x2a
-	.4byte	0x6067
+	.4byte	0x606d
 	.uleb128 0x9
 	.byte	0x3
 	.8byte	waveformdata
 	.uleb128 0x45
-	.4byte	.LASF1458
+	.4byte	.LASF1459
 	.byte	0x1
 	.byte	0x2b
 	.4byte	0xbb
@@ -13149,19 +13152,19 @@ spi_id_buffer.16887:
 	.byte	0x3
 	.8byte	maxpic
 	.uleb128 0x45
-	.4byte	.LASF1459
+	.4byte	.LASF1460
 	.byte	0x1
 	.byte	0x2c
-	.4byte	0x61fd
+	.4byte	0x6203
 	.uleb128 0x9
 	.byte	0x3
 	.8byte	global_waveform
 	.uleb128 0x7
 	.byte	0x8
-	.4byte	0x606d
+	.4byte	0x6073
 	.uleb128 0x5
 	.4byte	0x105
-	.4byte	0x6219
+	.4byte	0x621f
 	.uleb128 0x6
 	.4byte	0x4e
 	.byte	0x7
@@ -13170,17 +13173,17 @@ spi_id_buffer.16887:
 	.byte	0x9
 	.byte	0
 	.uleb128 0x3
-	.4byte	0x6203
+	.4byte	0x6209
 	.uleb128 0x46
-	.4byte	.LASF1460
+	.4byte	.LASF1461
 	.byte	0x1
 	.byte	0x8e
-	.4byte	0x6219
+	.4byte	0x621f
 	.uleb128 0x9
 	.byte	0x3
 	.8byte	pvi_mode_table
 	.uleb128 0x47
-	.4byte	.LASF1463
+	.4byte	.LASF1464
 	.byte	0x1
 	.2byte	0x14b
 	.4byte	0x55
@@ -13188,31 +13191,31 @@ spi_id_buffer.16887:
 	.8byte	.LFE1555-.LFB1555
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x627c
+	.4byte	0x6282
 	.uleb128 0x48
-	.4byte	.LASF1461
+	.4byte	.LASF1462
 	.byte	0x1
 	.2byte	0x14d
 	.4byte	0x55
 	.4byte	.LLST16
 	.uleb128 0x49
-	.4byte	.LASF1462
+	.4byte	.LASF1463
 	.byte	0x1
 	.2byte	0x14e
-	.4byte	0x627c
+	.4byte	0x6282
 	.uleb128 0x9
 	.byte	0x3
-	.8byte	spi_id_buffer.16887
+	.8byte	spi_id_buffer.16888
 	.byte	0
 	.uleb128 0x5
 	.4byte	0x60
-	.4byte	0x628c
+	.4byte	0x6292
 	.uleb128 0x6
 	.4byte	0x4e
 	.byte	0x1f
 	.byte	0
 	.uleb128 0x47
-	.4byte	.LASF1464
+	.4byte	.LASF1465
 	.byte	0x1
 	.2byte	0x123
 	.4byte	0xbb
@@ -13220,27 +13223,27 @@ spi_id_buffer.16887:
 	.8byte	.LFE1554-.LFB1554
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x62e5
+	.4byte	0x62eb
 	.uleb128 0x4a
-	.4byte	.LASF1466
+	.4byte	.LASF1467
 	.byte	0x1
 	.2byte	0x123
 	.4byte	0x45b
 	.4byte	.LLST15
 	.uleb128 0x4b
-	.4byte	.LASF1471
+	.4byte	.LASF1472
 	.byte	0x1
 	.2byte	0x125
-	.4byte	0x61fd
+	.4byte	0x6203
 	.uleb128 0x4c
 	.8byte	.LVL80
-	.4byte	0x66c1
+	.4byte	0x66c7
 	.uleb128 0x4c
 	.8byte	.LVL81
-	.4byte	0x66c1
+	.4byte	0x66c7
 	.byte	0
 	.uleb128 0x4d
-	.4byte	.LASF1465
+	.4byte	.LASF1466
 	.byte	0x1
 	.byte	0xe7
 	.4byte	0xbb
@@ -13248,133 +13251,133 @@ spi_id_buffer.16887:
 	.8byte	.LFE1553-.LFB1553
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x6453
-	.uleb128 0x4e
-	.4byte	.LASF1467
-	.byte	0x1
-	.byte	0xe7
-	.4byte	0x6453
-	.4byte	.LLST8
+	.4byte	0x6459
 	.uleb128 0x4e
 	.4byte	.LASF1468
+	.byte	0x1
+	.byte	0xe7
+	.4byte	0x6459
+	.4byte	.LLST8
+	.uleb128 0x4e
+	.4byte	.LASF1469
 	.byte	0x1
 	.byte	0xe7
 	.4byte	0x5fcd
 	.4byte	.LLST9
 	.uleb128 0x4e
-	.4byte	.LASF1456
+	.4byte	.LASF1457
 	.byte	0x1
 	.byte	0xe7
 	.4byte	0xbb
 	.4byte	.LLST10
 	.uleb128 0x45
-	.4byte	.LASF1469
+	.4byte	.LASF1470
 	.byte	0x1
 	.byte	0xe9
 	.4byte	0x5fcd
 	.uleb128 0x9
 	.byte	0x3
-	.8byte	stype.16861
+	.8byte	stype.16862
 	.uleb128 0x45
-	.4byte	.LASF1470
+	.4byte	.LASF1471
 	.byte	0x1
 	.byte	0xea
 	.4byte	0xbb
 	.uleb128 0x9
 	.byte	0x3
-	.8byte	sftemp.16862
+	.8byte	sftemp.16863
 	.uleb128 0x4f
-	.4byte	.LASF1472
+	.4byte	.LASF1473
 	.byte	0x1
 	.byte	0xeb
 	.4byte	0xbb
 	.uleb128 0x4f
-	.4byte	.LASF1473
+	.4byte	.LASF1474
 	.byte	0x1
 	.byte	0xec
 	.4byte	0xbb
 	.uleb128 0x4f
-	.4byte	.LASF1432
+	.4byte	.LASF1433
 	.byte	0x1
 	.byte	0xed
 	.4byte	0xbb
 	.uleb128 0x45
-	.4byte	.LASF1474
+	.4byte	.LASF1475
 	.byte	0x1
 	.byte	0xee
 	.4byte	0x5fcd
 	.uleb128 0x1
 	.byte	0x50
 	.uleb128 0x50
-	.4byte	0x6572
+	.4byte	0x6578
 	.8byte	.LBB34
 	.4byte	.Ldebug_ranges0+0xe0
 	.byte	0x1
 	.byte	0xfe
-	.4byte	0x63c7
+	.4byte	0x63cd
 	.uleb128 0x51
-	.4byte	0x6582
+	.4byte	0x6588
 	.uleb128 0x52
 	.4byte	.Ldebug_ranges0+0xe0
 	.uleb128 0x53
-	.4byte	0x658d
+	.4byte	0x6593
 	.4byte	.LLST11
 	.uleb128 0x53
-	.4byte	0x6598
+	.4byte	0x659e
 	.4byte	.LLST12
 	.uleb128 0x54
-	.4byte	0x65a3
+	.4byte	0x65a9
 	.uleb128 0x1
 	.byte	0x63
 	.byte	0
 	.byte	0
 	.uleb128 0x55
-	.4byte	0x6572
+	.4byte	0x6578
 	.8byte	.LBB39
 	.4byte	.Ldebug_ranges0+0x120
 	.byte	0x1
 	.2byte	0x10e
-	.4byte	0x6404
+	.4byte	0x640a
 	.uleb128 0x51
-	.4byte	0x6582
+	.4byte	0x6588
 	.uleb128 0x52
 	.4byte	.Ldebug_ranges0+0x120
 	.uleb128 0x53
-	.4byte	0x658d
+	.4byte	0x6593
 	.4byte	.LLST13
 	.uleb128 0x53
-	.4byte	0x6598
+	.4byte	0x659e
 	.4byte	.LLST14
 	.uleb128 0x54
-	.4byte	0x65a3
+	.4byte	0x65a9
 	.uleb128 0x1
 	.byte	0x63
 	.byte	0
 	.byte	0
 	.uleb128 0x4c
 	.8byte	.LVL49
-	.4byte	0x65ad
+	.4byte	0x65b3
 	.uleb128 0x4c
 	.8byte	.LVL50
-	.4byte	0x6459
+	.4byte	0x645f
 	.uleb128 0x4c
 	.8byte	.LVL51
-	.4byte	0x66cc
+	.4byte	0x66d2
 	.uleb128 0x4c
 	.8byte	.LVL56
-	.4byte	0x65ad
+	.4byte	0x65b3
 	.uleb128 0x4c
 	.8byte	.LVL57
-	.4byte	0x6459
+	.4byte	0x645f
 	.uleb128 0x4c
 	.8byte	.LVL74
-	.4byte	0x66c1
+	.4byte	0x66c7
 	.byte	0
 	.uleb128 0x7
 	.byte	0x8
-	.4byte	0x6026
+	.4byte	0x602c
 	.uleb128 0x56
-	.4byte	.LASF1478
+	.4byte	.LASF1479
 	.byte	0x1
 	.byte	0xcf
 	.4byte	0xbb
@@ -13382,7 +13385,7 @@ spi_id_buffer.16887:
 	.8byte	.LFE1552-.LFB1552
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x6557
+	.4byte	0x655d
 	.uleb128 0x4e
 	.4byte	.LASF824
 	.byte	0x1
@@ -13390,102 +13393,102 @@ spi_id_buffer.16887:
 	.4byte	0xbb
 	.4byte	.LLST0
 	.uleb128 0x4e
-	.4byte	.LASF1472
+	.4byte	.LASF1473
 	.byte	0x1
 	.byte	0xcf
 	.4byte	0xbb
 	.4byte	.LLST1
 	.uleb128 0x57
-	.4byte	.LASF1461
+	.4byte	.LASF1462
 	.byte	0x1
 	.byte	0xd1
-	.4byte	0x6557
+	.4byte	0x655d
 	.4byte	.LLST2
 	.uleb128 0x4f
-	.4byte	.LASF1475
+	.4byte	.LASF1476
 	.byte	0x1
 	.byte	0xd2
-	.4byte	0x6557
+	.4byte	0x655d
 	.uleb128 0x4f
 	.4byte	.LASF503
 	.byte	0x1
 	.byte	0xd3
 	.4byte	0xbb
 	.uleb128 0x58
-	.4byte	.LASF1476
-	.4byte	0x656d
+	.4byte	.LASF1477
+	.4byte	0x6573
 	.uleb128 0x9
 	.byte	0x3
-	.8byte	__func__.16855
+	.8byte	__func__.16856
 	.uleb128 0x50
-	.4byte	0x665a
+	.4byte	0x6660
 	.8byte	.LBB8
 	.4byte	.Ldebug_ranges0+0
 	.byte	0x1
 	.byte	0xe4
-	.4byte	0x653c
+	.4byte	0x6542
 	.uleb128 0x51
-	.4byte	0x666a
+	.4byte	0x6670
 	.uleb128 0x52
 	.4byte	.Ldebug_ranges0+0
 	.uleb128 0x59
-	.4byte	0x6675
+	.4byte	0x667b
 	.uleb128 0x59
-	.4byte	0x6680
+	.4byte	0x6686
 	.uleb128 0x53
-	.4byte	0x668b
+	.4byte	0x6691
 	.4byte	.LLST3
 	.uleb128 0x59
-	.4byte	0x6696
+	.4byte	0x669c
 	.uleb128 0x53
-	.4byte	0x66a1
+	.4byte	0x66a7
 	.4byte	.LLST4
 	.uleb128 0x59
-	.4byte	0x66ac
+	.4byte	0x66b2
 	.uleb128 0x53
-	.4byte	0x66b5
+	.4byte	0x66bb
 	.4byte	.LLST5
 	.uleb128 0x4c
 	.8byte	.LVL9
-	.4byte	0x66c1
+	.4byte	0x66c7
 	.uleb128 0x4c
 	.8byte	.LVL22
-	.4byte	0x66c1
+	.4byte	0x66c7
 	.byte	0
 	.byte	0
 	.uleb128 0x4c
 	.8byte	.LVL19
-	.4byte	0x66c1
+	.4byte	0x66c7
 	.uleb128 0x4c
 	.8byte	.LVL21
-	.4byte	0x66c1
+	.4byte	0x66c7
 	.byte	0
 	.uleb128 0x7
 	.byte	0x8
 	.4byte	0x90
 	.uleb128 0x5
 	.4byte	0x67
-	.4byte	0x656d
+	.4byte	0x6573
 	.uleb128 0x6
 	.4byte	0x4e
 	.byte	0xe
 	.byte	0
 	.uleb128 0x3
-	.4byte	0x655d
+	.4byte	0x6563
 	.uleb128 0x5a
-	.4byte	.LASF1481
+	.4byte	.LASF1482
 	.byte	0x1
 	.byte	0xbc
 	.4byte	0xbb
 	.byte	0x1
-	.4byte	0x65ad
+	.4byte	0x65b3
 	.uleb128 0x5b
-	.4byte	.LASF1456
+	.4byte	.LASF1457
 	.byte	0x1
 	.byte	0xbc
 	.4byte	0xbb
 	.uleb128 0x4f
-	.4byte	.LASF1477
+	.4byte	.LASF1478
 	.byte	0x1
 	.byte	0xbe
 	.4byte	0xbb
@@ -13501,7 +13504,7 @@ spi_id_buffer.16887:
 	.4byte	0xbb
 	.byte	0
 	.uleb128 0x56
-	.4byte	.LASF1479
+	.4byte	.LASF1480
 	.byte	0x1
 	.byte	0xaa
 	.4byte	0xfb
@@ -13509,81 +13512,76 @@ spi_id_buffer.16887:
 	.8byte	.LFE1550-.LFB1550
 	.uleb128 0x1
 	.byte	0x9c
-	.4byte	0x662d
+	.4byte	0x6633
 	.uleb128 0x4e
-	.4byte	.LASF1468
+	.4byte	.LASF1469
 	.byte	0x1
 	.byte	0xaa
 	.4byte	0x5fcd
 	.4byte	.LLST6
 	.uleb128 0x4f
-	.4byte	.LASF1480
+	.4byte	.LASF1481
 	.byte	0x1
 	.byte	0xac
-	.4byte	0x662d
+	.4byte	0x6633
 	.uleb128 0x4f
 	.4byte	.LASF824
 	.byte	0x1
 	.byte	0xad
 	.4byte	0xbb
 	.uleb128 0x50
-	.4byte	0x6633
+	.4byte	0x6639
 	.8byte	.LBB18
 	.4byte	.Ldebug_ranges0+0x50
 	.byte	0x1
 	.byte	0xb7
-	.4byte	0x661f
+	.4byte	0x6625
 	.uleb128 0x51
-	.4byte	0x6643
+	.4byte	0x6649
 	.uleb128 0x52
 	.4byte	.Ldebug_ranges0+0x50
 	.uleb128 0x53
-	.4byte	0x664e
+	.4byte	0x6654
 	.4byte	.LLST7
 	.byte	0
 	.byte	0
 	.uleb128 0x4c
 	.8byte	.LVL42
-	.4byte	0x66c1
+	.4byte	0x66c7
 	.byte	0
 	.uleb128 0x7
 	.byte	0x8
 	.4byte	0x105
 	.uleb128 0x5a
-	.4byte	.LASF1482
+	.4byte	.LASF1483
 	.byte	0x1
 	.byte	0x99
-	.4byte	0x662d
+	.4byte	0x6633
 	.byte	0x1
-	.4byte	0x665a
+	.4byte	0x6660
 	.uleb128 0x5b
-	.4byte	.LASF1461
+	.4byte	.LASF1462
 	.byte	0x1
 	.byte	0x99
-	.4byte	0x61fd
+	.4byte	0x6203
 	.uleb128 0x4f
-	.4byte	.LASF1480
+	.4byte	.LASF1481
 	.byte	0x1
 	.byte	0x9b
-	.4byte	0x662d
+	.4byte	0x6633
 	.byte	0
 	.uleb128 0x5a
-	.4byte	.LASF1483
+	.4byte	.LASF1484
 	.byte	0x1
 	.byte	0x2e
 	.4byte	0xbb
 	.byte	0x1
-	.4byte	0x66c1
+	.4byte	0x66c7
 	.uleb128 0x5b
 	.4byte	.LASF741
 	.byte	0x1
 	.byte	0x2e
-	.4byte	0x6557
-	.uleb128 0x4f
-	.4byte	.LASF1484
-	.byte	0x1
-	.byte	0x30
-	.4byte	0x6c
+	.4byte	0x655d
 	.uleb128 0x4f
 	.4byte	.LASF1485
 	.byte	0x1
@@ -13591,6 +13589,11 @@ spi_id_buffer.16887:
 	.4byte	0x6c
 	.uleb128 0x4f
 	.4byte	.LASF1486
+	.byte	0x1
+	.byte	0x30
+	.4byte	0x6c
+	.uleb128 0x4f
+	.4byte	.LASF1487
 	.byte	0x1
 	.byte	0x31
 	.4byte	0x6c
@@ -13600,7 +13603,7 @@ spi_id_buffer.16887:
 	.byte	0x32
 	.4byte	0x6c
 	.uleb128 0x4f
-	.4byte	.LASF1487
+	.4byte	.LASF1488
 	.byte	0x1
 	.byte	0x33
 	.4byte	0x90
@@ -13610,21 +13613,21 @@ spi_id_buffer.16887:
 	.byte	0x34
 	.4byte	0x90
 	.uleb128 0x4f
-	.4byte	.LASF1488
+	.4byte	.LASF1489
 	.byte	0x1
 	.byte	0x35
 	.4byte	0x247
 	.byte	0
 	.uleb128 0x5d
-	.4byte	.LASF1489
-	.4byte	.LASF1489
+	.4byte	.LASF1490
+	.4byte	.LASF1490
 	.byte	0xd
 	.byte	0xb0
 	.uleb128 0x5d
-	.4byte	.LASF1490
-	.4byte	.LASF1490
+	.4byte	.LASF1491
+	.4byte	.LASF1491
 	.byte	0x60
-	.byte	0x2b
+	.byte	0x2c
 	.byte	0
 	.section	.debug_abbrev,"",@progbits
 .Ldebug_abbrev0:
@@ -15244,7 +15247,7 @@ spi_id_buffer.16887:
 	.string	"NR_ION_HEAP"
 .LASF708:
 	.string	"__early_cpu_boot_status"
-.LASF1449:
+.LASF1450:
 	.string	"reserved"
 .LASF531:
 	.string	"ADDR_NO_RANDOMIZE"
@@ -15256,7 +15259,7 @@ spi_id_buffer.16887:
 	.string	"runnable_weight"
 .LASF323:
 	.string	"pushable_dl_tasks"
-.LASF1476:
+.LASF1477:
 	.string	"__func__"
 .LASF703:
 	.string	"cpu_number"
@@ -15284,9 +15287,9 @@ spi_id_buffer.16887:
 	.string	"attrs"
 .LASF736:
 	.string	"entry"
-.LASF1434:
+.LASF1435:
 	.string	"pvi_waveform"
-.LASF1484:
+.LASF1485:
 	.string	"oldpic"
 .LASF547:
 	.string	"MIGRATE_PCPTYPES"
@@ -15312,7 +15315,7 @@ spi_id_buffer.16887:
 	.string	"in_iowait"
 .LASF1277:
 	.string	"early_init"
-.LASF1440:
+.LASF1441:
 	.string	"fpl_lot"
 .LASF418:
 	.string	"cpuset_slab_spread_rotor"
@@ -15350,7 +15353,7 @@ spi_id_buffer.16887:
 	.string	"nr_reserved_highatomic"
 .LASF565:
 	.string	"NR_ZONE_WRITE_PENDING"
-.LASF1452:
+.LASF1453:
 	.string	"unknown1"
 .LASF760:
 	.string	"movable_zone"
@@ -15484,7 +15487,7 @@ spi_id_buffer.16887:
 	.string	"perf_event_mutex"
 .LASF1380:
 	.string	"dev_uevent"
-.LASF1477:
+.LASF1478:
 	.string	"temp_num"
 .LASF1008:
 	.string	"cancelled_write_bytes"
@@ -15494,13 +15497,13 @@ spi_id_buffer.16887:
 	.string	"sve_vl"
 .LASF383:
 	.string	"signal"
-.LASF1465:
+.LASF1466:
 	.string	"pvi_wf_get_lut"
 .LASF202:
 	.string	"_sinittext"
 .LASF969:
 	.string	"_band"
-.LASF1483:
+.LASF1484:
 	.string	"decodewaveform"
 .LASF728:
 	.string	"tick_nsec"
@@ -15574,7 +15577,7 @@ spi_id_buffer.16887:
 	.string	"user_namespace"
 .LASF962:
 	.string	"_upper"
-.LASF1433:
+.LASF1434:
 	.string	"wf_table"
 .LASF561:
 	.string	"NR_ZONE_ACTIVE_ANON"
@@ -15752,7 +15755,7 @@ spi_id_buffer.16887:
 	.string	"NR_FILE_PAGES"
 .LASF23:
 	.string	"__kernel_uid32_t"
-.LASF1459:
+.LASF1460:
 	.string	"global_waveform"
 .LASF162:
 	.string	"static_key_false"
@@ -15802,7 +15805,7 @@ spi_id_buffer.16887:
 	.string	"sched_class"
 .LASF1175:
 	.string	"kobj_sysfs_ops"
-.LASF1446:
+.LASF1447:
 	.string	"amepd_part_number"
 .LASF387:
 	.string	"saved_sigmask"
@@ -15876,7 +15879,7 @@ spi_id_buffer.16887:
 	.string	"nr_wakeups"
 .LASF289:
 	.string	"wake_entry"
-.LASF1463:
+.LASF1464:
 	.string	"pvi_wf_get_version"
 .LASF394:
 	.string	"parent_exec_id"
@@ -16022,7 +16025,7 @@ spi_id_buffer.16887:
 	.string	"start_prevent_time"
 .LASF602:
 	.string	"NR_WRITTEN"
-.LASF1468:
+.LASF1469:
 	.string	"lut_type"
 .LASF1347:
 	.string	"dev_root"
@@ -16070,13 +16073,13 @@ spi_id_buffer.16887:
 	.string	"consumers"
 .LASF499:
 	.string	"cpu_bit_bitmap"
-.LASF1455:
+.LASF1456:
 	.string	"unknown2"
 .LASF1081:
 	.string	"timeout"
 .LASF589:
 	.string	"NR_FILE_MAPPED"
-.LASF1475:
+.LASF1476:
 	.string	"wf_data"
 .LASF337:
 	.string	"sched_psi_wake_requeue"
@@ -16096,11 +16099,11 @@ spi_id_buffer.16887:
 	.string	"rb_leftmost"
 .LASF658:
 	.string	"stat_threshold"
-.LASF1462:
+.LASF1463:
 	.string	"spi_id_buffer"
 .LASF1118:
 	.string	"rt_mutex_waiter"
-.LASF1493:
+.LASF1494:
 	.string	"/home/lyx/rk3566-11-eink/kernel"
 .LASF705:
 	.string	"secondary_data"
@@ -16142,7 +16145,7 @@ spi_id_buffer.16887:
 	.string	"_pad1_"
 .LASF1172:
 	.string	"buflen"
-.LASF1457:
+.LASF1458:
 	.string	"waveformdata"
 .LASF555:
 	.string	"nr_free"
@@ -16180,6 +16183,8 @@ spi_id_buffer.16887:
 	.string	"subsys_data"
 .LASF471:
 	.string	"time"
+.LASF1431:
+	.string	"WF_TYPE_GRAY16"
 .LASF457:
 	.string	"android_kabi_reserved8"
 .LASF273:
@@ -16188,7 +16193,7 @@ spi_id_buffer.16887:
 	.string	"thaw"
 .LASF227:
 	.string	"__noinstr_text_end"
-.LASF1458:
+.LASF1459:
 	.string	"maxpic"
 .LASF224:
 	.string	"__start_opd"
@@ -16204,7 +16209,7 @@ spi_id_buffer.16887:
 	.string	"panic_timeout"
 .LASF793:
 	.string	"bitmap"
-.LASF1432:
+.LASF1433:
 	.string	"frame_num"
 .LASF529:
 	.string	"NR_NODE_STATES"
@@ -16212,7 +16217,7 @@ spi_id_buffer.16887:
 	.string	"dl_density"
 .LASF1262:
 	.string	"RPM_REQ_RESUME"
-.LASF1494:
+.LASF1495:
 	.string	"frozen"
 .LASF192:
 	.string	"_text"
@@ -16276,7 +16281,7 @@ spi_id_buffer.16887:
 	.string	"sys_val"
 .LASF43:
 	.string	"size_t"
-.LASF1456:
+.LASF1457:
 	.string	"temperture"
 .LASF1360:
 	.string	"lock_key"
@@ -16362,9 +16367,9 @@ spi_id_buffer.16887:
 	.string	"kernfs_node"
 .LASF425:
 	.string	"perf_event_ctxp"
-.LASF1435:
+.LASF1436:
 	.string	"checksum"
-.LASF1454:
+.LASF1455:
 	.string	"temperaturenumber"
 .LASF1304:
 	.string	"links_count"
@@ -16396,7 +16401,7 @@ spi_id_buffer.16887:
 	.string	"init_user_ns"
 .LASF1104:
 	.string	"perf_event_task_context"
-.LASF1466:
+.LASF1467:
 	.string	"waveform_file"
 .LASF1389:
 	.string	"segment_boundary_mask"
@@ -16404,7 +16409,7 @@ spi_id_buffer.16887:
 	.string	"file"
 .LASF165:
 	.string	"FTR_EXACT"
-.LASF1445:
+.LASF1446:
 	.string	"panel_size"
 .LASF1065:
 	.string	"nr_wakeups_idle"
@@ -16492,7 +16497,7 @@ spi_id_buffer.16887:
 	.string	"pm_message"
 .LASF948:
 	.string	"sival_int"
-.LASF1442:
+.LASF1443:
 	.string	"wf_version"
 .LASF160:
 	.string	"__start___jump_table"
@@ -16598,17 +16603,17 @@ spi_id_buffer.16887:
 	.string	"__reserved"
 .LASF131:
 	.string	"hex_asc_upper"
-.LASF1436:
+.LASF1437:
 	.string	"file_length"
-.LASF1431:
+.LASF1432:
 	.string	"epd_lut_data"
 .LASF694:
 	.string	"zonelist"
-.LASF1492:
+.LASF1493:
 	.string	"drivers/gpu/drm/rockchip/ebc-dev/epdlut/pvi_waveform.c"
 .LASF672:
 	.string	"pageset"
-.LASF1444:
+.LASF1445:
 	.string	"wf_type"
 .LASF250:
 	.string	"__boot_cpu_mode"
@@ -16684,7 +16689,7 @@ spi_id_buffer.16887:
 	.string	"vm_node_stat_diff"
 .LASF62:
 	.string	"name"
-.LASF1438:
+.LASF1439:
 	.string	"run_type"
 .LASF615:
 	.string	"NR_LRU_LISTS"
@@ -16724,7 +16729,7 @@ spi_id_buffer.16887:
 	.string	"deferred_resume"
 .LASF454:
 	.string	"security"
-.LASF1474:
+.LASF1475:
 	.string	"overlay_lut"
 .LASF166:
 	.string	"FTR_LOWER_SAFE"
@@ -16748,7 +16753,7 @@ spi_id_buffer.16887:
 	.string	"dev_pm_info"
 .LASF630:
 	.string	"node_present_pages"
-.LASF1478:
+.LASF1479:
 	.string	"get_wf_frm_num"
 .LASF327:
 	.string	"exit_state"
@@ -16876,7 +16881,7 @@ spi_id_buffer.16887:
 	.string	"pcount"
 .LASF1146:
 	.string	"kref"
-.LASF1485:
+.LASF1486:
 	.string	"newpic"
 .LASF436:
 	.string	"nr_dirtied"
@@ -16970,7 +16975,7 @@ spi_id_buffer.16887:
 	.string	"active_memcg"
 .LASF1006:
 	.string	"read_bytes"
-.LASF1460:
+.LASF1461:
 	.string	"pvi_mode_table"
 .LASF176:
 	.string	"arm64_ftr_reg"
@@ -17016,7 +17021,7 @@ spi_id_buffer.16887:
 	.string	"pm_message_t"
 .LASF1424:
 	.string	"WF_TYPE_GLR16"
-.LASF1487:
+.LASF1488:
 	.string	"tempdata"
 .LASF230:
 	.string	"__alt_instructions"
@@ -17112,7 +17117,7 @@ spi_id_buffer.16887:
 	.string	"next_timer"
 .LASF313:
 	.string	"rcu_node_entry"
-.LASF1471:
+.LASF1472:
 	.string	"pvi_wf"
 .LASF858:
 	.string	"list"
@@ -17164,7 +17169,7 @@ spi_id_buffer.16887:
 	.string	"depth"
 .LASF163:
 	.string	"system_states"
-.LASF1447:
+.LASF1448:
 	.string	"wfm_rev"
 .LASF26:
 	.string	"__kernel_ssize_t"
@@ -17246,7 +17251,7 @@ spi_id_buffer.16887:
 	.string	"zoneref"
 .LASF825:
 	.string	"iattr"
-.LASF1486:
+.LASF1487:
 	.string	"frame_tmp"
 .LASF1051:
 	.string	"slice_max"
@@ -17264,7 +17269,7 @@ spi_id_buffer.16887:
 	.string	"self_exec_id"
 .LASF1041:
 	.string	"wait_count"
-.LASF1479:
+.LASF1480:
 	.string	"get_wf_mode_index"
 .LASF1333:
 	.string	"sync"
@@ -17310,7 +17315,7 @@ spi_id_buffer.16887:
 	.string	"envp"
 .LASF235:
 	.string	"__hibernate_exit_text_end"
-.LASF1448:
+.LASF1449:
 	.string	"frame_rate"
 .LASF729:
 	.string	"jiffies_64"
@@ -17424,7 +17429,7 @@ spi_id_buffer.16887:
 	.string	"bps_disabled"
 .LASF755:
 	.string	"notifier_call"
-.LASF1467:
+.LASF1468:
 	.string	"output"
 .LASF402:
 	.string	"journal_info"
@@ -17442,7 +17447,7 @@ spi_id_buffer.16887:
 	.string	"node_zones"
 .LASF371:
 	.string	"maj_flt"
-.LASF1441:
+.LASF1442:
 	.string	"mode_version"
 .LASF1359:
 	.string	"iommu_ops"
@@ -17472,7 +17477,7 @@ spi_id_buffer.16887:
 	.string	"NR_UNEVICTABLE"
 .LASF861:
 	.string	"released"
-.LASF1470:
+.LASF1471:
 	.string	"sftemp"
 .LASF819:
 	.string	"target_kn"
@@ -17566,7 +17571,7 @@ spi_id_buffer.16887:
 	.string	"argv"
 .LASF666:
 	.string	"__MAX_NR_ZONES"
-.LASF1473:
+.LASF1474:
 	.string	"mode_index"
 .LASF438:
 	.string	"dirty_paused_when"
@@ -17584,7 +17589,7 @@ spi_id_buffer.16887:
 	.string	"device_node"
 .LASF732:
 	.string	"ktime_t"
-.LASF1489:
+.LASF1490:
 	.string	"printk"
 .LASF741:
 	.string	"data"
@@ -17642,7 +17647,7 @@ spi_id_buffer.16887:
 	.string	"dl_throttled"
 .LASF1184:
 	.string	"n_ref"
-.LASF1464:
+.LASF1465:
 	.string	"pvi_wf_input"
 .LASF391:
 	.string	"task_works"
@@ -17670,11 +17675,11 @@ spi_id_buffer.16887:
 	.string	"uevent"
 .LASF872:
 	.string	"grab_current_ns"
-.LASF1443:
+.LASF1444:
 	.string	"wf_subversion"
 .LASF256:
 	.string	"suspended_step"
-.LASF1490:
+.LASF1491:
 	.string	"epd_overlay_lut"
 .LASF840:
 	.string	"mmap"
@@ -17684,7 +17689,7 @@ spi_id_buffer.16887:
 	.string	"nodemask_t"
 .LASF1327:
 	.string	"autosleep_enabled"
-.LASF1469:
+.LASF1470:
 	.string	"stype"
 .LASF772:
 	.string	"PCPU_FC_EMBED"
@@ -17700,7 +17705,7 @@ spi_id_buffer.16887:
 	.string	"__softirqentry_text_end"
 .LASF713:
 	.string	"arch_timer_erratum_match_type"
-.LASF1453:
+.LASF1454:
 	.string	"modenumber"
 .LASF280:
 	.string	"owner"
@@ -17756,7 +17761,7 @@ spi_id_buffer.16887:
 	.string	"load_avg"
 .LASF532:
 	.string	"FDPIC_FUNCPTRS"
-.LASF1461:
+.LASF1462:
 	.string	"waveform"
 .LASF778:
 	.string	"thread_id"
@@ -17780,7 +17785,7 @@ spi_id_buffer.16887:
 	.string	"fpsimd_cpu"
 .LASF1260:
 	.string	"RPM_REQ_SUSPEND"
-.LASF1488:
+.LASF1489:
 	.string	"israr"
 .LASF360:
 	.string	"utime"
@@ -17788,7 +17793,7 @@ spi_id_buffer.16887:
 	.string	"__nosave_begin"
 .LASF967:
 	.string	"_addr_pkey"
-.LASF1491:
+.LASF1492:
 	.ascii	"GNU C89 6.3.1 20170404 -mlittle-endian -mgeneral-regs-only -"
 	.ascii	"mabi=lp64 -march=armv8-a -g -O2 -std=gnu90 -fno-strict-alias"
 	.ascii	"ing -fno-common -fshort-wchar -fno-PIE -fno-asynchronous-unw"
@@ -17816,7 +17821,7 @@ spi_id_buffer.16887:
 	.string	"static_key_mod"
 .LASF543:
 	.string	"MIGRATE_UNMOVABLE"
-.LASF1480:
+.LASF1481:
 	.string	"pvi_modes"
 .LASF959:
 	.string	"_stime"
@@ -17824,7 +17829,7 @@ spi_id_buffer.16887:
 	.string	"atomic_long_t"
 .LASF613:
 	.string	"LRU_ACTIVE_FILE"
-.LASF1450:
+.LASF1451:
 	.string	"vcom_offset"
 .LASF1027:
 	.string	"enqueued"
@@ -17888,7 +17893,7 @@ spi_id_buffer.16887:
 	.string	"poweroff"
 .LASF562:
 	.string	"NR_ZONE_INACTIVE_FILE"
-.LASF1451:
+.LASF1452:
 	.string	"xwia"
 .LASF1290:
 	.string	"wakeirq"
@@ -17896,7 +17901,7 @@ spi_id_buffer.16887:
 	.string	"namespace"
 .LASF1276:
 	.string	"no_pm"
-.LASF1481:
+.LASF1482:
 	.string	"get_wf_temp_index"
 .LASF14:
 	.string	"long long int"
@@ -18022,7 +18027,7 @@ spi_id_buffer.16887:
 	.string	"reboot_notifier_list"
 .LASF129:
 	.string	"taint_flags"
-.LASF1439:
+.LASF1440:
 	.string	"fpl_platform"
 .LASF233:
 	.string	"__exception_text_end"
@@ -18178,11 +18183,11 @@ spi_id_buffer.16887:
 	.string	"__entry_text_end"
 .LASF1206:
 	.string	"resume_noirq"
-.LASF1437:
+.LASF1438:
 	.string	"serial"
 .LASF398:
 	.string	"wake_q"
-.LASF1482:
+.LASF1483:
 	.string	"parse_mode_version"
 .LASF598:
 	.string	"NR_UNSTABLE_NFS"
@@ -18210,7 +18215,7 @@ spi_id_buffer.16887:
 	.string	"total_time"
 .LASF211:
 	.string	"__kprobes_text_end"
-.LASF1472:
+.LASF1473:
 	.string	"temp_index"
 	.ident	"GCC: (Linaro GCC 6.3-2017.05) 6.3.1 20170404"
 	.section	.note.GNU-stack,"",@progbits
