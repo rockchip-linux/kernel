@@ -137,7 +137,7 @@ __gnet_stats_copy_basic_cpu(struct gnet_stats_basic_packed *bstats,
 }
 
 void
-__gnet_stats_copy_basic(const seqcount_t *running,
+__gnet_stats_copy_basic(net_seqlock_t *running,
 			struct gnet_stats_basic_packed *bstats,
 			struct gnet_stats_basic_cpu __percpu *cpu,
 			struct gnet_stats_basic_packed *b)
@@ -150,15 +150,15 @@ __gnet_stats_copy_basic(const seqcount_t *running,
 	}
 	do {
 		if (running)
-			seq = read_seqcount_begin(running);
+			seq = net_seq_begin(running);
 		bstats->bytes = b->bytes;
 		bstats->packets = b->packets;
-	} while (running && read_seqcount_retry(running, seq));
+	} while (running && net_seq_retry(running, seq));
 }
 EXPORT_SYMBOL(__gnet_stats_copy_basic);
 
 static int
-___gnet_stats_copy_basic(const seqcount_t *running,
+___gnet_stats_copy_basic(net_seqlock_t *running,
 			 struct gnet_dump *d,
 			 struct gnet_stats_basic_cpu __percpu *cpu,
 			 struct gnet_stats_basic_packed *b,
@@ -204,7 +204,7 @@ ___gnet_stats_copy_basic(const seqcount_t *running,
  * if the room in the socket buffer was not sufficient.
  */
 int
-gnet_stats_copy_basic(const seqcount_t *running,
+gnet_stats_copy_basic(net_seqlock_t *running,
 		      struct gnet_dump *d,
 		      struct gnet_stats_basic_cpu __percpu *cpu,
 		      struct gnet_stats_basic_packed *b)
@@ -228,7 +228,7 @@ EXPORT_SYMBOL(gnet_stats_copy_basic);
  * if the room in the socket buffer was not sufficient.
  */
 int
-gnet_stats_copy_basic_hw(const seqcount_t *running,
+gnet_stats_copy_basic_hw(net_seqlock_t *running,
 			 struct gnet_dump *d,
 			 struct gnet_stats_basic_cpu __percpu *cpu,
 			 struct gnet_stats_basic_packed *b)

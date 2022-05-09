@@ -1,5 +1,11 @@
 # SPDX-License-Identifier: GPL-2.0-only
 
+config HAVE_PREEMPT_LAZY
+	bool
+
+config PREEMPT_LAZY
+	def_bool y if HAVE_PREEMPT_LAZY && PREEMPT_RT
+
 choice
 	prompt "Preemption Model"
 	default PREEMPT_NONE
@@ -59,6 +65,7 @@ config PREEMPT_RT
 	bool "Fully Preemptible Kernel (Real-Time)"
 	depends on EXPERT && ARCH_SUPPORTS_RT
 	select PREEMPTION
+	select RT_MUTEXES
 	help
 	  This option turns the kernel into a real-time kernel by replacing
 	  various locking primitives (spinlocks, rwlocks, etc.) with

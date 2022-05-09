@@ -76,4 +76,10 @@ static inline void fsleep(unsigned long usecs)
 		msleep(DIV_ROUND_UP(usecs, 1000));
 }
 
+#ifdef CONFIG_PREEMPT_RT
+extern void cpu_chill(void);
+#else
+# define cpu_chill()	cpu_relax()
+#endif
+
 #endif /* defined(_LINUX_DELAY_H) */
