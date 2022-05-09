@@ -183,6 +183,7 @@ static irqreturn_t wacom_i2c_irq(int irq, void *dev_id)
 	//struct wacom_features *features = wac_i2c->features;
 	u8 *data = wac_i2c->data;
 	unsigned int x, y, pressure;
+	signed short tilt_x, tilt_y;
 	unsigned char tsw, f1, f2, ers;
 	int error;
 
@@ -200,6 +201,8 @@ static irqreturn_t wacom_i2c_irq(int irq, void *dev_id)
 	x = le16_to_cpup((__le16 *)&data[4]);
 	y = le16_to_cpup((__le16 *)&data[6]);
 	pressure = le16_to_cpup((__le16 *)&data[8]);
+	tilt_x = le16_to_cpup((__le16 *)&data[11]);
+	tilt_y = le16_to_cpup((__le16 *)&data[13]);
 
 	if (!wac_i2c->prox)
 		wac_i2c->tool = (data[3] & 0x0c) ?
@@ -223,6 +226,8 @@ static irqreturn_t wacom_i2c_irq(int irq, void *dev_id)
 	input_report_key(input, BTN_STYLUS2, f2);
 	input_report_abs(input, ABS_X, x);
 	input_report_abs(input, ABS_Y, y);
+	input_report_abs(input, ABS_TILT_X, tilt_x / 100);
+	input_report_abs(input, ABS_TILT_Y, tilt_y / 100);
 	input_report_abs(input, ABS_PRESSURE, pressure);
 	input_sync(input);
 
@@ -403,6 +408,8 @@ static int wacom_i2c_probe(struct i2c_client *client,
 	input_set_abs_params(input, ABS_X, 0, features.x_max, 0, 0);
 	input_set_abs_params(input, ABS_Y, 0, features.y_max, 0, 0);
 	input_set_abs_params(input, ABS_PRESSURE, 0, features.pressure_max, 0, 0);
+	input_set_abs_params(input, ABS_TILT_X, -90, 90, 0, 0);
+	input_set_abs_params(input, ABS_TILT_Y, -90, 90, 0, 0);
 
 	input_set_drvdata(input, wac_i2c);
 
