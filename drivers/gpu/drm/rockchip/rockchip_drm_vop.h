@@ -53,6 +53,9 @@
 
 #define VOP2_SOC_VARIANT		4
 
+#define VOP_COLOR_KEY_NONE		(0 << 31)
+#define VOP_COLOR_KEY_MASK		(1 << 31)
+
 enum bcsh_out_mode {
 	BCSH_OUT_MODE_BLACK,
 	BCSH_OUT_MODE_BLUE,
@@ -469,8 +472,8 @@ struct vop_win_phy {
 	struct vop_reg alpha_en;
 	struct vop_reg alpha_pre_mul;
 	struct vop_reg global_alpha_val;
-	struct vop_reg key_color;
-	struct vop_reg key_en;
+	struct vop_reg color_key;
+	struct vop_reg color_key_en;
 };
 
 struct vop2_cluster_regs {
