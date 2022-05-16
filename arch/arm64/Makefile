@@ -219,7 +219,8 @@ DTBS := rk3*-nanopi*-rev*.dtb
 nanopi4-images: dtbs kernel.img $(LOGO) $(LOGO_KERNEL)
 	$(Q)$(srctree)/scripts/mkimg --dtb $(DTBS) --keep-dtb-name
 
-PHONY += nanopi4-images
+nanopi5-images: nanopi4-images
+PHONY += nanopi4-images nanopi5-images
 endif
 
 %.img: kernel.img
