@@ -10,6 +10,8 @@
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/platform_device.h>
+#include <linux/pm_domain.h>
+#include <linux/pm_runtime.h>
 #include <linux/rockchip/rockchip_sip.h>
 
 #define RK_CPU_STATUS_OFF		0
@@ -26,6 +28,14 @@ enum amp_cpu_ctrl_status {
 #define AMP_FLAG_CPU_ARM64		BIT(1)
 #define AMP_FLAG_CPU_EL2_HYP		BIT(2)
 #define AMP_FLAG_CPU_ARM32_T		BIT(3)
+
+struct rkamp_device {
+	struct device *dev;
+	struct clk_bulk_data *clks;
+	int num_clks;
+	struct device **pd_dev;
+	int num_pds;
+};
 
 static struct {
 	u32 en;
@@ -210,18 +220,50 @@ static int rockchip_amp_boot_cpus(struct device *dev,
 
 static int rockchip_amp_probe(struct platform_device *pdev)
 {
-	struct clk_bulk_data *clks;
-	int num_clks;
+	struct rkamp_device *rkamp_dev = NULL;
 	int ret, i, idx = 0;
 	struct device_node *cpus_node, *cpu_node;
 
-	num_clks = devm_clk_bulk_get_all(&pdev->dev, &clks);
-	if (num_clks < 1)
+	rkamp_dev = devm_kzalloc(&pdev->dev, sizeof(*rkamp_dev), GFP_KERNEL);
+	if (!rkamp_dev)
+		return -ENOMEM;
+
+	rkamp_dev->num_clks = devm_clk_bulk_get_all(&pdev->dev, &rkamp_dev->clks);
+	if (rkamp_dev->num_clks < 0)
 		return -ENODEV;
-	ret = clk_bulk_prepare_enable(num_clks, clks);
+	ret = clk_bulk_prepare_enable(rkamp_dev->num_clks, rkamp_dev->clks);
 	if (ret) {
 		dev_err(&pdev->dev, "failed to prepare enable clks: %d\n", ret);
 		return ret;
+	}
+
+	pm_runtime_enable(&pdev->dev);
+
+	rkamp_dev->num_pds = of_count_phandle_with_args(pdev->dev.of_node, "power-domains",
+							"#power-domain-cells");
+
+	if (rkamp_dev->num_pds > 0) {
+		rkamp_dev->pd_dev = devm_kmalloc_array(&pdev->dev, rkamp_dev->num_pds,
+						       sizeof(*rkamp_dev->pd_dev), GFP_KERNEL);
+		if (!rkamp_dev->pd_dev)
+			return -ENOMEM;
+
+		if (rkamp_dev->num_pds == 1) {
+			ret = pm_runtime_get_sync(&pdev->dev);
+			if (ret < 0) {
+				dev_err(&pdev->dev, "failed to get power-domain\n");
+				return ret;
+			}
+		} else {
+			for (i = 0; i < rkamp_dev->num_pds; i++) {
+				rkamp_dev->pd_dev[i] = dev_pm_domain_attach_by_id(&pdev->dev, i);
+				ret = pm_runtime_get_sync(rkamp_dev->pd_dev[i]);
+				if (ret < 0) {
+					dev_err(&pdev->dev, "failed to get pd_dev[%d]\n", i);
+					return ret;
+				}
+			}
+		}
 	}
 
 	cpus_node = of_get_child_by_name(pdev->dev.of_node, "amp-cpus");
@@ -250,6 +292,33 @@ static int rockchip_amp_probe(struct platform_device *pdev)
 	return 0;
 }
 
+static int rockchip_amp_remove(struct platform_device *pdev)
+{
+	int i;
+	struct rkamp_device *rkamp_dev = platform_get_drvdata(pdev);
+
+	clk_bulk_disable_unprepare(rkamp_dev->num_clks, rkamp_dev->clks);
+
+	if (rkamp_dev->num_pds == 1) {
+		pm_runtime_put_sync(&pdev->dev);
+	} else if (rkamp_dev->num_pds > 1) {
+		for (i = 0; i < rkamp_dev->num_pds; i++) {
+			pm_runtime_put_sync(rkamp_dev->pd_dev[i]);
+			dev_pm_domain_detach(rkamp_dev->pd_dev[i], true);
+			rkamp_dev->pd_dev[i] = NULL;
+		}
+	}
+
+	pm_runtime_disable(&pdev->dev);
+
+	for (i = 0; i < ARRAY_SIZE(rk_amp_attrs); i++)
+		sysfs_remove_file(rk_amp_kobj, &rk_amp_attrs[i].attr);
+
+	kobject_put(rk_amp_kobj);
+
+	return 0;
+}
+
 static const struct of_device_id rockchip_amp_match[] = {
 	{
 		.compatible = "rockchip,rk3568-amp",
@@ -261,6 +330,7 @@ MODULE_DEVICE_TABLE(of, rockchip_amp_match);
 
 static struct platform_driver rockchip_amp_driver = {
 	.probe = rockchip_amp_probe,
+	.remove = rockchip_amp_remove,
 	.driver = {
 		.name  = "rockchip-amp",
 		.of_match_table = rockchip_amp_match,
