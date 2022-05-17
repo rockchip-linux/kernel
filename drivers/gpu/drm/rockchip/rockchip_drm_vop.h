@@ -53,9 +53,6 @@
 
 #define VOP2_SOC_VARIANT		4
 
-#define VOP_COLOR_KEY_NONE		(0 << 31)
-#define VOP_COLOR_KEY_MASK		(1 << 31)
-
 enum bcsh_out_mode {
 	BCSH_OUT_MODE_BLACK,
 	BCSH_OUT_MODE_BLUE,

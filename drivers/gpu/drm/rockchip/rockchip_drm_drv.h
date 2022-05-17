@@ -101,6 +101,9 @@ struct rockchip_hdr_state {
 	struct rockchip_sdr2hdr_state sdr2hdr_state;
 };
 
+#define VOP_COLOR_KEY_NONE	(0 << 31)
+#define VOP_COLOR_KEY_MASK	(1 << 31)
+
 #define VOP_OUTPUT_IF_RGB	BIT(0)
 #define VOP_OUTPUT_IF_BT1120	BIT(1)
 #define VOP_OUTPUT_IF_BT656	BIT(2)
