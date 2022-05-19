@@ -1,0 +1,95 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright (c) 2022 Rockchip Electronics Co., Ltd.
+ */
+
+#include <dt-bindings/display/media-bus-format.h>
+
+&dsi {
+	status = "disabled";
+};
+
+&dsi_in_vopb {
+	status = "disabled";
+};
+
+&i2c2 {
+	clock-frequency = <400000>;
+	status = "okay";
+
+	sii9022: sii9022@39 {
+		compatible = "sil,sii9022";
+		reg = <0x39>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&sii902x_rgb2hdmi>;
+		interrupt-parent = <&gpio2>;
+		interrupts = <RK_PC5 IRQ_TYPE_LEVEL_HIGH>;
+		reset-gpio = <&gpio0 RK_PB7 GPIO_ACTIVE_LOW>;
+		enable-gpio = <&gpio2 RK_PC1 GPIO_ACTIVE_HIGH>;
+		bus-format = <MEDIA_BUS_FMT_RGB888_1X24>;
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+
+				sii9022_in_rgb: endpoint {
+					remote-endpoint = <&rgb_out_sii9022>;
+				};
+			};
+		};
+	};
+};
+
+/*
+ * The pins of i2s1 and reset on sii902x are multiplexed
+ */
+&i2s1_2ch {
+	status = "disabled";
+};
+
+&pinctrl {
+	sii902x {
+		sii902x_rgb2hdmi: sii902x-rgb2hdmi {
+			rockchip,pins = <2 RK_PC5 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+	};
+};
+
+&rgb {
+	status = "okay";
+	pinctrl-names = "default", "sleep";
+	pinctrl-0 = <&lcdc_m0_rgb_pins>;
+	pinctrl-1 = <&lcdc_m0_sleep_pins>;
+
+	ports {
+		port@1 {
+			reg = <1>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			rgb_out_sii9022: endpoint@0 {
+				reg = <0>;
+				remote-endpoint = <&sii9022_in_rgb>;
+			};
+		};
+	};
+};
+
+&rgb_in_vopb {
+	status = "okay";
+};
+
+&route_dsi {
+	status = "disabled";
+};
+
+&vopb {
+	status = "okay";
+};
+
+&vopl {
+	status = "disabled";
+};
