@@ -6660,11 +6660,11 @@ check_black_percent.isra.7:
 	.loc 1 1473 0
 	.cfi_startproc
 	.loc 1 1484 0
-	mov	w2, 34079
+	mov	w2, 26215
 	.loc 1 1485 0
 	cmp	w1, 0
 	.loc 1 1484 0
-	movk	w2, 0x51eb, lsl 16
+	movk	w2, 0x6666, lsl 16
 	.loc 1 1485 0
 	add	w5, w1, 7
 	csel	w5, w5, w1, lt
@@ -6674,7 +6674,7 @@ check_black_percent.isra.7:
 	asr	w5, w5, 3
 	cmp	w5, 0
 	.loc 1 1484 0
-	asr	x4, x4, 36
+	asr	x4, x4, 34
 	sub	w4, w4, w1, asr 31
 .LVL661:
 	.loc 1 1485 0
@@ -13219,7 +13219,7 @@ __exitcall_ebc_exit:
 	.string	"%d\n"
 	.zero	4
 .LC24:
-	.string	"4.11"
+	.string	"4.12"
 	.zero	3
 .LC25:
 	.string	"%s\n"
@@ -13245,7 +13245,7 @@ __exitcall_ebc_exit:
 	.string	"%s: auto no need to update\n"
 	.zero	4
 .LC33:
-	.string	"black point > 98percent, skip this frame\n"
+	.string	"black point > 90percent, skip this frame\n"
 	.zero	6
 .LC34:
 	.string	"diff point > %d percent, force full\n"
