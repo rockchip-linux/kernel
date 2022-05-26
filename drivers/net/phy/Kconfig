@@ -261,6 +261,11 @@ config MDIO_BCM_IPROC
 	  This module provides a driver for the MDIO busses found in the
 	  Broadcom iProc SoC's.
 
+config MOTORCOMM_PHY
+	tristate "Motorcomm PHYs"
+	help
+	  Supports the YT8010, YT8510, YT8511, YT8512 PHYs.
+
 endif # PHYLIB
 
 config MICREL_KS8995MA
