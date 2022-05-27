@@ -3822,7 +3822,6 @@ rkisp_params_first_cfg_v2x(struct rkisp_isp_params_vdev *params_vdev)
 		bigmode_max_size = ISP21_NOBIG_OVERFLOW_SIZE;
 	}
 
-	rkisp_alloc_bay3d_buf(params_vdev, params_vdev->isp21_params);
 	spin_lock(&params_vdev->config_lock);
 	/* override the default things */
 	if (!params_vdev->isp21_params->module_cfg_update &&
@@ -3857,6 +3856,7 @@ static void rkisp_save_first_param_v2x(struct rkisp_isp_params_vdev *params_vdev
 
 	new_params = (struct isp21_isp_params_cfg *)param;
 	*params_vdev->isp21_params = *new_params;
+	rkisp_alloc_bay3d_buf(params_vdev, params_vdev->isp21_params);
 }
 
 static void rkisp_clear_first_param_v2x(struct rkisp_isp_params_vdev *params_vdev)
