@@ -11,6 +11,7 @@
  * 2. add hdr mode exposure limit issue.
  * 3. fix hdr mode highlighting pink issue.
  * 4. add some debug info.
+ * V0.0X01.0X03 fix hdr mode not support vts change
  */
 //#define DEBUG
 #include <linux/clk.h>
@@ -33,7 +34,7 @@
 #include <media/v4l2-fwnode.h>
 #include <media/v4l2-subdev.h>
 
-#define DRIVER_VERSION		KERNEL_VERSION(0, 0x01, 0x02)
+#define DRIVER_VERSION		KERNEL_VERSION(0, 0x01, 0x03)
 #define GC2093_NAME		"gc2093"
 #define GC2093_MEDIA_BUS_FMT	MEDIA_BUS_FMT_SRGGB10_1X10
 
@@ -595,6 +596,8 @@ static int gc2093_set_ctrl(struct v4l2_ctrl *ctrl)
 		gc2093_set_gain(gc2093, ctrl->val);
 		break;
 	case V4L2_CID_VBLANK:
+		if (gc2093->cur_mode->hdr_mode != NO_HDR)
+			goto ctrl_end;
 		vts = gc2093->cur_mode->height + ctrl->val;
 		gc2093->cur_vts = vts;
 		ret = gc2093_write_reg(gc2093, GC2093_REG_VTS_H,
