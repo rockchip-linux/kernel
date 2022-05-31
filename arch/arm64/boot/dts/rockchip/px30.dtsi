@@ -1518,21 +1518,35 @@
 	px30s_gpu_opp_table: px30s-gpu-opp-table {
 		compatible = "operating-points-v2";
 
+		rockchip,pvtm-voltage-sel = <
+			0        69850   0
+			69851    73800   1
+			73801    77750   2
+			77751    81700   3
+			81701    99999   4
+		>;
+		rockchip,pvtm-ch = <0 0>;
+
 		opp-200000000 {
 			opp-hz = /bits/ 64 <200000000>;
-			opp-microvolt = <1000000>;
+			opp-microvolt = <950000>;
 		};
 		opp-300000000 {
 			opp-hz = /bits/ 64 <300000000>;
-			opp-microvolt = <1000000>;
+			opp-microvolt = <950000>;
 		};
 		opp-400000000 {
 			opp-hz = /bits/ 64 <400000000>;
-			opp-microvolt = <1000000>;
+			opp-microvolt = <950000>;
 		};
 		opp-520000000 {
 			opp-hz = /bits/ 64 <520000000>;
 			opp-microvolt = <1000000>;
+			opp-microvolt-L0 = <1000000>;
+			opp-microvolt-L1 = <975000>;
+			opp-microvolt-L2 = <950000>;
+			opp-microvolt-L3 = <950000>;
+			opp-microvolt-L4 = <950000>;
 		};
 	};
 
@@ -2087,27 +2101,37 @@
 	px30s_dmc_opp_table: px30s-dmc-opp-table {
 		compatible = "operating-points-v2";
 
+		opp-194000000 {
+			opp-hz = /bits/ 64 <194000000>;
+			opp-microvolt = <950000>;
+		};
 		opp-328000000 {
 			opp-hz = /bits/ 64 <328000000>;
-			opp-microvolt = <1000000>;
+			opp-microvolt = <950000>;
+		};
+		opp-528000000 {
+			opp-hz = /bits/ 64 <528000000>;
+			opp-microvolt = <950000>;
+			status = "disabled";
 		};
 		opp-666000000 {
 			opp-hz = /bits/ 64 <666000000>;
-			opp-microvolt = <1000000>;
+			opp-microvolt = <950000>;
 		};
 		opp-786000000 {
 			opp-hz = /bits/ 64 <786000000>;
-			opp-microvolt = <1000000>;
+			opp-microvolt = <950000>;
+			status = "disabled";
 		};
 		opp-924000000 {
 			opp-hz = /bits/ 64 <924000000>;
-			opp-microvolt = <1000000>;
+			opp-microvolt = <950000>;
 			status = "disabled";
 		};
 		/* 1056M only for LP4 */
 		opp-1056000000 {
 			opp-hz = /bits/ 64 <1056000000>;
-			opp-microvolt = <1000000>;
+			opp-microvolt = <950000>;
 			status = "disabled";
 		};
 	};
