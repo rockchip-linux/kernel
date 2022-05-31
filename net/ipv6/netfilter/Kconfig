@@ -45,7 +45,6 @@ config NFT_FIB_IPV6
 	  multicast or blackhole.
 
 endif # NF_TABLES_IPV6
-endif # NF_TABLES
 
 config NF_FLOW_TABLE_IPV6
 	tristate "Netfilter flow table IPv6 module"
@@ -54,6 +53,8 @@ config NF_FLOW_TABLE_IPV6
 	  This option adds the flow table IPv6 support.
 
 	  To compile it as a module, choose M here.
+
+endif # NF_TABLES
 
 config NF_DUP_IPV6
 	tristate "Netfilter IPv6 packet duplication to alternate destination"
