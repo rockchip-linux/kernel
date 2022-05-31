@@ -13,10 +13,10 @@
 		expanded_version = <IGNORE_THIS>;
 		reserved = <IGNORE_THIS>;
 		/* freq info, freq_0 is final frequency, unit: MHz */
-		freq_0 = <924>;
-		freq_1 = <328>;
-		freq_2 = <666>;
-		freq_3 = <786>;
+		freq_0 = <666>;
+		freq_1 = <194>;
+		freq_2 = <328>;
+		freq_3 = <666>;
 		freq_4 = <IGNORE_THIS>;
 		freq_5 = <IGNORE_THIS>;
 		/* power save setting */
@@ -80,10 +80,10 @@
 		expanded_version = <IGNORE_THIS>;
 		reserved = <IGNORE_THIS>;
 		/* freq info, freq_0 is final frequency, unit: MHz */
-		freq_0 = <924>;
-		freq_1 = <328>;
-		freq_2 = <666>;
-		freq_3 = <786>;
+		freq_0 = <666>;
+		freq_1 = <194>;
+		freq_2 = <328>;
+		freq_3 = <666>;
 		freq_4 = <IGNORE_THIS>;
 		freq_5 = <IGNORE_THIS>;
 		/* power save setting */
@@ -160,8 +160,8 @@
 		reserved = <IGNORE_THIS>;
 		/* freq info, freq_0 is final frequency, unit: MHz */
 		freq_0 = <528>;
-		freq_1 = <328>;
-		freq_2 = <450>;
+		freq_1 = <194>;
+		freq_2 = <328>;
 		freq_3 = <528>;
 		freq_4 = <IGNORE_THIS>;
 		freq_5 = <IGNORE_THIS>;
@@ -226,10 +226,10 @@
 		expanded_version = <IGNORE_THIS>;
 		reserved = <IGNORE_THIS>;
 		/* freq info, freq_0 is final frequency, unit: MHz */
-		freq_0 = <786>;
-		freq_1 = <328>;
-		freq_2 = <666>;
-		freq_3 = <786>;
+		freq_0 = <666>;
+		freq_1 = <194>;
+		freq_2 = <328>;
+		freq_3 = <666>;
 		freq_4 = <IGNORE_THIS>;
 		freq_5 = <IGNORE_THIS>;
 		/* power save setting */
@@ -293,10 +293,10 @@
 		expanded_version = <IGNORE_THIS>;
 		reserved = <IGNORE_THIS>;
 		/* freq info, freq_0 is final frequency, unit: MHz */
-		freq_0 = <924>;
-		freq_1 = <328>;
-		freq_2 = <666>;
-		freq_3 = <786>;
+		freq_0 = <666>;
+		freq_1 = <194>;
+		freq_2 = <328>;
+		freq_3 = <666>;
 		freq_4 = <IGNORE_THIS>;
 		freq_5 = <IGNORE_THIS>;
 		/* power save setting */
