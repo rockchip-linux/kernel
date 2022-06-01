@@ -9970,7 +9970,7 @@ ebc_thread:
 	cbz	w0, .L841
 	.loc 1 1565 0 is_stmt 0 discriminator 1
 	ldr	w0, [x21, 160]
-	cbz	w0, .L1219
+	cbz	w0, .L1215
 .L841:
 	.loc 1 1571 0 is_stmt 1
 	bl	ebc_osd_buf_get
@@ -9989,10 +9989,10 @@ ebc_thread:
 	ldr	w0, [x23, 264]
 	sub	w1, w0, #1
 	cmp	w1, 1
-	bls	.L1220
+	bls	.L1216
 	.loc 1 1582 0
 	cmp	w0, 3
-	beq	.L1221
+	beq	.L1217
 .L848:
 	.loc 1 1588 0
 	str	x24, [x23, 248]
@@ -10123,7 +10123,7 @@ ebc_thread:
 	cmp	w17, w11
 	bgt	.L890
 	.p2align 2
-.L1121:
+.L1119:
 	.loc 1 351 0
 	sxtw	x1, w4
 .LVL993:
@@ -10160,7 +10160,7 @@ ebc_thread:
 	and	x1, x1, -256
 .LBB2019:
 	cmp	w2, 15
-	bne	.L1222
+	bne	.L1218
 .L857:
 .LBE2019:
 	.loc 1 359 0
@@ -10283,7 +10283,7 @@ ebc_thread:
 	.loc 1 370 0
 	str	w0, [x26]
 	.loc 1 350 0
-	ble	.L1121
+	ble	.L1119
 .LVL1016:
 .L890:
 	.loc 1 349 0
@@ -10314,7 +10314,7 @@ ebc_thread:
 	.loc 1 1597 0
 	str	w22, [x23, 52]
 	.loc 1 1598 0
-	cbz	w0, .L1223
+	cbz	w0, .L1219
 .L892:
 	.loc 1 1600 0
 	mov	w1, 1
@@ -10398,7 +10398,7 @@ ebc_thread:
 	b	.L860
 .LVL1028:
 	.p2align 3
-.L1222:
+.L1218:
 .LBE2037:
 .LBB2038:
 	.loc 1 358 0
@@ -10443,7 +10443,7 @@ ebc_thread:
 .LBB2042:
 	.loc 1 363 0
 	cmp	w30, 14680064
-	beq	.L1224
+	beq	.L1220
 	and	w7, w7, -15728641
 	orr	w7, w30, w7
 	b	.L876
@@ -10454,7 +10454,7 @@ ebc_thread:
 .LBB2043:
 	.loc 1 364 0
 	cmp	w30, w25
-	beq	.L1225
+	beq	.L1221
 	and	w7, w7, -251658241
 	orr	w7, w30, w7
 	b	.L880
@@ -10465,7 +10465,7 @@ ebc_thread:
 .LBB2044:
 	.loc 1 362 0
 	cmp	w30, 917504
-	beq	.L1226
+	beq	.L1222
 	and	w7, w7, -983041
 	orr	w7, w30, w7
 	b	.L872
@@ -10476,7 +10476,7 @@ ebc_thread:
 .LBB2045:
 	.loc 1 359 0
 	cmp	w30, 224
-	beq	.L1227
+	beq	.L1223
 	and	w7, w7, -241
 	orr	w7, w30, w7
 	b	.L860
@@ -10487,7 +10487,7 @@ ebc_thread:
 .LBB2046:
 	.loc 1 365 0
 	cmp	w3, w24
-	beq	.L1228
+	beq	.L1224
 	and	w7, w7, 268435455
 	orr	w7, w3, w7
 	b	.L884
@@ -10498,7 +10498,7 @@ ebc_thread:
 .LBB2047:
 	.loc 1 358 0
 	cmp	w2, 14
-	beq	.L1229
+	beq	.L1225
 	and	w7, w7, -16
 	orr	w7, w2, w7
 .LBE2047:
@@ -10511,7 +10511,7 @@ ebc_thread:
 .LBB2048:
 	.loc 1 361 0
 	cmp	w30, 57344
-	beq	.L1230
+	beq	.L1226
 	and	w7, w7, -61441
 	orr	w7, w30, w7
 	b	.L868
@@ -10522,7 +10522,7 @@ ebc_thread:
 .LBB2049:
 	.loc 1 360 0
 	cmp	w30, 3584
-	beq	.L1231
+	beq	.L1227
 	and	w7, w7, -3841
 	orr	w7, w30, w7
 	b	.L864
@@ -10545,7 +10545,7 @@ ebc_thread:
 	.loc 1 1577 0
 	b	.L840
 .LVL1043:
-.L1224:
+.L1220:
 .LBB2069:
 .LBB2063:
 .LBB2050:
@@ -10554,7 +10554,7 @@ ebc_thread:
 	orr	x1, x1, 1099511627776
 	b	.L876
 .LVL1044:
-.L1225:
+.L1221:
 .LBE2050:
 .LBB2051:
 	.loc 1 364 0
@@ -10562,7 +10562,7 @@ ebc_thread:
 	orr	x1, x1, 281474976710656
 	b	.L880
 .LVL1045:
-.L1227:
+.L1223:
 .LBE2051:
 .LBB2052:
 	.loc 1 359 0
@@ -10570,7 +10570,7 @@ ebc_thread:
 	orr	x1, x1, 256
 	b	.L860
 .LVL1046:
-.L1229:
+.L1225:
 .LBE2052:
 .LBB2053:
 	.loc 1 358 0
@@ -10581,14 +10581,14 @@ ebc_thread:
 	mov	w2, 0
 	b	.L857
 .LVL1047:
-.L1228:
+.L1224:
 .LBB2054:
 	.loc 1 365 0
 	orr	w7, w7, -268435456
 	orr	x1, x1, 72057594037927936
 	b	.L884
 .LVL1048:
-.L1230:
+.L1226:
 .LBE2054:
 .LBB2055:
 	.loc 1 361 0
@@ -10596,7 +10596,7 @@ ebc_thread:
 	orr	x1, x1, 16777216
 	b	.L868
 .LVL1049:
-.L1226:
+.L1222:
 .LBE2055:
 .LBB2056:
 	.loc 1 362 0
@@ -10604,7 +10604,7 @@ ebc_thread:
 	orr	x1, x1, 4294967296
 	b	.L872
 .LVL1050:
-.L1231:
+.L1227:
 .LBE2056:
 .LBB2057:
 	.loc 1 360 0
@@ -10625,7 +10625,7 @@ ebc_thread:
 .L896:
 	.loc 1 2004 0 is_stmt 1
 	ldr	w0, [x23, 100]
-	cbz	w0, .L1232
+	cbz	w0, .L1228
 .L1027:
 .LVL1052:
 .L1025:
@@ -10678,7 +10678,7 @@ ebc_thread:
 	mov	w25, 1
 .LVL1057:
 	.loc 1 1869 0
-	cbnz	w0, .L1233
+	cbnz	w0, .L1229
 .L976:
 .LVL1058:
 .L973:
@@ -10687,14 +10687,14 @@ ebc_thread:
 .LVL1059:
 	sub	w0, w0, #3
 	cmp	w0, 1
-	bls	.L1234
+	bls	.L1230
 .L978:
 	.loc 1 1878 0
 	ldr	w0, [x24, 40]
 	sub	w1, w0, #7
 	.loc 1 1877 0
 	cmp	w1, 1
-	bls	.L1235
+	bls	.L1231
 .L979:
 	.loc 1 1893 0
 	sub	w0, w0, #2
@@ -10724,6 +10724,7 @@ ebc_thread:
 	add	x1, x1, 1
 	lsl	x1, x1, 3
 	b	.L985
+	.p2align 3
 .L986:
 	.loc 1 1508 0
 	ldr	x3, [x4, x0]
@@ -10754,7 +10755,7 @@ ebc_thread:
 	cmp	w0, 20
 	bne	.L1007
 .LVL1061:
-.L1257:
+.L1251:
 	.loc 1 1984 0
 	ldr	x0, [x23, 104]
 	adrp	x1, .LC116
@@ -10767,7 +10768,7 @@ ebc_thread:
 	.loc 1 1994 0
 	ldr	w0, [x23, 484]
 	cbz	w0, .L1010
-.L1259:
+.L1253:
 	.loc 1 1995 0
 	ldr	x0, [x23, 224]
 	bl	ebc_buf_release
@@ -10782,7 +10783,7 @@ ebc_thread:
 	bl	wake_up_process
 .LVL1065:
 	b	.L893
-.L1221:
+.L1217:
 	.loc 1 1582 0 discriminator 1
 	ldr	w0, [x23, 52]
 	cbz	w0, .L848
@@ -10795,7 +10796,7 @@ ebc_thread:
 .LBB2072:
 	.loc 1 1585 0
 	ldr	w0, [x23, 52]
-	cbnz	w0, .L1236
+	cbnz	w0, .L1232
 .L851:
 .LVL1067:
 .L849:
@@ -10809,11 +10810,11 @@ ebc_thread:
 .LVL1069:
 	b	.L848
 .LVL1070:
-.L1219:
+.L1215:
 	.loc 1 1566 0
 	ldr	w0, [x23, 208]
 	cmp	w0, 1
-	beq	.L1237
+	beq	.L1233
 .L842:
 	.loc 1 2035 0
 	adrp	x0, __stack_chk_guard
@@ -10823,7 +10824,7 @@ ebc_thread:
 	eor	x1, x2, x1
 .LVL1071:
 	mov	w0, 0
-	cbnz	x1, .L1238
+	cbnz	x1, .L1234
 	ldp	x19, x20, [sp, 16]
 .LVL1072:
 	ldp	x21, x22, [sp, 32]
@@ -10855,13 +10856,13 @@ ebc_thread:
 	.loc 1 1658 0
 	ldr	w0, [x0, 40]
 	cmp	w0, 18
-	beq	.L1239
+	beq	.L1235
 	.loc 1 1667 0
 	cmp	w0, 19
-	beq	.L1240
+	beq	.L1236
 	.loc 1 1680 0
 	cmp	w0, 20
-	beq	.L1241
+	beq	.L1237
 	.loc 1 1687 0
 	adrp	x0, .LANCHOR0
 	add	x0, x0, :lo12:.LANCHOR0
@@ -10882,16 +10883,16 @@ ebc_thread:
 	bl	check_black_percent.isra.7
 .LVL1077:
 	cbz	w0, .L899
-.L1201:
+.L1197:
 	.loc 1 1740 0
 	mov	x0, x24
-.L1202:
+.L1198:
 	bl	ebc_buf_release
 .LVL1078:
 	.loc 1 1742 0
 	b	.L840
 .LVL1079:
-.L1223:
+.L1219:
 	.loc 1 1599 0
 	mov	x0, x19
 	bl	ebc_power_set.constprop.11
@@ -10907,15 +10908,15 @@ ebc_thread:
 	.loc 1 1709 0
 	ldr	w0, [x23, 612]
 .LVL1083:
-	cbz	w0, .L1242
+	cbz	w0, .L1238
 	.loc 1 1710 0
 	ldr	w0, [x23, 264]
 	sub	w1, w0, #1
 	cmp	w1, 1
-	bls	.L1243
+	bls	.L1239
 	.loc 1 1713 0
 	cmp	w0, 3
-	beq	.L1244
+	beq	.L1240
 .L915:
 	.loc 1 1720 0
 	ldr	w3, [x23, 88]
@@ -10923,7 +10924,7 @@ ebc_thread:
 	sub	w0, w3, #1
 	.loc 1 1720 0
 	cmp	w0, 99
-	bls	.L1245
+	bls	.L1241
 .L921:
 	.loc 1 1738 0
 	ldr	w0, [x23, 256]
@@ -10961,7 +10962,7 @@ ebc_thread:
 	cbnz	w1, .L947
 	.loc 1 1746 0 is_stmt 0 discriminator 2
 	ldr	w1, [x23, 100]
-	cbz	w1, .L1246
+	cbz	w1, .L1242
 .LVL1087:
 .L928:
 .LBE2078:
@@ -11008,7 +11009,7 @@ ebc_thread:
 .LVL1091:
 	.loc 1 1782 0
 	ldr	w0, [x23, 52]
-	cbz	w0, .L1247
+	cbz	w0, .L1243
 	.loc 1 1792 0
 	ldr	x0, [x23, 232]
 	ldr	w0, [x0, 40]
@@ -11019,64 +11020,43 @@ ebc_thread:
 	.loc 1 1794 0
 	ccmp	w1, 1, 0, ne
 	bls	.L952
-.L1036:
-	.loc 1 1798 0
-	ldrb	w0, [x23, 56]
-	.loc 1 1797 0
-	str	wzr, [x23, 616]
-	.loc 1 1798 0
-	add	w0, w0, w0, lsl 1
-.LBB2087:
-.LBB2088:
-	.loc 17 368 0
-	lsl	w0, w0, 2
-	bl	__msecs_to_jiffies
-.LVL1092:
-.LBE2088:
-.LBE2087:
-	.loc 1 1798 0
-	adrp	x1, jiffies
-	ldr	x1, [x1, #:lo12:jiffies]
-	add	x1, x1, x0
-	add	x0, x19, 680
-	bl	mod_timer
-.LVL1093:
-	ldr	x0, [x23, 232]
-	ldr	w0, [x0, 40]
-	b	.L952
+	b	.L1036
 	.p2align 3
-.L1220:
+.L1216:
 	.loc 1 1580 0
 	ldr	x0, [x23, 224]
 	ldrsw	x2, [x23, 28]
 	ldr	x1, [x0, 16]
 	ldr	x0, [x23, 160]
 	bl	memcpy
-.LVL1094:
+.LVL1092:
 	.loc 1 1581 0
 	ldr	x0, [x23, 232]
 	ldrsw	x2, [x23, 28]
 	ldr	x1, [x0, 16]
 	ldr	x0, [x23, 152]
 	bl	memcpy
-.LVL1095:
+.LVL1093:
 	b	.L848
-.L1242:
+.L1238:
 	.loc 1 1709 0 discriminator 1
 	ldr	w0, [x23, 264]
 	cmp	w0, 4
-	beq	.L1248
-.LVL1096:
+	beq	.L1244
+.LVL1094:
 .L913:
 	.loc 1 1806 0
 	ldr	w0, [x23, 484]
-.LVL1097:
-	cbz	w0, .L1033
+.LVL1095:
+	cbnz	w0, .L1034
+.L1033:
+	.loc 1 1807 0
+	str	x24, [x23, 224]
+.L1034:
 	.loc 1 1809 0
 	ldr	w2, [x24, 40]
 	cmp	w2, 11
 	bgt	.L954
-.L1249:
 	cmp	w2, 7
 	bge	.L1039
 	cmp	w2, 0
@@ -11090,22 +11070,25 @@ ebc_thread:
 	adrp	x1, .LC115
 	add	x1, x1, :lo12:.LC115
 	bl	_dev_err
-.LVL1098:
+.LVL1096:
 	.loc 1 1974 0
 	mov	x0, x24
 	bl	ebc_buf_release
-.LVL1099:
+.LVL1097:
 	.loc 1 1976 0
 	str	wzr, [x29, 108]
 	b	.L840
-.L1033:
-	.loc 1 1807 0
-	str	x24, [x23, 224]
-	.loc 1 1809 0
-	ldr	w2, [x24, 40]
-	cmp	w2, 11
-	ble	.L1249
+.L911:
+	.loc 1 1703 0
+	ldr	w0, [x24, 40]
+	cmp	w0, 16
+	bne	.L913
+	.loc 1 1704 0
+	mov	w0, 21
+	str	w0, [x24, 40]
+	b	.L912
 .L954:
+	.loc 1 1809 0
 	cmp	w2, 21
 	ble	.L957
 	cmp	w2, 23
@@ -11118,10 +11101,10 @@ ebc_thread:
 	.loc 1 1814 0
 	sub	w1, w0, #1
 	cmp	w1, 1
-	bls	.L1250
+	bls	.L1245
 	.loc 1 1817 0
 	cmp	w0, 4
-	beq	.L1251
+	beq	.L1246
 	.loc 1 1823 0
 	ldr	x0, [x23, 224]
 	ldr	w1, [x24, 40]
@@ -11130,7 +11113,7 @@ ebc_thread:
 	beq	.L961
 	.loc 1 1823 0 is_stmt 0 discriminator 1
 	ldr	w0, [x23, 52]
-	cbnz	w0, .L1252
+	cbnz	w0, .L1247
 .L968:
 .L961:
 	.loc 1 1830 0 is_stmt 1
@@ -11139,7 +11122,7 @@ ebc_thread:
 	ldr	x2, [x23, 176]
 	ldr	x1, [x24, 16]
 	bl	refresh_new_image_auto
-.LVL1100:
+.LVL1098:
 .L959:
 	.loc 1 1836 0
 	ldr	w0, [x23, 52]
@@ -11147,7 +11130,7 @@ ebc_thread:
 	mov	w1, 3
 	str	w1, [x23, 264]
 	.loc 1 1836 0
-	cbnz	w0, .L1208
+	cbnz	w0, .L1204
 	.loc 1 1838 0
 	ldr	w0, [x23, 208]
 	.loc 1 1837 0
@@ -11157,13 +11140,13 @@ ebc_thread:
 	.loc 1 1839 0
 	mov	x0, x19
 	bl	ebc_power_set.constprop.11
-.LVL1101:
+.LVL1099:
 .L971:
 	.loc 1 1840 0
 	ldr	w1, [x24, 40]
 	mov	x0, x19
 	bl	ebc_lut_update
-.LVL1102:
+.LVL1100:
 	.loc 1 1842 0
 	ldr	w1, [x23, 112]
 	.loc 1 1844 0
@@ -11179,94 +11162,32 @@ ebc_thread:
 	adrp	x1, .LC111
 	add	x1, x1, :lo12:.LC111
 	bl	_dev_info
-.LVL1103:
+.LVL1101:
 	.loc 1 1845 0
 	mov	x0, x19
 	bl	ebc_frame_start
-.LVL1104:
-.L1208:
+.LVL1102:
+.L1204:
 	ldr	x0, [x23, 232]
 	ldr	w0, [x0, 40]
 	b	.L952
-.L911:
-	.loc 1 1703 0
-	ldr	w0, [x24, 40]
-	cmp	w0, 16
-	bne	.L913
-	.loc 1 1704 0
-	mov	w0, 21
-	str	w0, [x24, 40]
-	b	.L912
-.L1039:
-	.loc 1 1869 0
-	ldr	w0, [x23, 52]
-	.loc 1 1809 0
-	mov	w25, 0
-.LVL1105:
-	.loc 1 1869 0
-	cbz	w0, .L973
-.L1233:
-	.loc 1 1870 0
-	ldr	x0, [x23, 104]
-	adrp	x1, .LC112
-	add	x1, x1, :lo12:.LC112
-	bl	_dev_info
-.LVL1106:
-.LBB2089:
-	.loc 1 1871 0
-	ldr	w0, [x23, 52]
-	cbz	w0, .L973
-.LBB2090:
-	.loc 1 1871 0 is_stmt 0 discriminator 1
-	mov	w1, 0
-	add	x0, x29, 112
-	bl	init_wait_entry
-.LVL1107:
-	b	.L977
-.L1253:
-.LVL1108:
-.LBB2091:
-	.loc 1 1871 0 discriminator 5
-	cbnz	x0, .L973
-	.loc 1 1871 0 discriminator 7
-	bl	schedule
-.LVL1109:
-.L977:
-	.loc 1 1871 0 discriminator 9
-	add	x1, x29, 112
-	mov	w2, 1
-	mov	x0, x20
-	bl	prepare_to_wait_event
-.LVL1110:
-	ldr	w1, [x23, 52]
-	cbnz	w1, .L1253
-.LBE2091:
-	.loc 1 1871 0 discriminator 4
-	add	x1, x29, 112
-	mov	x0, x20
-	bl	finish_wait
-.LVL1111:
-	b	.L973
-.LVL1112:
-	.p2align 3
+.LVL1103:
 .L925:
-.LBE2090:
-.LBE2089:
-	.loc 1 1739 0 is_stmt 1
+	.loc 1 1739 0
 	ldr	x0, [x23, 104]
-.LVL1113:
+.LVL1104:
 	adrp	x1, .LC107
 	add	x1, x1, :lo12:.LC107
 	bl	_dev_info
-.LVL1114:
+.LVL1105:
 	.loc 1 1740 0
 	mov	x0, x24
-	b	.L1202
+	b	.L1198
 .L898:
 	.loc 1 1623 0
 	adrp	x2, .LANCHOR0
 	add	x25, x2, :lo12:.LANCHOR0
-.LVL1115:
+.LVL1106:
 	ldr	w2, [x25, 32]
 	cbz	w2, .L900
 	.loc 1 1624 0
@@ -11282,33 +11203,33 @@ ebc_thread:
 	str	wzr, [x25, 32]
 	.loc 1 1690 0
 	bl	check_black_percent.isra.7
-.LVL1116:
+.LVL1107:
 	cbz	w0, .L899
-	b	.L1201
-.LVL1117:
-.L1235:
+	b	.L1197
+.LVL1108:
+.L1231:
 	.loc 1 1879 0
 	ldr	w3, [x23, 88]
 	.loc 1 1880 0
 	sub	w1, w3, #1
 	cmp	w1, 99
 	bhi	.L979
-.LBB2092:
+.LBB2087:
 	.loc 1 1881 0
 	ldr	x0, [x23, 224]
 	ldr	w2, [x19, 220]
 	ldr	x1, [x0, 16]
 	ldr	x0, [x24, 16]
 	bl	check_diff_percent.isra.8
-.LVL1118:
+.LVL1109:
 	mov	w26, w0
 	.loc 1 1882 0
 	cbz	w0, .L983
 	.loc 1 1887 0
 	cmp	w0, 2
-	beq	.L1207
+	beq	.L1203
 .L981:
-.LBE2092:
+.LBE2087:
 	.loc 1 1903 0
 	cbnz	w25, .L1040
 	.loc 1 1908 0
@@ -11320,36 +11241,36 @@ ebc_thread:
 	ble	.L982
 	.loc 1 1909 0
 	ldr	w1, [x29, 104]
-.LVL1119:
+.LVL1110:
 	add	w1, w1, w26
-.LVL1120:
+.LVL1111:
 	str	w1, [x29, 104]
 	.loc 1 1910 0
 	cmp	w0, w1
 	bgt	.L982
 	.loc 1 1911 0
 	mov	w26, 2
-.LVL1121:
-.L1207:
+.LVL1112:
+.L1203:
 	str	w26, [x24, 40]
 	.loc 1 1912 0
 	str	wzr, [x29, 104]
-.LVL1122:
+.LVL1113:
 .L982:
 	.loc 1 1917 0
 	ldr	w0, [x23, 208]
-	cbz	w0, .L1254
+	cbz	w0, .L1248
 .L987:
 	.loc 1 1920 0
 	ldr	w1, [x24, 40]
-.LVL1123:
+.LVL1114:
 	mov	x0, x19
 	bl	ebc_lut_update
-.LVL1124:
+.LVL1115:
 	.loc 1 1923 0
 	ldr	w0, [x23, 256]
-	cbz	w0, .L1255
-.LVL1125:
+	cbz	w0, .L1249
+.LVL1116:
 .L994:
 	.loc 1 1945 0
 	ldr	w0, [x24, 40]
@@ -11358,7 +11279,7 @@ ebc_thread:
 	beq	.L923
 	.loc 1 1951 0
 	ldr	w0, [x24, 64]
-.LVL1126:
+.LVL1117:
 	str	w0, [x29, 108]
 	cbz	w0, .L925
 .L993:
@@ -11375,17 +11296,17 @@ ebc_thread:
 	.loc 1 1964 0
 	and	w3, w3, 255
 	ldr	x0, [x23, 104]
-.LVL1127:
+.LVL1118:
 	.loc 1 1968 0
 	adrp	x25, jiffies
-.LVL1128:
+.LVL1119:
 	.loc 1 1964 0
 	ldr	w2, [x24, 40]
 	.loc 1 1968 0
 	add	x24, x19, 736
 	.loc 1 1964 0
 	bl	_dev_info
-.LVL1129:
+.LVL1120:
 	.loc 1 1965 0
 	str	w22, [x23, 52]
 	.loc 1 1966 0
@@ -11393,44 +11314,44 @@ ebc_thread:
 	.loc 1 1967 0
 	mov	x0, x19
 	bl	ebc_frame_start
-.LVL1130:
+.LVL1121:
 	.loc 1 1968 0
 	ldr	x1, [x25, #:lo12:jiffies]
 	mov	x0, x24
 	add	x1, x1, 900
 	bl	mod_timer
-.LVL1131:
-.LBB2093:
+.LVL1122:
+.LBB2088:
 	.loc 1 1969 0
 	ldr	w0, [x23, 52]
-	cbnz	w0, .L1256
+	cbnz	w0, .L1250
 .L1005:
-.LVL1132:
+.LVL1123:
 .L1003:
-.LBE2093:
+.LBE2088:
 	.loc 1 1970 0 discriminator 11
 	ldr	x2, [x25, #:lo12:jiffies]
 	mov	x0, x24
-.LVL1133:
+.LVL1124:
 	mov	x1, 402653184
 	add	x1, x2, x1
 	bl	mod_timer
-.LVL1134:
+.LVL1125:
 	ldr	x0, [x23, 232]
 	ldr	w0, [x0, 40]
-.LVL1135:
+.LVL1126:
 .L952:
 	.loc 1 1982 0
 	cmp	w0, 20
-	beq	.L1257
+	beq	.L1251
 .L1007:
 	.loc 1 1986 0
 	cmp	w0, 18
-	beq	.L1258
+	beq	.L1252
 .L1008:
 	.loc 1 1994 0
 	ldr	w0, [x23, 484]
-	cbnz	w0, .L1259
+	cbnz	w0, .L1253
 .L1010:
 	.loc 1 1997 0
 	str	w22, [x23, 484]
@@ -11440,36 +11361,89 @@ ebc_thread:
 	str	x0, [x23, 224]
 	str	wzr, [x29, 108]
 	b	.L840
-.LVL1136:
+.L1039:
+	.loc 1 1869 0
+	ldr	w0, [x23, 52]
+	.loc 1 1809 0
+	mov	w25, 0
+.LVL1127:
+	.loc 1 1869 0
+	cbz	w0, .L973
+.L1229:
+	.loc 1 1870 0
+	ldr	x0, [x23, 104]
+	adrp	x1, .LC112
+	add	x1, x1, :lo12:.LC112
+	bl	_dev_info
+.LVL1128:
+.LBB2091:
+	.loc 1 1871 0
+	ldr	w0, [x23, 52]
+	cbz	w0, .L973
+.LBB2092:
+	.loc 1 1871 0 is_stmt 0 discriminator 1
+	mov	w1, 0
+	add	x0, x29, 112
+	bl	init_wait_entry
+.LVL1129:
+	b	.L977
+.L1254:
+.LVL1130:
+.LBB2093:
+	.loc 1 1871 0 discriminator 5
+	cbnz	x0, .L973
+	.loc 1 1871 0 discriminator 7
+	bl	schedule
+.LVL1131:
+.L977:
+	.loc 1 1871 0 discriminator 9
+	add	x1, x29, 112
+	mov	w2, 1
+	mov	x0, x20
+	bl	prepare_to_wait_event
+.LVL1132:
+	ldr	w1, [x23, 52]
+	cbnz	w1, .L1254
+.LBE2093:
+	.loc 1 1871 0 discriminator 4
+	add	x1, x29, 112
+	mov	x0, x20
+	bl	finish_wait
+.LVL1133:
+	b	.L973
+.LVL1134:
+	.p2align 3
 .L900:
-	.loc 1 1632 0
+.LBE2092:
+.LBE2091:
+	.loc 1 1632 0 is_stmt 1
 	ldr	x2, [x23, 600]
 	cbz	x2, .L899
 	.loc 1 1633 0
 	cmp	w1, 19
-	bne	.L1202
+	bne	.L1198
 	.loc 1 1634 0
 	str	wzr, [x23, 600]
 	.loc 1 1635 0
 	mov	x0, 3
 	bl	ebc_notify
-.LVL1137:
+.LVL1135:
 	.loc 1 1636 0
 	ldr	x0, [x23, 104]
 	adrp	x1, .LC102
 	add	x1, x1, :lo12:.LC102
 	bl	_dev_info
-.LVL1138:
+.LVL1136:
 	.loc 1 1638 0
 	stp	w22, wzr, [x25, 32]
 	.loc 1 1639 0
 	ldr	w1, [x19, 220]
 	ldr	x0, [x24, 16]
 	bl	check_black_percent.isra.7
-.LVL1139:
+.LVL1137:
 	cbz	w0, .L899
-	b	.L1199
-.LVL1140:
+	b	.L1194
+.LVL1138:
 	.p2align 3
 .L1040:
 	.loc 1 1917 0
@@ -11480,24 +11454,24 @@ ebc_thread:
 	str	wzr, [x29, 104]
 	.loc 1 1917 0
 	cbnz	w0, .L987
-.LVL1141:
-.L1254:
+.LVL1139:
+.L1248:
 	.loc 1 1918 0
 	mov	x0, x19
 	bl	ebc_power_set.constprop.11
-.LVL1142:
+.LVL1140:
 	.loc 1 1920 0
 	ldr	w1, [x24, 40]
 	mov	x0, x19
 	bl	ebc_lut_update
-.LVL1143:
+.LVL1141:
 	.loc 1 1923 0
 	ldr	w0, [x23, 256]
 	cbnz	w0, .L994
-.L1255:
+.L1249:
 	.loc 1 1923 0 is_stmt 0 discriminator 1
 	bl	ebc_get_dsp_list_enum_num
-.LVL1144:
+.LVL1142:
 	cbnz	w0, .L994
 	.loc 1 1937 0 is_stmt 1
 	ldr	w0, [x24, 40]
@@ -11515,80 +11489,80 @@ ebc_thread:
 	adrp	x1, .LC108
 	add	x1, x1, :lo12:.LC108
 	bl	_dev_info
-.LVL1145:
+.LVL1143:
+.LBB2094:
+.LBB2095:
 .LBB2096:
-.LBB2097:
-.LBB2098:
 	.loc 17 368 0
 	ldr	w0, [x23, 260]
 	bl	__msecs_to_jiffies
-.LVL1146:
-.LBE2098:
-.LBE2097:
-.LBB2099:
+.LVL1144:
+.LBE2096:
+.LBE2095:
+.LBB2097:
 	.loc 1 1942 0
 	ldr	w1, [x23, 256]
 	cbnz	w1, .L994
 	.loc 1 1942 0 is_stmt 0 discriminator 2
 	ldr	w1, [x23, 612]
-	cbz	w1, .L1260
-.LVL1147:
+	cbz	w1, .L1255
+.LVL1145:
 .L995:
-.LBE2099:
-.LBE2096:
+.LBE2097:
+.LBE2094:
 	.loc 1 1944 0 is_stmt 1
 	bl	ebc_get_dsp_list_enum_num
-.LVL1148:
+.LVL1146:
 	cbnz	w0, .L994
 	b	.L993
-.LVL1149:
+.LVL1147:
 	.p2align 3
-.L1232:
-.LBB2108:
+.L1228:
+.LBB2106:
 .LBB2010:
 	.loc 1 2005 0
 	mov	w1, 0
 	add	x0, x29, 112
 	bl	init_wait_entry
-.LVL1150:
+.LVL1148:
 	mov	x24, 60
-.LVL1151:
+.LVL1149:
 .LBB2006:
 	mov	w2, 1
 	add	x1, x29, 112
 	mov	x0, x20
 	bl	prepare_to_wait_event
-.LVL1152:
+.LVL1150:
 .LBB2001:
 	ldr	w1, [x23, 100]
 	cmp	w1, 0
 	mov	w1, 0
 	cset	w2, ne
-.LVL1153:
+.LVL1151:
 .L1016:
 .LBE2001:
 	.loc 1 2005 0 is_stmt 0 discriminator 9
 	orr	w1, w1, w2
 	cbnz	w1, .L1015
-.LVL1154:
+.LVL1152:
 	.loc 1 2005 0 discriminator 11
 	cbnz	x0, .L1014
 	.loc 1 2005 0 discriminator 13
 	mov	x0, x24
-.LVL1155:
+.LVL1153:
 	bl	schedule_timeout
-.LVL1156:
+.LVL1154:
 	mov	w2, 1
 	mov	x24, x0
 	add	x1, x29, 112
 	mov	x0, x20
 	bl	prepare_to_wait_event
-.LVL1157:
+.LVL1155:
 .LBB2002:
 	ldr	w1, [x23, 100]
 	cmp	w1, 0
 	cset	w2, ne
-.LVL1158:
+.LVL1156:
 	cmp	x24, 0
 	cset	w1, eq
 	tst	w2, w1
@@ -11600,35 +11574,61 @@ ebc_thread:
 	add	x1, x29, 112
 	mov	x0, x20
 	bl	finish_wait
-.LVL1159:
+.LVL1157:
 .L1014:
 .LBE2010:
-.LBE2108:
+.LBE2106:
 	.loc 1 2006 0 is_stmt 1 discriminator 16
 	ldr	w0, [x23, 100]
-.LVL1160:
+.LVL1158:
 	cbnz	w0, .L840
 	.loc 1 2013 0
 	ldr	w0, [x23, 52]
 	cmp	w0, 1
-	beq	.L1261
+	beq	.L1256
 	.loc 1 2023 0
 	bl	ebc_get_dsp_list_enum_num
-.LVL1161:
+.LVL1159:
 	cbnz	w0, .L840
 	.loc 1 2023 0 is_stmt 0 discriminator 1
 	bl	ebc_get_osd_list_enum_num
-.LVL1162:
+.LVL1160:
 	cbnz	w0, .L840
-	b	.L1212
-.LVL1163:
+	b	.L1208
+.LVL1161:
 	.p2align 3
-.L1248:
+.L1244:
 	.loc 1 1709 0 is_stmt 1 discriminator 2
 	ldr	w0, [x23, 52]
 	cbnz	w0, .L915
 	b	.L913
-.L1251:
+.L1240:
+	.loc 1 1713 0 discriminator 1
+	ldr	w0, [x23, 52]
+	cbz	w0, .L915
+	.loc 1 1715 0
+	ldr	x0, [x23, 104]
+	adrp	x1, .LC99
+	add	x1, x1, :lo12:.LC99
+	bl	_dev_info
+.LVL1162:
+.LBB2107:
+	.loc 1 1716 0
+	ldr	w0, [x23, 52]
+	cbnz	w0, .L1257
+.L919:
+.LVL1163:
+.L917:
+.LBE2107:
+	.loc 1 1717 0 discriminator 11
+	ldr	x0, [x23, 104]
+.LVL1164:
+	adrp	x1, .LC100
+	add	x1, x1, :lo12:.LC100
+	bl	_dev_info
+.LVL1165:
+	b	.L915
+.L1246:
 	.loc 1 1817 0 discriminator 1
 	ldr	w0, [x23, 52]
 	cbz	w0, .L961
@@ -11637,56 +11637,56 @@ ebc_thread:
 	adrp	x1, .LC99
 	add	x1, x1, :lo12:.LC99
 	bl	_dev_info
-.LVL1164:
-.LBB2109:
+.LVL1166:
+.LBB2110:
 	.loc 1 1820 0
 	ldr	w0, [x23, 52]
 	cbz	w0, .L962
-.LBB2110:
+.LBB2111:
 	.loc 1 1820 0 is_stmt 0 discriminator 1
 	mov	w1, 0
 	add	x0, x29, 112
 	bl	init_wait_entry
-.LVL1165:
+.LVL1167:
 	b	.L965
 	.p2align 3
-.L1262:
-.LVL1166:
-.LBB2111:
+.L1258:
+.LVL1168:
+.LBB2112:
 	.loc 1 1820 0 discriminator 5
 	cbnz	x0, .L962
 	.loc 1 1820 0 discriminator 7
 	bl	schedule
-.LVL1167:
+.LVL1169:
 .L965:
 	.loc 1 1820 0 discriminator 9
 	add	x1, x29, 112
 	mov	w2, 1
 	mov	x0, x20
 	bl	prepare_to_wait_event
-.LVL1168:
+.LVL1170:
 	ldr	w1, [x23, 52]
-	cbnz	w1, .L1262
+	cbnz	w1, .L1258
 .L963:
-.LBE2111:
+.LBE2112:
 	.loc 1 1820 0 discriminator 4
 	add	x1, x29, 112
 	mov	x0, x20
 	bl	finish_wait
-.LVL1169:
+.LVL1171:
 	b	.L962
 	.p2align 3
-.L1245:
+.L1241:
+.LBE2111:
 .LBE2110:
-.LBE2109:
-.LBB2112:
+.LBB2113:
 	.loc 1 1722 0 is_stmt 1
 	ldr	x0, [x23, 224]
 	ldr	w2, [x19, 220]
 	ldr	x1, [x0, 16]
 	ldr	x0, [x24, 16]
 	bl	check_diff_percent.isra.8
-.LVL1170:
+.LVL1172:
 	.loc 1 1723 0
 	cmp	w0, 2
 	bne	.L921
@@ -11701,7 +11701,7 @@ ebc_thread:
 	cbnz	w0, .L923
 	.loc 1 1726 0 is_stmt 0 discriminator 1
 	bl	ebc_get_dsp_list_enum_num
-.LVL1171:
+.LVL1173:
 	cbz	w0, .L913
 .L923:
 	.loc 1 1728 0 is_stmt 1
@@ -11709,34 +11709,45 @@ ebc_thread:
 	adrp	x1, .LC106
 	add	x1, x1, :lo12:.LC106
 	bl	_dev_info
-.LVL1172:
-.L1199:
+.LVL1174:
+.L1194:
 	.loc 1 1729 0
 	mov	x0, x24
 	bl	ebc_buf_release
-.LVL1173:
+.LVL1175:
 	.loc 1 1727 0
 	mov	w0, 1
-.LVL1174:
+.LVL1176:
 	str	w0, [x29, 108]
 	.loc 1 1731 0
 	b	.L840
-.LVL1175:
-.L1239:
-.LBE2112:
+.LVL1177:
+.L1233:
+.LBE2113:
+.LBB2114:
+.LBB2115:
+	mov	w1, 0
+	mov	x0, x19
+	bl	ebc_power_set.part.4
+.LVL1178:
+	b	.L842
+.LVL1179:
+.L1235:
+.LBE2115:
+.LBE2114:
 	.loc 1 1659 0
 	ldr	x0, [x23, 104]
 	adrp	x1, .LC103
 	add	x1, x1, :lo12:.LC103
 	bl	_dev_info
-.LVL1176:
+.LVL1180:
 	.loc 1 1660 0
 	ldr	w0, [x23, 600]
-	cbz	w0, .L1263
+	cbz	w0, .L1259
 .L905:
 	.loc 1 1663 0
 	str	w22, [x23, 600]
-.L1200:
+.L1196:
 	.loc 1 1662 0
 	adrp	x1, .LANCHOR0
 	add	x1, x1, :lo12:.LANCHOR0
@@ -11746,257 +11757,175 @@ ebc_thread:
 	str	wzr, [x1, 32]
 	.loc 1 1740 0
 	bl	ebc_buf_release
-.LVL1177:
+.LVL1181:
 	b	.L840
-.L1263:
+.L1259:
 	.loc 1 1661 0
 	mov	x0, 2
 	bl	ebc_notify
-.LVL1178:
-	b	.L905
-.LVL1179:
-.L1237:
-.LBB2113:
-.LBB2114:
-	mov	w1, 0
-	mov	x0, x19
-	bl	ebc_power_set.part.4
-.LVL1180:
-	b	.L842
-.LVL1181:
-.L1240:
-.LBE2114:
-.LBE2113:
-	.loc 1 1668 0
-	ldr	x0, [x23, 104]
-	adrp	x1, .LC104
-	add	x1, x1, :lo12:.LC104
-	bl	_dev_info
 .LVL1182:
-	.loc 1 1669 0
-	ldr	w0, [x23, 600]
-	cmp	w0, 1
-	beq	.L1264
-.L907:
-	.loc 1 1672 0
-	adrp	x0, .LANCHOR0
-	add	x0, x0, :lo12:.LANCHOR0
-	.loc 1 1671 0
-	str	wzr, [x23, 600]
-	.loc 1 1673 0
-	stp	w22, wzr, [x0, 32]
-	.loc 1 1674 0
-	ldr	w1, [x19, 220]
-	ldr	x0, [x24, 16]
-	bl	check_black_percent.isra.7
-.LVL1183:
-	cbz	w0, .L899
-	b	.L1199
-.L1241:
+	b	.L905
+.L1237:
 	.loc 1 1681 0
 	ldr	x0, [x23, 104]
 	adrp	x1, .LC105
 	add	x1, x1, :lo12:.LC105
 	bl	_dev_info
-.LVL1184:
+.LVL1183:
 	.loc 1 1683 0
 	str	w22, [x23, 608]
-	b	.L1200
-.L1244:
-	.loc 1 1713 0 discriminator 1
-	ldr	w0, [x23, 52]
-	cbz	w0, .L915
-	.loc 1 1715 0
-	ldr	x0, [x23, 104]
-	adrp	x1, .LC99
-	add	x1, x1, :lo12:.LC99
-	bl	_dev_info
-.LVL1185:
-.LBB2115:
-	.loc 1 1716 0
-	ldr	w0, [x23, 52]
-	cbnz	w0, .L1265
-.L919:
-.LVL1186:
-.L917:
-.LBE2115:
-	.loc 1 1717 0 discriminator 11
-	ldr	x0, [x23, 104]
-.LVL1187:
-	adrp	x1, .LC100
-	add	x1, x1, :lo12:.LC100
-	bl	_dev_info
-.LVL1188:
-	b	.L915
+	b	.L1196
 .L1236:
-.LBB2118:
+	.loc 1 1668 0
+	ldr	x0, [x23, 104]
+	adrp	x1, .LC104
+	add	x1, x1, :lo12:.LC104
+	bl	_dev_info
+.LVL1184:
+	.loc 1 1669 0
+	ldr	w0, [x23, 600]
+	cmp	w0, 1
+	beq	.L1260
+.L907:
+	.loc 1 1672 0
+	adrp	x1, .LANCHOR0
+	add	x1, x1, :lo12:.LANCHOR0
+	.loc 1 1671 0
+	str	wzr, [x23, 600]
+	.loc 1 1676 0
+	mov	x0, x24
+	.loc 1 1673 0
+	stp	w22, w22, [x1, 32]
+	.loc 1 1676 0
+	bl	ebc_buf_release
+.LVL1185:
+	.loc 1 1678 0
+	b	.L840
+.L1232:
+.LBB2116:
 .LBB2073:
 	.loc 1 1585 0 discriminator 1
 	mov	w1, 0
 	add	x0, x29, 112
 	bl	init_wait_entry
-.LVL1189:
+.LVL1186:
 	b	.L852
-.L1266:
-.LVL1190:
+.L1261:
+.LVL1187:
 .LBB2074:
 	.loc 1 1585 0 is_stmt 0 discriminator 5
 	cbnz	x0, .L849
 	.loc 1 1585 0 discriminator 7
 	bl	schedule
-.LVL1191:
+.LVL1188:
 .L852:
 	.loc 1 1585 0 discriminator 9
 	add	x1, x29, 112
 	mov	w2, 1
 	mov	x0, x20
 	bl	prepare_to_wait_event
-.LVL1192:
+.LVL1189:
 	ldr	w1, [x23, 52]
-	cbnz	w1, .L1266
+	cbnz	w1, .L1261
 .LBE2074:
 	.loc 1 1585 0 discriminator 4
 	add	x1, x29, 112
 	mov	x0, x20
 	bl	finish_wait
-.LVL1193:
+.LVL1190:
 	b	.L849
-.L1252:
+.LVL1191:
+.L1230:
 .LBE2073:
-.LBE2118:
-	.loc 1 1825 0 is_stmt 1
-	ldr	x0, [x23, 104]
-	adrp	x1, .LC99
-	add	x1, x1, :lo12:.LC99
-	bl	_dev_info
-.LVL1194:
-.LBB2119:
-	.loc 1 1826 0
-	ldr	w0, [x23, 52]
-	cbnz	w0, .L1267
-.L964:
-.LVL1195:
-.L962:
-.LBE2119:
-	.loc 1 1821 0 discriminator 11
-	ldr	x0, [x23, 104]
-.LVL1196:
-	adrp	x1, .LC100
-	add	x1, x1, :lo12:.LC100
-	bl	_dev_info
-.LVL1197:
-.L1206:
-	.loc 1 1822 0 discriminator 11
-	ldr	x0, [x23, 232]
+.LBE2116:
+	.loc 1 1875 0 is_stmt 1
+	ldr	x0, [x23, 224]
 	ldrsw	x2, [x23, 28]
-	ldr	x1, [x0, 16]
-	ldr	x0, [x23, 152]
+	ldr	x1, [x23, 160]
+	ldr	x0, [x0, 16]
 	bl	memcpy
-.LVL1198:
-	b	.L959
-.LVL1199:
-.L1256:
-.LBB2122:
-.LBB2094:
+.LVL1192:
+	b	.L978
+.LVL1193:
+.L1250:
+.LBB2117:
+.LBB2089:
 	.loc 1 1969 0 discriminator 1
 	mov	w1, 0
 	add	x0, x29, 112
 	bl	init_wait_entry
-.LVL1200:
+.LVL1194:
 	b	.L1006
 	.p2align 3
-.L1268:
-.LVL1201:
-.LBB2095:
+.L1262:
+.LVL1195:
+.LBB2090:
 	.loc 1 1969 0 is_stmt 0 discriminator 5
 	cbnz	x0, .L1003
 	.loc 1 1969 0 discriminator 7
 	bl	schedule
-.LVL1202:
+.LVL1196:
 .L1006:
 	.loc 1 1969 0 discriminator 9
 	add	x1, x29, 112
 	mov	w2, 1
 	mov	x0, x20
 	bl	prepare_to_wait_event
-.LVL1203:
+.LVL1197:
 	ldr	w1, [x23, 52]
-	cbnz	w1, .L1268
-.LBE2095:
+	cbnz	w1, .L1262
+.LBE2090:
 	.loc 1 1969 0 discriminator 4
 	add	x1, x29, 112
 	mov	x0, x20
 	bl	finish_wait
-.LVL1204:
+.LVL1198:
 	b	.L1003
-.LVL1205:
-.L1250:
-.LBE2094:
-.LBE2122:
+.LVL1199:
+.L1245:
+.LBE2089:
+.LBE2117:
 	.loc 1 1815 0 is_stmt 1
 	ldr	x0, [x23, 224]
 	ldrsw	x2, [x23, 28]
 	ldr	x1, [x0, 16]
 	ldr	x0, [x23, 160]
 	bl	memcpy
-.LVL1206:
-	b	.L1206
-.L1246:
-.LBB2123:
-	.loc 1 1746 0
-	cbz	x0, .L928
-.LBB2079:
-.LBB2080:
-.LBB2081:
-	.loc 17 368 0 discriminator 10
-	ldr	w0, [x23, 260]
-	bl	__msecs_to_jiffies
-.LVL1207:
-	mov	x25, x0
-.LVL1208:
-.LBE2081:
-.LBE2080:
-	.loc 1 1746 0 discriminator 10
-	mov	w1, 0
-	add	x0, x29, 112
-	bl	init_wait_entry
-.LVL1209:
-.L933:
-.LBB2082:
-	.loc 1 1746 0 is_stmt 0 discriminator 27
+.LVL1200:
+.L1202:
+	.loc 1 1822 0 discriminator 11
+	ldr	x0, [x23, 232]
+	ldrsw	x2, [x23, 28]
+	ldr	x1, [x0, 16]
+	ldr	x0, [x23, 152]
+	bl	memcpy
+.LVL1201:
+	b	.L959
+.L943:
+.LBB2118:
+.LBB2119:
+	.loc 1 1763 0 discriminator 8
 	add	x1, x29, 112
-	mov	w2, 1
 	mov	x0, x20
-	bl	prepare_to_wait_event
-.LVL1210:
-.LBB2083:
-	ldr	w1, [x23, 256]
-	cbz	w1, .L1269
-.L930:
-.LBE2083:
-.LBE2082:
-	.loc 1 1746 0 discriminator 22
-	mov	x0, x20
-	add	x1, x29, 112
 	bl	finish_wait
-.LVL1211:
+.LVL1202:
+.L1201:
 	ldr	w0, [x23, 256]
-.LBE2079:
-.LBE2123:
-	.loc 1 1748 0 is_stmt 1 discriminator 22
-	cbz	w0, .L928
-.LVL1212:
+.LBE2119:
+.LBE2118:
+	.loc 1 1764 0 discriminator 8
+	cbz	w0, .L945
 .L947:
 	.loc 1 1765 0
 	ldr	x0, [x23, 104]
 	adrp	x1, .LC107
 	add	x1, x1, :lo12:.LC107
 	bl	_dev_info
-.LVL1213:
+.LVL1203:
 	.loc 1 1766 0
 	mov	x0, x24
 	bl	ebc_buf_release
-.LVL1214:
+.LVL1204:
 	.loc 1 1768 0
 	str	wzr, [x29, 108]
 	b	.L840
@@ -12008,11 +11937,11 @@ ebc_thread:
 	.loc 1 1758 0
 	ldr	w0, [x23, 144]
 	cmp	w0, 7
-	beq	.L1270
+	beq	.L1263
 	.loc 1 1759 0
 	cmp	w0, 1
 	bne	.L939
-.LVL1215:
+.LVL1205:
 	.loc 1 1759 0 is_stmt 0 discriminator 1
 	cmp	w1, 7
 	ccmp	w1, 1, 4, ne
@@ -12024,57 +11953,57 @@ ebc_thread:
 	.loc 1 1762 0
 	ldr	x0, [x23, 104]
 	adrp	x1, .LC99
-.LVL1216:
+.LVL1206:
 	add	x1, x1, :lo12:.LC99
 	bl	_dev_info
-.LVL1217:
-.LBB2124:
+.LVL1207:
+.LBB2122:
 	.loc 1 1763 0
 	ldr	w0, [x23, 52]
-	cbz	w0, .L1205
+	cbz	w0, .L1201
 	.loc 1 1763 0 is_stmt 0 discriminator 1
 	ldr	w0, [x23, 256]
 	cbnz	w0, .L947
-.LBB2125:
+.LBB2121:
 	.loc 1 1763 0 discriminator 3
 	mov	w1, 0
 	add	x0, x29, 112
 	bl	init_wait_entry
-.LVL1218:
+.LVL1208:
 .L946:
-.LBB2126:
+.LBB2120:
 	.loc 1 1763 0 discriminator 13
 	add	x1, x29, 112
 	mov	w2, 1
 	mov	x0, x20
 	bl	prepare_to_wait_event
-.LVL1219:
+.LVL1209:
 	ldr	w1, [x23, 52]
 	cbz	w1, .L943
 	.loc 1 1763 0 discriminator 7
 	ldr	w1, [x23, 256]
 	cbnz	w1, .L943
-.LVL1220:
+.LVL1210:
 	.loc 1 1763 0 discriminator 9
 	cbnz	x0, .L945
 	.loc 1 1763 0 discriminator 11
 	bl	schedule
-.LVL1221:
-.LBE2126:
+.LVL1211:
+.LBE2120:
 	b	.L946
 	.p2align 3
-.L1258:
-.LBE2125:
-.LBE2124:
+.L1252:
+.LBE2121:
+.LBE2122:
 	.loc 1 1987 0 is_stmt 1
 	ldr	x0, [x23, 104]
 	adrp	x1, .LC117
 	add	x1, x1, :lo12:.LC117
 	bl	_dev_info
-.LVL1222:
+.LVL1212:
 	.loc 1 1988 0
 	ldr	w0, [x23, 600]
-	cbz	w0, .L1271
+	cbz	w0, .L1264
 .L1009:
 	.loc 1 1991 0
 	adrp	x0, .LANCHOR0
@@ -12084,207 +12013,220 @@ ebc_thread:
 	.loc 1 1991 0
 	str	wzr, [x0, 32]
 	b	.L1008
-.L1243:
+.L1247:
+	.loc 1 1825 0
+	ldr	x0, [x23, 104]
+	adrp	x1, .LC99
+	add	x1, x1, :lo12:.LC99
+	bl	_dev_info
+.LVL1213:
+.LBB2123:
+	.loc 1 1826 0
+	ldr	w0, [x23, 52]
+	cbnz	w0, .L1265
+.L964:
+.LVL1214:
+.L962:
+.LBE2123:
+	.loc 1 1821 0 discriminator 11
+	ldr	x0, [x23, 104]
+.LVL1215:
+	adrp	x1, .LC100
+	add	x1, x1, :lo12:.LC100
+	bl	_dev_info
+.LVL1216:
+	b	.L1202
+.L1239:
 	.loc 1 1711 0
 	ldr	x0, [x23, 224]
 	ldrsw	x2, [x23, 28]
 	ldr	x1, [x0, 16]
 	ldr	x0, [x23, 160]
 	bl	memcpy
-.LVL1223:
+.LVL1217:
 	.loc 1 1712 0
 	ldr	x0, [x23, 232]
 	ldrsw	x2, [x23, 28]
 	ldr	x1, [x0, 16]
 	ldr	x0, [x23, 152]
 	bl	memcpy
-.LVL1224:
+.LVL1218:
 	b	.L915
-.LVL1225:
-.L1234:
-	.loc 1 1875 0
-	ldr	x0, [x23, 224]
-	ldrsw	x2, [x23, 28]
-	ldr	x1, [x23, 160]
-	ldr	x0, [x0, 16]
-	bl	memcpy
-.LVL1226:
-	b	.L978
-.LVL1227:
-.L1261:
-.LBB2128:
-.LBB2129:
+.LVL1219:
+.L1256:
+.LBB2126:
+.LBB2127:
 	.loc 1 2014 0 discriminator 3
 	mov	w1, 0
 	add	x0, x29, 112
 	bl	init_wait_entry
-.LVL1228:
-.LBB2130:
+.LVL1220:
+.LBB2128:
 	add	x1, x29, 112
 	mov	w2, 1
 	mov	x0, x20
 	bl	prepare_to_wait_event
-.LVL1229:
+.LVL1221:
 	ldr	w1, [x23, 52]
 	cbz	w1, .L1019
-.L1272:
+.L1266:
 	.loc 1 2014 0 is_stmt 0 discriminator 7
 	ldr	w1, [x23, 100]
 	cbnz	w1, .L1019
-.LVL1230:
+.LVL1222:
 	.loc 1 2014 0 discriminator 9
 	cbnz	x0, .L1020
 	.loc 1 2014 0 discriminator 11
 	bl	schedule
-.LVL1231:
+.LVL1223:
 	add	x1, x29, 112
 	mov	w2, 1
 	mov	x0, x20
 	bl	prepare_to_wait_event
-.LVL1232:
+.LVL1224:
 	ldr	w1, [x23, 52]
-	cbnz	w1, .L1272
+	cbnz	w1, .L1266
 .L1019:
-.LBE2130:
+.LBE2128:
 	.loc 1 2014 0 discriminator 8
 	add	x1, x29, 112
 	mov	x0, x20
 	bl	finish_wait
-.LVL1233:
+.LVL1225:
 .L1020:
-.LBE2129:
-.LBE2128:
+.LBE2127:
+.LBE2126:
 	.loc 1 2016 0 is_stmt 1 discriminator 14
 	bl	ebc_get_dsp_list_enum_num
-.LVL1234:
+.LVL1226:
 	cbnz	w0, .L840
 	.loc 1 2016 0 is_stmt 0 discriminator 1
 	bl	ebc_get_osd_list_enum_num
-.LVL1235:
+.LVL1227:
 	cbnz	w0, .L840
 	.loc 1 2018 0 is_stmt 1
 	ldr	w0, [x23, 52]
 	cbnz	w0, .L1023
-.L1212:
+.L1208:
 	.loc 1 2025 0
 	ldr	w0, [x23, 208]
 	cmp	w0, 1
 	bne	.L1023
-.LBB2131:
-.LBB2132:
+.LBB2129:
+.LBB2130:
 	mov	w1, 0
 	mov	x0, x19
 	bl	ebc_power_set.part.4
-.LVL1236:
+.LVL1228:
 .L1023:
-.LBE2132:
-.LBE2131:
+.LBE2130:
+.LBE2129:
 	.loc 1 2028 0
 	ldr	w0, [x23, 100]
 	cbnz	w0, .L1025
-.LBB2133:
-.LBB2134:
+.LBB2131:
+.LBB2132:
 	.loc 1 2029 0 discriminator 1
 	mov	w1, 0
 	add	x0, x29, 112
 	bl	init_wait_entry
-.LVL1237:
+.LVL1229:
 .L1028:
-.LBB2135:
+.LBB2133:
 	.loc 1 2029 0 is_stmt 0 discriminator 9
 	add	x1, x29, 112
 	mov	w2, 1
 	mov	x0, x20
 	bl	prepare_to_wait_event
-.LVL1238:
+.LVL1230:
 	ldr	w1, [x23, 100]
 	cbnz	w1, .L1026
-.LVL1239:
+.LVL1231:
 	.loc 1 2029 0 discriminator 5
 	cbnz	x0, .L1025
 	.loc 1 2029 0 discriminator 7
 	bl	schedule
-.LVL1240:
-.LBE2135:
-	b	.L1028
-.L1238:
-.LBE2134:
+.LVL1232:
 .LBE2133:
+	b	.L1028
+.L1234:
+.LBE2132:
+.LBE2131:
 	.loc 1 2035 0 is_stmt 1
 	bl	__stack_chk_fail
-.LVL1241:
+.LVL1233:
 .L1026:
-.LBB2137:
-.LBB2136:
+.LBB2135:
+.LBB2134:
 	.loc 1 2029 0 discriminator 4
 	add	x1, x29, 112
 	mov	x0, x20
 	bl	finish_wait
-.LVL1242:
-.LBE2136:
-.LBE2137:
+.LVL1234:
+.LBE2134:
+.LBE2135:
 	.loc 1 2030 0 discriminator 4
 	str	wzr, [x23, 100]
 	b	.L840
-.LVL1243:
-.L1271:
-	.loc 1 1989 0
-	mov	x0, 2
-	bl	ebc_notify
-.LVL1244:
-	b	.L1009
-.L939:
-.LVL1245:
-	cmp	w1, 12
-	cset	w1, eq
-.LVL1246:
-	b	.L1035
-.L1270:
-.LVL1247:
-	.loc 1 1758 0 discriminator 1
-	cmp	w1, 7
-	bne	.L935
-	b	.L938
-.LVL1248:
-.L1267:
-.LBB2138:
-.LBB2120:
+.LVL1235:
+.L1265:
+.LBB2136:
+.LBB2124:
 	.loc 1 1826 0 discriminator 1
 	mov	w1, 0
 	add	x0, x29, 112
 	bl	init_wait_entry
-.LVL1249:
+.LVL1236:
 	b	.L969
 	.p2align 3
-.L1273:
-.LVL1250:
-.LBB2121:
+.L1267:
+.LVL1237:
+.LBB2125:
 	.loc 1 1826 0 is_stmt 0 discriminator 5
 	cbnz	x0, .L962
 	.loc 1 1826 0 discriminator 7
 	bl	schedule
-.LVL1251:
+.LVL1238:
 .L969:
 	.loc 1 1826 0 discriminator 9
 	add	x1, x29, 112
 	mov	w2, 1
 	mov	x0, x20
 	bl	prepare_to_wait_event
-.LVL1252:
+.LVL1239:
 	ldr	w1, [x23, 52]
-	cbnz	w1, .L1273
-.LBE2121:
+	cbnz	w1, .L1267
+.LBE2125:
 	b	.L963
-.L1247:
-.LBE2120:
-.LBE2138:
-	.loc 1 1783 0 is_stmt 1
+.L1264:
+.LBE2124:
+.LBE2136:
+	.loc 1 1989 0 is_stmt 1
+	mov	x0, 2
+	bl	ebc_notify
+.LVL1240:
+	b	.L1009
+.L939:
+.LVL1241:
+	cmp	w1, 12
+	cset	w1, eq
+.LVL1242:
+	b	.L1035
+.L1263:
+.LVL1243:
+	.loc 1 1758 0 discriminator 1
+	cmp	w1, 7
+	bne	.L935
+	b	.L938
+.LVL1244:
+.L1243:
+	.loc 1 1783 0
 	str	w22, [x23, 52]
 	.loc 1 1786 0
 	mov	x0, x19
 	ldr	w1, [x24, 40]
 	bl	ebc_lut_update
-.LVL1253:
+.LVL1245:
 	.loc 1 1787 0
 	ldr	w1, [x23, 112]
 	.loc 1 1789 0
@@ -12302,9 +12244,9 @@ ebc_thread:
 	ldr	w2, [x2, 40]
 	add	x1, x1, :lo12:.LC109
 	bl	_dev_info
-.LVL1254:
-.LBB2139:
-.LBB2140:
+.LVL1246:
+.LBB2137:
+.LBB2138:
 	.loc 1 986 0
 	ldr	x0, [x23, 192]
 	mov	w6, 1
@@ -12312,7 +12254,7 @@ ebc_thread:
 	mov	x5, x23
 	ldp	x3, x4, [x23, 176]
 	bl	get_overlay_image
-.LVL1255:
+.LVL1247:
 	.loc 1 993 0
 	ldr	w0, [x23, 60]
 	cbz	w0, .L949
@@ -12322,7 +12264,7 @@ ebc_thread:
 	.loc 1 995 0
 	mov	x0, x19
 	bl	ebc_power_set.constprop.11
-.LVL1256:
+.LVL1248:
 .L950:
 	.loc 1 996 0
 	ldp	x1, x2, [x23, 152]
@@ -12331,20 +12273,20 @@ ebc_thread:
 	mov	x5, x23
 	ldr	x0, [x23, 200]
 	bl	get_overlay_image
-.LVL1257:
-.LBB2141:
-.LBB2142:
+.LVL1249:
+.LBB2139:
+.LBB2140:
 	.loc 1 977 0
 	str	wzr, [x21, 72]
 	.loc 1 978 0
 	mov	x0, x21
 	ldr	w1, [x19, 224]
 	bl	flip.isra.1
-.LVL1258:
-.LBE2142:
-.LBE2141:
+.LVL1250:
 .LBE2140:
 .LBE2139:
+.LBE2138:
+.LBE2137:
 	.loc 1 1792 0
 	ldr	x0, [x23, 232]
 	ldr	w0, [x0, 40]
@@ -12358,10 +12300,34 @@ ebc_thread:
 	.loc 1 1795 0
 	ldr	w1, [x23, 52]
 	cbz	w1, .L952
-	b	.L1036
+.L1036:
+	.loc 1 1798 0
+	ldrb	w0, [x23, 56]
+	.loc 1 1797 0
+	str	wzr, [x23, 616]
+	.loc 1 1798 0
+	add	w0, w0, w0, lsl 1
+.LBB2143:
+.LBB2144:
+	.loc 17 368 0
+	lsl	w0, w0, 2
+	bl	__msecs_to_jiffies
+.LVL1251:
+.LBE2144:
+.LBE2143:
+	.loc 1 1798 0
+	adrp	x1, jiffies
+	ldr	x1, [x1, #:lo12:jiffies]
+	add	x1, x1, x0
+	add	x0, x19, 680
+	bl	mod_timer
+.LVL1252:
+	ldr	x0, [x23, 232]
+	ldr	w0, [x0, 40]
+	b	.L952
 .L949:
 .LBB2145:
-.LBB2143:
+.LBB2141:
 	.loc 1 1005 0
 	ldr	x0, [x23, 104]
 	adrp	x2, .LANCHOR3
@@ -12370,167 +12336,161 @@ ebc_thread:
 	add	x2, x2, 104
 	add	x1, x1, :lo12:.LC110
 	bl	_dev_info
-.LVL1259:
+.LVL1253:
 	.loc 1 1006 0
 	str	wzr, [x23, 52]
-.LBE2143:
+.LBE2141:
 .LBE2145:
 	.loc 1 1792 0
 	ldr	x0, [x23, 232]
 .LBB2146:
-.LBB2144:
+.LBB2142:
 	.loc 1 1007 0
 	str	w22, [x23, 616]
-.LBE2144:
+.LBE2142:
 .LBE2146:
 	.loc 1 1792 0
 	ldr	w0, [x0, 40]
 	b	.L952
-.L943:
-.LBB2147:
-.LBB2127:
-	.loc 1 1763 0 discriminator 8
-	add	x1, x29, 112
-	mov	x0, x20
-	bl	finish_wait
-.LVL1260:
-.L1205:
-	ldr	w0, [x23, 256]
-.LBE2127:
-.LBE2147:
-	.loc 1 1764 0 discriminator 8
-	cbnz	w0, .L947
-.LVL1261:
+.LVL1254:
 .L945:
-	.loc 1 1764 0 is_stmt 0 discriminator 1
+	.loc 1 1764 0 discriminator 1
 	bl	ebc_get_dsp_list_enum_num
-.LVL1262:
+.LVL1255:
 	cbnz	w0, .L947
-	.loc 1 1770 0 is_stmt 1
+	.loc 1 1770 0
 	ldr	x0, [x23, 104]
 	adrp	x1, .LC100
 	add	x1, x1, :lo12:.LC100
 	bl	_dev_info
-.LVL1263:
+.LVL1256:
 	b	.L938
-.L1265:
-.LBB2148:
-.LBB2116:
-	.loc 1 1716 0 discriminator 1
-	mov	w1, 0
-	add	x0, x29, 112
-	bl	init_wait_entry
-.LVL1264:
-	b	.L920
-	.p2align 3
-.L1274:
-.LVL1265:
-.LBB2117:
-	.loc 1 1716 0 is_stmt 0 discriminator 5
-	cbnz	x0, .L917
-	.loc 1 1716 0 discriminator 7
-	bl	schedule
-.LVL1266:
-.L920:
-	.loc 1 1716 0 discriminator 9
-	add	x1, x29, 112
-	mov	w2, 1
-	mov	x0, x20
-	bl	prepare_to_wait_event
-.LVL1267:
-	ldr	w1, [x23, 52]
-	cbnz	w1, .L1274
-.LBE2117:
-	.loc 1 1716 0 discriminator 4
-	add	x1, x29, 112
-	mov	x0, x20
-	bl	finish_wait
-.LVL1268:
-	b	.L917
-.LVL1269:
 .L1260:
-.LBE2116:
-.LBE2148:
-.LBB2149:
-	.loc 1 1942 0 is_stmt 1
+	.loc 1 1670 0
+	mov	x0, 3
+	bl	ebc_notify
+.LVL1257:
+	b	.L907
+.LVL1258:
+.L1255:
+.LBB2147:
+	.loc 1 1942 0
 	cbz	x0, .L995
+.LBB2098:
+.LBB2099:
 .LBB2100:
-.LBB2101:
-.LBB2102:
 	.loc 17 368 0 discriminator 10
 	ldr	w0, [x23, 260]
 	bl	__msecs_to_jiffies
-.LVL1270:
+.LVL1259:
 	mov	x25, x0
-.LVL1271:
-.LBE2102:
-.LBE2101:
+.LVL1260:
+.LBE2100:
+.LBE2099:
 	.loc 1 1942 0 discriminator 10
 	mov	w1, 0
 	add	x0, x29, 112
 	bl	init_wait_entry
-.LVL1272:
+.LVL1261:
 .L1000:
-.LBB2103:
+.LBB2101:
 	.loc 1 1942 0 is_stmt 0 discriminator 27
 	add	x1, x29, 112
 	mov	w2, 1
 	mov	x0, x20
 	bl	prepare_to_wait_event
-.LVL1273:
-.LBB2104:
+.LVL1262:
+.LBB2102:
 	ldr	w1, [x23, 256]
-	cbz	w1, .L1275
+	cbz	w1, .L1268
 .L997:
-.LBE2104:
-.LBE2103:
+.LBE2102:
+.LBE2101:
 	.loc 1 1942 0 discriminator 22
 	mov	x0, x20
 	add	x1, x29, 112
 	bl	finish_wait
-.LVL1274:
+.LVL1263:
 	ldr	w0, [x23, 256]
-.LBE2100:
-.LBE2149:
+.LBE2098:
+.LBE2147:
 	.loc 1 1944 0 is_stmt 1 discriminator 22
 	cbnz	w0, .L994
 	b	.L995
 	.p2align 3
-.L1275:
-.LBB2150:
-.LBB2107:
-.LBB2106:
+.L1268:
+.LBB2148:
 .LBB2105:
+.LBB2104:
+.LBB2103:
 	.loc 1 1942 0 discriminator 14
 	ldr	w1, [x23, 612]
 	cbnz	w1, .L997
-.LBE2105:
+.LBE2103:
 	.loc 1 1942 0 is_stmt 0
 	cbz	x25, .L997
-.LVL1275:
+.LVL1264:
 	.loc 1 1942 0 discriminator 23
 	cbnz	x0, .L995
 	.loc 1 1942 0 discriminator 25
 	mov	x0, x25
-.LVL1276:
+.LVL1265:
 	bl	schedule_timeout
-.LVL1277:
+.LVL1266:
 	mov	x25, x0
-.LBE2106:
+.LBE2104:
 	b	.L1000
-.LVL1278:
-.L1264:
-.LBE2107:
-.LBE2150:
-	.loc 1 1670 0 is_stmt 1
-	mov	x0, 3
-	bl	ebc_notify
-.LVL1279:
-	b	.L907
-.LVL1280:
+.LVL1267:
+.L1242:
+.LBE2105:
+.LBE2148:
+.LBB2149:
+	.loc 1 1746 0 is_stmt 1
+	cbz	x0, .L928
+.LBB2079:
+.LBB2080:
+.LBB2081:
+	.loc 17 368 0 discriminator 10
+	ldr	w0, [x23, 260]
+	bl	__msecs_to_jiffies
+.LVL1268:
+	mov	x25, x0
+.LVL1269:
+.LBE2081:
+.LBE2080:
+	.loc 1 1746 0 discriminator 10
+	mov	w1, 0
+	add	x0, x29, 112
+	bl	init_wait_entry
+.LVL1270:
+.L933:
+.LBB2082:
+	.loc 1 1746 0 is_stmt 0 discriminator 27
+	add	x1, x29, 112
+	mov	w2, 1
+	mov	x0, x20
+	bl	prepare_to_wait_event
+.LVL1271:
+.LBB2083:
+	ldr	w1, [x23, 256]
+	cbz	w1, .L1269
+.L930:
+.LBE2083:
+.LBE2082:
+	.loc 1 1746 0 discriminator 22
+	mov	x0, x20
+	add	x1, x29, 112
+	bl	finish_wait
+.LVL1272:
+	ldr	w0, [x23, 256]
+.LBE2079:
+.LBE2149:
+	.loc 1 1748 0 is_stmt 1 discriminator 22
+	cbz	w0, .L928
+	b	.L947
 	.p2align 3
 .L1269:
-.LBB2151:
+.LBB2150:
 .LBB2086:
 .LBB2085:
 .LBB2084:
@@ -12540,18 +12500,55 @@ ebc_thread:
 .LBE2084:
 	.loc 1 1746 0 is_stmt 0
 	cbz	x25, .L930
-.LVL1281:
+.LVL1273:
 	.loc 1 1746 0 discriminator 23
 	cbnz	x0, .L928
 	.loc 1 1746 0 discriminator 25
 	mov	x0, x25
-.LVL1282:
+.LVL1274:
 	bl	schedule_timeout
-.LVL1283:
+.LVL1275:
 	mov	x25, x0
 .LBE2085:
 	b	.L933
+.LVL1276:
+.L1257:
 .LBE2086:
+.LBE2150:
+.LBB2151:
+.LBB2108:
+	.loc 1 1716 0 is_stmt 1 discriminator 1
+	mov	w1, 0
+	add	x0, x29, 112
+	bl	init_wait_entry
+.LVL1277:
+	b	.L920
+	.p2align 3
+.L1270:
+.LVL1278:
+.LBB2109:
+	.loc 1 1716 0 is_stmt 0 discriminator 5
+	cbnz	x0, .L917
+	.loc 1 1716 0 discriminator 7
+	bl	schedule
+.LVL1279:
+.L920:
+	.loc 1 1716 0 discriminator 9
+	add	x1, x29, 112
+	mov	w2, 1
+	mov	x0, x20
+	bl	prepare_to_wait_event
+.LVL1280:
+	ldr	w1, [x23, 52]
+	cbnz	w1, .L1270
+.LBE2109:
+	.loc 1 1716 0 discriminator 4
+	add	x1, x29, 112
+	mov	x0, x20
+	bl	finish_wait
+.LVL1281:
+	b	.L917
+.LBE2108:
 .LBE2151:
 	.cfi_endproc
 .LFE2828:
@@ -12563,13 +12560,13 @@ ebc_auto_tast_function:
 .LFB2821:
 	.loc 1 1156 0 is_stmt 1
 	.cfi_startproc
-.LVL1284:
+.LVL1282:
 	stp	x29, x30, [sp, -112]!
 	.cfi_def_cfa_offset 112
 	.cfi_offset 29, -112
 	.cfi_offset 30, -104
 	adrp	x0, __stack_chk_guard
-.LVL1285:
+.LVL1283:
 	add	x0, x0, :lo12:__stack_chk_guard
 	add	x29, sp, 0
 	.cfi_def_cfa_register 29
@@ -12608,7 +12605,7 @@ ebc_auto_tast_function:
 	add	x20, x22, 712
 	.loc 1 1157 0
 	ldr	x23, [x26, #:lo12:.LANCHOR0]
-.LVL1286:
+.LVL1284:
 	.loc 1 1169 0
 	add	x22, x22, 352
 	.loc 1 1156 0
@@ -12629,19 +12626,19 @@ ebc_auto_tast_function:
 // 19 "./arch/arm64/include/asm/current.h" 1
 	mrs x24, sp_el0
 // 0 "" 2
-.LVL1287:
+.LVL1285:
 #NO_APP
-	b	.L1289
+	b	.L1284
 	.p2align 3
-.L1300:
+.L1295:
 .LBE2157:
 .LBE2156:
 .LBE2159:
 	.loc 1 1175 0
 	cmp	w0, 4
-	beq	.L1279
+	beq	.L1274
 	cmp	w0, 1
-	beq	.L1298
+	beq	.L1293
 	.loc 1 1270 0
 	ldr	w1, [x19, 72]
 	.loc 1 1271 0
@@ -12652,33 +12649,33 @@ ebc_auto_tast_function:
 	.loc 1 1271 0
 	ldr	w1, [x23, 224]
 	bl	flip.isra.1
-.LVL1288:
+.LVL1286:
 	.loc 1 1273 0
 	add	x0, x26, :lo12:.LANCHOR0
 	ldr	x0, [x0, 16]
 	bl	wake_up_process
-.LVL1289:
+.LVL1287:
 	.loc 1 1275 0
 	ldr	w4, [x19, 72]
-	cbnz	w4, .L1299
+	cbnz	w4, .L1294
 	.p2align 2
-.L1284:
+.L1279:
 	.loc 1 1284 0
 	mov	x0, x20
 	bl	up
-.LVL1290:
+.LVL1288:
 	.loc 1 1285 0
 	bl	schedule
-.LVL1291:
-.L1289:
+.LVL1289:
+.L1284:
 	.loc 1 1167 0
 	mov	x0, x20
 	bl	down
-.LVL1292:
+.LVL1290:
 	.loc 1 1169 0
 	mov	x0, x22
 	bl	down
-.LVL1293:
+.LVL1291:
 .LBB2160:
 .LBB2158:
 .LBB2155:
@@ -12696,27 +12693,27 @@ ebc_auto_tast_function:
 #NO_APP
 	ldr	w0, [x19, 264]
 	cmp	w0, 3
-	bne	.L1300
+	bne	.L1295
 	.loc 1 1226 0
 	ldr	w0, [x19, 60]
 	.loc 1 1225 0
 	str	wzr, [x19, 68]
 	.loc 1 1226 0
-	cbnz	w0, .L1285
+	cbnz	w0, .L1280
 	.loc 1 1226 0 is_stmt 0 discriminator 1
 	ldr	w0, [x19, 64]
-	cbz	w0, .L1286
-.L1285:
+	cbz	w0, .L1281
+.L1280:
 	.loc 1 1227 0 is_stmt 1
 	ldr	w1, [x23, 224]
 	mov	x0, x21
 	bl	flip.isra.1
-.LVL1294:
+.LVL1292:
 	.loc 1 1229 0
 	add	x0, x26, :lo12:.LANCHOR0
 	ldr	x0, [x0, 16]
 	bl	wake_up_process
-.LVL1295:
+.LVL1293:
 	.loc 1 1231 0
 	ldrsw	x0, [x21, 72]
 	mov	w5, 2
@@ -12726,10 +12723,10 @@ ebc_auto_tast_function:
 	mov	x4, x19
 	ldr	x0, [x19, x0, lsl 3]
 	bl	get_auto_image
-.LVL1296:
-	b	.L1284
+.LVL1294:
+	b	.L1279
 	.p2align 3
-.L1298:
+.L1293:
 	.loc 1 1256 0
 	ldr	w1, [x19, 72]
 	.loc 1 1257 0
@@ -12740,15 +12737,15 @@ ebc_auto_tast_function:
 	.loc 1 1257 0
 	ldr	w1, [x23, 224]
 	bl	flip.isra.1
-.LVL1297:
+.LVL1295:
 	.loc 1 1259 0
 	add	x0, x26, :lo12:.LANCHOR0
 	ldr	x0, [x0, 16]
 	bl	wake_up_process
-.LVL1298:
+.LVL1296:
 	.loc 1 1261 0
 	ldr	w4, [x19, 72]
-	cbz	w4, .L1284
+	cbz	w4, .L1279
 	.loc 1 1263 0
 	ldrsw	x0, [x21, 72]
 	mov	w6, 2
@@ -12762,14 +12759,14 @@ ebc_auto_tast_function:
 	ldr	x1, [x1, 16]
 	ldr	x2, [x2, 16]
 	bl	direct_mode_data_change_part.isra.5
-.LVL1299:
+.LVL1297:
 	.loc 1 1268 0
-	b	.L1284
+	b	.L1279
 	.p2align 3
-.L1279:
+.L1274:
 	.loc 1 1177 0
 	ldr	w0, [x19, 76]
-	cbz	w0, .L1281
+	cbz	w0, .L1276
 	.loc 1 1180 0
 	ldr	w0, [x19, 60]
 	.loc 1 1179 0
@@ -12777,21 +12774,21 @@ ebc_auto_tast_function:
 	.loc 1 1178 0
 	str	wzr, [x19, 76]
 	.loc 1 1180 0
-	cbnz	w0, .L1282
+	cbnz	w0, .L1277
 	.loc 1 1180 0 is_stmt 0 discriminator 1
 	ldr	w0, [x19, 64]
-	cbz	w0, .L1283
-.L1282:
+	cbz	w0, .L1278
+.L1277:
 	.loc 1 1181 0 is_stmt 1
 	ldr	w1, [x23, 224]
 	mov	x0, x21
 	bl	flip.isra.1
-.LVL1300:
+.LVL1298:
 	.loc 1 1183 0
 	add	x0, x26, :lo12:.LANCHOR0
 	ldr	x0, [x0, 16]
 	bl	wake_up_process
-.LVL1301:
+.LVL1299:
 	.loc 1 1185 0
 	ldrsw	x0, [x21, 72]
 	mov	w6, 2
@@ -12801,14 +12798,14 @@ ebc_auto_tast_function:
 	mov	x5, x19
 	ldr	x0, [x19, x0, lsl 3]
 	bl	get_overlay_image
-.LVL1302:
-	b	.L1284
+.LVL1300:
+	b	.L1279
 	.p2align 3
-.L1281:
+.L1276:
 	.loc 1 1214 0
 	mov	x0, x22
 	bl	up
-.LVL1303:
+.LVL1301:
 	.loc 1 1216 0
 	ldrsw	x0, [x21, 72]
 	mov	x5, x19
@@ -12817,10 +12814,10 @@ ebc_auto_tast_function:
 	ldp	x3, x4, [x19, 176]
 	ldr	x0, [x19, x0, lsl 3]
 	bl	get_overlay_image_area
-.LVL1304:
-	b	.L1284
+.LVL1302:
+	b	.L1279
 	.p2align 3
-.L1299:
+.L1294:
 	.loc 1 1277 0
 	ldrsw	x0, [x21, 72]
 	mov	w6, 2
@@ -12834,14 +12831,14 @@ ebc_auto_tast_function:
 	ldr	x1, [x1, 16]
 	ldr	x2, [x2, 16]
 	bl	direct_mode_data_change.isra.0
-.LVL1305:
-	b	.L1284
+.LVL1303:
+	b	.L1279
 	.p2align 3
-.L1286:
+.L1281:
 	.loc 1 1239 0
 	mov	x0, x22
 	bl	up
-.LVL1306:
+.LVL1304:
 	.loc 1 1242 0
 	ldr	x1, [x19, 232]
 	.loc 1 1241 0
@@ -12850,7 +12847,7 @@ ebc_auto_tast_function:
 	ldr	x2, [x19, 176]
 	ldr	x1, [x1, 16]
 	bl	refresh_new_image_auto
-.LVL1307:
+.LVL1305:
 	.loc 1 1245 0
 	ldrsw	x0, [x21, 72]
 	mov	x4, x19
@@ -12860,8 +12857,8 @@ ebc_auto_tast_function:
 	mov	w5, 1
 	ldr	x0, [x19, x0, lsl 3]
 	bl	get_auto_image
-.LVL1308:
-.L1296:
+.LVL1306:
+.L1291:
 	.loc 1 1251 0
 	mov	w0, 1
 	.loc 1 1252 0
@@ -12872,14 +12869,14 @@ ebc_auto_tast_function:
 	mov	x0, x28
 	add	x1, x1, 1
 	bl	mod_timer
-.LVL1309:
-	b	.L1284
+.LVL1307:
+	b	.L1279
 	.p2align 3
-.L1283:
+.L1278:
 	.loc 1 1194 0
 	mov	x0, x22
 	bl	up
-.LVL1310:
+.LVL1308:
 	.loc 1 1198 0
 	ldr	x2, [x19, 232]
 	.loc 1 1196 0
@@ -12889,7 +12886,7 @@ ebc_auto_tast_function:
 	ldp	x3, x4, [x19, 176]
 	ldr	x2, [x2, 16]
 	bl	refresh_new_image
-.LVL1311:
+.LVL1309:
 	.loc 1 1202 0
 	ldrsw	x0, [x21, 72]
 	mov	x5, x19
@@ -12899,8 +12896,8 @@ ebc_auto_tast_function:
 	mov	w6, 1
 	ldr	x0, [x19, x0, lsl 3]
 	bl	get_overlay_image
-.LVL1312:
-	b	.L1296
+.LVL1310:
+	b	.L1291
 	.cfi_endproc
 .LFE2821:
 	.size	ebc_auto_tast_function, .-ebc_auto_tast_function
@@ -13219,7 +13216,7 @@ __exitcall_ebc_exit:
 	.string	"%d\n"
 	.zero	4
 .LC24:
-	.string	"4.12"
+	.string	"4.13"
 	.zero	3
 .LC25:
 	.string	"%s\n"
@@ -46079,17 +46076,17 @@ __exitcall_ebc_exit:
 	.4byte	0x199
 	.4byte	.LLST285
 	.uleb128 0x4b
-	.8byte	.LVL1191
+	.8byte	.LVL1188
 	.4byte	0x15913
 	.uleb128 0x4b
-	.8byte	.LVL1192
+	.8byte	.LVL1189
 	.4byte	0x1591e
 	.byte	0
 	.uleb128 0x4b
-	.8byte	.LVL1189
+	.8byte	.LVL1186
 	.4byte	0x1592a
 	.uleb128 0x4b
-	.8byte	.LVL1193
+	.8byte	.LVL1190
 	.4byte	0x15936
 	.byte	0
 	.byte	0
@@ -46102,8 +46099,8 @@ __exitcall_ebc_exit:
 	.2byte	0x6b4
 	.4byte	0xc6
 	.uleb128 0x53
-	.8byte	.LBB2116
-	.8byte	.LBE2116-.LBB2116
+	.8byte	.LBB2108
+	.8byte	.LBE2108-.LBB2108
 	.uleb128 0x6e
 	.4byte	.LASF3078
 	.byte	0x1
@@ -46123,33 +46120,33 @@ __exitcall_ebc_exit:
 	.2byte	0x6b4
 	.4byte	0x199
 	.uleb128 0x5f
-	.8byte	.LBB2117
-	.8byte	.LBE2117-.LBB2117
+	.8byte	.LBB2109
+	.8byte	.LBE2109-.LBB2109
 	.4byte	0x12013
 	.uleb128 0x56
 	.4byte	.LASF3080
 	.byte	0x1
 	.2byte	0x6b4
 	.4byte	0x199
-	.4byte	.LLST294
+	.4byte	.LLST293
 	.uleb128 0x4b
-	.8byte	.LVL1266
+	.8byte	.LVL1279
 	.4byte	0x15913
 	.uleb128 0x4b
-	.8byte	.LVL1267
+	.8byte	.LVL1280
 	.4byte	0x1591e
 	.byte	0
 	.uleb128 0x4b
-	.8byte	.LVL1264
+	.8byte	.LVL1277
 	.4byte	0x1592a
 	.uleb128 0x4b
-	.8byte	.LVL1268
+	.8byte	.LVL1281
 	.4byte	0x15936
 	.byte	0
 	.byte	0
 	.uleb128 0x5f
-	.8byte	.LBB2112
-	.8byte	.LBE2112-.LBB2112
+	.8byte	.LBB2113
+	.8byte	.LBE2113-.LBB2113
 	.4byte	0x12085
 	.uleb128 0x4f
 	.string	"ret"
@@ -46157,16 +46154,16 @@ __exitcall_ebc_exit:
 	.2byte	0x6ba
 	.4byte	0xc6
 	.uleb128 0x4b
-	.8byte	.LVL1170
+	.8byte	.LVL1172
 	.4byte	0x1550e
 	.uleb128 0x4b
-	.8byte	.LVL1171
+	.8byte	.LVL1173
 	.4byte	0x15942
 	.uleb128 0x4b
-	.8byte	.LVL1172
+	.8byte	.LVL1174
 	.4byte	0x156e9
 	.uleb128 0x4b
-	.8byte	.LVL1173
+	.8byte	.LVL1175
 	.4byte	0x158fd
 	.byte	0
 	.uleb128 0x6c
@@ -46227,10 +46224,10 @@ __exitcall_ebc_exit:
 	.4byte	0x2b0
 	.byte	0
 	.uleb128 0x4b
-	.8byte	.LVL1210
+	.8byte	.LVL1271
 	.4byte	0x1591e
 	.uleb128 0x4b
-	.8byte	.LVL1283
+	.8byte	.LVL1275
 	.4byte	0x1594d
 	.byte	0
 	.uleb128 0x50
@@ -46243,14 +46240,14 @@ __exitcall_ebc_exit:
 	.uleb128 0x51
 	.4byte	0x14e20
 	.uleb128 0x4b
-	.8byte	.LVL1207
+	.8byte	.LVL1268
 	.4byte	0x15958
 	.byte	0
 	.uleb128 0x4b
-	.8byte	.LVL1209
+	.8byte	.LVL1270
 	.4byte	0x1592a
 	.uleb128 0x4b
-	.8byte	.LVL1211
+	.8byte	.LVL1272
 	.4byte	0x15936
 	.byte	0
 	.uleb128 0x5a
@@ -46267,7 +46264,7 @@ __exitcall_ebc_exit:
 	.byte	0
 	.byte	0
 	.uleb128 0x6c
-	.4byte	.Ldebug_ranges0+0x1ca0
+	.4byte	.Ldebug_ranges0+0x1c70
 	.4byte	0x12245
 	.uleb128 0x43
 	.4byte	.LASF3076
@@ -46275,7 +46272,7 @@ __exitcall_ebc_exit:
 	.2byte	0x6e3
 	.4byte	0xc6
 	.uleb128 0x5b
-	.4byte	.Ldebug_ranges0+0x1cd0
+	.4byte	.Ldebug_ranges0+0x1ca0
 	.uleb128 0x6d
 	.4byte	.LASF3078
 	.byte	0x1
@@ -46294,33 +46291,33 @@ __exitcall_ebc_exit:
 	.2byte	0x6e3
 	.4byte	0x199
 	.uleb128 0x5f
-	.8byte	.LBB2126
-	.8byte	.LBE2126-.LBB2126
+	.8byte	.LBB2120
+	.8byte	.LBE2120-.LBB2120
 	.4byte	0x12229
 	.uleb128 0x56
 	.4byte	.LASF3080
 	.byte	0x1
 	.2byte	0x6e3
 	.4byte	0x199
-	.4byte	.LLST296
+	.4byte	.LLST295
 	.uleb128 0x4b
-	.8byte	.LVL1219
+	.8byte	.LVL1209
 	.4byte	0x1591e
 	.uleb128 0x4b
-	.8byte	.LVL1221
+	.8byte	.LVL1211
 	.4byte	0x15913
 	.byte	0
 	.uleb128 0x4b
-	.8byte	.LVL1218
-	.4byte	0x1592a
-	.uleb128 0x4b
-	.8byte	.LVL1260
+	.8byte	.LVL1202
 	.4byte	0x15936
+	.uleb128 0x4b
+	.8byte	.LVL1208
+	.4byte	0x1592a
 	.byte	0
 	.byte	0
 	.uleb128 0x5f
-	.8byte	.LBB2109
-	.8byte	.LBE2109-.LBB2109
+	.8byte	.LBB2110
+	.8byte	.LBE2110-.LBB2110
 	.4byte	0x122fe
 	.uleb128 0x43
 	.4byte	.LASF3076
@@ -46328,8 +46325,8 @@ __exitcall_ebc_exit:
 	.2byte	0x71c
 	.4byte	0xc6
 	.uleb128 0x53
-	.8byte	.LBB2110
-	.8byte	.LBE2110-.LBB2110
+	.8byte	.LBB2111
+	.8byte	.LBE2111-.LBB2111
 	.uleb128 0x6e
 	.4byte	.LASF3078
 	.byte	0x1
@@ -46349,32 +46346,32 @@ __exitcall_ebc_exit:
 	.2byte	0x71c
 	.4byte	0x199
 	.uleb128 0x5f
-	.8byte	.LBB2111
-	.8byte	.LBE2111-.LBB2111
+	.8byte	.LBB2112
+	.8byte	.LBE2112-.LBB2112
 	.4byte	0x122e2
 	.uleb128 0x56
 	.4byte	.LASF3080
 	.byte	0x1
 	.2byte	0x71c
 	.4byte	0x199
-	.4byte	.LLST293
+	.4byte	.LLST294
 	.uleb128 0x4b
-	.8byte	.LVL1167
+	.8byte	.LVL1169
 	.4byte	0x15913
 	.uleb128 0x4b
-	.8byte	.LVL1168
+	.8byte	.LVL1170
 	.4byte	0x1591e
 	.byte	0
 	.uleb128 0x4b
-	.8byte	.LVL1165
+	.8byte	.LVL1167
 	.4byte	0x1592a
 	.uleb128 0x4b
-	.8byte	.LVL1169
+	.8byte	.LVL1171
 	.4byte	0x15936
 	.byte	0
 	.byte	0
 	.uleb128 0x6c
-	.4byte	.Ldebug_ranges0+0x1c70
+	.4byte	.Ldebug_ranges0+0x1cd0
 	.4byte	0x1239e
 	.uleb128 0x43
 	.4byte	.LASF3076
@@ -46382,8 +46379,8 @@ __exitcall_ebc_exit:
 	.2byte	0x722
 	.4byte	0xc6
 	.uleb128 0x53
-	.8byte	.LBB2120
-	.8byte	.LBE2120-.LBB2120
+	.8byte	.LBB2124
+	.8byte	.LBE2124-.LBB2124
 	.uleb128 0x6e
 	.4byte	.LASF3078
 	.byte	0x1
@@ -46403,30 +46400,30 @@ __exitcall_ebc_exit:
 	.2byte	0x722
 	.4byte	0x199
 	.uleb128 0x5f
-	.8byte	.LBB2121
-	.8byte	.LBE2121-.LBB2121
+	.8byte	.LBB2125
+	.8byte	.LBE2125-.LBB2125
 	.4byte	0x1238f
 	.uleb128 0x56
 	.4byte	.LASF3080
 	.byte	0x1
 	.2byte	0x722
 	.4byte	0x199
-	.4byte	.LLST295
+	.4byte	.LLST296
 	.uleb128 0x4b
-	.8byte	.LVL1251
+	.8byte	.LVL1238
 	.4byte	0x15913
 	.uleb128 0x4b
-	.8byte	.LVL1252
+	.8byte	.LVL1239
 	.4byte	0x1591e
 	.byte	0
 	.uleb128 0x4b
-	.8byte	.LVL1249
+	.8byte	.LVL1236
 	.4byte	0x1592a
 	.byte	0
 	.byte	0
 	.uleb128 0x5f
-	.8byte	.LBB2089
-	.8byte	.LBE2089-.LBB2089
+	.8byte	.LBB2091
+	.8byte	.LBE2091-.LBB2091
 	.4byte	0x12457
 	.uleb128 0x43
 	.4byte	.LASF3076
@@ -46434,8 +46431,8 @@ __exitcall_ebc_exit:
 	.2byte	0x74f
 	.4byte	0xc6
 	.uleb128 0x53
-	.8byte	.LBB2090
-	.8byte	.LBE2090-.LBB2090
+	.8byte	.LBB2092
+	.8byte	.LBE2092-.LBB2092
 	.uleb128 0x6e
 	.4byte	.LASF3078
 	.byte	0x1
@@ -46455,42 +46452,42 @@ __exitcall_ebc_exit:
 	.2byte	0x74f
 	.4byte	0x199
 	.uleb128 0x5f
-	.8byte	.LBB2091
-	.8byte	.LBE2091-.LBB2091
+	.8byte	.LBB2093
+	.8byte	.LBE2093-.LBB2093
 	.4byte	0x1243b
 	.uleb128 0x56
 	.4byte	.LASF3080
 	.byte	0x1
 	.2byte	0x74f
 	.4byte	0x199
-	.4byte	.LLST288
+	.4byte	.LLST290
 	.uleb128 0x4b
-	.8byte	.LVL1109
+	.8byte	.LVL1131
 	.4byte	0x15913
 	.uleb128 0x4b
-	.8byte	.LVL1110
+	.8byte	.LVL1132
 	.4byte	0x1591e
 	.byte	0
 	.uleb128 0x4b
-	.8byte	.LVL1107
+	.8byte	.LVL1129
 	.4byte	0x1592a
 	.uleb128 0x4b
-	.8byte	.LVL1111
+	.8byte	.LVL1133
 	.4byte	0x15936
 	.byte	0
 	.byte	0
 	.uleb128 0x5f
-	.8byte	.LBB2092
-	.8byte	.LBE2092-.LBB2092
+	.8byte	.LBB2087
+	.8byte	.LBE2087-.LBB2087
 	.4byte	0x1248a
 	.uleb128 0x57
 	.string	"ret"
 	.byte	0x1
 	.2byte	0x759
 	.4byte	0xc6
-	.4byte	.LLST289
+	.4byte	.LLST288
 	.uleb128 0x4b
-	.8byte	.LVL1118
+	.8byte	.LVL1109
 	.4byte	0x1550e
 	.byte	0
 	.uleb128 0x6c
@@ -46502,8 +46499,8 @@ __exitcall_ebc_exit:
 	.2byte	0x796
 	.4byte	0x199
 	.uleb128 0x5f
-	.8byte	.LBB2099
-	.8byte	.LBE2099-.LBB2099
+	.8byte	.LBB2097
+	.8byte	.LBE2097-.LBB2097
 	.4byte	0x124c1
 	.uleb128 0x43
 	.4byte	.LASF3081
@@ -46551,42 +46548,42 @@ __exitcall_ebc_exit:
 	.4byte	0x2b0
 	.byte	0
 	.uleb128 0x4b
-	.8byte	.LVL1273
+	.8byte	.LVL1262
 	.4byte	0x1591e
 	.uleb128 0x4b
-	.8byte	.LVL1277
+	.8byte	.LVL1266
 	.4byte	0x1594d
 	.byte	0
 	.uleb128 0x50
 	.4byte	0x14e0f
-	.8byte	.LBB2101
-	.8byte	.LBE2101-.LBB2101
+	.8byte	.LBB2099
+	.8byte	.LBE2099-.LBB2099
 	.byte	0x1
 	.2byte	0x796
 	.4byte	0x1256a
 	.uleb128 0x51
 	.4byte	0x14e20
 	.uleb128 0x4b
-	.8byte	.LVL1270
+	.8byte	.LVL1259
 	.4byte	0x15958
 	.byte	0
 	.uleb128 0x4b
-	.8byte	.LVL1272
+	.8byte	.LVL1261
 	.4byte	0x1592a
 	.uleb128 0x4b
-	.8byte	.LVL1274
+	.8byte	.LVL1263
 	.4byte	0x15936
 	.byte	0
 	.uleb128 0x5a
 	.4byte	0x14e0f
-	.8byte	.LBB2097
-	.8byte	.LBE2097-.LBB2097
+	.8byte	.LBB2095
+	.8byte	.LBE2095-.LBB2095
 	.byte	0x1
 	.2byte	0x796
 	.uleb128 0x51
 	.4byte	0x14e20
 	.uleb128 0x4b
-	.8byte	.LVL1146
+	.8byte	.LVL1144
 	.4byte	0x15958
 	.byte	0
 	.byte	0
@@ -46599,8 +46596,8 @@ __exitcall_ebc_exit:
 	.2byte	0x7b1
 	.4byte	0xc6
 	.uleb128 0x53
-	.8byte	.LBB2094
-	.8byte	.LBE2094-.LBB2094
+	.8byte	.LBB2089
+	.8byte	.LBE2089-.LBB2089
 	.uleb128 0x6e
 	.4byte	.LASF3078
 	.byte	0x1
@@ -46620,27 +46617,27 @@ __exitcall_ebc_exit:
 	.2byte	0x7b1
 	.4byte	0x199
 	.uleb128 0x5f
-	.8byte	.LBB2095
-	.8byte	.LBE2095-.LBB2095
+	.8byte	.LBB2090
+	.8byte	.LBE2090-.LBB2090
 	.4byte	0x12642
 	.uleb128 0x56
 	.4byte	.LASF3080
 	.byte	0x1
 	.2byte	0x7b1
 	.4byte	0x199
-	.4byte	.LLST290
+	.4byte	.LLST289
 	.uleb128 0x4b
-	.8byte	.LVL1202
+	.8byte	.LVL1196
 	.4byte	0x15913
 	.uleb128 0x4b
-	.8byte	.LVL1203
+	.8byte	.LVL1197
 	.4byte	0x1591e
 	.byte	0
 	.uleb128 0x4b
-	.8byte	.LVL1200
+	.8byte	.LVL1194
 	.4byte	0x1592a
 	.uleb128 0x4b
-	.8byte	.LVL1204
+	.8byte	.LVL1198
 	.4byte	0x15936
 	.byte	0
 	.byte	0
@@ -46701,26 +46698,26 @@ __exitcall_ebc_exit:
 	.4byte	.LLST261
 	.byte	0
 	.uleb128 0x4b
-	.8byte	.LVL1152
+	.8byte	.LVL1150
 	.4byte	0x1591e
 	.uleb128 0x4b
-	.8byte	.LVL1156
+	.8byte	.LVL1154
 	.4byte	0x1594d
 	.uleb128 0x4b
-	.8byte	.LVL1157
+	.8byte	.LVL1155
 	.4byte	0x1591e
 	.byte	0
 	.uleb128 0x4b
-	.8byte	.LVL1150
+	.8byte	.LVL1148
 	.4byte	0x1592a
 	.uleb128 0x4b
-	.8byte	.LVL1159
+	.8byte	.LVL1157
 	.4byte	0x15936
 	.byte	0
 	.byte	0
 	.uleb128 0x5f
-	.8byte	.LBB2128
-	.8byte	.LBE2128-.LBB2128
+	.8byte	.LBB2126
+	.8byte	.LBE2126-.LBB2126
 	.4byte	0x127f6
 	.uleb128 0x43
 	.4byte	.LASF3076
@@ -46728,8 +46725,8 @@ __exitcall_ebc_exit:
 	.2byte	0x7de
 	.4byte	0xc6
 	.uleb128 0x53
-	.8byte	.LBB2129
-	.8byte	.LBE2129-.LBB2129
+	.8byte	.LBB2127
+	.8byte	.LBE2127-.LBB2127
 	.uleb128 0x6e
 	.4byte	.LASF3078
 	.byte	0x1
@@ -46749,8 +46746,8 @@ __exitcall_ebc_exit:
 	.2byte	0x7de
 	.4byte	0x199
 	.uleb128 0x5f
-	.8byte	.LBB2130
-	.8byte	.LBE2130-.LBB2130
+	.8byte	.LBB2128
+	.8byte	.LBE2128-.LBB2128
 	.4byte	0x127da
 	.uleb128 0x56
 	.4byte	.LASF3080
@@ -46759,20 +46756,20 @@ __exitcall_ebc_exit:
 	.4byte	0x199
 	.4byte	.LLST297
 	.uleb128 0x4b
-	.8byte	.LVL1229
+	.8byte	.LVL1221
 	.4byte	0x1591e
 	.uleb128 0x4b
-	.8byte	.LVL1231
+	.8byte	.LVL1223
 	.4byte	0x15913
 	.uleb128 0x4b
-	.8byte	.LVL1232
+	.8byte	.LVL1224
 	.4byte	0x1591e
 	.byte	0
 	.uleb128 0x4b
-	.8byte	.LVL1228
+	.8byte	.LVL1220
 	.4byte	0x1592a
 	.uleb128 0x4b
-	.8byte	.LVL1233
+	.8byte	.LVL1225
 	.4byte	0x15936
 	.byte	0
 	.byte	0
@@ -46805,8 +46802,8 @@ __exitcall_ebc_exit:
 	.2byte	0x7ed
 	.4byte	0x199
 	.uleb128 0x5f
-	.8byte	.LBB2135
-	.8byte	.LBE2135-.LBB2135
+	.8byte	.LBB2133
+	.8byte	.LBE2133-.LBB2133
 	.4byte	0x1287b
 	.uleb128 0x56
 	.4byte	.LASF3080
@@ -46815,17 +46812,17 @@ __exitcall_ebc_exit:
 	.4byte	0x199
 	.4byte	.LLST298
 	.uleb128 0x4b
-	.8byte	.LVL1238
+	.8byte	.LVL1230
 	.4byte	0x1591e
 	.uleb128 0x4b
-	.8byte	.LVL1240
+	.8byte	.LVL1232
 	.4byte	0x15913
 	.byte	0
 	.uleb128 0x4b
-	.8byte	.LVL1237
+	.8byte	.LVL1229
 	.4byte	0x1592a
 	.uleb128 0x4b
-	.8byte	.LVL1242
+	.8byte	.LVL1234
 	.4byte	0x15936
 	.byte	0
 	.byte	0
@@ -46993,67 +46990,54 @@ __exitcall_ebc_exit:
 	.byte	0
 	.byte	0
 	.uleb128 0x50
-	.4byte	0x14e0f
-	.8byte	.LBB2087
-	.8byte	.LBE2087-.LBB2087
-	.byte	0x1
-	.2byte	0x706
-	.4byte	0x12a8d
-	.uleb128 0x51
-	.4byte	0x14e20
-	.uleb128 0x4b
-	.8byte	.LVL1092
-	.4byte	0x15958
-	.byte	0
-	.uleb128 0x50
 	.4byte	0x146b4
-	.8byte	.LBB2113
-	.8byte	.LBE2113-.LBB2113
+	.8byte	.LBB2114
+	.8byte	.LBE2114-.LBB2114
 	.byte	0x1
 	.2byte	0x61f
-	.4byte	0x12ad8
+	.4byte	0x12aa9
 	.uleb128 0x51
 	.4byte	0x146d1
 	.uleb128 0x51
 	.4byte	0x146c5
 	.uleb128 0x53
-	.8byte	.LBB2114
-	.8byte	.LBE2114-.LBB2114
+	.8byte	.LBB2115
+	.8byte	.LBE2115-.LBB2115
 	.uleb128 0x54
 	.4byte	0x146dd
 	.uleb128 0x4b
-	.8byte	.LVL1180
+	.8byte	.LVL1178
 	.4byte	0x152de
 	.byte	0
 	.byte	0
 	.uleb128 0x50
 	.4byte	0x146b4
-	.8byte	.LBB2131
-	.8byte	.LBE2131-.LBB2131
+	.8byte	.LBB2129
+	.8byte	.LBE2129-.LBB2129
 	.byte	0x1
 	.2byte	0x7ea
-	.4byte	0x12b23
+	.4byte	0x12af4
 	.uleb128 0x51
 	.4byte	0x146d1
 	.uleb128 0x51
 	.4byte	0x146c5
 	.uleb128 0x53
-	.8byte	.LBB2132
-	.8byte	.LBE2132-.LBB2132
+	.8byte	.LBB2130
+	.8byte	.LBE2130-.LBB2130
 	.uleb128 0x54
 	.4byte	0x146dd
 	.uleb128 0x4b
-	.8byte	.LVL1236
+	.8byte	.LVL1228
 	.4byte	0x152de
 	.byte	0
 	.byte	0
 	.uleb128 0x58
 	.4byte	0x13887
-	.8byte	.LBB2139
+	.8byte	.LBB2137
 	.4byte	.Ldebug_ranges0+0x1d30
 	.byte	0x1
 	.2byte	0x6fe
-	.4byte	0x12bbe
+	.4byte	0x12b8f
 	.uleb128 0x51
 	.4byte	0x13894
 	.uleb128 0x5b
@@ -47066,32 +47050,45 @@ __exitcall_ebc_exit:
 	.4byte	0x138b8
 	.uleb128 0x50
 	.4byte	0x138db
-	.8byte	.LBB2141
-	.8byte	.LBE2141-.LBB2141
+	.8byte	.LBB2139
+	.8byte	.LBE2139-.LBB2139
 	.byte	0x1
 	.2byte	0x3eb
-	.4byte	0x12b88
+	.4byte	0x12b59
 	.uleb128 0x51
 	.4byte	0x138f4
 	.uleb128 0x51
 	.4byte	0x138e8
 	.uleb128 0x4b
-	.8byte	.LVL1258
+	.8byte	.LVL1250
 	.4byte	0x151dc
 	.byte	0
 	.uleb128 0x4b
-	.8byte	.LVL1255
+	.8byte	.LVL1247
 	.4byte	0x13df3
 	.uleb128 0x4b
-	.8byte	.LVL1256
+	.8byte	.LVL1248
 	.4byte	0x1561f
 	.uleb128 0x4b
-	.8byte	.LVL1257
+	.8byte	.LVL1249
 	.4byte	0x13df3
 	.uleb128 0x4b
-	.8byte	.LVL1259
+	.8byte	.LVL1253
 	.4byte	0x156e9
 	.byte	0
+	.byte	0
+	.uleb128 0x50
+	.4byte	0x14e0f
+	.8byte	.LBB2143
+	.8byte	.LBE2143-.LBB2143
+	.byte	0x1
+	.2byte	0x706
+	.4byte	0x12bbe
+	.uleb128 0x51
+	.4byte	0x14e20
+	.uleb128 0x4b
+	.8byte	.LVL1251
+	.4byte	0x15958
 	.byte	0
 	.uleb128 0x4b
 	.8byte	.LVL979
@@ -47157,175 +47154,175 @@ __exitcall_ebc_exit:
 	.8byte	.LVL1091
 	.4byte	0x14293
 	.uleb128 0x4b
+	.8byte	.LVL1092
+	.4byte	0x157f9
+	.uleb128 0x4b
 	.8byte	.LVL1093
-	.4byte	0x157b5
-	.uleb128 0x4b
-	.8byte	.LVL1094
 	.4byte	0x157f9
 	.uleb128 0x4b
-	.8byte	.LVL1095
-	.4byte	0x157f9
-	.uleb128 0x4b
-	.8byte	.LVL1098
+	.8byte	.LVL1096
 	.4byte	0x1575a
 	.uleb128 0x4b
-	.8byte	.LVL1099
+	.8byte	.LVL1097
 	.4byte	0x158fd
 	.uleb128 0x4b
-	.8byte	.LVL1100
+	.8byte	.LVL1098
 	.4byte	0x141cc
 	.uleb128 0x4b
-	.8byte	.LVL1101
+	.8byte	.LVL1099
 	.4byte	0x1561f
+	.uleb128 0x4b
+	.8byte	.LVL1100
+	.4byte	0x13155
+	.uleb128 0x4b
+	.8byte	.LVL1101
+	.4byte	0x156e9
 	.uleb128 0x4b
 	.8byte	.LVL1102
-	.4byte	0x13155
-	.uleb128 0x4b
-	.8byte	.LVL1103
-	.4byte	0x156e9
-	.uleb128 0x4b
-	.8byte	.LVL1104
 	.4byte	0x136b9
 	.uleb128 0x4b
-	.8byte	.LVL1106
+	.8byte	.LVL1105
 	.4byte	0x156e9
 	.uleb128 0x4b
-	.8byte	.LVL1114
-	.4byte	0x156e9
-	.uleb128 0x4b
-	.8byte	.LVL1116
+	.8byte	.LVL1107
 	.4byte	0x154b5
 	.uleb128 0x4b
-	.8byte	.LVL1124
+	.8byte	.LVL1115
 	.4byte	0x13155
 	.uleb128 0x4b
-	.8byte	.LVL1129
+	.8byte	.LVL1120
 	.4byte	0x156e9
 	.uleb128 0x4b
-	.8byte	.LVL1130
+	.8byte	.LVL1121
 	.4byte	0x136b9
 	.uleb128 0x4b
-	.8byte	.LVL1131
+	.8byte	.LVL1122
 	.4byte	0x157b5
 	.uleb128 0x4b
-	.8byte	.LVL1134
+	.8byte	.LVL1125
 	.4byte	0x157b5
+	.uleb128 0x4b
+	.8byte	.LVL1128
+	.4byte	0x156e9
+	.uleb128 0x4b
+	.8byte	.LVL1135
+	.4byte	0x1597a
+	.uleb128 0x4b
+	.8byte	.LVL1136
+	.4byte	0x156e9
 	.uleb128 0x4b
 	.8byte	.LVL1137
-	.4byte	0x1597a
-	.uleb128 0x4b
-	.8byte	.LVL1138
-	.4byte	0x156e9
-	.uleb128 0x4b
-	.8byte	.LVL1139
 	.4byte	0x154b5
 	.uleb128 0x4b
-	.8byte	.LVL1142
+	.8byte	.LVL1140
 	.4byte	0x1561f
 	.uleb128 0x4b
-	.8byte	.LVL1143
+	.8byte	.LVL1141
 	.4byte	0x13155
 	.uleb128 0x4b
-	.8byte	.LVL1144
+	.8byte	.LVL1142
 	.4byte	0x15942
 	.uleb128 0x4b
-	.8byte	.LVL1145
+	.8byte	.LVL1143
 	.4byte	0x156e9
 	.uleb128 0x4b
-	.8byte	.LVL1148
+	.8byte	.LVL1146
 	.4byte	0x15942
 	.uleb128 0x4b
-	.8byte	.LVL1161
+	.8byte	.LVL1159
 	.4byte	0x15942
 	.uleb128 0x4b
-	.8byte	.LVL1162
+	.8byte	.LVL1160
 	.4byte	0x15985
 	.uleb128 0x4b
-	.8byte	.LVL1164
+	.8byte	.LVL1162
 	.4byte	0x156e9
 	.uleb128 0x4b
-	.8byte	.LVL1176
+	.8byte	.LVL1165
 	.4byte	0x156e9
 	.uleb128 0x4b
-	.8byte	.LVL1177
+	.8byte	.LVL1166
+	.4byte	0x156e9
+	.uleb128 0x4b
+	.8byte	.LVL1180
+	.4byte	0x156e9
+	.uleb128 0x4b
+	.8byte	.LVL1181
 	.4byte	0x158fd
 	.uleb128 0x4b
-	.8byte	.LVL1178
+	.8byte	.LVL1182
 	.4byte	0x1597a
 	.uleb128 0x4b
-	.8byte	.LVL1182
-	.4byte	0x156e9
-	.uleb128 0x4b
 	.8byte	.LVL1183
-	.4byte	0x154b5
+	.4byte	0x156e9
 	.uleb128 0x4b
 	.8byte	.LVL1184
 	.4byte	0x156e9
 	.uleb128 0x4b
 	.8byte	.LVL1185
-	.4byte	0x156e9
+	.4byte	0x158fd
 	.uleb128 0x4b
-	.8byte	.LVL1188
-	.4byte	0x156e9
-	.uleb128 0x4b
-	.8byte	.LVL1194
-	.4byte	0x156e9
-	.uleb128 0x4b
-	.8byte	.LVL1197
-	.4byte	0x156e9
-	.uleb128 0x4b
-	.8byte	.LVL1198
+	.8byte	.LVL1192
 	.4byte	0x157f9
 	.uleb128 0x4b
-	.8byte	.LVL1206
+	.8byte	.LVL1200
 	.4byte	0x157f9
+	.uleb128 0x4b
+	.8byte	.LVL1201
+	.4byte	0x157f9
+	.uleb128 0x4b
+	.8byte	.LVL1203
+	.4byte	0x156e9
+	.uleb128 0x4b
+	.8byte	.LVL1204
+	.4byte	0x158fd
+	.uleb128 0x4b
+	.8byte	.LVL1207
+	.4byte	0x156e9
+	.uleb128 0x4b
+	.8byte	.LVL1212
+	.4byte	0x156e9
 	.uleb128 0x4b
 	.8byte	.LVL1213
 	.4byte	0x156e9
 	.uleb128 0x4b
-	.8byte	.LVL1214
-	.4byte	0x158fd
+	.8byte	.LVL1216
+	.4byte	0x156e9
 	.uleb128 0x4b
 	.8byte	.LVL1217
-	.4byte	0x156e9
-	.uleb128 0x4b
-	.8byte	.LVL1222
-	.4byte	0x156e9
-	.uleb128 0x4b
-	.8byte	.LVL1223
 	.4byte	0x157f9
 	.uleb128 0x4b
-	.8byte	.LVL1224
+	.8byte	.LVL1218
 	.4byte	0x157f9
 	.uleb128 0x4b
 	.8byte	.LVL1226
-	.4byte	0x157f9
-	.uleb128 0x4b
-	.8byte	.LVL1234
 	.4byte	0x15942
 	.uleb128 0x4b
-	.8byte	.LVL1235
+	.8byte	.LVL1227
 	.4byte	0x15985
 	.uleb128 0x4b
-	.8byte	.LVL1241
+	.8byte	.LVL1233
 	.4byte	0x1586a
 	.uleb128 0x4b
-	.8byte	.LVL1244
+	.8byte	.LVL1240
 	.4byte	0x1597a
 	.uleb128 0x4b
-	.8byte	.LVL1253
+	.8byte	.LVL1245
 	.4byte	0x13155
 	.uleb128 0x4b
-	.8byte	.LVL1254
+	.8byte	.LVL1246
 	.4byte	0x156e9
 	.uleb128 0x4b
-	.8byte	.LVL1262
+	.8byte	.LVL1252
+	.4byte	0x157b5
+	.uleb128 0x4b
+	.8byte	.LVL1255
 	.4byte	0x15942
 	.uleb128 0x4b
-	.8byte	.LVL1263
+	.8byte	.LVL1256
 	.4byte	0x156e9
 	.uleb128 0x4b
-	.8byte	.LVL1279
+	.8byte	.LVL1257
 	.4byte	0x1597a
 	.byte	0
 	.uleb128 0x60
@@ -47738,79 +47735,79 @@ __exitcall_ebc_exit:
 	.byte	0
 	.byte	0
 	.uleb128 0x4b
-	.8byte	.LVL1288
+	.8byte	.LVL1286
 	.4byte	0x151dc
+	.uleb128 0x4b
+	.8byte	.LVL1287
+	.4byte	0x15787
+	.uleb128 0x4b
+	.8byte	.LVL1288
+	.4byte	0x1599b
 	.uleb128 0x4b
 	.8byte	.LVL1289
-	.4byte	0x15787
-	.uleb128 0x4b
-	.8byte	.LVL1290
-	.4byte	0x1599b
-	.uleb128 0x4b
-	.8byte	.LVL1291
 	.4byte	0x15913
 	.uleb128 0x4b
-	.8byte	.LVL1292
+	.8byte	.LVL1290
 	.4byte	0x159a5
+	.uleb128 0x4b
+	.8byte	.LVL1291
+	.4byte	0x159a5
+	.uleb128 0x4b
+	.8byte	.LVL1292
+	.4byte	0x151dc
 	.uleb128 0x4b
 	.8byte	.LVL1293
-	.4byte	0x159a5
+	.4byte	0x15787
 	.uleb128 0x4b
 	.8byte	.LVL1294
-	.4byte	0x151dc
+	.4byte	0x13ab5
 	.uleb128 0x4b
 	.8byte	.LVL1295
-	.4byte	0x15787
+	.4byte	0x151dc
 	.uleb128 0x4b
 	.8byte	.LVL1296
-	.4byte	0x13ab5
+	.4byte	0x15787
 	.uleb128 0x4b
 	.8byte	.LVL1297
-	.4byte	0x151dc
-	.uleb128 0x4b
-	.8byte	.LVL1298
-	.4byte	0x15787
-	.uleb128 0x4b
-	.8byte	.LVL1299
 	.4byte	0x1539e
 	.uleb128 0x4b
-	.8byte	.LVL1300
+	.8byte	.LVL1298
 	.4byte	0x151dc
 	.uleb128 0x4b
-	.8byte	.LVL1301
+	.8byte	.LVL1299
 	.4byte	0x15787
 	.uleb128 0x4b
-	.8byte	.LVL1302
+	.8byte	.LVL1300
 	.4byte	0x13df3
 	.uleb128 0x4b
-	.8byte	.LVL1303
+	.8byte	.LVL1301
 	.4byte	0x1599b
 	.uleb128 0x4b
-	.8byte	.LVL1304
+	.8byte	.LVL1302
 	.4byte	0x13c14
 	.uleb128 0x4b
-	.8byte	.LVL1305
+	.8byte	.LVL1303
 	.4byte	0x1511d
 	.uleb128 0x4b
-	.8byte	.LVL1306
+	.8byte	.LVL1304
 	.4byte	0x1599b
 	.uleb128 0x4b
-	.8byte	.LVL1307
+	.8byte	.LVL1305
 	.4byte	0x141cc
 	.uleb128 0x4b
-	.8byte	.LVL1308
+	.8byte	.LVL1306
 	.4byte	0x13ab5
 	.uleb128 0x4b
-	.8byte	.LVL1309
+	.8byte	.LVL1307
 	.4byte	0x157b5
 	.uleb128 0x4b
-	.8byte	.LVL1310
+	.8byte	.LVL1308
 	.4byte	0x1599b
 	.uleb128 0x4b
-	.8byte	.LVL1311
+	.8byte	.LVL1309
 	.4byte	0x14293
 	.uleb128 0x4b
-	.8byte	.LVL1312
+	.8byte	.LVL1310
 	.4byte	0x13df3
 	.byte	0
 	.uleb128 0x5
@@ -55186,42 +55183,42 @@ __exitcall_ebc_exit:
 	.2byte	0x1
 	.byte	0x69
 	.8byte	.LVL1076
-	.8byte	.LVL1115
+	.8byte	.LVL1106
 	.2byte	0x1
 	.byte	0x69
-	.8byte	.LVL1117
-	.8byte	.LVL1128
+	.8byte	.LVL1108
+	.8byte	.LVL1119
 	.2byte	0x1
 	.byte	0x69
-	.8byte	.LVL1135
-	.8byte	.LVL1136
+	.8byte	.LVL1126
+	.8byte	.LVL1134
 	.2byte	0x1
 	.byte	0x69
-	.8byte	.LVL1140
+	.8byte	.LVL1138
+	.8byte	.LVL1193
+	.2byte	0x1
+	.byte	0x69
 	.8byte	.LVL1199
+	.8byte	.LVL1260
 	.2byte	0x1
 	.byte	0x69
-	.8byte	.LVL1205
-	.8byte	.LVL1208
+	.8byte	.LVL1267
+	.8byte	.LVL1269
 	.2byte	0x1
 	.byte	0x69
-	.8byte	.LVL1212
-	.8byte	.LVL1271
-	.2byte	0x1
-	.byte	0x69
-	.8byte	.LVL1278
-	.8byte	.LVL1280
+	.8byte	.LVL1276
+	.8byte	.LFE2828
 	.2byte	0x1
 	.byte	0x69
 	.8byte	0
 	.8byte	0
 .LLST257:
-	.8byte	.LVL1119
-	.8byte	.LVL1123
+	.8byte	.LVL1110
+	.8byte	.LVL1114
 	.2byte	0x1
 	.byte	0x51
-	.8byte	.LVL1141
-	.8byte	.LVL1142-1
+	.8byte	.LVL1139
+	.8byte	.LVL1140-1
 	.2byte	0x1
 	.byte	0x51
 	.8byte	0
@@ -55239,20 +55236,20 @@ __exitcall_ebc_exit:
 	.8byte	.LVL1083
 	.2byte	0x1
 	.byte	0x50
-	.8byte	.LVL1096
-	.8byte	.LVL1097
+	.8byte	.LVL1094
+	.8byte	.LVL1095
 	.2byte	0x1
 	.byte	0x50
-	.8byte	.LVL1112
-	.8byte	.LVL1113
+	.8byte	.LVL1103
+	.8byte	.LVL1104
 	.2byte	0x1
 	.byte	0x50
-	.8byte	.LVL1126
-	.8byte	.LVL1127
+	.8byte	.LVL1117
+	.8byte	.LVL1118
 	.2byte	0x1
 	.byte	0x50
-	.8byte	.LVL1174
-	.8byte	.LVL1175
+	.8byte	.LVL1176
+	.8byte	.LVL1177
 	.2byte	0x1
 	.byte	0x50
 	.8byte	0
@@ -55262,19 +55259,19 @@ __exitcall_ebc_exit:
 	.8byte	.LVL1068
 	.2byte	0x1
 	.byte	0x50
-	.8byte	.LVL1190
-	.8byte	.LVL1191-1
-	.2byte	0x1
-	.byte	0x50
-	.8byte	0
-	.8byte	0
-.LLST294:
-	.8byte	.LVL1186
 	.8byte	.LVL1187
+	.8byte	.LVL1188-1
 	.2byte	0x1
 	.byte	0x50
-	.8byte	.LVL1265
-	.8byte	.LVL1266-1
+	.8byte	0
+	.8byte	0
+.LLST293:
+	.8byte	.LVL1163
+	.8byte	.LVL1164
+	.2byte	0x1
+	.byte	0x50
+	.8byte	.LVL1278
+	.8byte	.LVL1279-1
 	.2byte	0x1
 	.byte	0x50
 	.8byte	0
@@ -55301,30 +55298,22 @@ __exitcall_ebc_exit:
 	.2byte	0x1
 	.byte	0x69
 	.8byte	.LVL1076
-	.8byte	.LVL1105
+	.8byte	.LVL1106
 	.2byte	0x1
 	.byte	0x69
-	.8byte	.LVL1112
-	.8byte	.LVL1115
+	.8byte	.LVL1126
+	.8byte	.LVL1127
 	.2byte	0x1
 	.byte	0x69
-	.8byte	.LVL1135
-	.8byte	.LVL1136
+	.8byte	.LVL1147
+	.8byte	.LVL1191
 	.2byte	0x1
 	.byte	0x69
-	.8byte	.LVL1149
 	.8byte	.LVL1199
+	.8byte	.LVL1258
 	.2byte	0x1
 	.byte	0x69
-	.8byte	.LVL1205
-	.8byte	.LVL1225
-	.2byte	0x1
-	.byte	0x69
-	.8byte	.LVL1227
-	.8byte	.LVL1269
-	.2byte	0x1
-	.byte	0x69
-	.8byte	.LVL1278
+	.8byte	.LVL1267
 	.8byte	.LFE2828
 	.2byte	0x1
 	.byte	0x69
@@ -55335,57 +55324,57 @@ __exitcall_ebc_exit:
 	.8byte	.LVL1088-1
 	.2byte	0x1
 	.byte	0x50
-	.8byte	.LVL1281
-	.8byte	.LVL1282
-	.2byte	0x1
-	.byte	0x50
-	.8byte	0
-	.8byte	0
-.LLST296:
-	.8byte	.LVL1220
-	.8byte	.LVL1221-1
-	.2byte	0x1
-	.byte	0x50
-	.8byte	.LVL1261
-	.8byte	.LVL1262-1
-	.2byte	0x1
-	.byte	0x50
-	.8byte	0
-	.8byte	0
-.LLST293:
-	.8byte	.LVL1166
-	.8byte	.LVL1167-1
-	.2byte	0x1
-	.byte	0x50
-	.8byte	.LVL1195
-	.8byte	.LVL1196
+	.8byte	.LVL1273
+	.8byte	.LVL1274
 	.2byte	0x1
 	.byte	0x50
 	.8byte	0
 	.8byte	0
 .LLST295:
-	.8byte	.LVL1195
-	.8byte	.LVL1196
+	.8byte	.LVL1210
+	.8byte	.LVL1211-1
 	.2byte	0x1
 	.byte	0x50
-	.8byte	.LVL1250
-	.8byte	.LVL1251-1
+	.8byte	.LVL1254
+	.8byte	.LVL1255-1
+	.2byte	0x1
+	.byte	0x50
+	.8byte	0
+	.8byte	0
+.LLST294:
+	.8byte	.LVL1168
+	.8byte	.LVL1169-1
+	.2byte	0x1
+	.byte	0x50
+	.8byte	.LVL1214
+	.8byte	.LVL1215
+	.2byte	0x1
+	.byte	0x50
+	.8byte	0
+	.8byte	0
+.LLST296:
+	.8byte	.LVL1214
+	.8byte	.LVL1215
+	.2byte	0x1
+	.byte	0x50
+	.8byte	.LVL1237
+	.8byte	.LVL1238-1
+	.2byte	0x1
+	.byte	0x50
+	.8byte	0
+	.8byte	0
+.LLST290:
+	.8byte	.LVL1058
+	.8byte	.LVL1059
+	.2byte	0x1
+	.byte	0x50
+	.8byte	.LVL1130
+	.8byte	.LVL1131-1
 	.2byte	0x1
 	.byte	0x50
 	.8byte	0
 	.8byte	0
 .LLST288:
-	.8byte	.LVL1058
-	.8byte	.LVL1059
-	.2byte	0x1
-	.byte	0x50
-	.8byte	.LVL1108
-	.8byte	.LVL1109-1
-	.2byte	0x1
-	.byte	0x50
-	.8byte	0
-	.8byte	0
-.LLST289:
 	.8byte	.LVL977
 	.8byte	.LVL994
 	.2byte	0x1
@@ -55403,14 +55392,14 @@ __exitcall_ebc_exit:
 	.2byte	0x1
 	.byte	0x6a
 	.8byte	.LVL1076
-	.8byte	.LVL1120
+	.8byte	.LVL1111
 	.2byte	0x1
 	.byte	0x6a
-	.8byte	.LVL1121
-	.8byte	.LVL1122
+	.8byte	.LVL1112
+	.8byte	.LVL1113
 	.2byte	0x1
 	.byte	0x50
-	.8byte	.LVL1122
+	.8byte	.LVL1113
 	.8byte	.LFE2828
 	.2byte	0x1
 	.byte	0x6a
@@ -55438,61 +55427,53 @@ __exitcall_ebc_exit:
 	.2byte	0x1
 	.byte	0x69
 	.8byte	.LVL1076
-	.8byte	.LVL1105
+	.8byte	.LVL1106
 	.2byte	0x1
 	.byte	0x69
-	.8byte	.LVL1112
-	.8byte	.LVL1115
+	.8byte	.LVL1116
+	.8byte	.LVL1119
 	.2byte	0x1
 	.byte	0x69
-	.8byte	.LVL1125
-	.8byte	.LVL1128
+	.8byte	.LVL1126
+	.8byte	.LVL1127
 	.2byte	0x1
 	.byte	0x69
-	.8byte	.LVL1135
-	.8byte	.LVL1136
+	.8byte	.LVL1145
+	.8byte	.LVL1191
 	.2byte	0x1
 	.byte	0x69
-	.8byte	.LVL1147
 	.8byte	.LVL1199
+	.8byte	.LVL1258
 	.2byte	0x1
 	.byte	0x69
-	.8byte	.LVL1205
-	.8byte	.LVL1208
-	.2byte	0x1
-	.byte	0x69
-	.8byte	.LVL1212
-	.8byte	.LVL1225
-	.2byte	0x1
-	.byte	0x69
-	.8byte	.LVL1227
+	.8byte	.LVL1260
 	.8byte	.LVL1269
 	.2byte	0x1
 	.byte	0x69
-	.8byte	.LVL1271
-	.8byte	.LVL1280
+	.8byte	.LVL1276
+	.8byte	.LFE2828
 	.2byte	0x1
 	.byte	0x69
 	.8byte	0
 	.8byte	0
 .LLST292:
-	.8byte	.LVL1147
-	.8byte	.LVL1148-1
+	.8byte	.LVL1145
+	.8byte	.LVL1146-1
 	.2byte	0x1
 	.byte	0x50
-	.8byte	.LVL1275
-	.8byte	.LVL1276
+	.8byte	.LVL1264
+	.8byte	.LVL1265
 	.2byte	0x1
 	.byte	0x50
 	.8byte	0
 	.8byte	0
-.LLST290:
-	.8byte	.LVL1132
-	.8byte	.LVL1133
+.LLST289:
+	.8byte	.LVL1123
+	.8byte	.LVL1124
 	.2byte	0x1
 	.byte	0x50
-	.8byte	.LVL1201
-	.8byte	.LVL1202-1
+	.8byte	.LVL1195
+	.8byte	.LVL1196-1
 	.2byte	0x1
 	.byte	0x50
 	.8byte	0
@@ -55510,27 +55491,27 @@ __exitcall_ebc_exit:
 	.8byte	.LVL1073
 	.2byte	0x1
 	.byte	0x68
-	.8byte	.LVL1151
-	.8byte	.LVL1163
+	.8byte	.LVL1149
+	.8byte	.LVL1161
 	.2byte	0x1
 	.byte	0x68
+	.8byte	.LVL1177
 	.8byte	.LVL1179
-	.8byte	.LVL1181
 	.2byte	0x1
 	.byte	0x68
-	.8byte	.LVL1227
-	.8byte	.LVL1243
+	.8byte	.LVL1219
+	.8byte	.LVL1235
 	.2byte	0x1
 	.byte	0x68
 	.8byte	0
 	.8byte	0
 .LLST260:
-	.8byte	.LVL1154
-	.8byte	.LVL1155
+	.8byte	.LVL1152
+	.8byte	.LVL1153
 	.2byte	0x1
 	.byte	0x50
-	.8byte	.LVL1159
-	.8byte	.LVL1160
+	.8byte	.LVL1157
+	.8byte	.LVL1158
 	.2byte	0x1
 	.byte	0x50
 	.8byte	0
@@ -55544,35 +55525,35 @@ __exitcall_ebc_exit:
 	.8byte	.LVL1071
 	.2byte	0x1
 	.byte	0x52
-	.8byte	.LVL1153
-	.8byte	.LVL1156-1
+	.8byte	.LVL1151
+	.8byte	.LVL1154-1
 	.2byte	0x1
 	.byte	0x52
-	.8byte	.LVL1158
+	.8byte	.LVL1156
+	.8byte	.LVL1157-1
+	.2byte	0x1
+	.byte	0x52
+	.8byte	.LVL1157
 	.8byte	.LVL1159-1
 	.2byte	0x1
 	.byte	0x52
-	.8byte	.LVL1159
-	.8byte	.LVL1161-1
+	.8byte	.LVL1177
+	.8byte	.LVL1178-1
 	.2byte	0x1
 	.byte	0x52
-	.8byte	.LVL1179
-	.8byte	.LVL1180-1
-	.2byte	0x1
-	.byte	0x52
-	.8byte	.LVL1227
-	.8byte	.LVL1228-1
+	.8byte	.LVL1219
+	.8byte	.LVL1220-1
 	.2byte	0x1
 	.byte	0x52
 	.8byte	0
 	.8byte	0
 .LLST297:
-	.8byte	.LVL1230
-	.8byte	.LVL1231-1
+	.8byte	.LVL1222
+	.8byte	.LVL1223-1
 	.2byte	0x1
 	.byte	0x50
-	.8byte	.LVL1233
-	.8byte	.LVL1234-1
+	.8byte	.LVL1225
+	.8byte	.LVL1226-1
 	.2byte	0x1
 	.byte	0x50
 	.8byte	0
@@ -55586,8 +55567,8 @@ __exitcall_ebc_exit:
 	.8byte	.LVL1053
 	.2byte	0x1
 	.byte	0x50
-	.8byte	.LVL1239
-	.8byte	.LVL1240-1
+	.8byte	.LVL1231
+	.8byte	.LVL1232-1
 	.2byte	0x1
 	.byte	0x50
 	.8byte	0
@@ -56347,8 +56328,8 @@ __exitcall_ebc_exit:
 	.8byte	0
 	.8byte	0
 .LLST299:
-	.8byte	.LVL1284
-	.8byte	.LVL1285
+	.8byte	.LVL1282
+	.8byte	.LVL1283
 	.2byte	0x1
 	.byte	0x50
 	.8byte	0
@@ -58754,8 +58735,8 @@ __exitcall_ebc_exit:
 	.8byte	.LBE2012
 	.8byte	.LBB2013
 	.8byte	.LBE2013
-	.8byte	.LBB2108
-	.8byte	.LBE2108
+	.8byte	.LBB2106
+	.8byte	.LBE2106
 	.8byte	0
 	.8byte	0
 	.8byte	.LBB2000
@@ -58894,16 +58875,16 @@ __exitcall_ebc_exit:
 	.8byte	0
 	.8byte	.LBB2072
 	.8byte	.LBE2072
-	.8byte	.LBB2118
-	.8byte	.LBE2118
+	.8byte	.LBB2116
+	.8byte	.LBE2116
 	.8byte	0
 	.8byte	0
 	.8byte	.LBB2075
 	.8byte	.LBE2075
-	.8byte	.LBB2123
-	.8byte	.LBE2123
-	.8byte	.LBB2151
-	.8byte	.LBE2151
+	.8byte	.LBB2149
+	.8byte	.LBE2149
+	.8byte	.LBB2150
+	.8byte	.LBE2150
 	.8byte	0
 	.8byte	0
 	.8byte	.LBB2079
@@ -58924,70 +58905,70 @@ __exitcall_ebc_exit:
 	.8byte	.LBE2084
 	.8byte	0
 	.8byte	0
-	.8byte	.LBB2093
-	.8byte	.LBE2093
-	.8byte	.LBB2122
-	.8byte	.LBE2122
+	.8byte	.LBB2088
+	.8byte	.LBE2088
+	.8byte	.LBB2117
+	.8byte	.LBE2117
 	.8byte	0
 	.8byte	0
-	.8byte	.LBB2096
-	.8byte	.LBE2096
-	.8byte	.LBB2149
-	.8byte	.LBE2149
-	.8byte	.LBB2150
-	.8byte	.LBE2150
-	.8byte	0
-	.8byte	0
-	.8byte	.LBB2100
-	.8byte	.LBE2100
-	.8byte	.LBB2107
-	.8byte	.LBE2107
-	.8byte	0
-	.8byte	0
-	.8byte	.LBB2103
-	.8byte	.LBE2103
-	.8byte	.LBB2106
-	.8byte	.LBE2106
-	.8byte	0
-	.8byte	0
-	.8byte	.LBB2104
-	.8byte	.LBE2104
-	.8byte	.LBB2105
-	.8byte	.LBE2105
-	.8byte	0
-	.8byte	0
-	.8byte	.LBB2115
-	.8byte	.LBE2115
+	.8byte	.LBB2094
+	.8byte	.LBE2094
+	.8byte	.LBB2147
+	.8byte	.LBE2147
 	.8byte	.LBB2148
 	.8byte	.LBE2148
 	.8byte	0
 	.8byte	0
+	.8byte	.LBB2098
+	.8byte	.LBE2098
+	.8byte	.LBB2105
+	.8byte	.LBE2105
+	.8byte	0
+	.8byte	0
+	.8byte	.LBB2101
+	.8byte	.LBE2101
+	.8byte	.LBB2104
+	.8byte	.LBE2104
+	.8byte	0
+	.8byte	0
+	.8byte	.LBB2102
+	.8byte	.LBE2102
+	.8byte	.LBB2103
+	.8byte	.LBE2103
+	.8byte	0
+	.8byte	0
+	.8byte	.LBB2107
+	.8byte	.LBE2107
+	.8byte	.LBB2151
+	.8byte	.LBE2151
+	.8byte	0
+	.8byte	0
+	.8byte	.LBB2118
+	.8byte	.LBE2118
+	.8byte	.LBB2122
+	.8byte	.LBE2122
+	.8byte	0
+	.8byte	0
 	.8byte	.LBB2119
 	.8byte	.LBE2119
-	.8byte	.LBB2138
-	.8byte	.LBE2138
+	.8byte	.LBB2121
+	.8byte	.LBE2121
 	.8byte	0
 	.8byte	0
-	.8byte	.LBB2124
-	.8byte	.LBE2124
-	.8byte	.LBB2147
-	.8byte	.LBE2147
+	.8byte	.LBB2123
+	.8byte	.LBE2123
+	.8byte	.LBB2136
+	.8byte	.LBE2136
 	.8byte	0
 	.8byte	0
-	.8byte	.LBB2125
-	.8byte	.LBE2125
-	.8byte	.LBB2127
-	.8byte	.LBE2127
+	.8byte	.LBB2131
+	.8byte	.LBE2131
+	.8byte	.LBB2135
+	.8byte	.LBE2135
 	.8byte	0
 	.8byte	0
-	.8byte	.LBB2133
-	.8byte	.LBE2133
 	.8byte	.LBB2137
 	.8byte	.LBE2137
-	.8byte	0
-	.8byte	0
-	.8byte	.LBB2139
-	.8byte	.LBE2139
 	.8byte	.LBB2145
 	.8byte	.LBE2145
 	.8byte	.LBB2146
