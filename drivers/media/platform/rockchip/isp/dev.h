@@ -228,14 +228,16 @@ struct rkisp_device {
 	int rdbk_cnt_x2;
 	int rdbk_cnt_x3;
 	u32 rd_mode;
-	u8 filt_state[RDBK_F_MAX];
 
 	struct rkisp_rx_buf_pool pv_pool[RKISP_RX_BUF_POOL_MAX];
 
+	struct mutex buf_lock;
 	spinlock_t cmsk_lock;
 	struct rkisp_cmsk_cfg cmsk_cfg;
 	bool is_cmsk_upd;
 	bool is_hw_link;
 	bool is_bigmode;
+
+	struct rkisp_vicap_input vicap_in;
 };
 #endif

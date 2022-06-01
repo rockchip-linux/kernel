@@ -10,6 +10,12 @@
 
 #include "rga_drv.h"
 
+enum rga_mmu {
+	RGA_NONE_MMU	= 0,
+	RGA_MMU		= 1,
+	RGA_IOMMU	= 2,
+};
+
 struct rga_rect {
 	int w;
 	int h;
@@ -46,8 +52,12 @@ struct rga_hw_data {
 	unsigned int max_upscale_factor;
 	unsigned int max_downscale_factor;
 
+	uint32_t byte_stride;
+
 	const struct rga_win_data *win;
 	unsigned int win_size;
+
+	enum rga_mmu mmu;
 };
 
 extern const struct rga_hw_data rga3_data;

@@ -20,6 +20,12 @@ config NO_GKI
 # Rockchip Soc drivers
 #
 
+config ROCKCHIP_AMP
+	tristate "Rockchip AMP support"
+	help
+	  Say y here to enable Rockchip AMP support.
+	  This option protects resources used by AMP.
+
 config ROCKCHIP_CPUINFO
 	tristate "Rockchip cpuinfo support"
 	depends on (ROCKCHIP_EFUSE || ROCKCHIP_OTP) && (ARM64 || ARM)
@@ -203,5 +209,38 @@ config ROCKCHIP_THUNDER_BOOT_SFC
 	depends on ROCKCHIP_THUNDER_BOOT
 	help
 	  Say y if boot from SPI Flash from SFC controller.
+
+config ROCKCHIP_NPOR_POWERGOOD
+	bool "Rockchip NPOR Powergood"
+	help
+	  Say y if SOC integrate ROCKCHIP NPOR Powergood.
+
+#
+# Rockchip Procfs drivers
+#
+
+config RK_CMA_PROCFS
+	tristate "CMA procfs interface"
+	depends on CMA && PROC_FS
+	help
+	  Turns on the ProcFS interface for CMA, shows the bitmap in hex
+	  format.
+
+config RK_DMABUF_PROCFS
+	tristate "DMABUF procfs support"
+	depends on DMA_SHARED_BUFFER
+	depends on PROC_FS
+	help
+	  Turns on this to create a procfs debug interface for dma-buf, support
+	  get information from db_list by get_each_dmabuf.
+
+	  If unsure, say "N".
+
+config RK_MEMBLOCK_PROCFS
+	bool "Memblock procfs for reserved memory"
+	depends on PROC_FS && ARCH_KEEP_MEMBLOCK
+	help
+	  Extend memblock procfs to show size of each memblock, and shows the
+	  result of total size by KiB format.
 
 endif

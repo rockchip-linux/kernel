@@ -25,10 +25,26 @@ static const struct rve_backend_ops rve_ops = {
 	.soft_reset = rve_soft_reset
 };
 
+static int rve_ctx_set_debuf_info_cb(int id, void *ptr, void *data)
+{
+	struct rve_internal_ctx_t *ctx = ptr;
+	unsigned long flags;
+
+	spin_lock_irqsave(&ctx->lock, flags);
+
+	ctx->debug_info.max_cost_time_per_sec = 0;
+	ctx->debug_info.hw_time_total = 0;
+
+	spin_unlock_irqrestore(&ctx->lock, flags);
+
+	return 0;
+}
+
 static enum hrtimer_restart hrtimer_handler(struct hrtimer *timer)
 {
 	struct rve_drvdata_t *rve = rve_drvdata;
 	struct rve_scheduler_t *scheduler = NULL;
+	struct rve_pending_ctx_manager *ctx_manager;
 	struct rve_job *job = NULL;
 	unsigned long flags;
 	int i;
@@ -50,11 +66,25 @@ static enum hrtimer_restart hrtimer_handler(struct hrtimer *timer)
 		scheduler->timer.busy_time_record = scheduler->timer.busy_time;
 		scheduler->timer.busy_time = 0;
 
+		/* monitor */
+		scheduler->session.rd_bandwidth = 0;
+		scheduler->session.wr_bandwidth = 0;
+		scheduler->session.cycle_cnt = 0;
+
+		for (i = 0; i < RVE_MAX_PID_INFO; i++) {
+			if (scheduler->session.pid_info[i].pid > 0)
+				scheduler->session.pid_info[i].hw_time_total = 0;
+		}
+
 		spin_unlock_irqrestore(&scheduler->irq_lock, flags);
 
-		/* monitor */
-		if (job && job->ctx)
-			rve_get_monitor_info(job->ctx, scheduler);
+		ctx_manager = rve_drvdata->pend_ctx_manager;
+
+		spin_lock_irqsave(&ctx_manager->lock, flags);
+
+		idr_for_each(&ctx_manager->ctx_id_idr, &rve_ctx_set_debuf_info_cb, ctx_manager);
+
+		spin_unlock_irqrestore(&ctx_manager->lock, flags);
 	}
 
 	hrtimer_forward_now(timer, kt);
@@ -64,9 +94,12 @@ static enum hrtimer_restart hrtimer_handler(struct hrtimer *timer)
 static void rve_init_timer(void)
 {
 	kt = ktime_set(0, RVE_LOAD_INTERVAL);
+
 	hrtimer_init(&timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
-	hrtimer_start(&timer, kt, HRTIMER_MODE_REL);
+
 	timer.function = hrtimer_handler;
+
+	hrtimer_start(&timer, kt, HRTIMER_MODE_REL);
 }
 
 static void rve_cancel_timer(void)
@@ -91,6 +124,8 @@ int rve_power_enable(struct rve_scheduler_t *scheduler)
 		}
 	}
 
+	scheduler->session.pd_refcount++;
+
 	return 0;
 
 err_enable_clk:
@@ -100,8 +135,6 @@ err_enable_clk:
 
 	pm_relax(scheduler->dev);
 	pm_runtime_put_sync_suspend(scheduler->dev);
-
-	scheduler->pd_refcount++;
 
 	return ret;
 }
@@ -117,19 +150,147 @@ int rve_power_disable(struct rve_scheduler_t *scheduler)
 	pm_relax(scheduler->dev);
 	pm_runtime_put_sync_suspend(scheduler->dev);
 
-	scheduler->pd_refcount--;
+	scheduler->session.pd_refcount--;
 
 	return 0;
 }
 
 #endif //RVE_PD_AWAYS_ON
 
-static long rve_ioctl_cmd_start(unsigned long arg)
+static int rve_session_manager_init(struct rve_session_manager **session_manager_ptr)
+{
+	struct rve_session_manager *session_manager = NULL;
+
+	*session_manager_ptr = kzalloc(sizeof(struct rve_session_manager), GFP_KERNEL);
+	if (*session_manager_ptr == NULL) {
+		pr_err("can not kzalloc for rve_session_manager\n");
+		return -ENOMEM;
+	}
+
+	session_manager = *session_manager_ptr;
+
+	mutex_init(&session_manager->lock);
+
+	idr_init_base(&session_manager->ctx_id_idr, 1);
+
+	return 0;
+}
+
+/*
+ * Called at driver close to release the rve session's id references.
+ */
+static int rve_session_free_remove_idr_cb(int id, void *ptr, void *data)
+{
+	struct rve_session *session = ptr;
+
+	idr_remove(&rve_drvdata->session_manager->ctx_id_idr, session->id);
+	kfree(session);
+
+	return 0;
+}
+
+static int rve_session_free_remove_idr(struct rve_session *session)
+{
+	struct rve_session_manager *session_manager;
+
+	session_manager = rve_drvdata->session_manager;
+
+	mutex_lock(&session_manager->lock);
+
+	session_manager->session_cnt--;
+	idr_remove(&session_manager->ctx_id_idr, session->id);
+
+	mutex_unlock(&session_manager->lock);
+
+	return 0;
+}
+
+static int rve_session_manager_remove(struct rve_session_manager **session_manager_ptr)
+{
+	struct rve_session_manager *session_manager = *session_manager_ptr;
+
+	mutex_lock(&session_manager->lock);
+
+	idr_for_each(&session_manager->ctx_id_idr, &rve_session_free_remove_idr_cb, session_manager);
+	idr_destroy(&session_manager->ctx_id_idr);
+
+	mutex_unlock(&session_manager->lock);
+
+	kfree(*session_manager_ptr);
+
+	*session_manager_ptr = NULL;
+
+	return 0;
+}
+
+static struct rve_session *rve_session_init(void)
+{
+	struct rve_session_manager *session_manager = NULL;
+	struct rve_session *session = kzalloc(sizeof(*session), GFP_KERNEL);
+
+	session_manager = rve_drvdata->session_manager;
+	if (session_manager == NULL) {
+		pr_err("rve_session_manager is null!\n");
+		kfree(session);
+		return NULL;
+	}
+
+	mutex_lock(&session_manager->lock);
+
+	idr_preload(GFP_KERNEL);
+	session->id = idr_alloc(&session_manager->ctx_id_idr, session, 1, 0, GFP_ATOMIC);
+	session_manager->session_cnt++;
+	idr_preload_end();
+
+	mutex_unlock(&session_manager->lock);
+
+	session->tgid = current->tgid;
+
+	return session;
+}
+
+static int rve_session_deinit(struct rve_session *session)
+{
+	pid_t pid;
+	int ctx_id;
+	struct rve_pending_ctx_manager *ctx_manager;
+	struct rve_internal_ctx_t *ctx;
+	unsigned long flags;
+
+	pid = current->pid;
+
+	ctx_manager = rve_drvdata->pend_ctx_manager;
+
+	spin_lock_irqsave(&ctx_manager->lock, flags);
+
+	idr_for_each_entry(&ctx_manager->ctx_id_idr, ctx, ctx_id) {
+
+		spin_unlock_irqrestore(&ctx_manager->lock, flags);
+
+		if (session == ctx->session) {
+			pr_err("[pid:%d] destroy ctx[%d] when the user exits", pid, ctx->id);
+			kref_put(&ctx->refcount, rve_internal_ctx_kref_release);
+		}
+
+		spin_lock_irqsave(&ctx_manager->lock, flags);
+	}
+
+	spin_unlock_irqrestore(&ctx_manager->lock, flags);
+
+	rve_job_session_destroy(session);
+
+	rve_session_free_remove_idr(session);
+	kfree(session);
+
+	return 0;
+}
+
+static long rve_ioctl_cmd_start(unsigned long arg, struct rve_session *session)
 {
 	int rve_user_ctx_id;
 	int ret = 0;
 
-	rve_user_ctx_id = rve_internal_ctx_alloc_to_get_idr_id();
+	rve_user_ctx_id = rve_internal_ctx_alloc_to_get_idr_id(session);
 
 	if (copy_to_user((void *)arg, &rve_user_ctx_id, sizeof(int)))
 		ret = -EFAULT;
@@ -236,6 +397,7 @@ static long rve_ioctl(struct file *file, uint32_t cmd, unsigned long arg)
 	int i = 0;
 	struct rve_version_t driver_version;
 	struct rve_hw_versions_t hw_versions;
+	struct rve_session *session = file->private_data;
 
 	if (!rve) {
 		pr_err("rve_drvdata is null, rve is not init\n");
@@ -279,7 +441,7 @@ static long rve_ioctl(struct file *file, uint32_t cmd, unsigned long arg)
 		break;
 
 	case RVE_IOC_START_CONFIG:
-		ret = rve_ioctl_cmd_start(arg);
+		ret = rve_ioctl_cmd_start(arg, session);
 
 		break;
 
@@ -350,35 +512,22 @@ static int rve_debugger_remove(struct rve_debugger **debugger_p)
 
 static int rve_open(struct inode *inode, struct file *file)
 {
+	struct rve_session *session = NULL;
+
+	session = rve_session_init();
+	if (!session)
+		return -ENOMEM;
+
+	file->private_data = (void *)session;
+
 	return nonseekable_open(inode, file);
 }
 
 static int rve_release(struct inode *inode, struct file *file)
 {
-	pid_t pid;
-	int ctx_id;
-	struct rve_pending_ctx_manager *ctx_manager;
-	struct rve_internal_ctx_t *ctx;
+	struct rve_session *session = file->private_data;
 
-	pid = current->pid;
-
-	ctx_manager = rve_drvdata->pend_ctx_manager;
-
-	mutex_lock(&ctx_manager->lock);
-
-	idr_for_each_entry(&ctx_manager->ctx_id_idr, ctx, ctx_id) {
-
-		mutex_unlock(&ctx_manager->lock);
-
-		if (pid == ctx->debug_info.pid) {
-			pr_err("[pid:%d] destroy ctx[%d] when the user exits", pid, ctx->id);
-			kref_put(&ctx->refcount, rve_internal_ctx_kref_release);
-		}
-
-		mutex_lock(&ctx_manager->lock);
-	}
-
-	mutex_unlock(&ctx_manager->lock);
+	rve_session_deinit(session);
 
 	return 0;
 }
@@ -414,19 +563,18 @@ static irqreturn_t rve_irq_thread(int irq, void *data)
 	u32 error_flag;
 
 	job = scheduler->running_job;
-	scheduler->total_int_cnt++;
+	scheduler->session.total_int_cnt++;
 
 	if (!job) {
 		pr_err("running job is invalid on irq thread\n");
 		return IRQ_HANDLED;
 	}
 
+	error_flag = rve_read(RVE_SWREG6_IVE_WORK_STA, scheduler);
+
 	if (DEBUGGER_EN(INT_FLAG)) {
-		error_flag = rve_read(RVE_SWREG6_IVE_WORK_STA, scheduler);
-
-		if (error_flag & 0x1) {
-			pr_err("irq thread work_status[%x]\n", error_flag);
-
+		pr_err("irq thread work_status[%x]\n", error_flag);
+		if (error_flag & 0x6) {
 			if (error_flag & 0x2)
 				pr_err("irq: bus error");
 			else if (error_flag & 0x4)
@@ -434,8 +582,17 @@ static irqreturn_t rve_irq_thread(int irq, void *data)
 		}
 	}
 
+	/* if llp mode*/
+	if ((error_flag & RVE_LLP_MODE) &&
+		(!(error_flag & RVE_LLP_DONE))) {
+		if (DEBUGGER_EN(INT_FLAG))
+			pr_err("irq: llp mode need to skip rve_job_done");
+			goto skip_job_done;
+	}
+
 	rve_job_done(scheduler, 0);
 
+skip_job_done:
 	return IRQ_HANDLED;
 }
 
@@ -450,6 +607,7 @@ const struct file_operations rve_fops = {
 };
 
 static struct miscdevice rve_dev = {
+	.minor = MISC_DYNAMIC_MINOR,
 	.name = "rve",
 	.fops = &rve_fops,
 };
@@ -668,11 +826,9 @@ static int __init rve_init(void)
 
 	ret = platform_driver_register(&rve_driver);
 	if (ret != 0) {
-		pr_err("Platform device rve3_core0_driver register failed (%d).\n", ret);
+		pr_err("Platform device rve register failed (%d).\n", ret);
 		return ret;
 	}
-
-	rve_init_timer();
 
 #ifdef CONFIG_SYNC_FILE
 	rve_drvdata->fence_ctx = rve_fence_context_alloc();
@@ -691,6 +847,10 @@ static int __init rve_init(void)
 
 	rve_ctx_manager_init(&rve_drvdata->pend_ctx_manager);
 
+	rve_session_manager_init(&rve_drvdata->session_manager);
+
+	rve_init_timer();
+
 #ifdef CONFIG_ROCKCHIP_RVE_DEBUGGER
 	rve_debugger_init(&rve_drvdata->debugger);
 #endif
@@ -708,6 +868,8 @@ static void __exit rve_exit(void)
 
 	rve_ctx_manager_remove(&rve_drvdata->pend_ctx_manager);
 
+	rve_session_manager_remove(&rve_drvdata->session_manager);
+
 	wake_lock_destroy(&rve_drvdata->wake_lock);
 
 #ifdef CONFIG_SYNC_FILE
@@ -718,7 +880,7 @@ static void __exit rve_exit(void)
 
 	platform_driver_unregister(&rve_driver);
 
-	misc_deregister(&(rve_drvdata->miscdev));
+	misc_deregister(&rve_dev);
 
 	kfree(rve_drvdata);
 }

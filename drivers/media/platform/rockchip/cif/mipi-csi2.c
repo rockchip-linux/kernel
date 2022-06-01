@@ -880,6 +880,7 @@ static int csi2_probe(struct platform_device *pdev)
 		if (ret < 0)
 			v4l2_err(&csi2->sd, "request csi-intr1 irq failed: %d\n",
 				 ret);
+		csi2->irq1 = irq;
 	} else {
 		v4l2_err(&csi2->sd, "No found irq csi-intr1\n");
 	}
@@ -893,6 +894,7 @@ static int csi2_probe(struct platform_device *pdev)
 		if (ret < 0)
 			v4l2_err(&csi2->sd, "request csi-intr2 failed: %d\n",
 				 ret);
+		csi2->irq2 = irq;
 	} else {
 		v4l2_err(&csi2->sd, "No found irq csi-intr2\n");
 	}

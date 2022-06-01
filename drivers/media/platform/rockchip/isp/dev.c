@@ -63,6 +63,10 @@ bool rkisp_monitor;
 module_param_named(monitor, rkisp_monitor, bool, 0644);
 MODULE_PARM_DESC(monitor, "rkisp abnormal restart monitor");
 
+bool rkisp_irq_dbg;
+module_param_named(irq_dbg, rkisp_irq_dbg, bool, 0644);
+MODULE_PARM_DESC(irq_dbg, "rkisp interrupt runtime");
+
 static bool rkisp_clk_dbg;
 module_param_named(clk_dbg, rkisp_clk_dbg, bool, 0644);
 MODULE_PARM_DESC(clk_dbg, "rkisp clk set by user");
@@ -174,7 +178,7 @@ static int __isp_pipeline_s_isp_clk(struct rkisp_pipeline *p)
 	u64 data_rate;
 	int i;
 
-	if (dev->isp_inp & (INP_RAWRD0 | INP_RAWRD1 | INP_RAWRD2 | INP_CIF)) {
+	if (dev->isp_inp & (INP_RAWRD0 | INP_RAWRD1 | INP_RAWRD2)) {
 		for (i = 0; i < hw_dev->num_clk_rate_tbl; i++) {
 			if (w <= hw_dev->clk_rate_tbl[i].refer_data)
 				break;
@@ -191,11 +195,12 @@ static int __isp_pipeline_s_isp_clk(struct rkisp_pipeline *p)
 		return 0;
 	}
 
-	/* find the subdev of active sensor */
+	/* find the subdev of active sensor or vicap itf */
 	sd = p->subdevs[0];
 	for (i = 0; i < p->num_subdevs; i++) {
 		sd = p->subdevs[i];
-		if (sd->entity.function == MEDIA_ENT_F_CAM_SENSOR)
+		if (sd->entity.function == MEDIA_ENT_F_CAM_SENSOR ||
+		    sd->entity.function == MEDIA_ENT_F_PROC_VIDEO_COMPOSER)
 			break;
 	}
 
@@ -230,7 +235,7 @@ end:
 	rkisp_set_clk_rate(hw_dev->clks[0], hw_dev->clk_rate_tbl[i].clk_rate * 1000000UL);
 	if (hw_dev->is_unite)
 		rkisp_set_clk_rate(hw_dev->clks[5], hw_dev->clk_rate_tbl[i].clk_rate * 1000000UL);
-	dev_dbg(hw_dev->dev, "set isp clk = %luHz\n", clk_get_rate(hw_dev->clks[0]));
+	dev_info(hw_dev->dev, "set isp clk = %luHz\n", clk_get_rate(hw_dev->clks[0]));
 
 	return 0;
 }
@@ -298,14 +303,21 @@ static int rkisp_pipeline_set_stream(struct rkisp_pipeline *p, bool on)
 			goto err;
 		/* phy -> sensor */
 		for (i = 0; i < p->num_subdevs; ++i) {
+			if ((dev->vicap_in.merge_num > 1) &&
+			    (p->subdevs[i]->entity.function == MEDIA_ENT_F_CAM_SENSOR))
+				continue;
 			ret = v4l2_subdev_call(p->subdevs[i], video, s_stream, on);
 			if (on && ret < 0 && ret != -ENOIOCTLCMD && ret != -ENODEV)
 				goto err_stream_off;
 		}
 	} else {
 		/* sensor -> phy */
-		for (i = p->num_subdevs - 1; i >= 0; --i)
+		for (i = p->num_subdevs - 1; i >= 0; --i) {
+			if ((dev->vicap_in.merge_num > 1) &&
+			    (p->subdevs[i]->entity.function == MEDIA_ENT_F_CAM_SENSOR))
+				continue;
 			v4l2_subdev_call(p->subdevs[i], video, s_stream, on);
+		}
 		if (dev->vs_irq >= 0)
 			disable_irq(dev->vs_irq);
 		v4l2_subdev_call(&dev->isp_sdev.sd, video, s_stream, false);
@@ -389,6 +401,8 @@ static int _set_pipeline_default_fmt(struct rkisp_device *dev)
 	struct v4l2_subdev_selection sel;
 	u32 i, width, height, code;
 
+	memset(&sel, 0, sizeof(sel));
+	memset(&fmt, 0, sizeof(fmt));
 	isp = &dev->isp_sdev.sd;
 
 	if (dev->active_sensor)
@@ -914,6 +928,11 @@ static int __maybe_unused rkisp_runtime_resume(struct device *dev)
 {
 	struct rkisp_device *isp_dev = dev_get_drvdata(dev);
 	int ret;
+
+	/* power on to config default format from sensor */
+	if (isp_dev->isp_inp & (INP_CSI | INP_DVP | INP_LVDS | INP_CIF) &&
+	    rkisp_update_sensor_info(isp_dev) >= 0)
+		_set_pipeline_default_fmt(isp_dev);
 
 	isp_dev->cap_dev.wait_line = rkisp_wait_line;
 	isp_dev->cap_dev.wrap_line = rkisp_wrap_line;

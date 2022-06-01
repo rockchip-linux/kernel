@@ -734,6 +734,9 @@ static const char * const rv1106_cif_clks[] = {
 	"rx0clk_cif",
 	"rx1clk_cif",
 	"isp0clk_cif",
+	"sclk_m0_cif",
+	"sclk_m1_cif",
+	"pclk_vepu_cif",
 };
 
 static const char * const rv1106_cif_rsts[] = {
@@ -746,6 +749,7 @@ static const char * const rv1106_cif_rsts[] = {
 	"rst_cif_rx0",
 	"rst_cif_rx1",
 	"rst_cif_isp0",
+	"rst_cif_pclk_vepu",
 };
 
 static const struct cif_reg rv1106_cif_regs[] = {
@@ -960,38 +964,55 @@ static const struct rkcif_hw_match_data rv1106_cif_match_data = {
 };
 
 static const struct of_device_id rkcif_plat_of_match[] = {
+#ifdef CONFIG_CPU_PX30
 	{
 		.compatible = "rockchip,px30-cif",
 		.data = &px30_cif_match_data,
 	},
+#endif
+#ifdef CONFIG_CPU_RK1808
 	{
 		.compatible = "rockchip,rk1808-cif",
 		.data = &rk1808_cif_match_data,
 	},
+#endif
+#ifdef CONFIG_CPU_RK312X
 	{
 		.compatible = "rockchip,rk3128-cif",
 		.data = &rk3128_cif_match_data,
 	},
+#endif
+#ifdef CONFIG_CPU_RK3288
 	{
 		.compatible = "rockchip,rk3288-cif",
 		.data = &rk3288_cif_match_data,
 	},
+#endif
+#ifdef CONFIG_CPU_RK3328
 	{
 		.compatible = "rockchip,rk3328-cif",
 		.data = &rk3328_cif_match_data,
 	},
+#endif
+#ifdef CONFIG_CPU_RK3368
 	{
 		.compatible = "rockchip,rk3368-cif",
 		.data = &rk3368_cif_match_data,
 	},
+#endif
+#ifdef CONFIG_CPU_RK3568
 	{
 		.compatible = "rockchip,rk3568-cif",
 		.data = &rk3568_cif_match_data,
 	},
+#endif
+#ifdef CONFIG_CPU_RK3588
 	{
 		.compatible = "rockchip,rk3588-cif",
 		.data = &rk3588_cif_match_data,
 	},
+#endif
+#ifdef CONFIG_CPU_RV1126
 	{
 		.compatible = "rockchip,rv1126-cif",
 		.data = &rv1126_cif_match_data,
@@ -1000,10 +1021,13 @@ static const struct of_device_id rkcif_plat_of_match[] = {
 		.compatible = "rockchip,rv1126-cif-lite",
 		.data = &rv1126_cif_lite_match_data,
 	},
+#endif
+#ifdef CONFIG_CPU_RV1106
 	{
 		.compatible = "rockchip,rv1106-cif",
 		.data = &rv1106_cif_match_data,
 	},
+#endif
 	{},
 };
 
@@ -1014,8 +1038,12 @@ static irqreturn_t rkcif_irq_handler(int irq, void *ctx)
 	unsigned int intstat_glb = 0;
 	int i;
 
-	if (cif_hw->chip_id >= CHIP_RK3588_CIF)
+	if (cif_hw->chip_id >= CHIP_RK3588_CIF) {
 		intstat_glb = rkcif_irq_global(cif_hw->cif_dev[0]);
+		if (intstat_glb)
+			rkcif_write_register(cif_hw->cif_dev[0], CIF_REG_GLB_INTST, intstat_glb);
+	}
+
 	for (i = 0; i < cif_hw->dev_num; i++) {
 		if (cif_hw->cif_dev[i]->isr_hdl) {
 			cif_hw->cif_dev[i]->isr_hdl(irq, cif_hw->cif_dev[i]);
@@ -1147,7 +1175,6 @@ static int rkcif_plat_hw_probe(struct platform_device *pdev)
 	cif_hw->chip_id = data->chip_id;
 	cif_hw->sync_config.is_attach = false;
 	cif_hw->sync_config.mode = RKCIF_NOSYNC_MODE;
-	cif_hw->is_in_group_sync = false;
 	if (data->chip_id >= CHIP_RK1808_CIF) {
 		res = platform_get_resource_byname(pdev,
 						   IORESOURCE_MEM,
@@ -1210,6 +1237,7 @@ static int rkcif_plat_hw_probe(struct platform_device *pdev)
 	cif_hw->is_dma_sg_ops = true;
 	cif_hw->is_dma_contig = true;
 	mutex_init(&cif_hw->dev_lock);
+	spin_lock_init(&cif_hw->group_lock);
 
 	cif_hw->iommu_en = is_iommu_enable(dev);
 	ret = of_reserved_mem_device_init(dev);
@@ -1266,6 +1294,38 @@ static int rkcif_plat_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static void rkcif_hw_shutdown(struct platform_device *pdev)
+{
+	struct rkcif_hw *cif_hw = platform_get_drvdata(pdev);
+	struct rkcif_device *cif_dev = NULL;
+	int i = 0;
+
+	if (pm_runtime_get_if_in_use(&pdev->dev) <= 0)
+		return;
+
+	if (cif_hw->chip_id == CHIP_RK3588_CIF ||
+	    cif_hw->chip_id == CHIP_RV1106_CIF) {
+		write_cif_reg(cif_hw->base_addr, 0, 0);
+	} else {
+		for (i = 0; i < cif_hw->dev_num; i++) {
+			cif_dev = cif_hw->cif_dev[i];
+			if (atomic_read(&cif_dev->pipe.stream_cnt)) {
+				if (cif_dev->inf_id == RKCIF_MIPI_LVDS)
+					rkcif_write_register(cif_dev,
+							     CIF_REG_MIPI_LVDS_CTRL,
+							     0);
+				else
+					rkcif_write_register(cif_dev,
+							     CIF_REG_DVP_CTRL,
+							     0);
+			}
+		}
+	}
+	if (cif_hw->irq > 0)
+		disable_irq(cif_hw->irq);
+	pm_runtime_put(&pdev->dev);
+}
+
 static int __maybe_unused rkcif_runtime_suspend(struct device *dev)
 {
 	struct rkcif_hw *cif_hw = dev_get_drvdata(dev);
@@ -1302,6 +1362,7 @@ static struct platform_driver rkcif_hw_plat_drv = {
 	},
 	.probe = rkcif_plat_hw_probe,
 	.remove = rkcif_plat_remove,
+	.shutdown = rkcif_hw_shutdown,
 };
 
 static int __init rk_cif_plat_drv_init(void)

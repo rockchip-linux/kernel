@@ -1418,7 +1418,13 @@ static int rkisp_set_mirror_flip(struct rkisp_stream *stream,
 	if (dev->isp_ver != ISP_V32)
 		return -EINVAL;
 
-	dev->cap_dev.is_mirror = cfg->mirror;
+	if (dev->cap_dev.wrap_line) {
+		v4l2_warn(&dev->v4l2_dev, "wrap_line mode can not set the mirror");
+		dev->cap_dev.is_mirror = 0;
+	} else {
+		dev->cap_dev.is_mirror = cfg->mirror;
+	}
+
 	stream->is_flip = cfg->flip;
 	stream->is_mf_upd = true;
 	return 0;
@@ -1448,6 +1454,28 @@ static int rkisp_set_wrap_line(struct rkisp_stream *stream, int *line)
 		return -EINVAL;
 	}
 	dev->cap_dev.wrap_line = *line;
+	return 0;
+}
+
+static int rkisp_set_fps(struct rkisp_stream *stream, int *fps)
+{
+	struct rkisp_device *dev = stream->ispdev;
+
+	if (dev->isp_ver != ISP_V32)
+		return -EINVAL;
+
+	rkisp_rockit_fps_set(fps, stream->id);
+	return 0;
+}
+
+static int rkisp_get_fps(struct rkisp_stream *stream, int *fps)
+{
+	struct rkisp_device *dev = stream->ispdev;
+
+	if (dev->isp_ver != ISP_V32)
+		return -EINVAL;
+
+	rkisp_rockit_fps_get(fps, stream->id);
 	return 0;
 }
 
@@ -1508,6 +1536,12 @@ static long rkisp_ioctl_default(struct file *file, void *fh,
 		break;
 	case RKISP_CMD_SET_WRAP_LINE:
 		ret = rkisp_set_wrap_line(stream, arg);
+		break;
+	case RKISP_CMD_SET_FPS:
+		ret = rkisp_set_fps(stream, arg);
+		break;
+	case RKISP_CMD_GET_FPS:
+		ret = rkisp_get_fps(stream, arg);
 		break;
 	default:
 		ret = -EINVAL;

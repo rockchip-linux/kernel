@@ -1023,9 +1023,14 @@ static void hdptx_phy_disable(struct rockchip_hdptx_phy *hdptx)
 {
 	u32 val;
 
+	/* reset phy and apb, or phy locked flag may keep 1 */
 	reset_control_assert(hdptx->phy_reset);
 	udelay(20);
 	reset_control_deassert(hdptx->phy_reset);
+
+	reset_control_assert(hdptx->apb_reset);
+	udelay(20);
+	reset_control_deassert(hdptx->apb_reset);
 
 	hdptx_write(hdptx, LANE_REG0300, 0x82);
 	hdptx_write(hdptx, SB_REG010F, 0xc1);
@@ -1482,6 +1487,19 @@ static int hdptx_ropll_tmds_mode_config(struct rockchip_hdptx_phy *hdptx, u32 ra
 	hdptx_write(hdptx, LANE_REG061F, 0x15);
 	hdptx_write(hdptx, LANE_REG0620, 0xa0);
 
+	hdptx_write(hdptx, LANE_REG0303, 0x2f);
+	hdptx_write(hdptx, LANE_REG0403, 0x2f);
+	hdptx_write(hdptx, LANE_REG0503, 0x2f);
+	hdptx_write(hdptx, LANE_REG0603, 0x2f);
+	hdptx_write(hdptx, LANE_REG0305, 0x03);
+	hdptx_write(hdptx, LANE_REG0405, 0x03);
+	hdptx_write(hdptx, LANE_REG0505, 0x03);
+	hdptx_write(hdptx, LANE_REG0605, 0x03);
+	hdptx_write(hdptx, LANE_REG0306, 0x1c);
+	hdptx_write(hdptx, LANE_REG0406, 0x1c);
+	hdptx_write(hdptx, LANE_REG0506, 0x1c);
+	hdptx_write(hdptx, LANE_REG0606, 0x1c);
+
 	if (hdptx->earc_en)
 		hdptx_earc_config(hdptx);
 
@@ -1930,6 +1948,28 @@ static int hdptx_lcpll_frl_mode_config(struct rockchip_hdptx_phy *hdptx, u32 rat
 	hdptx_write(hdptx, LANE_REG061F, 0x15);
 	hdptx_write(hdptx, LANE_REG0620, 0xa0);
 
+	hdptx_write(hdptx, LANE_REG0303, 0x2f);
+	hdptx_write(hdptx, LANE_REG0403, 0x2f);
+	hdptx_write(hdptx, LANE_REG0503, 0x2f);
+	hdptx_write(hdptx, LANE_REG0603, 0x2f);
+	hdptx_write(hdptx, LANE_REG0305, 0x03);
+	hdptx_write(hdptx, LANE_REG0405, 0x03);
+	hdptx_write(hdptx, LANE_REG0505, 0x03);
+	hdptx_write(hdptx, LANE_REG0605, 0x03);
+	hdptx_write(hdptx, LANE_REG0306, 0xfc);
+	hdptx_write(hdptx, LANE_REG0406, 0xfc);
+	hdptx_write(hdptx, LANE_REG0506, 0xfc);
+	hdptx_write(hdptx, LANE_REG0606, 0xfc);
+
+	hdptx_write(hdptx, LANE_REG0305, 0x4f);
+	hdptx_write(hdptx, LANE_REG0405, 0x4f);
+	hdptx_write(hdptx, LANE_REG0505, 0x4f);
+	hdptx_write(hdptx, LANE_REG0605, 0x4f);
+	hdptx_write(hdptx, LANE_REG0304, 0x14);
+	hdptx_write(hdptx, LANE_REG0404, 0x14);
+	hdptx_write(hdptx, LANE_REG0504, 0x14);
+	hdptx_write(hdptx, LANE_REG0604, 0x14);
+
 	if (hdptx->earc_en)
 		hdptx_earc_config(hdptx);
 
@@ -1973,9 +2013,10 @@ static int rockchip_hdptx_phy_power_off(struct phy *phy)
 	if (hdptx->count)
 		return 0;
 
-	if (hdptx_grf_read(hdptx, GRF_HDPTX_STATUS) & HDPTX_O_PLL_LOCK_DONE)
-		hdptx_phy_disable(hdptx);
+	if (!(hdptx_grf_read(hdptx, GRF_HDPTX_STATUS) & HDPTX_O_PLL_LOCK_DONE))
+		return 0;
 
+	hdptx_phy_disable(hdptx);
 	clk_bulk_disable(hdptx->nr_clks, hdptx->clks);
 
 	return 0;
@@ -2070,7 +2111,6 @@ static int hdptx_phy_clk_enable(struct clk_hw *hw)
 		}
 	}
 
-	clk_get_rate(hdptx->dclk);
 	hdptx->count++;
 
 	return 0;

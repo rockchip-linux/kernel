@@ -128,11 +128,18 @@ static int rockchip_saradc_read_v1(struct rockchip_saradc *info)
 static int rockchip_saradc_read_v2(struct rockchip_saradc *info)
 {
 	int offset;
+	int channel;
 
 	/* Clear irq */
 	writel_relaxed(0x1, info->regs + SARADC2_END_INT_ST);
 
-	offset = SARADC2_DATA_BASE + info->last_chan->channel * 0x4;
+#ifdef CONFIG_ROCKCHIP_SARADC_TEST_CHN
+	channel = info->chn;
+#else
+	channel = info->last_chan->channel;
+#endif
+
+	offset = SARADC2_DATA_BASE + channel * 0x4;
 
 	return readl_relaxed(info->regs + offset);
 }
@@ -220,7 +227,9 @@ static irqreturn_t rockchip_saradc_isr(int irq, void *dev_id)
 
 	/* Read value */
 	info->last_val = rockchip_saradc_read(info);
+#ifndef CONFIG_ROCKCHIP_SARADC_TEST_CHN
 	info->last_val &= GENMASK(info->last_chan->scan_type.realbits - 1, 0);
+#endif
 
 	rockchip_saradc_power_down(info);
 
@@ -342,6 +351,21 @@ static const struct rockchip_saradc_data rk3588_saradc_data = {
 	.read = rockchip_saradc_read_v2,
 };
 
+static const struct iio_chan_spec rockchip_rv1106_saradc_iio_channels[] = {
+	SARADC_CHANNEL(0, "adc0", 10),
+	SARADC_CHANNEL(1, "adc1", 10),
+	SARADC_CHANNEL(2, "adc2", 10),
+	SARADC_CHANNEL(3, "adc3", 10),
+};
+
+static const struct rockchip_saradc_data rv1106_saradc_data = {
+	.channels = rockchip_rv1106_saradc_iio_channels,
+	.num_channels = ARRAY_SIZE(rockchip_rv1106_saradc_iio_channels),
+	.clk_rate = 1000000,
+	.start = rockchip_saradc_start_v2,
+	.read = rockchip_saradc_read_v2,
+};
+
 static const struct of_device_id rockchip_saradc_match[] = {
 	{
 		.compatible = "rockchip,saradc",
@@ -358,6 +382,9 @@ static const struct of_device_id rockchip_saradc_match[] = {
 	}, {
 		.compatible = "rockchip,rk3588-saradc",
 		.data = &rk3588_saradc_data,
+	}, {
+		.compatible = "rockchip,rv1106-saradc",
+		.data = &rv1106_saradc_data,
 	},
 	{},
 };

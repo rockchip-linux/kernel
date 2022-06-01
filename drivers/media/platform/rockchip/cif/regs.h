@@ -751,6 +751,12 @@ enum cif_reg_index {
 #define SW_SCALE_END(intstat, ch)	((intstat >> ((ch + 1) * 2)) & 0x3)
 #define SCALE_SOFT_RESET(ch)		(0x1 << (ch + 16))
 
+/* CIF TOISP*/
+#define CIF_TOISP0_FS(ch)		(BIT(14) << ch)
+#define CIF_TOISP1_FS(ch)		(BIT(17) << ch)
+#define CIF_TOISP0_FE(ch)		(BIT(20) << ch)
+#define CIF_TOISP1_FE(ch)		(BIT(23) << ch)
+
 /* CIF_CSI_ID_CTRL0 */
 #define CSI_DISABLE_CAPTURE		(0x0 << 0)
 #define CSI_ENABLE_CAPTURE		(0x1 << 0)
@@ -1002,6 +1008,11 @@ enum cif_reg_index {
 #define SW_FRM_END_ID1(x)	(((x) & CSI_FRAME_END_ID1) >> 10)
 #define SW_FRM_END_ID2(x)	(((x) & CSI_FRAME_END_ID2) >> 12)
 #define SW_FRM_END_ID3(x)	(((x) & CSI_FRAME_END_ID3) >> 14)
+
+/*RV1106 SKIP FUNC*/
+#define RKCIF_CAP_SHIFT		0x18
+#define RKCIF_SKIP_SHIFT	0X15
+#define RKCIF_SKIP_EN(x)	(0x1 << (8 + x))
 
 /* CIF LVDS SAV EAV Define */
 #define SW_LVDS_EAV_ACT(code)	(((code) & 0xfff) << 16)

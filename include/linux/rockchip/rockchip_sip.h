@@ -51,7 +51,10 @@
 #define SIP_SCMI_AGENT15		0x8200001f
 #define SIP_SDEI_FIQ_DBG_SWITCH_CPU	0x82000020
 #define SIP_SDEI_FIQ_DBG_GET_EVENT_ID	0x82000021
+#define RK_SIP_AMP_CFG			0x82000022
 #define RK_SIP_FIQ_CTRL			0x82000024
+#define SIP_HDCP_CONFIG			0x82000025
+#define SIP_WDT_CFG			0x82000026
 
 /* Rockchip Sip version */
 #define SIP_IMPLEMENT_V1                (1)
@@ -120,6 +123,18 @@ struct dram_addrmap_info {
 	u32 bank_bit_mask;
 };
 
+/* AMP Ctrl */
+enum {
+	RK_AMP_SUB_FUNC_CFG_MODE = 0,
+	RK_AMP_SUB_FUNC_BOOT_ARG01,
+	RK_AMP_SUB_FUNC_BOOT_ARG23,
+	RK_AMP_SUB_FUNC_REQ_CPU_OFF,
+	RK_AMP_SUB_FUNC_GET_CPU_STATUS,
+	RK_AMP_SUB_FUNC_RSV, /* for RTOS */
+	RK_AMP_SUB_FUNC_CPU_ON,
+	RK_AMP_SUB_FUNC_END,
+};
+
 enum {
 	FIRMWARE_NONE,
 	FIRMWARE_TEE_32BIT,
@@ -138,6 +153,7 @@ typedef enum {
 	SHARE_PAGE_TYPE_DDRFSP,
 	SHARE_PAGE_TYPE_DDR_ADDRMAP,
 	SHARE_PAGE_TYPE_LAST_LOG,
+	SHARE_PAGE_TYPE_HDCP,
 	SHARE_PAGE_TYPE_MAX,
 } share_page_type_t;
 
@@ -146,6 +162,32 @@ enum {
 	RK_SIP_FIQ_CTRL_FIQ_EN = 1,
 	RK_SIP_FIQ_CTRL_FIQ_DIS,
 	RK_SIP_FIQ_CTRL_SET_AFF
+};
+
+/* hdcp function types */
+enum {
+	HDCP_FUNC_STORAGE_INCRYPT = 1,
+	HDCP_FUNC_KEY_LOAD,
+	HDCP_FUNC_ENCRYPT_MODE
+};
+
+/* support hdcp device list */
+enum {
+	DP_TX0,
+	DP_TX1,
+	EDP_TX0,
+	EDP_TX1,
+	HDMI_TX0,
+	HDMI_TX1,
+	HDMI_RX,
+	MAX_DEVICE,
+};
+
+/* SIP_WDT_CONFIG call types  */
+enum {
+	WDT_START = 0,
+	WDT_STOP = 1,
+	WDT_PING = 2,
 };
 
 /*
@@ -173,7 +215,11 @@ int sip_smc_secure_reg_write(u32 addr_phy, u32 val);
 u32 sip_smc_secure_reg_read(u32 addr_phy);
 struct arm_smccc_res sip_smc_bus_config(u32 arg0, u32 arg1, u32 arg2);
 struct dram_addrmap_info *sip_smc_get_dram_map(void);
+int sip_smc_amp_config(u32 sub_func_id, u32 arg1, u32 arg2, u32 arg3);
+struct arm_smccc_res sip_smc_get_amp_info(u32 sub_func_id, u32 arg1);
 
+void __iomem *sip_hdcp_request_share_memory(int id);
+struct arm_smccc_res sip_hdcp_config(u32 arg0, u32 arg1, u32 arg2);
 /***************************fiq debugger **************************************/
 void sip_fiq_debugger_enable_fiq(bool enable, uint32_t tgt_cpu);
 void sip_fiq_debugger_enable_debug(bool enable);
@@ -186,6 +232,7 @@ int sip_fiq_debugger_sdei_switch_cpu(u32 cur_cpu, u32 target_cpu, u32 flag);
 int sip_fiq_debugger_is_enabled(void);
 int sip_fiq_debugger_sdei_get_event_id(u32 *fiq, u32 *sw_cpu, u32 *flag);
 int sip_fiq_control(u32 sub_func, u32 irq, unsigned long data);
+int sip_wdt_config(u32 sub_func, u32 arg1, u32 arg2, u32 arg3);
 #else
 static inline struct arm_smccc_res sip_smc_get_atf_version(void)
 {
@@ -255,6 +302,34 @@ static inline struct dram_addrmap_info *sip_smc_get_dram_map(void)
 	return NULL;
 }
 
+static inline void __iomem *sip_hdcp_request_share_memory(int id)
+{
+	return NULL;
+}
+
+static inline struct arm_smccc_res sip_hdcp_config(u32 arg0, u32 arg1, u32 arg2)
+{
+	struct arm_smccc_res tmp = {0};
+
+	return tmp;
+}
+
+static inline int sip_smc_amp_config(u32 sub_func_id,
+				     u32 arg1,
+				     u32 arg2,
+				     u32 arg3)
+{
+	return 0;
+}
+
+static inline struct arm_smccc_res sip_smc_get_amp_info(u32 sub_func_id,
+							u32 arg1)
+{
+	struct arm_smccc_res tmp = { .a0 = SIP_RET_NOT_SUPPORTED, };
+
+	return tmp;
+}
+
 /***************************fiq debugger **************************************/
 static inline void sip_fiq_debugger_enable_fiq
 			(bool enable, uint32_t tgt_cpu) { return; }
@@ -279,6 +354,14 @@ static inline int sip_fiq_debugger_sdei_switch_cpu(u32 cur_cpu, u32 target_cpu,
 						   u32 flag) { return 0; }
 static inline int sip_fiq_debugger_is_enabled(void) { return 0; }
 static inline int sip_fiq_control(u32 sub_func, u32 irq, unsigned long data)
+{
+	return 0;
+}
+
+static inline int sip_wdt_config(u32 sub_func,
+				 u32 arg1,
+				 u32 arg2,
+				 u32 arg3)
 {
 	return 0;
 }

@@ -366,10 +366,15 @@ static void update_rawrd(struct rkisp_stream *stream)
 	struct rkisp_device *dev = stream->ispdev;
 	void __iomem *base = dev->base_addr;
 	struct capture_fmt *fmt = &stream->out_isp_fmt;
-	u32 val;
+	u32 val = 0;
 
 	if (stream->curr_buf) {
-		val = stream->curr_buf->buff_addr[RKISP_PLANE_Y];
+		if (dev->vicap_in.merge_num > 1) {
+			val = stream->out_fmt.plane_fmt[0].bytesperline;
+			val /= dev->vicap_in.merge_num;
+			val *= dev->vicap_in.index;
+		}
+		val += stream->curr_buf->buff_addr[RKISP_PLANE_Y];
 		rkisp_write(dev, stream->config->mi.y_base_ad_init, val, false);
 		if (dev->hw_dev->is_unite) {
 			val += (stream->out_fmt.width / 2 - RKMOUDLE_UNITE_EXTEND_PIXEL) *
@@ -389,7 +394,7 @@ static void update_rawrd(struct rkisp_stream *stream)
 			};
 
 			if (!vbuf->sequence)
-				trigger.frame_id = atomic_inc_return(&dev->isp_sdev.frm_sync_seq);
+				trigger.frame_id = atomic_inc_return(&dev->isp_sdev.frm_sync_seq) - 1;
 			rkisp_rdbk_trigger_event(dev, T_CMD_QUEUE, &trigger);
 		}
 	} else if (dev->dmarx_dev.trigger == T_AUTO) {
@@ -680,6 +685,8 @@ static int rkisp_init_vb2_queue(struct vb2_queue *q,
 	q->allow_cache_hints = 1;
 	q->bidirectional = 1;
 	q->gfp_flags = GFP_DMA32;
+	if (stream->ispdev->hw_dev->is_dma_contig)
+		q->dma_attrs = DMA_ATTR_FORCE_CONTIGUOUS;
 	return vb2_queue_init(q);
 }
 
@@ -741,7 +748,10 @@ static int rkisp_set_fmt(struct rkisp_stream *stream,
 			bytesperline = ALIGN(width * fmt->bpp[i] / 8, 256);
 		else
 			bytesperline = width * DIV_ROUND_UP(fmt->bpp[i], 8);
-		/* stride is only available for sp stream and y plane */
+
+		if (stream->ispdev->vicap_in.merge_num > 1)
+			bytesperline *= stream->ispdev->vicap_in.merge_num;
+
 		if (i != 0 ||
 		    plane_fmt->bytesperline < bytesperline)
 			plane_fmt->bytesperline = bytesperline;

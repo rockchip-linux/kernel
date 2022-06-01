@@ -137,6 +137,7 @@ struct video_info {
 
 	int max_link_rate;
 	enum link_lane_count_type max_lane_count;
+	u32 lane_map[4];
 
 	bool video_bist_enable;
 };
@@ -181,12 +182,12 @@ struct analogix_dp_device {
 
 	u8 dpcd[DP_RECEIVER_CAP_SIZE];
 	struct analogix_dp_plat_data *plat_data;
+	struct extcon_dev *extcon;
 };
 
 /* analogix_dp_reg.c */
 void analogix_dp_enable_video_mute(struct analogix_dp_device *dp, bool enable);
 void analogix_dp_stop_video(struct analogix_dp_device *dp);
-void analogix_dp_lane_swap(struct analogix_dp_device *dp, bool enable);
 void analogix_dp_init_analog_param(struct analogix_dp_device *dp);
 void analogix_dp_init_interrupt(struct analogix_dp_device *dp);
 void analogix_dp_reset(struct analogix_dp_device *dp);

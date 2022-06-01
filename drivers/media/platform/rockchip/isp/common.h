@@ -46,6 +46,7 @@
 #include <media/videobuf2-dma-contig.h>
 #include <media/videobuf2-v4l2.h>
 #include <media/v4l2-mc.h>
+#include <linux/soc/rockchip/rk_sdmmc.h>
 
 #define RKISP_DEFAULT_WIDTH		800
 #define RKISP_DEFAULT_HEIGHT		600
@@ -132,6 +133,7 @@ struct rkisp_dummy_buffer {
 
 extern int rkisp_debug;
 extern bool rkisp_monitor;
+extern bool rkisp_irq_dbg;
 extern u64 rkisp_debug_reg;
 extern struct platform_driver rkisp_plat_drv;
 
@@ -160,15 +162,24 @@ static inline struct vb2_queue *to_vb2_queue(struct file *file)
 
 void rkisp_write(struct rkisp_device *dev, u32 reg, u32 val, bool is_direct);
 u32 rkisp_read(struct rkisp_device *dev, u32 reg, bool is_direct);
-u32 rkisp_read_reg_cache(struct rkisp_device *dev, u32 reg);
 void rkisp_set_bits(struct rkisp_device *dev, u32 reg, u32 mask, u32 val, bool is_direct);
 void rkisp_clear_bits(struct rkisp_device *dev, u32 reg, u32 mask, bool is_direct);
+
+void rkisp_write_reg_cache(struct rkisp_device *dev, u32 reg, u32 val);
+u32 rkisp_read_reg_cache(struct rkisp_device *dev, u32 reg);
+void rkisp_set_reg_cache_bits(struct rkisp_device *dev, u32 reg, u32 mask, u32 val);
+void rkisp_clear_reg_cache_bits(struct rkisp_device *dev, u32 reg, u32 mask);
+
 /* for dual isp, config for next isp reg */
 void rkisp_next_write(struct rkisp_device *dev, u32 reg, u32 val, bool is_direct);
 u32 rkisp_next_read(struct rkisp_device *dev, u32 reg, bool is_direct);
-u32 rkisp_next_read_reg_cache(struct rkisp_device *dev, u32 reg);
 void rkisp_next_set_bits(struct rkisp_device *dev, u32 reg, u32 mask, u32 val, bool is_direct);
 void rkisp_next_clear_bits(struct rkisp_device *dev, u32 reg, u32 mask, bool is_direct);
+
+void rkisp_next_write_reg_cache(struct rkisp_device *dev, u32 reg, u32 val);
+u32 rkisp_next_read_reg_cache(struct rkisp_device *dev, u32 reg);
+void rkisp_next_set_reg_cache_bits(struct rkisp_device *dev, u32 reg, u32 mask, u32 val);
+void rkisp_next_clear_reg_cache_bits(struct rkisp_device *dev, u32 reg, u32 mask);
 
 static inline void
 rkisp_unite_write(struct rkisp_device *dev, u32 reg, u32 val, bool is_direct, bool is_unite)

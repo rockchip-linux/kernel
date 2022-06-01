@@ -10,6 +10,7 @@
  * Some ideas are from marvell-cesa.c and s5p-sss.c driver.
  */
 
+#include <crypto/scatterwalk.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
 #include <linux/of.h>
@@ -20,39 +21,11 @@
 #include <linux/string.h>
 
 #include "rk_crypto_core.h"
+#include "rk_crypto_utils.h"
 #include "rk_crypto_v1.h"
 #include "rk_crypto_v2.h"
+#include "rk_crypto_v3.h"
 #include "cryptodev_linux/rk_cryptodev.h"
-
-#define RK_CRYPTO_V1_SOC_DATA_INIT(names) {\
-	.crypto_ver  = "CRYPTO V1.0.0.0",\
-	.use_soft_aes192 = false,\
-	.valid_algs_name = (names),\
-	.valid_algs_num = ARRAY_SIZE(names),\
-	.total_algs = crypto_v1_algs,\
-	.total_algs_num = ARRAY_SIZE(crypto_v1_algs),\
-	.rsts = crypto_v1_rsts,\
-	.rsts_num = ARRAY_SIZE(crypto_v1_rsts),\
-	.hw_init = rk_hw_crypto_v1_init,\
-	.hw_deinit = rk_hw_crypto_v1_deinit,\
-	.hw_info_size = sizeof(struct rk_hw_crypto_v1_info),\
-	.default_pka_offset = 0,\
-}
-
-#define RK_CRYPTO_V2_SOC_DATA_INIT(names, soft_aes_192) {\
-	.crypto_ver  = "CRYPTO V2.0.0.0",\
-	.use_soft_aes192 = soft_aes_192,\
-	.valid_algs_name = (names),\
-	.valid_algs_num = ARRAY_SIZE(names),\
-	.total_algs = crypto_v2_algs,\
-	.total_algs_num = ARRAY_SIZE(crypto_v2_algs),\
-	.rsts = crypto_v2_rsts,\
-	.rsts_num = ARRAY_SIZE(crypto_v2_rsts),\
-	.hw_init = rk_hw_crypto_v2_init,\
-	.hw_deinit = rk_hw_crypto_v2_deinit,\
-	.hw_info_size = sizeof(struct rk_hw_crypto_v2_info),\
-	.default_pka_offset = 0x0480,\
-}
 
 static struct rk_alg_ctx *rk_alg_ctx_cast(struct crypto_async_request *async_req)
 {
@@ -82,104 +55,93 @@ static void rk_crypto_disable_clk(struct rk_crypto_dev *rk_dev)
 	clk_bulk_disable_unprepare(rk_dev->clks_num, rk_dev->clk_bulks);
 }
 
-static int check_scatter_align(struct scatterlist *sg_src,
-			       struct scatterlist *sg_dst,
-			       int align_mask)
-{
-	int in, out, align;
-
-	in = IS_ALIGNED((u32)sg_src->offset, 4) &&
-	     IS_ALIGNED((u32)sg_src->length, align_mask) &&
-	     (sg_phys(sg_src) < SZ_4G);
-	if (!sg_dst)
-		return in;
-
-	out = IS_ALIGNED((u32)sg_dst->offset, 4) &&
-	      IS_ALIGNED((u32)sg_dst->length, align_mask) &&
-	      (sg_phys(sg_dst) < SZ_4G);
-	align = in && out;
-
-	return (align && (sg_src->length == sg_dst->length));
-}
-
-static bool check_from_dmafd(struct crypto_async_request *async_req)
-{
-	struct rk_alg_ctx *alg_ctx = rk_alg_ctx_cast(async_req);
-	bool in, out;
-
-	in = alg_ctx->src_nents == 1 &&
-	     sg_virt(alg_ctx->req_src) &&
-	     sg_dma_address(alg_ctx->req_src);
-
-	if (!alg_ctx->req_dst)
-		return in;
-
-	out = alg_ctx->dst_nents == 1 &&
-	      sg_virt(alg_ctx->req_dst) &&
-	      sg_dma_address(alg_ctx->req_dst) &&
-	      sg_dma_len(alg_ctx->req_src) == sg_dma_len(alg_ctx->req_dst);
-
-	return in && out;
-}
-
-static bool check_scatterlist_align(struct crypto_async_request *async_req,
-				    int align_mask)
-{
-	struct rk_alg_ctx *alg_ctx = rk_alg_ctx_cast(async_req);
-	struct scatterlist *src_tmp = NULL;
-	struct scatterlist *dst_tmp = NULL;
-	unsigned int i;
-
-	if (alg_ctx->req_dst && alg_ctx->src_nents != alg_ctx->dst_nents)
-		return false;
-
-	src_tmp = alg_ctx->req_src;
-	dst_tmp = alg_ctx->req_dst;
-
-	for (i = 0; i < alg_ctx->src_nents; i++) {
-		if (!src_tmp)
-			return false;
-
-		if (!check_scatter_align(src_tmp, dst_tmp, align_mask))
-			return false;
-
-		src_tmp = sg_next(src_tmp);
-
-		if (alg_ctx->req_dst)
-			dst_tmp = sg_next(dst_tmp);
-	}
-
-	return true;
-}
-
 static int rk_load_data(struct rk_crypto_dev *rk_dev,
 			struct scatterlist *sg_src,
 			struct scatterlist *sg_dst)
 {
 	int ret = -EINVAL;
 	unsigned int count;
+	u32 src_nents, dst_nents;
 	struct device *dev = rk_dev->dev;
 	struct rk_alg_ctx *alg_ctx = rk_alg_ctx_cast(rk_dev->async_req);
+
+	alg_ctx->count = 0;
 
 	/* 0 data input just do nothing */
 	if (alg_ctx->total == 0)
 		return 0;
 
-	if (alg_ctx->left_bytes == alg_ctx->total) {
-		alg_ctx->is_dma = check_from_dmafd(rk_dev->async_req);
-		alg_ctx->aligned = check_scatterlist_align(rk_dev->async_req,
-							   alg_ctx->align_size) | alg_ctx->is_dma;
+	src_nents = alg_ctx->src_nents;
+	dst_nents = alg_ctx->dst_nents;
+
+	/* skip assoclen data */
+	if (alg_ctx->assoclen && alg_ctx->left_bytes == alg_ctx->total) {
+		CRYPTO_TRACE("have assoclen...");
+
+		if (alg_ctx->assoclen > rk_dev->aad_max) {
+			ret = -ENOMEM;
+			goto error;
+		}
+
+		if (!sg_pcopy_to_buffer(alg_ctx->req_src, alg_ctx->src_nents,
+					rk_dev->addr_aad, alg_ctx->assoclen, 0)) {
+			dev_err(dev, "[%s:%d] assoc pcopy err\n",
+				__func__, __LINE__);
+			ret = -EINVAL;
+			goto error;
+		}
+
+		sg_init_one(&alg_ctx->sg_aad, rk_dev->addr_aad, alg_ctx->assoclen);
+
+		if (!dma_map_sg(dev, &alg_ctx->sg_aad, 1, DMA_TO_DEVICE)) {
+			dev_err(dev, "[%s:%d] dma_map_sg(sg_aad)  error\n",
+				__func__, __LINE__);
+			ret = -ENOMEM;
+			goto error;
+		}
+
+		alg_ctx->addr_aad_in = sg_dma_address(&alg_ctx->sg_aad);
+
+		/* point sg_src and sg_dst skip assoc data */
+		sg_src = scatterwalk_ffwd(rk_dev->src, alg_ctx->req_src,
+					  alg_ctx->assoclen);
+		sg_dst = (alg_ctx->req_src == alg_ctx->req_dst) ? sg_src :
+			 scatterwalk_ffwd(rk_dev->dst, alg_ctx->req_dst,
+					  alg_ctx->assoclen);
+
+		alg_ctx->sg_src = sg_src;
+		alg_ctx->sg_dst = sg_dst;
+		src_nents = sg_nents_for_len(sg_src, alg_ctx->total);
+		dst_nents = sg_nents_for_len(sg_dst, alg_ctx->total);
+
+		CRYPTO_TRACE("src_nents = %u, dst_nents = %u", src_nents, dst_nents);
 	}
 
-	CRYPTO_TRACE("aligned = %d, total = %u, left_bytes = %u\n",
-		     alg_ctx->aligned, alg_ctx->total, alg_ctx->left_bytes);
+	if (alg_ctx->left_bytes == alg_ctx->total) {
+		alg_ctx->aligned = rk_crypto_check_align(sg_src, src_nents, sg_dst, dst_nents,
+							 alg_ctx->align_size);
+		alg_ctx->is_dma  = rk_crypto_check_dmafd(sg_src, src_nents) &&
+				   rk_crypto_check_dmafd(sg_dst, dst_nents);
+	}
+
+	CRYPTO_TRACE("aligned = %d, is_dma = %d, total = %u, left_bytes = %u, assoclen = %u\n",
+		     alg_ctx->aligned, alg_ctx->is_dma, alg_ctx->total,
+		     alg_ctx->left_bytes, alg_ctx->assoclen);
 
 	if (alg_ctx->aligned) {
-		count = min_t(unsigned int, alg_ctx->left_bytes,
-			     sg_src->length);
+		u32 nents;
+
+		if (rk_dev->soc_data->use_lli_chain) {
+			count = rk_crypto_hw_desc_maxlen(sg_src, alg_ctx->left_bytes, &nents);
+		} else {
+			nents = 1;
+			count = min_t(unsigned int, alg_ctx->left_bytes, sg_src->length);
+		}
+
+		alg_ctx->map_nents   = nents;
 		alg_ctx->left_bytes -= count;
 
-		if (!alg_ctx->is_dma && !dma_map_sg(dev, sg_src, 1, DMA_TO_DEVICE)) {
+		if (!alg_ctx->is_dma && !dma_map_sg(dev, sg_src, nents, DMA_TO_DEVICE)) {
 			dev_err(dev, "[%s:%d] dma_map_sg(src)  error\n",
 				__func__, __LINE__);
 			ret = -EINVAL;
@@ -188,7 +150,7 @@ static int rk_load_data(struct rk_crypto_dev *rk_dev,
 		alg_ctx->addr_in = sg_dma_address(sg_src);
 
 		if (sg_dst) {
-			if (!alg_ctx->is_dma && !dma_map_sg(dev, sg_dst, 1, DMA_FROM_DEVICE)) {
+			if (!alg_ctx->is_dma && !dma_map_sg(dev, sg_dst, nents, DMA_FROM_DEVICE)) {
 				dev_err(dev,
 					"[%s:%d] dma_map_sg(dst)  error\n",
 					__func__, __LINE__);
@@ -200,12 +162,14 @@ static int rk_load_data(struct rk_crypto_dev *rk_dev,
 			alg_ctx->addr_out = sg_dma_address(sg_dst);
 		}
 	} else {
+		alg_ctx->map_nents = 1;
+
 		count = (alg_ctx->left_bytes > rk_dev->vir_max) ?
 			rk_dev->vir_max : alg_ctx->left_bytes;
 
 		if (!sg_pcopy_to_buffer(alg_ctx->req_src, alg_ctx->src_nents,
 					rk_dev->addr_vir, count,
-					alg_ctx->total - alg_ctx->left_bytes)) {
+					alg_ctx->assoclen + alg_ctx->total - alg_ctx->left_bytes)) {
 			dev_err(dev, "[%s:%d] pcopy err\n",
 				__func__, __LINE__);
 			ret = -EINVAL;
@@ -247,6 +211,7 @@ static int rk_unload_data(struct rk_crypto_dev *rk_dev)
 	int ret = 0;
 	struct scatterlist *sg_in, *sg_out;
 	struct rk_alg_ctx *alg_ctx = rk_alg_ctx_cast(rk_dev->async_req);
+	u32 nents;
 
 	CRYPTO_TRACE("aligned = %d, total = %u, left_bytes = %u\n",
 		     alg_ctx->aligned, alg_ctx->total, alg_ctx->left_bytes);
@@ -255,26 +220,42 @@ static int rk_unload_data(struct rk_crypto_dev *rk_dev)
 	if (alg_ctx->total == 0 || alg_ctx->count == 0)
 		return 0;
 
+	nents = alg_ctx->map_nents;
+
 	sg_in = alg_ctx->aligned ? alg_ctx->sg_src : &alg_ctx->sg_tmp;
-	if (!alg_ctx->is_dma)
-		dma_unmap_sg(rk_dev->dev, sg_in, 1, DMA_TO_DEVICE);
+
+	/* only is dma buffer and aligned will skip unmap */
+	if (!alg_ctx->is_dma || !alg_ctx->aligned)
+		dma_unmap_sg(rk_dev->dev, sg_in, nents, DMA_TO_DEVICE);
 
 	if (alg_ctx->sg_dst) {
 		sg_out = alg_ctx->aligned ? alg_ctx->sg_dst : &alg_ctx->sg_tmp;
-		if (!alg_ctx->is_dma)
-			dma_unmap_sg(rk_dev->dev, sg_out, 1, DMA_FROM_DEVICE);
+
+		/* only is dma buffer and aligned will skip unmap */
+		if (!alg_ctx->is_dma || !alg_ctx->aligned)
+			dma_unmap_sg(rk_dev->dev, sg_out, nents, DMA_FROM_DEVICE);
 	}
 
 	if (!alg_ctx->aligned && alg_ctx->req_dst) {
 		if (!sg_pcopy_from_buffer(alg_ctx->req_dst, alg_ctx->dst_nents,
 					  rk_dev->addr_vir, alg_ctx->count,
 					  alg_ctx->total - alg_ctx->left_bytes -
-					  alg_ctx->count)) {
+					  alg_ctx->count + alg_ctx->assoclen)) {
 			ret = -EINVAL;
 			goto exit;
 		}
 	}
 
+	if (alg_ctx->assoclen) {
+		dma_unmap_sg(rk_dev->dev, &alg_ctx->sg_aad, 1, DMA_TO_DEVICE);
+
+		/* copy assoc data to dst */
+		if (!sg_pcopy_from_buffer(alg_ctx->req_dst, sg_nents(alg_ctx->req_dst),
+					  rk_dev->addr_aad, alg_ctx->assoclen, 0)) {
+			ret = -EINVAL;
+			goto exit;
+		}
+	}
 exit:
 	return ret;
 }
@@ -441,10 +422,13 @@ static struct rk_crypto_algt *rk_crypto_find_algs(struct rk_crypto_dev *rk_dev,
 	u32 i;
 	struct rk_crypto_algt **algs;
 	struct rk_crypto_algt *tmp_algs;
+	uint32_t total_algs_num = 0;
 
-	algs = rk_dev->soc_data->total_algs;
+	algs = rk_dev->soc_data->hw_get_algts(&total_algs_num);
+	if (!algs || total_algs_num == 0)
+		return NULL;
 
-	for (i = 0; i < rk_dev->soc_data->total_algs_num; i++, algs++) {
+	for (i = 0; i < total_algs_num; i++, algs++) {
 		tmp_algs = *algs;
 		tmp_algs->rk_dev = rk_dev;
 
@@ -467,10 +451,17 @@ static int rk_crypto_register(struct rk_crypto_dev *rk_dev)
 
 	algs_name = soc_data->valid_algs_name;
 
+	rk_dev->request_crypto(rk_dev, __func__);
+
 	for (i = 0; i < soc_data->valid_algs_num; i++, algs_name++) {
 		tmp_algs = rk_crypto_find_algs(rk_dev, *algs_name);
 		if (!tmp_algs) {
 			CRYPTO_TRACE("%s not matched!!!\n", *algs_name);
+			continue;
+		}
+
+		if (soc_data->hw_is_algo_valid && !soc_data->hw_is_algo_valid(rk_dev, tmp_algs)) {
+			CRYPTO_TRACE("%s skipped!!!\n", *algs_name);
 			continue;
 		}
 
@@ -497,6 +488,11 @@ static int rk_crypto_register(struct rk_crypto_dev *rk_dev)
 			err = crypto_register_ahash(&tmp_algs->alg.hash);
 		} else if (tmp_algs->type == ALG_TYPE_ASYM) {
 			err = crypto_register_akcipher(&tmp_algs->alg.asym);
+		} else if (tmp_algs->type == ALG_TYPE_AEAD) {
+			if (soc_data->use_soft_aes192 &&
+			    tmp_algs->algo == CIPHER_ALGO_AES)
+				tmp_algs->use_soft_aes192 = true;
+			err = crypto_register_aead(&tmp_algs->alg.aead);
 		} else {
 			continue;
 		}
@@ -506,6 +502,9 @@ static int rk_crypto_register(struct rk_crypto_dev *rk_dev)
 
 		CRYPTO_TRACE("%s register OK!!!\n", *algs_name);
 	}
+
+	rk_dev->release_crypto(rk_dev, __func__);
+
 	return 0;
 
 err_cipher_algs:
@@ -513,13 +512,21 @@ err_cipher_algs:
 
 	for (k = 0; k < i; k++, algs_name++) {
 		tmp_algs = rk_crypto_find_algs(rk_dev, *algs_name);
+		if (!tmp_algs)
+			continue;
+
 		if (tmp_algs->type == ALG_TYPE_CIPHER)
 			crypto_unregister_skcipher(&tmp_algs->alg.crypto);
 		else if (tmp_algs->type == ALG_TYPE_HASH || tmp_algs->type == ALG_TYPE_HMAC)
 			crypto_unregister_ahash(&tmp_algs->alg.hash);
 		else if (tmp_algs->type == ALG_TYPE_ASYM)
 			crypto_unregister_akcipher(&tmp_algs->alg.asym);
+		else if (tmp_algs->type == ALG_TYPE_AEAD)
+			crypto_unregister_aead(&tmp_algs->alg.aead);
 	}
+
+	rk_dev->release_crypto(rk_dev, __func__);
+
 	return err;
 }
 
@@ -531,8 +538,13 @@ static void rk_crypto_unregister(struct rk_crypto_dev *rk_dev)
 
 	algs_name = rk_dev->soc_data->valid_algs_name;
 
+	rk_dev->request_crypto(rk_dev, __func__);
+
 	for (i = 0; i < rk_dev->soc_data->valid_algs_num; i++, algs_name++) {
 		tmp_algs = rk_crypto_find_algs(rk_dev, *algs_name);
+		if (!tmp_algs)
+			continue;
+
 		if (tmp_algs->type == ALG_TYPE_CIPHER)
 			crypto_unregister_skcipher(&tmp_algs->alg.crypto);
 		else if (tmp_algs->type == ALG_TYPE_HASH || tmp_algs->type == ALG_TYPE_HMAC)
@@ -540,6 +552,8 @@ static void rk_crypto_unregister(struct rk_crypto_dev *rk_dev)
 		else if (tmp_algs->type == ALG_TYPE_ASYM)
 			crypto_unregister_akcipher(&tmp_algs->alg.asym);
 	}
+
+	rk_dev->release_crypto(rk_dev, __func__);
 }
 
 static void rk_crypto_request(struct rk_crypto_dev *rk_dev, const char *name)
@@ -564,52 +578,6 @@ static void rk_crypto_action(void *data)
 		reset_control_assert(rk_dev->rst);
 }
 
-static const char * const crypto_v2_rsts[] = {
-	"crypto-rst",
-};
-
-static struct rk_crypto_algt *crypto_v2_algs[] = {
-	&rk_v2_ecb_sm4_alg,		/* ecb(sm4) */
-	&rk_v2_cbc_sm4_alg,		/* cbc(sm4) */
-	&rk_v2_xts_sm4_alg,		/* xts(sm4) */
-	&rk_v2_cfb_sm4_alg,		/* cfb(sm4) */
-	&rk_v2_ofb_sm4_alg,		/* ofb(sm4) */
-	&rk_v2_ctr_sm4_alg,		/* ctr(sm4) */
-
-	&rk_v2_ecb_aes_alg,		/* ecb(aes) */
-	&rk_v2_cbc_aes_alg,		/* cbc(aes) */
-	&rk_v2_xts_aes_alg,		/* xts(aes) */
-	&rk_v2_cfb_aes_alg,		/* cfb(aes) */
-	&rk_v2_ofb_aes_alg,		/* ofb(aes) */
-	&rk_v2_ctr_aes_alg,		/* ctr(aes) */
-
-	&rk_v2_ecb_des_alg,		/* ecb(des) */
-	&rk_v2_cbc_des_alg,		/* cbc(des) */
-	&rk_v2_cfb_des_alg,		/* cfb(des) */
-	&rk_v2_ofb_des_alg,		/* ofb(des) */
-
-	&rk_v2_ecb_des3_ede_alg,	/* ecb(des3_ede) */
-	&rk_v2_cbc_des3_ede_alg,	/* cbc(des3_ede) */
-	&rk_v2_cfb_des3_ede_alg,	/* cfb(des3_ede) */
-	&rk_v2_ofb_des3_ede_alg,	/* ofb(des3_ede) */
-
-	&rk_v2_ahash_sha1,		/* sha1 */
-	&rk_v2_ahash_sha224,		/* sha224 */
-	&rk_v2_ahash_sha256,		/* sha256 */
-	&rk_v2_ahash_sha384,		/* sha384 */
-	&rk_v2_ahash_sha512,		/* sha512 */
-	&rk_v2_ahash_md5,		/* md5 */
-	&rk_v2_ahash_sm3,		/* sm3 */
-
-	&rk_v2_hmac_sha1,		/* hmac(sha1) */
-	&rk_v2_hmac_sha256,		/* hmac(sha256) */
-	&rk_v2_hmac_sha512,		/* hmac(sha512) */
-	&rk_v2_hmac_md5,		/* hmac(md5) */
-	&rk_v2_hmac_sm3,		/* hmac(sm3) */
-
-	&rk_v2_asym_rsa,		/* rsa */
-};
-
 static char *crypto_no_sm_algs_name[] = {
 	"ecb(aes)", "cbc(aes)", "cfb(aes)", "ofb(aes)", "ctr(aes)",
 	"ecb(des)", "cbc(des)", "cfb(des)", "ofb(des)",
@@ -620,8 +588,8 @@ static char *crypto_no_sm_algs_name[] = {
 };
 
 static char *crypto_rv1126_algs_name[] = {
-	"ecb(sm4)", "cbc(sm4)", "cfb(sm4)", "ofb(sm4)", "ctr(sm4)",
-	"ecb(aes)", "cbc(aes)", "cfb(aes)", "ofb(aes)", "ctr(aes)",
+	"ecb(sm4)", "cbc(sm4)", "cfb(sm4)", "ofb(sm4)", "ctr(sm4)", "gcm(sm4)",
+	"ecb(aes)", "cbc(aes)", "cfb(aes)", "ofb(aes)", "ctr(aes)", "gcm(aes)",
 	"ecb(des)", "cbc(des)", "cfb(des)", "ofb(des)",
 	"ecb(des3_ede)", "cbc(des3_ede)", "cfb(des3_ede)", "ofb(des3_ede)",
 	"sha1", "sha256", "sha512", "md5", "sm3",
@@ -630,8 +598,8 @@ static char *crypto_rv1126_algs_name[] = {
 };
 
 static char *crypto_full_algs_name[] = {
-	"ecb(sm4)", "cbc(sm4)", "cfb(sm4)", "ofb(sm4)", "ctr(sm4)",
-	"ecb(aes)", "cbc(aes)", "cfb(aes)", "ofb(aes)", "ctr(aes)",
+	"ecb(sm4)", "cbc(sm4)", "cfb(sm4)", "ofb(sm4)", "ctr(sm4)", "gcm(sm4)",
+	"ecb(aes)", "cbc(aes)", "cfb(aes)", "ofb(aes)", "ctr(aes)", "gcm(aes)",
 	"ecb(des)", "cbc(des)", "cfb(des)", "ofb(des)",
 	"ecb(des3_ede)", "cbc(des3_ede)", "cfb(des3_ede)", "ofb(des3_ede)",
 	"sha1", "sha224", "sha256", "sha384", "sha512", "md5", "sm3",
@@ -648,24 +616,8 @@ static const struct rk_crypto_soc_data rv1126_soc_data =
 static const struct rk_crypto_soc_data full_soc_data =
 	RK_CRYPTO_V2_SOC_DATA_INIT(crypto_full_algs_name, false);
 
-static const char * const crypto_v1_rsts[] = {
-	"crypto-rst",
-};
-
-static struct rk_crypto_algt *crypto_v1_algs[] = {
-	&rk_v1_ecb_aes_alg,		/* ecb(aes) */
-	&rk_v1_cbc_aes_alg,		/* cbc(aes) */
-
-	&rk_v1_ecb_des_alg,		/* ecb(des) */
-	&rk_v1_cbc_des_alg,		/* cbc(des) */
-
-	&rk_v1_ecb_des3_ede_alg,	/* ecb(des3_ede) */
-	&rk_v1_cbc_des3_ede_alg,	/* cbc(des3_ede) */
-
-	&rk_v1_ahash_sha1,		/* sha1 */
-	&rk_v1_ahash_sha256,		/* sha256 */
-	&rk_v1_ahash_md5,		/* md5 */
-};
+static const struct rk_crypto_soc_data cryto_v3_soc_data =
+	RK_CRYPTO_V3_SOC_DATA_INIT(crypto_full_algs_name);
 
 static char *rk3288_cipher_algs[] = {
 	"ecb(aes)", "cbc(aes)",
@@ -678,6 +630,16 @@ static const struct rk_crypto_soc_data rk3288_soc_data =
 	RK_CRYPTO_V1_SOC_DATA_INIT(rk3288_cipher_algs);
 
 static const struct of_device_id crypto_of_id_table[] = {
+
+#if IS_ENABLED(CONFIG_CRYPTO_DEV_ROCKCHIP_V3)
+	/* crypto v3 in belows */
+	{
+		.compatible = "rockchip,crypto-v3",
+		.data = (void *)&cryto_v3_soc_data,
+	},
+#endif
+
+#if IS_ENABLED(CONFIG_CRYPTO_DEV_ROCKCHIP_V2)
 	/* crypto v2 in belows */
 	{
 		.compatible = "rockchip,px30-crypto",
@@ -695,11 +657,16 @@ static const struct of_device_id crypto_of_id_table[] = {
 		.compatible = "rockchip,rk3588-crypto",
 		.data = (void *)&full_soc_data,
 	},
+#endif
+
+#if IS_ENABLED(CONFIG_CRYPTO_DEV_ROCKCHIP_V1)
 	/* crypto v1 in belows */
 	{
 		.compatible = "rockchip,rk3288-crypto",
 		.data = (void *)&rk3288_soc_data,
 	},
+#endif
+
 	{ /* sentinel */ }
 };
 
@@ -713,6 +680,8 @@ static int rk_crypto_probe(struct platform_device *pdev)
 	struct rk_crypto_soc_data *soc_data;
 	const struct of_device_id *match;
 	struct rk_crypto_dev *rk_dev;
+	const char * const *rsts;
+	uint32_t rst_num = 0;
 	int err = 0;
 
 	rk_dev = devm_kzalloc(&pdev->dev,
@@ -726,9 +695,10 @@ static int rk_crypto_probe(struct platform_device *pdev)
 	soc_data = (struct rk_crypto_soc_data *)match->data;
 	rk_dev->soc_data = soc_data;
 
-	if (soc_data->rsts[0]) {
+	rsts = soc_data->hw_get_rsts(&rst_num);
+	if (rsts && rsts[0]) {
 		rk_dev->rst =
-			devm_reset_control_get(dev, soc_data->rsts[0]);
+			devm_reset_control_get(dev, rsts[0]);
 		if (IS_ERR(rk_dev->rst)) {
 			err = PTR_ERR(rk_dev->rst);
 			goto err_crypto;
@@ -814,6 +784,15 @@ static int rk_crypto_probe(struct platform_device *pdev)
 
 	rk_dev->vir_max = RK_BUFFER_SIZE;
 
+	rk_dev->addr_aad = (void *)__get_free_page(GFP_KERNEL);
+	if (!rk_dev->addr_aad) {
+		err = -ENOMEM;
+		dev_err(dev, "__get_free_page failed.\n");
+		goto err_crypto;
+	}
+
+	rk_dev->aad_max = RK_BUFFER_SIZE;
+
 	platform_set_drvdata(pdev, rk_dev);
 
 	tasklet_init(&rk_dev->queue_task,
@@ -863,6 +842,9 @@ static int rk_crypto_remove(struct platform_device *pdev)
 
 	if (rk_dev->addr_vir)
 		free_pages((unsigned long)rk_dev->addr_vir, RK_BUFFER_ORDER);
+
+	if (rk_dev->addr_aad)
+		free_page((unsigned long)rk_dev->addr_aad);
 
 	rk_dev->soc_data->hw_deinit(&pdev->dev, rk_dev->hw_info);
 

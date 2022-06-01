@@ -264,6 +264,54 @@ struct arm_smccc_res sip_smc_lastlog_request(void)
 }
 EXPORT_SYMBOL_GPL(sip_smc_lastlog_request);
 
+int sip_smc_amp_config(u32 sub_func_id, u32 arg1, u32 arg2, u32 arg3)
+{
+	struct arm_smccc_res res;
+
+	arm_smccc_smc(RK_SIP_AMP_CFG, sub_func_id, arg1, arg2, arg3,
+		      0, 0, 0, &res);
+	return res.a0;
+}
+EXPORT_SYMBOL_GPL(sip_smc_amp_config);
+
+struct arm_smccc_res sip_smc_get_amp_info(u32 sub_func_id, u32 arg1)
+{
+	struct arm_smccc_res res;
+
+	arm_smccc_smc(RK_SIP_AMP_CFG, sub_func_id, arg1, 0, 0, 0, 0, 0, &res);
+	return res;
+}
+EXPORT_SYMBOL_GPL(sip_smc_get_amp_info);
+
+void __iomem *sip_hdcp_request_share_memory(int id)
+{
+	static void __iomem *base;
+	struct arm_smccc_res res;
+
+	if (id < 0 || id >= MAX_DEVICE) {
+		pr_err("%s: invalid device id\n", __func__);
+		return NULL;
+	}
+
+	if (!base) {
+		/* request page share memory */
+		res = sip_smc_request_share_mem(2, SHARE_PAGE_TYPE_HDCP);
+		if (IS_SIP_ERROR(res.a0))
+			return NULL;
+		base = (void __iomem *)res.a1;
+	}
+
+	return base + id * 1024;
+}
+
+struct arm_smccc_res sip_hdcp_config(u32 arg0, u32 arg1, u32 arg2)
+{
+	struct arm_smccc_res res;
+
+	res = __invoke_sip_fn_smc(SIP_HDCP_CONFIG, arg0, arg1, arg2);
+	return res;
+}
+
 /************************** fiq debugger **************************************/
 /*
  * AArch32 is not allowed to call SMC64(ATF framework does not support), so we
@@ -536,6 +584,18 @@ int sip_fiq_control(u32 sub_func, u32 irq, unsigned long data)
 	return res.a0;
 }
 EXPORT_SYMBOL_GPL(sip_fiq_control);
+
+int sip_wdt_config(u32 sub_func, u32 arg1, u32 arg2, u32 arg3)
+{
+	struct arm_smccc_res res;
+
+	arm_smccc_smc(SIP_WDT_CFG, sub_func, arg1, arg2, arg3,
+		      0, 0, 0, &res);
+
+	return res.a0;
+}
+EXPORT_SYMBOL_GPL(sip_wdt_config);
+
 /******************************************************************************/
 #ifdef CONFIG_ARM
 static __init int sip_firmware_init(void)

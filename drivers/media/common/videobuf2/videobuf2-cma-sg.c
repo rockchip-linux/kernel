@@ -102,7 +102,7 @@ static int vb2_cma_sg_alloc_contiguous(struct vb2_cma_sg_buf *buf)
 	int i;
 	bool cma_en = false;
 
-	if (IS_ENABLED(CONFIG_DMA_CMA)) {
+	if (IS_ENABLED(CONFIG_CMA)) {
 		struct rk_dma_heap *heap = rk_dma_heap_find("rk-dma-heap-cma");
 
 		cma_en = true;
@@ -113,8 +113,8 @@ static int vb2_cma_sg_alloc_contiguous(struct vb2_cma_sg_buf *buf)
 			page = cma_alloc(dev_get_cma_area(buf->dev), buf->num_pages,
 					 get_order(buf->size), GFP_KERNEL);
 	}
-	if (!page) {
-		pr_err("CONFIG_DMA_CMA en:%d alloc pages fail\n", cma_en);
+	if (IS_ERR_OR_NULL(page)) {
+		pr_err("%s: cma_en:%d alloc pages fail\n", __func__, cma_en);
 		return -ENOMEM;
 	}
 	for (i = 0; i < buf->num_pages; i++)
@@ -125,7 +125,7 @@ static int vb2_cma_sg_alloc_contiguous(struct vb2_cma_sg_buf *buf)
 
 static void vb2_cma_sg_free_contiguous(struct vb2_cma_sg_buf *buf)
 {
-	if (IS_ENABLED(CONFIG_DMA_CMA)) {
+	if (IS_ENABLED(CONFIG_CMA)) {
 		struct rk_dma_heap *heap = rk_dma_heap_find("rk-dma-heap-cma");
 
 		if (heap)

@@ -1958,6 +1958,10 @@ static void vop_plane_atomic_update(struct drm_plane *plane,
 	spin_lock(&vop->reg_lock);
 
 	VOP_WIN_SET(vop, win, format, vop_plane_state->format);
+
+	VOP_WIN_SET(vop, win, interlace_read,
+		    (adjusted_mode->flags & DRM_MODE_FLAG_INTERLACE) ? 1 : 0);
+
 	VOP_WIN_SET(vop, win, yrgb_vir, DIV_ROUND_UP(fb->pitches[0], 4));
 	VOP_WIN_SET(vop, win, yrgb_mst, vop_plane_state->yrgb_mst);
 
@@ -2646,10 +2650,10 @@ remove:
 }
 
 static enum drm_mode_status
-vop_crtc_mode_valid(struct drm_crtc *crtc, const struct drm_display_mode *mode,
-		    int output_type)
+vop_crtc_mode_valid(struct drm_crtc *crtc, const struct drm_display_mode *mode)
 {
 	struct vop *vop = to_vop(crtc);
+	struct rockchip_crtc_state *s = to_rockchip_crtc_state(crtc->state);
 	const struct vop_data *vop_data = vop->data;
 	int request_clock = mode->clock;
 	int clock;
@@ -2669,8 +2673,8 @@ vop_crtc_mode_valid(struct drm_crtc *crtc, const struct drm_display_mode *mode,
 	/*
 	 * Hdmi or DisplayPort request a Accurate clock.
 	 */
-	if (output_type == DRM_MODE_CONNECTOR_HDMIA ||
-	    output_type == DRM_MODE_CONNECTOR_DisplayPort)
+	if (s->output_type == DRM_MODE_CONNECTOR_HDMIA ||
+	    s->output_type == DRM_MODE_CONNECTOR_DisplayPort)
 		if (clock != request_clock)
 			return MODE_CLOCK_RANGE;
 
@@ -2955,7 +2959,6 @@ static const struct rockchip_crtc_funcs private_crtc_funcs = {
 	.debugfs_init = vop_crtc_debugfs_init,
 	.debugfs_dump = vop_crtc_debugfs_dump,
 	.regs_dump = vop_crtc_regs_dump,
-	.mode_valid = vop_crtc_mode_valid,
 	.bandwidth = vop_crtc_bandwidth,
 	.crtc_close = vop_crtc_close,
 	.crtc_send_mcu_cmd = vop_crtc_send_mcu_cmd,
@@ -3043,8 +3046,10 @@ static void vop_update_csc(struct drm_crtc *crtc)
 	struct vop *vop = to_vop(crtc);
 	u32 val;
 
-	if (s->output_mode == ROCKCHIP_OUT_MODE_AAAA &&
-	    !(vop->data->feature & VOP_FEATURE_OUTPUT_10BIT))
+	if ((s->output_mode == ROCKCHIP_OUT_MODE_AAAA &&
+	     !(vop->data->feature & VOP_FEATURE_OUTPUT_10BIT)) ||
+	    (VOP_MAJOR(vop->version) == 2 && VOP_MINOR(vop->version) >= 12 &&
+	     s->output_if & VOP_OUTPUT_IF_BT656))
 		s->output_mode = ROCKCHIP_OUT_MODE_P888;
 
 	if (is_uv_swap(s->bus_format, s->output_mode))
@@ -3213,6 +3218,8 @@ static void vop_crtc_atomic_enable(struct drm_crtc *crtc,
 			yc_swap = is_yc_swap(s->bus_format);
 			VOP_CTRL_SET(vop, bt1120_yc_swap, yc_swap);
 			VOP_CTRL_SET(vop, yuv_clip, 1);
+		} else if (s->output_if & VOP_OUTPUT_IF_BT656) {
+			VOP_CTRL_SET(vop, bt656_en, 1);
 		}
 		break;
 	case DRM_MODE_CONNECTOR_eDP:
@@ -3299,7 +3306,8 @@ static void vop_crtc_atomic_enable(struct drm_crtc *crtc,
 	VOP_CTRL_SET(vop, vtotal_pw, vtotal << 16 | vsync_len);
 
 	VOP_CTRL_SET(vop, core_dclk_div,
-		     !!(adjusted_mode->flags & DRM_MODE_FLAG_DBLCLK));
+		     !!(adjusted_mode->flags & DRM_MODE_FLAG_DBLCLK) ||
+		     s->output_if & VOP_OUTPUT_IF_BT656);
 
 	VOP_CTRL_SET(vop, win_csc_mode_sel, 1);
 
@@ -3946,6 +3954,7 @@ static void vop_crtc_atomic_flush(struct drm_crtc *crtc,
 
 static const struct drm_crtc_helper_funcs vop_crtc_helper_funcs = {
 	.mode_fixup = vop_crtc_mode_fixup,
+	.mode_valid = vop_crtc_mode_valid,
 	.atomic_check = vop_crtc_atomic_check,
 	.atomic_flush = vop_crtc_atomic_flush,
 	.atomic_enable = vop_crtc_atomic_enable,

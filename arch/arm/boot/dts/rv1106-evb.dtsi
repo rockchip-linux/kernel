@@ -2,6 +2,7 @@
 /*
  * Copyright (c) 2022 Rockchip Electronics Co., Ltd.
  */
+#include "rv1106-amp.dtsi"
 
 / {
 
@@ -20,10 +21,59 @@
 	status = "okay";
 };
 
+&mpp_srv {
+	status = "okay";
+};
+
+&mpp_vcodec {
+	status = "okay";
+};
+
+&npu {
+	status = "okay";
+};
+
+&rga2 {
+	status = "okay";
+};
+
+&rkdvbm {
+	status = "okay";
+};
+
+&rkvenc {
+	status = "okay";
+};
+
+&rkvenc_pp {
+	status = "okay";
+};
+
 &rng {
 	status = "okay";
 };
 
 &rve {
+	status = "okay";
+};
+
+&tsadc {
+	status = "okay";
+};
+
+&u2phy {
+	status = "okay";
+};
+
+&u2phy_otg {
+	status = "okay";
+};
+
+&usbdrd {
+	status = "okay";
+};
+
+&usbdrd_dwc3 {
+	extcon = <&u2phy>;
 	status = "okay";
 };

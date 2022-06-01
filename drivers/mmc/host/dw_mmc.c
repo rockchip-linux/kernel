@@ -36,6 +36,7 @@
 #include <linux/of.h>
 #include <linux/of_gpio.h>
 #include <linux/mmc/slot-gpio.h>
+#include <linux/soc/rockchip/rk_sdmmc.h>
 #include <linux/soc/rockchip/rockchip_decompress.h>
 
 #include "dw_mmc.h"
@@ -104,6 +105,24 @@ struct idmac_desc {
 
 /* Each descriptor can transfer up to 4KB of data in chained mode */
 #define DW_MCI_DESC_DATA_LENGTH	0x1000
+
+#if IS_ENABLED(CONFIG_CPU_RV1106)
+static spinlock_t *g_sdmmc_ispvicap_lock;
+
+void rv1106_sdmmc_get_lock(void)
+{
+	if (g_sdmmc_ispvicap_lock)
+		spin_lock(g_sdmmc_ispvicap_lock);
+}
+EXPORT_SYMBOL(rv1106_sdmmc_get_lock);
+
+void rv1106_sdmmc_put_lock(void)
+{
+	if (g_sdmmc_ispvicap_lock)
+		spin_unlock(g_sdmmc_ispvicap_lock);
+}
+EXPORT_SYMBOL(rv1106_sdmmc_put_lock);
+#endif
 
 #if defined(CONFIG_DEBUG_FS)
 static int dw_mci_req_show(struct seq_file *s, void *v)
@@ -463,14 +482,20 @@ static void dw_mci_idmac_stop_dma(struct dw_mci *host)
 
 	/* Disable and reset the IDMAC interface */
 	temp = mci_readl(host, CTRL);
-	temp &= ~SDMMC_CTRL_USE_IDMAC;
+	if (!host->is_rv1106_sd)
+		temp &= ~SDMMC_CTRL_USE_IDMAC;
+
 	temp |= SDMMC_CTRL_DMA_RESET;
 	mci_writel(host, CTRL, temp);
 
 	/* Stop the IDMAC running */
 	temp = mci_readl(host, BMOD);
-	temp &= ~(SDMMC_IDMAC_ENABLE | SDMMC_IDMAC_FB);
-	temp |= SDMMC_IDMAC_SWRESET;
+	if (host->is_rv1106_sd) {
+		temp |= SDMMC_IDMAC_SWRESET;
+	} else {
+		temp &= ~(SDMMC_IDMAC_ENABLE | SDMMC_IDMAC_FB);
+		temp |= SDMMC_IDMAC_SWRESET;
+	}
 	mci_writel(host, BMOD, temp);
 }
 
@@ -711,6 +736,13 @@ static inline int dw_mci_prepare_desc32(struct dw_mci *host,
 		}
 	}
 
+	if (host->is_rv1106_sd && (data->flags & MMC_DATA_WRITE)) {
+		desc->des0 = desc_last->des0;
+		desc->des2 = desc_last->des2;
+		desc->des1 = 0x8; /* Random dirty data for last one desc */
+		desc_last = desc;
+	}
+
 	/* Set first descriptor */
 	desc_first->des0 |= cpu_to_le32(IDMAC_DES0_FD);
 
@@ -895,7 +927,7 @@ static int dw_mci_pre_dma_transfer(struct dw_mci *host,
 	 * non-word-aligned buffers or lengths. Also, we don't bother
 	 * with all the DMA setup overhead for short transfers.
 	 */
-	if (data->blocks * data->blksz < DW_MCI_DMA_THRESHOLD)
+	if (data->blocks * data->blksz < DW_MCI_DMA_THRESHOLD && !host->is_rv1106_sd)
 		return -EINVAL;
 
 	if (data->blksz & 3)
@@ -1308,10 +1340,16 @@ static void __dw_mci_start_request(struct dw_mci *host,
 	host->data_status = 0;
 	host->dir_status = 0;
 
+	if (host->is_rv1106_sd)
+		mci_writel(host, CTYPE, (slot->ctype << slot->id));
+
 	data = cmd->data;
 	if (data) {
 		mci_writel(host, TMOUT, 0xFFFFFFFF);
-		mci_writel(host, BYTCNT, data->blksz*data->blocks);
+		if (host->is_rv1106_sd && (data->flags & MMC_DATA_WRITE))
+			mci_writel(host, BYTCNT, 0);
+		else
+			mci_writel(host, BYTCNT, data->blksz*data->blocks);
 		mci_writel(host, BLKSIZ, data->blksz);
 	}
 
@@ -1389,6 +1427,7 @@ static void dw_mci_queue_request(struct dw_mci *host, struct dw_mci_slot *slot,
 	}
 }
 
+static bool dw_mci_reset(struct dw_mci *host);
 static void dw_mci_request(struct mmc_host *mmc, struct mmc_request *mrq)
 {
 	struct dw_mci_slot *slot = mmc_priv(mmc);
@@ -1408,7 +1447,17 @@ static void dw_mci_request(struct mmc_host *mmc, struct mmc_request *mrq)
 		return;
 	}
 
+	if (host->is_rv1106_sd) {
+		u32 reg;
+
+		readl_poll_timeout(host->regs + SDMMC_STATUS, reg,
+				   reg & BIT(2), USEC_PER_MSEC, 500 * USEC_PER_MSEC);
+	}
+
 	spin_lock_bh(&host->lock);
+
+	if (host->is_rv1106_sd)
+		dw_mci_reset(host);
 
 	dw_mci_queue_request(host, slot, mrq);
 
@@ -1830,6 +1879,7 @@ static void dw_mci_request_end(struct dw_mci *host, struct mmc_request *mrq)
 	}
 
 	spin_unlock(&host->lock);
+
 	mmc_request_done(prev_mmc, mrq);
 	spin_lock(&host->lock);
 }
@@ -1871,6 +1921,9 @@ static int dw_mci_data_complete(struct dw_mci *host, struct mmc_data *data)
 {
 	u32 status = host->data_status;
 
+	if (host->is_rv1106_sd && (data->flags & MMC_DATA_WRITE) && (status & SDMMC_INT_DATA_OVER))
+		goto finish;
+
 	if (status & DW_MCI_DATA_ERROR_FLAGS) {
 		if (status & SDMMC_INT_DRTO) {
 			data->error = -ETIMEDOUT;
@@ -1903,6 +1956,7 @@ static int dw_mci_data_complete(struct dw_mci *host, struct mmc_data *data)
 		 */
 		dw_mci_reset(host);
 	} else {
+finish:
 		data->bytes_xfered = data->blocks * data->blksz;
 		data->error = 0;
 	}
@@ -2706,11 +2760,14 @@ static irqreturn_t dw_mci_interrupt(int irq, void *dev_id)
 		}
 
 		if (pending & SDMMC_INT_DATA_OVER) {
+rv1106_sd:
 			spin_lock_irqsave(&host->irq_lock, irqflags);
 
 			del_timer(&host->dto_timer);
 
 			mci_writel(host, RINTSTS, SDMMC_INT_DATA_OVER);
+			if (host->is_rv1106_sd)
+				pending |= SDMMC_INT_DATA_OVER;
 			if (!host->data_status)
 				host->data_status = pending;
 			smp_wmb(); /* drain writebuffer */
@@ -2780,6 +2837,9 @@ static irqreturn_t dw_mci_interrupt(int irq, void *dev_id)
 			mci_writel(host, IDSTS, SDMMC_IDMAC_INT_NI);
 			if (!test_bit(EVENT_DATA_ERROR, &host->pending_events))
 				host->dma_ops->complete((void *)host);
+
+			if (host->is_rv1106_sd && (pending & SDMMC_IDMAC_INT_TI))
+				goto rv1106_sd;
 		}
 	}
 
@@ -2867,6 +2927,10 @@ static int dw_mci_init_slot(struct dw_mci *host)
 
 	/* Useful defaults if platform data is unset. */
 	if (host->use_dma == TRANS_MODE_IDMAC) {
+		/* Reserve last desc for dirty data */
+		if (host->is_rv1106_sd)
+			host->ring_size--;
+
 		mmc->max_segs = host->ring_size;
 		mmc->max_blk_size = 65535;
 		mmc->max_seg_size = 0x1000;
@@ -3234,60 +3298,6 @@ int dw_mci_probe(struct dw_mci *host)
 	int width, i, ret = 0;
 	u32 fifo_size;
 
-#if defined(CONFIG_ROCKCHIP_THUNDER_BOOT) && defined(CONFIG_ROCKCHIP_HW_DECOMPRESS)
-	struct resource idmac, ramdisk_src, ramdisk_dst;
-	struct device_node *dma, *rds, *rdd;
-	struct device *dev = host->dev;
-	u32 intr;
-
-	if (host->slot->mmc->caps2 & MMC_CAP2_NO_SD &&
-	    host->slot->mmc->caps2 & MMC_CAP2_NO_SDIO) {
-		if (readl_poll_timeout(host->regs + SDMMC_STATUS,
-				fifo_size,
-				!(fifo_size & (BIT(10) | GENMASK(7, 4))),
-				0, 500 * USEC_PER_MSEC))
-			dev_err(dev, "Controller is occupied!\n");
-
-		if (readl_poll_timeout(host->regs + SDMMC_IDSTS,
-				fifo_size, !(fifo_size & GENMASK(16, 13)),
-				0, 500 * USEC_PER_MSEC))
-			dev_err(dev, "DMA is still running!\n");
-
-		intr = mci_readl(host, RINTSTS);
-		if (intr & DW_MCI_CMD_ERROR_FLAGS || intr & DW_MCI_DATA_ERROR_FLAGS) {
-			WARN_ON(1);
-			return -EINVAL;
-		}
-
-		/* Release idmac descriptor */
-		dma = of_parse_phandle(dev->of_node, "memory-region-idamc", 0);
-		if (dma) {
-			ret = of_address_to_resource(dma, 0, &idmac);
-			if (ret >= 0)
-				free_reserved_area(phys_to_virt(idmac.start),
-					phys_to_virt(idmac.start) + resource_size(&idmac),
-					-1, NULL);
-		}
-
-		/* Parse ramdisk addr and help start decompressing */
-		rds = of_parse_phandle(dev->of_node, "memory-region-src", 0);
-		rdd = of_parse_phandle(dev->of_node, "memory-region-dst", 0);
-		if (rds && rdd) {
-			if (of_address_to_resource(rds, 0, &ramdisk_src) >= 0 &&
-				of_address_to_resource(rdd, 0, &ramdisk_dst) >= 0)
-				/*
-				 * Decompress HW driver will free reserved area of
-				 * memory-region-src.
-				 */
-				ret = rk_decom_start(GZIP_MOD, ramdisk_src.start,
-						     ramdisk_dst.start,
-						     resource_size(&ramdisk_dst));
-			if (ret < 0)
-				dev_err(dev, "fail to start decom\n");
-		}
-	}
-#endif
-
 	if (!host->pdata) {
 		host->pdata = dw_mci_parse_dt(host);
 		if (IS_ERR(host->pdata))
@@ -3305,6 +3315,24 @@ int dw_mci_probe(struct dw_mci *host)
 			return ret;
 		}
 	}
+
+#ifdef CONFIG_ROCKCHIP_THUNDER_BOOT
+	if (device_property_read_bool(host->dev, "no-sd") &&
+	    device_property_read_bool(host->dev, "no-sdio")) {
+		if (readl_poll_timeout(host->regs + SDMMC_STATUS,
+				fifo_size,
+				!(fifo_size & (BIT(10) | GENMASK(7, 4))),
+				0, 500 * USEC_PER_MSEC))
+			dev_err(host->dev, "Controller is occupied!\n");
+
+		if (readl_poll_timeout(host->regs + SDMMC_IDSTS,
+				fifo_size, !(fifo_size & GENMASK(16, 13)),
+				0, 500 * USEC_PER_MSEC))
+			dev_err(host->dev, "DMA is still running!\n");
+
+		BUG_ON(mci_readl(host, RINTSTS) & DW_MCI_ERROR_FLAGS);
+	}
+#endif
 
 	host->ciu_clk = devm_clk_get(host->dev, "ciu");
 	if (IS_ERR(host->ciu_clk)) {
@@ -3467,6 +3495,24 @@ int dw_mci_probe(struct dw_mci *host)
 		goto err_dmaunmap;
 	}
 
+	if (host->is_rv1106_sd) {
+#if IS_ENABLED(CONFIG_CPU_RV1106)
+		g_sdmmc_ispvicap_lock = &host->lock;
+#endif
+		/* Select IDMAC interface */
+		fifo_size = mci_readl(host, CTRL);
+		fifo_size |= SDMMC_CTRL_USE_IDMAC;
+		mci_writel(host, CTRL, fifo_size);
+
+		fifo_size = mci_readl(host, INTMASK);
+		fifo_size &= ~SDMMC_INT_HTO;
+		mci_writel(host, INTMASK, fifo_size);
+
+		host->slot->mmc->caps &= ~(MMC_CAP_UHS_DDR50 | MMC_CAP_UHS_SDR104 |
+					   MMC_CAP_UHS_SDR50 | MMC_CAP_UHS_SDR25 |
+					   MMC_CAP_UHS_SDR12);
+	}
+
 	/* Now that slots are all setup, we can enable card detect */
 	dw_mci_enable_cd(host);
 
@@ -3576,6 +3622,16 @@ int dw_mci_runtime_resume(struct device *dev)
 		   DW_MCI_ERROR_FLAGS);
 	mci_writel(host, CTRL, SDMMC_CTRL_INT_ENABLE);
 
+	if (host->is_rv1106_sd) {
+		/* Select IDMAC interface */
+		ret = mci_readl(host, CTRL);
+		ret |= SDMMC_CTRL_USE_IDMAC;
+		mci_writel(host, CTRL, ret);
+
+		ret = mci_readl(host, INTMASK);
+		ret &= ~SDMMC_INT_HTO;
+		mci_writel(host, INTMASK, ret);
+	}
 
 	if (host->slot->mmc->pm_flags & MMC_PM_KEEP_POWER)
 		dw_mci_set_ios(host->slot->mmc, &host->slot->mmc->ios);

@@ -22,7 +22,6 @@
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 #include <linux/syscalls.h>
-#include <linux/rk-dma-heap.h>
 #include <uapi/linux/rk-dma-heap.h>
 
 #include "rk-dma-heap.h"
@@ -38,59 +37,7 @@ static struct class *rk_dma_heap_class;
 static DEFINE_XARRAY_ALLOC(rk_dma_heap_minors);
 struct proc_dir_entry *proc_rk_dma_heap_dir;
 
-#define RK_DMA_HEAP_CMA_DEFAULT_SIZE SZ_32M
-
-static unsigned long rk_dma_heap_size __initdata;
-static unsigned long rk_dma_heap_base __initdata;
-
-static struct cma *rk_dma_heap_cma;
-
-static int __init early_dma_heap_cma(char *p)
-{
-	if (!p) {
-		pr_err("Config string not provided\n");
-		return -EINVAL;
-	}
-
-	rk_dma_heap_size = memparse(p, &p);
-	if (*p != '@')
-		return 0;
-	rk_dma_heap_base = memparse(p + 1, &p);
-
-	return 0;
-}
-early_param("rk_dma_heap_cma", early_dma_heap_cma);
-
-int __init rk_dma_heap_cma_setup(void)
-{
-	unsigned long size;
-	int ret;
-	bool fix = false;
-
-	if (rk_dma_heap_size)
-		size = rk_dma_heap_size;
-	else
-		size = RK_DMA_HEAP_CMA_DEFAULT_SIZE;
-
-	if (rk_dma_heap_base)
-		fix = true;
-
-	ret = cma_declare_contiguous(rk_dma_heap_base, size, 0x0, 0, 0, fix,
-				     "rk-dma-heap-cma", &rk_dma_heap_cma);
-	if (ret)
-		return ret;
-
-	/* Architecture specific contiguous memory fixup. */
-	dma_contiguous_early_fixup(cma_get_base(rk_dma_heap_cma),
-				   cma_get_size(rk_dma_heap_cma));
-
-	return 0;
-}
-
-struct cma *rk_dma_heap_get_cma(void)
-{
-	return rk_dma_heap_cma;
-}
+#define K(size) ((unsigned long)((size) >> 10))
 
 static int rk_vmap_pfn_apply(pte_t *pte, unsigned long addr, void *private)
 {
@@ -173,6 +120,8 @@ struct dma_buf *rk_dma_heap_buffer_alloc(struct rk_dma_heap *heap, size_t len,
 					 unsigned int heap_flags,
 					 const char *name)
 {
+	struct dma_buf *dmabuf;
+
 	if (fd_flags & ~RK_DMA_HEAP_VALID_FD_FLAGS)
 		return ERR_PTR(-EINVAL);
 
@@ -186,7 +135,12 @@ struct dma_buf *rk_dma_heap_buffer_alloc(struct rk_dma_heap *heap, size_t len,
 	if (!len)
 		return ERR_PTR(-EINVAL);
 
-	return heap->ops->allocate(heap, len, fd_flags, heap_flags, name);
+	dmabuf = heap->ops->allocate(heap, len, fd_flags, heap_flags, name);
+
+	if (IS_ENABLED(CONFIG_DMABUF_RK_HEAPS_DEBUG) && !IS_ERR(dmabuf))
+		dma_buf_set_name(dmabuf, name);
+
+	return dmabuf;
 }
 EXPORT_SYMBOL_GPL(rk_dma_heap_buffer_alloc);
 
@@ -209,6 +163,7 @@ int rk_dma_heap_bufferfd_alloc(struct rk_dma_heap *heap, size_t len,
 		dma_buf_put(dmabuf);
 		/* just return, as put will call release and that will free */
 	}
+
 	return fd;
 
 }
@@ -545,9 +500,9 @@ static int rk_dma_heap_dump_dmabuf(const struct dma_buf *dmabuf, void *data)
 					   dmabuf->file->f_inode->i_ino);
 				size = buf->end - buf->start + 1;
 				seq_printf(heap->s,
-					   "\tAlloc by (%s)\t[%pa-%pa]\t%pa\n",
+					   "\tAlloc by (%-20s)\t[%pa-%pa]\t%pa (%lu KiB)\n",
 					   buf->orig_alloc, &buf->start,
-					   &buf->end, &size);
+					   &buf->end, &size, K(size));
 				seq_puts(heap->s, "\t\tAttached Devices:\n");
 				attach_count = 0;
 				ret = dma_resv_lock_interruptible(dmabuf->resv,
@@ -585,8 +540,8 @@ static int rk_dma_heap_dump_contig(void *data)
 	list_for_each_entry(buf, &heap->contig_list, node) {
 		size = buf->end - buf->start + 1;
 		seq_printf(heap->s, "dma-heap:<%s> -non dmabuf\n", heap->name);
-		seq_printf(heap->s, "\tAlloc by (%s)\t[%pa-%pa]\t%pa\n",
-			   buf->orig_alloc, &buf->start, &buf->end, &size);
+		seq_printf(heap->s, "\tAlloc by (%-20s)\t[%pa-%pa]\t%pa (%lu KiB)\n",
+			   buf->orig_alloc, &buf->start, &buf->end, &size, K(size));
 	}
 	mutex_unlock(&heap->contig_lock);
 
@@ -660,7 +615,7 @@ static int rk_dma_heap_debug_show(struct seq_file *s, void *unused)
 		rk_dma_heap_dump_contig(heap);
 		total += heap->total_size;
 	}
-	seq_printf(s, "\nTotal : 0x%lx\n", total);
+	seq_printf(s, "\nTotal : 0x%lx (%lu KiB)\n", total, K(total));
 	mutex_unlock(&rk_heap_list_lock);
 
 	return 0;
@@ -709,7 +664,7 @@ static int rk_dma_heap_proc_show(struct seq_file *s, void *unused)
 		rk_dma_heap_dump_contig(heap);
 		total += heap->total_size;
 	}
-	seq_printf(s, "\nTotal : 0x%lx\n", total);
+	seq_printf(s, "\nTotal : 0x%lx (%lu KiB)\n", total, K(total));
 	mutex_unlock(&rk_heap_list_lock);
 
 	return 0;

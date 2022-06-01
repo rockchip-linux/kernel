@@ -31,6 +31,7 @@
 #include <linux/spinlock.h>
 #include "mpp_debug.h"
 #include "mpp_common.h"
+#include "mpp_iommu.h"
 
 struct av1_iommu_domain {
 	struct list_head iommus;
@@ -196,6 +197,18 @@ static void av1_iommu_disable(struct av1_iommu *iommu)
 	clk_bulk_disable(iommu->num_clocks, iommu->clocks);
 }
 
+int mpp_av1_iommu_disable(struct device *dev)
+{
+	struct av1_iommu *iommu = av1_iommu_from_dev(dev);
+
+	if (!iommu->domain)
+		return 0;
+
+	av1_iommu_disable(iommu);
+
+	return 0;
+}
+
 static int av1_iommu_enable(struct av1_iommu *iommu)
 {
 	struct iommu_domain *domain = iommu->domain;
@@ -219,6 +232,16 @@ static int av1_iommu_enable(struct av1_iommu *iommu)
 	}
 	clk_bulk_disable(iommu->num_clocks, iommu->clocks);
 	return ret;
+}
+
+int mpp_av1_iommu_enable(struct device *dev)
+{
+	struct av1_iommu *iommu = av1_iommu_from_dev(dev);
+
+	if (!iommu->domain)
+		return 0;
+
+	return av1_iommu_enable(iommu);
 }
 
 static inline void av1_table_flush(struct av1_iommu_domain *dom, dma_addr_t dma,
@@ -713,6 +736,10 @@ static struct iommu_device *av1_iommu_probe_device(struct device *dev)
 	pr_info("%s,%d, consumer : %s, supplier : %s\n",
 		__func__, __LINE__, dev_name(dev), dev_name(iommu->dev));
 
+	/*
+	 * link will free by platform_device_del(master) via
+	 * BUS_NOTIFY_REMOVED_DEVICE
+	 */
 	data->link = device_link_add(dev, iommu->dev,
 				     DL_FLAG_STATELESS | DL_FLAG_PM_RUNTIME);
 
@@ -729,9 +756,10 @@ static struct iommu_device *av1_iommu_probe_device(struct device *dev)
 
 static void av1_iommu_release_device(struct device *dev)
 {
-	struct av1_iommudata *data = dev_iommu_priv_get(dev);
+	const struct iommu_ops *ops = dev->bus->iommu_ops;
 
-	device_link_del(data->link);
+	/* hack for rmmod */
+	__module_get(ops->owner);
 }
 
 static struct iommu_group *av1_iommu_device_group(struct device *dev)
@@ -765,6 +793,14 @@ static int av1_iommu_of_xlate(struct device *dev,
 	return 0;
 }
 
+static void av1_iommu_probe_finalize(struct device *dev)
+{
+	const struct iommu_ops *ops = dev->bus->iommu_ops;
+
+	/* hack for rmmod */
+	module_put(ops->owner);
+}
+
 static struct iommu_ops av1_iommu_ops = {
 	.domain_alloc = av1_iommu_domain_alloc,
 	.domain_free = av1_iommu_domain_free,
@@ -780,6 +816,7 @@ static struct iommu_ops av1_iommu_ops = {
 	.device_group = av1_iommu_device_group,
 	.pgsize_bitmap = AV1_IOMMU_PGSIZE_BITMAP,
 	.of_xlate = av1_iommu_of_xlate,
+	.probe_finalize = av1_iommu_probe_finalize,
 };
 
 static const struct of_device_id av1_iommu_dt_ids[] = {
@@ -891,6 +928,17 @@ err_unprepare_clocks:
 	return err;
 }
 
+static int av1_iommu_remove(struct platform_device *pdev)
+{
+	struct device *dev = &pdev->dev;
+	struct av1_iommu *iommu = platform_get_drvdata(pdev);
+
+	iommu_device_unregister(&iommu->iommu);
+	iommu_device_sysfs_remove(&iommu->iommu);
+	pm_runtime_disable(dev);
+	return 0;
+}
+
 static void av1_iommu_shutdown(struct platform_device *pdev)
 {
 	struct av1_iommu *iommu = platform_get_drvdata(pdev);
@@ -934,6 +982,7 @@ static const struct dev_pm_ops av1_iommu_pm_ops = {
 
 struct platform_driver rockchip_av1_iommu_driver = {
 	.probe = av1_iommu_probe,
+	.remove = av1_iommu_remove,
 	.shutdown = av1_iommu_shutdown,
 	.driver = {
 		   .name = "av1_iommu",

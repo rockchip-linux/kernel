@@ -345,6 +345,9 @@ struct vop_ctrl {
 	struct vop_reg bt1120_yc_swap;
 	struct vop_reg bt1120_en;
 
+	/* bt656 */
+	struct vop_reg bt656_en;
+
 	struct vop_reg reg_done_frm;
 	struct vop_reg cfg_done;
 };
@@ -509,6 +512,7 @@ struct vop_win_phy {
 	struct vop_reg gate;
 	struct vop_reg enable;
 	struct vop_reg format;
+	struct vop_reg interlace_read;
 	struct vop_reg fmt_10;
 	struct vop_reg fmt_yuyv;
 	struct vop_reg csc_mode;
@@ -549,6 +553,11 @@ struct vop2_cluster_regs {
 	struct vop_reg enable;
 	struct vop_reg afbc_enable;
 	struct vop_reg lb_mode;
+
+	struct vop_reg src_color_ctrl;
+	struct vop_reg dst_color_ctrl;
+	struct vop_reg src_alpha_ctrl;
+	struct vop_reg dst_alpha_ctrl;
 };
 
 struct vop2_scl_regs {
@@ -1034,10 +1043,6 @@ struct vop2_ctrl {
 	struct vop_reg mipi0_ds_mode;
 	struct vop_reg mipi1_ds_mode;
 
-	struct vop_reg cluster0_src_color_ctrl;
-	struct vop_reg cluster0_dst_color_ctrl;
-	struct vop_reg cluster0_src_alpha_ctrl;
-	struct vop_reg cluster0_dst_alpha_ctrl;
 	struct vop_reg src_color_ctrl;
 	struct vop_reg dst_color_ctrl;
 	struct vop_reg src_alpha_ctrl;

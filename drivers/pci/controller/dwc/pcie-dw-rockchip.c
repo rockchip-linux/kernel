@@ -40,6 +40,7 @@
 #include <linux/signal.h>
 #include <linux/types.h>
 #include <linux/uaccess.h>
+#include <linux/version.h>
 #include <linux/pci-epf.h>
 
 #include "pcie-designware.h"
@@ -55,6 +56,7 @@ enum rk_pcie_device_mode {
 
 #define PCIE_DMA_OFFSET			0x380000
 
+#define PCIE_DMA_CTRL_OFF		0x8
 #define PCIE_DMA_WR_ENB			0xc
 #define PCIE_DMA_WR_CTRL_LO		0x200
 #define PCIE_DMA_WR_CTRL_HI		0x204
@@ -159,6 +161,7 @@ struct rk_pcie {
 	struct reset_control		*rsts;
 	unsigned int			clk_cnt;
 	struct gpio_desc		*rst_gpio;
+	u32				perst_inactive_ms;
 	struct gpio_desc		*prsnt_gpio;
 	phys_addr_t			mem_start;
 	size_t				mem_size;
@@ -753,9 +756,10 @@ static int rk_pcie_establish_link(struct dw_pcie *pci)
 	 * PERST and T_PVPERL (Power stable to PERST# inactive) should be a
 	 * minimum of 100ms.  See table 2-4 in section 2.6.2 AC, the PCI Express
 	 * Card Electromechanical Specification 3.0. So 100ms in total is the min
-	 * requuirement here. We add a 200ms for sake of hoping everthings work fine.
+	 * requuirement here. We add a 200ms by default for sake of hoping everthings
+	 * work fine. If it doesn't, please add more in DT node by add rockchip,perst-inactive-ms.
 	 */
-	msleep(200);
+	msleep(rk_pcie->perst_inactive_ms);
 	gpiod_set_value_cansleep(rk_pcie->rst_gpio, 1);
 
 	/*
@@ -791,8 +795,17 @@ static int rk_pcie_establish_link(struct dw_pcie *pci)
 	return rk_pcie->is_signal_test == true ? 0 : -EINVAL;
 }
 
+static bool rk_pcie_udma_enabled(struct rk_pcie *rk_pcie)
+{
+	return dw_pcie_readl_dbi(rk_pcie->pci, PCIE_DMA_OFFSET +
+				 PCIE_DMA_CTRL_OFF);
+}
+
 static int rk_pcie_host_init_dma_trx(struct rk_pcie *rk_pcie)
 {
+	if (!rk_pcie_udma_enabled(rk_pcie))
+		return 0;
+
 	rk_pcie->dma_obj = rk_pcie_dma_obj_probe(rk_pcie->pci->dev);
 	if (IS_ERR(rk_pcie->dma_obj)) {
 		if (rk_pcie->mode == RK_PCIE_RC_TYPE) {
@@ -852,6 +865,22 @@ static int rk_pci_find_resbar_capability(struct rk_pcie *rk_pcie)
 
 	return 0;
 }
+
+#ifdef MODULE
+void dw_pcie_write_dbi2(struct dw_pcie *pci, u32 reg, size_t size, u32 val)
+{
+	int ret;
+
+	if (pci->ops && pci->ops->write_dbi2) {
+		pci->ops->write_dbi2(pci, pci->dbi_base2, reg, size, val);
+		return;
+	}
+
+	ret = dw_pcie_write(pci->dbi_base2 + reg, size, val);
+	if (ret)
+		dev_err(pci->dev, "write DBI address failed\n");
+}
+#endif
 
 static int rk_pcie_ep_set_bar_flag(struct rk_pcie *rk_pcie, enum pci_barno barno, int flags)
 {
@@ -1128,6 +1157,9 @@ static int rk_pcie_add_ep(struct rk_pcie *rk_pcie)
 		return ret;
 	}
 
+	if (!rk_pcie_udma_enabled(rk_pcie))
+		return 0;
+
 	rk_pcie->dma_obj = rk_pcie_dma_obj_probe(dev);
 	if (IS_ERR(rk_pcie->dma_obj)) {
 		dev_err(dev, "failed to prepare dma object\n");
@@ -1198,6 +1230,10 @@ static int rk_pcie_resource_get(struct platform_device *pdev,
 		dev_err(&pdev->dev, "invalid reset-gpios property in node\n");
 		return PTR_ERR(rk_pcie->rst_gpio);
 	}
+
+	if (device_property_read_u32(&pdev->dev, "rockchip,perst-inactive-ms",
+				     &rk_pcie->perst_inactive_ms))
+		rk_pcie->perst_inactive_ms = 200;
 
 	rk_pcie->prsnt_gpio = devm_gpiod_get_optional(&pdev->dev, "prsnt", GPIOD_IN);
 	if (IS_ERR_OR_NULL(rk_pcie->prsnt_gpio))
@@ -1588,7 +1624,11 @@ static int rk_pcie_irq_set_affinity(struct irq_data *d,
 	if (cpu >= nr_cpu_ids)
 		return -EINVAL;
 
+#if defined(MODULE) && (LINUX_VERSION_CODE < KERNEL_VERSION(5, 14, 0))
+	irq_set_affinity_hint(priv->legacy_parent_irq, cpumask_of(cpu));
+#else
 	irq_set_affinity(priv->legacy_parent_irq, cpumask_of(cpu));
+#endif
 	irq_data_update_effective_affinity(d, cpumask_of(cpu));
 
 	return IRQ_SET_MASK_OK_DONE;

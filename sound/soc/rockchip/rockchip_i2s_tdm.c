@@ -282,7 +282,7 @@ static void rockchip_snd_xfer_sync_reset(struct rk_i2s_tdm_dev *i2s_tdm)
 	int tx_id, rx_id;
 	int tx_bank, rx_bank, tx_offset, rx_offset;
 
-	if (!i2s_tdm->cru_base || !i2s_tdm->soc_data)
+	if (!i2s_tdm->cru_base || !i2s_tdm->soc_data || !i2s_tdm->is_master_mode)
 		return;
 
 	tx_id = i2s_tdm->tx_reset_id;
@@ -410,21 +410,25 @@ static void rockchip_snd_txctrl(struct rk_i2s_tdm_dev *i2s_tdm, int on)
 				   I2S_XFER_TXS_STOP);
 
 		udelay(150);
-		regmap_update_bits(i2s_tdm->regmap, I2S_CLR,
-				   I2S_CLR_TXC,
-				   I2S_CLR_TXC);
+		if (i2s_tdm->is_master_mode) {
+			regmap_update_bits(i2s_tdm->regmap, I2S_CLR,
+					   I2S_CLR_TXC,
+					   I2S_CLR_TXC);
 
-		regmap_read(i2s_tdm->regmap, I2S_CLR, &val);
-
-		/* Should wait for clear operation to finish */
-		while (val) {
 			regmap_read(i2s_tdm->regmap, I2S_CLR, &val);
-			retry--;
-			if (!retry) {
-				dev_warn(i2s_tdm->dev, "reset tx\n");
-				rockchip_snd_reset(i2s_tdm->tx_reset);
-				break;
+
+			/* Should wait for clear operation to finish */
+			while (val) {
+				regmap_read(i2s_tdm->regmap, I2S_CLR, &val);
+				retry--;
+				if (!retry) {
+					dev_warn(i2s_tdm->dev, "reset tx\n");
+					rockchip_snd_reset(i2s_tdm->tx_reset);
+					break;
+				}
 			}
+		} else {
+			rockchip_snd_reset(i2s_tdm->tx_reset);
 		}
 	}
 }
@@ -450,21 +454,25 @@ static void rockchip_snd_rxctrl(struct rk_i2s_tdm_dev *i2s_tdm, int on)
 				   I2S_XFER_RXS_STOP);
 
 		udelay(150);
-		regmap_update_bits(i2s_tdm->regmap, I2S_CLR,
-				   I2S_CLR_RXC,
-				   I2S_CLR_RXC);
+		if (i2s_tdm->is_master_mode) {
+			regmap_update_bits(i2s_tdm->regmap, I2S_CLR,
+					   I2S_CLR_RXC,
+					   I2S_CLR_RXC);
 
-		regmap_read(i2s_tdm->regmap, I2S_CLR, &val);
-
-		/* Should wait for clear operation to finish */
-		while (val) {
 			regmap_read(i2s_tdm->regmap, I2S_CLR, &val);
-			retry--;
-			if (!retry) {
-				dev_warn(i2s_tdm->dev, "reset rx\n");
-				rockchip_snd_reset(i2s_tdm->rx_reset);
-				break;
+
+			/* Should wait for clear operation to finish */
+			while (val) {
+				regmap_read(i2s_tdm->regmap, I2S_CLR, &val);
+				retry--;
+				if (!retry) {
+					dev_warn(i2s_tdm->dev, "reset rx\n");
+					rockchip_snd_reset(i2s_tdm->rx_reset);
+					break;
+				}
 			}
+		} else {
+			rockchip_snd_reset(i2s_tdm->rx_reset);
 		}
 	}
 }
@@ -949,6 +957,38 @@ static int rockchip_i2s_io_multiplex(struct snd_pcm_substream *substream,
 	return 0;
 }
 
+static bool is_params_dirty(struct snd_pcm_substream *substream,
+			    struct snd_soc_dai *dai,
+			    unsigned int div_bclk,
+			    unsigned int div_lrck,
+			    unsigned int fmt)
+{
+	struct rk_i2s_tdm_dev *i2s_tdm = to_info(dai);
+	unsigned int last_div_bclk, last_div_lrck, last_fmt, val;
+
+	regmap_read(i2s_tdm->regmap, I2S_CLKDIV, &val);
+	last_div_bclk = ((val & I2S_CLKDIV_TXM_MASK) >> I2S_CLKDIV_TXM_SHIFT) + 1;
+	if (last_div_bclk != div_bclk)
+		return true;
+
+	regmap_read(i2s_tdm->regmap, I2S_CKR, &val);
+	last_div_lrck = ((val & I2S_CKR_TSD_MASK) >> I2S_CKR_TSD_SHIFT) + 1;
+	if (last_div_lrck != div_lrck)
+		return true;
+
+	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+		regmap_read(i2s_tdm->regmap, I2S_TXCR, &val);
+		last_fmt = val & (I2S_TXCR_VDW_MASK | I2S_TXCR_CSR_MASK);
+	} else {
+		regmap_read(i2s_tdm->regmap, I2S_RXCR, &val);
+		last_fmt = val & (I2S_RXCR_VDW_MASK | I2S_RXCR_CSR_MASK);
+	}
+	if (last_fmt != fmt)
+		return true;
+
+	return false;
+}
+
 static int rockchip_i2s_trcm_mode(struct snd_pcm_substream *substream,
 				  struct snd_soc_dai *dai,
 				  unsigned int div_bclk,
@@ -959,6 +999,9 @@ static int rockchip_i2s_trcm_mode(struct snd_pcm_substream *substream,
 	unsigned long flags;
 
 	if (!i2s_tdm->clk_trcm)
+		return 0;
+
+	if (!is_params_dirty(substream, dai, div_bclk, div_lrck, fmt))
 		return 0;
 
 	spin_lock_irqsave(&i2s_tdm->lock, flags);
@@ -1246,6 +1289,93 @@ static struct snd_kcontrol_new rockchip_i2s_tdm_compensation_control = {
 	.put = rockchip_i2s_tdm_clk_compensation_put,
 };
 
+/* loopback mode select */
+enum {
+	LOOPBACK_MODE_DIS = 0,
+	LOOPBACK_MODE_1,
+	LOOPBACK_MODE_2,
+	LOOPBACK_MODE_2_SWAP,
+};
+
+static const char *const loopback_text[] = {
+	"Disabled",
+	"Mode1",
+	"Mode2",
+	"Mode2 Swap",
+};
+
+static SOC_ENUM_SINGLE_EXT_DECL(loopback_mode, loopback_text);
+
+static int rockchip_i2s_tdm_loopback_get(struct snd_kcontrol *kcontrol,
+					 struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_component *component = snd_soc_kcontrol_component(kcontrol);
+	struct rk_i2s_tdm_dev *i2s_tdm = snd_soc_component_get_drvdata(component);
+	unsigned int reg = 0, mode = 0;
+
+	pm_runtime_get_sync(component->dev);
+	regmap_read(i2s_tdm->regmap, I2S_XFER, &reg);
+	pm_runtime_put(component->dev);
+
+	switch (reg & I2S_XFER_LP_MODE_MASK) {
+	case I2S_XFER_LP_MODE_2_SWAP:
+		mode = LOOPBACK_MODE_2_SWAP;
+		break;
+	case I2S_XFER_LP_MODE_2:
+		mode = LOOPBACK_MODE_2;
+		break;
+	case I2S_XFER_LP_MODE_1:
+		mode = LOOPBACK_MODE_1;
+		break;
+	default:
+		mode = LOOPBACK_MODE_DIS;
+		break;
+	}
+
+	ucontrol->value.enumerated.item[0] = mode;
+
+	return 0;
+}
+
+static int rockchip_i2s_tdm_loopback_put(struct snd_kcontrol *kcontrol,
+					 struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_component *component = snd_soc_kcontrol_component(kcontrol);
+	struct rk_i2s_tdm_dev *i2s_tdm = snd_soc_component_get_drvdata(component);
+	unsigned int val = 0, mode = ucontrol->value.enumerated.item[0];
+
+	if (mode < LOOPBACK_MODE_DIS ||
+	    mode > LOOPBACK_MODE_2_SWAP)
+		return -EINVAL;
+
+	switch (mode) {
+	case LOOPBACK_MODE_2_SWAP:
+		val = I2S_XFER_LP_MODE_2_SWAP;
+		break;
+	case LOOPBACK_MODE_2:
+		val = I2S_XFER_LP_MODE_2;
+		break;
+	case LOOPBACK_MODE_1:
+		val = I2S_XFER_LP_MODE_1;
+		break;
+	default:
+		val = I2S_XFER_LP_MODE_DIS;
+		break;
+	}
+
+	pm_runtime_get_sync(component->dev);
+	regmap_update_bits(i2s_tdm->regmap, I2S_XFER, I2S_XFER_LP_MODE_MASK, val);
+	pm_runtime_put(component->dev);
+
+	return 0;
+}
+
+static const struct snd_kcontrol_new rockchip_i2s_tdm_snd_controls[] = {
+	SOC_ENUM_EXT("I2STDM Digital Loopback Mode", loopback_mode,
+		     rockchip_i2s_tdm_loopback_get,
+		     rockchip_i2s_tdm_loopback_put),
+};
+
 static int rockchip_i2s_tdm_dai_probe(struct snd_soc_dai *dai)
 {
 	struct rk_i2s_tdm_dev *i2s_tdm = snd_soc_dai_get_drvdata(dai);
@@ -1289,6 +1419,8 @@ static const struct snd_soc_dai_ops rockchip_i2s_tdm_dai_ops = {
 
 static const struct snd_soc_component_driver rockchip_i2s_tdm_component = {
 	.name = DRV_NAME,
+	.controls = rockchip_i2s_tdm_snd_controls,
+	.num_controls = ARRAY_SIZE(rockchip_i2s_tdm_snd_controls),
 };
 
 static bool rockchip_i2s_tdm_wr_reg(struct device *dev, unsigned int reg)

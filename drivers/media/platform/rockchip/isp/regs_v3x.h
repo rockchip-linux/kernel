@@ -1811,6 +1811,12 @@
 #define ISP3X_SW_CMSK_EN_SP		BIT(2)
 #define ISP3X_SW_CMSK_EN_BP		BIT(3)
 #define ISP3X_SW_CMSK_BLKSIZE(x)	(((x) & 3) << 4)
+
+#define ISP32_SW_CMSK_EN_PATH		GENMASK(3, 0)
+#define ISP32_SW_CMSK_EN_PATH_SHD       GENMASK(11, 8)
+
+#define ISP3X_SW_CMSK_FORCE_UPD		BIT(31)
+
 #define ISP3X_SW_CMSK_ORDER_MODE	BIT(1)
 
 #define ISP3X_SW_CMSK_YUV(x, y, z)	(((x) & 0xff) | ((y) & 0xff) << 8 | ((z) & 0xff) << 16)
@@ -2072,6 +2078,9 @@
 /* BLS */
 #define ISP32_BLS_BLS2_EN		BIT(5)
 
+/* BAY3D */
+#define ISP32_BAY3D_BWSAVING(a)		(((a) & 0x1) << 13)
+
 /* GIC */
 
 /* LDCH */
@@ -2105,7 +2114,12 @@
 
 #define ISP32_EXPD_DATA(a, b)		((a) | (b) << 16)
 
+/* GAIN */
+#define ISP3X_GAIN_2DDR_EN		BIT(24)
+#define ISP3X_GAIN_2DDR_mode(a)		(((a) & 0x3) << 25)
+
 /* DPCC */
+#define ISP3X_DPCC_WORKING		BIT(30)
 
 /* CCM */
 #define ISP3X_CCM_HIGHY_ADJ_DIS		BIT(1)
@@ -2163,5 +2177,10 @@
 
 #define ISP3X_RAWAF_INELINE0(x)		((x) & 0xf)
 #define ISP3X_RAWAF_INTLINE0_EN		BIT(27)
+
+/* RAWAWB */
+#define ISP32_RAWAWB_2DDR_PATH_EN	BIT(23)
+#define ISP32_RAWAWB_2DDR_PATH_DS	BIT(27)
+#define ISP32_RAWAWB_2DDR_PATH_ERR	BIT(29)
 
 #endif /* _RKISP_REGS_V3X_H */
