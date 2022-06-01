@@ -716,9 +716,20 @@ static void scl_vop_cal_scl_fac(struct vop *vop, struct vop_win *win,
 	uint32_t val;
 	int vskiplines = 0;
 	const struct vop_data *vop_data = vop->data;
+	struct drm_display_mode *adjusted_mode = &vop->crtc.state->adjusted_mode;
 
 	if (!win->phy->scl)
 		return;
+
+	if ((adjusted_mode->flags & DRM_MODE_FLAG_INTERLACE) && vop->version == VOP_VERSION(2, 2)) {
+		VOP_SCL_SET(vop, win, scale_yrgb_x, ((src_w << 12) / dst_w));
+		VOP_SCL_SET(vop, win, scale_yrgb_y, ((src_h << 12) / dst_h));
+		if (is_yuv) {
+			VOP_SCL_SET(vop, win, scale_cbcr_x, ((cbcr_src_w << 12) / dst_w));
+			VOP_SCL_SET(vop, win, scale_cbcr_y, ((cbcr_src_h << 12) / dst_h));
+		}
+		return;
+	}
 
 	if (!(vop_data->feature & VOP_FEATURE_ALPHA_SCALE)) {
 		if (is_alpha_support(pixel_format) &&
@@ -1746,12 +1757,14 @@ static void vop_plane_atomic_update(struct drm_plane *plane,
 	struct drm_display_mode *mode = NULL;
 	struct vop_win *win = to_vop_win(plane);
 	struct vop_plane_state *vop_plane_state = to_vop_plane_state(state);
+	struct drm_display_mode *adjusted_mode = &crtc->state->adjusted_mode;
 	struct rockchip_crtc_state *s;
-	struct vop *vop;
+	struct vop *vop = to_vop(crtc);
 	struct drm_framebuffer *fb = state->fb;
 	unsigned int actual_w, actual_h;
 	unsigned int dsp_stx, dsp_sty;
 	uint32_t act_info, dsp_info, dsp_st, ex_vact_st, ex_vact_end;
+	uint32_t dest_height, dest_width;
 	struct drm_rect *src = &vop_plane_state->src;
 	struct drm_rect *dest = &vop_plane_state->dest;
 	const uint32_t *y2r_table = vop_plane_state->y2r_table;
@@ -1795,16 +1808,23 @@ static void vop_plane_atomic_update(struct drm_plane *plane,
 		return;
 	}
 
+	dest_height = drm_rect_height(dest);
+	if ((adjusted_mode->flags & DRM_MODE_FLAG_INTERLACE) && vop->version == VOP_VERSION(2, 2))
+		dest_height = drm_rect_height(dest) / 2;
+	dest_width = drm_rect_width(dest);
+
 	mode = &crtc->state->adjusted_mode;
 	actual_w = drm_rect_width(src) >> 16;
 	actual_h = drm_rect_height(src) >> 16;
 	act_info = (actual_h - 1) << 16 | ((actual_w - 1) & 0xffff);
 
-	dsp_info = (drm_rect_height(dest) - 1) << 16;
-	dsp_info |= (drm_rect_width(dest) - 1) & 0xffff;
+	dsp_info = (dest_height - 1) << 16;
+	dsp_info |= (dest_width - 1) & 0xffff;
 
 	dsp_stx = dest->x1 + mode->crtc_htotal - mode->crtc_hsync_start;
 	dsp_sty = dest->y1 + mode->crtc_vtotal - mode->crtc_vsync_start;
+	if ((adjusted_mode->flags & DRM_MODE_FLAG_INTERLACE) && vop->version == VOP_VERSION(2, 2))
+		dsp_sty = dest->y1 / 2 + mode->crtc_vtotal - mode->crtc_vsync_start;
 	dsp_st = dsp_sty << 16 | (dsp_stx & 0xffff);
 	vop = to_vop(state->crtc);
 
@@ -1816,7 +1836,7 @@ static void vop_plane_atomic_update(struct drm_plane *plane,
 		else
 			ex_vact_st = dest->y1 + mode->crtc_vsync_end -
 				mode->crtc_vsync_start + 1;
-		ex_vact_end = ex_vact_st + drm_rect_height(dest);
+		ex_vact_end = ex_vact_st + dest_height;
 		VOP_WIN_SET(vop, win, vact_st_end_info,
 			    ex_vact_st << 16 | ex_vact_end);
 		VOP_WIN_SET(vop, win, data_type,
@@ -1846,7 +1866,7 @@ static void vop_plane_atomic_update(struct drm_plane *plane,
 	VOP_WIN_SET(vop, win, fmt_10, is_yuv_10bit(fb->pixel_format));
 
 	scl_vop_cal_scl_fac(vop, win, actual_w, actual_h,
-			    drm_rect_width(dest), drm_rect_height(dest),
+			    drm_rect_width(dest), dest_height,
 			    fb->pixel_format);
 
 	VOP_WIN_SET(vop, win, act_info, act_info);
