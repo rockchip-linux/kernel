@@ -328,11 +328,11 @@
 		dram_dq_odt_en_freq = <800>;
 		phy_odt_en_freq = <800>;
 		/* slew rate when odt enable */
-		phy_dq_sr_odten = <0xf>;
+		phy_dq_sr_odten = <0x0>;
 		phy_ca_sr_odten = <0x1>;
 		phy_clk_sr_odten = <0x1>;
 		/* slew rate when odt disable */
-		phy_dq_sr_odtoff = <0xf>;
+		phy_dq_sr_odtoff = <0x0>;
 		phy_ca_sr_odtoff = <0x1>;
 		phy_clk_sr_odtoff = <0x1>;
 		/* ssmod setting*/
@@ -368,10 +368,10 @@
 		lp4_odtd_ca_en = <0>;
 		/* lp4 vref info when odt enable */
 		phy_lp4_dq_vref_odten = <200>;
-		lp4_dq_vref_odten = <316>;
+		lp4_dq_vref_odten = <276>;
 		lp4_ca_vref_odten = <380>;
 		/* lp4 vref info when odt disable */
-		phy_lp4_dq_vref_odtoff = <300>;
+		phy_lp4_dq_vref_odtoff = <340>;
 		lp4_dq_vref_odtoff = <420>;
 		lp4_ca_vref_odtoff = <420>;
 	};
