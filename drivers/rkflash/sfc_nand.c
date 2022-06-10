@@ -22,6 +22,7 @@ static u32 sfc_nand_get_ecc_status5(void);
 static u32 sfc_nand_get_ecc_status6(void);
 static u32 sfc_nand_get_ecc_status7(void);
 static u32 sfc_nand_get_ecc_status8(void);
+static u32 sfc_nand_get_ecc_status9(void);
 
 static struct nand_info spi_nand_tbl[] = {
 	/* TC58CVG0S0HxAIx */
@@ -84,7 +85,9 @@ static struct nand_info spi_nand_tbl[] = {
 	/* W25N04KVZEIR */
 	{ 0xEF, 0xAA, 0x23, 4, 0x40, 1, 4096, 0x4C, 20, 0x8, 0, { 0x04, 0x14, 0x24, 0x34 }, &sfc_nand_get_ecc_status0 },
 	/* W25N01GW */
-	{ 0xEF, 0xBA, 0x00, 4, 0x40, 1, 1024, 0x4C, 18, 0x1, 0, { 0x04, 0x14, 0x24, 0xFF }, &sfc_nand_get_ecc_status1 },
+	{ 0xEF, 0xBA, 0x21, 4, 0x40, 1, 1024, 0x4C, 18, 0x1, 0, { 0x04, 0x14, 0x24, 0xFF }, &sfc_nand_get_ecc_status1 },
+	/* W25N02KW */
+	{ 0xEF, 0xBA, 0x22, 4, 0x40, 1, 2048, 0x4C, 19, 0x8, 0, { 0x04, 0x14, 0x24, 0xFF }, &sfc_nand_get_ecc_status0 },
 	/* W25N512GVEIG */
 	{ 0xEF, 0xAA, 0x20, 4, 0x40, 1, 512, 0x4C, 17, 0x1, 0, { 0x04, 0x14, 0x24, 0xFF }, &sfc_nand_get_ecc_status1 },
 
@@ -168,6 +171,8 @@ static struct nand_info spi_nand_tbl[] = {
 	{ 0xA1, 0xE4, 0x00, 4, 0x40, 1, 1024, 0x4C, 18, 0x1, 0, { 0x04, 0x08, 0xFF, 0xFF }, &sfc_nand_get_ecc_status1 },
 	/* FM25S02A */
 	{ 0xA1, 0xE5, 0x00, 4, 0x40, 2, 1024, 0x4C, 19, 0x1, 1, { 0x04, 0x08, 0xFF, 0xFF }, &sfc_nand_get_ecc_status1 },
+	/* FM25LS01 */
+	{ 0xA1, 0xA5, 0x00, 4, 0x40, 1, 1024, 0x4C, 18, 0x1, 0, { 0x04, 0x08, 0xFF, 0xFF }, &sfc_nand_get_ecc_status1 },
 
 	/* IS37SML01G1 */
 	{ 0xC8, 0x21, 0x00, 4, 0x40, 1, 1024, 0x00, 18, 0x1, 0, { 0x08, 0x0C, 0xFF, 0xFF }, &sfc_nand_get_ecc_status1 },
@@ -183,6 +188,8 @@ static struct nand_info spi_nand_tbl[] = {
 	{ 0xEA, 0xC1, 0x00, 4, 0x40, 1, 1024, 0x0C, 18, 0x4, 1, { 0x04, 0x08, 0xFF, 0xFF }, &sfc_nand_get_ecc_status1 },
 	/* TX25G01 */
 	{ 0xA1, 0xF1, 0x00, 4, 0x40, 1, 1024, 0x0C, 18, 0x4, 1, { 0x04, 0x14, 0xFF, 0xFF }, &sfc_nand_get_ecc_status8 },
+	/* S35ML04G3 */
+	{ 0x01, 0x35, 0x00, 4, 0x40, 2, 2048, 0x4C, 20, 0x4, 1, { 0x04, 0x08, 0x0C, 0x10 }, &sfc_nand_get_ecc_status9 },
 };
 
 static struct nand_info *p_nand_info;
@@ -700,6 +707,46 @@ static u32 sfc_nand_get_ecc_status8(void)
 	if (ecc < 4)
 		ret = SFC_NAND_ECC_OK;
 	else if (ecc == 4)
+		ret = SFC_NAND_ECC_REFRESH;
+	else
+		ret = (u32)SFC_NAND_ECC_ERROR;
+
+	return ret;
+}
+
+/*
+ * ecc spectial type9:
+ * ecc bits: 0xC0[4,5]
+ * 0b00, No bit errors were detected
+ * 0b01, 1-2Bit errors were detected and corrected.
+ * 0b10, 3-4Bit errors were detected and corrected.
+ * 0b11, 11 can be used as uncorrectable
+ */
+static u32 sfc_nand_get_ecc_status9(void)
+{
+	u32 ret;
+	u32 i;
+	u8 ecc;
+	u8 status;
+	u32 timeout = 1000 * 1000;
+
+	for (i = 0; i < timeout; i++) {
+		ret = sfc_nand_read_feature(0xC0, &status);
+
+		if (ret != SFC_OK)
+			return SFC_NAND_ECC_ERROR;
+
+		if (!(status & (1 << 0)))
+			break;
+
+		sfc_delay(1);
+	}
+
+	ecc = (status >> 4) & 0x03;
+
+	if (ecc <= 1)
+		ret = SFC_NAND_ECC_OK;
+	else if (ecc == 2)
 		ret = SFC_NAND_ECC_REFRESH;
 	else
 		ret = (u32)SFC_NAND_ECC_ERROR;
