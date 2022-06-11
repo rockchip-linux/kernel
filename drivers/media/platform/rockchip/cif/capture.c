@@ -3063,6 +3063,8 @@ static int rkcif_start_streaming(struct vb2_queue *queue, unsigned int count)
 	else
 		stream->is_line_inten = false;
 	stream->fs_cnt_in_single_frame = 0;
+	if (atomic_read(&dev->pipe.stream_cnt) == 0)
+		dev->reset_info.is_need_reset = 0;
 
 	if (dev->active_sensor) {
 		ret = rkcif_update_sensor_info(stream);
@@ -3876,6 +3878,9 @@ err:
 	return -EINVAL;
 }
 
+static int rkcif_do_reset_work(struct rkcif_device *cif_dev,
+			       enum rkmodule_reset_src reset_src);
+
 static long rkcif_ioctl_default(struct file *file, void *fh,
 				    bool valid_prio, unsigned int cmd, void *arg)
 {
@@ -3884,6 +3889,8 @@ static long rkcif_ioctl_default(struct file *file, void *fh,
 	const struct cif_input_fmt *in_fmt;
 	struct v4l2_rect rect;
 	int vc = 0;
+	struct rkcif_reset_info *reset_info;
+	int reset_src = 0;
 
 	switch (cmd) {
 	case RKCIF_CMD_GET_CSI_MEMORY_MODE:
@@ -3924,6 +3931,15 @@ static long rkcif_ioctl_default(struct file *file, void *fh,
 			stream->is_high_align = false;
 		}
 		break;
+	case RKCIF_CMD_GET_RESET_INFO:
+		reset_info = (struct rkcif_reset_info *)arg;
+		*reset_info = dev->reset_info;
+		if (dev->reset_info.is_need_reset)
+			dev->reset_info.is_need_reset = 0;
+		break;
+	case RKCIF_CMD_SET_RESET:
+		reset_src = *(int *)arg;
+		return rkcif_do_reset_work(dev, reset_src);
 	default:
 		return -EINVAL;
 	}
@@ -5541,6 +5557,7 @@ static int rkcif_do_reset_work(struct rkcif_device *cif_dev,
 	rkcif_start_luma(&cif_dev->luma_vdev, resume_stream[0]->cif_fmt_in);
 
 	timer->csi2_err_triggered_cnt = 0;
+	timer->is_running = false;
 	rkcif_monitor_reset_event(cif_dev);
 
 	v4l2_dbg(1, rkcif_debug, &cif_dev->v4l2_dev, "do rkcif reset successfully!\n");
@@ -5663,14 +5680,18 @@ static void rkcif_init_reset_work(struct rkcif_timer *timer)
 			timer->last_buf_wakeup_cnt[stream->id] = stream->buf_wake_up_cnt;
 	}
 	spin_unlock_irqrestore(&timer->timer_lock, flags);
-
-	dev->reset_work.reset_src = timer->reset_src;
-	if (schedule_work(&dev->reset_work.work)) {
-		v4l2_info(&dev->v4l2_dev,
-			 "schedule reset work successfully\n");
+	if (timer->is_reset_by_user) {
+		dev->reset_info.is_need_reset = 1;
+		dev->reset_info.reset_src = timer->reset_src;
 	} else {
-		v4l2_info(&dev->v4l2_dev,
-			 "schedule reset work failed\n");
+		dev->reset_work.reset_src = timer->reset_src;
+		if (schedule_work(&dev->reset_work.work)) {
+			v4l2_info(&dev->v4l2_dev,
+				 "schedule reset work successfully\n");
+		} else {
+			v4l2_info(&dev->v4l2_dev,
+				 "schedule reset work failed\n");
+		}
 	}
 }
 

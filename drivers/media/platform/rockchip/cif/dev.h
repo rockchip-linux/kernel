@@ -31,7 +31,7 @@
 #define OF_CIF_MONITOR_PARA	"rockchip,cif-monitor"
 #define OF_CIF_WAIT_LINE	"wait-line"
 
-#define CIF_MONITOR_PARA_NUM	(5)
+#define CIF_MONITOR_PARA_NUM	(6)
 
 #define RKCIF_SINGLE_STREAM	1
 #define RKCIF_STREAM_CIF	0
@@ -371,6 +371,7 @@ struct rkcif_timer {
 	unsigned int		csi2_err_fs_fe_cnt;
 	unsigned int		csi2_err_fs_fe_detect_cnt;
 	unsigned int		frm_num_of_monitor_cycle;
+	unsigned int		is_reset_by_user;
 	unsigned int		triggered_frame_num;
 	unsigned int		vts;
 	unsigned int		raw_height;
@@ -550,6 +551,7 @@ struct rkcif_device {
 	unsigned int			wait_line_bak;
 	unsigned int			wait_line_cache;
 	struct rkcif_dummy_buffer	dummy_buf;
+	struct rkcif_reset_info		reset_info;
 	bool				is_start_hdr;
 	bool				reset_work_cancel;
 	bool				iommu_en;

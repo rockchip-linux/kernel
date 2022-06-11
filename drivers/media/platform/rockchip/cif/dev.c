@@ -1123,6 +1123,13 @@ static void rkcif_init_reset_monitor(struct rkcif_device *dev)
 					  "timer csi2 err ref val for resetting:%d\n",
 					  timer->csi2_err_ref_cnt);
 			}
+
+			if (i == 5) {
+				timer->is_reset_by_user = para[5];
+				v4l2_info(&dev->v4l2_dev,
+					  "reset by user:%d\n",
+					  timer->is_reset_by_user);
+			}
 		}
 	} else {
 		timer->monitor_mode = RKCIF_MONITOR_MODE_IDLE;
@@ -1130,6 +1137,7 @@ static void rkcif_init_reset_monitor(struct rkcif_device *dev)
 		timer->frm_num_of_monitor_cycle = 0xffffffff;
 		timer->triggered_frame_num =  0xffffffff;
 		timer->csi2_err_ref_cnt = 0xffffffff;
+		timer->is_reset_by_user = 0;
 	}
 
 	timer->is_running = false;
