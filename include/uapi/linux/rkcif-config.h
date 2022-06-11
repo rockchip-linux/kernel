@@ -17,6 +17,12 @@
 #define RKCIF_CMD_SET_CSI_MEMORY_MODE \
 	_IOW('V', BASE_VIDIOC_PRIVATE + 1, int)
 
+#define RKCIF_CMD_GET_RESET_INFO \
+	_IOR('V', BASE_VIDIOC_PRIVATE + 5, struct rkcif_reset_info)
+
+#define RKCIF_CMD_SET_RESET \
+	_IOW('V', BASE_VIDIOC_PRIVATE + 6, int)
+
 /* cif memory mode
  * 0: raw12/raw10/raw8 8bit memory compact
  * 1: raw12/raw10 16bit memory one pixel
@@ -36,6 +42,11 @@ enum cif_csi_lvds_memory {
 	CSI_LVDS_MEM_COMPACT = 0,
 	CSI_LVDS_MEM_WORD_LOW_ALIGN = 1,
 	CSI_LVDS_MEM_WORD_HIGH_ALIGN = 2,
+};
+
+struct rkcif_reset_info {
+	int is_need_reset;
+	int reset_src;
 };
 
 #endif
