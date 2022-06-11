@@ -4722,6 +4722,10 @@ static bool rkcif_is_csi2_err_trigger_reset(struct rkcif_timer *timer)
 		is_triggered = true;
 		v4l2_info(&dev->v4l2_dev, "reset for fs & fe not paired\n");
 	}
+	if (dev->irq_stats.csi_bwidth_lack_cnt) {
+		is_triggered = true;
+		dev->irq_stats.csi_bwidth_lack_cnt = 0;
+	}
 end_judge:
 	spin_unlock_irqrestore(&timer->csi2_err_lock, flags);
 
@@ -4895,8 +4899,10 @@ static void rkcif_dynamic_crop(struct rkcif_stream *stream)
 	stream->crop_dyn_en = false;
 }
 
-static void rkcif_monitor_reset_event(struct rkcif_device *dev)
+void rkcif_monitor_reset_event(struct rkcif_device *dev)
 {
+	struct rkcif_sensor_info *terminal_sensor = &dev->terminal_sensor;
+	struct v4l2_subdev_frame_interval *fi = &terminal_sensor->fi;
 	struct rkcif_stream *stream = NULL;
 	struct rkcif_timer *timer = &dev->reset_watchdog_timer;
 	unsigned int cycle = 0;
@@ -4936,10 +4942,14 @@ static void rkcif_monitor_reset_event(struct rkcif_device *dev)
 		spin_unlock_irqrestore(&stream->fps_lock, fps_flags);
 
 		spin_lock_irqsave(&timer->timer_lock, flags);
-
-		fps = timestamp0 > timestamp1 ?
-		      timestamp0 - timestamp1 : timestamp1 - timestamp0;
-		fps = div_u64(fps, 1000);
+		if (stream->frame_idx >= 2) {
+			fps = timestamp0 > timestamp1 ?
+				  timestamp0 - timestamp1 : timestamp1 - timestamp0;
+			fps = div_u64(fps, 1000);
+		} else {
+			fps = (fi->interval.denominator)/(fi->interval.numerator);
+			fps = div_u64(1000000, fps);
+		}
 		timer->frame_end_cycle_us = fps;
 
 		vblank = rkcif_get_sensor_vblank(dev);
@@ -5641,7 +5651,7 @@ static void rkcif_init_reset_work(struct rkcif_timer *timer)
 		  timer->run_cnt, timer->reset_src);
 
 	spin_lock_irqsave(&timer->timer_lock, flags);
-	timer->is_running = false;
+	timer->is_running = true;
 	timer->is_triggered = false;
 	timer->csi2_err_cnt_odd = 0;
 	timer->csi2_err_cnt_even = 0;
@@ -5733,8 +5743,10 @@ static int rkcif_detect_reset_event(struct rkcif_stream *stream,
 			}
 		}
 	} else if (timer->last_buf_wakeup_cnt[stream->id] == stream->buf_wake_up_cnt) {
+		bool is_reduced = false;
 
-		bool is_reduced = rkcif_is_reduced_frame_rate(dev);
+		if (stream->frame_idx > 2)
+			is_reduced = rkcif_is_reduced_frame_rate(dev);
 
 		if (is_reduced) {
 			*is_mod_timer = true;
@@ -5746,6 +5758,7 @@ static int rkcif_detect_reset_event(struct rkcif_stream *stream,
 				  timer->run_cnt);
 
 			timer->reset_src = RKICF_RESET_SRC_ERR_CUTOFF;
+			is_reset = true;
 			rkcif_init_reset_work(timer);
 		}
 	}
@@ -5787,8 +5800,6 @@ void rkcif_reset_watchdog_timer_handler(struct timer_list *t)
 
 	if (!check_cnt) {
 		spin_lock_irqsave(&timer->timer_lock, flags);
-		timer->is_triggered = false;
-		timer->is_running = false;
 		spin_unlock_irqrestore(&timer->timer_lock, flags);
 
 		v4l2_info(&dev->v4l2_dev,
