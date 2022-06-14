@@ -13,6 +13,7 @@ dtb-$(CONFIG_ARCH_ROCKCHIP) += px30-evb-ddr3-v11-avb.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += px30-evb-ddr3-v11-linux.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += px30-evb-ddr3-lvds-v10.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += px30-evb-ddr4-v10.dtb
+dtb-$(CONFIG_ARCH_ROCKCHIP) += px30-evb-ddr4-v10-linux.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += px30-evb-ext-rk618.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += px30-evb-ext-rk618-avb.dtb
 dtb-$(CONFIG_ARCH_ROCKCHIP) += px30-z7-a0-rk618-dsi.dtb
