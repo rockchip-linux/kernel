@@ -3013,6 +3013,17 @@ static int dw_hdmi_rockchip_bind(struct device *dev, struct device *master,
 		return ret;
 	}
 
+	hdmi->phy = devm_phy_optional_get(dev, "hdmi");
+	if (IS_ERR(hdmi->phy)) {
+		hdmi->phy = devm_phy_optional_get(dev, "hdmi_phy");
+		if (IS_ERR(hdmi->phy)) {
+			ret = PTR_ERR(hdmi->phy);
+			if (ret != -EPROBE_DEFER)
+				DRM_DEV_ERROR(hdmi->dev, "failed to get phy\n");
+			return ret;
+		}
+	}
+
 	ret = clk_prepare_enable(hdmi->aud_clk);
 	if (ret) {
 		dev_err(hdmi->dev, "Failed to enable HDMI aud_clk: %d\n", ret);
@@ -3130,22 +3141,8 @@ static int dw_hdmi_rockchip_bind(struct device *dev, struct device *master,
 						hdmi);
 		if (ret)
 			return ret;
-	}
 
-	hdmi->phy = devm_phy_optional_get(dev, "hdmi");
-	if (IS_ERR(hdmi->phy)) {
-		hdmi->phy = devm_phy_optional_get(dev, "hdmi_phy");
-		if (IS_ERR(hdmi->phy)) {
-			ret = PTR_ERR(hdmi->phy);
-			if (ret != -EPROBE_DEFER)
-				DRM_DEV_ERROR(hdmi->dev, "failed to get phy\n");
-			return ret;
-		}
-	}
-
-	if (hdmi->is_hdmi_qp) {
 		hdmi->hdmi_qp = dw_hdmi_qp_bind(pdev, &hdmi->encoder, plat_data);
-
 		if (IS_ERR(hdmi->hdmi_qp)) {
 			ret = PTR_ERR(hdmi->hdmi_qp);
 			drm_encoder_cleanup(&hdmi->encoder);

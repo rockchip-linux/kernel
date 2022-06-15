@@ -60,7 +60,7 @@
 #define IMX258_REG_GAIN_H		0x0204
 #define IMX258_REG_GAIN_L		0x0205
 #define IMX258_GAIN_MIN			0
-#define IMX258_GAIN_MAX			0x1fff
+#define IMX258_GAIN_MAX			480
 #define IMX258_GAIN_STEP		1
 #define IMX258_GAIN_DEFAULT		0x0
 
