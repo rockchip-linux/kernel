@@ -574,7 +574,6 @@ struct clk_div_table {
  * @reg:	register containing the divider
  * @shift:	shift to the divider bit field
  * @width:	width of the divider bit field
- * @max_prate:	the maximum frequency of the parent clock
  * @table:	array of value/divider pairs, last entry should have div = 0
  * @lock:	register lock
  *
@@ -614,7 +613,6 @@ struct clk_divider {
 	u8		shift;
 	u8		width;
 	u8		flags;
-	unsigned long	max_prate;
 	const struct clk_div_table	*table;
 	spinlock_t	*lock;
 };
@@ -940,7 +938,6 @@ void clk_hw_unregister_fixed_factor(struct clk_hw *hw);
  * @mwidth:	width of the numerator bit field
  * @nshift:	shift to the denominator bit field
  * @nwidth:	width of the denominator bit field
- * @max_parent:	the maximum frequency of fractional divider parent clock
  * @lock:	register lock
  *
  * Clock with adjustable fractional divider affecting its output frequency.
@@ -966,7 +963,6 @@ struct clk_fractional_divider {
 	u8		nwidth;
 	u32		nmask;
 	u8		flags;
-	unsigned long	max_prate;
 	void		(*approximation)(struct clk_hw *hw,
 				unsigned long rate, unsigned long *parent_rate,
 				unsigned long *m, unsigned long *n);
@@ -1038,9 +1034,6 @@ extern const struct clk_ops clk_multiplier_ops;
  * @mux_hw:	handle between composite and hardware-specific mux clock
  * @rate_hw:	handle between composite and hardware-specific rate clock
  * @gate_hw:	handle between composite and hardware-specific gate clock
- * @brother_hw: a member of clk_composite who has the common parent clocks
- *              with another clk_composite, and it's also a handle between
- *              common and hardware-specific interfaces
  * @mux_ops:	clock ops for mux
  * @rate_ops:	clock ops for rate
  * @gate_ops:	clock ops for gate
@@ -1052,7 +1045,6 @@ struct clk_composite {
 	struct clk_hw	*mux_hw;
 	struct clk_hw	*rate_hw;
 	struct clk_hw	*gate_hw;
-	struct clk_hw	*brother_hw;
 
 	const struct clk_ops	*mux_ops;
 	const struct clk_ops	*rate_ops;

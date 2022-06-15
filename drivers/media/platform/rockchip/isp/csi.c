@@ -339,9 +339,13 @@ static int csi_config(struct rkisp_csi_device *csi)
 			Y_STAT_AFIFOX3_OVERFLOW;
 		rkisp_write(dev, CSI2RX_MASK_OVERFLOW, val, true);
 		val = RAW0_WR_FRAME | RAW1_WR_FRAME | RAW2_WR_FRAME |
-			MIPI_DROP_FRM | RAW_WR_SIZE_ERR | MIPI_LINECNT |
+			RAW_WR_SIZE_ERR | MIPI_LINECNT |
 			RAW_RD_SIZE_ERR | RAW0_Y_STATE |
 			RAW1_Y_STATE | RAW2_Y_STATE;
+		if (dev->isp_ver == ISP_V20)
+			val |= MIPI_DROP_FRM;
+		else
+			val |= ISP21_MIPI_DROP_FRM;
 		rkisp_write(dev, CSI2RX_MASK_STAT, val, true);
 
 		/* hdr merge */
@@ -567,10 +571,11 @@ int rkisp_csi_config_patch(struct rkisp_device *dev)
 		memset(&hdr_cfg, 0, sizeof(hdr_cfg));
 		ret = rkisp_csi_get_hdr_cfg(dev, &hdr_cfg);
 		if (dev->isp_inp & INP_CIF) {
-			struct rkisp_vicap_mode mode = {
-				.name = dev->name,
-				.is_rdbk = true,
-			};
+			struct rkisp_vicap_mode mode;
+
+			memset(&mode, 0, sizeof(mode));
+			mode.name = dev->name;
+			mode.is_rdbk = true;
 
 			get_remote_mipi_sensor(dev, &mipi_sensor, MEDIA_ENT_F_PROC_VIDEO_COMPOSER);
 			dev->hdr.op_mode = HDR_NORMAL;
@@ -589,6 +594,7 @@ int rkisp_csi_config_patch(struct rkisp_device *dev)
 				mode.is_rdbk = false;
 			v4l2_subdev_call(mipi_sensor, core, ioctl,
 					 RKISP_VICAP_CMD_MODE, &mode);
+			dev->vicap_in = mode.input;
 			/* vicap direct to isp */
 			if ((dev->isp_ver == ISP_V30 || dev->isp_ver == ISP_V32) &&
 			    !mode.is_rdbk) {
@@ -642,8 +648,10 @@ int rkisp_csi_config_patch(struct rkisp_device *dev)
 		}
 		rkisp_unite_write(dev, ISP_HDRMGE_BASE, val, false, dev->hw_dev->is_unite);
 
-		rkisp_unite_set_bits(dev, CSI2RX_MASK_STAT, 0, RAW_RD_SIZE_ERR,
-				     true, dev->hw_dev->is_unite);
+		val = RAW_RD_SIZE_ERR;
+		if (!IS_HDR_RDBK(dev->hdr.op_mode))
+			val |= ISP21_MIPI_DROP_FRM;
+		rkisp_unite_set_bits(dev, CSI2RX_MASK_STAT, 0, val, true, dev->hw_dev->is_unite);
 	}
 
 	if (IS_HDR_RDBK(dev->hdr.op_mode))
@@ -654,7 +662,6 @@ int rkisp_csi_config_patch(struct rkisp_device *dev)
 		rkisp_unite_set_bits(dev, CTRL_SWS_CFG, 0, ISP3X_SW_ACK_FRM_PRO_DIS,
 				     true, dev->hw_dev->is_unite);
 
-	memset(dev->filt_state, 0, sizeof(dev->filt_state));
 	dev->rdbk_cnt = -1;
 	dev->rdbk_cnt_x1 = -1;
 	dev->rdbk_cnt_x2 = -1;

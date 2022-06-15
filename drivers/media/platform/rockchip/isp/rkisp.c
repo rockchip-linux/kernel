@@ -198,6 +198,7 @@ int rkisp_align_sensor_resolution(struct rkisp_device *dev,
 	if (!crop)
 		return -EINVAL;
 
+	memset(&sel, 0, sizeof(sel));
 	switch (dev->isp_ver) {
 	case ISP_V12:
 		w = clamp_t(u32, src_w,
@@ -669,9 +670,6 @@ void rkisp_trigger_read_back(struct rkisp_device *dev, u8 dma2frm, u32 mode, boo
 	if (is_3dlut_upd)
 		rkisp_write(dev, ISP_3DLUT_UPDATE, 1, true);
 
-	memset(dev->filt_state, 0, sizeof(dev->filt_state));
-	dev->filt_state[RDBK_F_VS] = dma2frm;
-
 	val = rkisp_read(dev, CSI2RX_CTRL0, true);
 	val &= ~SW_IBUF_OP_MODE(0xf);
 	tmp = SW_IBUF_OP_MODE(dev->rd_mode);
@@ -1139,6 +1137,8 @@ static void rkisp_monitor_init(struct rkisp_device *dev)
  */
 static void rkisp_config_color_space(struct rkisp_device *dev)
 {
+	u32 val = 0;
+
 	u16 bt601_coeff[] = {
 		0x0026, 0x004b, 0x000f,
 		0x01ea, 0x01d6, 0x0040,
@@ -1173,16 +1173,18 @@ static void rkisp_config_color_space(struct rkisp_device *dev)
 		rkisp_unite_write(dev, CIF_ISP_CC_COEFF_0 + i * 4,
 				  *(coeff + i), false, dev->hw_dev->is_unite);
 
+	val = rkisp_read_reg_cache(dev, CIF_ISP_CTRL);
+
 	if (dev->isp_sdev.quantization == V4L2_QUANTIZATION_FULL_RANGE)
-		rkisp_unite_set_bits(dev, CIF_ISP_CTRL, 0,
-				     CIF_ISP_CTRL_ISP_CSM_Y_FULL_ENA |
-				     CIF_ISP_CTRL_ISP_CSM_C_FULL_ENA,
-				     false, dev->hw_dev->is_unite);
+		rkisp_unite_write(dev, CIF_ISP_CTRL, val |
+				  CIF_ISP_CTRL_ISP_CSM_Y_FULL_ENA |
+				  CIF_ISP_CTRL_ISP_CSM_C_FULL_ENA,
+				  false, dev->hw_dev->is_unite);
 	else
-		rkisp_unite_clear_bits(dev, CIF_ISP_CTRL,
-				       CIF_ISP_CTRL_ISP_CSM_Y_FULL_ENA |
-				       CIF_ISP_CTRL_ISP_CSM_C_FULL_ENA,
-				       false, dev->hw_dev->is_unite);
+		rkisp_unite_write(dev, CIF_ISP_CTRL, val &
+				  ~(CIF_ISP_CTRL_ISP_CSM_Y_FULL_ENA |
+				  CIF_ISP_CTRL_ISP_CSM_C_FULL_ENA),
+				  false, dev->hw_dev->is_unite);
 }
 
 static void rkisp_config_cmsk_single(struct rkisp_device *dev,
@@ -1237,6 +1239,11 @@ static void rkisp_config_cmsk_single(struct rkisp_device *dev,
 		ctrl |= ISP3X_SW_CMSK_EN | ISP3X_SW_CMSK_ORDER_MODE;
 	}
 	rkisp_write(dev, ISP3X_CMSK_CTRL0, ctrl, false);
+
+	val = rkisp_read(dev, ISP3X_CMSK_CTRL0, true);
+	if (dev->hw_dev->is_single &&
+	    ((val & ISP32_SW_CMSK_EN_PATH) != (val & ISP32_SW_CMSK_EN_PATH_SHD)))
+		rkisp_write(dev, ISP3X_CMSK_CTRL0, val | ISP3X_SW_CMSK_FORCE_UPD, true);
 }
 
 static void rkisp_config_cmsk_dual(struct rkisp_device *dev,
@@ -1347,6 +1354,11 @@ static void rkisp_config_cmsk_dual(struct rkisp_device *dev,
 		ctrl |= ISP3X_SW_CMSK_EN | ISP3X_SW_CMSK_ORDER_MODE;
 	}
 	rkisp_next_write(dev, ISP3X_CMSK_CTRL0, ctrl, false);
+
+	val = rkisp_next_read(dev, ISP3X_CMSK_CTRL0, true);
+	if (dev->hw_dev->is_single &&
+	    ((val & ISP32_SW_CMSK_EN_PATH) != (val & ISP32_SW_CMSK_EN_PATH_SHD)))
+		rkisp_next_write(dev, ISP3X_CMSK_CTRL0, val | ISP3X_SW_CMSK_FORCE_UPD, false);
 }
 
 static void rkisp_config_cmsk(struct rkisp_device *dev)
@@ -1478,6 +1490,9 @@ static int rkisp_config_isp(struct rkisp_device *dev)
 			signal |= CIF_ISP_ACQ_PROP_HSYNC_LOW;
 	}
 
+	if (rkisp_read_reg_cache(dev, CIF_ISP_CTRL) & ISP32_MIR_ENABLE)
+		isp_ctrl |= ISP32_MIR_ENABLE;
+
 	rkisp_unite_write(dev, CIF_ISP_CTRL, isp_ctrl, false, is_unite);
 	acq_prop |= signal | in_fmt->yuv_seq |
 		CIF_ISP_ACQ_PROP_BAYER_PAT(in_fmt->bayer_pat) |
@@ -1513,8 +1528,7 @@ static int rkisp_config_isp(struct rkisp_device *dev)
 	}
 
 	/* interrupt mask */
-	irq_mask |= CIF_ISP_FRAME | CIF_ISP_V_START | CIF_ISP_PIC_SIZE_ERROR |
-		    CIF_ISP_FRAME_IN;
+	irq_mask |= CIF_ISP_FRAME | CIF_ISP_V_START | CIF_ISP_PIC_SIZE_ERROR;
 	if (dev->isp_ver == ISP_V20 || dev->isp_ver == ISP_V21 ||
 	    dev->isp_ver == ISP_V30 || dev->isp_ver == ISP_V32)
 		irq_mask |= ISP2X_LSC_LUT_ERR;
@@ -1672,6 +1686,9 @@ static int rkisp_config_path(struct rkisp_device *dev)
 		v4l2_err(&dev->v4l2_dev, "Invalid input\n");
 		ret = -EINVAL;
 	}
+
+	if (dev->isp_ver == ISP_V32)
+		dpcl |= BIT(0);
 
 	rkisp_unite_set_bits(dev, CIF_VI_DPCL, 0, dpcl, true,
 			     dev->hw_dev->is_unite);
@@ -1931,7 +1948,7 @@ static int rkisp_isp_start(struct rkisp_device *dev)
 		}
 	}
 	/* Activate ISP */
-	val = rkisp_read(dev, CIF_ISP_CTRL, false);
+	val = rkisp_read_reg_cache(dev, CIF_ISP_CTRL);
 	val |= CIF_ISP_CTRL_ISP_CFG_UPD | CIF_ISP_CTRL_ISP_ENABLE |
 	       CIF_ISP_CTRL_ISP_INFORM_ENABLE | CIF_ISP_CTRL_ISP_CFG_UPD_PERMANENT;
 	if (dev->isp_ver == ISP_V20)
@@ -1939,11 +1956,12 @@ static int rkisp_isp_start(struct rkisp_device *dev)
 	if (atomic_read(&dev->hw_dev->refcnt) > 1)
 		is_direct = false;
 	rkisp_unite_write(dev, CIF_ISP_CTRL, val, is_direct, dev->hw_dev->is_unite);
+	rkisp_clear_reg_cache_bits(dev, CIF_ISP_CTRL, CIF_ISP_CTRL_ISP_CFG_UPD);
 
 	dev->isp_err_cnt = 0;
 	dev->isp_isr_cnt = 0;
 	dev->isp_state = ISP_START | ISP_FRAME_END;
-	dev->irq_ends_mask |= ISP_FRAME_END | ISP_FRAME_IN;
+	dev->irq_ends_mask |= ISP_FRAME_END;
 	dev->irq_ends = 0;
 
 	/* XXX: Is the 1000us too long?
@@ -2448,6 +2466,40 @@ err:
 	return -EINVAL;
 }
 
+static void rkisp_check_stream_dcrop(struct rkisp_device *dev,
+				     struct v4l2_rect *crop)
+{
+	struct rkisp_stream *stream;
+	struct v4l2_rect *dcrop;
+	u32 i;
+
+	for (i = 0; i < RKISP_MAX_STREAM; i++) {
+		if (i != RKISP_STREAM_MP && i != RKISP_STREAM_SP &&
+		    i != RKISP_STREAM_FBC && i != RKISP_STREAM_BP)
+			continue;
+		stream = &dev->cap_dev.stream[i];
+		dcrop = &stream->dcrop;
+		v4l2_dbg(1, rkisp_debug, &dev->v4l2_dev,
+			 "%s id:%d %dx%d(%d %d) from %dx%d(%d %d)\n",
+			__func__, i,
+			dcrop->width, dcrop->height, dcrop->left, dcrop->top,
+			crop->width, crop->height, crop->left, crop->top);
+		/* make sure dcrop window in isp output window */
+		if (dcrop->width > crop->width) {
+			dcrop->width = crop->width;
+			dcrop->left = 0;
+		} else if ((dcrop->left + dcrop->width) > crop->width) {
+			dcrop->left = crop->width - dcrop->width;
+		}
+		if (dcrop->height > crop->height) {
+			dcrop->height = crop->height;
+			dcrop->top = 0;
+		} else if ((dcrop->left + dcrop->width) > crop->height) {
+			dcrop->top = crop->height - dcrop->height;
+		}
+	}
+}
+
 static int rkisp_isp_sd_set_selection(struct v4l2_subdev *sd,
 				      struct v4l2_subdev_pad_config *cfg,
 				      struct v4l2_subdev_selection *sel)
@@ -2493,6 +2545,8 @@ static int rkisp_isp_sd_set_selection(struct v4l2_subdev *sd,
 			*crop = isp_sd->out_crop;
 		isp_sd->out_crop = *crop;
 	}
+
+	rkisp_check_stream_dcrop(dev, crop);
 
 	return 0;
 err:
@@ -2584,6 +2638,7 @@ static int rkisp_isp_sd_s_stream(struct v4l2_subdev *sd, int on)
 		rkisp_isp_stop(isp_dev);
 		atomic_dec(&hw_dev->refcnt);
 		rkisp_params_stream_stop(&isp_dev->params_vdev);
+		atomic_set(&isp_dev->isp_sdev.frm_sync_seq, 0);
 		return 0;
 	}
 
@@ -2595,7 +2650,6 @@ static int rkisp_isp_sd_s_stream(struct v4l2_subdev *sd, int on)
 		return -EINVAL;
 	}
 
-	atomic_set(&isp_dev->isp_sdev.frm_sync_seq, 0);
 	rkisp_config_cif(isp_dev);
 	rkisp_isp_start(isp_dev);
 	rkisp_global_update_mi(isp_dev);
@@ -2800,6 +2854,18 @@ static int rkisp_subdev_link_setup(struct media_entity *entity,
 		} else {
 			dev->isp_inp &= ~INP_RAWRD2;
 		}
+	} else if (!strcmp(remote->entity->name, FBC_VDEV_NAME)) {
+		stream = &dev->cap_dev.stream[RKISP_STREAM_FBC];
+	} else if (!strcmp(remote->entity->name, BP_VDEV_NAME)) {
+		stream = &dev->cap_dev.stream[RKISP_STREAM_BP];
+	} else if (!strcmp(remote->entity->name, MPDS_VDEV_NAME)) {
+		stream = &dev->cap_dev.stream[RKISP_STREAM_MPDS];
+	} else if (!strcmp(remote->entity->name, BPDS_VDEV_NAME)) {
+		stream = &dev->cap_dev.stream[RKISP_STREAM_BPDS];
+	} else if (!strcmp(remote->entity->name, LUMA_VDEV_NAME)) {
+		stream = &dev->cap_dev.stream[RKISP_STREAM_LUMA];
+	} else if (!strcmp(remote->entity->name, VIR_VDEV_NAME)) {
+		stream = &dev->cap_dev.stream[RKISP_STREAM_VIR];
 	} else if (!strcmp(remote->entity->name, SP_VDEV_NAME)) {
 		stream = &dev->cap_dev.stream[RKISP_STREAM_SP];
 	} else if (!strcmp(remote->entity->name, MP_VDEV_NAME)) {
@@ -2853,6 +2919,7 @@ static int rkisp_subdev_link_setup(struct media_entity *entity,
 		struct v4l2_subdev *remote = get_remote_sensor(sd);
 		struct rkisp_vicap_mode mode;
 
+		memset(&mode, 0, sizeof(mode));
 		mode.name = dev->name;
 		mode.is_rdbk = !!(dev->isp_inp & rawrd);
 		/* read back mode only */
@@ -2860,6 +2927,7 @@ static int rkisp_subdev_link_setup(struct media_entity *entity,
 			mode.is_rdbk = true;
 		v4l2_subdev_call(remote, core, ioctl,
 				 RKISP_VICAP_CMD_MODE, &mode);
+		dev->vicap_in = mode.input;
 	}
 
 	if (!dev->isp_inp)
@@ -3068,6 +3136,12 @@ static long rkisp_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 		idxfd = (struct isp2x_buf_idxfd *)arg;
 		ret = rkisp_bridge_get_fbcbuf_fd(isp_dev, idxfd);
 		break;
+	case RKISP_CMD_INFO2DDR:
+		ret = rkisp_params_info2ddr_cfg(&isp_dev->params_vdev, arg);
+		break;
+	case RKISP_CMD_MESHBUF_FREE:
+		rkisp_params_meshbuf_free(&isp_dev->params_vdev, *(u64 *)arg);
+		break;
 	default:
 		ret = -ENOIOCTLCMD;
 	}
@@ -3088,7 +3162,9 @@ static long rkisp_compat_ioctl32(struct v4l2_subdev *sd,
 	struct rkisp_meshbuf_size meshsize;
 	struct rkisp_thunderboot_shmem shmem;
 	struct isp2x_buf_idxfd idxfd;
+	struct rkisp_info2ddr info2ddr;
 	long ret = 0;
+	u64 module_id;
 
 	if (!up && cmd != RKISP_CMD_FREE_SHARED_BUF)
 		return -EINVAL;
@@ -3152,6 +3228,18 @@ static long rkisp_compat_ioctl32(struct v4l2_subdev *sd,
 		ret = rkisp_ioctl(sd, cmd, &idxfd);
 		if (!ret && copy_to_user(up, &idxfd, sizeof(idxfd)))
 			ret = -EFAULT;
+		break;
+	case RKISP_CMD_INFO2DDR:
+		if (copy_from_user(&info2ddr, up, sizeof(info2ddr)))
+			return -EFAULT;
+		ret = rkisp_ioctl(sd, cmd, &info2ddr);
+		if (!ret && copy_to_user(up, &info2ddr, sizeof(info2ddr)))
+			ret = -EFAULT;
+		break;
+	case RKISP_CMD_MESHBUF_FREE:
+		if (copy_from_user(&module_id, up, sizeof(module_id)))
+			return -EFAULT;
+		ret = rkisp_ioctl(sd, cmd, &module_id);
 		break;
 	default:
 		ret = -ENOIOCTLCMD;
@@ -3230,6 +3318,7 @@ int rkisp_register_isp_subdev(struct rkisp_device *isp_dev,
 	struct v4l2_subdev *sd = &isp_sdev->sd;
 	int ret;
 
+	mutex_init(&isp_dev->buf_lock);
 	spin_lock_init(&isp_dev->cmsk_lock);
 	spin_lock_init(&isp_dev->rdbk_lock);
 	ret = kfifo_alloc(&isp_dev->rdbk_kfifo,
@@ -3268,7 +3357,7 @@ int rkisp_register_isp_subdev(struct rkisp_device *isp_dev,
 	rkisp_isp_sd_init_default_fmt(isp_sdev);
 	isp_dev->hdr.sensor = NULL;
 	isp_dev->isp_state = ISP_STOP;
-
+	atomic_set(&isp_sdev->frm_sync_seq, 0);
 	rkisp_monitor_init(isp_dev);
 	return 0;
 err_cleanup_media_entity:
@@ -3501,25 +3590,12 @@ void rkisp_isp_isr(unsigned int isp_mis,
 	dev->isp_isr_cnt++;
 	/* start edge of v_sync */
 	if (isp_mis & CIF_ISP_V_START) {
-		if (dev->isp_state & ISP_FRAME_END) {
-			u64 tmp = dev->isp_sdev.dbg.interval +
-					dev->isp_sdev.dbg.timestamp;
-
-			dev->isp_sdev.dbg.timestamp = ktime_get_ns();
-			/* v-blank: frame_end - frame_start */
-			dev->isp_sdev.dbg.delay = dev->isp_sdev.dbg.timestamp - tmp;
-		}
-		rkisp_set_state(&dev->isp_state, ISP_FRAME_VS);
 		if (dev->hw_dev->monitor.is_en) {
 			rkisp_set_state(&dev->hw_dev->monitor.state, ISP_FRAME_VS);
 			if (!completion_done(&dev->hw_dev->monitor.cmpl))
 				complete(&dev->hw_dev->monitor.cmpl);
 		}
-		/* last vsync to config next buf */
-		if (!dev->filt_state[RDBK_F_VS])
-			rkisp_stream_frame_start(dev, isp_mis);
-		else
-			dev->filt_state[RDBK_F_VS]--;
+
 		if (IS_HDR_RDBK(dev->hdr.op_mode)) {
 			/* read 3d lut at isp readback */
 			if (!dev->hw_dev->is_single)
@@ -3553,6 +3629,7 @@ void rkisp_isp_isr(unsigned int isp_mis,
 		if (dev->vs_irq < 0 && !sof_event_later) {
 			dev->isp_sdev.frm_timestamp = ktime_get_ns();
 			rkisp_isp_queue_event_sof(&dev->isp_sdev);
+			rkisp_stream_frame_start(dev, isp_mis);
 		}
 vs_skip:
 		writel(CIF_ISP_V_START, base + CIF_ISP_ICR);
@@ -3613,9 +3690,6 @@ vs_skip:
 		if (isp_mis_tmp & CIF_ISP_FRAME_IN)
 			v4l2_err(&dev->v4l2_dev, "isp icr frame_in err: 0x%x\n",
 				 isp_mis_tmp);
-
-		dev->isp_err_cnt = 0;
-		dev->isp_state &= ~ISP_ERROR;
 	}
 
 	/* frame was completely put out */
@@ -3631,6 +3705,21 @@ vs_skip:
 				 "isp icr frame end err: 0x%x\n", isp_mis_tmp);
 		rkisp_dmarx_get_frame(dev, &dev->isp_sdev.dbg.id, NULL, NULL, true);
 		rkisp_isp_read_add_fifo_data(dev);
+
+		dev->isp_err_cnt = 0;
+		dev->isp_state &= ~ISP_ERROR;
+	}
+
+	if (isp_mis & CIF_ISP_V_START) {
+		if (dev->isp_state & ISP_FRAME_END) {
+			u64 tmp = dev->isp_sdev.dbg.interval +
+					dev->isp_sdev.dbg.timestamp;
+
+			dev->isp_sdev.dbg.timestamp = ktime_get_ns();
+			/* v-blank: frame(N)start - frame(N-1)end */
+			dev->isp_sdev.dbg.delay = dev->isp_sdev.dbg.timestamp - tmp;
+		}
+		rkisp_set_state(&dev->isp_state, ISP_FRAME_VS);
 	}
 
 	if ((isp_mis & (CIF_ISP_FRAME | si3a_isr_mask)) ||
@@ -3671,10 +3760,22 @@ vs_skip:
 	if (dev->vs_irq < 0 && sof_event_later) {
 		dev->isp_sdev.frm_timestamp = ktime_get_ns();
 		rkisp_isp_queue_event_sof(&dev->isp_sdev);
+		rkisp_stream_frame_start(dev, isp_mis);
 	}
 
-	if (isp_mis & CIF_ISP_FRAME_IN)
-		rkisp_check_idle(dev, ISP_FRAME_IN);
+	if (isp_mis & ISP3X_OUT_FRM_QUARTER) {
+		writel(ISP3X_OUT_FRM_QUARTER, base + CIF_ISP_ICR);
+		rkisp_dvbm_event(dev, ISP3X_OUT_FRM_QUARTER);
+	}
+	if (isp_mis & ISP3X_OUT_FRM_HALF) {
+		writel(ISP3X_OUT_FRM_HALF, base + CIF_ISP_ICR);
+		rkisp_dvbm_event(dev, ISP3X_OUT_FRM_HALF);
+	}
+	if (isp_mis & ISP3X_OUT_FRM_END) {
+		writel(ISP3X_OUT_FRM_END, base + CIF_ISP_ICR);
+		rkisp_dvbm_event(dev, ISP3X_OUT_FRM_END);
+	}
+
 	if (isp_mis & CIF_ISP_FRAME)
 		rkisp_check_idle(dev, ISP_FRAME_END);
 }

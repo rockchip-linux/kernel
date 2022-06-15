@@ -460,6 +460,8 @@ of_parse_display_resource(struct drm_device *drm_dev, struct device_node *route)
 	else
 		set->hue = 50;
 
+	set->force_output = of_property_read_bool(route, "force-output");
+
 	if (!of_property_read_u32(route, "cubic_lut,offset", &val)) {
 		private->cubic_lut[crtc->index].enable = true;
 		private->cubic_lut[crtc->index].offset = val;
@@ -478,7 +480,8 @@ of_parse_display_resource(struct drm_device *drm_dev, struct device_node *route)
 }
 
 static int rockchip_drm_fill_connector_modes(struct drm_connector *connector,
-					     uint32_t maxX, uint32_t maxY)
+					     uint32_t maxX, uint32_t maxY,
+					     bool force_output)
 {
 	struct drm_device *dev = connector->dev;
 	struct drm_display_mode *mode;
@@ -496,6 +499,8 @@ static int rockchip_drm_fill_connector_modes(struct drm_connector *connector,
 	list_for_each_entry(mode, &connector->modes, head)
 		mode->status = MODE_STALE;
 
+	if (force_output)
+		connector->force = DRM_FORCE_ON;
 	if (connector->force) {
 		if (connector->force == DRM_FORCE_ON ||
 		    connector->force == DRM_FORCE_ON_DIGITAL)
@@ -550,10 +555,13 @@ static int rockchip_drm_fill_connector_modes(struct drm_connector *connector,
 		goto prune;
 	}
 
-	count = (*connector_funcs->get_modes)(connector);
+	if (!force_output)
+		count = (*connector_funcs->get_modes)(connector);
 
 	if (count == 0 && connector->status == connector_status_connected)
 		count = drm_add_modes_noedid(connector, 1024, 768);
+	if (force_output)
+		count += rockchip_drm_add_modes_noedid(connector);
 	if (count == 0)
 		goto prune;
 
@@ -650,7 +658,7 @@ static int setup_initial_state(struct drm_device *drm_dev,
 
 	if (set->sub_dev->loader_protect)
 		set->sub_dev->loader_protect(conn_state->best_encoder, true);
-	num_modes = rockchip_drm_fill_connector_modes(connector, 4096, 4096);
+	num_modes = rockchip_drm_fill_connector_modes(connector, 7680, 7680, set->force_output);
 	if (!num_modes) {
 		dev_err(drm_dev->dev, "connector[%s] can't found any modes\n",
 			connector->name);
@@ -685,9 +693,9 @@ static int setup_initial_state(struct drm_device *drm_dev,
 		connector->status = connector_status_disconnected;
 		dev_err(drm_dev->dev, "connector[%s] can't found any match mode\n",
 			connector->name);
-		DRM_INFO("%s support modes:\n\n", connector->name);
+		DRM_DEBUG("%s support modes:\n", connector->name);
 		list_for_each_entry(mode, &connector->modes, head) {
-			DRM_INFO(DRM_MODE_FMT "\n", DRM_MODE_ARG(mode));
+			DRM_DEBUG(DRM_MODE_FMT "\n", DRM_MODE_ARG(mode));
 		}
 		DRM_INFO("uboot set mode: h/v display[%d,%d] h/v sync_end[%d,%d] vfresh[%d], flags[0x%x], aspect_ratio[%d]\n",
 			 set->hdisplay, set->vdisplay, set->crtc_hsync_end, set->crtc_vsync_end,
@@ -706,6 +714,7 @@ static int setup_initial_state(struct drm_device *drm_dev,
 		goto error_conn;
 	}
 
+	crtc->state->state = state;
 	drm_mode_copy(&crtc_state->adjusted_mode, mode);
 	if (!match || !is_crtc_enabled) {
 		set->mode_changed = true;
@@ -1005,6 +1014,8 @@ void rockchip_drm_show_logo(struct drm_device *drm_dev)
 	 */
 
 	list_for_each_entry_safe(set, tmp, &mode_set_list, head) {
+		if (set->force_output)
+			set->sub_dev->connector->force = DRM_FORCE_UNSPECIFIED;
 		list_del(&set->head);
 		kfree(set);
 	}

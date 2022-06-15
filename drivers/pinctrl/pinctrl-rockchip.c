@@ -3782,6 +3782,7 @@ static int rockchip_pinctrl_probe(struct platform_device *pdev)
 	node = of_parse_phandle(np, "rockchip,grf", 0);
 	if (node) {
 		info->regmap_base = syscon_node_to_regmap(node);
+		of_node_put(node);
 		if (IS_ERR(info->regmap_base))
 			return PTR_ERR(info->regmap_base);
 	} else {
@@ -3818,6 +3819,7 @@ static int rockchip_pinctrl_probe(struct platform_device *pdev)
 	node = of_parse_phandle(np, "rockchip,pmu", 0);
 	if (node) {
 		info->regmap_pmu = syscon_node_to_regmap(node);
+		of_node_put(node);
 		if (IS_ERR(info->regmap_pmu))
 			return PTR_ERR(info->regmap_pmu);
 	}
@@ -3911,27 +3913,35 @@ static struct rockchip_pin_ctrl px30_pin_ctrl __maybe_unused = {
 };
 
 static struct rockchip_pin_bank rv1106_pin_banks[] = {
-	PIN_BANK_IOMUX_FLAGS(0, 8, "gpio0", IOMUX_WIDTH_4BIT | IOMUX_SOURCE_PMU,
-					    0, 0, 0),
-	PIN_BANK_IOMUX_FLAGS_OFFSET(1, 32, "gpio1", IOMUX_WIDTH_4BIT,
-					     IOMUX_WIDTH_4BIT,
-					     IOMUX_WIDTH_4BIT,
-					     IOMUX_WIDTH_4BIT,
-					     0, 0x08, 0x10, 0x18),
-	PIN_BANK_IOMUX_FLAGS_OFFSET(2, 16, "gpio2", IOMUX_WIDTH_4BIT,
-					     IOMUX_WIDTH_4BIT,
-					     0, 0,
-					     0x10020, 0x10028, 0, 0),
-	PIN_BANK_IOMUX_FLAGS_OFFSET(3, 32, "gpio3", IOMUX_WIDTH_4BIT,
-					     IOMUX_WIDTH_4BIT,
-					     IOMUX_WIDTH_4BIT,
-					     IOMUX_WIDTH_4BIT,
-					     0x20040, 0x20048, 0x20050, 0x20058),
-	PIN_BANK_IOMUX_FLAGS_OFFSET(4, 24, "gpio4", IOMUX_WIDTH_4BIT,
-					     IOMUX_WIDTH_4BIT,
-					     IOMUX_WIDTH_4BIT,
-					     0,
-					     0x30000, 0x30008, 0x30010, 0),
+	PIN_BANK_IOMUX_FLAGS(0, 32, "gpio0",
+			     IOMUX_WIDTH_4BIT | IOMUX_SOURCE_PMU,
+			     IOMUX_WIDTH_4BIT | IOMUX_SOURCE_PMU,
+			     IOMUX_WIDTH_4BIT | IOMUX_SOURCE_PMU,
+			     IOMUX_WIDTH_4BIT | IOMUX_SOURCE_PMU),
+	PIN_BANK_IOMUX_FLAGS_OFFSET(1, 32, "gpio1",
+				    IOMUX_WIDTH_4BIT,
+				    IOMUX_WIDTH_4BIT,
+				    IOMUX_WIDTH_4BIT,
+				    IOMUX_WIDTH_4BIT,
+				    0, 0x08, 0x10, 0x18),
+	PIN_BANK_IOMUX_FLAGS_OFFSET(2, 32, "gpio2",
+				    IOMUX_WIDTH_4BIT,
+				    IOMUX_WIDTH_4BIT,
+				    IOMUX_WIDTH_4BIT,
+				    IOMUX_WIDTH_4BIT,
+				    0x10020, 0x10028, 0, 0),
+	PIN_BANK_IOMUX_FLAGS_OFFSET(3, 32, "gpio3",
+				    IOMUX_WIDTH_4BIT,
+				    IOMUX_WIDTH_4BIT,
+				    IOMUX_WIDTH_4BIT,
+				    IOMUX_WIDTH_4BIT,
+				    0x20040, 0x20048, 0x20050, 0x20058),
+	PIN_BANK_IOMUX_FLAGS_OFFSET(4, 24, "gpio4",
+				    IOMUX_WIDTH_4BIT,
+				    IOMUX_WIDTH_4BIT,
+				    IOMUX_WIDTH_4BIT,
+				    0,
+				    0x30000, 0x30008, 0x30010, 0),
 };
 
 static struct rockchip_pin_ctrl rv1106_pin_ctrl __maybe_unused = {

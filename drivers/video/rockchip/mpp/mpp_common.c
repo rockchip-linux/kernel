@@ -36,7 +36,7 @@
 #include "mpp_common.h"
 #include "mpp_iommu.h"
 
-#define MPP_WORK_TIMEOUT_DELAY		(200)
+#define MPP_WORK_TIMEOUT_DELAY		(500)
 #define MPP_WAIT_TIMEOUT_DELAY		(2000)
 
 /* Use 'v' as magic number */
@@ -271,8 +271,8 @@ static struct mpp_task_msgs *get_task_msgs(struct mpp_session *session)
 	session->msgs_cnt++;
 	spin_unlock_irqrestore(&session->lock_msgs, flags);
 
-	mpp_debug_func(DEBUG_TASK_INFO, "session %p:%d msgs cnt %d\n",
-			session, session->index, session->msgs_cnt);
+	mpp_debug_func(DEBUG_TASK_INFO, "session %d:%d msgs cnt %d\n",
+		       session->pid, session->index, session->msgs_cnt);
 
 	return msgs;
 }
@@ -319,8 +319,7 @@ static void clear_task_msgs(struct mpp_session *session)
 		kfree(msgs);
 }
 
-static int mpp_session_clear(struct mpp_dev *mpp,
-			     struct mpp_session *session)
+static void mpp_session_clear_pending(struct mpp_session *session)
 {
 	struct mpp_task *task = NULL, *n;
 
@@ -335,8 +334,49 @@ static int mpp_session_clear(struct mpp_dev *mpp,
 		kref_put(&task->ref, mpp_free_task);
 	}
 	mutex_unlock(&session->pending_lock);
+}
 
-	return 0;
+void mpp_session_cleanup_detach(struct mpp_taskqueue *queue, struct kthread_work *work)
+{
+	struct mpp_session *session, *n;
+
+	if (!atomic_read(&queue->detach_count))
+		return;
+
+	mutex_lock(&queue->session_lock);
+	list_for_each_entry_safe(session, n, &queue->session_detach, session_link) {
+		s32 task_count = atomic_read(&session->task_count);
+
+		if (!task_count) {
+			list_del_init(&session->session_link);
+			atomic_dec(&queue->detach_count);
+		}
+
+		mutex_unlock(&queue->session_lock);
+
+		if (task_count) {
+			mpp_dbg_session("session %d:%d task not finished %d\n",
+					session->pid, session->index,
+					atomic_read(&queue->detach_count));
+
+			mpp_session_clear_pending(session);
+		} else {
+			mpp_dbg_session("queue detach %d\n",
+					atomic_read(&queue->detach_count));
+
+			mpp_session_deinit(session);
+		}
+
+		mutex_lock(&queue->session_lock);
+	}
+	mutex_unlock(&queue->session_lock);
+
+	if (atomic_read(&queue->detach_count)) {
+		mpp_dbg_session("queue detach %d again\n",
+				atomic_read(&queue->detach_count));
+
+		kthread_queue_work(&queue->worker, work);
+	}
 }
 
 static struct mpp_session *mpp_session_init(void)
@@ -372,12 +412,12 @@ static void mpp_session_deinit_default(struct mpp_session *session)
 		if (mpp->dev_ops->free_session)
 			mpp->dev_ops->free_session(session);
 
-		mpp_session_clear(mpp, session);
+		mpp_session_clear_pending(session);
 
 		if (session->dma) {
-			mpp_iommu_down_read(mpp->iommu_info);
+			mpp_iommu_down_write(mpp->iommu_info);
 			mpp_dma_session_destroy(session->dma);
-			mpp_iommu_up_read(mpp->iommu_info);
+			mpp_iommu_up_write(mpp->iommu_info);
 			session->dma = NULL;
 		}
 	}
@@ -393,32 +433,25 @@ static void mpp_session_deinit_default(struct mpp_session *session)
 	list_del_init(&session->session_link);
 }
 
-int mpp_session_deinit(struct mpp_session *session)
+void mpp_session_deinit(struct mpp_session *session)
 {
-	u32 task_count = atomic_read(&session->task_count);
-
-	mpp_dbg_session("session %p:%d task %d release\n",
-			session, session->index, task_count);
-	if (task_count)
-		return -1;
+	mpp_dbg_session("session %d:%d task %d deinit\n", session->pid,
+			session->index, atomic_read(&session->task_count));
 
 	if (likely(session->deinit))
 		session->deinit(session);
 	else
 		pr_err("invalid NULL session deinit function\n");
 
-	mpp_dbg_session("session %p:%d deinit\n", session, session->index);
-
 	clear_task_msgs(session);
 
 	kfree(session);
-	return 0;
 }
 
 static void mpp_session_attach_workqueue(struct mpp_session *session,
 					 struct mpp_taskqueue *queue)
 {
-	mpp_dbg_session("session %p:%d attach\n", session, session->index);
+	mpp_dbg_session("session %d:%d attach\n", session->pid, session->index);
 	mutex_lock(&queue->session_lock);
 	list_add_tail(&session->session_link, &queue->session_attach);
 	mutex_unlock(&queue->session_lock);
@@ -432,14 +465,14 @@ static void mpp_session_detach_workqueue(struct mpp_session *session)
 	if (!session->mpp || !session->mpp->queue)
 		return;
 
-	mpp_dbg_session("session %p:%d detach\n", session, session->index);
+	mpp_dbg_session("session %d:%d detach\n", session->pid, session->index);
 	mpp = session->mpp;
 	queue = mpp->queue;
 
 	mutex_lock(&queue->session_lock);
 	list_del_init(&session->session_link);
 	list_add_tail(&session->session_link, &queue->session_detach);
-	queue->detach_count++;
+	atomic_inc(&queue->detach_count);
 	mutex_unlock(&queue->session_lock);
 
 	mpp_taskqueue_trigger_work(mpp);
@@ -521,15 +554,18 @@ static void mpp_task_timeout_work(struct work_struct *work_s)
 		return;
 	}
 
-	mpp_err("task %p processing time out!\n", task);
 	if (!task->session) {
 		mpp_err("task %p, task->session is null.\n", task);
 		return;
 	}
+
 	session = task->session;
+	mpp_err("task %d:%d:%d processing time out!\n", session->pid,
+		session->index, task->task_id);
 
 	if (!session->mpp) {
-		mpp_err("session %p, session->mpp is null.\n", session);
+		mpp_err("session %d:%d, session mpp is null.\n", session->pid,
+			session->index);
 		return;
 	}
 
@@ -715,7 +751,6 @@ static int mpp_task_run(struct mpp_dev *mpp,
 	}
 
 	mpp_power_on(mpp);
-	mpp_time_record(task);
 	mpp_debug_func(DEBUG_TASK_INFO, "pid %d run %s\n",
 		       task->session->pid, dev_name(mpp->dev));
 
@@ -728,6 +763,7 @@ static int mpp_task_run(struct mpp_dev *mpp,
 	mpp_reset_down_read(mpp->reset_group);
 
 	set_bit(TASK_STATE_START, &task->state);
+	mpp_time_record(task);
 	schedule_delayed_work(&task->timeout_work,
 			      msecs_to_jiffies(MPP_WORK_TIMEOUT_DELAY));
 	if (mpp->dev_ops->run)
@@ -790,28 +826,7 @@ again:
 	}
 
 done:
-	mutex_lock(&queue->session_lock);
-	while (queue->detach_count) {
-		struct mpp_session *session = NULL;
-
-		session = list_first_entry_or_null(&queue->session_detach, struct mpp_session,
-				session_link);
-		if (session) {
-			list_del_init(&session->session_link);
-			queue->detach_count--;
-		}
-
-		mutex_unlock(&queue->session_lock);
-
-		if (session) {
-			mpp_dbg_session("%s detach count %d\n", dev_name(mpp->dev),
-					queue->detach_count);
-			mpp_session_deinit(session);
-		}
-
-		mutex_lock(&queue->session_lock);
-	}
-	mutex_unlock(&queue->session_lock);
+	mpp_session_cleanup_detach(queue, work_s);
 }
 
 static int mpp_wait_result_default(struct mpp_session *session,
@@ -823,7 +838,8 @@ static int mpp_wait_result_default(struct mpp_session *session,
 
 	task = mpp_session_get_pending_task(session);
 	if (!task) {
-		mpp_err("session %p pending list is empty!\n", session);
+		mpp_err("session %d:%d pending list is empty!\n",
+			session->pid, session->index);
 		return -EIO;
 	}
 	mpp = mpp_get_task_used_device(task, session);
@@ -837,8 +853,8 @@ static int mpp_wait_result_default(struct mpp_session *session,
 	} else {
 		atomic_inc(&task->abort_request);
 		set_bit(TASK_STATE_ABORT, &task->state);
-		mpp_err("timeout, pid %d session %p:%d count %d cur_task %p id %d\n",
-			session->pid, session, session->index,
+		mpp_err("timeout, pid %d session %d:%d count %d cur_task %p id %d\n",
+			session->pid, session->pid, session->index,
 			atomic_read(&session->task_count), task,
 			task->task_id);
 	}
@@ -947,6 +963,7 @@ struct mpp_taskqueue *mpp_taskqueue_init(struct device *dev)
 	/* default taskqueue has max 16 task capacity */
 	queue->task_capacity = MPP_MAX_TASK_CAPACITY;
 	atomic_set(&queue->reset_request, 0);
+	atomic_set(&queue->detach_count, 0);
 	atomic_set(&queue->task_id, 0);
 
 	return queue;
@@ -1232,7 +1249,7 @@ static int mpp_process_request(struct mpp_session *session,
 			if (!mpp)
 				return -EINVAL;
 
-			mpp_session_clear(mpp, session);
+			mpp_session_clear_pending(session);
 			mpp_iommu_down_write(mpp->iommu_info);
 			ret = mpp_dma_session_destroy(session->dma);
 			mpp_iommu_up_write(mpp->iommu_info);
@@ -1435,8 +1452,8 @@ session_switch_done:
 		msgs = get_task_msgs(session);
 
 	if (!msgs) {
-		pr_err("session %p:%d failed to get task msgs",
-		       session, session->index);
+		pr_err("session %d:%d failed to get task msgs",
+		       session->pid, session->index);
 		return -EINVAL;
 	}
 
@@ -1621,7 +1638,7 @@ static int mpp_dev_release(struct inode *inode, struct file *filp)
 	/* wait for task all done */
 	atomic_inc(&session->release_request);
 
-	if (session->mpp)
+	if (session->mpp || atomic_read(&session->task_count))
 		mpp_session_detach_workqueue(session);
 	else
 		mpp_session_deinit(session);
@@ -1675,9 +1692,9 @@ mpp_task_attach_fd(struct mpp_task *task, int fd)
 		mpp_iommu_down_read(mpp->iommu_info);
 		buffer = mpp_dma_import_fd(mpp->iommu_info, dma, fd);
 		mpp_iommu_up_read(mpp->iommu_info);
-		if (IS_ERR_OR_NULL(buffer)) {
+		if (IS_ERR(buffer)) {
 			mpp_err("can't import dma-buf %d\n", fd);
-			return ERR_PTR(-ENOMEM);
+			return ERR_CAST(buffer);
 		}
 
 		mem_region->hdl = buffer;
@@ -1888,9 +1905,9 @@ int mpp_task_finalize(struct mpp_session *session,
 				 &task->mem_region_list,
 				 reg_link) {
 		if (!mem_region->is_dup) {
-			mpp_iommu_down_read(mpp->iommu_info);
+			mpp_iommu_down_write(mpp->iommu_info);
 			mpp_dma_release(session->dma, mem_region->hdl);
-			mpp_iommu_up_read(mpp->iommu_info);
+			mpp_iommu_up_write(mpp->iommu_info);
 		}
 		list_del_init(&mem_region->reg_link);
 	}
@@ -2060,7 +2077,6 @@ int mpp_dev_probe(struct mpp_dev *mpp,
 		goto failed;
 	}
 
-	pm_runtime_get_sync(dev);
 	/*
 	 * TODO: here or at the device itself, some device does not
 	 * have the iommu, maybe in the device is better.
@@ -2073,7 +2089,7 @@ int mpp_dev_probe(struct mpp_dev *mpp,
 	if (mpp->hw_ops->init) {
 		ret = mpp->hw_ops->init(mpp);
 		if (ret)
-			goto failed_init;
+			goto failed;
 	}
 	/* set iommu fault handler */
 	if (mpp->iommu_info)
@@ -2082,19 +2098,17 @@ int mpp_dev_probe(struct mpp_dev *mpp,
 
 	/* read hardware id */
 	if (hw_info->reg_id >= 0) {
+		pm_runtime_get_sync(dev);
 		if (mpp->hw_ops->clk_on)
 			mpp->hw_ops->clk_on(mpp);
 
 		hw_info->hw_id = mpp_read(mpp, hw_info->reg_id);
 		if (mpp->hw_ops->clk_off)
 			mpp->hw_ops->clk_off(mpp);
+		pm_runtime_put_sync(dev);
 	}
 
-	pm_runtime_put_sync(dev);
-
 	return ret;
-failed_init:
-	pm_runtime_put_sync(dev);
 failed:
 	mpp_detach_workqueue(mpp);
 	device_init_wakeup(dev, false);
@@ -2244,9 +2258,9 @@ int mpp_time_part_diff(struct mpp_task *task)
 	struct mpp_dev *mpp = mpp_get_task_used_device(task, task->session);
 
 	end = ktime_get();
-	mpp_debug(DEBUG_PART_TIMING, "%s: session %d:%d part time: %lld us\n",
-		  dev_name(mpp->dev), task->session->pid, task->session->index,
-		  ktime_us_delta(end, task->part));
+	mpp_debug(DEBUG_PART_TIMING, "%s:%d session %d:%d part time: %lld us\n",
+		  dev_name(mpp->dev), task->core_id, task->session->pid,
+		  task->session->index, ktime_us_delta(end, task->part));
 	task->part = end;
 
 	return 0;
@@ -2258,9 +2272,9 @@ int mpp_time_diff(struct mpp_task *task)
 	struct mpp_dev *mpp = mpp_get_task_used_device(task, task->session);
 
 	end = ktime_get();
-	mpp_debug(DEBUG_TIMING, "%s: session %d:%d task time: %lld us\n",
-		  dev_name(mpp->dev), task->session->pid, task->session->index,
-		  ktime_us_delta(end, task->start));
+	mpp_debug(DEBUG_TIMING, "%s:%d session %d:%d time: %lld us\n",
+		  dev_name(mpp->dev), task->core_id, task->session->pid,
+		  task->session->index, ktime_us_delta(end, task->start));
 
 	return 0;
 }

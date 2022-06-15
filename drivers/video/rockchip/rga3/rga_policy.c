@@ -11,6 +11,17 @@
 #include "rga_common.h"
 #include "rga_hw_config.h"
 
+#define GET_GCD(n1, n2) \
+	({ \
+		int i; \
+		for (i = 1; i <= (n1) && i <= (n2); i++) { \
+			if ((n1) % i == 0 && (n2) % i == 0) \
+				gcd = i; \
+		} \
+		gcd; \
+	})
+#define GET_LCM(n1, n2, gcd) (((n1) * (n2)) / gcd)
+
 static int rga_set_feature(struct rga_req *rga_base)
 {
 	int feature = 0;
@@ -65,6 +76,28 @@ static bool rga_check_format(const struct rga_hw_data *data,
 	return matched;
 }
 
+static bool rga_check_align(uint32_t byte_stride, uint32_t format, uint16_t w_stride)
+{
+	uint32_t bit_stride = 0, pixel_stride = 0, align = 0, gcd = 0;
+
+	pixel_stride = rga_get_pixel_stride_from_format(format);
+	if (pixel_stride <= 0)
+		return false;
+
+	bit_stride = pixel_stride * w_stride;
+
+	if (bit_stride % (byte_stride * 8) == 0)
+		return true;
+
+	gcd = GET_GCD(pixel_stride, byte_stride * 8);
+	align = GET_LCM(pixel_stride, byte_stride * 8, gcd) / pixel_stride;
+	if (DEBUGGER_EN(MSG))
+		pr_info("unsupported width stride %d, 0x%x should be %d aligned!",
+				w_stride, format, align);
+
+	return false;
+}
+
 static bool rga_check_src0(const struct rga_hw_data *data,
 			 struct rga_img_info_t *src0)
 {
@@ -77,6 +110,9 @@ static bool rga_check_src0(const struct rga_hw_data *data,
 		return false;
 
 	if (!rga_check_format(data, src0->rd_mode, src0->format, 0))
+		return false;
+
+	if (!rga_check_align(data->byte_stride, src0->format, src0->vir_w))
 		return false;
 
 	return true;
@@ -96,6 +132,9 @@ static bool rga_check_src1(const struct rga_hw_data *data,
 	if (!rga_check_format(data, src1->rd_mode, src1->format, 1))
 		return false;
 
+	if (!rga_check_align(data->byte_stride, src1->format, src1->vir_w))
+		return false;
+
 	return true;
 }
 
@@ -111,6 +150,9 @@ static bool rga_check_dst(const struct rga_hw_data *data,
 		return false;
 
 	if (!rga_check_format(data, dst->rd_mode, dst->format, 2))
+		return false;
+
+	if (!rga_check_align(data->byte_stride, dst->format, dst->vir_w))
 		return false;
 
 	return true;
@@ -169,6 +211,7 @@ int rga_job_assign(struct rga_job *job)
 	int feature;
 	int core = RGA_NONE_CORE;
 	int optional_cores = RGA_NONE_CORE;
+	int specified_cores = RGA_NONE_CORE;
 	int i;
 	int min_of_job_count = 0;
 	unsigned long flags;
@@ -178,18 +221,20 @@ int rga_job_assign(struct rga_job *job)
 		if (rga_base->core > RGA_CORE_MASK) {
 			pr_err("invalid setting core by user\n");
 			goto finish;
-		} else if (rga_base->core & RGA_CORE_MASK) {
-			optional_cores = rga_base->core;
-			goto skip_functional_policy;
-		}
+		} else if (rga_base->core & RGA_CORE_MASK)
+			specified_cores = rga_base->core;
 	}
 
 	feature = rga_set_feature(rga_base);
 
 	/* function */
 	for (i = 0; i < rga_drvdata->num_of_scheduler; i++) {
-		data = rga_drvdata->rga_scheduler[i]->data;
-		scheduler = rga_drvdata->rga_scheduler[i];
+		data = rga_drvdata->scheduler[i]->data;
+		scheduler = rga_drvdata->scheduler[i];
+
+		if ((specified_cores != RGA_NONE_CORE) &&
+			(!(scheduler->core & specified_cores)))
+			continue;
 
 		if (DEBUGGER_EN(MSG))
 			pr_info("start policy on core = %d", scheduler->core);
@@ -274,15 +319,15 @@ int rga_job_assign(struct rga_job *job)
 		goto finish;
 	}
 
-skip_functional_policy:
 	for (i = 0; i < rga_drvdata->num_of_scheduler; i++) {
-		scheduler = rga_drvdata->rga_scheduler[i];
+		scheduler = rga_drvdata->scheduler[i];
 
 		if (optional_cores & scheduler->core) {
 			spin_lock_irqsave(&scheduler->irq_lock, flags);
 
 			if (scheduler->running_job == NULL) {
 				core = scheduler->core;
+				job->scheduler = scheduler;
 				spin_unlock_irqrestore(&scheduler->irq_lock,
 							 flags);
 				break;
@@ -291,6 +336,7 @@ skip_functional_policy:
 					(min_of_job_count == 0)) {
 					min_of_job_count = scheduler->job_count;
 					core = scheduler->core;
+					job->scheduler = scheduler;
 				}
 			}
 

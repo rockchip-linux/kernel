@@ -382,6 +382,12 @@ void rkisp_params_set_meshbuf_size(struct rkisp_isp_params_vdev *params_vdev,
 		params_vdev->ops->set_meshbuf_size(params_vdev, meshsize);
 }
 
+void rkisp_params_meshbuf_free(struct rkisp_isp_params_vdev *params_vdev, u64 id)
+{
+	if (params_vdev->ops->free_meshbuf)
+		params_vdev->ops->free_meshbuf(params_vdev, id);
+}
+
 void rkisp_params_stream_stop(struct rkisp_isp_params_vdev *params_vdev)
 {
 	if (params_vdev->ops->stream_stop)
@@ -394,6 +400,17 @@ bool rkisp_params_check_bigmode(struct rkisp_isp_params_vdev *params_vdev)
 		return params_vdev->ops->check_bigmode(params_vdev);
 
 	return 0;
+}
+
+int rkisp_params_info2ddr_cfg(struct rkisp_isp_params_vdev *params_vdev,
+			       void *arg)
+{
+	int ret = -EINVAL;
+
+	if (params_vdev->ops->info2ddr_cfg)
+		ret = params_vdev->ops->info2ddr_cfg(params_vdev, arg);
+
+	return ret;
 }
 
 int rkisp_register_params_vdev(struct rkisp_isp_params_vdev *params_vdev,

@@ -43,14 +43,6 @@ static const uint32_t formats_for_cluster[] = {
 	DRM_FORMAT_BGR888,
 	DRM_FORMAT_RGB565,
 	DRM_FORMAT_BGR565,
-	DRM_FORMAT_NV12, /* yuv420_8bit linear mode, 2 plane */
-	DRM_FORMAT_NV16, /* yuv422_8bit linear mode, 2 plane */
-	DRM_FORMAT_NV24, /* yuv444_8bit linear mode, 2 plane */
-	DRM_FORMAT_NV15, /* yuv420_10bit linear mode, 2 plane, no padding */
-#ifdef CONFIG_NO_GKI
-	DRM_FORMAT_NV20, /* yuv422_10bit linear mode, 2 plane, no padding */
-	DRM_FORMAT_NV30, /* yuv444_10bit linear mode, 2 plane, no padding */
-#endif
 	DRM_FORMAT_YUV420_8BIT, /* yuv420_8bit non-Linear mode only */
 	DRM_FORMAT_YUV420_10BIT, /* yuv420_10bit non-Linear mode only */
 	DRM_FORMAT_YUYV, /* yuv422_8bit non-Linear mode only*/
@@ -164,6 +156,43 @@ static const uint64_t format_modifiers_afbc[] = {
 				AFBC_FORMAT_MOD_SPLIT),
 
 	DRM_FORMAT_MOD_LINEAR,
+	DRM_FORMAT_MOD_INVALID,
+};
+
+static const uint64_t format_modifiers_afbc_no_linear_mode[] = {
+	DRM_FORMAT_MOD_ARM_AFBC(AFBC_FORMAT_MOD_BLOCK_SIZE_16x16),
+
+	DRM_FORMAT_MOD_ARM_AFBC(AFBC_FORMAT_MOD_BLOCK_SIZE_16x16 |
+				AFBC_FORMAT_MOD_SPARSE),
+
+	DRM_FORMAT_MOD_ARM_AFBC(AFBC_FORMAT_MOD_BLOCK_SIZE_16x16 |
+				AFBC_FORMAT_MOD_YTR),
+
+	DRM_FORMAT_MOD_ARM_AFBC(AFBC_FORMAT_MOD_BLOCK_SIZE_16x16 |
+				AFBC_FORMAT_MOD_CBR),
+
+	DRM_FORMAT_MOD_ARM_AFBC(AFBC_FORMAT_MOD_BLOCK_SIZE_16x16 |
+				AFBC_FORMAT_MOD_YTR |
+				AFBC_FORMAT_MOD_SPARSE),
+
+	DRM_FORMAT_MOD_ARM_AFBC(AFBC_FORMAT_MOD_BLOCK_SIZE_16x16 |
+				AFBC_FORMAT_MOD_CBR |
+				AFBC_FORMAT_MOD_SPARSE),
+
+	DRM_FORMAT_MOD_ARM_AFBC(AFBC_FORMAT_MOD_BLOCK_SIZE_16x16 |
+				AFBC_FORMAT_MOD_YTR |
+				AFBC_FORMAT_MOD_CBR),
+
+	DRM_FORMAT_MOD_ARM_AFBC(AFBC_FORMAT_MOD_BLOCK_SIZE_16x16 |
+				AFBC_FORMAT_MOD_YTR |
+				AFBC_FORMAT_MOD_CBR |
+				AFBC_FORMAT_MOD_SPARSE),
+
+	/* SPLIT mandates SPARSE, RGB modes mandates YTR */
+	DRM_FORMAT_MOD_ARM_AFBC(AFBC_FORMAT_MOD_BLOCK_SIZE_16x16 |
+				AFBC_FORMAT_MOD_YTR |
+				AFBC_FORMAT_MOD_SPARSE |
+				AFBC_FORMAT_MOD_SPLIT),
 	DRM_FORMAT_MOD_INVALID,
 };
 
@@ -1416,28 +1445,44 @@ static const struct vop2_layer_data rk3568_vop_layers[] = {
 
 };
 
-static const struct vop2_cluster_regs rk3568_vop_cluster0 =  {
+static const struct vop2_cluster_regs rk3568_vop_cluster0 = {
 	.afbc_enable = VOP_REG(RK3568_CLUSTER0_CTRL, 0x1, 1),
 	.enable = VOP_REG(RK3568_CLUSTER0_CTRL, 1, 0),
 	.lb_mode = VOP_REG(RK3568_CLUSTER0_CTRL, 0xf, 4),
+	.src_color_ctrl = VOP_REG(RK3568_CLUSTER0_MIX_SRC_COLOR_CTRL, 0xffffffff, 0),
+	.dst_color_ctrl = VOP_REG(RK3568_CLUSTER0_MIX_DST_COLOR_CTRL, 0xffffffff, 0),
+	.src_alpha_ctrl = VOP_REG(RK3568_CLUSTER0_MIX_SRC_ALPHA_CTRL, 0xffffffff, 0),
+	.dst_alpha_ctrl = VOP_REG(RK3568_CLUSTER0_MIX_DST_ALPHA_CTRL, 0xffffffff, 0),
 };
 
-static const struct vop2_cluster_regs rk3568_vop_cluster1 =  {
+static const struct vop2_cluster_regs rk3568_vop_cluster1 = {
 	.afbc_enable = VOP_REG(RK3568_CLUSTER1_CTRL, 0x1, 1),
 	.enable = VOP_REG(RK3568_CLUSTER1_CTRL, 1, 0),
 	.lb_mode = VOP_REG(RK3568_CLUSTER1_CTRL, 0xf, 4),
+	.src_color_ctrl = VOP_REG(RK3568_CLUSTER1_MIX_SRC_COLOR_CTRL, 0xffffffff, 0),
+	.dst_color_ctrl = VOP_REG(RK3568_CLUSTER1_MIX_DST_COLOR_CTRL, 0xffffffff, 0),
+	.src_alpha_ctrl = VOP_REG(RK3568_CLUSTER1_MIX_SRC_ALPHA_CTRL, 0xffffffff, 0),
+	.dst_alpha_ctrl = VOP_REG(RK3568_CLUSTER1_MIX_DST_ALPHA_CTRL, 0xffffffff, 0),
 };
 
-static const struct vop2_cluster_regs rk3588_vop_cluster2 =  {
+static const struct vop2_cluster_regs rk3588_vop_cluster2 = {
 	.afbc_enable = VOP_REG(RK3588_CLUSTER2_CTRL, 0x1, 1),
 	.enable = VOP_REG(RK3588_CLUSTER2_CTRL, 1, 0),
 	.lb_mode = VOP_REG(RK3588_CLUSTER2_CTRL, 0xf, 4),
+	.src_color_ctrl = VOP_REG(RK3588_CLUSTER2_MIX_SRC_COLOR_CTRL, 0xffffffff, 0),
+	.dst_color_ctrl = VOP_REG(RK3588_CLUSTER2_MIX_DST_COLOR_CTRL, 0xffffffff, 0),
+	.src_alpha_ctrl = VOP_REG(RK3588_CLUSTER2_MIX_SRC_ALPHA_CTRL, 0xffffffff, 0),
+	.dst_alpha_ctrl = VOP_REG(RK3588_CLUSTER2_MIX_DST_ALPHA_CTRL, 0xffffffff, 0),
 };
 
 static const struct vop2_cluster_regs rk3588_vop_cluster3 =  {
 	.afbc_enable = VOP_REG(RK3588_CLUSTER3_CTRL, 0x1, 1),
 	.enable = VOP_REG(RK3588_CLUSTER3_CTRL, 1, 0),
 	.lb_mode = VOP_REG(RK3588_CLUSTER3_CTRL, 0xf, 4),
+	.src_color_ctrl = VOP_REG(RK3588_CLUSTER3_MIX_SRC_COLOR_CTRL, 0xffffffff, 0),
+	.dst_color_ctrl = VOP_REG(RK3588_CLUSTER3_MIX_DST_COLOR_CTRL, 0xffffffff, 0),
+	.src_alpha_ctrl = VOP_REG(RK3588_CLUSTER3_MIX_SRC_ALPHA_CTRL, 0xffffffff, 0),
+	.dst_alpha_ctrl = VOP_REG(RK3588_CLUSTER3_MIX_DST_ALPHA_CTRL, 0xffffffff, 0),
 };
 
 static const struct vop_afbc rk3568_cluster0_afbc = {
@@ -1922,7 +1967,7 @@ static const struct vop2_win_data rk3568_vop_win_data[] = {
 	  .base = 0x00,
 	  .formats = formats_for_cluster,
 	  .nformats = ARRAY_SIZE(formats_for_cluster),
-	  .format_modifiers = format_modifiers_afbc,
+	  .format_modifiers = format_modifiers_afbc_no_linear_mode,
 	  .layer_sel_id = 0,
 	  .supported_rotations = DRM_MODE_ROTATE_90 | DRM_MODE_ROTATE_270 |
 				 DRM_MODE_REFLECT_X | DRM_MODE_REFLECT_Y,
@@ -1945,7 +1990,7 @@ static const struct vop2_win_data rk3568_vop_win_data[] = {
 	  .layer_sel_id = -1,
 	  .formats = formats_for_cluster,
 	  .nformats = ARRAY_SIZE(formats_for_cluster),
-	  .format_modifiers = format_modifiers_afbc,
+	  .format_modifiers = format_modifiers_afbc_no_linear_mode,
 	  .supported_rotations = DRM_MODE_REFLECT_X | DRM_MODE_REFLECT_Y,
 	  .hsu_filter_mode = VOP2_SCALE_UP_BIC,
 	  .hsd_filter_mode = VOP2_SCALE_DOWN_BIL,
@@ -1964,7 +2009,7 @@ static const struct vop2_win_data rk3568_vop_win_data[] = {
 	  .base = 0x00,
 	  .formats = formats_for_cluster,
 	  .nformats = ARRAY_SIZE(formats_for_cluster),
-	  .format_modifiers = format_modifiers_afbc,
+	  .format_modifiers = format_modifiers_afbc_no_linear_mode,
 	  .layer_sel_id = 1,
 	  .supported_rotations = DRM_MODE_ROTATE_90 | DRM_MODE_ROTATE_270 |
 				 DRM_MODE_REFLECT_X | DRM_MODE_REFLECT_Y,
@@ -1986,7 +2031,7 @@ static const struct vop2_win_data rk3568_vop_win_data[] = {
 	  .layer_sel_id = -1,
 	  .formats = formats_for_cluster,
 	  .nformats = ARRAY_SIZE(formats_for_cluster),
-	  .format_modifiers = format_modifiers_afbc,
+	  .format_modifiers = format_modifiers_afbc_no_linear_mode,
 	  .base = 0x80,
 	  .supported_rotations = DRM_MODE_REFLECT_X | DRM_MODE_REFLECT_Y,
 	  .hsu_filter_mode = VOP2_SCALE_UP_BIC,
@@ -2555,10 +2600,6 @@ static const struct vop2_ctrl rk3568_vop_ctrl = {
 	.if_ctrl_cfg_done_imd = VOP_REG(RK3568_DSP_IF_POL, 0x1, 28),
 	.version = VOP_REG(RK3568_VERSION_INFO, 0xffff, 16),
 	.lut_dma_en = VOP_REG(RK3568_SYS_AXI_LUT_CTRL, 0x1, 0),
-	.cluster0_src_color_ctrl = VOP_REG(RK3568_CLUSTER0_MIX_SRC_COLOR_CTRL, 0xffffffff, 0),
-	.cluster0_dst_color_ctrl = VOP_REG(RK3568_CLUSTER0_MIX_DST_COLOR_CTRL, 0xffffffff, 0),
-	.cluster0_src_alpha_ctrl = VOP_REG(RK3568_CLUSTER0_MIX_SRC_ALPHA_CTRL, 0xffffffff, 0),
-	.cluster0_dst_alpha_ctrl = VOP_REG(RK3568_CLUSTER0_MIX_DST_ALPHA_CTRL, 0xffffffff, 0),
 	.src_color_ctrl = VOP_REG(RK3568_MIX0_SRC_COLOR_CTRL, 0xffffffff, 0),
 	.dst_color_ctrl = VOP_REG(RK3568_MIX0_DST_COLOR_CTRL, 0xffffffff, 0),
 	.src_alpha_ctrl = VOP_REG(RK3568_MIX0_SRC_ALPHA_CTRL, 0xffffffff, 0),
@@ -2638,10 +2679,6 @@ static const struct vop2_ctrl rk3588_vop_ctrl = {
 	.if_ctrl_cfg_done_imd = VOP_REG(RK3568_DSP_IF_POL, 0x1, 28),
 	.version = VOP_REG(RK3568_VERSION_INFO, 0xffff, 16),
 	.lut_dma_en = VOP_REG(RK3568_SYS_AXI_LUT_CTRL, 0x1, 0),
-	.cluster0_src_color_ctrl = VOP_REG(RK3568_CLUSTER0_MIX_SRC_COLOR_CTRL, 0xffffffff, 0),
-	.cluster0_dst_color_ctrl = VOP_REG(RK3568_CLUSTER0_MIX_DST_COLOR_CTRL, 0xffffffff, 0),
-	.cluster0_src_alpha_ctrl = VOP_REG(RK3568_CLUSTER0_MIX_SRC_ALPHA_CTRL, 0xffffffff, 0),
-	.cluster0_dst_alpha_ctrl = VOP_REG(RK3568_CLUSTER0_MIX_DST_ALPHA_CTRL, 0xffffffff, 0),
 	.src_color_ctrl = VOP_REG(RK3568_MIX0_SRC_COLOR_CTRL, 0xffffffff, 0),
 	.dst_color_ctrl = VOP_REG(RK3568_MIX0_DST_COLOR_CTRL, 0xffffffff, 0),
 	.src_alpha_ctrl = VOP_REG(RK3568_MIX0_SRC_ALPHA_CTRL, 0xffffffff, 0),

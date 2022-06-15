@@ -35,6 +35,8 @@ enum {
 	UAC_RATE_CTRL,
 };
 
+#define CLK_PPM_GROUP_SIZE	20
+
 /* Runtime data params for one stream */
 struct uac_rtd_params {
 	struct snd_uac_chip *uac; /* parent chip */
@@ -96,6 +98,8 @@ static const struct snd_pcm_hardware uac_pcm_hardware = {
 	.period_bytes_max = PRD_SIZE_MAX,
 	.periods_min = MIN_PERIODS,
 };
+
+static struct class *audio_class;
 
 static void u_audio_set_fback_frequency(enum usb_device_speed speed,
 					struct usb_ep *out_ep,
@@ -520,6 +524,8 @@ int u_audio_set_capture_srate(struct g_audio *audio_dev, int srate)
 		if (params->c_srates[i] == srate) {
 			spin_lock_irqsave(&prm->lock, flags);
 			prm->srate = srate;
+			audio_dev->usb_state[SET_SAMPLE_RATE_OUT] = true;
+			schedule_work(&audio_dev->work);
 			spin_unlock_irqrestore(&prm->lock, flags);
 			return 0;
 		}
@@ -559,6 +565,8 @@ int u_audio_set_playback_srate(struct g_audio *audio_dev, int srate)
 		if (params->p_srates[i] == srate) {
 			spin_lock_irqsave(&prm->lock, flags);
 			prm->srate = srate;
+			audio_dev->usb_state[SET_SAMPLE_RATE_IN] = true;
+			schedule_work(&audio_dev->work);
 			spin_unlock_irqrestore(&prm->lock, flags);
 			return 0;
 		}
@@ -594,6 +602,19 @@ int u_audio_start_capture(struct g_audio *audio_dev)
 	struct uac_rtd_params *prm;
 	struct uac_params *params = &audio_dev->params;
 	int req_len, i;
+
+	/*
+	 * For better compatibility on some PC Hosts which
+	 * failed to send SetInterface(AltSet=0) to stop
+	 * capture last time. It needs to stop capture
+	 * prior to start capture next time.
+	 */
+	if (audio_dev->stream_state[STATE_OUT])
+		u_audio_stop_capture(audio_dev);
+
+	audio_dev->usb_state[SET_INTERFACE_OUT] = true;
+	audio_dev->stream_state[STATE_OUT] = true;
+	schedule_work(&audio_dev->work);
 
 	prm = &uac->c_prm;
 	dev_dbg(dev, "start capture with rate %d\n", prm->srate);
@@ -674,6 +695,10 @@ void u_audio_stop_capture(struct g_audio *audio_dev)
 	if (audio_dev->in_ep_fback)
 		free_ep_fback(&uac->c_prm, audio_dev->in_ep_fback);
 	free_ep(&uac->c_prm, audio_dev->out_ep);
+
+	audio_dev->usb_state[SET_INTERFACE_OUT] = true;
+	audio_dev->stream_state[STATE_OUT] = false;
+	schedule_work(&audio_dev->work);
 }
 EXPORT_SYMBOL_GPL(u_audio_stop_capture);
 
@@ -690,6 +715,19 @@ int u_audio_start_playback(struct g_audio *audio_dev)
 	const struct usb_endpoint_descriptor *ep_desc;
 	int req_len, i;
 	unsigned int p_pktsize;
+
+	/*
+	 * For better compatibility on some PC Hosts which
+	 * failed to send SetInterface(AltSet=0) to stop
+	 * playback last time. It needs to stop playback
+	 * prior to start playback next time.
+	 */
+	if (audio_dev->stream_state[STATE_IN])
+		u_audio_stop_playback(audio_dev);
+
+	audio_dev->usb_state[SET_INTERFACE_IN] = true;
+	audio_dev->stream_state[STATE_IN] = true;
+	schedule_work(&audio_dev->work);
 
 	prm = &uac->p_prm;
 	dev_dbg(dev, "start playback with rate %d\n", prm->srate);
@@ -754,6 +792,10 @@ void u_audio_stop_playback(struct g_audio *audio_dev)
 
 	set_active(&uac->p_prm, false);
 	free_ep(&uac->p_prm, audio_dev->in_ep);
+
+	audio_dev->usb_state[SET_INTERFACE_IN] = true;
+	audio_dev->stream_state[STATE_IN] = false;
+	schedule_work(&audio_dev->work);
 }
 EXPORT_SYMBOL_GPL(u_audio_stop_playback);
 
@@ -805,9 +847,16 @@ int u_audio_set_volume(struct g_audio *audio_dev, int playback, s16 val)
 	}
 	spin_unlock_irqrestore(&prm->lock, flags);
 
-	if (change)
+	if (change) {
+		if (playback)
+			audio_dev->usb_state[SET_VOLUME_IN] = true;
+		else
+			audio_dev->usb_state[SET_VOLUME_OUT] = true;
+		schedule_work(&audio_dev->work);
+
 		snd_ctl_notify(uac->card, SNDRV_CTL_EVENT_MASK_VALUE,
 				&prm->snd_kctl_volume->id);
+	}
 
 	return 0;
 }
@@ -854,9 +903,16 @@ int u_audio_set_mute(struct g_audio *audio_dev, int playback, int val)
 	}
 	spin_unlock_irqrestore(&prm->lock, flags);
 
-	if (change)
+	if (change) {
+		if (playback)
+			audio_dev->usb_state[SET_MUTE_IN] = true;
+		else
+			audio_dev->usb_state[SET_MUTE_OUT] = true;
+		schedule_work(&audio_dev->work);
+
 		snd_ctl_notify(uac->card, SNDRV_CTL_EVENT_MASK_VALUE,
 			       &prm->snd_kctl_mute->id);
+	}
 
 	return 0;
 }
@@ -1152,6 +1208,195 @@ static struct snd_kcontrol_new u_audio_controls[]  = {
 	},
 };
 
+static void g_audio_work(struct work_struct *data)
+{
+	struct g_audio *audio = container_of(data, struct g_audio, work);
+	struct usb_gadget *gadget = audio->gadget;
+	struct snd_uac_chip *uac = audio->uac;
+	struct uac_rtd_params *prm;
+	struct device *dev = &gadget->dev;
+	char *uac_event[4]  = { NULL, NULL, NULL, NULL };
+	char str[19];
+	int i;
+
+	for (i = 0; i < SET_USB_STATE_MAX; i++) {
+		if (!audio->usb_state[i])
+			continue;
+
+		switch (i) {
+		case SET_INTERFACE_OUT:
+			uac_event[0] = "USB_STATE=SET_INTERFACE";
+			uac_event[1] = "STREAM_DIRECTION=OUT";
+			uac_event[2] = audio->stream_state[STATE_OUT] ?
+				       "STREAM_STATE=ON" : "STREAM_STATE=OFF";
+			break;
+		case SET_INTERFACE_IN:
+			uac_event[0] = "USB_STATE=SET_INTERFACE";
+			uac_event[1] = "STREAM_DIRECTION=IN";
+			uac_event[2] = audio->stream_state[STATE_IN] ?
+				       "STREAM_STATE=ON" : "STREAM_STATE=OFF";
+			break;
+		case SET_SAMPLE_RATE_OUT:
+			uac_event[0] = "USB_STATE=SET_SAMPLE_RATE";
+			uac_event[1] = "STREAM_DIRECTION=OUT";
+			prm = &uac->c_prm;
+			snprintf(str, sizeof(str), "SAMPLE_RATE=%d",
+				 prm->srate);
+			uac_event[2] = str;
+			break;
+		case SET_SAMPLE_RATE_IN:
+			uac_event[0] = "USB_STATE=SET_SAMPLE_RATE";
+			uac_event[1] = "STREAM_DIRECTION=IN";
+			prm = &uac->p_prm;
+			snprintf(str, sizeof(str), "SAMPLE_RATE=%d",
+				 prm->srate);
+			uac_event[2] = str;
+			break;
+		case SET_MUTE_OUT:
+			uac_event[0] = "USB_STATE=SET_MUTE";
+			uac_event[1] = "STREAM_DIRECTION=OUT";
+			prm = &uac->c_prm;
+			snprintf(str, sizeof(str), "MUTE=%d", prm->mute);
+			uac_event[2] = str;
+			break;
+		case SET_MUTE_IN:
+			uac_event[0] = "USB_STATE=SET_MUTE";
+			uac_event[1] = "STREAM_DIRECTION=IN";
+			prm = &uac->p_prm;
+			snprintf(str, sizeof(str), "MUTE=%d", prm->mute);
+			uac_event[2] = str;
+			break;
+		case SET_VOLUME_OUT:
+			uac_event[0] = "USB_STATE=SET_VOLUME";
+			uac_event[1] = "STREAM_DIRECTION=OUT";
+			prm = &uac->c_prm;
+			snprintf(str, sizeof(str), "VOLUME=0x%hx", prm->volume);
+			uac_event[2] = str;
+			break;
+		case SET_VOLUME_IN:
+			uac_event[0] = "USB_STATE=SET_VOLUME";
+			uac_event[1] = "STREAM_DIRECTION=IN";
+			prm = &uac->p_prm;
+			snprintf(str, sizeof(str), "VOLUME=0x%hx", prm->volume);
+			uac_event[2] = str;
+			break;
+		case SET_AUDIO_CLK:
+			uac_event[0] = "USB_STATE=SET_AUDIO_CLK";
+			snprintf(str, sizeof(str), "PPM=%d", audio->params.ppm);
+			uac_event[1] = str;
+		default:
+			break;
+		}
+
+		audio->usb_state[i] = false;
+		kobject_uevent_env(&audio->device->kobj, KOBJ_CHANGE,
+				   uac_event);
+		dev_dbg(dev, "%s: sent uac uevent %s %s %s\n", __func__,
+			uac_event[0], uac_event[1], uac_event[2]);
+	}
+}
+
+static void ppm_calculate_work(struct work_struct *data)
+{
+	struct g_audio *g_audio = container_of(data, struct g_audio,
+					       ppm_work.work);
+	struct usb_gadget *gadget = g_audio->gadget;
+	uint32_t frame_number, fn_msec, clk_msec;
+	struct frame_number_data *fn = g_audio->fn;
+	uint64_t time_now, time_msec_tmp;
+	int32_t ppm;
+	static int32_t ppms[CLK_PPM_GROUP_SIZE];
+	static int32_t ppm_sum;
+	int32_t cnt = fn->second % CLK_PPM_GROUP_SIZE;
+
+	time_now = ktime_get_raw();
+	frame_number = gadget->ops->get_frame(gadget);
+
+	if (g_audio->fn->time_last &&
+	    time_now - g_audio->fn->time_last > 1500000000ULL)
+		dev_warn(g_audio->device, "PPM work scheduled too slow!\n");
+
+	g_audio->fn->time_last = time_now;
+
+	/*
+	 * If usb is disconnected, the controller will not receive the
+	 * SoF signal and frame number will be invalid. Because we can't
+	 * get accurate time of disconnect and whether the gadget will be
+	 * plugged into the same host next time or not. We must clear all
+	 * statistics.
+	 */
+	if (gadget->state != USB_STATE_CONFIGURED) {
+		memset(g_audio->fn, 0, sizeof(*g_audio->fn));
+		dev_dbg(g_audio->device, "Disconnect. frame number is cleared\n");
+		goto out;
+	}
+
+	/* Fist statistic to record begin frame number and system time */
+	if (!g_audio->fn->second++) {
+		g_audio->fn->time_begin = g_audio->fn->time_last;
+		g_audio->fn->fn_begin = frame_number;
+		g_audio->fn->fn_last = frame_number;
+		goto out;
+	}
+
+	/*
+	 * For DWC3 Controller, only 13 bits is used to store frame(micro)
+	 * number. In other words, the frame number will overflow at most
+	 * 2.047 seconds. We add another registor fn_overflow the record
+	 * total frame number.
+	 */
+	if (frame_number <= g_audio->fn->fn_last)
+		g_audio->fn->fn_overflow++;
+	g_audio->fn->fn_last = frame_number;
+
+	if (!g_audio->fn->fn_overflow)
+		goto out;
+
+	/* The lower 3 bits represent micro number frame, we don't need it */
+	fn_msec = (((fn->fn_overflow - 1) << 14) +
+		   (BIT(14) + fn->fn_last - fn->fn_begin) + BIT(2)) >> 3;
+	time_msec_tmp = fn->time_last - fn->time_begin + 500000ULL;
+	do_div(time_msec_tmp, 1000000U);
+	clk_msec = (uint32_t)time_msec_tmp;
+
+	/*
+	 * According to the definition of ppm:
+	 *   host_clk = (1 + ppm / 1000000) * gadget_clk
+	 * we can get:
+	 *   ppm = (host_clk - gadget_clk) * 1000000 / gadget_clk
+	 */
+	ppm = (fn_msec > clk_msec) ?
+	      (fn_msec - clk_msec) * 1000000L / clk_msec :
+	      -((clk_msec - fn_msec) * 1000000L / clk_msec);
+
+	ppm_sum = ppm_sum - ppms[cnt] + ppm;
+	ppms[cnt] = ppm;
+
+	dev_dbg(g_audio->device,
+		"frame %u msec %u ppm_calc %d ppm_avage(%d) %d\n",
+		fn_msec, clk_msec, ppm, CLK_PPM_GROUP_SIZE,
+		ppm_sum / CLK_PPM_GROUP_SIZE);
+
+	/*
+	 * We calculate the average of ppm over a period of time. If the
+	 * latest frame number is too far from the average, no event will
+	 * be sent.
+	 */
+	if (abs(ppm_sum / CLK_PPM_GROUP_SIZE - ppm) < 3) {
+		ppm = ppm_sum > 0 ?
+		      (ppm_sum + CLK_PPM_GROUP_SIZE / 2) / CLK_PPM_GROUP_SIZE :
+		      (ppm_sum - CLK_PPM_GROUP_SIZE / 2) / CLK_PPM_GROUP_SIZE;
+		if (ppm != g_audio->params.ppm) {
+			g_audio->params.ppm = ppm;
+			g_audio->usb_state[SET_AUDIO_CLK] = true;
+			schedule_work(&g_audio->work);
+		}
+	}
+
+out:
+	schedule_delayed_work(&g_audio->ppm_work, 1 * HZ);
+}
+
 int g_audio_setup(struct g_audio *g_audio, const char *pcm_name,
 					const char *card_name)
 {
@@ -1175,6 +1420,12 @@ int g_audio_setup(struct g_audio *g_audio, const char *pcm_name,
 	params = &g_audio->params;
 	p_chmask = params->p_chmask;
 	c_chmask = params->c_chmask;
+
+	g_audio->fn = kzalloc(sizeof(*g_audio->fn), GFP_KERNEL);
+	if (!g_audio->fn) {
+		err = -ENOMEM;
+		goto fail;
+	}
 
 	if (c_chmask) {
 		struct uac_rtd_params *prm = &uac->c_prm;
@@ -1394,6 +1645,19 @@ int g_audio_setup(struct g_audio *g_audio, const char *pcm_name,
 				       NULL, 0, BUFF_SIZE_MAX);
 
 	err = snd_card_register(card);
+	if (err < 0)
+		goto snd_fail;
+
+	g_audio->device = device_create(audio_class, NULL, MKDEV(0, 0), NULL,
+					"%s", g_audio->uac->card->longname);
+	if (IS_ERR(g_audio->device)) {
+		err = PTR_ERR(g_audio->device);
+		goto snd_fail;
+	}
+
+	INIT_WORK(&g_audio->work, g_audio_work);
+	INIT_DELAYED_WORK(&g_audio->ppm_work, ppm_calculate_work);
+	ppm_calculate_work(&g_audio->ppm_work.work);
 
 	if (!err)
 		return 0;
@@ -1406,6 +1670,7 @@ fail:
 	kfree(uac->p_prm.rbuf);
 	kfree(uac->c_prm.rbuf);
 	kfree(uac);
+	kfree(g_audio->fn);
 
 	return err;
 }
@@ -1419,6 +1684,11 @@ void g_audio_cleanup(struct g_audio *g_audio)
 	if (!g_audio || !g_audio->uac)
 		return;
 
+	cancel_work_sync(&g_audio->work);
+	cancel_delayed_work_sync(&g_audio->ppm_work);
+	device_destroy(g_audio->device->class, g_audio->device->devt);
+	g_audio->device = NULL;
+
 	uac = g_audio->uac;
 	card = uac->card;
 	if (card)
@@ -1429,8 +1699,30 @@ void g_audio_cleanup(struct g_audio *g_audio)
 	kfree(uac->p_prm.rbuf);
 	kfree(uac->c_prm.rbuf);
 	kfree(uac);
+	kfree(g_audio->fn);
 }
 EXPORT_SYMBOL_GPL(g_audio_cleanup);
+
+static int __init u_audio_init(void)
+{
+	int err = 0;
+
+	audio_class = class_create(THIS_MODULE, "u_audio");
+	if (IS_ERR(audio_class)) {
+		err = PTR_ERR(audio_class);
+		audio_class = NULL;
+	}
+
+	return err;
+}
+module_init(u_audio_init);
+
+static void __exit u_audio_exit(void)
+{
+	if (audio_class)
+		class_destroy(audio_class);
+}
+module_exit(u_audio_exit);
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("USB gadget \"ALSA sound card\" utilities");

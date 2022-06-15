@@ -28,7 +28,26 @@
 
 #include "rk-dma-heap.h"
 
-struct rk_dma_heap_attachment {
+struct rk_cma_heap {
+	struct rk_dma_heap *heap;
+	struct cma *cma;
+};
+
+struct rk_cma_heap_buffer {
+	struct rk_cma_heap *heap;
+	struct list_head attachments;
+	struct mutex lock;
+	unsigned long len;
+	struct page *cma_pages;
+	struct page **pages;
+	pgoff_t pagecount;
+	int vmap_cnt;
+	void *vaddr;
+	phys_addr_t phys;
+	bool attached;
+};
+
+struct rk_cma_heap_attachment {
 	struct device *dev;
 	struct sg_table table;
 	struct list_head list;
@@ -39,7 +58,7 @@ static int rk_cma_heap_attach(struct dma_buf *dmabuf,
 			      struct dma_buf_attachment *attachment)
 {
 	struct rk_cma_heap_buffer *buffer = dmabuf->priv;
-	struct rk_dma_heap_attachment *a;
+	struct rk_cma_heap_attachment *a;
 	struct sg_table *table;
 	size_t size = buffer->pagecount << PAGE_SHIFT;
 	int ret;
@@ -76,7 +95,7 @@ static void rk_cma_heap_detach(struct dma_buf *dmabuf,
 			       struct dma_buf_attachment *attachment)
 {
 	struct rk_cma_heap_buffer *buffer = dmabuf->priv;
-	struct rk_dma_heap_attachment *a = attachment->priv;
+	struct rk_cma_heap_attachment *a = attachment->priv;
 
 	mutex_lock(&buffer->lock);
 	list_del(&a->list);
@@ -91,7 +110,7 @@ static void rk_cma_heap_detach(struct dma_buf *dmabuf,
 static struct sg_table *rk_cma_heap_map_dma_buf(struct dma_buf_attachment *attachment,
 						enum dma_data_direction direction)
 {
-	struct rk_dma_heap_attachment *a = attachment->priv;
+	struct rk_cma_heap_attachment *a = attachment->priv;
 	struct sg_table *table = &a->table;
 	int attrs = attachment->dma_map_attrs;
 	int ret;
@@ -107,7 +126,7 @@ static void rk_cma_heap_unmap_dma_buf(struct dma_buf_attachment *attachment,
 				      struct sg_table *table,
 				      enum dma_data_direction direction)
 {
-	struct rk_dma_heap_attachment *a = attachment->priv;
+	struct rk_cma_heap_attachment *a = attachment->priv;
 	int attrs = attachment->dma_map_attrs;
 
 	a->mapped = false;
@@ -121,7 +140,7 @@ rk_cma_heap_dma_buf_begin_cpu_access_partial(struct dma_buf *dmabuf,
 					     unsigned int len)
 {
 	struct rk_cma_heap_buffer *buffer = dmabuf->priv;
-	struct rk_dma_heap_attachment *a;
+	struct rk_cma_heap_attachment *a;
 
 	if (buffer->vmap_cnt)
 		invalidate_kernel_vmap_range(buffer->vaddr, buffer->len);
@@ -151,7 +170,7 @@ rk_cma_heap_dma_buf_end_cpu_access_partial(struct dma_buf *dmabuf,
 					   unsigned int len)
 {
 	struct rk_cma_heap_buffer *buffer = dmabuf->priv;
-	struct rk_dma_heap_attachment *a;
+	struct rk_cma_heap_attachment *a;
 
 	if (buffer->vmap_cnt)
 		flush_kernel_vmap_range(buffer->vaddr, buffer->len);
@@ -265,12 +284,11 @@ static void rk_cma_heap_remove_dmabuf_list(struct dma_buf *dmabuf)
 	list_for_each_entry(buf, &heap->dmabuf_list, node) {
 		if (buf->dmabuf == dmabuf) {
 			dma_heap_print("<%s> free dmabuf<ino-%ld>@[%pa-%pa] to heap-<%s>\n",
-				       buf->orig_alloc,
+				       dmabuf->name,
 				       dmabuf->file->f_inode->i_ino,
 				       &buf->start, &buf->end,
 				       rk_dma_heap_get_name(heap));
 			list_del(&buf->node);
-			kfree(buf->orig_alloc);
 			kfree(buf);
 			break;
 		}
@@ -284,7 +302,6 @@ static int rk_cma_heap_add_dmabuf_list(struct dma_buf *dmabuf, const char *name)
 	struct rk_cma_heap_buffer *buffer = dmabuf->priv;
 	struct rk_cma_heap *cma_heap = buffer->heap;
 	struct rk_dma_heap *heap = cma_heap->heap;
-	const char *name_tmp;
 
 	buf = kzalloc(sizeof(*buf), GFP_KERNEL);
 	if (!buf)
@@ -292,17 +309,6 @@ static int rk_cma_heap_add_dmabuf_list(struct dma_buf *dmabuf, const char *name)
 
 	INIT_LIST_HEAD(&buf->node);
 	buf->dmabuf = dmabuf;
-	if (!name)
-		name_tmp = current->comm;
-	else
-		name_tmp = name;
-
-	buf->orig_alloc = kstrndup(name_tmp, RK_DMA_HEAP_NAME_LEN, GFP_KERNEL);
-	if (!buf->orig_alloc) {
-		kfree(buf);
-		return -ENOMEM;
-	}
-
 	buf->start = buffer->phys;
 	buf->end = buf->start + buffer->len - 1;
 	mutex_lock(&heap->dmabuf_lock);
@@ -310,7 +316,7 @@ static int rk_cma_heap_add_dmabuf_list(struct dma_buf *dmabuf, const char *name)
 	mutex_unlock(&heap->dmabuf_lock);
 
 	dma_heap_print("<%s> alloc dmabuf<ino-%ld>@[%pa-%pa] from heap-<%s>\n",
-		       buf->orig_alloc, dmabuf->file->f_inode->i_ino,
+		       dmabuf->name, dmabuf->file->f_inode->i_ino,
 		       &buf->start, &buf->end, rk_dma_heap_get_name(heap));
 
 	return 0;
@@ -397,6 +403,7 @@ static void rk_cma_heap_dma_buf_release(struct dma_buf *dmabuf)
 }
 
 static const struct dma_buf_ops rk_cma_heap_buf_ops = {
+	.cache_sgt_mapping = true,
 	.attach = rk_cma_heap_attach,
 	.detach = rk_cma_heap_detach,
 	.map_dma_buf = rk_cma_heap_map_dma_buf,
@@ -436,8 +443,8 @@ static struct dma_buf *rk_cma_heap_allocate(struct rk_dma_heap *heap,
 	mutex_init(&buffer->lock);
 	buffer->len = size;
 
-	if (align > CONFIG_CMA_ALIGNMENT)
-		align = CONFIG_CMA_ALIGNMENT;
+	if (align > CONFIG_DMABUF_HEAPS_ROCKCHIP_CMA_ALIGNMENT)
+		align = CONFIG_DMABUF_HEAPS_ROCKCHIP_CMA_ALIGNMENT;
 
 	cma_pages = cma_alloc(cma_heap->cma, pagecount, align, GFP_KERNEL);
 	if (!cma_pages)
@@ -527,8 +534,8 @@ static struct page *rk_cma_heap_allocate_pages(struct rk_dma_heap *heap,
 	struct page *page;
 	int ret;
 
-	if (align > CONFIG_CMA_ALIGNMENT)
-		align = CONFIG_CMA_ALIGNMENT;
+	if (align > CONFIG_DMABUF_HEAPS_ROCKCHIP_CMA_ALIGNMENT)
+		align = CONFIG_DMABUF_HEAPS_ROCKCHIP_CMA_ALIGNMENT;
 
 	page = cma_alloc(cma_heap->cma, pagecount, align, GFP_KERNEL);
 	if (!page)

@@ -172,6 +172,8 @@ struct plat_stmmacenet_data {
 	int unicast_filter_entries;
 	int tx_fifo_size;
 	int rx_fifo_size;
+	int dma_tx_size;
+	int dma_rx_size;
 	u32 addr64;
 	u32 rx_queues_to_use;
 	u32 tx_queues_to_use;
@@ -182,6 +184,7 @@ struct plat_stmmacenet_data {
 	void (*fix_mac_speed)(void *priv, unsigned int speed);
 	int (*serdes_powerup)(struct net_device *ndev, void *priv);
 	void (*serdes_powerdown)(struct net_device *ndev, void *priv);
+	int (*integrated_phy_power)(void *priv, bool up);
 	int (*init)(struct platform_device *pdev, void *priv);
 	void (*exit)(struct platform_device *pdev, void *priv);
 	void (*get_eth_addr)(void *priv, unsigned char *addr);

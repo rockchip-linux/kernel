@@ -112,6 +112,7 @@
 #define  SFC_VER_3			0x3
 #define  SFC_VER_4			0x4
 #define  SFC_VER_5			0x5
+#define  SFC_VER_6			0x6
 
 /* Delay line controller resiter */
 #define SFC_DLL_CTRL0			0x3C
@@ -225,6 +226,7 @@ static u32 rockchip_sfc_get_max_iosize(struct rockchip_sfc *sfc)
 static u32 rockchip_sfc_get_max_dll_cells(struct rockchip_sfc *sfc)
 {
 	switch (rockchip_sfc_get_version(sfc)) {
+	case SFC_VER_6:
 	case SFC_VER_5:
 		return SFC_DLL_CTRL0_DLL_MAX_VER5;
 	case SFC_VER_4:
@@ -643,7 +645,7 @@ static int rockchip_sfc_exec_mem_op(struct spi_mem *mem, const struct spi_mem_op
 	rockchip_sfc_adjust_op_work((struct spi_mem_op *)op);
 	rockchip_sfc_xfer_setup(sfc, mem, op, len);
 	if (len) {
-		if (likely(sfc->use_dma) && len >= SFC_DMA_TRANS_THRETHOLD) {
+		if (likely(sfc->use_dma) && len >= SFC_DMA_TRANS_THRETHOLD && !(len & 0x3)) {
 			init_completion(&sfc->cp);
 			rockchip_sfc_irq_unmask(sfc, SFC_IMR_DMA);
 			ret = rockchip_sfc_xfer_data_dma(sfc, op, len);

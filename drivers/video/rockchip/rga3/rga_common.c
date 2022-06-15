@@ -338,9 +338,83 @@ const char *rga_get_format_name(uint32_t format)
 		return "ABGR5551";
 	case RGA_FORMAT_ABGR_4444:
 		return "ABGR4444";
+
+	case RGA_FORMAT_RGBA_2BPP:
+		return "RGBA2BPP";
+
 	default:
 		return "UNF";
 	}
+}
+
+uint32_t rga_get_pixel_stride_from_format(uint32_t format)
+{
+	uint32_t pixel_stride = 0;
+
+	switch (format) {
+	case RGA_FORMAT_RGBA_8888:
+	case RGA_FORMAT_RGBX_8888:
+	case RGA_FORMAT_BGRA_8888:
+	case RGA_FORMAT_BGRX_8888:
+	case RGA_FORMAT_ARGB_8888:
+	case RGA_FORMAT_XRGB_8888:
+	case RGA_FORMAT_ABGR_8888:
+	case RGA_FORMAT_XBGR_8888:
+		pixel_stride = 32;
+		break;
+	case RGA_FORMAT_RGB_888:
+	case RGA_FORMAT_BGR_888:
+		pixel_stride = 24;
+		break;
+	case RGA_FORMAT_RGB_565:
+	case RGA_FORMAT_RGBA_5551:
+	case RGA_FORMAT_RGBA_4444:
+	case RGA_FORMAT_BGR_565:
+	case RGA_FORMAT_BGRA_5551:
+	case RGA_FORMAT_BGRA_4444:
+	case RGA_FORMAT_ARGB_5551:
+	case RGA_FORMAT_ARGB_4444:
+	case RGA_FORMAT_ABGR_5551:
+	case RGA_FORMAT_ABGR_4444:
+	case RGA_FORMAT_YVYU_422:
+	case RGA_FORMAT_YVYU_420:
+	case RGA_FORMAT_VYUY_422:
+	case RGA_FORMAT_VYUY_420:
+	case RGA_FORMAT_YUYV_422:
+	case RGA_FORMAT_YUYV_420:
+	case RGA_FORMAT_UYVY_422:
+	case RGA_FORMAT_UYVY_420:
+		pixel_stride = 16;
+		break;
+	case RGA_FORMAT_YCbCr_420_SP_10B:
+	case RGA_FORMAT_YCrCb_420_SP_10B:
+	case RGA_FORMAT_YCbCr_422_SP_10B:
+	case RGA_FORMAT_YCrCb_422_SP_10B:
+		pixel_stride = 10;
+		break;
+	case RGA_FORMAT_BPP1:
+	case RGA_FORMAT_BPP2:
+	case RGA_FORMAT_BPP4:
+	case RGA_FORMAT_BPP8:
+	case RGA_FORMAT_YCbCr_420_SP:
+	case RGA_FORMAT_YCbCr_420_P:
+	case RGA_FORMAT_YCrCb_420_SP:
+	case RGA_FORMAT_YCrCb_420_P:
+	case RGA_FORMAT_YCbCr_422_SP:
+	case RGA_FORMAT_YCbCr_422_P:
+	case RGA_FORMAT_YCrCb_422_SP:
+	case RGA_FORMAT_YCrCb_422_P:
+		pixel_stride = 8;
+		break;
+	case RGA_FORMAT_Y4:
+		pixel_stride = 4;
+		break;
+	default:
+		pr_err("unknown format [0x%x]\n", format);
+		return -1;
+	}
+
+	return pixel_stride;
 }
 
 const char *rga_get_render_mode_str(uint8_t mode)
@@ -401,6 +475,22 @@ const char *rga_get_blend_mode_str(uint16_t alpha_rop_flag,
 	}
 }
 
+const char *rga_get_memory_type_str(uint8_t type)
+{
+	switch (type) {
+	case RGA_DMA_BUFFER:
+		return "dma_fd";
+	case RGA_VIRTUAL_ADDRESS:
+		return "virt_addr";
+	case RGA_PHYSICAL_ADDRESS:
+		return "phys_addr";
+	case RGA_DMA_BUFFER_PTR:
+		return "dma_buf_ptr";
+	default:
+		return "UNF";
+	}
+}
+
 void rga_convert_addr(struct rga_img_info_t *img, bool before_vir_get_channel)
 {
 	/*
@@ -429,4 +519,111 @@ void rga_convert_addr(struct rga_img_info_t *img, bool before_vir_get_channel)
 		img->uv_addr = img->yrgb_addr;
 		img->v_addr = 0;
 	}
+}
+
+void rga_swap_pd_mode(struct rga_req *req_rga)
+{
+	if (((req_rga->alpha_rop_flag) & 1)) {
+		if ((req_rga->alpha_rop_flag >> 3) & 1) {
+			if (req_rga->PD_mode == 1)
+				req_rga->PD_mode = 2;
+			else if (req_rga->PD_mode == 2)
+				req_rga->PD_mode = 1;
+			else if (req_rga->PD_mode == 3)
+				req_rga->PD_mode = 4;
+			else if (req_rga->PD_mode == 4)
+				req_rga->PD_mode = 3;
+		}
+	}
+}
+
+int rga_image_size_cal(int w, int h, int format,
+		       int *yrgb_size, int *uv_size, int *v_size)
+{
+	int yrgb = 0;
+	int uv = 0;
+	int v = 0;
+
+	switch (format) {
+	case RGA_FORMAT_RGBA_8888:
+	case RGA_FORMAT_RGBX_8888:
+	case RGA_FORMAT_BGRA_8888:
+	case RGA_FORMAT_BGRX_8888:
+	case RGA_FORMAT_ARGB_8888:
+	case RGA_FORMAT_XRGB_8888:
+	case RGA_FORMAT_ABGR_8888:
+	case RGA_FORMAT_XBGR_8888:
+		yrgb = w * h * 4;
+		break;
+	case RGA_FORMAT_RGB_888:
+	case RGA_FORMAT_BGR_888:
+		yrgb = w * h * 3;
+		break;
+	case RGA_FORMAT_RGB_565:
+	case RGA_FORMAT_RGBA_5551:
+	case RGA_FORMAT_RGBA_4444:
+	case RGA_FORMAT_BGR_565:
+	case RGA_FORMAT_BGRA_5551:
+	case RGA_FORMAT_BGRA_4444:
+	case RGA_FORMAT_ARGB_5551:
+	case RGA_FORMAT_ARGB_4444:
+	case RGA_FORMAT_ABGR_5551:
+	case RGA_FORMAT_ABGR_4444:
+	case RGA_FORMAT_YVYU_422:
+	case RGA_FORMAT_VYUY_422:
+	case RGA_FORMAT_YUYV_422:
+	case RGA_FORMAT_UYVY_422:
+		yrgb = w * h * 2;
+		break;
+	case RGA_FORMAT_YVYU_420:
+	case RGA_FORMAT_VYUY_420:
+	case RGA_FORMAT_YUYV_420:
+	case RGA_FORMAT_UYVY_420:
+		yrgb = (w * h) + ((w * h) >> 1);
+		break;
+	/* YUV FORMAT */
+	case RGA_FORMAT_YCbCr_422_SP:
+	case RGA_FORMAT_YCrCb_422_SP:
+		yrgb = w * h;
+		uv = w * h;
+		break;
+	case RGA_FORMAT_YCbCr_422_P:
+	case RGA_FORMAT_YCrCb_422_P:
+		yrgb = w * h;
+		uv = (w * h) >> 1;
+		v = uv;
+		break;
+	case RGA_FORMAT_YCbCr_420_SP:
+	case RGA_FORMAT_YCrCb_420_SP:
+	/* 10bit format stride is externally configured. */
+	case RGA_FORMAT_YCbCr_420_SP_10B:
+	case RGA_FORMAT_YCrCb_420_SP_10B:
+		yrgb = w * h;
+		uv = (w * h) >> 1;
+		break;
+	case RGA_FORMAT_YCbCr_420_P:
+	case RGA_FORMAT_YCrCb_420_P:
+		yrgb = w * h;
+		uv = (w * h) >> 2;
+		v = uv;
+		break;
+	case RGA_FORMAT_YCbCr_400:
+		yrgb = w * h;
+		break;
+	case RGA_FORMAT_Y4:
+		yrgb = (w * h) >> 1;
+		break;
+	default:
+		pr_err("Unsuport format [0x%x]\n", format);
+		return -EFAULT;
+	}
+
+	if (yrgb_size != NULL)
+		*yrgb_size = yrgb;
+	if (uv_size != NULL)
+		*uv_size = uv;
+	if (v_size != NULL)
+		*v_size = v;
+
+	return (yrgb + uv + v);
 }

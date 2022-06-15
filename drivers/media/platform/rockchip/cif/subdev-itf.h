@@ -28,6 +28,8 @@
 #define RKCIF_TOISP_CH2	2
 #define TOISP_CH_MAX 3
 
+#define SDITF_PIXEL_RATE_MAX (1000000000)
+
 struct capture_info {
 	unsigned int offset_x;
 	unsigned int offset_y;
@@ -54,14 +56,21 @@ struct toisp_info {
 
 struct sditf_priv {
 	struct device *dev;
+	struct v4l2_async_notifier notifier;
 	struct v4l2_subdev sd;
-	struct media_pad pads;
+	struct media_pad pads[2];
 	struct rkcif_device *cif_dev;
 	struct rkmodule_hdr_cfg	hdr_cfg;
 	struct capture_info cap_info;
 	struct rkisp_vicap_mode mode;
 	struct toisp_info toisp_inf;
+	struct v4l2_ctrl *pixel_rate;
+	struct v4l2_ctrl_handler ctrl_handler;
+	struct v4l2_subdev *sensor_sd;
 	int buf_num;
+	int num_sensors;
+	int combine_index;
+	bool is_combine_mode;
 };
 
 extern struct platform_driver rkcif_subdev_driver;

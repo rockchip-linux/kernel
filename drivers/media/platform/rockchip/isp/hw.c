@@ -9,6 +9,7 @@
 #include <linux/mfd/syscon.h>
 #include <linux/module.h>
 #include <linux/of.h>
+#include <linux/of_address.h>
 #include <linux/of_graph.h>
 #include <linux/of_platform.h>
 #include <linux/of_reserved_mem.h>
@@ -144,9 +145,14 @@ static irqreturn_t mipi_irq_hdl(int irq, void *ctx)
 	struct rkisp_device *isp = hw_dev->isp[hw_dev->mipi_dev_id];
 	void __iomem *base = !hw_dev->is_unite ?
 		hw_dev->base_addr : hw_dev->base_next_addr;
+	ktime_t t = 0;
+	s64 us;
 
 	if (hw_dev->is_thunderboot)
 		return IRQ_HANDLED;
+
+	if (rkisp_irq_dbg)
+		t = ktime_get();
 
 	if (hw_dev->isp_ver == ISP_V13 || hw_dev->isp_ver == ISP_V12) {
 		u32 err1, err2, err3;
@@ -184,6 +190,11 @@ static irqreturn_t mipi_irq_hdl(int irq, void *ctx)
 			rkisp_mipi_isr(mis_val, isp);
 	}
 
+	if (rkisp_irq_dbg) {
+		us = ktime_us_delta(ktime_get(), t);
+		v4l2_dbg(0, rkisp_debug, &isp->v4l2_dev,
+			 "%s %lldus\n", __func__, us);
+	}
 	return IRQ_HANDLED;
 }
 
@@ -196,9 +207,14 @@ static irqreturn_t mi_irq_hdl(int irq, void *ctx)
 		hw_dev->base_addr : hw_dev->base_next_addr;
 	u32 mis_val, tx_isr = MI_RAW0_WR_FRAME | MI_RAW1_WR_FRAME |
 		MI_RAW2_WR_FRAME | MI_RAW3_WR_FRAME;
+	ktime_t t = 0;
+	s64 us;
 
 	if (hw_dev->is_thunderboot)
 		return IRQ_HANDLED;
+
+	if (rkisp_irq_dbg)
+		t = ktime_get();
 
 	mis_val = readl(base + CIF_MI_MIS);
 	if (mis_val) {
@@ -208,6 +224,12 @@ static irqreturn_t mi_irq_hdl(int irq, void *ctx)
 			isp = hw_dev->isp[hw_dev->mipi_dev_id];
 			rkisp_mi_isr(mis_val & tx_isr, isp);
 		}
+	}
+
+	if (rkisp_irq_dbg) {
+		us = ktime_us_delta(ktime_get(), t);
+		v4l2_dbg(0, rkisp_debug, &isp->v4l2_dev,
+			 "%s:0x%x %lldus\n", __func__, mis_val, us);
 	}
 	return IRQ_HANDLED;
 }
@@ -220,9 +242,14 @@ static irqreturn_t isp_irq_hdl(int irq, void *ctx)
 	void __iomem *base = !hw_dev->is_unite ?
 		hw_dev->base_addr : hw_dev->base_next_addr;
 	unsigned int mis_val, mis_3a = 0;
+	ktime_t t = 0;
+	s64 us;
 
 	if (hw_dev->is_thunderboot)
 		return IRQ_HANDLED;
+
+	if (rkisp_irq_dbg)
+		t = ktime_get();
 
 	mis_val = readl(base + CIF_ISP_MIS);
 	if (hw_dev->isp_ver == ISP_V20 ||
@@ -233,6 +260,11 @@ static irqreturn_t isp_irq_hdl(int irq, void *ctx)
 	if (mis_val || mis_3a)
 		rkisp_isp_isr(mis_val, mis_3a, isp);
 
+	if (rkisp_irq_dbg) {
+		us = ktime_us_delta(ktime_get(), t);
+		v4l2_dbg(0, rkisp_debug, &isp->v4l2_dev,
+			 "%s:0x%x %lldus\n", __func__, mis_val, us);
+	}
 	return IRQ_HANDLED;
 }
 
@@ -464,13 +496,13 @@ static const struct isp_clk_info rk3588_isp_clk_rate[] = {
 
 static const struct isp_clk_info rv1106_isp_clk_rate[] = {
 	{
-		.clk_rate = 200,
+		.clk_rate = 350,
 		.refer_data = 1920, //width
 	}, {
-		.clk_rate = 300,
+		.clk_rate = 350,
 		.refer_data = 2688,
 	}, {
-		.clk_rate = 400,
+		.clk_rate = 350,
 		.refer_data = 3072,
 	}
 };
@@ -733,6 +765,7 @@ static inline bool is_iommu_enable(struct device *dev)
 void rkisp_soft_reset(struct rkisp_hw_dev *dev, bool is_secure)
 {
 	void __iomem *base = dev->base_addr;
+	u32 val;
 
 	if (is_secure) {
 		/* if isp working, cru reset isn't secure.
@@ -754,7 +787,14 @@ void rkisp_soft_reset(struct rkisp_hw_dev *dev, bool is_secure)
 	/* reset for Dehaze */
 	if (dev->isp_ver == ISP_V20)
 		writel(CIF_ISP_CTRL_ISP_MODE_BAYER_ITU601, base + CIF_ISP_CTRL);
-	writel(0xffff, base + CIF_IRCL);
+	val = 0xffff;
+	if (dev->isp_ver == ISP_V32) {
+		val = 0x3fffffff;
+		rv1106_sdmmc_get_lock();
+	}
+	writel(val, base + CIF_IRCL);
+	if (dev->isp_ver == ISP_V32)
+		rv1106_sdmmc_put_lock();
 	if (dev->is_unite)
 		writel(0xffff, dev->base_next_addr + CIF_IRCL);
 	udelay(10);
@@ -773,12 +813,15 @@ static void isp_config_clk(struct rkisp_hw_dev *dev, int on)
 		CIF_ICCL_SRSZ_CLK | CIF_ICCL_JPEG_CLK | CIF_ICCL_MI_CLK |
 		CIF_ICCL_IE_CLK | CIF_ICCL_MIPI_CLK | CIF_ICCL_DCROP_CLK;
 
-	if ((dev->isp_ver == ISP_V20 || dev->isp_ver == ISP_V30) && on)
+	if ((dev->isp_ver == ISP_V20 || dev->isp_ver == ISP_V30 || dev->isp_ver == ISP_V32) && on)
 		val |= ICCL_MPFBC_CLK;
-	if (dev->isp_ver == ISP_V32 && on)
-		val |= ISP32_BRSZ_CLK_ENABLE;
-
+	if (dev->isp_ver == ISP_V32) {
+		val |= ISP32_BRSZ_CLK_ENABLE | BIT(0) | BIT(16);
+		rv1106_sdmmc_get_lock();
+	}
 	writel(val, dev->base_addr + CIF_ICCL);
+	if (dev->isp_ver == ISP_V32)
+		rv1106_sdmmc_put_lock();
 	if (dev->is_unite)
 		writel(val, dev->base_next_addr + CIF_ICCL);
 
@@ -803,7 +846,13 @@ static void isp_config_clk(struct rkisp_hw_dev *dev, int on)
 		if ((dev->isp_ver == ISP_V20 ||
 		     dev->isp_ver == ISP_V30 || dev->isp_ver == ISP_V32) && on)
 			val |= CLK_CTRL_ISP_3A;
+		if (dev->isp_ver == ISP_V32) {
+			val &= ~CLK_CTRL_ISP_RAW;
+			rv1106_sdmmc_get_lock();
+		}
 		writel(val, dev->base_addr + CTRL_VI_ISP_CLK_CTRL);
+		if (dev->isp_ver == ISP_V32)
+			rv1106_sdmmc_put_lock();
 		if (dev->is_unite)
 			writel(val, dev->base_next_addr + CTRL_VI_ISP_CLK_CTRL);
 	}
@@ -857,6 +906,7 @@ static int enable_sys_clk(struct rkisp_hw_dev *dev)
 		writel(ISP32_DS_DS_DIS, dev->base_addr + ISP32_MI_BPDS_WR_CTRL);
 
 		writel(0, dev->base_addr + ISP32_BLS_ISP_OB_PREDGAIN);
+		writel(0x37, dev->base_addr + ISP32_MI_WR_WRAP_CTRL);
 	}
 
 	return 0;
@@ -865,6 +915,44 @@ err:
 		if (!IS_ERR(dev->clks[i]))
 			clk_disable_unprepare(dev->clks[i]);
 	return ret;
+}
+
+static int rkisp_get_sram(struct rkisp_hw_dev *hw_dev)
+{
+	struct device *dev = hw_dev->dev;
+	struct rkisp_sram *sram = &hw_dev->sram;
+	struct device_node *np;
+	struct resource res;
+	int ret, size;
+
+	sram->size = 0;
+	np = of_parse_phandle(dev->of_node, "rockchip,sram", 0);
+	if (!np) {
+		dev_warn(dev, "no find phandle sram\n");
+		return -ENODEV;
+	}
+
+	ret = of_address_to_resource(np, 0, &res);
+	of_node_put(np);
+	if (ret) {
+		dev_err(dev, "get sram res error\n");
+		return ret;
+	}
+	size = resource_size(&res);
+	sram->dma_addr = dma_map_resource(dev, res.start, size, DMA_BIDIRECTIONAL, 0);
+	if (dma_mapping_error(dev, sram->dma_addr))
+		return -ENOMEM;
+	sram->size = size;
+	dev_info(dev, "get sram size:%d\n", size);
+	return 0;
+}
+
+static void rkisp_put_sram(struct rkisp_hw_dev *hw_dev)
+{
+	if (hw_dev->sram.size)
+		dma_unmap_resource(hw_dev->dev, hw_dev->sram.dma_addr,
+				   hw_dev->sram.size, DMA_BIDIRECTIONAL, 0);
+	hw_dev->sram.size = 0;
 }
 
 static int rkisp_hw_probe(struct platform_device *pdev)
@@ -977,6 +1065,8 @@ static int rkisp_hw_probe(struct platform_device *pdev)
 	else
 		hw_dev->is_feature_on = false;
 
+	rkisp_get_sram(hw_dev);
+
 	hw_dev->dev_num = 0;
 	hw_dev->dev_link_num = 0;
 	hw_dev->cur_dev_id = 0;
@@ -1019,6 +1109,7 @@ static int rkisp_hw_remove(struct platform_device *pdev)
 {
 	struct rkisp_hw_dev *hw_dev = platform_get_drvdata(pdev);
 
+	rkisp_put_sram(hw_dev);
 	pm_runtime_disable(&pdev->dev);
 	mutex_destroy(&hw_dev->dev_lock);
 	return 0;

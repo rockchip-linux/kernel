@@ -310,13 +310,24 @@ int dwc3_send_gadget_ep_cmd(struct dwc3_ep *dep, unsigned int cmd,
 	if (DWC3_DEPCMD_CMD(cmd) == DWC3_DEPCMD_STARTTRANSFER) {
 		int link_state;
 
+		/*
+		 * Initiate remote wakeup if the link state is in U3 when
+		 * operating in SS/SSP or L1/L2 when operating in HS/FS. If the
+		 * link state is in U1/U2, no remote wakeup is needed. The Start
+		 * Transfer command will initiate the link recovery.
+		 */
 		link_state = dwc3_gadget_get_link_state(dwc);
-		if (link_state == DWC3_LINK_STATE_U1 ||
-		    link_state == DWC3_LINK_STATE_U2 ||
-		    link_state == DWC3_LINK_STATE_U3) {
+		switch (link_state) {
+		case DWC3_LINK_STATE_U2:
+			if (dwc->gadget->speed >= USB_SPEED_SUPER)
+				break;
+
+			fallthrough;
+		case DWC3_LINK_STATE_U3:
 			ret = __dwc3_gadget_wakeup(dwc);
 			dev_WARN_ONCE(dwc->dev, ret, "wakeup failed --> %d\n",
 					ret);
+			break;
 		}
 	}
 
@@ -1301,6 +1312,19 @@ static void __dwc3_prepare_one_trb(struct dwc3_ep *dep, struct dwc3_trb *trb,
 	if (usb_endpoint_xfer_bulk(dep->endpoint.desc) && dep->stream_capable)
 		trb->ctrl |= DWC3_TRB_CTRL_SID_SOFN(stream_id);
 
+	/*
+	 * As per data book 4.2.3.2TRB Control Bit Rules section
+	 *
+	 * The controller autonomously checks the HWO field of a TRB to determine if the
+	 * entire TRB is valid. Therefore, software must ensure that the rest of the TRB
+	 * is valid before setting the HWO field to '1'. In most systems, this means that
+	 * software must update the fourth DWORD of a TRB last.
+	 *
+	 * However there is a possibility of CPU re-ordering here which can cause
+	 * controller to observe the HWO bit set prematurely.
+	 * Add a write memory barrier to prevent CPU re-ordering.
+	 */
+	wmb();
 	trb->ctrl |= DWC3_TRB_CTRL_HWO;
 
 	dwc3_ep_inc_enq(dep);
@@ -2018,6 +2042,7 @@ static int dwc3_gadget_ep_dequeue(struct usb_ep *ep,
 
 	list_for_each_entry(r, &dep->pending_list, list) {
 		if (r == req) {
+			dwc3_gadget_ep_skip_trbs(dep, req);
 			dwc3_gadget_giveback(dep, req, -ECONNRESET);
 			goto out;
 		}
@@ -2025,8 +2050,6 @@ static int dwc3_gadget_ep_dequeue(struct usb_ep *ep,
 
 	list_for_each_entry(r, &dep->started_list, list) {
 		if (r == req) {
-			struct dwc3_request *t;
-
 			/* wait until it is processed */
 			dwc3_stop_active_transfer(dep, true, true);
 
@@ -2034,11 +2057,14 @@ static int dwc3_gadget_ep_dequeue(struct usb_ep *ep,
 			 * Remove any started request if the transfer is
 			 * cancelled.
 			 */
-			list_for_each_entry_safe(r, t, &dep->started_list, list)
-				dwc3_gadget_move_cancelled_request(r,
-						DWC3_REQUEST_STATUS_DEQUEUED);
+			dwc3_gadget_move_cancelled_request(r, DWC3_REQUEST_STATUS_DEQUEUED);
 
 			dep->flags &= ~DWC3_EP_WAIT_TRANSFER_COMPLETE;
+
+			if (!(dep->flags & DWC3_EP_TRANSFER_STARTED)) {
+				dwc3_gadget_ep_skip_trbs(dep, req);
+				dwc3_gadget_giveback(dep, req, -ECONNRESET);
+			}
 
 			goto out;
 		}
@@ -2471,7 +2497,8 @@ static int dwc3_gadget_pullup(struct usb_gadget *g, int is_on)
 	 * Per databook, when we want to stop the gadget, if a control transfer
 	 * is still in process, complete it and get the core into setup phase.
 	 */
-	if (!is_on && dwc->ep0state != EP0_SETUP_PHASE) {
+	if (!is_on && dwc->ep0state != EP0_SETUP_PHASE &&
+	    dwc->ep0state != EP0_UNCONNECTED) {
 		reinit_completion(&dwc->ep0_in_setup);
 
 		ret = wait_for_completion_timeout(&dwc->ep0_in_setup,
@@ -2764,12 +2791,19 @@ static int dwc3_gadget_stop(struct usb_gadget *g)
 	unsigned long		flags;
 
 	spin_lock_irqsave(&dwc->lock, flags);
+	if (!dwc->gadget_driver) {
+		spin_unlock_irqrestore(&dwc->lock, flags);
+		dev_warn(dwc->dev, "%s is already stopped\n",
+			 dwc->gadget->name);
+		goto out;
+	}
 	dwc->gadget_driver	= NULL;
 	dwc->max_cfg_eps = 0;
 	spin_unlock_irqrestore(&dwc->lock, flags);
 
 	free_irq(dwc->irq_gadget, dwc->ev_buf);
 
+out:
 	return 0;
 }
 
@@ -3239,6 +3273,7 @@ static int dwc3_gadget_ep_cleanup_completed_request(struct dwc3_ep *dep,
 		const struct dwc3_event_depevt *event,
 		struct dwc3_request *req, int status)
 {
+	struct dwc3 *dwc = dep->dwc;
 	int ret;
 
 	if (req->request.num_mapped_sgs)
@@ -3257,6 +3292,28 @@ static int dwc3_gadget_ep_cleanup_completed_request(struct dwc3_ep *dep,
 		ret = dwc3_gadget_ep_reclaim_trb_linear(dep, req, event,
 				status);
 		req->needs_extra_trb = false;
+	}
+
+	/*
+	 * If MISS ISOC happens, we need to move the req from started_list
+	 * to cancelled_list, then unmap the req and clear the HWO of trb.
+	 * Later in the dwc3_gadget_endpoint_trbs_complete(), it will move
+	 * the req from the cancelled_list to the pending_list, and restart
+	 * the req for isoc transfer.
+	 */
+	if (status == -EXDEV && usb_endpoint_xfer_isoc(dep->endpoint.desc)) {
+		req->remaining = 0;
+		req->needs_extra_trb = false;
+		dwc3_gadget_move_cancelled_request(req, DWC3_REQUEST_STATUS_DEQUEUED);
+		if (req->trb) {
+			usb_gadget_unmap_request_by_dev(dwc->sysdev,
+							&req->request,
+							req->direction);
+			req->trb->ctrl &= ~DWC3_TRB_CTRL_HWO;
+			req->trb = NULL;
+		}
+		ret = 0;
+		goto out;
 	}
 
 	dwc3_gadget_giveback(dep, req, status);
@@ -3314,6 +3371,7 @@ static bool dwc3_gadget_endpoint_trbs_complete(struct dwc3_ep *dep,
 		const struct dwc3_event_depevt *event, int status)
 {
 	struct dwc3		*dwc = dep->dwc;
+	struct dwc3_request     *req, *tmp;
 	bool			no_started_trb = true;
 
 	if (!dep->endpoint.desc)
@@ -3323,6 +3381,29 @@ static bool dwc3_gadget_endpoint_trbs_complete(struct dwc3_ep *dep,
 
 	if (dep->flags & DWC3_EP_END_TRANSFER_PENDING)
 		goto out;
+
+	/*
+	 * If MISS ISOC happens, we need to do the following three steps
+	 * to restart the reqs in the cancelled_list and pending_list
+	 * in order.
+	 * Step1. Move all the reqs from pending_list to the tail of
+	 *        cancelled_list.
+	 * Step2. Move all the reqs from cancelled_list to the tail
+	 *        of pending_list.
+	 * Step3. Stop and restart an isoc transfer.
+	 */
+	if (usb_endpoint_xfer_isoc(dep->endpoint.desc) && status == -EXDEV &&
+	    !list_empty(&dep->cancelled_list) &&
+	    !list_empty(&dep->pending_list)) {
+		list_for_each_entry_safe(req, tmp, &dep->pending_list, list)
+			dwc3_gadget_move_cancelled_request(req, DWC3_REQUEST_STATUS_DEQUEUED);
+	}
+
+	if (usb_endpoint_xfer_isoc(dep->endpoint.desc) && status == -EXDEV &&
+	    !list_empty(&dep->cancelled_list)) {
+		list_for_each_entry_safe(req, tmp, &dep->cancelled_list, list)
+			dwc3_gadget_move_queued_request(req);
+	}
 
 	if (usb_endpoint_xfer_isoc(dep->endpoint.desc) &&
 		list_empty(&dep->started_list) &&
@@ -3421,6 +3502,14 @@ static void dwc3_gadget_endpoint_command_complete(struct dwc3_ep *dep,
 
 	if (cmd != DWC3_DEPCMD_ENDTRANSFER)
 		return;
+
+	/*
+	 * The END_TRANSFER command will cause the controller to generate a
+	 * NoStream Event, and it's not due to the host DP NoStream rejection.
+	 * Ignore the next NoStream event.
+	 */
+	if (dep->stream_capable)
+		dep->flags |= DWC3_EP_IGNORE_NEXT_NOSTREAM;
 
 	dep->flags &= ~DWC3_EP_END_TRANSFER_PENDING;
 	dep->flags &= ~DWC3_EP_TRANSFER_STARTED;
@@ -3643,14 +3732,6 @@ void dwc3_stop_active_transfer(struct dwc3_ep *dep, bool force,
 	ret = dwc3_send_gadget_ep_cmd(dep, cmd, &params);
 	WARN_ON_ONCE(ret);
 	dep->resource_index = 0;
-
-	/*
-	 * The END_TRANSFER command will cause the controller to generate a
-	 * NoStream Event, and it's not due to the host DP NoStream rejection.
-	 * Ignore the next NoStream event.
-	 */
-	if (dep->stream_capable)
-		dep->flags |= DWC3_EP_IGNORE_NEXT_NOSTREAM;
 
 	if (!interrupt)
 		dep->flags &= ~DWC3_EP_TRANSFER_STARTED;
@@ -4065,9 +4146,11 @@ static void dwc3_gadget_interrupt(struct dwc3 *dwc,
 {
 	switch (event->type) {
 	case DWC3_DEVICE_EVENT_DISCONNECT:
+		dev_info(dwc->dev, "device disconnect\n");
 		dwc3_gadget_disconnect_interrupt(dwc);
 		break;
 	case DWC3_DEVICE_EVENT_RESET:
+		dev_info(dwc->dev, "device reset\n");
 		dwc3_gadget_reset_interrupt(dwc);
 		break;
 	case DWC3_DEVICE_EVENT_CONNECT_DONE:
@@ -4177,9 +4260,11 @@ static irqreturn_t dwc3_thread_interrupt(int irq, void *_evt)
 	unsigned long flags;
 	irqreturn_t ret = IRQ_NONE;
 
+	local_bh_disable();
 	spin_lock_irqsave(&dwc->lock, flags);
 	ret = dwc3_process_event_buf(evt);
 	spin_unlock_irqrestore(&dwc->lock, flags);
+	local_bh_enable();
 
 	return ret;
 }
