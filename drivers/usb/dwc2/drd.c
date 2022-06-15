@@ -96,8 +96,8 @@ static int dwc2_drd_role_sw_set(struct usb_role_switch *sw, enum usb_role role)
 	 * the clock to read/write GOTGCTL and GUSBCFG registers to override
 	 * mode and sessions. It is the case if cable is plugged at boot.
 	 */
-	if (!hsotg->ll_hw_enabled && hsotg->clk) {
-		int ret = clk_prepare_enable(hsotg->clk);
+	if (!hsotg->ll_hw_enabled && hsotg->num_clks > 0) {
+		int ret = clk_bulk_prepare_enable(hsotg->num_clks, hsotg->clks);
 
 		if (ret)
 			return ret;
@@ -129,8 +129,8 @@ static int dwc2_drd_role_sw_set(struct usb_role_switch *sw, enum usb_role role)
 		/* This will raise a Connector ID Status Change Interrupt */
 		dwc2_force_mode(hsotg, role == USB_ROLE_HOST);
 
-	if (!hsotg->ll_hw_enabled && hsotg->clk)
-		clk_disable_unprepare(hsotg->clk);
+	if (!hsotg->ll_hw_enabled && hsotg->num_clks > 0)
+		clk_bulk_disable_unprepare(hsotg->num_clks, hsotg->clks);
 
 	dev_dbg(hsotg->dev, "%s-session valid\n",
 		role == USB_ROLE_NONE ? "No" :
