@@ -18,6 +18,7 @@
 
 #include "rga2_mmu_info.h"
 #include "rga_debugger.h"
+#include "rga_common.h"
 
 struct rga_drvdata_t *rga_drvdata;
 
@@ -242,7 +243,9 @@ int rga_mpi_commit(struct rga_mpi_job_t *mpi_job)
 		mpi_job->output->format = mpi_cmd.dst.format;
 	}
 
+	mutex_lock(&request_manager->lock);
 	rga_request_put(request);
+	mutex_unlock(&request_manager->lock);
 
 	return ret;
 }
@@ -497,6 +500,7 @@ static struct rga_session *rga_session_init(void)
 	mutex_unlock(&session_manager->lock);
 
 	session->tgid = current->tgid;
+	session->pname = kstrdup_quotable_cmdline(current, GFP_KERNEL);
 
 	return session;
 }
@@ -516,15 +520,11 @@ static int rga_session_deinit(struct rga_session *session)
 
 	idr_for_each_entry(&request_manager->request_idr, request, request_id) {
 
-		mutex_unlock(&request_manager->lock);
-
 		if (session == request->session) {
 			pr_err("[pid:%d] destroy request[%d] when the user exits",
 			       pid, request->id);
 			rga_request_put(request);
 		}
-
-		mutex_lock(&request_manager->lock);
 	}
 
 	mutex_unlock(&request_manager->lock);
@@ -533,6 +533,8 @@ static int rga_session_deinit(struct rga_session *session)
 	rga_mm_session_release_buffer(session);
 
 	rga_session_free_remove_idr(session);
+
+	kfree(session->pname);
 	kfree(session);
 
 	return 0;
@@ -692,8 +694,11 @@ static long rga_ioctl_request_create(unsigned long arg, struct rga_session *sess
 static long rga_ioctl_request_submit(unsigned long arg, bool run_enbale)
 {
 	int ret = 0;
+	struct rga_pending_request_manager *request_manager = NULL;
 	struct rga_user_request user_request;
 	struct rga_request *request = NULL;
+
+	request_manager = rga_drvdata->pend_request_manager;
 
 	if (unlikely(copy_from_user(&user_request,
 				    (struct rga_user_request *)arg,
@@ -722,6 +727,12 @@ static long rga_ioctl_request_submit(unsigned long arg, bool run_enbale)
 		if (ret < 0) {
 			pr_err("request[%d] submit failed!\n", user_request.id);
 			return -EFAULT;
+		}
+
+		if (request->sync_mode == RGA_BLIT_SYNC) {
+			mutex_lock(&request_manager->lock);
+			rga_request_put(request);
+			mutex_unlock(&request_manager->lock);
 		}
 	}
 

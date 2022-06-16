@@ -27,6 +27,7 @@
 #include <linux/rkisp1-config.h>
 #include <linux/rk-camera-module.h>
 #include "rk1608_dphy.h"
+#include <linux/compat.h>
 
 #define RK1608_DPHY_NAME	"RK1608-dphy"
 
@@ -201,9 +202,9 @@ static int rk1608_set_fmt(struct v4l2_subdev *sd,
 
 	pdata->fmt_inf_idx = idx;
 
+	pdata->rk1608_sd->grp_id = pdata->sd.grp_id;
 	v4l2_subdev_call(pdata->rk1608_sd, pad, set_fmt, cfg, fmt);
 
-	pdata->rk1608_sd->grp_id = pdata->sd.grp_id;
 	remote_ctrl = v4l2_ctrl_find(pdata->rk1608_sd->ctrl_handler,
 						 V4L2_CID_HBLANK);
 	if (remote_ctrl) {
@@ -234,6 +235,10 @@ static int rk1608_g_frame_interval(struct v4l2_subdev *sd,
 {
 	struct rk1608_dphy *pdata = to_state(sd);
 
+	if (!(pdata->rk1608_sd)) {
+		dev_info(pdata->dev, "pdata->rk1608_sd NULL\n");
+		return -EFAULT;
+	}
 	pdata->rk1608_sd->grp_id = sd->grp_id;
 	v4l2_subdev_call(pdata->rk1608_sd,
 			 video,
@@ -249,18 +254,18 @@ static int rk1608_s_frame_interval(struct v4l2_subdev *sd,
 	return 0;
 }
 
-static int rk1608_g_mbus_config(struct v4l2_subdev *sd,
+static int rk1608_g_mbus_config(struct v4l2_subdev *sd, unsigned int pad_id,
 				struct v4l2_mbus_config *config)
 {
 
 	struct rk1608_dphy *pdata = to_state(sd);
 	u32 val = 0;
 
-	val = 1 << (pdata->fmt_inf[pdata->fmt_inf_idx].mipi_lane - 1) |
+	val = 1 << (pdata->fmt_inf[pdata->fmt_inf_idx].mipi_lane_out - 1) |
 	V4L2_MBUS_CSI2_CHANNEL_0 |
 	V4L2_MBUS_CSI2_CONTINUOUS_CLOCK;
 
-	config->type = V4L2_MBUS_CSI2;
+	config->type = V4L2_MBUS_CSI2_DPHY;
 	config->flags = val;
 
 	return 0;
@@ -310,7 +315,7 @@ static long rk1608_compat_ioctl32(struct v4l2_subdev *sd,
 	struct preisp_hdrae_exp_s hdrae_exp;
 	struct rkmodule_inf *inf;
 	struct rkmodule_awb_cfg *cfg;
-	long ret;
+	long ret = -EFAULT;
 
 	switch (cmd) {
 	case PREISP_CMD_SET_HDRAE_EXP:
@@ -327,7 +332,10 @@ static long rk1608_compat_ioctl32(struct v4l2_subdev *sd,
 
 		ret = rk1608_ioctl(sd, cmd, inf);
 		if (!ret)
-			ret = copy_to_user(up, inf, sizeof(*inf));
+			if (copy_to_user(up, inf, sizeof(*inf))) {
+				kfree(inf);
+				return -EFAULT;
+			}
 		kfree(inf);
 		break;
 	case RKMODULE_AWB_CFG:
@@ -385,6 +393,55 @@ static int rk1608_set_ctrl(struct v4l2_ctrl *ctrl)
 				     ctrl->id);
 	if (remote_ctrl)
 		ret = v4l2_ctrl_s_ctrl(remote_ctrl, ctrl->val);
+
+	return ret;
+}
+
+#define CROP_START(SRC, DST) (((SRC) - (DST)) / 2 / 4 * 4)
+static int rk1608_get_selection(struct v4l2_subdev *sd,
+		struct v4l2_subdev_pad_config *cfg,
+		struct v4l2_subdev_selection *sel)
+{
+	struct rk1608_dphy *pdata = to_state(sd);
+	u32 idx = pdata->fmt_inf_idx;
+	u32 width = pdata->fmt_inf[idx].mf.width;
+	u32 height = pdata->fmt_inf[idx].mf.height;
+
+	if (sel->target != V4L2_SEL_TGT_CROP_BOUNDS)
+		return -EINVAL;
+
+	if (pdata->fmt_inf[idx].hcrop && pdata->fmt_inf[idx].vcrop) {
+		width = pdata->fmt_inf[idx].hcrop;
+		height = pdata->fmt_inf[idx].vcrop;
+	}
+
+	sel->r.left = CROP_START(pdata->fmt_inf[idx].mf.width, width);
+	sel->r.top = CROP_START(pdata->fmt_inf[idx].mf.height, height);
+	sel->r.width = width;
+	sel->r.height = height;
+
+	return 0;
+}
+
+static int rk1608_enum_frame_interval(struct v4l2_subdev *sd,
+	struct v4l2_subdev_pad_config *cfg,
+	struct v4l2_subdev_frame_interval_enum *fie)
+{
+	struct rk1608_dphy *pdata = to_state(sd);
+	u32 idx = pdata->fmt_inf_idx;
+	int ret = 0;
+	struct v4l2_fract max_fps = {
+		.numerator = 10000,
+		.denominator = 300000,
+	};
+
+	if (fie->index >= pdata->fmt_inf_num)
+		return -EINVAL;
+
+	fie->code = pdata->fmt_inf[idx].mf.code;
+	fie->width = pdata->fmt_inf[idx].mf.width;
+	fie->height = pdata->fmt_inf[idx].mf.height;
+	fie->interval = max_fps;
 
 	return ret;
 }
@@ -511,7 +568,6 @@ static const struct v4l2_subdev_video_ops rk1608_subdev_video_ops = {
 	.s_stream	= rk1608_s_stream,
 	.g_frame_interval = rk1608_g_frame_interval,
 	.s_frame_interval = rk1608_s_frame_interval,
-	.g_mbus_config = rk1608_g_mbus_config,
 };
 
 static const struct v4l2_subdev_pad_ops rk1608_subdev_pad_ops = {
@@ -519,6 +575,9 @@ static const struct v4l2_subdev_pad_ops rk1608_subdev_pad_ops = {
 	.enum_frame_size = rk1608_enum_frame_sizes,
 	.get_fmt	= rk1608_get_fmt,
 	.set_fmt	= rk1608_set_fmt,
+	.get_mbus_config = rk1608_g_mbus_config,
+	.get_selection = rk1608_get_selection,
+	.enum_frame_interval = rk1608_enum_frame_interval,
 };
 
 static const struct v4l2_subdev_core_ops rk1608_core_ops = {
@@ -542,6 +601,7 @@ static int rk1608_dphy_dt_property(struct rk1608_dphy *dphy)
 	struct device_node *parent_node = of_node_get(node);
 	struct device_node *prev_node = NULL;
 	u32 idx = 0;
+	u32 sub_idx = 0;
 
 	ret = of_property_read_u32(node, "id", &dphy->sd.grp_id);
 	if (ret)
@@ -590,6 +650,11 @@ static int rk1608_dphy_dt_property(struct rk1608_dphy *dphy)
 				&dphy->fmt_inf[idx].mipi_lane);
 			if (ret)
 				dev_warn(dphy->dev, "Can not get mipi_lane!");
+
+			ret = of_property_read_u32(node, "mipi_lane_out",
+				&dphy->fmt_inf[idx].mipi_lane_out);
+			if (ret)
+				dev_warn(dphy->dev, "Can not get mipi_lane_out!");
 
 			ret = of_property_read_u32(node, "field",
 				&dphy->fmt_inf[idx].mf.field);
@@ -676,6 +741,16 @@ static int rk1608_dphy_dt_property(struct rk1608_dphy *dphy)
 			if (ret)
 				dev_info(dphy->dev, "Can not get outch3-info!");
 
+			ret = of_property_read_u32(node, "hcrop",
+				&dphy->fmt_inf[idx].hcrop);
+			if (ret)
+				dev_warn(dphy->dev, "Can not get hcrop!");
+
+			ret = of_property_read_u32(node, "vcrop",
+				&dphy->fmt_inf[idx].vcrop);
+			if (ret)
+				dev_warn(dphy->dev, "Can not get vcrop!");
+
 			idx++;
 		}
 
@@ -683,6 +758,53 @@ static int rk1608_dphy_dt_property(struct rk1608_dphy *dphy)
 		prev_node = node;
 	}
 	dphy->fmt_inf_num = idx;
+
+	prev_node = NULL;
+	/* get virtual sub sensor */
+	node = NULL;
+	while (!IS_ERR_OR_NULL(node =
+				of_get_next_child(parent_node, prev_node))) {
+		if (!strncasecmp(node->name,
+				 "virtual-sub-sensor-config",
+				 strlen("virtual-sub-sensor-config"))) {
+
+			if (sub_idx >= 4) {
+				dev_err(dphy->dev, "get too mach sub_sensor node, max 4.\n");
+				break;
+			}
+
+			ret = of_property_read_u32(node, "id",
+				&dphy->sub_sensor[sub_idx].id);
+			if (ret)
+				dev_warn(dphy->dev, "Can not get sub sensor id!");
+			else
+				dev_info(dphy->dev, "get sub sensor id:%d",
+						dphy->sub_sensor[sub_idx].id);
+
+			ret = of_property_read_u32(node, "in_mipi",
+				&dphy->sub_sensor[sub_idx].in_mipi);
+			if (ret)
+				dev_warn(dphy->dev, "Can not get sub sensor in_mipi!");
+			else
+				dev_info(dphy->dev, "get sub sensor in_mipi:%d",
+						dphy->sub_sensor[sub_idx].in_mipi);
+
+			ret = of_property_read_u32(node, "out_mipi",
+				&dphy->sub_sensor[sub_idx].out_mipi);
+			if (ret)
+				dev_warn(dphy->dev, "Can not get sub sensor out_mipi!");
+			else
+				dev_info(dphy->dev, "get sub sensor out_mipi:%d",
+						dphy->sub_sensor[sub_idx].out_mipi);
+
+			sub_idx++;
+		}
+
+		of_node_put(prev_node);
+		prev_node = node;
+	}
+	dphy->sub_sensor_num = sub_idx;
+	/* get virtual sub sensor end */
 
 	of_node_put(prev_node);
 	of_node_put(parent_node);

@@ -185,6 +185,11 @@ static int __isp_pipeline_s_isp_clk(struct rkisp_pipeline *p)
 		}
 		if (!hw_dev->is_single)
 			i++;
+
+		/* use lager clk in 4 vir-isp mode */
+		if (hw_dev->dev_num >= 4)
+			i++;
+
 		if (i > hw_dev->num_clk_rate_tbl - 1)
 			i = hw_dev->num_clk_rate_tbl - 1;
 		goto end;
@@ -235,6 +240,9 @@ end:
 	rkisp_set_clk_rate(hw_dev->clks[0], hw_dev->clk_rate_tbl[i].clk_rate * 1000000UL);
 	if (hw_dev->is_unite)
 		rkisp_set_clk_rate(hw_dev->clks[5], hw_dev->clk_rate_tbl[i].clk_rate * 1000000UL);
+	/* aclk equal to core clk */
+	if (dev->isp_ver == ISP_V32)
+		rkisp_set_clk_rate(hw_dev->clks[1], hw_dev->clk_rate_tbl[i].clk_rate * 1000000UL);
 	dev_info(hw_dev->dev, "set isp clk = %luHz\n", clk_get_rate(hw_dev->clks[0]));
 
 	return 0;
@@ -405,10 +413,15 @@ static int _set_pipeline_default_fmt(struct rkisp_device *dev)
 	memset(&fmt, 0, sizeof(fmt));
 	isp = &dev->isp_sdev.sd;
 
-	if (dev->active_sensor)
+	if (dev->active_sensor) {
 		fmt = dev->active_sensor->fmt[0];
-	else
+		if (fmt.format.code == dev->isp_sdev.in_frm.code &&
+		    fmt.format.width == dev->isp_sdev.in_frm.width &&
+		    fmt.format.height == dev->isp_sdev.in_frm.height)
+			return 0;
+	} else {
 		fmt.format = dev->isp_sdev.in_frm;
+	}
 	code = fmt.format.code;
 	fmt.which = V4L2_SUBDEV_FORMAT_ACTIVE;
 	fmt.pad = RKISP_ISP_PAD_SINK;
@@ -541,6 +554,8 @@ static int subdev_notifier_complete(struct v4l2_async_notifier *notifier)
 
 unlock:
 	mutex_unlock(&dev->media_dev.graph_mutex);
+	if (!ret && dev->is_thunderboot)
+		schedule_work(&dev->cap_dev.fast_work);
 	return ret;
 }
 
@@ -773,9 +788,8 @@ static int rkisp_get_reserved_mem(struct rkisp_device *isp_dev)
 					      sizeof(struct rkisp_thunderboot_resmem_head),
 					      DMA_BIDIRECTIONAL);
 	ret = dma_mapping_error(dev, isp_dev->resmem_addr);
-
-	dev_info(dev, "Allocated reserved memory, paddr: 0x%x\n",
-		(u32)isp_dev->resmem_pa);
+	isp_dev->is_thunderboot = true;
+	dev_info(dev, "Allocated reserved memory, paddr: 0x%x\n", (u32)isp_dev->resmem_pa);
 	return ret;
 }
 
@@ -822,9 +836,11 @@ static int rkisp_plat_probe(struct platform_device *pdev)
 	strscpy(isp_dev->media_dev.driver_name, isp_dev->name,
 		sizeof(isp_dev->media_dev.driver_name));
 
-	ret = rkisp_get_reserved_mem(isp_dev);
-	if (ret)
-		return ret;
+	if (isp_dev->hw_dev->is_thunderboot) {
+		ret = rkisp_get_reserved_mem(isp_dev);
+		if (ret)
+			return ret;
+	}
 
 	mutex_init(&isp_dev->apilock);
 	mutex_init(&isp_dev->iqlock);

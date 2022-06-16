@@ -512,6 +512,7 @@ struct vop_win_phy {
 	struct vop_reg gate;
 	struct vop_reg enable;
 	struct vop_reg format;
+	struct vop_reg interlace_read;
 	struct vop_reg fmt_10;
 	struct vop_reg fmt_yuyv;
 	struct vop_reg csc_mode;
@@ -533,8 +534,8 @@ struct vop_win_phy {
 	struct vop_reg alpha_en;
 	struct vop_reg alpha_pre_mul;
 	struct vop_reg global_alpha_val;
-	struct vop_reg key_color;
-	struct vop_reg key_en;
+	struct vop_reg color_key;
+	struct vop_reg color_key_en;
 };
 
 struct vop_win_data {

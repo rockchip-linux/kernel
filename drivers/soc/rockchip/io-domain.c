@@ -14,6 +14,12 @@
 #include <linux/platform_device.h>
 #include <linux/regmap.h>
 #include <linux/regulator/consumer.h>
+#include <linux/of.h>
+#include <linux/of_device.h>
+#include <linux/regulator/of_regulator.h>
+#include <linux/regulator/driver.h>
+#include <linux/regulator/machine.h>
+#include "../../regulator/internal.h"
 
 #define MAX_SUPPLIES		16
 
@@ -38,6 +44,10 @@
 #define RK3288_SOC_CON2			0x24c
 #define RK3288_SOC_CON2_FLASH0		BIT(7)
 #define RK3288_SOC_FLASH_SUPPLY_NUM	2
+
+#define RK3308_SOC_CON0			0x300
+#define RK3308_SOC_CON0_VCCIO3		BIT(8)
+#define RK3308_SOC_VCCIO3_SUPPLY_NUM	3
 
 #define RK3328_SOC_CON4			0x410
 #define RK3328_SOC_CON4_VCCIO2		BIT(7)
@@ -232,6 +242,25 @@ static void rk3288_iodomain_init(struct rockchip_iodomain *iod)
 		dev_warn(iod->dev, "couldn't update flash0 ctrl\n");
 }
 
+static void rk3308_iodomain_init(struct rockchip_iodomain *iod)
+{
+	int ret;
+	u32 val;
+
+	/* if no vccio3 supply we should leave things alone */
+	if (!iod->supplies[RK3308_SOC_VCCIO3_SUPPLY_NUM].reg)
+		return;
+
+	/*
+	 * set vccio3 iodomain to also use this framework
+	 * instead of a special gpio.
+	 */
+	val = RK3308_SOC_CON0_VCCIO3 | (RK3308_SOC_CON0_VCCIO3 << 16);
+	ret = regmap_write(iod->grf, RK3308_SOC_CON0, val);
+	if (ret < 0)
+		dev_warn(iod->dev, "couldn't update vccio3 vsel ctrl\n");
+}
+
 static void rk3328_iodomain_init(struct rockchip_iodomain *iod)
 {
 	int ret;
@@ -379,6 +408,19 @@ static const struct rockchip_iodomain_soc_data soc_data_rk3288 = {
 	.init = rk3288_iodomain_init,
 };
 
+static const struct rockchip_iodomain_soc_data soc_data_rk3308 = {
+	.grf_offset = 0x300,
+	.supply_names = {
+		"vccio0",
+		"vccio1",
+		"vccio2",
+		"vccio3",
+		"vccio4",
+		"vccio5",
+	},
+	.init = rk3308_iodomain_init,
+};
+
 static const struct rockchip_iodomain_soc_data soc_data_rk3328 = {
 	.grf_offset = 0x410,
 	.supply_names = {
@@ -510,6 +552,7 @@ static const struct rockchip_iodomain_soc_data soc_data_rv1126_pmu = {
 };
 
 static const struct of_device_id rockchip_iodomain_match[] = {
+#ifdef CONFIG_CPU_PX30
 	{
 		.compatible = "rockchip,px30-io-voltage-domain",
 		.data = (void *)&soc_data_px30
@@ -518,22 +561,38 @@ static const struct of_device_id rockchip_iodomain_match[] = {
 		.compatible = "rockchip,px30-pmu-io-voltage-domain",
 		.data = (void *)&soc_data_px30_pmu
 	},
+#endif
+#ifdef CONFIG_CPU_RK3188
 	{
 		.compatible = "rockchip,rk3188-io-voltage-domain",
 		.data = &soc_data_rk3188
 	},
+#endif
+#ifdef CONFIG_CPU_RK322X
 	{
 		.compatible = "rockchip,rk3228-io-voltage-domain",
 		.data = &soc_data_rk3228
 	},
+#endif
+#ifdef CONFIG_CPU_RK3288
 	{
 		.compatible = "rockchip,rk3288-io-voltage-domain",
 		.data = &soc_data_rk3288
 	},
+#endif
+#ifdef CONFIG_CPU_RK3308
+	{
+		.compatible = "rockchip,rk3308-io-voltage-domain",
+		.data = &soc_data_rk3308
+	},
+#endif
+#ifdef CONFIG_CPU_RK3328
 	{
 		.compatible = "rockchip,rk3328-io-voltage-domain",
 		.data = &soc_data_rk3328
 	},
+#endif
+#ifdef CONFIG_CPU_RK3368
 	{
 		.compatible = "rockchip,rk3368-io-voltage-domain",
 		.data = &soc_data_rk3368
@@ -542,6 +601,8 @@ static const struct of_device_id rockchip_iodomain_match[] = {
 		.compatible = "rockchip,rk3368-pmu-io-voltage-domain",
 		.data = &soc_data_rk3368_pmu
 	},
+#endif
+#ifdef CONFIG_CPU_RK3399
 	{
 		.compatible = "rockchip,rk3399-io-voltage-domain",
 		.data = &soc_data_rk3399
@@ -550,10 +611,14 @@ static const struct of_device_id rockchip_iodomain_match[] = {
 		.compatible = "rockchip,rk3399-pmu-io-voltage-domain",
 		.data = &soc_data_rk3399_pmu
 	},
+#endif
+#ifdef CONFIG_CPU_RK3568
 	{
 		.compatible = "rockchip,rk3568-pmu-io-voltage-domain",
 		.data = &soc_data_rk3568_pmu
 	},
+#endif
+#ifdef CONFIG_CPU_RV1108
 	{
 		.compatible = "rockchip,rv1108-io-voltage-domain",
 		.data = &soc_data_rv1108
@@ -562,13 +627,144 @@ static const struct of_device_id rockchip_iodomain_match[] = {
 		.compatible = "rockchip,rv1108-pmu-io-voltage-domain",
 		.data = &soc_data_rv1108_pmu
 	},
+#endif
+#ifdef CONFIG_CPU_RV1126
 	{
 		.compatible = "rockchip,rv1126-pmu-io-voltage-domain",
 		.data = &soc_data_rv1126_pmu
 	},
+#endif
 	{ /* sentinel */ },
 };
 MODULE_DEVICE_TABLE(of, rockchip_iodomain_match);
+
+#ifndef MODULE
+static const char *rdev_get_name(struct regulator_dev *rdev)
+{
+	if (rdev->constraints && rdev->constraints->name)
+		return rdev->constraints->name;
+	else if (rdev->desc->name)
+		return rdev->desc->name;
+	else
+		return "";
+}
+
+static struct device_node *of_get_child_regulator(struct device_node *parent,
+						  const char *prop_name)
+{
+	struct device_node *regnode = NULL;
+	struct device_node *child = NULL;
+
+	for_each_child_of_node(parent, child) {
+		regnode = of_parse_phandle(child, prop_name, 0);
+
+		if (!regnode) {
+			regnode = of_get_child_regulator(child, prop_name);
+			if (regnode)
+				return regnode;
+		} else {
+			return regnode;
+		}
+	}
+	return NULL;
+}
+
+static struct device_node *of_get_regulator(struct device *dev, const char *supply)
+{
+	struct device_node *regnode = NULL;
+	char prop_name[256];
+
+	dev_dbg(dev, "Looking up %s-supply from device tree\n", supply);
+
+	snprintf(prop_name, sizeof(prop_name), "%s-supply", supply);
+	regnode = of_parse_phandle(dev->of_node, prop_name, 0);
+
+	if (!regnode) {
+		regnode = of_get_child_regulator(dev->of_node, prop_name);
+		if (regnode)
+			return regnode;
+
+		dev_dbg(dev, "Looking up %s property in node %pOF failed\n",
+				prop_name, dev->of_node);
+		return NULL;
+	}
+	return regnode;
+}
+
+static void rockchip_iodomain_dump(const struct platform_device *pdev,
+				   struct rockchip_iodomain_supply *supply)
+{
+	struct rockchip_iodomain *iod = supply->iod;
+	const char *name = iod->soc_data->supply_names[supply->idx];
+	struct device *dev = iod->dev;
+	struct device_node *node;
+	struct regulator_dev *r = NULL;
+
+	node = of_get_regulator(dev, name);
+	if (node) {
+		r = of_find_regulator_by_node(node);
+		if (!IS_ERR_OR_NULL(r))
+			dev_info(&pdev->dev, "%s(%d uV) supplied by %s\n",
+				name, regulator_get_voltage(supply->reg),
+				rdev_get_name(r));
+	}
+}
+#else
+static inline void
+rockchip_iodomain_dump(const struct platform_device *pdev,
+		       struct rockchip_iodomain_supply *supply)
+{
+}
+#endif
+
+static int rv1126_iodomain_notify(struct notifier_block *nb,
+				  unsigned long event,
+				  void *data)
+{
+	struct rockchip_iodomain_supply *supply =
+			container_of(nb, struct rockchip_iodomain_supply, nb);
+	int uV;
+	int ret;
+
+	if (event & REGULATOR_EVENT_PRE_VOLTAGE_CHANGE) {
+		struct pre_voltage_change_data *pvc_data = data;
+
+		uV = max_t(unsigned long, pvc_data->old_uV, pvc_data->max_uV);
+	} else if (event & (REGULATOR_EVENT_VOLTAGE_CHANGE |
+			    REGULATOR_EVENT_ABORT_VOLTAGE_CHANGE)) {
+		uV = (unsigned long)data;
+	} else if (event & REGULATOR_EVENT_DISABLE) {
+		uV = MAX_VOLTAGE_3_3;
+	} else if (event & REGULATOR_EVENT_ENABLE) {
+		if (!data)
+			return NOTIFY_BAD;
+
+		uV = (unsigned long)data;
+	} else {
+		return NOTIFY_OK;
+	}
+
+	if (uV <= 0) {
+		dev_err(supply->iod->dev, "Voltage invalid: %d\n", uV);
+		return NOTIFY_BAD;
+	}
+
+	dev_dbg(supply->iod->dev, "Setting to %d\n", uV);
+
+	if (uV > MAX_VOLTAGE_3_3) {
+		dev_err(supply->iod->dev, "Voltage too high: %d\n", uV);
+
+		if (event == REGULATOR_EVENT_PRE_VOLTAGE_CHANGE)
+			return NOTIFY_BAD;
+	}
+
+	ret = supply->iod->write(supply, uV);
+	if (ret && event == REGULATOR_EVENT_PRE_VOLTAGE_CHANGE)
+		return NOTIFY_BAD;
+
+	dev_dbg(supply->iod->dev, "Setting to %d done\n", uV);
+	return NOTIFY_OK;
+}
 
 static int rockchip_iodomain_probe(struct platform_device *pdev)
 {
@@ -591,7 +787,7 @@ static int rockchip_iodomain_probe(struct platform_device *pdev)
 	match = of_match_node(rockchip_iodomain_match, np);
 	iod->soc_data = match->data;
 
-	if (match->data == &soc_data_rk3568_pmu)
+	if (IS_ENABLED(CONFIG_CPU_RK3568) && match->data == &soc_data_rk3568_pmu)
 		iod->write = rk3568_pmu_iodomain_write;
 	else
 		iod->write = rockchip_iodomain_write;
@@ -655,6 +851,8 @@ static int rockchip_iodomain_probe(struct platform_device *pdev)
 		supply->iod = iod;
 		supply->reg = reg;
 		supply->nb.notifier_call = rockchip_iodomain_notify;
+		if (IS_ENABLED(CONFIG_CPU_RV1126))
+			supply->nb.notifier_call = rv1126_iodomain_notify;
 
 		ret = iod->write(supply, uV);
 		if (ret) {
@@ -670,6 +868,8 @@ static int rockchip_iodomain_probe(struct platform_device *pdev)
 			supply->reg = NULL;
 			goto unreg_notify;
 		}
+
+		rockchip_iodomain_dump(pdev, supply);
 	}
 
 	if (iod->soc_data->init)
@@ -714,7 +914,17 @@ static struct platform_driver rockchip_iodomain_driver = {
 	},
 };
 
-module_platform_driver(rockchip_iodomain_driver);
+static int __init rockchip_iodomain_driver_init(void)
+{
+	return platform_driver_register(&rockchip_iodomain_driver);
+}
+fs_initcall(rockchip_iodomain_driver_init);
+
+static void __exit rockchip_iodomain_driver_exit(void)
+{
+	platform_driver_unregister(&rockchip_iodomain_driver);
+}
+module_exit(rockchip_iodomain_driver_exit);
 
 MODULE_DESCRIPTION("Rockchip IO-domain driver");
 MODULE_AUTHOR("Heiko Stuebner <heiko@sntech.de>");

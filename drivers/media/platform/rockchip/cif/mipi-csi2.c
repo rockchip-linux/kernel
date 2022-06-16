@@ -15,6 +15,8 @@
 #include <linux/of_graph.h>
 #include <linux/platform_device.h>
 #include <linux/reset.h>
+#include <linux/rk-camera-module.h>
+#include <media/v4l2-ioctl.h>
 #include "mipi-csi2.h"
 
 static int csi2_debug;
@@ -69,9 +71,41 @@ static struct v4l2_subdev *get_remote_sensor(struct v4l2_subdev *sd)
 	return media_entity_to_v4l2_subdev(sensor_me);
 }
 
+static void get_remote_terminal_sensor(struct v4l2_subdev *sd,
+				       struct v4l2_subdev **sensor_sd)
+{
+	struct media_graph graph;
+	struct media_entity *entity = &sd->entity;
+	struct media_device *mdev = entity->graph_obj.mdev;
+	int ret;
+
+	/* Walk the graph to locate sensor nodes. */
+	mutex_lock(&mdev->graph_mutex);
+	ret = media_graph_walk_init(&graph, mdev);
+	if (ret) {
+		mutex_unlock(&mdev->graph_mutex);
+		*sensor_sd = NULL;
+		return;
+	}
+
+	media_graph_walk_start(&graph, entity);
+	while ((entity = media_graph_walk_next(&graph))) {
+		if (entity->function == MEDIA_ENT_F_CAM_SENSOR)
+			break;
+	}
+	mutex_unlock(&mdev->graph_mutex);
+	media_graph_walk_cleanup(&graph);
+
+	if (entity)
+		*sensor_sd = media_entity_to_v4l2_subdev(entity);
+	else
+		*sensor_sd = NULL;
+}
+
 static void csi2_update_sensor_info(struct csi2_dev *csi2)
 {
 	struct csi2_sensor *sensor = &csi2->sensors[0];
+	struct v4l2_subdev *terminal_sensor_sd = NULL;
 	struct v4l2_mbus_config mbus;
 	int ret = 0;
 
@@ -79,6 +113,14 @@ static void csi2_update_sensor_info(struct csi2_dev *csi2)
 	if (ret) {
 		v4l2_err(&csi2->sd, "update sensor info failed!\n");
 		return;
+	}
+
+	get_remote_terminal_sensor(&csi2->sd, &terminal_sensor_sd);
+	ret = v4l2_subdev_call(terminal_sensor_sd, core, ioctl,
+				RKMODULE_GET_CSI_DSI_INFO, &csi2->dsi_input_en);
+	if (ret) {
+		v4l2_dbg(1, csi2_debug, &csi2->sd, "get CSI/DSI sel failed, default csi!\n");
+		csi2->dsi_input_en = 0;
 	}
 
 	csi2->bus.flags = mbus.flags;
@@ -193,7 +235,7 @@ static int csi2_start(struct csi2_dev *csi2)
 
 	csi2_update_sensor_info(csi2);
 
-	if (csi2->format_mbus.code == MEDIA_BUS_FMT_RGB888_1X24)
+	if (csi2->dsi_input_en == RKMODULE_DSI_INPUT)
 		host_type = RK_DSI_RXHOST;
 	else
 		host_type = RK_CSI_RXHOST;
@@ -625,6 +667,17 @@ v4l2_async_notifier_operations csi2_async_ops = {
 	.unbind = csi2_notifier_unbind,
 };
 
+static void csi2_find_err_vc(int val, char *vc_info)
+{
+	int i;
+
+	memset(vc_info, 0, sizeof(*vc_info));
+	for (i = 0; i < 4; i++) {
+		if ((val >> i) & 0x1)
+			snprintf(vc_info, CSI_VCINFO_LEN, "%s %d", vc_info, i);
+	}
+}
+
 static irqreturn_t rk_csirx_irq1_handler(int irq, void *ctx)
 {
 	struct device *dev = ctx;
@@ -632,63 +685,67 @@ static irqreturn_t rk_csirx_irq1_handler(int irq, void *ctx)
 	struct csi2_err_stats *err_list = NULL;
 	unsigned long err_stat = 0;
 	u32 val;
+	char err_str[CSI_ERRSTR_LEN] = {0};
+	char vc_info[CSI_VCINFO_LEN] = {0};
 
 	val = read_csihost_reg(csi2->base, CSIHOST_ERR1);
 	if (val) {
-		write_csihost_reg(csi2->base,
-				  CSIHOST_ERR1, 0x0);
 		if (val & CSIHOST_ERR1_PHYERR_SPTSYNCHS) {
 			err_list = &csi2->err_list[RK_CSI2_ERR_SOTSYN];
 			err_list->cnt++;
 			if (csi2->match_data->chip_id == CHIP_RK3588_CSI2) {
 				if (csi2->err_list[RK_CSI2_ERR_ALL].cnt > err_list->cnt) {
-					dev_err(csi2->dev,
-						"ERR1: start of transmission error(no synchronization achieved), reg: 0x%x,cnt:%d\n",
-						val, err_list->cnt);
+					csi2_find_err_vc(val & 0xf, vc_info);
+					snprintf(err_str, CSI_ERRSTR_LEN, "%s(sot sync,lane:%s) ", err_str, vc_info);
 				} else {
 					if (csi2->is_check_sot_sync) {
+						csi2_find_err_vc(val & 0xf, vc_info);
+						snprintf(err_str, CSI_ERRSTR_LEN, "%s(sot sync,lane:%s) ", err_str, vc_info);
 						write_csihost_reg(csi2->base, CSIHOST_MSK1, 0xf);
 						csi2->is_check_sot_sync = false;
 					}
 				}
 			} else {
-				dev_err(csi2->dev,
-					"ERR1: start of transmission error(no synchronization achieved), reg: 0x%x,cnt:%d\n",
-					val, err_list->cnt);
+				csi2_find_err_vc(val & 0xf, vc_info);
+				snprintf(err_str, CSI_ERRSTR_LEN, "%s(sot sync,lane:%s) ", err_str, vc_info);
 			}
 		}
 
 		if (val & CSIHOST_ERR1_ERR_BNDRY_MATCH) {
 			err_list = &csi2->err_list[RK_CSI2_ERR_FS_FE_MIS];
 			err_list->cnt++;
-			dev_err(csi2->dev,
-				 "ERR1: error matching frame start with frame end, reg: 0x%x,cnt:%d\n",
-				 val, err_list->cnt);
+			csi2_find_err_vc((val >> 4) & 0xf, vc_info);
+			snprintf(err_str, CSI_ERRSTR_LEN, "%s(fs/fe mis,vc:%s) ", err_str, vc_info);
 		}
 
 		if (val & CSIHOST_ERR1_ERR_SEQ) {
 			err_list = &csi2->err_list[RK_CSI2_ERR_FRM_SEQ_ERR];
 			err_list->cnt++;
-			dev_err(csi2->dev,
-				 "ERR1: incorrect frame sequence detected, reg: 0x%x,cnt:%d\n",
-				 val, err_list->cnt);
+			csi2_find_err_vc((val >> 8) & 0xf, vc_info);
+			snprintf(err_str, CSI_ERRSTR_LEN, "%s(f_seq,vc:%s) ", err_str, vc_info);
 		}
 
 		if (val & CSIHOST_ERR1_ERR_FRM_DATA) {
 			err_list = &csi2->err_list[RK_CSI2_ERR_CRC_ONCE];
 			err_list->cnt++;
-			v4l2_dbg(1, csi2_debug, &csi2->sd,
-				 "ERR1: at least one crc error, reg: 0x%x\n,cnt:%d", val, err_list->cnt);
+			csi2_find_err_vc((val >> 12) & 0xf, vc_info);
+			snprintf(err_str, CSI_ERRSTR_LEN, "%s(err_data,vc:%s) ", err_str, vc_info);
 		}
 
 		if (val & CSIHOST_ERR1_ERR_CRC) {
 			err_list = &csi2->err_list[RK_CSI2_ERR_CRC];
 			err_list->cnt++;
-			dev_err(csi2->dev,
-				 "ERR1: crc errors, reg: 0x%x, cnt:%d\n",
-				 val, err_list->cnt);
+			csi2_find_err_vc((val >> 24) & 0xf, vc_info);
+			snprintf(err_str, CSI_ERRSTR_LEN, "%s(crc,vc:%s) ", err_str, vc_info);
 		}
 
+		if (val & CSIHOST_ERR1_ERR_ECC2) {
+			err_list = &csi2->err_list[RK_CSI2_ERR_CRC];
+			err_list->cnt++;
+			snprintf(err_str, CSI_ERRSTR_LEN, "%s(ecc2)", err_str);
+		}
+
+		pr_err("%s ERR1:0x%x %s\n", csi2->dev_name, val, err_str);
 		csi2->err_list[RK_CSI2_ERR_ALL].cnt++;
 		err_stat = ((csi2->err_list[RK_CSI2_ERR_FS_FE_MIS].cnt & 0xff) << 8) |
 			    ((csi2->err_list[RK_CSI2_ERR_ALL].cnt) & 0xff);
@@ -707,25 +764,31 @@ static irqreturn_t rk_csirx_irq2_handler(int irq, void *ctx)
 	struct device *dev = ctx;
 	struct csi2_dev *csi2 = sd_to_dev(dev_get_drvdata(dev));
 	u32 val;
+	char err_str[CSI_ERRSTR_LEN] = {0};
+	char vc_info[CSI_VCINFO_LEN] = {0};
 
 	val = read_csihost_reg(csi2->base, CSIHOST_ERR2);
 	if (val) {
-		if (val & CSIHOST_ERR2_PHYERR_ESC)
-			dev_err(csi2->dev, "ERR2: escape entry error(ULPM), reg: 0x%x\n", val);
-		if (val & CSIHOST_ERR2_PHYERR_SOTHS)
-			dev_err(csi2->dev,
-				 "ERR2: start of transmission error(synchronization can still be achieved), reg: 0x%x\n",
-				 val);
-		if (val & CSIHOST_ERR2_ECC_CORRECTED)
-			v4l2_dbg(1, csi2_debug, &csi2->sd,
-				 "ERR2: header error detected and corrected, reg: 0x%x\n",
-				 val);
-		if (val & CSIHOST_ERR2_ERR_ID)
-			dev_err(csi2->dev,
-				 "ERR2: unrecognized or unimplemented data type detected, reg: 0x%x\n",
-				 val);
+		if (val & CSIHOST_ERR2_PHYERR_ESC) {
+			csi2_find_err_vc(val & 0xf, vc_info);
+			snprintf(err_str, CSI_ERRSTR_LEN, "%s(ULPM,lane:%s) ", err_str, vc_info);
+		}
+		if (val & CSIHOST_ERR2_PHYERR_SOTHS) {
+			csi2_find_err_vc((val >> 4) & 0xf, vc_info);
+			snprintf(err_str, CSI_ERRSTR_LEN, "%s(sot,lane:%s) ", err_str, vc_info);
+		}
+		if (val & CSIHOST_ERR2_ECC_CORRECTED) {
+			csi2_find_err_vc((val >> 8) & 0xf, vc_info);
+			snprintf(err_str, CSI_ERRSTR_LEN, "%s(ecc,vc:%s) ", err_str, vc_info);
+		}
+		if (val & CSIHOST_ERR2_ERR_ID) {
+			csi2_find_err_vc((val >> 12) & 0xf, vc_info);
+			snprintf(err_str, CSI_ERRSTR_LEN, "%s(err id,vc:%s) ", err_str, vc_info);
+		}
 		if (val & CSIHOST_ERR2_PHYERR_CODEHS)
-			dev_err(csi2->dev, "ERR2: receiv error code, reg: 0x%x\n", val);
+			snprintf(err_str, CSI_ERRSTR_LEN, "%s(err code) ", err_str);
+
+		pr_err("%s ERR2:0x%x %s\n", csi2->dev_name, val, err_str);
 	}
 
 	return IRQ_HANDLED;
@@ -833,6 +896,7 @@ static int csi2_probe(struct platform_device *pdev)
 	csi2->dev = &pdev->dev;
 	csi2->match_data = data;
 
+	csi2->dev_name = node->name;
 	v4l2_subdev_init(&csi2->sd, &csi2_subdev_ops);
 	v4l2_set_subdevdata(&csi2->sd, &pdev->dev);
 	csi2->sd.entity.ops = &csi2_entity_ops;
@@ -907,8 +971,6 @@ static int csi2_probe(struct platform_device *pdev)
 	ret = csi2_notifier(csi2);
 	if (ret)
 		goto rmmutex;
-
-	csi2_hw_do_reset(csi2);
 
 	v4l2_info(&csi2->sd, "probe success, v4l2_dev:%s!\n", csi2->sd.v4l2_dev->name);
 

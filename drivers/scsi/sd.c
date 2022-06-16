@@ -3453,6 +3453,7 @@ static int sd_probe(struct device *dev)
 
 	get_device(dev);
 	dev_set_drvdata(dev, sdkp);
+	device_init_wakeup(dev, true);
 
 	gd->major = sd_major((index & 0xf0) >> 4);
 	gd->first_minor = ((index & 0xf) << 4) | (index & 0xfff00);
@@ -3716,10 +3717,16 @@ static int sd_resume(struct device *dev)
 	if (!sdkp->device->manage_start_stop)
 		return 0;
 
+	/* The wake-up process cannot allow the PM to enter sleep */
+	pm_stay_awake(dev);
+
 	sd_printk(KERN_NOTICE, sdkp, "Starting disk\n");
 	ret = sd_start_stop_device(sdkp, 1);
 	if (!ret)
 		opal_unlock_from_suspend(sdkp->opal_dev);
+
+	pm_relax(dev);
+
 	return ret;
 }
 

@@ -124,7 +124,7 @@ enum rk_pcie_device_mode {
 #define PCIE_CLIENT_DBG_FIFO_TRN_HIT_D1 0x32c
 #define PCIE_CLIENT_DBG_FIFO_STATUS	0x350
 #define PCIE_CLIENT_DBG_TRANSITION_DATA	0xffff0000
-#define PCIE_CLIENT_DBF_EN		0xffff0003
+#define PCIE_CLIENT_DBF_EN		0xffff0007
 
 #define PCIE_PHY_LINKUP			BIT(0)
 #define PCIE_DATA_LINKUP		BIT(1)
@@ -174,11 +174,13 @@ struct rk_pcie {
 	bool				is_rk1808;
 	bool				is_signal_test;
 	bool				bifurcation;
+	bool				supports_clkreq;
 	struct regulator		*vpcie3v3;
 	struct irq_domain		*irq_domain;
 	int				legacy_parent_irq;
 	raw_spinlock_t			intx_lock;
 	u16				aspm;
+	u32				l1ss_ctl1;
 };
 
 struct rk_pcie_of_data {
@@ -620,6 +622,28 @@ static int rk_pcie_ep_atu_init(struct rk_pcie *rk_pcie)
 	return 0;
 }
 
+#if defined(CONFIG_PCIEASPM)
+static void disable_aspm_l1ss(struct rk_pcie *rk_pcie)
+{
+	u32 val, cfg_link_cap_l1sub;
+
+	val = dw_pcie_find_ext_capability(rk_pcie->pci, PCI_EXT_CAP_ID_L1SS);
+	if (!val) {
+		dev_err(rk_pcie->pci->dev, "can't find l1ss cap\n");
+
+		return;
+	}
+
+	cfg_link_cap_l1sub = val + PCI_L1SS_CAP;
+
+	val = dw_pcie_readl_dbi(rk_pcie->pci, cfg_link_cap_l1sub);
+	val &= ~(PCI_L1SS_CAP_ASPM_L1_1 | PCI_L1SS_CAP_ASPM_L1_2 | PCI_L1SS_CAP_L1_PM_SS);
+	dw_pcie_writel_dbi(rk_pcie->pci, cfg_link_cap_l1sub, val);
+}
+#else
+static inline void disable_aspm_l1ss(struct rk_pcie *rk_pcie) { return; }
+#endif
+
 static inline void rk_pcie_set_mode(struct rk_pcie *rk_pcie)
 {
 	switch (rk_pcie->mode) {
@@ -627,6 +651,14 @@ static inline void rk_pcie_set_mode(struct rk_pcie *rk_pcie)
 		rk_pcie_writel_apb(rk_pcie, 0x0, 0xf00000);
 		break;
 	case RK_PCIE_RC_TYPE:
+		if (rk_pcie->supports_clkreq) {
+			/* Application is ready to have reference clock removed */
+			rk_pcie_writel_apb(rk_pcie, PCIE_CLIENT_POWER, 0x00010001);
+		} else {
+			/* Pull down CLKREQ# to assert the connecting CLOCK_GEN OE */
+			rk_pcie_writel_apb(rk_pcie, PCIE_CLIENT_POWER, 0x30011000);
+			disable_aspm_l1ss(rk_pcie);
+		}
 		rk_pcie_writel_apb(rk_pcie, 0x0, 0xf00040);
 		/*
 		 * Disable order rule for CPL can't pass halted P queue.
@@ -1796,6 +1828,8 @@ static int rk_pcie_really_probe(void *p)
 		}
 	}
 
+	rk_pcie->supports_clkreq = device_property_read_bool(dev, "supports-clkreq");
+
 retry_regulator:
 	/* DON'T MOVE ME: must be enable before phy init */
 	rk_pcie->vpcie3v3 = devm_regulator_get_optional(dev, "vpcie3v3");
@@ -1971,13 +2005,14 @@ static void rk_pcie_downstream_dev_to_d0(struct rk_pcie *rk_pcie, bool enable)
 {
 	struct pcie_port *pp = &rk_pcie->pci->pp;
 	struct pci_bus *child, *root_bus = NULL;
-	struct pci_dev *pdev;
-	u32 reg, val;
+	struct pci_dev *pdev, *bridge;
+	u32 val;
 
 	list_for_each_entry(child, &pp->bridge->bus->children, node) {
 		/* Bring downstream devices to D3 if they are not already in */
 		if (child->parent == pp->bridge->bus) {
 			root_bus = child;
+			bridge = root_bus->self;
 			break;
 		}
 	}
@@ -1988,15 +2023,23 @@ static void rk_pcie_downstream_dev_to_d0(struct rk_pcie *rk_pcie, bool enable)
 	}
 
 	/* Save and restore root bus ASPM */
-	reg = dw_pcie_find_capability(rk_pcie->pci, PCI_CAP_ID_EXP);
-	val = dw_pcie_readl_dbi(rk_pcie->pci, reg + PCI_EXP_LNKCTL);
 	if (enable) {
+		if (rk_pcie->l1ss_ctl1)
+			dw_pcie_writel_dbi(rk_pcie->pci, bridge->l1ss + PCI_L1SS_CTL1, rk_pcie->l1ss_ctl1);
+
 		/* rk_pcie->aspm woule be saved in advance when enable is false */
-		dw_pcie_writel_dbi(rk_pcie->pci, reg + PCI_EXP_LNKCTL, rk_pcie->aspm);
+		dw_pcie_writel_dbi(rk_pcie->pci, bridge->pcie_cap + PCI_EXP_LNKCTL, rk_pcie->aspm);
 	} else {
+		val = dw_pcie_readl_dbi(rk_pcie->pci, bridge->l1ss + PCI_L1SS_CTL1);
+		if (val & PCI_L1SS_CTL1_L1SS_MASK)
+			rk_pcie->l1ss_ctl1 = val;
+		else
+			rk_pcie->l1ss_ctl1 = 0;
+
+		val = dw_pcie_readl_dbi(rk_pcie->pci, bridge->pcie_cap + PCI_EXP_LNKCTL);
 		rk_pcie->aspm = val & PCI_EXP_LNKCTL_ASPMC;
 		val &= ~(PCI_EXP_LNKCAP_ASPM_L1 | PCI_EXP_LNKCAP_ASPM_L0S);
-		dw_pcie_writel_dbi(rk_pcie->pci, reg + PCI_EXP_LNKCTL, val);
+		dw_pcie_writel_dbi(rk_pcie->pci, bridge->pcie_cap + PCI_EXP_LNKCTL, val);
 	}
 
 	list_for_each_entry(pdev, &root_bus->devices, bus_list) {
@@ -2005,11 +2048,19 @@ static void rk_pcie_downstream_dev_to_d0(struct rk_pcie *rk_pcie, bool enable)
 				dev_err(rk_pcie->pci->dev,
 					"Failed to transition %s to D3hot state\n",
 					dev_name(&pdev->dev));
-			if (enable)
+			if (enable) {
+				if (rk_pcie->l1ss_ctl1) {
+					pci_read_config_dword(pdev, pdev->l1ss + PCI_L1SS_CTL1, &val);
+					val &= ~PCI_L1SS_CTL1_L1SS_MASK;
+					val |= (rk_pcie->l1ss_ctl1 & PCI_L1SS_CTL1_L1SS_MASK);
+					pci_write_config_dword(pdev, pdev->l1ss + PCI_L1SS_CTL1, val);
+				}
+
 				pcie_capability_clear_and_set_word(pdev, PCI_EXP_LNKCTL,
 								   PCI_EXP_LNKCTL_ASPMC, rk_pcie->aspm);
-			else
+			} else {
 				pci_disable_link_state(pdev, PCIE_LINK_STATE_L0S | PCIE_LINK_STATE_L1);
+			}
 		}
 	}
 }

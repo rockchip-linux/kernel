@@ -50,6 +50,8 @@
 #define RKISP_CMD_MESHBUF_FREE \
 	_IOW('V', BASE_VIDIOC_PRIVATE + 11, long long)
 
+/* BASE_VIDIOC_PRIVATE + 12 for RKISP_CMD_GET_TB_HEAD_V32 */
+
 /****************ISP VIDEO IOCTL******************************/
 
 #define RKISP_CMD_GET_CSI_MEMORY_MODE \
@@ -121,7 +123,7 @@
 #define ISP2X_ID_LDCH			(33)
 #define ISP2X_ID_GAIN			(34)
 #define ISP2X_ID_DEBAYER		(35)
-#define ISP2X_ID_MAX			(36)
+#define ISP2X_ID_MAX			(63)
 
 #define ISP2X_MODULE_DPCC		BIT_ULL(ISP2X_ID_DPCC)
 #define ISP2X_MODULE_BLS		BIT_ULL(ISP2X_ID_BLS)
@@ -158,6 +160,8 @@
 #define ISP2X_MODULE_LDCH		BIT_ULL(ISP2X_ID_LDCH)
 #define ISP2X_MODULE_GAIN		BIT_ULL(ISP2X_ID_GAIN)
 #define ISP2X_MODULE_DEBAYER		BIT_ULL(ISP2X_ID_DEBAYER)
+
+#define ISP2X_MODULE_FORCE		BIT_ULL(ISP2X_ID_MAX)
 
 /*
  * Measurement types
@@ -1915,19 +1919,6 @@ struct rkisp_isp2x_luma_buffer {
 } __attribute__ ((packed));
 
 /**
- * struct rkisp_thunderboot_video_buf
- */
-struct rkisp_thunderboot_video_buf {
-	u32 index;
-	u32 frame_id;
-	u32 timestamp;
-	u32 time_reg;
-	u32 gain_reg;
-	u32 bufaddr;
-	u32 bufsize;
-} __attribute__ ((packed));
-
-/**
  * struct rkisp_thunderboot_resmem_head
  */
 struct rkisp_thunderboot_resmem_head {
@@ -1939,9 +1930,10 @@ struct rkisp_thunderboot_resmem_head {
 	u16 height;
 	u32 bus_fmt;
 
-	struct rkisp_thunderboot_video_buf l_buf[ISP2X_THUNDERBOOT_VIDEO_BUF_NUM];
-	struct rkisp_thunderboot_video_buf m_buf[ISP2X_THUNDERBOOT_VIDEO_BUF_NUM];
-	struct rkisp_thunderboot_video_buf s_buf[ISP2X_THUNDERBOOT_VIDEO_BUF_NUM];
+	u32 exp_time[3];
+	u32 exp_gain[3];
+	u32 exp_time_reg[3];
+	u32 exp_gain_reg[3];
 } __attribute__ ((packed));
 
 /**

@@ -121,6 +121,12 @@ enum hdmirx_reg_attr {
 	HDMIRX_ATTR_RE = 3,
 };
 
+enum hdmirx_edid_version {
+	HDMIRX_EDID_USER = 0,
+	HDMIRX_EDID_340M = 1,
+	HDMIRX_EDID_600M = 2,
+};
+
 struct hdmirx_reg_table {
 	int reg_base;
 	int reg_end;
@@ -174,9 +180,11 @@ struct rk_hdmirx_dev {
 	struct v4l2_ctrl *detect_tx_5v_ctrl;
 	struct v4l2_dv_timings timings;
 	struct gpio_desc *hdmirx_det_gpio;
+	struct work_struct work_wdt_config;
 	struct delayed_work delayed_work_hotplug;
 	struct delayed_work delayed_work_res_change;
 	struct delayed_work delayed_work_audio;
+	struct delayed_work delayed_work_heartbeat;
 	struct dentry *debugfs_dir;
 	struct freq_qos_request min_sta_freq_req;
 	struct hdmirx_audiostate audio_state;
@@ -193,6 +201,7 @@ struct rk_hdmirx_dev {
 	struct regmap *vo1_grf;
 	struct rk_hdmirx_hdcp *hdcp;
 	void __iomem *regs;
+	int edid_version;
 	int audio_present;
 	int hdmi_irq;
 	int dma_irq;
@@ -217,6 +226,8 @@ struct rk_hdmirx_dev {
 	u32 color_depth;
 	u32 cpu_freq_khz;
 	u32 bound_cpu;
+	u32 wdt_cfg_bound_cpu;
+	u8 edid[EDID_BLOCK_SIZE * 2];
 	hdmi_codec_plugged_cb plugged_cb;
 	spinlock_t dma_rst_lock;
 };
@@ -231,41 +242,78 @@ static void hdmirx_audio_handle_plugged_change(struct rk_hdmirx_dev *hdmirx_dev,
 static void hdmirx_audio_interrupts_setup(struct rk_hdmirx_dev *hdmirx_dev, bool en);
 static int hdmirx_set_cpu_limit_freq(struct rk_hdmirx_dev *hdmirx_dev);
 static void hdmirx_cancel_cpu_limit_freq(struct rk_hdmirx_dev *hdmirx_dev);
+static void hdmirx_plugout(struct rk_hdmirx_dev *hdmirx_dev);
 
-static u8 edid_init_data[] = {
+static u8 edid_init_data_340M[] = {
 	0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00,
 	0x49, 0x70, 0x88, 0x35, 0x01, 0x00, 0x00, 0x00,
 	0x2D, 0x1F, 0x01, 0x03, 0x80, 0x78, 0x44, 0x78,
 	0x0A, 0xCF, 0x74, 0xA3, 0x57, 0x4C, 0xB0, 0x23,
 	0x09, 0x48, 0x4C, 0x21, 0x08, 0x00, 0x61, 0x40,
 	0x01, 0x01, 0x81, 0x00, 0x95, 0x00, 0xA9, 0xC0,
-	0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x08, 0xE8,
-	0x00, 0x30, 0xF2, 0x70, 0x5A, 0x80, 0xB0, 0x58,
-	0x8A, 0x00, 0xC4, 0x8E, 0x21, 0x00, 0x00, 0x1E,
-	0x02, 0x3A, 0x80, 0x18, 0x71, 0x38, 0x2D, 0x40,
-	0x58, 0x2C, 0x45, 0x00, 0xB9, 0xA8, 0x42, 0x00,
+	0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x02, 0x3A,
+	0x80, 0x18, 0x71, 0x38, 0x2D, 0x40, 0x58, 0x2C,
+	0x45, 0x00, 0x20, 0xC2, 0x31, 0x00, 0x00, 0x1E,
+	0x01, 0x1D, 0x00, 0x72, 0x51, 0xD0, 0x1E, 0x20,
+	0x6E, 0x28, 0x55, 0x00, 0x20, 0xC2, 0x31, 0x00,
 	0x00, 0x1E, 0x00, 0x00, 0x00, 0xFC, 0x00, 0x52,
 	0x4B, 0x2D, 0x55, 0x48, 0x44, 0x0A, 0x20, 0x20,
 	0x20, 0x20, 0x20, 0x20, 0x00, 0x00, 0x00, 0xFD,
 	0x00, 0x3B, 0x46, 0x1F, 0x8C, 0x3C, 0x00, 0x0A,
-	0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x01, 0xA3,
+	0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x01, 0xA7,
 
-	0x02, 0x03, 0x36, 0xD2, 0x51, 0x07, 0x16, 0x14,
+	0x02, 0x03, 0x2F, 0xD1, 0x51, 0x07, 0x16, 0x14,
 	0x05, 0x01, 0x03, 0x12, 0x13, 0x84, 0x22, 0x1F,
 	0x90, 0x5D, 0x5E, 0x5F, 0x60, 0x61, 0x23, 0x09,
-	0x07, 0x07, 0x83, 0x01, 0x00, 0x00, 0x66, 0x03,
-	0x0C, 0x00, 0x30, 0x00, 0x10, 0x67, 0xD8, 0x5D,
-	0xC4, 0x01, 0x78, 0xC8, 0x07, 0xE3, 0x05, 0x03,
-	0x01, 0xE4, 0x0F, 0x00, 0xF0, 0x01, 0x08, 0xE8,
+	0x07, 0x07, 0x83, 0x01, 0x00, 0x00, 0x67, 0x03,
+	0x0C, 0x00, 0x30, 0x00, 0x10, 0x44, 0xE3, 0x05,
+	0x03, 0x01, 0xE4, 0x0F, 0x00, 0x80, 0x01, 0x02,
+	0x3A, 0x80, 0x18, 0x71, 0x38, 0x2D, 0x40, 0x58,
+	0x2C, 0x45, 0x00, 0x20, 0xC2, 0x31, 0x00, 0x00,
+	0x1E, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1F,
+};
+
+static u8 edid_init_data_600M[] = {
+	0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00,
+	0x49, 0x70, 0x88, 0x35, 0x01, 0x00, 0x00, 0x00,
+	0x2D, 0x1F, 0x01, 0x03, 0x80, 0x78, 0x44, 0x78,
+	0x0A, 0xCF, 0x74, 0xA3, 0x57, 0x4C, 0xB0, 0x23,
+	0x09, 0x48, 0x4C, 0x00, 0x00, 0x00, 0x01, 0x01,
+	0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+	0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x08, 0xE8,
 	0x00, 0x30, 0xF2, 0x70, 0x5A, 0x80, 0xB0, 0x58,
 	0x8A, 0x00, 0xC4, 0x8E, 0x21, 0x00, 0x00, 0x1E,
-	0x02, 0x3A, 0x80, 0x18, 0x71, 0x38, 0x2D, 0x40,
-	0x58, 0x2C, 0x45, 0x00, 0xB9, 0xA8, 0x42, 0x00,
-	0x00, 0x9E, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x08, 0xE8, 0x00, 0x30, 0xF2, 0x70, 0x5A, 0x80,
+	0xB0, 0x58, 0x8A, 0x00, 0x20, 0xC2, 0x31, 0x00,
+	0x00, 0x1E, 0x00, 0x00, 0x00, 0xFC, 0x00, 0x52,
+	0x4B, 0x2D, 0x55, 0x48, 0x44, 0x0A, 0x20, 0x20,
+	0x20, 0x20, 0x20, 0x20, 0x00, 0x00, 0x00, 0xFD,
+	0x00, 0x3B, 0x46, 0x1F, 0x8C, 0x3C, 0x00, 0x0A,
+	0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x01, 0x39,
+
+	0x02, 0x03, 0x21, 0xD2, 0x41, 0x61, 0x23, 0x09,
+	0x07, 0x07, 0x83, 0x01, 0x00, 0x00, 0x66, 0x03,
+	0x0C, 0x00, 0x30, 0x00, 0x10, 0x67, 0xD8, 0x5D,
+	0xC4, 0x01, 0x78, 0xC0, 0x07, 0xE3, 0x05, 0x03,
+	0x01, 0x08, 0xE8, 0x00, 0x30, 0xF2, 0x70, 0x5A,
+	0x80, 0xB0, 0x58, 0x8A, 0x00, 0xC4, 0x8E, 0x21,
+	0x00, 0x00, 0x1E, 0x00, 0x00, 0x00, 0x00, 0x00,
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xB5,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xE8,
 };
 
 static const struct v4l2_dv_timings_cap hdmirx_timings_cap = {
@@ -814,6 +862,7 @@ static int hdmirx_write_edid(struct rk_hdmirx_dev *hdmirx_dev,
 		return 0;
 	}
 
+	memset(&hdmirx_dev->edid, 0, sizeof(hdmirx_dev->edid));
 	hdmirx_hpd_ctrl(hdmirx_dev, false);
 	hdmirx_update_bits(hdmirx_dev, DMA_CONFIG11,
 			EDID_READ_EN_MASK |
@@ -854,6 +903,7 @@ static int hdmirx_write_edid(struct rk_hdmirx_dev *hdmirx_dev,
 			EDID_WRITE_EN(0));
 
 	hdmirx_dev->edid_blocks_written = edid->blocks;
+	memcpy(&hdmirx_dev->edid, edid->edid, edid->blocks * EDID_BLOCK_SIZE);
 	if (hpd_up) {
 		if (tx_5v_power_present(hdmirx_dev))
 			hdmirx_hpd_ctrl(hdmirx_dev, true);
@@ -868,7 +918,23 @@ static int hdmirx_set_edid(struct file *file, void *fh,
 	struct hdmirx_stream *stream = video_drvdata(file);
 	struct rk_hdmirx_dev *hdmirx_dev = stream->hdmirx_dev;
 
-	return hdmirx_write_edid(hdmirx_dev, edid, true);
+	disable_irq(hdmirx_dev->hdmi_irq);
+	disable_irq(hdmirx_dev->dma_irq);
+	sip_fiq_control(RK_SIP_FIQ_CTRL_FIQ_DIS, RK_IRQ_HDMIRX_HDMI, 0);
+
+	if (tx_5v_power_present(hdmirx_dev))
+		hdmirx_plugout(hdmirx_dev);
+	hdmirx_write_edid(hdmirx_dev, edid, false);
+	hdmirx_dev->edid_version = HDMIRX_EDID_USER;
+
+	enable_irq(hdmirx_dev->hdmi_irq);
+	enable_irq(hdmirx_dev->dma_irq);
+	sip_fiq_control(RK_SIP_FIQ_CTRL_FIQ_EN, RK_IRQ_HDMIRX_HDMI, 0);
+	schedule_delayed_work_on(hdmirx_dev->bound_cpu,
+				 &hdmirx_dev->delayed_work_hotplug,
+				 msecs_to_jiffies(500));
+
+	return 0;
 }
 
 static int hdmirx_get_edid(struct file *file, void *fh,
@@ -877,7 +943,6 @@ static int hdmirx_get_edid(struct file *file, void *fh,
 	struct hdmirx_stream *stream = video_drvdata(file);
 	struct rk_hdmirx_dev *hdmirx_dev = stream->hdmirx_dev;
 	struct v4l2_device *v4l2_dev = &hdmirx_dev->v4l2_dev;
-	u32 i;
 
 	memset(edid->reserved, 0, sizeof(edid->reserved));
 
@@ -899,25 +964,12 @@ static int hdmirx_get_edid(struct file *file, void *fh,
 	if (edid->start_block + edid->blocks > hdmirx_dev->edid_blocks_written)
 		edid->blocks = hdmirx_dev->edid_blocks_written - edid->start_block;
 
-	hdmirx_update_bits(hdmirx_dev, DMA_CONFIG11,
-			EDID_READ_EN_MASK |
-			EDID_WRITE_EN_MASK,
-			EDID_READ_EN(1) |
-			EDID_WRITE_EN(0));
-
-	for (i = 0; i < (edid->blocks * EDID_BLOCK_SIZE); i++)
-		edid->edid[i] = hdmirx_readl(hdmirx_dev, DMA_STATUS14);
+	memcpy(edid->edid, &hdmirx_dev->edid, edid->blocks * EDID_BLOCK_SIZE);
 
 	v4l2_dbg(1, debug, v4l2_dev, "%s: Read EDID: =====\n", __func__);
 	if (debug > 0)
 		print_hex_dump(KERN_INFO, "", DUMP_PREFIX_NONE, 16, 1,
 			edid->edid, edid->blocks * EDID_BLOCK_SIZE, false);
-
-	hdmirx_update_bits(hdmirx_dev, DMA_CONFIG11,
-			EDID_READ_EN_MASK |
-			EDID_WRITE_EN_MASK,
-			EDID_READ_EN(0) |
-			EDID_WRITE_EN(0));
 
 	return 0;
 }
@@ -2305,6 +2357,65 @@ static void hdmirx_interrupts_setup(struct rk_hdmirx_dev *hdmirx_dev, bool en)
 	}
 }
 
+static void hdmirx_plugin(struct rk_hdmirx_dev *hdmirx_dev)
+{
+	int ret;
+
+	cpu_latency_qos_update_request(&hdmirx_dev->pm_qos, 0);
+	schedule_delayed_work_on(hdmirx_dev->bound_cpu,
+		&hdmirx_dev->delayed_work_heartbeat, msecs_to_jiffies(10));
+	sip_wdt_config(WDT_START, 0, 0, 0);
+	hdmirx_set_cpu_limit_freq(hdmirx_dev);
+	hdmirx_submodule_init(hdmirx_dev);
+	hdmirx_update_bits(hdmirx_dev, SCDC_CONFIG, POWERPROVIDED,
+				POWERPROVIDED);
+	hdmirx_hpd_ctrl(hdmirx_dev, true);
+	hdmirx_phy_config(hdmirx_dev);
+	hdmirx_audio_setup(hdmirx_dev);
+	ret = hdmirx_wait_lock_and_get_timing(hdmirx_dev);
+	if (ret) {
+		hdmirx_plugout(hdmirx_dev);
+		schedule_delayed_work_on(hdmirx_dev->bound_cpu,
+					 &hdmirx_dev->delayed_work_hotplug,
+					 msecs_to_jiffies(200));
+		return;
+	}
+	hdmirx_dma_config(hdmirx_dev);
+	hdmirx_interrupts_setup(hdmirx_dev, true);
+	hdmirx_audio_handle_plugged_change(hdmirx_dev, 1);
+	if (hdmirx_dev->hdcp && hdmirx_dev->hdcp->hdcp_start)
+		hdmirx_dev->hdcp->hdcp_start(hdmirx_dev->hdcp);
+}
+
+static void hdmirx_plugout(struct rk_hdmirx_dev *hdmirx_dev)
+{
+	hdmirx_audio_handle_plugged_change(hdmirx_dev, 0);
+	hdmirx_update_bits(hdmirx_dev, SCDC_CONFIG, POWERPROVIDED, 0);
+	hdmirx_interrupts_setup(hdmirx_dev, false);
+	hdmirx_hpd_ctrl(hdmirx_dev, false);
+	hdmirx_update_bits(hdmirx_dev, DMA_CONFIG6, HDMIRX_DMA_EN, 0);
+	hdmirx_update_bits(hdmirx_dev, DMA_CONFIG4,
+			LINE_FLAG_INT_EN |
+			HDMIRX_DMA_IDLE_INT |
+			HDMIRX_LOCK_DISABLE_INT |
+			LAST_FRAME_AXI_UNFINISH_INT_EN |
+			FIFO_OVERFLOW_INT_EN |
+			FIFO_UNDERFLOW_INT_EN |
+			HDMIRX_AXI_ERROR_INT_EN, 0);
+	hdmirx_reset_dma(hdmirx_dev);
+	hdmirx_update_bits(hdmirx_dev, PHY_CONFIG,
+			HDMI_DISABLE | PHY_RESET | PHY_PDDQ,
+			HDMI_DISABLE);
+	hdmirx_writel(hdmirx_dev, PHYCREG_CONFIG0, 0x0);
+	cancel_delayed_work(&hdmirx_dev->delayed_work_res_change);
+	cancel_delayed_work(&hdmirx_dev->delayed_work_audio);
+	cpu_latency_qos_update_request(&hdmirx_dev->pm_qos, PM_QOS_DEFAULT_VALUE);
+	hdmirx_cancel_cpu_limit_freq(hdmirx_dev);
+	cancel_delayed_work(&hdmirx_dev->delayed_work_heartbeat);
+	flush_work(&hdmirx_dev->work_wdt_config);
+	sip_wdt_config(WDT_STOP, 0, 0, 0);
+}
+
 static void hdmirx_delayed_work_hotplug(struct work_struct *work)
 {
 	struct delayed_work *dwork = to_delayed_work(work);
@@ -2319,45 +2430,11 @@ static void hdmirx_delayed_work_hotplug(struct work_struct *work)
 	v4l2_ctrl_s_ctrl(hdmirx_dev->detect_tx_5v_ctrl, plugin);
 	v4l2_dbg(1, debug, v4l2_dev, "%s: plugin:%d\n", __func__, plugin);
 
-	if (plugin) {
-		cpu_latency_qos_update_request(&hdmirx_dev->pm_qos, 0);
-		hdmirx_set_cpu_limit_freq(hdmirx_dev);
-		hdmirx_submodule_init(hdmirx_dev);
-		hdmirx_update_bits(hdmirx_dev, SCDC_CONFIG, POWERPROVIDED,
-					POWERPROVIDED);
-		hdmirx_hpd_ctrl(hdmirx_dev, true);
-		hdmirx_phy_config(hdmirx_dev);
-		hdmirx_audio_setup(hdmirx_dev);
-		hdmirx_wait_lock_and_get_timing(hdmirx_dev);
-		hdmirx_dma_config(hdmirx_dev);
-		hdmirx_interrupts_setup(hdmirx_dev, true);
-		hdmirx_audio_handle_plugged_change(hdmirx_dev, 1);
-		if (hdmirx_dev->hdcp && hdmirx_dev->hdcp->hdcp_start)
-			hdmirx_dev->hdcp->hdcp_start(hdmirx_dev->hdcp);
-	} else {
-		hdmirx_audio_handle_plugged_change(hdmirx_dev, 0);
-		hdmirx_update_bits(hdmirx_dev, SCDC_CONFIG, POWERPROVIDED, 0);
-		hdmirx_interrupts_setup(hdmirx_dev, false);
-		hdmirx_hpd_ctrl(hdmirx_dev, false);
-		hdmirx_update_bits(hdmirx_dev, DMA_CONFIG6, HDMIRX_DMA_EN, 0);
-		hdmirx_update_bits(hdmirx_dev, DMA_CONFIG4,
-				LINE_FLAG_INT_EN |
-				HDMIRX_DMA_IDLE_INT |
-				HDMIRX_LOCK_DISABLE_INT |
-				LAST_FRAME_AXI_UNFINISH_INT_EN |
-				FIFO_OVERFLOW_INT_EN |
-				FIFO_UNDERFLOW_INT_EN |
-				HDMIRX_AXI_ERROR_INT_EN, 0);
-		hdmirx_reset_dma(hdmirx_dev);
-		hdmirx_update_bits(hdmirx_dev, PHY_CONFIG,
-				HDMI_DISABLE | PHY_RESET | PHY_PDDQ,
-				HDMI_DISABLE);
-		hdmirx_writel(hdmirx_dev, PHYCREG_CONFIG0, 0x0);
-		cancel_delayed_work(&hdmirx_dev->delayed_work_res_change);
-		cancel_delayed_work(&hdmirx_dev->delayed_work_audio);
-		cpu_latency_qos_update_request(&hdmirx_dev->pm_qos, PM_QOS_DEFAULT_VALUE);
-		hdmirx_cancel_cpu_limit_freq(hdmirx_dev);
-	}
+	if (plugin)
+		hdmirx_plugin(hdmirx_dev);
+	else
+		hdmirx_plugout(hdmirx_dev);
+
 	mutex_unlock(&hdmirx_dev->work_lock);
 }
 
@@ -2681,6 +2758,7 @@ static void hdmirx_delayed_work_res_change(struct work_struct *work)
 			struct rk_hdmirx_dev, delayed_work_res_change);
 	struct v4l2_device *v4l2_dev = &hdmirx_dev->v4l2_dev;
 	bool plugin;
+	int ret;
 
 	mutex_lock(&hdmirx_dev->work_lock);
 	plugin = tx_5v_power_present(hdmirx_dev);
@@ -2693,12 +2771,41 @@ static void hdmirx_delayed_work_res_change(struct work_struct *work)
 		hdmirx_hpd_ctrl(hdmirx_dev, true);
 		hdmirx_phy_config(hdmirx_dev);
 		hdmirx_audio_setup(hdmirx_dev);
-		hdmirx_wait_lock_and_get_timing(hdmirx_dev);
-		hdmirx_dma_config(hdmirx_dev);
-		hdmirx_interrupts_setup(hdmirx_dev, true);
-		hdmirx_audio_handle_plugged_change(hdmirx_dev, 1);
+		ret = hdmirx_wait_lock_and_get_timing(hdmirx_dev);
+		if (ret) {
+			hdmirx_plugout(hdmirx_dev);
+			schedule_delayed_work_on(hdmirx_dev->bound_cpu,
+						 &hdmirx_dev->delayed_work_hotplug,
+						 msecs_to_jiffies(200));
+		} else {
+			hdmirx_dma_config(hdmirx_dev);
+			hdmirx_interrupts_setup(hdmirx_dev, true);
+			hdmirx_audio_handle_plugged_change(hdmirx_dev, 1);
+		}
 	}
 	mutex_unlock(&hdmirx_dev->work_lock);
+}
+
+static void hdmirx_delayed_work_heartbeat(struct work_struct *work)
+{
+	struct delayed_work *dwork = to_delayed_work(work);
+	struct rk_hdmirx_dev *hdmirx_dev = container_of(dwork,
+			struct rk_hdmirx_dev, delayed_work_heartbeat);
+
+	queue_work_on(hdmirx_dev->wdt_cfg_bound_cpu,  system_highpri_wq,
+			&hdmirx_dev->work_wdt_config);
+	schedule_delayed_work_on(hdmirx_dev->bound_cpu,
+			&hdmirx_dev->delayed_work_heartbeat, HZ);
+}
+
+static void hdmirx_work_wdt_config(struct work_struct *work)
+{
+	struct rk_hdmirx_dev *hdmirx_dev = container_of(work,
+			struct rk_hdmirx_dev, work_wdt_config);
+	struct v4l2_device *v4l2_dev = &hdmirx_dev->v4l2_dev;
+
+	sip_wdt_config(WDT_PING, 0, 0, 0);
+	v4l2_dbg(3, debug, v4l2_dev, "hb\n");
 }
 
 static irqreturn_t hdmirx_5v_det_irq_handler(int irq, void *dev_id)
@@ -2855,7 +2962,10 @@ static void hdmirx_edid_init_config(struct rk_hdmirx_dev *hdmirx_dev)
 	def_edid.pad = 0;
 	def_edid.start_block = 0;
 	def_edid.blocks = EDID_NUM_BLOCKS_MAX;
-	def_edid.edid = edid_init_data;
+	if (hdmirx_dev->edid_version == HDMIRX_EDID_600M)
+		def_edid.edid = edid_init_data_600M;
+	else
+		def_edid.edid = edid_init_data_340M;
 	ret = hdmirx_write_edid(hdmirx_dev, &def_edid, false);
 	if (ret)
 		dev_err(hdmirx_dev->dev, "%s write edid failed!\n", __func__);
@@ -2873,6 +2983,9 @@ static int hdmirx_runtime_suspend(struct device *dev)
 	cancel_delayed_work_sync(&hdmirx_dev->delayed_work_hotplug);
 	cancel_delayed_work_sync(&hdmirx_dev->delayed_work_res_change);
 	cancel_delayed_work_sync(&hdmirx_dev->delayed_work_audio);
+	cancel_delayed_work_sync(&hdmirx_dev->delayed_work_heartbeat);
+	flush_work(&hdmirx_dev->work_wdt_config);
+	sip_wdt_config(WDT_STOP, 0, 0, 0);
 
 	clk_bulk_disable_unprepare(hdmirx_dev->num_clks, hdmirx_dev->clks);
 
@@ -2955,12 +3068,63 @@ static ssize_t audio_present_show(struct device *dev,
 			tx_5v_power_present(hdmirx_dev) ? hdmirx_dev->audio_present : 0);
 }
 
+static ssize_t edid_show(struct device *dev,
+			 struct device_attribute *attr, char *buf)
+{
+	struct rk_hdmirx_dev *hdmirx_dev = dev_get_drvdata(dev);
+	int edid = 0;
+
+	if (hdmirx_dev)
+		edid = hdmirx_dev->edid_version;
+
+	return snprintf(buf, PAGE_SIZE, "%d\n", edid);
+}
+
+static ssize_t edid_store(struct device *dev,
+			  struct device_attribute *attr,
+			  const char *buf, size_t count)
+{
+	int edid;
+	struct rk_hdmirx_dev *hdmirx_dev = dev_get_drvdata(dev);
+
+	if (!hdmirx_dev)
+		return -EINVAL;
+
+	if (kstrtoint(buf, 10, &edid))
+		return -EINVAL;
+
+	if (edid != HDMIRX_EDID_340M && edid != HDMIRX_EDID_600M)
+		return count;
+
+	if (hdmirx_dev->edid_version != edid) {
+		disable_irq(hdmirx_dev->hdmi_irq);
+		disable_irq(hdmirx_dev->dma_irq);
+		sip_fiq_control(RK_SIP_FIQ_CTRL_FIQ_DIS, RK_IRQ_HDMIRX_HDMI, 0);
+
+		if (tx_5v_power_present(hdmirx_dev))
+			hdmirx_plugout(hdmirx_dev);
+		hdmirx_dev->edid_version = edid;
+		hdmirx_edid_init_config(hdmirx_dev);
+
+		enable_irq(hdmirx_dev->hdmi_irq);
+		enable_irq(hdmirx_dev->dma_irq);
+		sip_fiq_control(RK_SIP_FIQ_CTRL_FIQ_EN, RK_IRQ_HDMIRX_HDMI, 0);
+		schedule_delayed_work_on(hdmirx_dev->bound_cpu,
+					 &hdmirx_dev->delayed_work_hotplug,
+					 msecs_to_jiffies(500));
+	}
+
+	return count;
+}
+
 static DEVICE_ATTR_RO(audio_rate);
 static DEVICE_ATTR_RO(audio_present);
+static DEVICE_ATTR_RW(edid);
 
 static struct attribute *hdmirx_attrs[] = {
 	&dev_attr_audio_rate.attr,
 	&dev_attr_audio_present.attr,
+	&dev_attr_edid.attr,
 	NULL
 };
 ATTRIBUTE_GROUPS(hdmirx);
@@ -3424,6 +3588,7 @@ static int hdmirx_probe(struct platform_device *pdev)
 	hdmirx_dev->dev = dev;
 	hdmirx_dev->of_node = dev->of_node;
 	hdmirx_dev->cpu_freq_khz = CPU_LIMIT_FREQ_KHZ;
+	hdmirx_dev->edid_version = HDMIRX_EDID_340M;
 	ret = hdmirx_parse_dt(hdmirx_dev);
 	if (ret)
 		return ret;
@@ -3442,19 +3607,26 @@ static int hdmirx_probe(struct platform_device *pdev)
 		cpu_aff = cpu_logical_map(1); // big cpu1
 	sip_fiq_control(RK_SIP_FIQ_CTRL_SET_AFF, RK_IRQ_HDMIRX_HDMI, cpu_aff);
 	hdmirx_dev->bound_cpu = (cpu_aff >> 8) & 0xf;
-	dev_info(dev, "%s: cpu_aff:%#x, Bound_cpu:%d\n", __func__, cpu_aff,
-			hdmirx_dev->bound_cpu);
+	hdmirx_dev->wdt_cfg_bound_cpu = hdmirx_dev->bound_cpu + 1;
+	dev_info(dev, "%s: cpu_aff:%#x, Bound_cpu:%d, wdt_cfg_bound_cpu:%d\n",
+			__func__, cpu_aff,
+			hdmirx_dev->bound_cpu,
+			hdmirx_dev->wdt_cfg_bound_cpu);
 	cpu_latency_qos_add_request(&hdmirx_dev->pm_qos, PM_QOS_DEFAULT_VALUE);
 
 	mutex_init(&hdmirx_dev->stream_lock);
 	mutex_init(&hdmirx_dev->work_lock);
 	spin_lock_init(&hdmirx_dev->dma_rst_lock);
+	INIT_WORK(&hdmirx_dev->work_wdt_config,
+			hdmirx_work_wdt_config);
 	INIT_DELAYED_WORK(&hdmirx_dev->delayed_work_hotplug,
 			hdmirx_delayed_work_hotplug);
 	INIT_DELAYED_WORK(&hdmirx_dev->delayed_work_res_change,
 			hdmirx_delayed_work_res_change);
 	INIT_DELAYED_WORK(&hdmirx_dev->delayed_work_audio,
 			hdmirx_delayed_work_audio);
+	INIT_DELAYED_WORK(&hdmirx_dev->delayed_work_heartbeat,
+			hdmirx_delayed_work_heartbeat);
 	hdmirx_dev->power_on = false;
 
 	ret = hdmirx_power_on(hdmirx_dev);
@@ -3475,8 +3647,8 @@ static int hdmirx_probe(struct platform_device *pdev)
 	cpumask_set_cpu(hdmirx_dev->bound_cpu, &cpumask);
 	irq_set_affinity_hint(irq, &cpumask);
 	hdmirx_dev->hdmi_irq = irq;
-	ret = devm_request_threaded_irq(dev, irq, hdmirx_hdmi_irq_handler, NULL,
-			IRQF_ONESHOT, RK_HDMIRX_DRVNAME"-hdmi", hdmirx_dev);
+	ret = devm_request_irq(dev, irq, hdmirx_hdmi_irq_handler, 0,
+			       RK_HDMIRX_DRVNAME"-hdmi", hdmirx_dev);
 	if (ret) {
 		dev_err(dev, "request hdmi irq thread failed! ret:%d\n", ret);
 		goto err_work_queues;
@@ -3545,8 +3717,10 @@ static int hdmirx_probe(struct platform_device *pdev)
 							 hdmirx_dev,
 							 hdmirx_groups,
 							 "hdmirx");
-	if (IS_ERR(hdmirx_dev->classdev))
+	if (IS_ERR(hdmirx_dev->classdev)) {
+		ret = PTR_ERR(hdmirx_dev->classdev);
 		goto err_unreg_video_dev;
+	}
 	ret = devm_add_action_or_reset(dev, hdmirx_unregister_class_device, hdmirx_dev);
 	if (ret)
 		goto err_unreg_video_dev;
@@ -3562,9 +3736,9 @@ static int hdmirx_probe(struct platform_device *pdev)
 	cpumask_set_cpu(hdmirx_dev->bound_cpu, &cpumask);
 	irq_set_affinity_hint(irq, &cpumask);
 	hdmirx_dev->det_irq = irq;
-	ret = devm_request_threaded_irq(dev, irq, hdmirx_5v_det_irq_handler,
-			NULL, IRQF_ONESHOT | IRQF_TRIGGER_FALLING |
-			IRQF_TRIGGER_RISING, RK_HDMIRX_DRVNAME"-5v", hdmirx_dev);
+	ret = devm_request_irq(dev, irq, hdmirx_5v_det_irq_handler,
+			       IRQF_TRIGGER_FALLING | IRQF_TRIGGER_RISING,
+			       RK_HDMIRX_DRVNAME"-5v", hdmirx_dev);
 	if (ret) {
 		dev_err(dev, "request hdmirx-det gpio irq thread failed! ret:%d\n", ret);
 		goto err_unreg_video_dev;
@@ -3591,7 +3765,7 @@ static int hdmirx_probe(struct platform_device *pdev)
 	cec_data.dev = hdmirx_dev->dev;
 	cec_data.ops = &hdmirx_cec_ops;
 	cec_data.irq = irq;
-	cec_data.edid = edid_init_data;
+	cec_data.edid = edid_init_data_340M;
 	hdmirx_dev->cec = rk_hdmirx_cec_register(&cec_data);
 	hdmirx_register_hdcp(dev, hdmirx_dev, hdmirx_dev->hdcp1x_enable);
 

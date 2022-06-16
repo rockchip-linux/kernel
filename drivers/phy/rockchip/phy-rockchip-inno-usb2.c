@@ -26,9 +26,11 @@
 #include <linux/power_supply.h>
 #include <linux/regmap.h>
 #include <linux/reset.h>
+#include <linux/rockchip/cpu.h>
 #include <linux/mfd/syscon.h>
 #include <linux/usb/of.h>
 #include <linux/usb/otg.h>
+#include <linux/usb/role.h>
 #include <linux/usb/typec_mux.h>
 #include <linux/wakelock.h>
 
@@ -944,6 +946,18 @@ static int rockchip_usb2phy_set_mode(struct phy *phy,
 
 	switch (mode) {
 	case PHY_MODE_USB_OTG:
+		if (rphy->edev_self && submode) {
+			if (submode == USB_ROLE_HOST) {
+				extcon_set_state(rphy->edev, EXTCON_USB_HOST, true);
+				extcon_set_state(rphy->edev, EXTCON_USB, false);
+			} else if (submode == USB_ROLE_DEVICE) {
+				extcon_set_state(rphy->edev, EXTCON_USB_HOST, false);
+				extcon_set_state(rphy->edev, EXTCON_USB, true);
+			}
+
+			return ret;
+		}
+
 		/*
 		 * In case of using vbus to detect connect state by u2phy,
 		 * enable vbus detect on otg mode.
@@ -954,7 +968,8 @@ static int rockchip_usb2phy_set_mode(struct phy *phy,
 		rockchip_set_vbus_power(rport, false);
 		extcon_set_state_sync(rphy->edev, EXTCON_USB_VBUS_EN, false);
 		/* For vbus always on, set EXTCON_USB to true. */
-		extcon_set_state(rphy->edev, EXTCON_USB, true);
+		if (rport->vbus_always_on)
+			extcon_set_state(rphy->edev, EXTCON_USB, true);
 		rport->perip_connected = true;
 		vbus_det_en = true;
 		break;
@@ -969,7 +984,8 @@ static int rockchip_usb2phy_set_mode(struct phy *phy,
 
 		extcon_set_state_sync(rphy->edev, EXTCON_USB_VBUS_EN, true);
 		/* For vbus always on, deinit EXTCON_USB to false. */
-		extcon_set_state(rphy->edev, EXTCON_USB, false);
+		if (rport->vbus_always_on)
+			extcon_set_state(rphy->edev, EXTCON_USB, false);
 		rport->perip_connected = false;
 		fallthrough;
 	case PHY_MODE_INVALID:
@@ -1243,7 +1259,6 @@ static void rockchip_usb2phy_otg_sm_work(struct work_struct *work)
 			delay = OTG_SCHEDULE_DELAY;
 			wake_unlock(&rport->wakelock);
 		}
-		sch_work = true;
 		break;
 	case OTG_STATE_A_HOST:
 		if (extcon_get_state(rphy->edev, EXTCON_USB_HOST) == 0) {
@@ -1607,7 +1622,8 @@ static irqreturn_t rockchip_usb2phy_linestate_irq(int irq, void *data)
 	struct rockchip_usb2phy_port *rport = data;
 	struct rockchip_usb2phy *rphy = dev_get_drvdata(rport->phy->dev.parent);
 
-	if (!property_enabled(rphy->grf, &rport->port_cfg->ls_det_st))
+	if (!property_enabled(rphy->grf, &rport->port_cfg->ls_det_st) ||
+	    !property_enabled(rphy->grf, &rport->port_cfg->ls_det_en))
 		return IRQ_NONE;
 
 	dev_dbg(&rport->phy->dev, "linestate interrupt\n");
@@ -1616,6 +1632,14 @@ static irqreturn_t rockchip_usb2phy_linestate_irq(int irq, void *data)
 
 	/* disable linestate detect irq and clear its status */
 	rockchip_usb2phy_enable_line_irq(rphy, rport, false);
+
+	/*
+	 * For host port, it may miss disc irq when device is connected,
+	 * in this case, we can clear host_disconnect state depend on
+	 * the linestate irq.
+	 */
+	if (rport->port_id == USB2PHY_PORT_HOST && rport->port_cfg->disfall_en.offset)
+		rport->host_disconnect = false;
 
 	mutex_unlock(&rport->mutex);
 
@@ -1743,12 +1767,16 @@ static irqreturn_t rockchip_usb2phy_irq(int irq, void *data)
 		if (!rport->phy)
 			continue;
 
+		/*
+		 * Handle disc irq before linestate irq to set the disc
+		 * state for sm work scheduled in the linestate irq handler.
+		 */
 		if (rport->port_id == USB2PHY_PORT_HOST &&
 		    rport->port_cfg->disfall_en.offset)
-			ret = rockchip_usb2phy_host_disc_irq(irq, rport);
+			ret |= rockchip_usb2phy_host_disc_irq(irq, rport);
 
 		/* Handle linestate irq for both otg port and host port */
-		ret = rockchip_usb2phy_linestate_irq(irq, rport);
+		ret |= rockchip_usb2phy_linestate_irq(irq, rport);
 
 		/*
 		 * Handle bvalid irq and id irq for otg port which
@@ -2080,10 +2108,6 @@ static int rockchip_usb2phy_otg_port_init(struct rockchip_usb2phy *rphy,
 			return ret;
 	}
 
-	if (rport->vbus_always_on || rport->mode == USB_DR_MODE_HOST ||
-	    rport->mode == USB_DR_MODE_UNKNOWN)
-		goto out;
-
 	/*
 	 * Set the utmi bvalid come from the usb phy or grf.
 	 * For most of Rockchip SoCs, them have VBUSDET pin
@@ -2100,6 +2124,13 @@ static int rockchip_usb2phy_otg_port_init(struct rockchip_usb2phy *rphy,
 		else
 			property_enable(base, &rport->port_cfg->bvalid_grf_sel, false);
 	}
+
+	if (rport->vbus_always_on)
+		extcon_set_state(rphy->edev, EXTCON_USB, true);
+
+	if (rport->vbus_always_on || rport->mode == USB_DR_MODE_HOST ||
+	    rport->mode == USB_DR_MODE_UNKNOWN)
+		goto out;
 
 	wake_lock_init(&rport->wakelock, WAKE_LOCK_SUSPEND, "rockchip_otg");
 	INIT_DELAYED_WORK(&rport->bypass_uart_work,
@@ -2408,20 +2439,55 @@ static int rk3308_usb2phy_tuning(struct rockchip_usb2phy *rphy)
 {
 	int ret;
 
-	/* Open pre-emphasize in non-chirp state for otg port */
-	ret = regmap_write(rphy->grf, 0x0, 0x00070004);
-	if (ret)
-		return ret;
+	if (soc_is_rk3308bs()) {
+		/* Turn off differential receiver in suspend mode */
+		ret = regmap_update_bits(rphy->grf, 0x30, BIT(2), 0);
+		if (ret)
+			return ret;
 
-	/* Open pre-emphasize in non-chirp state for host port */
-	ret = regmap_write(rphy->grf, 0x30, 0x00070004);
-	if (ret)
-		return ret;
+		/* Enable otg port pre-emphasis during non-chirp phase */
+		ret = regmap_update_bits(rphy->grf, 0, GENMASK(2, 0), BIT(2));
+		if (ret)
+			return ret;
 
-	/* Turn off differential receiver in suspend mode */
-	ret = regmap_write(rphy->grf, 0x18, 0x00040000);
-	if (ret)
-		return ret;
+		/* Set otg port squelch trigger point configure to 100mv */
+		ret = regmap_update_bits(rphy->grf, 0x004, GENMASK(7, 5), 0x40);
+		if (ret)
+			return ret;
+
+		ret = regmap_update_bits(rphy->grf, 0x008, BIT(0), 0x1);
+		if (ret)
+			return ret;
+
+		/* Enable host port pre-emphasis during non-chirp phase */
+		ret = regmap_update_bits(rphy->grf, 0x400, GENMASK(2, 0), BIT(2));
+		if (ret)
+			return ret;
+
+		/* Set host port squelch trigger point configure to 100mv */
+		ret = regmap_update_bits(rphy->grf, 0x404, GENMASK(7, 5), 0x40);
+		if (ret)
+			return ret;
+
+		ret = regmap_update_bits(rphy->grf, 0x408, BIT(0), 0x1);
+		if (ret)
+			return ret;
+	} else {
+		/* Open pre-emphasize in non-chirp state for otg port */
+		ret = regmap_write(rphy->grf, 0x0, 0x00070004);
+		if (ret)
+			return ret;
+
+		/* Open pre-emphasize in non-chirp state for host port */
+		ret = regmap_write(rphy->grf, 0x30, 0x00070004);
+		if (ret)
+			return ret;
+
+		/* Turn off differential receiver in suspend mode */
+		ret = regmap_write(rphy->grf, 0x18, 0x00040000);
+		if (ret)
+			return ret;
+	}
 
 	return 0;
 }

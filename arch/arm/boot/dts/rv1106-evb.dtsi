@@ -2,6 +2,7 @@
 /*
  * Copyright (c) 2022 Rockchip Electronics Co., Ltd.
  */
+#include "rv1106-amp.dtsi"
 
 / {
 
@@ -53,6 +54,10 @@
 };
 
 &rve {
+	status = "okay";
+};
+
+&tsadc {
 	status = "okay";
 };
 

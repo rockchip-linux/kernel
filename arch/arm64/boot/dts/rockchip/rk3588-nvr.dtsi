@@ -83,6 +83,9 @@
 	/delete-node/ opp-600000000;
 	/delete-node/ opp-816000000;
 	/delete-node/ opp-1008000000;
+	/delete-node/ opp-2256000000;
+	/delete-node/ opp-2304000000;
+	/delete-node/ opp-2352000000;
 	/delete-node/ opp-2400000000;
 };
 
@@ -91,6 +94,9 @@
 	/delete-node/ opp-600000000;
 	/delete-node/ opp-816000000;
 	/delete-node/ opp-1008000000;
+	/delete-node/ opp-2256000000;
+	/delete-node/ opp-2304000000;
+	/delete-node/ opp-2352000000;
 	/delete-node/ opp-2400000000;
 };
 
@@ -109,6 +115,11 @@
 	mem-supply = <&vdd_cpu_big1_mem_s0>;
 };
 
+&display_subsystem {
+	clocks = <&hdptxphy_hdmi_clk0>, <&hdptxphy_hdmi_clk1>;
+	clock-names = "hdmi0_phy_pll", "hdmi1_phy_pll";
+};
+
 &gpu_opp_table {
 	/delete-node/ opp-198000000;
 	/delete-node/ opp-297000000;
@@ -121,6 +132,14 @@
 &gpu {
 	mali-supply = <&vdd_gpu_s0>;
 	mem-supply = <&vdd_gpu_mem_s0>;
+	status = "okay";
+};
+
+&hdptxphy_hdmi_clk0 {
+	status = "okay";
+};
+
+&hdptxphy_hdmi_clk1 {
 	status = "okay";
 };
 

@@ -158,7 +158,7 @@
 		regulator-min-microvolt = <5000000>;
 		regulator-max-microvolt = <5000000>;
 		enable-active-high;
-		gpio = <&gpio4 RK_PB0 GPIO_ACTIVE_HIGH>;
+		gpio = <&gpio4 RK_PA0 GPIO_ACTIVE_HIGH>;
 		vin-supply = <&vcc5v0_usb>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&vcc5v0_host_en>;
@@ -170,15 +170,6 @@
 		pinctrl-names = "default";
 		pinctrl-0 = <&mipidcphy0_pwr>;
 		regulator-name = "vcc_mipidcphy0";
-		enable-active-high;
-	};
-
-	vcc_3v3_sd_s0: vcc-3v3-sd-s0-regulator {
-		compatible = "regulator-fixed";
-		gpio = <&gpio0 RK_PB7 GPIO_ACTIVE_HIGH>;
-		pinctrl-names = "default";
-		pinctrl-0 = <&sd_s0_pwr>;
-		regulator-name = "vcc_3v3_sd_s0";
 		enable-active-high;
 	};
 
@@ -221,27 +212,6 @@
 };
 
 &combphy2_psu {
-	status = "okay";
-};
-
-&dp0 {
-	pinctrl-names = "default";
-	pinctrl-0 = <&vga_hpdin_l>;
-	hpd-gpios = <&gpio3 RK_PA6 GPIO_ACTIVE_HIGH>;
-	status = "okay";
-};
-
-&dp0_in_vp1 {
-	status = "okay";
-};
-
-&dp1 {
-	pinctrl-names = "default";
-	pinctrl-0 = <&dp1m0_pins>;
-	status = "okay";
-};
-
-&dp1_in_vp1 {
 	status = "okay";
 };
 
@@ -527,12 +497,6 @@
 		};
 	};
 
-	vga {
-		vga_hpdin_l: vga-hpdin-l {
-			rockchip,pins = <3 RK_PA6 RK_FUNC_GPIO &pcfg_pull_none>;
-		};
-	};
-
 	headphone {
 		hp_det: hp-det {
 			rockchip,pins = <1 RK_PC4 RK_FUNC_GPIO &pcfg_pull_none>;
@@ -557,12 +521,6 @@
 		};
 	};
 
-	sdmmc {
-		sd_s0_pwr: sd-s0-pwr {
-			rockchip,pins = <0 RK_PB7 RK_FUNC_GPIO &pcfg_pull_up>;
-		};
-	};
-
 	touch {
 		touch_gpio: touch-gpio {
 			rockchip,pins =
@@ -573,7 +531,7 @@
 
 	usb {
 		vcc5v0_host_en: vcc5v0-host-en {
-			rockchip,pins = <4 RK_PB0 RK_FUNC_GPIO &pcfg_pull_none>;
+			rockchip,pins = <4 RK_PA0 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
 
@@ -652,8 +610,7 @@
 };
 
 &sdmmc {
-	status = "okay";
-	vmmc-supply = <&vcc_3v3_sd_s0>;
+	status = "disabled";
 };
 
 &uart9 {
@@ -706,7 +663,8 @@
 };
 
 &usbdrd_dwc3_0 {
-	dr_mode = "otg";
+	dr_mode = "peripheral";
+	maximum-speed = "high-speed";
 	extcon = <&u2phy0>;
 	status = "okay";
 };

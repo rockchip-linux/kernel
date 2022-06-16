@@ -9,6 +9,7 @@
 
 #include "rga3_reg_info.h"
 #include "rga_common.h"
+#include "rga_debugger.h"
 
 #define FACTOR_MAX ((int)(2 << 15))
 
@@ -1278,6 +1279,7 @@ static void set_wr_info(struct rga_req *req_rga, struct rga3_req *req)
 void rga_cmd_to_rga3_cmd(struct rga_req *req_rga, struct rga3_req *req)
 {
 	u16 alpha_mode_0, alpha_mode_1;
+	struct rga_img_info_t tmp;
 
 	req->render_mode = BITBLT_MODE;
 
@@ -1348,15 +1350,16 @@ void rga_cmd_to_rga3_cmd(struct rga_req *req_rga, struct rga3_req *req)
 		}
 	}
 
-	/*
-	 * Layer binding:
-	 *     src => win1
-	 *     src1/dst => win0
-	 *     dst => wr
-	 */
 	/* simple win can not support dst offset */
 	if ((!((req_rga->alpha_rop_flag) & 1)) &&
-	    (req_rga->dst.x_offset == 0 && req_rga->dst.y_offset == 0)) {
+	    (req_rga->dst.x_offset == 0 && req_rga->dst.y_offset == 0) &&
+	    (req_rga->src.yrgb_addr != req_rga->dst.yrgb_addr)) {
+		/*
+		 * ABB mode Layer binding:
+		 *     src => win0
+		 *     dst => wr
+		 */
+
 		set_win_info(&req->win0, &req_rga->src);
 
 		/* enable win0 rotate */
@@ -1372,6 +1375,34 @@ void rga_cmd_to_rga3_cmd(struct rga_req *req_rga, struct rga3_req *req)
 		req->win0.format = req_rga->src.format;
 		req->wr.format = req_rga->dst.format;
 	} else {
+		/*
+		 * ABC mode Layer binding:
+		 *     src => win1
+		 *     src1/dst => win0
+		 *     dst => wr
+		 */
+
+		if (req_rga->pat.yrgb_addr != 0) {
+			if (req_rga->src.yrgb_addr == req_rga->dst.yrgb_addr) {
+				/* Convert ABC mode to ABB mode. */
+				memcpy(&req_rga->src, &req_rga->pat, sizeof(req_rga->src));
+				memset(&req_rga->pat, 0x0, sizeof(req_rga->pat));
+				req_rga->bsfilter_flag = 0;
+
+				rga_swap_pd_mode(req_rga);
+			} else if ((req_rga->dst.x_offset + req_rga->src.act_w >
+				    req_rga->pat.act_w) ||
+				   (req_rga->dst.y_offset + req_rga->src.act_h >
+				    req_rga->pat.act_h)) {
+				/* wr_offset + win1.act_size need > win0.act_size */
+				memcpy(&tmp, &req_rga->src, sizeof(tmp));
+				memcpy(&req_rga->src, &req_rga->pat, sizeof(req_rga->src));
+				memcpy(&req_rga->pat, &tmp, sizeof(req_rga->pat));
+
+				rga_swap_pd_mode(req_rga);
+			}
+		}
+
 		set_win_info(&req->win1, &req_rga->src);
 
 		/* enable win1 rotate */
@@ -1390,8 +1421,18 @@ void rga_cmd_to_rga3_cmd(struct rga_req *req_rga, struct rga3_req *req)
 			req->win0.format = req_rga->pat.format;
 
 			/* set win0 dst size */
-			req->win0.dst_act_w = req_rga->pat.act_w;
-			req->win0.dst_act_h = req_rga->pat.act_h;
+			if (req->win0.x_offset || req->win0.y_offset) {
+				req->win0.src_act_w = req->win0.src_act_w + req->win0.x_offset;
+				req->win0.src_act_h = req->win0.src_act_h + req->win0.y_offset;
+				req->win0.dst_act_w = req_rga->pat.act_w + req->win0.x_offset;
+				req->win0.dst_act_h = req_rga->pat.act_h + req->win0.y_offset;
+
+				req->win0.x_offset = 0;
+				req->win0.y_offset = 0;
+			} else {
+				req->win0.dst_act_w = req_rga->pat.act_w;
+				req->win0.dst_act_h = req_rga->pat.act_h;
+			}
 			/* set win1 dst size */
 			req->win1.dst_act_w = req_rga->pat.act_w;
 			req->win1.dst_act_h = req_rga->pat.act_h;
@@ -1573,9 +1614,13 @@ void rga_cmd_to_rga3_cmd(struct rga_req *req_rga, struct rga3_req *req)
 		req->win1.r2y_mode = 1;
 	}
 
-	/* color key */
-	req->color_key_min = req_rga->color_key_min;
-	req->color_key_max = req_rga->color_key_max;
+	/* color key: 8bit->10bit */
+	req->color_key_min = (req_rga->color_key_min & 0xff) << 22 |
+			     ((req_rga->color_key_min >> 8) & 0xff) << 2 |
+			     ((req_rga->color_key_min >> 16) & 0xff) << 12;
+	req->color_key_max = (req_rga->color_key_max & 0xff) << 22 |
+			     ((req_rga->color_key_max >> 8) & 0xff) << 2 |
+			     ((req_rga->color_key_max >> 16) & 0xff) << 12;
 
 	if (req_rga->mmu_info.mmu_en && (req_rga->mmu_info.mmu_flag & 1) == 1) {
 		req->mmu_info.src0_mmu_flag = 1;

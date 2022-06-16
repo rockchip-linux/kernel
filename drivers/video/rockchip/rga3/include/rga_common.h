@@ -9,6 +9,8 @@
 #ifndef __LINUX_RKRGA_COMMON_H_
 #define __LINUX_RKRGA_COMMON_H_
 
+#include "rga_drv.h"
+
 #define RGA_GET_PAGE_COUNT(size) (((size) >> PAGE_SHIFT) + (((size) & (~PAGE_MASK)) ? 1 : 0))
 
 bool rga_is_rgb_format(uint32_t format);
@@ -33,6 +35,7 @@ const char *rga_get_blend_mode_str(uint16_t alpha_rop_flag,
 const char *rga_get_memory_type_str(uint8_t type);
 
 void rga_convert_addr(struct rga_img_info_t *img, bool before_vir_get_channel);
+void rga_swap_pd_mode(struct rga_req *req_rga);
 int rga_image_size_cal(int w, int h, int format,
 		       int *yrgb_size, int *uv_size, int *v_size);
 

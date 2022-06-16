@@ -153,9 +153,6 @@
 /* KHZ */
 #define VOP2_MAX_DCLK_RATE		600000
 
-#define VOP2_COLOR_KEY_NONE		(0 << 31)
-#define VOP2_COLOR_KEY_MASK		(1 << 31)
-
 enum vop2_data_format {
 	VOP2_FMT_ARGB8888 = 0,
 	VOP2_FMT_RGB888,
@@ -3466,6 +3463,7 @@ static int vop2_extend_clk_init(struct vop2 *vop2)
 {
 	const char * const extend_clk_name[] = {
 		"hdmi0_phy_pll", "hdmi1_phy_pll"};
+	struct drm_device *drm_dev = vop2->drm_dev;
 	struct clk *clk;
 	struct vop2_extend_pll *extend_pll;
 	int i;
@@ -3476,14 +3474,14 @@ static int vop2_extend_clk_init(struct vop2 *vop2)
 		return 0;
 
 	for (i = 0; i < ARRAY_SIZE(extend_clk_name); i++) {
-		clk = devm_clk_get(vop2->dev, extend_clk_name[i]);
+		clk = devm_clk_get(drm_dev->dev, extend_clk_name[i]);
 		if (IS_ERR(clk)) {
-			dev_warn(vop2->dev, "failed to get %s: %ld\n",
+			dev_warn(drm_dev->dev, "failed to get %s: %ld\n",
 				 extend_clk_name[i], PTR_ERR(clk));
 			continue;
 		}
 
-		extend_pll = devm_kzalloc(vop2->dev, sizeof(*extend_pll), GFP_KERNEL);
+		extend_pll = devm_kzalloc(drm_dev->dev, sizeof(*extend_pll), GFP_KERNEL);
 		if (!extend_pll)
 			return -ENOMEM;
 
@@ -3670,7 +3668,7 @@ static int vop2_clk_set_parent_extend(struct vop2_video_port *vp,
 
 			hdmi1_phy_pll->vp_mask |= BIT(vp->id);
 		} else if (output_if_is_dp(vcstate->output_if)) {
-			if (adjusted_mode->crtc_clock > VOP2_MAX_DCLK_RATE || vp->id == 2) {
+			if (vp->id == 2) {
 				vop2_clk_set_parent(vp->dclk, vp->dclk_parent);
 				return 0;
 			}
@@ -4179,7 +4177,7 @@ static void vop2_plane_setup_color_key(struct drm_plane *plane)
 	uint32_t g = 0;
 	uint32_t b = 0;
 
-	if (!(vpstate->color_key & VOP2_COLOR_KEY_MASK) || fb->format->is_yuv) {
+	if (!(vpstate->color_key & VOP_COLOR_KEY_MASK) || fb->format->is_yuv) {
 		VOP_WIN_SET(vop2, win, color_key_en, 0);
 		return;
 	}
@@ -4328,11 +4326,10 @@ static void vop2_win_atomic_update(struct vop2_win *win, struct drm_rect *src, s
 	 */
 	if (win->splice_mode_right) {
 		splice_pixel_offset = (src->x1 - left_src->x1) >> 16;
-		splice_yrgb_offset = splice_pixel_offset * fb->format->cpp[0];
-
+		splice_yrgb_offset = drm_format_info_min_pitch(fb->format, 0, splice_pixel_offset);
 		if (fb->format->is_yuv && fb->format->num_planes > 1) {
 			hsub = fb->format->hsub;
-			splice_uv_offset = splice_pixel_offset * fb->format->cpp[1] / hsub;
+			splice_uv_offset = drm_format_info_min_pitch(fb->format, 1, splice_pixel_offset / hsub);
 		}
 	}
 
@@ -5078,7 +5075,11 @@ static int vop2_crtc_loader_protect(struct drm_crtc *crtc, bool on)
 	struct vop2_video_port *vp = to_vop2_video_port(crtc);
 	struct vop2 *vop2 = vp->vop2;
 	struct rockchip_drm_private *private = crtc->dev->dev_private;
-	struct vop2_win *win;
+	const struct vop2_video_port_data *vp_data = &vop2->data->vp[vp->id];
+	struct vop2_video_port *splice_vp = &vop2->vps[vp_data->splice_vp_id];
+	struct drm_crtc_state *crtc_state;
+	struct drm_display_mode *mode;
+	struct vop2_win *win, *splice_win;
 
 	if (on == vp->loader_protect)
 		return 0;
@@ -5090,9 +5091,30 @@ static int vop2_crtc_loader_protect(struct drm_crtc *crtc, bool on)
 		vop2_initial(crtc);
 		if (crtc->primary) {
 			win = to_vop2_win(crtc->primary);
-			if (win->pd && VOP_WIN_GET(vop2, win, enable)) {
-				win->pd->ref_count++;
-				win->pd->vp_mask |= BIT(vp->id);
+			if (VOP_WIN_GET(vop2, win, enable)) {
+				if (win->pd) {
+					win->pd->ref_count++;
+					win->pd->vp_mask |= BIT(vp->id);
+				}
+
+				crtc_state = drm_atomic_get_crtc_state(crtc->state->state, crtc);
+				mode = &crtc_state->adjusted_mode;
+				if (mode->hdisplay > VOP2_MAX_VP_OUTPUT_WIDTH)	{
+					splice_win = vop2_find_win_by_phys_id(vop2,
+									      win->splice_win_id);
+					splice_win->splice_mode_right = true;
+					splice_win->left_win = win;
+					win->splice_win = splice_win;
+					splice_vp->win_mask |=  BIT(splice_win->phys_id);
+					splice_win->vp_mask = BIT(splice_vp->id);
+					vop2->active_vp_mask |= BIT(splice_vp->id);
+
+					if (splice_win->pd &&
+					    VOP_WIN_GET(vop2, splice_win, enable)) {
+						splice_win->pd->ref_count++;
+						splice_win->pd->vp_mask |= BIT(splice_vp->id);
+					}
+				}
 			}
 		}
 		drm_crtc_vblank_on(crtc);

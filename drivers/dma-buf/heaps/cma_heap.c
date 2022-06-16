@@ -21,6 +21,7 @@
 #include <linux/scatterlist.h>
 #include <linux/slab.h>
 #include <linux/vmalloc.h>
+#include <uapi/linux/dma-heap.h>
 
 
 struct cma_heap {
@@ -132,8 +133,11 @@ static void cma_heap_unmap_dma_buf(struct dma_buf_attachment *attachment,
 	dma_unmap_sgtable(attachment->dev, table, direction, attrs);
 }
 
-static int cma_heap_dma_buf_begin_cpu_access(struct dma_buf *dmabuf,
-					     enum dma_data_direction direction)
+static int
+cma_heap_dma_buf_begin_cpu_access_partial(struct dma_buf *dmabuf,
+					  enum dma_data_direction direction,
+					  unsigned int offset,
+					  unsigned int len)
 {
 	struct cma_heap_buffer *buffer = dmabuf->priv;
 	struct dma_heap_attachment *a;
@@ -150,13 +154,24 @@ static int cma_heap_dma_buf_begin_cpu_access(struct dma_buf *dmabuf,
 			continue;
 		dma_sync_sgtable_for_cpu(a->dev, &a->table, direction);
 	}
+	if (list_empty(&buffer->attachments)) {
+		phys_addr_t phys = page_to_phys(buffer->cma_pages);
+
+		dma_sync_single_for_cpu(dma_heap_get_dev(buffer->heap->heap),
+					phys + offset,
+					len,
+					direction);
+	}
 	mutex_unlock(&buffer->lock);
 
 	return 0;
 }
 
-static int cma_heap_dma_buf_end_cpu_access(struct dma_buf *dmabuf,
-					   enum dma_data_direction direction)
+static int
+cma_heap_dma_buf_end_cpu_access_partial(struct dma_buf *dmabuf,
+					enum dma_data_direction direction,
+					unsigned int offset,
+					unsigned int len)
 {
 	struct cma_heap_buffer *buffer = dmabuf->priv;
 	struct dma_heap_attachment *a;
@@ -173,9 +188,31 @@ static int cma_heap_dma_buf_end_cpu_access(struct dma_buf *dmabuf,
 			continue;
 		dma_sync_sgtable_for_device(a->dev, &a->table, direction);
 	}
+	if (list_empty(&buffer->attachments)) {
+		phys_addr_t phys = page_to_phys(buffer->cma_pages);
+
+		dma_sync_single_for_device(dma_heap_get_dev(buffer->heap->heap),
+					   phys + offset,
+					   len,
+					   direction);
+	}
 	mutex_unlock(&buffer->lock);
 
 	return 0;
+}
+
+static int cma_heap_dma_buf_begin_cpu_access(struct dma_buf *dmabuf,
+					     enum dma_data_direction dir)
+{
+	return cma_heap_dma_buf_begin_cpu_access_partial(dmabuf, dir, 0,
+							 dmabuf->size);
+}
+
+static int cma_heap_dma_buf_end_cpu_access(struct dma_buf *dmabuf,
+					   enum dma_data_direction dir)
+{
+	return cma_heap_dma_buf_end_cpu_access_partial(dmabuf, dir, 0,
+						       dmabuf->size);
 }
 
 static vm_fault_t cma_heap_vm_fault(struct vm_fault *vmf)
@@ -287,6 +324,8 @@ static const struct dma_buf_ops cma_heap_buf_ops = {
 	.unmap_dma_buf = cma_heap_unmap_dma_buf,
 	.begin_cpu_access = cma_heap_dma_buf_begin_cpu_access,
 	.end_cpu_access = cma_heap_dma_buf_end_cpu_access,
+	.begin_cpu_access_partial = cma_heap_dma_buf_begin_cpu_access_partial,
+	.end_cpu_access_partial = cma_heap_dma_buf_end_cpu_access_partial,
 	.mmap = cma_heap_mmap,
 	.vmap = cma_heap_vmap,
 	.vunmap = cma_heap_vunmap,
@@ -402,8 +441,42 @@ static struct dma_buf *cma_heap_allocate(struct dma_heap *heap,
 	return cma_heap_do_allocate(heap, len, fd_flags, heap_flags, false);
 }
 
+static int cma_heap_get_phys(struct dma_heap *heap,
+			     struct dma_heap_phys_data *phys)
+{
+	struct cma_heap *cma_heap = dma_heap_get_drvdata(heap);
+	struct cma_heap_buffer *buffer;
+	struct dma_buf *dmabuf;
+
+	phys->paddr = (__u64)-1;
+
+	if (IS_ERR_OR_NULL(phys))
+		return -EINVAL;
+
+	dmabuf = dma_buf_get(phys->fd);
+	if (IS_ERR_OR_NULL(dmabuf))
+		return -EBADFD;
+
+	buffer = dmabuf->priv;
+	if (IS_ERR_OR_NULL(buffer))
+		goto err;
+
+	if (buffer->heap != cma_heap)
+		goto err;
+
+	phys->paddr = page_to_phys(buffer->cma_pages);
+
+err:
+	dma_buf_put(dmabuf);
+
+	return (phys->paddr == (__u64)-1) ? -EINVAL : 0;
+}
+
 static const struct dma_heap_ops cma_heap_ops = {
 	.allocate = cma_heap_allocate,
+#if IS_ENABLED(CONFIG_NO_GKI)
+	.get_phys = cma_heap_get_phys,
+#endif
 };
 
 static struct dma_buf *cma_uncached_heap_allocate(struct dma_heap *heap,

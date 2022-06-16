@@ -3322,7 +3322,7 @@ static void
 isp_csm_config(struct rkisp_isp_params_vdev *params_vdev,
 	       const struct isp21_csm_cfg *arg)
 {
-	u32 i, val, eff_ctrl, cproc_ctrl;
+	u32 i, val;
 
 	for (i = 0; i < ISP21_CSM_COEFF_NUM; i++) {
 		if (i == 0)
@@ -3335,32 +3335,7 @@ isp_csm_config(struct rkisp_isp_params_vdev *params_vdev,
 	}
 
 	val = CIF_ISP_CTRL_ISP_CSM_Y_FULL_ENA | CIF_ISP_CTRL_ISP_CSM_C_FULL_ENA;
-	if (arg->csm_full_range) {
-		params_vdev->quantization = V4L2_QUANTIZATION_FULL_RANGE;
-		isp_param_set_bits(params_vdev, ISP_CTRL, val);
-	} else {
-		params_vdev->quantization = V4L2_QUANTIZATION_LIM_RANGE;
-		isp_param_clear_bits(params_vdev, ISP_CTRL, val);
-	}
-
-	eff_ctrl = rkisp_ioread32(params_vdev, CIF_IMG_EFF_CTRL);
-	if (eff_ctrl & CIF_IMG_EFF_CTRL_ENABLE) {
-		if (arg->csm_full_range)
-			eff_ctrl |= CIF_IMG_EFF_CTRL_YCBCR_FULL;
-		else
-			eff_ctrl &= ~CIF_IMG_EFF_CTRL_YCBCR_FULL;
-		rkisp_iowrite32(params_vdev, eff_ctrl, CIF_IMG_EFF_CTRL);
-	}
-
-	cproc_ctrl = rkisp_ioread32(params_vdev, CPROC_CTRL);
-	if (cproc_ctrl & CIF_C_PROC_CTR_ENABLE) {
-		val = CIF_C_PROC_YOUT_FULL | CIF_C_PROC_YIN_FULL | CIF_C_PROC_COUT_FULL;
-		if (eff_ctrl & CIF_IMG_EFF_CTRL_ENABLE || !arg->csm_full_range)
-			cproc_ctrl &= ~val;
-		else
-			cproc_ctrl |= val;
-		rkisp_iowrite32(params_vdev, cproc_ctrl, CPROC_CTRL);
-	}
+	isp_param_set_bits(params_vdev, ISP_CTRL, val);
 }
 
 static void
@@ -3368,13 +3343,36 @@ isp_cgc_config(struct rkisp_isp_params_vdev *params_vdev,
 	       const struct isp21_cgc_cfg *arg)
 {
 	u32 val = rkisp_ioread32(params_vdev, ISP_CTRL);
+	u32 eff_ctrl, cproc_ctrl;
 
+	params_vdev->quantization = V4L2_QUANTIZATION_FULL_RANGE;
 	val &= ~(ISP21_CGC_YUV_LIMIT | ISP21_CGC_RATIO_EN);
-	if (arg->yuv_limit)
+	if (arg->yuv_limit) {
 		val |= ISP21_CGC_YUV_LIMIT;
+		params_vdev->quantization = V4L2_QUANTIZATION_LIM_RANGE;
+	}
 	if (arg->ratio_en)
 		val |= ISP21_CGC_RATIO_EN;
 	rkisp_iowrite32(params_vdev, val, ISP_CTRL);
+
+	cproc_ctrl = rkisp_ioread32(params_vdev, CPROC_CTRL);
+	if (cproc_ctrl & CIF_C_PROC_CTR_ENABLE) {
+		val = CIF_C_PROC_YOUT_FULL | CIF_C_PROC_YIN_FULL | CIF_C_PROC_COUT_FULL;
+		if (arg->yuv_limit)
+			cproc_ctrl &= ~val;
+		else
+			cproc_ctrl |= val;
+		rkisp_iowrite32(params_vdev, cproc_ctrl, CPROC_CTRL);
+	}
+
+	eff_ctrl = rkisp_ioread32(params_vdev, CIF_IMG_EFF_CTRL);
+	if (eff_ctrl & CIF_IMG_EFF_CTRL_ENABLE) {
+		if (arg->yuv_limit)
+			eff_ctrl &= ~CIF_IMG_EFF_CTRL_YCBCR_FULL;
+		else
+			eff_ctrl |= CIF_IMG_EFF_CTRL_YCBCR_FULL;
+		rkisp_iowrite32(params_vdev, eff_ctrl, CIF_IMG_EFF_CTRL);
+	}
 }
 
 struct rkisp_isp_params_v21_ops rkisp_v21_isp_params_ops = {
@@ -3486,11 +3484,12 @@ void __isp_isr_other_config(struct rkisp_isp_params_vdev *params_vdev,
 	if ((module_cfg_update & ISP2X_MODULE_GOC))
 		ops->goc_config(params_vdev, &new_params->others.gammaout_cfg);
 
-	if ((module_cfg_update & ISP2X_MODULE_CGC))
-		ops->cgc_config(params_vdev, &new_params->others.cgc_cfg);
-
+	/* range csm->cgc->cproc->ie */
 	if ((module_cfg_update & ISP2X_MODULE_CSM))
 		ops->csm_config(params_vdev, &new_params->others.csm_cfg);
+
+	if ((module_cfg_update & ISP2X_MODULE_CGC))
+		ops->cgc_config(params_vdev, &new_params->others.cgc_cfg);
 
 	if ((module_cfg_update & ISP2X_MODULE_CPROC))
 		ops->cproc_config(params_vdev, &new_params->others.cproc_cfg);
@@ -3833,7 +3832,6 @@ rkisp_params_first_cfg_v2x(struct rkisp_isp_params_vdev *params_vdev)
 	struct rkisp_isp_params_val_v21 *priv_val =
 		(struct rkisp_isp_params_val_v21 *)params_vdev->priv_val;
 
-	rkisp_alloc_bay3d_buf(params_vdev, params_vdev->isp21_params);
 	dev->is_bigmode = rkisp_params_check_bigmode_v21(params_vdev);
 	spin_lock(&params_vdev->config_lock);
 	/* override the default things */
@@ -3868,6 +3866,7 @@ static void rkisp_save_first_param_v2x(struct rkisp_isp_params_vdev *params_vdev
 
 	new_params = (struct isp21_isp_params_cfg *)param;
 	*params_vdev->isp21_params = *new_params;
+	rkisp_alloc_bay3d_buf(params_vdev, params_vdev->isp21_params);
 }
 
 static void rkisp_clear_first_param_v2x(struct rkisp_isp_params_vdev *params_vdev)
@@ -4082,10 +4081,14 @@ rkisp_params_cfg_v2x(struct rkisp_isp_params_vdev *params_vdev,
 			list_del(&cur_buf->queue);
 			if (list_empty(&params_vdev->params))
 				break;
-			else if (new_params->module_en_update) {
+			else if (new_params->module_en_update ||
+				 (new_params->module_cfg_update & ISP2X_MODULE_FORCE)) {
 				/* update en immediately */
+				__isp_isr_meas_config(params_vdev, new_params, type);
+				__isp_isr_other_config(params_vdev, new_params, type);
 				__isp_isr_other_en(params_vdev, new_params, type);
 				__isp_isr_meas_en(params_vdev, new_params, type);
+				new_params->module_cfg_update = 0;
 			}
 			if (new_params->module_cfg_update & ISP2X_MODULE_LDCH)
 				ldch_data_abandon(params_vdev, new_params);
@@ -4119,6 +4122,7 @@ rkisp_params_cfg_v2x(struct rkisp_isp_params_vdev *params_vdev,
 		priv_val->last_hdrdrc = priv_val->cur_hdrdrc;
 		priv_val->cur_hdrmge = new_params->others.hdrmge_cfg;
 		priv_val->cur_hdrdrc = new_params->others.drc_cfg;
+		new_params->module_cfg_update = 0;
 		vb2_buffer_done(&cur_buf->vb.vb2_buf, VB2_BUF_STATE_DONE);
 		cur_buf = NULL;
 	}

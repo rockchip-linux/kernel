@@ -220,6 +220,7 @@ struct rkcif_sensor_info {
 	int lanes;
 	struct v4l2_rect raw_rect;
 	struct v4l2_subdev_selection selection;
+	int dsi_input_en;
 };
 
 enum cif_fmt_type {
@@ -283,6 +284,7 @@ struct csi_channel_info {
 	unsigned int virtual_width;
 	unsigned int crop_st_x;
 	unsigned int crop_st_y;
+	unsigned int dsi_input;
 	struct rkmodule_lvds_cfg lvds_cfg;
 };
 
@@ -699,7 +701,7 @@ struct rkcif_device {
 	int				num_channels;
 	int				chip_id;
 	atomic_t			stream_cnt;
-	atomic_t			fh_cnt;
+	atomic_t			power_cnt;
 	struct mutex			stream_lock; /* lock between streams */
 	struct mutex			scale_lock; /* lock between scale dev */
 	enum rkcif_workmode		workmode;
@@ -728,10 +730,12 @@ struct rkcif_device {
 	unsigned int			wait_line_bak;
 	unsigned int			wait_line_cache;
 	struct rkcif_dummy_buffer	dummy_buf;
+	struct completion		cmpl_ntf;
 	bool				is_start_hdr;
 	bool				reset_work_cancel;
 	bool				iommu_en;
 	bool				is_use_dummybuf;
+	bool				is_notifier_isp;
 	int				sync_type;
 	int				sditf_cnt;
 };
@@ -776,8 +780,6 @@ void rkcif_irq_pingpong(struct rkcif_device *cif_dev);
 void rkcif_irq_pingpong_v1(struct rkcif_device *cif_dev);
 unsigned int rkcif_irq_global(struct rkcif_device *cif_dev);
 void rkcif_irq_handle_toisp(struct rkcif_device *cif_dev, unsigned int intstat_glb);
-void rkcif_soft_reset(struct rkcif_device *cif_dev,
-		      bool is_rst_iommu);
 int rkcif_register_lvds_subdev(struct rkcif_device *dev);
 void rkcif_unregister_lvds_subdev(struct rkcif_device *dev);
 int rkcif_register_dvp_sof_subdev(struct rkcif_device *dev);
@@ -801,6 +803,8 @@ int rkcif_set_fmt(struct rkcif_stream *stream,
 		       struct v4l2_pix_format_mplane *pixm,
 		       bool try);
 void rkcif_enable_dma_capture(struct rkcif_stream *stream);
+
+void rkcif_do_soft_reset(struct rkcif_device *dev);
 
 u32 rkcif_mbus_pixelcode_to_v4l2(u32 pixelcode);
 

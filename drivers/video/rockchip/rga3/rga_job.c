@@ -12,6 +12,7 @@
 #include "rga_dma_buf.h"
 #include "rga_mm.h"
 #include "rga2_mmu_info.h"
+#include "rga_debugger.h"
 
 struct rga_job *
 rga_scheduler_get_pending_job_list(struct rga_scheduler_t *scheduler)
@@ -150,12 +151,9 @@ void rga_job_session_destroy(struct rga_session *session)
 
 static int rga_job_cleanup(struct rga_job *job)
 {
-	ktime_t now = ktime_get();
-
-	if (DEBUGGER_EN(TIME)) {
+	if (DEBUGGER_EN(TIME))
 		pr_err("(pid:%d) job clean use time = %lld\n", job->pid,
-			ktime_us_delta(now, job->timestamp));
-	}
+			ktime_us_delta(ktime_get(), job->timestamp));
 
 	rga_job_free(job);
 
@@ -427,6 +425,9 @@ void rga_job_done(struct rga_scheduler_t *scheduler, int ret)
 
 	spin_unlock_irqrestore(&scheduler->irq_lock, flags);
 
+	if (DEBUGGER_EN(DUMP_IMAGE))
+		rga_dump_job_image(job);
+
 	rga_job_finish_and_next(scheduler, job, ret);
 }
 
@@ -554,11 +555,10 @@ static void rga_invalid_job_abort(struct rga_job *job)
 static inline int rga_job_wait(struct rga_job *job)
 {
 	int left_time;
-	ktime_t now;
 	int ret;
 
-	left_time = wait_event_interruptible_timeout(job->scheduler->job_done_wq,
-		job->flags & RGA_JOB_DONE, RGA_SYNC_TIMEOUT_DELAY);
+	left_time = wait_event_timeout(job->scheduler->job_done_wq,
+				       job->flags & RGA_JOB_DONE, RGA_SYNC_TIMEOUT_DELAY);
 
 	switch (left_time) {
 	case 0:
@@ -574,11 +574,9 @@ static inline int rga_job_wait(struct rga_job *job)
 		break;
 	}
 
-	now = ktime_get();
-
 	if (DEBUGGER_EN(TIME))
 		pr_info("%s use time = %lld\n", __func__,
-			ktime_us_delta(now, job->hw_running_time));
+			ktime_us_delta(ktime_get(), job->hw_running_time));
 
 	return ret;
 }
@@ -828,7 +826,6 @@ int rga_request_commit(struct rga_request *request)
 		if (request->sync_mode == RGA_BLIT_SYNC) {
 			ret = rga_request_wait(request);
 			if (ret < 0) {
-				rga_request_put(request);
 				return ret;
 			}
 		}
@@ -845,6 +842,8 @@ int rga_request_commit(struct rga_request *request)
 				rga_running_job_abort(job, job->scheduler);
 				return ret;
 			}
+
+			rga_job_cleanup(job);
 		}
 	}
 
@@ -906,10 +905,15 @@ int rga_request_release_signal(struct rga_scheduler_t *scheduler, struct rga_job
 
 		spin_unlock_irqrestore(&request->lock, flags);
 
+		/* current submit request put */
+		mutex_lock(&request_manager->lock);
 		rga_request_put(request);
+		mutex_unlock(&request_manager->lock);
 	}
 
+	mutex_lock(&request_manager->lock);
 	rga_request_put(request);
+	mutex_unlock(&request_manager->lock);
 
 	return 0;
 }
@@ -1025,17 +1029,15 @@ static int rga_request_free(struct rga_request *request)
 		return -EFAULT;
 	}
 
+	WARN_ON(!mutex_is_locked(&request_manager->lock));
+
 	if (IS_ERR_OR_NULL(request)) {
 		pr_err("request already freed");
 		return -EFAULT;
 	}
 
-	mutex_lock(&request_manager->lock);
-
 	request_manager->request_count--;
 	idr_remove(&request_manager->request_idr, request->id);
-
-	mutex_unlock(&request_manager->lock);
 
 	spin_lock_irqsave(&request->lock, flags);
 

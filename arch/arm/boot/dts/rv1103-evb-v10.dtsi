@@ -7,7 +7,7 @@
 
 / {
 	chosen {
-		bootargs = "earlycon=uart8250,mmio32,0xff4c0000 console=ttyFIQ0 root=/dev/mmcblk0p5 rootfstype=ext4 rootwait snd_soc_core.prealloc_buffer_size_kbytes=16";
+		bootargs = "earlycon=uart8250,mmio32,0xff4c0000 console=ttyFIQ0 root=/dev/mmcblk0p5 rootfstype=ext4 rootwait snd_soc_core.prealloc_buffer_size_kbytes=16 coherent_pool=0";
 	};
 
 	acodec_sound: acodec-sound {
@@ -22,12 +22,28 @@
 			sound-dai = <&acodec>;
 		};
 	};
+
+	vdd_arm: vdd-arm {
+		compatible = "pwm-regulator";
+		pwms = <&pwm0 0 5000 1>;
+		regulator-name = "vdd_arm";
+		regulator-min-microvolt = <724000>;
+		regulator-max-microvolt = <1078000>;
+		regulator-init-microvolt = <950000>;
+		regulator-always-on;
+		regulator-boot-on;
+		regulator-settling-time-up-us = <250>;
+	};
 };
 
 &acodec {
 	#sound-dai-cells = <0>;
 	pa-ctl-gpios = <&gpio0 RK_PA4 GPIO_ACTIVE_HIGH>;
 	status = "okay";
+};
+
+&cpu0 {
+	cpu-supply = <&vdd_arm>;
 };
 
 &emmc {
@@ -50,6 +66,10 @@
 
 &i2s0_8ch {
 	#sound-dai-cells = <0>;
+	status = "okay";
+};
+
+&pwm0 {
 	status = "okay";
 };
 

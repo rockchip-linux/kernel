@@ -199,7 +199,10 @@ struct rockchip_spi {
 	struct pinctrl_state *high_speed_state;
 	bool slave_abort;
 	bool cs_inactive; /* spi slave tansmition stop when cs inactive */
+	bool cs_high_supported; /* native CS supports active-high polarity */
+
 	struct spi_transfer *xfer; /* Store xfer temporarily */
+	spinlock_t lock; /* prevent I/O concurrent access */
 };
 
 static inline void spi_enable_chip(struct rockchip_spi *rs, bool enable)
@@ -294,9 +297,13 @@ static void rockchip_spi_handle_err(struct spi_controller *ctlr,
 
 static void rockchip_spi_pio_writer(struct rockchip_spi *rs)
 {
-	u32 tx_free = rs->fifo_len - readl_relaxed(rs->regs + ROCKCHIP_SPI_TXFLR);
-	u32 words = min(rs->tx_left, tx_free);
+	u32 tx_free;
+	u32 words;
+	unsigned long flags;
 
+	spin_lock_irqsave(&rs->lock, flags);
+	tx_free = rs->fifo_len - readl_relaxed(rs->regs + ROCKCHIP_SPI_TXFLR);
+	words = min(rs->tx_left, tx_free);
 	rs->tx_left -= words;
 	for (; words; words--) {
 		u32 txw;
@@ -309,6 +316,7 @@ static void rockchip_spi_pio_writer(struct rockchip_spi *rs)
 		writel_relaxed(txw, rs->regs + ROCKCHIP_SPI_TXDR);
 		rs->tx += rs->n_bytes;
 	}
+	spin_unlock_irqrestore(&rs->lock, flags);
 }
 
 static void rockchip_spi_pio_reader(struct rockchip_spi *rs)
@@ -736,6 +744,11 @@ static int rockchip_spi_setup(struct spi_device *spi)
 	struct rockchip_spi *rs = spi_controller_get_devdata(spi->controller);
 	u32 cr0;
 
+	if (!spi->cs_gpiod && (spi->mode & SPI_CS_HIGH) && !rs->cs_high_supported) {
+		dev_warn(&spi->dev, "setup: non GPIO CS can't be active-high\n");
+		return -EINVAL;
+	}
+
 	pm_runtime_get_sync(rs->dev);
 
 	cr0 = readl_relaxed(rs->regs + ROCKCHIP_SPI_CTRLR0);
@@ -786,6 +799,8 @@ static int rockchip_spi_probe(struct platform_device *pdev)
 		ret =  PTR_ERR(rs->regs);
 		goto err_put_ctlr;
 	}
+
+	spin_lock_init(&rs->lock);
 
 	rs->apb_pclk = devm_clk_get(&pdev->dev, "apb_pclk");
 	if (IS_ERR(rs->apb_pclk)) {
@@ -925,6 +940,7 @@ static int rockchip_spi_probe(struct platform_device *pdev)
 
 	switch (readl_relaxed(rs->regs + ROCKCHIP_SPI_VERSION)) {
 	case ROCKCHIP_SPI_VER2_TYPE2:
+		rs->cs_high_supported = true;
 		ctlr->mode_bits |= SPI_CS_HIGH;
 		if (ctlr->can_dma && slave_mode)
 			rs->cs_inactive = true;

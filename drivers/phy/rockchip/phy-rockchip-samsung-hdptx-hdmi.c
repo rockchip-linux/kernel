@@ -15,6 +15,7 @@
 #include <linux/module.h>
 #include <linux/nvmem-consumer.h>
 #include <linux/of.h>
+#include <linux/of_platform.h>
 #include <linux/reset.h>
 #include <linux/mfd/syscon.h>
 #include <linux/phy/phy.h>
@@ -2074,16 +2075,12 @@ static int hdptx_phy_clk_set_rate(struct clk_hw *hw, unsigned long rate,
 				      unsigned long parent_rate)
 {
 	struct rockchip_hdptx_phy *hdptx = to_rockchip_hdptx_phy(hw);
-	int bus_width = phy_get_bus_width(hdptx->phy);
-	u8 color_depth = (bus_width & COLOR_DEPTH_MASK) ? 1 : 0;
 
 	if (hdptx_grf_read(hdptx, GRF_HDPTX_STATUS) & HDPTX_O_PLL_LOCK_DONE)
 		hdptx_phy_disable(hdptx);
 
-	if (color_depth)
-		rate = (rate / 100) * 5 / 4;
-	else
-		rate = rate / 100;
+	rate = rate / 100;
+
 	return hdptx_ropll_cmn_config(hdptx, rate);
 }
 
@@ -2143,10 +2140,20 @@ static int rockchip_hdptx_phy_clk_register(struct rockchip_hdptx_phy *hdptx)
 {
 	struct device *dev = hdptx->dev;
 	struct device_node *np = dev->of_node;
+	struct device_node *clk_np;
+	struct platform_device *pdev;
 	struct clk_init_data init = {};
 	struct clk *refclk;
 	const char *parent_name;
 	int ret;
+
+	clk_np = of_get_child_by_name(np, "clk-port");
+	if (!clk_np)
+		return 0;
+
+	pdev = of_platform_device_create(clk_np, NULL, dev);
+	if (!pdev)
+		return 0;
 
 	refclk = devm_clk_get(dev, "ref");
 	if (IS_ERR(refclk)) {
@@ -2170,14 +2177,14 @@ static int rockchip_hdptx_phy_clk_register(struct rockchip_hdptx_phy *hdptx)
 
 	hdptx->hw.init = &init;
 
-	hdptx->dclk = devm_clk_register(dev, &hdptx->hw);
+	hdptx->dclk = devm_clk_register(&pdev->dev, &hdptx->hw);
 	if (IS_ERR(hdptx->dclk)) {
 		ret = PTR_ERR(hdptx->dclk);
 		dev_err(dev, "failed to register clock: %d\n", ret);
 		return ret;
 	}
 
-	ret = of_clk_add_provider(np, of_clk_src_simple_get, hdptx->dclk);
+	ret = of_clk_add_provider(clk_np, of_clk_src_simple_get, hdptx->dclk);
 	if (ret) {
 		dev_err(dev, "failed to register OF clock provider: %d\n", ret);
 		return ret;
@@ -2282,6 +2289,7 @@ static int rockchip_hdptx_phy_probe(struct platform_device *pdev)
 
 	hdptx->grf = syscon_regmap_lookup_by_phandle(np, "rockchip,grf");
 	if (IS_ERR(hdptx->grf)) {
+		ret = PTR_ERR(hdptx->grf);
 		dev_err(hdptx->dev, "Unable to get rockchip,grf\n");
 		goto err_regsmap;
 	}

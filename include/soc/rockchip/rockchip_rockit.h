@@ -7,9 +7,9 @@
 
 #include <linux/dma-buf.h>
 
-#define ROCKIT_BUF_NUM_MAX	3
-#define ROCKIT_ISP_NUM_MAX	5
-#define ROCKIT_STREAM_NUM_MAX	13
+#define ROCKIT_BUF_NUM_MAX	5
+#define ROCKIT_ISP_NUM_MAX	3
+#define ROCKIT_STREAM_NUM_MAX	12
 
 enum function_cmd {
 	ROCKIT_BUF_QUE,
@@ -49,12 +49,14 @@ struct ISP_VIDEO_FRAMES {
 struct rkisp_dev_cfg {
 	char *isp_name;
 	void *isp_dev;
+	struct rkisp_stream_cfg *rkisp_stream_cfg[ROCKIT_STREAM_NUM_MAX];
 };
 
 struct rockit_cfg {
 	bool is_alloc;
 	bool is_empty;
 	bool is_qbuf;
+	bool is_color;
 	char *current_name;
 	dma_addr_t dma_addr;
 	int *buff_id;
@@ -68,7 +70,6 @@ struct rockit_cfg {
 	struct dma_buf *buf;
 	struct ISP_VIDEO_FRAMES frame;
 	struct rkisp_dev_cfg rkisp_dev_cfg[ROCKIT_ISP_NUM_MAX];
-	struct rkisp_stream_cfg rkisp_stream_cfg[ROCKIT_STREAM_NUM_MAX];
 	int (*rkisp_rockit_mpibuf_done)(struct rockit_cfg *rockit_isp_cfg);
 };
 
@@ -77,12 +78,29 @@ struct rockit_cfg {
 void *rkisp_rockit_function_register(void *function, int cmd);
 int rkisp_rockit_get_ispdev(char **name);
 int rkisp_rockit_buf_queue(struct rockit_cfg *input_rockit_cfg);
+int rkisp_rockit_pause_stream(struct rockit_cfg *input_rockit_cfg);
+int rkisp_rockit_resume_stream(struct rockit_cfg *input_rockit_cfg);
+int rkisp_rockit_config_stream(struct rockit_cfg *input_rockit_cfg,
+				int width, int height, int wrap_line);
 
 #else
 
 static inline void *rkisp_rockit_function_register(void *function, int cmd) { return NULL; }
 static inline int rkisp_rockit_get_ispdev(char **name) { return -EINVAL; }
 static inline int rkisp_rockit_buf_queue(struct rockit_cfg *input_rockit_cfg)
+{
+	return -EINVAL;
+}
+static inline int rkisp_rockit_pause_stream(struct rockit_cfg *input_rockit_cfg)
+{
+	return -EINVAL;
+}
+static inline int rkisp_rockit_resume_stream(struct rockit_cfg *input_rockit_cfg)
+{
+	return -EINVAL;
+}
+static inline int rkisp_rockit_config_stream(struct rockit_cfg *input_rockit_cfg,
+					     int width, int height, int wrap_line)
 {
 	return -EINVAL;
 }

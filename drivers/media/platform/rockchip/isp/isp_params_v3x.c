@@ -609,19 +609,13 @@ isp_lsc_config(struct rkisp_isp_params_vdev *params_vdev,
 	u32 lsc_ctrl;
 	int i;
 
-	/* To config must be off , store the current status firstly */
 	lsc_ctrl = isp3_param_read(params_vdev, ISP3X_LSC_CTRL, id);
-	isp3_param_clear_bits(params_vdev, ISP3X_LSC_CTRL, ISP_LSC_EN | BIT(2), id);
 	params_rec->others.lsc_cfg = *arg;
-	if (dev->hw_dev->is_single) {
-		if (lsc_ctrl & ISP_LSC_EN) {
-			/* latest config for ISP3_LEFT, unite isp or single isp */
-			if (id == ISP3_LEFT)
-				tasklet_schedule(&priv_val->lsc_tasklet);
-		} else {
-			isp_lsc_matrix_cfg_sram(params_vdev, arg, false, id);
-		}
-	}
+	if (dev->hw_dev->is_single &&
+	    (lsc_ctrl & ISP_LSC_EN) &&
+	    (id == ISP3_LEFT))
+		/* latest config for ISP3_LEFT, unite isp or single isp */
+		tasklet_schedule(&priv_val->lsc_tasklet);
 
 	for (i = 0; i < ISP3X_LSC_SIZE_TBL_SIZE / 4; i++) {
 		/* program x size tables */
@@ -658,17 +652,23 @@ isp_lsc_config(struct rkisp_isp_params_vdev *params_vdev,
 	}
 
 	if (arg->sector_16x16)
-		lsc_ctrl |= BIT(2);
-	isp3_param_set_bits(params_vdev, ISP3X_LSC_CTRL, lsc_ctrl, id);
+		lsc_ctrl |= ISP3X_LSC_SECTOR_16X16;
+	else
+		lsc_ctrl &= ~ISP3X_LSC_SECTOR_16X16;
+	isp3_param_write(params_vdev, lsc_ctrl, ISP3X_LSC_CTRL, id);
 }
 
 static void
 isp_lsc_enable(struct rkisp_isp_params_vdev *params_vdev, bool en, u32 id)
 {
+	struct isp3x_isp_params_cfg *params_rec = params_vdev->isp3x_params + id;
 	u32 val = ISP_LSC_EN;
 
 	if (en) {
 		isp3_param_set_bits(params_vdev, ISP3X_LSC_CTRL, val, id);
+		if (params_vdev->dev->hw_dev->is_single)
+			isp_lsc_matrix_cfg_sram(params_vdev,
+						&params_rec->others.lsc_cfg, false, id);
 	} else {
 		isp3_param_clear_bits(params_vdev, ISP3X_LSC_CTRL, ISP_LSC_EN, id);
 		isp3_param_clear_bits(params_vdev, ISP3X_GAIN_CTRL, BIT(8), id);
@@ -2796,8 +2796,7 @@ isp_dhaz_config(struct rkisp_isp_params_vdev *params_vdev,
 		ctrl |= (arg->soft_wr_en & 0x1) << 25;
 	/* merge dual unite isp params at frame end */
 	if (arg->soft_wr_en &&
-	    (!dev->hw_dev->is_unite ||
-	     (dev->hw_dev->is_unite && !(ctrl & ISP3X_DHAZ_ENMUX)))) {
+	    (!dev->hw_dev->is_unite || !(ctrl & ISP3X_DHAZ_ENMUX))) {
 		value = ISP_PACK_2SHORT(arg->adp_wt_wr, arg->adp_air_wr);
 		isp3_param_write(params_vdev, value, ISP3X_DHAZ_ADT_WR0, id);
 		value = ISP_PACK_2SHORT(arg->adp_tmax_wr, arg->adp_gratio_wr);
@@ -3653,7 +3652,7 @@ static void
 isp_csm_config(struct rkisp_isp_params_vdev *params_vdev,
 	       const struct isp21_csm_cfg *arg, u32 id)
 {
-	u32 i, val, eff_ctrl, cproc_ctrl;
+	u32 i, val;
 
 	for (i = 0; i < ISP3X_CSM_COEFF_NUM; i++) {
 		if (i == 0)
@@ -3666,32 +3665,7 @@ isp_csm_config(struct rkisp_isp_params_vdev *params_vdev,
 	}
 
 	val = CIF_ISP_CTRL_ISP_CSM_Y_FULL_ENA | CIF_ISP_CTRL_ISP_CSM_C_FULL_ENA;
-	if (arg->csm_full_range) {
-		params_vdev->quantization = V4L2_QUANTIZATION_FULL_RANGE;
-		isp3_param_set_bits(params_vdev, ISP3X_ISP_CTRL0, val, id);
-	} else {
-		params_vdev->quantization = V4L2_QUANTIZATION_LIM_RANGE;
-		isp3_param_clear_bits(params_vdev, ISP3X_ISP_CTRL0, val, id);
-	}
-
-	eff_ctrl = isp3_param_read(params_vdev, ISP3X_IMG_EFF_CTRL, id);
-	if (eff_ctrl & CIF_IMG_EFF_CTRL_ENABLE) {
-		if (arg->csm_full_range)
-			eff_ctrl |= CIF_IMG_EFF_CTRL_YCBCR_FULL;
-		else
-			eff_ctrl &= ~CIF_IMG_EFF_CTRL_YCBCR_FULL;
-		isp3_param_write(params_vdev, eff_ctrl, ISP3X_IMG_EFF_CTRL, id);
-	}
-
-	cproc_ctrl = isp3_param_read(params_vdev, ISP3X_CPROC_CTRL, id);
-	if (cproc_ctrl & CIF_C_PROC_CTR_ENABLE) {
-		val = CIF_C_PROC_YOUT_FULL | CIF_C_PROC_YIN_FULL | CIF_C_PROC_COUT_FULL;
-		if (eff_ctrl & CIF_IMG_EFF_CTRL_ENABLE || !arg->csm_full_range)
-			cproc_ctrl &= ~val;
-		else
-			cproc_ctrl |= val;
-		isp3_param_write(params_vdev, cproc_ctrl, ISP3X_CPROC_CTRL, id);
-	}
+	isp3_param_set_bits(params_vdev, ISP3X_ISP_CTRL0, val, id);
 }
 
 static void
@@ -3699,13 +3673,36 @@ isp_cgc_config(struct rkisp_isp_params_vdev *params_vdev,
 	       const struct isp21_cgc_cfg *arg, u32 id)
 {
 	u32 val = isp3_param_read(params_vdev, ISP3X_ISP_CTRL0, id);
+	u32 eff_ctrl, cproc_ctrl;
 
+	params_vdev->quantization = V4L2_QUANTIZATION_FULL_RANGE;
 	val &= ~(ISP3X_SW_CGC_YUV_LIMIT | ISP3X_SW_CGC_RATIO_EN);
-	if (arg->yuv_limit)
+	if (arg->yuv_limit) {
 		val |= ISP3X_SW_CGC_YUV_LIMIT;
+		params_vdev->quantization = V4L2_QUANTIZATION_LIM_RANGE;
+	}
 	if (arg->ratio_en)
 		val |= ISP3X_SW_CGC_RATIO_EN;
 	isp3_param_write(params_vdev, val, ISP3X_ISP_CTRL0, id);
+
+	cproc_ctrl = isp3_param_read(params_vdev, ISP3X_CPROC_CTRL, id);
+	if (cproc_ctrl & CIF_C_PROC_CTR_ENABLE) {
+		val = CIF_C_PROC_YOUT_FULL | CIF_C_PROC_YIN_FULL | CIF_C_PROC_COUT_FULL;
+		if (arg->yuv_limit)
+			cproc_ctrl &= ~val;
+		else
+			cproc_ctrl |= val;
+		isp3_param_write(params_vdev, cproc_ctrl, ISP3X_CPROC_CTRL, id);
+	}
+
+	eff_ctrl = isp3_param_read(params_vdev, ISP3X_IMG_EFF_CTRL, id);
+	if (eff_ctrl & CIF_IMG_EFF_CTRL_ENABLE) {
+		if (arg->yuv_limit)
+			eff_ctrl &= ~CIF_IMG_EFF_CTRL_YCBCR_FULL;
+		else
+			eff_ctrl |= CIF_IMG_EFF_CTRL_YCBCR_FULL;
+		isp3_param_write(params_vdev, eff_ctrl, ISP3X_IMG_EFF_CTRL, id);
+	}
 }
 
 struct rkisp_isp_params_ops_v3x isp_params_ops_v3x = {
@@ -3825,11 +3822,12 @@ void __isp_isr_other_config(struct rkisp_isp_params_vdev *params_vdev,
 	if ((module_cfg_update & ISP3X_MODULE_GOC))
 		ops->goc_config(params_vdev, &new_params->others.gammaout_cfg, id);
 
-	if ((module_cfg_update & ISP3X_MODULE_CGC))
-		ops->cgc_config(params_vdev, &new_params->others.cgc_cfg, id);
-
+	/* range csm->cgc->cproc->ie */
 	if ((module_cfg_update & ISP3X_MODULE_CSM))
 		ops->csm_config(params_vdev, &new_params->others.csm_cfg, id);
+
+	if ((module_cfg_update & ISP3X_MODULE_CGC))
+		ops->cgc_config(params_vdev, &new_params->others.cgc_cfg, id);
 
 	if ((module_cfg_update & ISP3X_MODULE_CPROC))
 		ops->cproc_config(params_vdev, &new_params->others.cproc_cfg, id);
@@ -4245,9 +4243,7 @@ rkisp_params_first_cfg_v3x(struct rkisp_isp_params_vdev *params_vdev)
 		(struct rkisp_isp_params_val_v3x *)params_vdev->priv_val;
 	struct rkisp_hw_dev *hw = params_vdev->dev->hw_dev;
 
-	tasklet_enable(&priv_val->lsc_tasklet);
 	dev->is_bigmode = rkisp_params_check_bigmode_v3x(params_vdev);
-	rkisp_alloc_internal_buf(params_vdev, params_vdev->isp3x_params);
 	spin_lock(&params_vdev->config_lock);
 	/* override the default things */
 	if (!params_vdev->isp3x_params->module_cfg_update &&
@@ -4286,7 +4282,12 @@ rkisp_params_first_cfg_v3x(struct rkisp_isp_params_vdev *params_vdev)
 
 static void rkisp_save_first_param_v3x(struct rkisp_isp_params_vdev *params_vdev, void *param)
 {
+	struct rkisp_isp_params_val_v3x *priv_val =
+		(struct rkisp_isp_params_val_v3x *)params_vdev->priv_val;
+
 	memcpy(params_vdev->isp3x_params, param, params_vdev->vdev_fmt.fmt.meta.buffersize);
+	tasklet_enable(&priv_val->lsc_tasklet);
+	rkisp_alloc_internal_buf(params_vdev, params_vdev->isp3x_params);
 }
 
 static void rkisp_clear_first_param_v3x(struct rkisp_isp_params_vdev *params_vdev)
@@ -4553,13 +4554,22 @@ rkisp_params_cfg_v3x(struct rkisp_isp_params_vdev *params_vdev,
 			list_del(&cur_buf->queue);
 			if (list_empty(&params_vdev->params))
 				break;
-			else if (new_params->module_en_update) {
+			else if (new_params->module_en_update ||
+				 (new_params->module_cfg_update & ISP3X_MODULE_FORCE)) {
 				/* update en immediately */
+				__isp_isr_meas_config(params_vdev, new_params, type, 0);
+				__isp_isr_other_config(params_vdev, new_params, type, 0);
 				__isp_isr_other_en(params_vdev, new_params, type, 0);
 				__isp_isr_meas_en(params_vdev, new_params, type, 0);
+				new_params->module_cfg_update = 0;
 				if (hw_dev->is_unite) {
-					__isp_isr_other_en(params_vdev, new_params + 1, type, 1);
-					__isp_isr_meas_en(params_vdev, new_params + 1, type, 1);
+					struct isp3x_isp_params_cfg *params = new_params + 1;
+
+					__isp_isr_meas_config(params_vdev, params, type, 1);
+					__isp_isr_other_config(params_vdev, params, type, 1);
+					__isp_isr_other_en(params_vdev, params, type, 1);
+					__isp_isr_meas_en(params_vdev, params, type, 1);
+					params->module_cfg_update = 0;
 				}
 			}
 			if (new_params->module_cfg_update &
@@ -4604,6 +4614,9 @@ rkisp_params_cfg_v3x(struct rkisp_isp_params_vdev *params_vdev,
 		priv_val->last_hdrdrc = priv_val->cur_hdrdrc;
 		priv_val->cur_hdrmge = new_params->others.hdrmge_cfg;
 		priv_val->cur_hdrdrc = new_params->others.drc_cfg;
+		new_params->module_cfg_update = 0;
+		if (hw_dev->is_unite)
+			(new_params++)->module_cfg_update = 0;
 		vb2_buffer_done(&cur_buf->vb.vb2_buf, VB2_BUF_STATE_DONE);
 		cur_buf = NULL;
 	}

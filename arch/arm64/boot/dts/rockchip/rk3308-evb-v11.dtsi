@@ -263,7 +263,7 @@
 		uart_rts_gpios = <&gpio4 RK_PA7 GPIO_ACTIVE_LOW>;
 		pinctrl-names = "default", "rts_gpio";
 		pinctrl-0 = <&uart4_rts>;
-		pinctrl-1 = <&uart4_rts_gpio>;
+		pinctrl-1 = <&uart4_rts_pin>;
 		BT,power_gpio    = <&gpio4 RK_PB3 GPIO_ACTIVE_HIGH>;
 		BT,wake_host_irq = <&gpio4 RK_PB4 GPIO_ACTIVE_HIGH>;
 		status = "okay";
@@ -273,7 +273,7 @@
 		compatible = "wlan-platdata";
 		rockchip,grf = <&grf>;
 		pinctrl-names = "default";
-		pinctrl-0 = <&wifi_wake_host>;
+		pinctrl-0 = <&wifi_wake_host>, <&rtc_32k>;
 		wifi_chip_type = "ap6255";
 		WIFI,host_wake_irq = <&gpio0 RK_PA0 GPIO_ACTIVE_LOW>;
 		status = "okay";
@@ -298,6 +298,15 @@
 		status = "okay";
 	};
 	opp-1296000000 {
+		status = "okay";
+	};
+};
+
+&rk3308bs_cpu0_opp_table {
+	opp-1008000000 {
+		status = "okay";
+	};
+	opp-1104000000 {
 		status = "okay";
 	};
 };
@@ -769,9 +778,6 @@
 };
 
 &pinctrl {
-	pinctrl-names = "default";
-	pinctrl-0 = <&rtc_32k>;
-
 	buttons {
 		pwr_key: pwr-key {
 			rockchip,pins = <0 RK_PA6 RK_FUNC_GPIO &pcfg_pull_up>;

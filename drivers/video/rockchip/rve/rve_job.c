@@ -451,8 +451,9 @@ static inline int rve_job_wait(struct rve_job *job)
 
 	scheduler = rve_job_get_scheduler(job);
 
-	left_time = wait_event_interruptible_timeout(scheduler->job_done_wq,
-		job->flags & RVE_JOB_DONE, RVE_SYNC_TIMEOUT_DELAY);
+	left_time = wait_event_timeout(scheduler->job_done_wq,
+		job->ctx->finished_job_count == job->ctx->cmd_num,
+		RVE_SYNC_TIMEOUT_DELAY * job->ctx->cmd_num);
 
 	switch (left_time) {
 	case 0:
@@ -505,7 +506,6 @@ int rve_job_config_by_user_ctx(struct rve_user_ctx_t *user_ctx)
 {
 	struct rve_pending_ctx_manager *ctx_manager;
 	struct rve_internal_ctx_t *ctx;
-	struct rve_cmd_reg_array_t *regcmd_data;
 	int ret = 0;
 	unsigned long flags;
 
@@ -527,16 +527,19 @@ int rve_job_config_by_user_ctx(struct rve_user_ctx_t *user_ctx)
 
 	spin_unlock_irqrestore(&ctx->lock, flags);
 
-	regcmd_data = kmalloc(sizeof(struct rve_cmd_reg_array_t), GFP_KERNEL);
-	if (regcmd_data == NULL) {
-		pr_err("regcmd_data alloc error!\n");
-		return -ENOMEM;
-	}
-
 	/* TODO: user cmd_num */
 	user_ctx->cmd_num = 1;
 
-	if (unlikely(copy_from_user(regcmd_data,
+	if (ctx->regcmd_data == NULL) {
+		ctx->regcmd_data = kmalloc_array(user_ctx->cmd_num,
+			sizeof(struct rve_cmd_reg_array_t), GFP_KERNEL);
+		if (ctx->regcmd_data == NULL) {
+			pr_err("regcmd_data alloc error!\n");
+			return -ENOMEM;
+		}
+	}
+
+	if (unlikely(copy_from_user(ctx->regcmd_data,
 					u64_to_user_ptr(user_ctx->regcmd_data),
 				    sizeof(struct rve_cmd_reg_array_t) * user_ctx->cmd_num))) {
 		pr_err("regcmd_data copy_from_user failed\n");
@@ -547,7 +550,6 @@ int rve_job_config_by_user_ctx(struct rve_user_ctx_t *user_ctx)
 
 	ctx->sync_mode = user_ctx->sync_mode;
 	ctx->cmd_num = user_ctx->cmd_num;
-	ctx->regcmd_data = regcmd_data;
 	ctx->priority = user_ctx->priority;
 	ctx->in_fence_fd = user_ctx->in_fence_fd;
 
@@ -556,7 +558,7 @@ int rve_job_config_by_user_ctx(struct rve_user_ctx_t *user_ctx)
 	return ret;
 
 err_free_regcmd_data:
-	kfree(regcmd_data);
+	kfree(ctx->regcmd_data);
 	return ret;
 }
 
@@ -588,6 +590,7 @@ int rve_job_commit_by_user_ctx(struct rve_user_ctx_t *user_ctx)
 	ctx->finished_job_count = 0;
 	ctx->running_job_count = 0;
 	ctx->is_running = true;
+	ctx->disable_auto_cancel = user_ctx->disable_auto_cancel;
 
 	ctx->sync_mode = user_ctx->sync_mode;
 	if (ctx->sync_mode == 0)
@@ -613,6 +616,9 @@ int rve_job_commit_by_user_ctx(struct rve_user_ctx_t *user_ctx)
 		pr_err("ctx->regcmd_data copy_to_user failed\n");
 		return -EFAULT;
 	}
+
+	if (!ctx->disable_auto_cancel && ctx->sync_mode == RVE_SYNC)
+		kref_put(&ctx->refcount, rve_internal_ctx_kref_release);
 
 	return ret;
 }
@@ -655,19 +661,20 @@ int rve_job_commit(struct rve_internal_ctx_t *ctx)
 #ifdef CONFIG_SYNC_FILE
 		job->flags |= RVE_ASYNC;
 
-		if (ctx->out_fence) {
-			job->out_fence = ctx->out_fence;
-		} else {
+		if (!ctx->out_fence) {
 			ret = rve_out_fence_alloc(job);
 			if (ret) {
 				rve_job_free(job);
 				return ret;
 			}
-
-			ctx->out_fence = job->out_fence;
 		}
 
+		ctx->out_fence = job->out_fence;
+
 		ctx->out_fence_fd = rve_out_fence_get_fd(job);
+
+		if (ctx->out_fence_fd < 0)
+			pr_err("out fence get fd failed");
 
 		if (DEBUGGER_EN(MSG))
 			pr_info("in_fence_fd = %d", ctx->in_fence_fd);
@@ -847,9 +854,6 @@ int rve_internal_ctx_signal(struct rve_job *job)
 
 		job->flags |= RVE_JOB_DONE;
 
-		if (job->flags & RVE_ASYNC)
-			rve_job_cleanup(job);
-
 		wake_up(&scheduler->job_done_wq);
 
 		spin_lock_irqsave(&ctx->lock, flags);
@@ -858,6 +862,12 @@ int rve_internal_ctx_signal(struct rve_job *job)
 		ctx->out_fence = NULL;
 
 		spin_unlock_irqrestore(&ctx->lock, flags);
+
+		if (job->flags & RVE_ASYNC) {
+			rve_job_cleanup(job);
+			if (!ctx->disable_auto_cancel)
+				kref_put(&ctx->refcount, rve_internal_ctx_kref_release);
+		}
 	}
 
 	return 0;
@@ -908,6 +918,8 @@ int rve_internal_ctx_alloc_to_get_idr_id(struct rve_session *session)
 	spin_unlock_irqrestore(&ctx_manager->lock, flags);
 
 	idr_preload_end();
+
+	ctx->regcmd_data = NULL;
 
 	kref_init(&ctx->refcount);
 
@@ -972,9 +984,8 @@ void rve_internal_ctx_kref_release(struct kref *ref)
 		}
 	}
 
-	kfree(ctx->regcmd_data);
-
 free_ctx:
+	kfree(ctx->regcmd_data);
 	rve_internal_ctx_free_remove_idr(ctx);
 }
 

@@ -190,6 +190,8 @@ struct drm_dp_link_caps {
 struct drm_dp_link_train_set {
 	unsigned int voltage_swing[4];
 	unsigned int pre_emphasis[4];
+	bool voltage_max_reached[4];
+	bool pre_max_reached[4];
 };
 
 struct drm_dp_link_train {
@@ -246,6 +248,16 @@ struct dw_dp_hotplug {
 	bool status;
 };
 
+struct dw_dp_compliance_data {
+	struct drm_dp_phy_test_params phytest;
+};
+
+struct dw_dp_compliance {
+	unsigned long test_type;
+	struct dw_dp_compliance_data test_data;
+	bool test_active;
+};
+
 struct dw_dp {
 	struct device *dev;
 	struct regmap *regmap;
@@ -263,6 +275,7 @@ struct dw_dp {
 	int id;
 	struct work_struct hpd_work;
 	struct gpio_desc *hpd_gpio;
+	bool force_hpd;
 	struct dw_dp_hotplug hotplug;
 	struct mutex irq_lock;
 	struct extcon_dev *extcon;
@@ -271,10 +284,12 @@ struct dw_dp {
 	struct drm_connector connector;
 	struct drm_encoder encoder;
 	struct drm_dp_aux aux;
+	struct drm_bridge *next_bridge;
 
 	struct dw_dp_link link;
 	struct dw_dp_video video;
 	struct dw_dp_audio audio;
+	struct dw_dp_compliance compliance;
 
 	DECLARE_BITMAP(sdp_reg_bank, SDP_REG_BANK_SIZE);
 
@@ -667,11 +682,16 @@ static int dw_dp_connector_get_modes(struct drm_connector *connector)
 	struct edid *edid;
 	int num_modes = 0;
 
-	edid = drm_bridge_get_edid(&dp->bridge, connector);
-	if (edid) {
-		drm_connector_update_edid_property(connector, edid);
-		num_modes = drm_add_edid_modes(connector, edid);
-		kfree(edid);
+	if (dp->next_bridge)
+		num_modes = drm_bridge_get_modes(dp->next_bridge, connector);
+
+	if (!num_modes) {
+		edid = drm_bridge_get_edid(&dp->bridge, connector);
+		if (edid) {
+			drm_connector_update_edid_property(connector, edid);
+			num_modes = drm_add_edid_modes(connector, edid);
+			kfree(edid);
+		}
 	}
 
 	if (!di->color_formats)
@@ -865,34 +885,41 @@ static int dw_dp_link_probe(struct dw_dp *dp)
 	return 0;
 }
 
-static int dw_dp_link_train_update_vs_emph(struct dw_dp *dp)
+static int dw_dp_phy_update_vs_emph(struct dw_dp *dp, unsigned int rate, unsigned int lanes,
+				    struct drm_dp_link_train_set *train_set)
 {
-	struct dw_dp_link *link = &dp->link;
-	struct drm_dp_link_train_set *request = &link->train.request;
 	union phy_configure_opts phy_cfg;
-	unsigned int lanes = link->lanes, *vs, *pe;
+	unsigned int *vs, *pe;
 	u8 buf[4];
 	int i, ret;
 
-	vs = request->voltage_swing;
-	pe = request->pre_emphasis;
+	vs = train_set->voltage_swing;
+	pe = train_set->pre_emphasis;
 
 	for (i = 0; i < lanes; i++) {
 		phy_cfg.dp.voltage[i] = vs[i];
 		phy_cfg.dp.pre[i] = pe[i];
 	}
+
 	phy_cfg.dp.lanes = lanes;
-	phy_cfg.dp.link_rate = link->rate / 100;
+	phy_cfg.dp.link_rate = rate / 100;
 	phy_cfg.dp.set_lanes = false;
 	phy_cfg.dp.set_rate = false;
 	phy_cfg.dp.set_voltages = true;
+
 	ret = phy_configure(dp->phy, &phy_cfg);
 	if (ret)
 		return ret;
 
-	for (i = 0; i < lanes; i++)
+	for (i = 0; i < lanes; i++) {
 		buf[i] = (vs[i] << DP_TRAIN_VOLTAGE_SWING_SHIFT) |
 			 (pe[i] << DP_TRAIN_PRE_EMPHASIS_SHIFT);
+		if (train_set->voltage_max_reached[i])
+			buf[i] |= DP_TRAIN_MAX_SWING_REACHED;
+		if (train_set->pre_max_reached[i])
+			buf[i] |= DP_TRAIN_MAX_PRE_EMPHASIS_REACHED;
+	}
+
 	ret = drm_dp_dpcd_write(&dp->aux, DP_TRAINING_LANE0_SET, buf, lanes);
 	if (ret < 0)
 		return ret;
@@ -900,20 +927,27 @@ static int dw_dp_link_train_update_vs_emph(struct dw_dp *dp)
 	return 0;
 }
 
-static int dw_dp_link_configure(struct dw_dp *dp)
+static int dw_dp_link_train_update_vs_emph(struct dw_dp *dp)
 {
 	struct dw_dp_link *link = &dp->link;
+	struct drm_dp_link_train_set *request = &link->train.request;
+
+	return dw_dp_phy_update_vs_emph(dp, dp->link.rate, dp->link.lanes, request);
+}
+
+static int dw_dp_phy_configure(struct dw_dp *dp, unsigned int rate,
+			       unsigned int lanes, bool ssc)
+{
 	union phy_configure_opts phy_cfg;
-	u8 buf[2];
 	int ret;
 
 	/* Move PHY to P3 */
 	regmap_update_bits(dp->regmap, DPTX_PHYIF_CTRL, PHY_POWERDOWN,
 			   FIELD_PREP(PHY_POWERDOWN, 0x3));
 
-	phy_cfg.dp.lanes = link->lanes;
-	phy_cfg.dp.link_rate = link->rate / 100;
-	phy_cfg.dp.ssc = link->caps.ssc;
+	phy_cfg.dp.lanes = lanes;
+	phy_cfg.dp.link_rate = rate / 100;
+	phy_cfg.dp.ssc = ssc;
 	phy_cfg.dp.set_lanes = true;
 	phy_cfg.dp.set_rate = true;
 	phy_cfg.dp.set_voltages = false;
@@ -922,14 +956,26 @@ static int dw_dp_link_configure(struct dw_dp *dp)
 		return ret;
 
 	regmap_update_bits(dp->regmap, DPTX_PHYIF_CTRL, PHY_LANES,
-			   FIELD_PREP(PHY_LANES, link->lanes / 2));
+			   FIELD_PREP(PHY_LANES, lanes / 2));
 
 	/* Move PHY to P0 */
 	regmap_update_bits(dp->regmap, DPTX_PHYIF_CTRL, PHY_POWERDOWN,
 			   FIELD_PREP(PHY_POWERDOWN, 0x0));
 
-	dw_dp_phy_xmit_enable(dp, link->lanes);
+	dw_dp_phy_xmit_enable(dp, lanes);
 
+	return 0;
+}
+
+static int dw_dp_link_configure(struct dw_dp *dp)
+{
+	struct dw_dp_link *link = &dp->link;
+	u8 buf[2];
+	int ret;
+
+	ret = dw_dp_phy_configure(dp, link->rate, link->lanes, link->caps.ssc);
+	if (ret)
+		return ret;
 	buf[0] = drm_dp_link_rate_to_bw_code(link->rate);
 	buf[1] = link->lanes;
 
@@ -969,6 +1015,12 @@ static void dw_dp_link_train_init(struct drm_dp_link_train *train)
 
 		request->pre_emphasis[i] = 0;
 		adjust->pre_emphasis[i] = 0;
+
+		request->voltage_max_reached[i] = false;
+		adjust->voltage_max_reached[i] = false;
+
+		request->pre_max_reached[i] = false;
+		adjust->pre_max_reached[i] = false;
 	}
 
 	train->clock_recovered = false;
@@ -1023,20 +1075,49 @@ static int dw_dp_link_train_set_pattern(struct dw_dp *dp, u32 pattern)
 	return 0;
 }
 
+static u8 dw_dp_voltage_max(u8 preemph)
+{
+	switch (preemph & DP_TRAIN_PRE_EMPHASIS_MASK) {
+	case DP_TRAIN_PRE_EMPH_LEVEL_0:
+		return DP_TRAIN_VOLTAGE_SWING_LEVEL_3;
+	case DP_TRAIN_PRE_EMPH_LEVEL_1:
+		return DP_TRAIN_VOLTAGE_SWING_LEVEL_2;
+	case DP_TRAIN_PRE_EMPH_LEVEL_2:
+		return DP_TRAIN_VOLTAGE_SWING_LEVEL_1;
+	case DP_TRAIN_PRE_EMPH_LEVEL_3:
+	default:
+		return DP_TRAIN_VOLTAGE_SWING_LEVEL_0;
+	}
+}
+
 static void dw_dp_link_get_adjustments(struct dw_dp_link *link,
 				       u8 status[DP_LINK_STATUS_SIZE])
 {
 	struct drm_dp_link_train_set *adjust = &link->train.adjust;
+	u8 v = 0;
+	u8 p = 0;
 	unsigned int i;
 
 	for (i = 0; i < link->lanes; i++) {
-		adjust->voltage_swing[i] =
-			drm_dp_get_adjust_request_voltage(status, i) >>
-				DP_TRAIN_VOLTAGE_SWING_SHIFT;
-
-		adjust->pre_emphasis[i] =
-			drm_dp_get_adjust_request_pre_emphasis(status, i) >>
-				DP_TRAIN_PRE_EMPHASIS_SHIFT;
+		v = drm_dp_get_adjust_request_voltage(status, i);
+		p = drm_dp_get_adjust_request_pre_emphasis(status, i);
+		if (p >=  DP_TRAIN_PRE_EMPH_LEVEL_3) {
+			adjust->pre_emphasis[i] = DP_TRAIN_PRE_EMPH_LEVEL_3 >>
+						  DP_TRAIN_PRE_EMPHASIS_SHIFT;
+			adjust->pre_max_reached[i] = true;
+		} else {
+			adjust->pre_emphasis[i] = p >> DP_TRAIN_PRE_EMPHASIS_SHIFT;
+			adjust->pre_max_reached[i] = false;
+		}
+		v = min(v, dw_dp_voltage_max(p));
+		if (v >= DP_TRAIN_VOLTAGE_SWING_LEVEL_3) {
+			adjust->voltage_swing[i] = DP_TRAIN_VOLTAGE_SWING_LEVEL_3 >>
+						   DP_TRAIN_VOLTAGE_SWING_SHIFT;
+			adjust->voltage_max_reached[i] = true;
+		} else {
+			adjust->voltage_swing[i] = v >> DP_TRAIN_VOLTAGE_SWING_SHIFT;
+			adjust->voltage_max_reached[i] = false;
+		}
 	}
 }
 
@@ -1046,13 +1127,19 @@ static void dw_dp_link_train_adjust(struct drm_dp_link_train *train)
 	struct drm_dp_link_train_set *adjust = &train->adjust;
 	unsigned int i;
 
-	for (i = 0; i < 4; i++)
+	for (i = 0; i < 4; i++) {
 		if (request->voltage_swing[i] != adjust->voltage_swing[i])
 			request->voltage_swing[i] = adjust->voltage_swing[i];
+		if (request->voltage_max_reached[i] != adjust->voltage_max_reached[i])
+			request->voltage_max_reached[i] = adjust->voltage_max_reached[i];
+	}
 
-	for (i = 0; i < 4; i++)
+	for (i = 0; i < 4; i++) {
 		if (request->pre_emphasis[i] != adjust->pre_emphasis[i])
 			request->pre_emphasis[i] = adjust->pre_emphasis[i];
+		if (request->pre_max_reached[i] != adjust->pre_max_reached[i])
+			request->pre_max_reached[i] = adjust->pre_max_reached[i];
+	}
 }
 
 static int dw_dp_link_clock_recovery(struct dw_dp *dp)
@@ -1703,7 +1790,7 @@ static void dw_dp_hpd_init(struct dw_dp *dp)
 {
 	dp->hotplug.status = dw_dp_detect(dp);
 
-	if (dp->hpd_gpio) {
+	if (dp->hpd_gpio || dp->force_hpd) {
 		regmap_update_bits(dp->regmap, DPTX_CCTL, FORCE_HPD,
 				   FIELD_PREP(FORCE_HPD, 1));
 		return;
@@ -1909,8 +1996,14 @@ static int dw_dp_bridge_mode_valid(struct drm_bridge *bridge,
 	struct drm_display_mode m;
 	u32 min_bpp;
 
+	drm_mode_copy(&m, mode);
+
+	if (dp->split_mode)
+		drm_mode_convert_to_origin_mode(&m);
+
 	if (info->color_formats & DRM_COLOR_FORMAT_YCRCB420 &&
-	    link->vsc_sdp_extension_for_colorimetry_supported)
+	    link->vsc_sdp_extension_for_colorimetry_supported &&
+	    (drm_mode_is_420_only(info, &m) || drm_mode_is_420_also(info, &m)))
 		min_bpp = 12;
 	else if (info->color_formats & DRM_COLOR_FORMAT_YCRCB422)
 		min_bpp = 16;
@@ -1919,10 +2012,9 @@ static int dw_dp_bridge_mode_valid(struct drm_bridge *bridge,
 	else
 		min_bpp = 24;
 
-	drm_mode_copy(&m, mode);
-
-	if (dp->split_mode)
-		drm_mode_convert_to_origin_mode(&m);
+	if (!link->vsc_sdp_extension_for_colorimetry_supported &&
+	    drm_mode_is_420_only(info, &m))
+		return MODE_NO_420;
 
 	if (m.hsync_end - m.hsync_start < 32)
 		return MODE_HSYNC_NARROW;
@@ -1984,20 +2076,12 @@ static void dw_dp_loader_protect(struct drm_encoder *encoder, bool on)
 	}
 }
 
-static int dw_dp_bridge_attach(struct drm_bridge *bridge,
-			       enum drm_bridge_attach_flags flags)
+static int dw_dp_connector_init(struct dw_dp *dp)
 {
-	struct dw_dp *dp = bridge_to_dp(bridge);
 	struct drm_connector *connector = &dp->connector;
+	struct drm_bridge *bridge = &dp->bridge;
+	struct drm_property *prop;
 	int ret;
-
-	if (flags & DRM_BRIDGE_ATTACH_NO_CONNECTOR)
-		return 0;
-
-	if (!bridge->encoder) {
-		DRM_DEV_ERROR(dp->dev, "Parent encoder object not found");
-		return -ENODEV;
-	}
 
 	connector->polled = DRM_CONNECTOR_POLL_HPD;
 	connector->ycbcr_420_allowed = true;
@@ -2015,12 +2099,87 @@ static int dw_dp_bridge_attach(struct drm_bridge *bridge,
 
 	drm_connector_attach_encoder(connector, bridge->encoder);
 
+	prop = drm_property_create_enum(connector->dev, 0, RK_IF_PROP_COLOR_DEPTH,
+					color_depth_enum_list,
+					ARRAY_SIZE(color_depth_enum_list));
+	if (!prop) {
+		DRM_DEV_ERROR(dp->dev, "create color depth prop for dp%d failed\n", dp->id);
+		return -ENOMEM;
+	}
+	dp->color_depth_property = prop;
+	drm_object_attach_property(&connector->base, prop, 0);
+
+	prop = drm_property_create_enum(connector->dev, 0, RK_IF_PROP_COLOR_FORMAT,
+					color_format_enum_list,
+					ARRAY_SIZE(color_format_enum_list));
+	if (!prop) {
+		DRM_DEV_ERROR(dp->dev, "create color format prop for dp%d failed\n", dp->id);
+		return -ENOMEM;
+	}
+	dp->color_format_property = prop;
+	drm_object_attach_property(&connector->base, prop, 0);
+
+	prop = drm_property_create_range(connector->dev, 0, RK_IF_PROP_COLOR_DEPTH_CAPS,
+					 0, 1 << RK_IF_DEPTH_MAX);
+	if (!prop) {
+		DRM_DEV_ERROR(dp->dev, "create color depth caps prop for dp%d failed\n", dp->id);
+		return -ENOMEM;
+	}
+	dp->color_depth_capacity = prop;
+	drm_object_attach_property(&connector->base, prop, 0);
+
+	prop = drm_property_create_range(connector->dev, 0, RK_IF_PROP_COLOR_FORMAT_CAPS,
+					 0, 1 << RK_IF_FORMAT_MAX);
+	if (!prop) {
+		DRM_DEV_ERROR(dp->dev, "create color format caps prop for dp%d failed\n", dp->id);
+		return -ENOMEM;
+	}
+	dp->color_format_capacity = prop;
+	drm_object_attach_property(&connector->base, prop, 0);
+
 	dp->sub_dev.connector = connector;
 	dp->sub_dev.of_node = dp->dev->of_node;
 	dp->sub_dev.loader_protect = dw_dp_loader_protect;
 	rockchip_drm_register_sub_dev(&dp->sub_dev);
 
 	return 0;
+}
+
+static int dw_dp_bridge_attach(struct drm_bridge *bridge,
+			       enum drm_bridge_attach_flags flags)
+{
+	struct dw_dp *dp = bridge_to_dp(bridge);
+	int ret;
+
+	if (!bridge->encoder) {
+		DRM_DEV_ERROR(dp->dev, "Parent encoder object not found");
+		return -ENODEV;
+	}
+
+	ret = drm_of_find_panel_or_bridge(bridge->of_node, 1, 0, NULL,
+					  &dp->next_bridge);
+	if (ret < 0 && ret != -ENODEV)
+		return ret;
+
+	if (dp->next_bridge) {
+		struct drm_bridge *next_bridge = dp->next_bridge;
+
+		ret = drm_bridge_attach(bridge->encoder, next_bridge, bridge,
+					next_bridge->ops & DRM_BRIDGE_OP_MODES ?
+					DRM_BRIDGE_ATTACH_NO_CONNECTOR : 0);
+		if (ret) {
+			DRM_DEV_ERROR(dp->dev, "failed to attach next bridge: %d\n", ret);
+			return ret;
+		}
+
+		if (!(next_bridge->ops & DRM_BRIDGE_OP_MODES))
+			return 0;
+	}
+
+	if (flags & DRM_BRIDGE_ATTACH_NO_CONNECTOR)
+		return 0;
+
+	return dw_dp_connector_init(dp);
 }
 
 static void dw_dp_bridge_detach(struct drm_bridge *bridge)
@@ -2147,36 +2306,49 @@ static void dw_dp_bridge_atomic_disable(struct drm_bridge *bridge,
 	dw_dp_reset(dp);
 }
 
-static enum drm_connector_status dw_dp_detect_dpcd(struct dw_dp *dp)
+static bool dw_dp_detect_dpcd(struct dw_dp *dp)
 {
 	int ret;
 
 	ret = phy_power_on(dp->phy);
 	if (ret)
-		return ret;
+		return false;
 
 	ret = dw_dp_link_probe(dp);
 	if (ret) {
 		phy_power_off(dp->phy);
 		dev_err(dp->dev, "failed to probe DP link: %d\n", ret);
-		return connector_status_disconnected;
+		return false;
 	}
 
 	phy_power_off(dp->phy);
 
-	return connector_status_connected;
+	return true;
 }
 
 static enum drm_connector_status dw_dp_bridge_detect(struct drm_bridge *bridge)
 {
 	struct dw_dp *dp = bridge_to_dp(bridge);
-	enum drm_connector_status status;
+	enum drm_connector_status status = connector_status_connected;
 
-	if (dw_dp_detect(dp))
-		status = dw_dp_detect_dpcd(dp);
-	else
+	if (!dw_dp_detect(dp)) {
 		status = connector_status_disconnected;
+		goto out;
+	}
 
+	if (!dw_dp_detect_dpcd(dp)) {
+		status = connector_status_disconnected;
+		goto out;
+	}
+
+	if (dp->next_bridge) {
+		struct drm_bridge *next_bridge = dp->next_bridge;
+
+		if (next_bridge->ops & DRM_BRIDGE_OP_DETECT)
+			status = drm_bridge_detect(next_bridge);
+	}
+
+out:
 	if (status == connector_status_connected) {
 		extcon_set_state_sync(dp->extcon, EXTCON_DISP_DP, true);
 		dw_dp_audio_handle_plugged_change(&dp->audio, true);
@@ -2330,6 +2502,198 @@ static int dw_dp_link_retrain(struct dw_dp *dp)
 	return ret;
 }
 
+static u8 dw_dp_autotest_phy_pattern(struct dw_dp *dp)
+{
+	struct drm_dp_phy_test_params *data = &dp->compliance.test_data.phytest;
+
+	if (drm_dp_get_phy_test_pattern(&dp->aux, data)) {
+		dev_err(dp->dev, "DP Phy Test pattern AUX read failure\n");
+		return DP_TEST_NAK;
+	}
+
+	/* Set test active flag here so userspace doesn't interrupt things */
+	dp->compliance.test_active = true;
+
+	return DP_TEST_ACK;
+}
+
+static void dw_dp_handle_test_request(struct dw_dp *dp)
+{
+	u8 response = DP_TEST_NAK;
+	u8 request = 0;
+	int status;
+
+	status = drm_dp_dpcd_readb(&dp->aux, DP_TEST_REQUEST, &request);
+	if (status <= 0) {
+		dev_err(dp->dev, "Could not read test request from sink\n");
+		goto update_status;
+	}
+
+	switch (request) {
+	case DP_TEST_LINK_PHY_TEST_PATTERN:
+		dev_dbg(dp->dev, "PHY_PATTERN test requested\n");
+		response = dw_dp_autotest_phy_pattern(dp);
+		break;
+	default:
+		dev_warn(dp->dev, "Invalid test request '%02x'\n", request);
+		break;
+	}
+
+	if (response & DP_TEST_ACK)
+		dp->compliance.test_type = request;
+
+update_status:
+	status = drm_dp_dpcd_writeb(&dp->aux, DP_TEST_RESPONSE, response);
+	if (status <= 0)
+		dev_warn(dp->dev, "Could not write test response to sink\n");
+}
+
+static void dw_dp_check_service_irq(struct dw_dp *dp)
+{
+	struct dw_dp_link *link = &dp->link;
+	u8 val;
+
+	if (link->dpcd[DP_DPCD_REV] < 0x11)
+		return;
+
+	if (drm_dp_dpcd_readb(&dp->aux, DP_DEVICE_SERVICE_IRQ_VECTOR, &val) != 1 || !val)
+		return;
+
+	drm_dp_dpcd_writeb(&dp->aux, DP_DEVICE_SERVICE_IRQ_VECTOR, val);
+
+	if (val & DP_AUTOMATED_TEST_REQUEST)
+		dw_dp_handle_test_request(dp);
+
+	if (val & DP_SINK_SPECIFIC_IRQ)
+		dev_info(dp->dev, "Sink specific irq unhandled\n");
+}
+
+static void dw_dp_phy_pattern_update(struct dw_dp *dp)
+{
+	struct drm_dp_phy_test_params *data = &dp->compliance.test_data.phytest;
+
+	switch (data->phy_pattern) {
+	case DP_PHY_TEST_PATTERN_NONE:
+		dev_dbg(dp->dev, "Disable Phy Test Pattern\n");
+		regmap_update_bits(dp->regmap, DPTX_CCTL, SCRAMBLE_DIS,
+				   FIELD_PREP(SCRAMBLE_DIS, 1));
+		dw_dp_phy_set_pattern(dp, DPTX_PHY_PATTERN_NONE);
+		break;
+	case DP_PHY_TEST_PATTERN_D10_2:
+		dev_dbg(dp->dev, "Set D10.2 Phy Test Pattern\n");
+		regmap_update_bits(dp->regmap, DPTX_CCTL, SCRAMBLE_DIS,
+				   FIELD_PREP(SCRAMBLE_DIS, 1));
+		dw_dp_phy_set_pattern(dp, DPTX_PHY_PATTERN_TPS_1);
+		break;
+	case DP_PHY_TEST_PATTERN_ERROR_COUNT:
+		regmap_update_bits(dp->regmap, DPTX_CCTL, SCRAMBLE_DIS,
+				   FIELD_PREP(SCRAMBLE_DIS, 0));
+		dev_dbg(dp->dev, "Set Error Count Phy Test Pattern\n");
+		dw_dp_phy_set_pattern(dp, DPTX_PHY_PATTERN_SERM);
+		break;
+	case DP_PHY_TEST_PATTERN_PRBS7:
+		dev_dbg(dp->dev, "Set PRBS7 Phy Test Pattern\n");
+		regmap_update_bits(dp->regmap, DPTX_CCTL, SCRAMBLE_DIS,
+				   FIELD_PREP(SCRAMBLE_DIS, 1));
+		dw_dp_phy_set_pattern(dp, DPTX_PHY_PATTERN_PBRS7);
+		break;
+	case DP_PHY_TEST_PATTERN_80BIT_CUSTOM:
+		dev_dbg(dp->dev, "Set 80Bit Custom Phy Test Pattern\n");
+		regmap_update_bits(dp->regmap, DPTX_CCTL, SCRAMBLE_DIS,
+				   FIELD_PREP(SCRAMBLE_DIS, 1));
+		regmap_write(dp->regmap, DPTX_CUSTOMPAT0, 0x3e0f83e0);
+		regmap_write(dp->regmap, DPTX_CUSTOMPAT1, 0x3e0f83e0);
+		regmap_write(dp->regmap, DPTX_CUSTOMPAT2, 0x000f83e0);
+		dw_dp_phy_set_pattern(dp, DPTX_PHY_PATTERN_CUSTOM_80BIT);
+		break;
+	case DP_PHY_TEST_PATTERN_CP2520:
+		dev_dbg(dp->dev, "Set HBR2 compliance Phy Test Pattern\n");
+		regmap_update_bits(dp->regmap, DPTX_CCTL, SCRAMBLE_DIS,
+				   FIELD_PREP(SCRAMBLE_DIS, 0));
+		dw_dp_phy_set_pattern(dp, DPTX_PHY_PATTERN_CP2520_1);
+		break;
+	case DP_PHY_TEST_PATTERN_SEL_MASK:
+		dev_dbg(dp->dev, "Set TPS4  Phy Test Pattern\n");
+		regmap_update_bits(dp->regmap, DPTX_CCTL, SCRAMBLE_DIS,
+				   FIELD_PREP(SCRAMBLE_DIS, 0));
+		dw_dp_phy_set_pattern(dp, DPTX_PHY_PATTERN_TPS_4);
+		break;
+	default:
+		WARN(1, "Invalid Phy Test Pattern\n");
+	}
+}
+
+static void dw_dp_process_phy_request(struct dw_dp *dp)
+{
+	struct drm_dp_phy_test_params *data = &dp->compliance.test_data.phytest;
+	u8 link_status[DP_LINK_STATUS_SIZE], spread;
+	int ret;
+
+	ret = drm_dp_dpcd_read(&dp->aux, DP_LANE0_1_STATUS, link_status, DP_LINK_STATUS_SIZE);
+	if (ret < 0) {
+		dev_err(dp->dev, "failed to get link status\n");
+		return;
+	}
+
+	ret = drm_dp_dpcd_readb(&dp->aux, DP_MAX_DOWNSPREAD, &spread);
+	if (ret < 0) {
+		dev_err(dp->dev, "failed to get spread\n");
+		return;
+	}
+
+	dw_dp_phy_configure(dp, data->link_rate, data->num_lanes,
+			    !!(spread & DP_MAX_DOWNSPREAD_0_5));
+	dw_dp_link_get_adjustments(&dp->link, link_status);
+	dw_dp_phy_update_vs_emph(dp, data->link_rate, data->num_lanes, &dp->link.train.adjust);
+	dw_dp_phy_pattern_update(dp);
+	drm_dp_set_phy_test_pattern(&dp->aux, data, link_status[DP_DPCD_REV]);
+
+	dev_dbg(dp->dev, "phy test rate:%d, lane count:%d, ssc:%d, vs:%d, pe: %d\n",
+		 data->link_rate, data->num_lanes, spread, dp->link.train.adjust.voltage_swing[0],
+		 dp->link.train.adjust.pre_emphasis[0]);
+}
+
+static void dw_dp_phy_test(struct dw_dp *dp)
+{
+	struct drm_device *dev = dp->bridge.dev;
+	struct drm_modeset_acquire_ctx ctx;
+	int ret;
+
+	drm_modeset_acquire_init(&ctx, 0);
+
+	for (;;) {
+		ret = drm_modeset_lock(&dev->mode_config.connection_mutex, &ctx);
+		if (ret != -EDEADLK)
+			break;
+
+		drm_modeset_backoff(&ctx);
+	}
+
+	dw_dp_process_phy_request(dp);
+	drm_modeset_drop_locks(&ctx);
+	drm_modeset_acquire_fini(&ctx);
+}
+
+static bool dw_dp_hpd_short_pulse(struct dw_dp *dp)
+{
+	memset(&dp->compliance, 0, sizeof(dp->compliance));
+
+	dw_dp_check_service_irq(dp);
+
+	if (dw_dp_needs_link_retrain(dp))
+		return false;
+
+	switch (dp->compliance.test_type) {
+	case DP_TEST_LINK_PHY_TEST_PATTERN:
+		return false;
+	default:
+		dev_warn(dp->dev, "test_type%lu is not support\n", dp->compliance.test_type);
+		break;
+	}
+
+	return true;
+}
+
 static void dw_dp_hpd_work(struct work_struct *work)
 {
 	struct dw_dp *dp = container_of(work, struct dw_dp, hpd_work);
@@ -2343,6 +2707,16 @@ static void dw_dp_hpd_work(struct work_struct *work)
 	dev_dbg(dp->dev, "got hpd irq - %s\n", long_hpd ? "long" : "short");
 
 	if (!long_hpd) {
+		if (dw_dp_hpd_short_pulse(dp))
+			return;
+
+		if (dp->compliance.test_active &&
+		    dp->compliance.test_type == DP_TEST_LINK_PHY_TEST_PATTERN) {
+			dw_dp_phy_test(dp);
+			/* just do the PHY test and nothing else */
+			return;
+		}
+
 		ret = dw_dp_link_retrain(dp);
 		if (ret)
 			dev_warn(dp->dev, "Retrain link failed\n");
@@ -2613,51 +2987,6 @@ static void dw_dp_aux_unregister(void *data)
 	drm_dp_aux_unregister(&dp->aux);
 }
 
-static int dw_dp_attach_properties(struct drm_connector *connector, struct dw_dp *dp)
-{
-	struct drm_property *prop;
-
-	prop = drm_property_create_enum(connector->dev, 0, RK_IF_PROP_COLOR_DEPTH,
-					color_depth_enum_list,
-					ARRAY_SIZE(color_depth_enum_list));
-	if (!prop) {
-		dev_err(dp->dev, "create color depth prop for dp%d failed\n", dp->id);
-		return -ENOMEM;
-	}
-	dp->color_depth_property = prop;
-	drm_object_attach_property(&connector->base, prop, 0);
-
-	prop = drm_property_create_enum(connector->dev, 0, RK_IF_PROP_COLOR_FORMAT,
-					color_format_enum_list,
-					ARRAY_SIZE(color_format_enum_list));
-	if (!prop) {
-		dev_err(dp->dev, "create color format prop for dp%d failed\n", dp->id);
-		return -ENOMEM;
-	}
-	dp->color_format_property = prop;
-	drm_object_attach_property(&connector->base, prop, 0);
-
-	prop = drm_property_create_range(connector->dev, 0, RK_IF_PROP_COLOR_DEPTH_CAPS,
-					 0, 1 << RK_IF_DEPTH_MAX);
-	if (!prop) {
-		dev_err(dp->dev, "create color depth caps prop for dp%d failed\n", dp->id);
-		return -ENOMEM;
-	}
-	dp->color_depth_capacity = prop;
-	drm_object_attach_property(&connector->base, prop, 0);
-
-	prop = drm_property_create_range(connector->dev, 0, RK_IF_PROP_COLOR_FORMAT_CAPS,
-					 0, 1 << RK_IF_FORMAT_MAX);
-	if (!prop) {
-		dev_err(dp->dev, "create color format caps prop for dp%d failed\n", dp->id);
-		return -ENOMEM;
-	}
-	dp->color_format_capacity = prop;
-	drm_object_attach_property(&connector->base, prop, 0);
-
-	return 0;
-}
-
 static int dw_dp_bind(struct device *dev, struct device *master, void *data)
 {
 	struct dw_dp *dp = dev_get_drvdata(dev);
@@ -2678,16 +3007,15 @@ static int dw_dp_bind(struct device *dev, struct device *master, void *data)
 			dev_err(dev, "failed to attach bridge: %d\n", ret);
 			return ret;
 		}
-
-		ret = dw_dp_attach_properties(&dp->connector, dp);
-		if (ret)
-			return ret;
 	}
 
 	if (dp->right) {
 		struct dw_dp *secondary = dp->right;
+		struct drm_bridge *last_bridge =
+			list_last_entry(&encoder->bridge_chain,
+					struct drm_bridge, chain_node);
 
-		ret = drm_bridge_attach(encoder, &secondary->bridge, bridge,
+		ret = drm_bridge_attach(encoder, &secondary->bridge, last_bridge,
 					DRM_BRIDGE_ATTACH_NO_CONNECTOR);
 		if (ret)
 			return ret;
@@ -2885,6 +3213,8 @@ static int dw_dp_probe(struct platform_device *pdev)
 	dp->bridge.type = DRM_MODE_CONNECTOR_DisplayPort;
 
 	platform_set_drvdata(pdev, dp);
+
+	dp->force_hpd = device_property_read_bool(dev, "force-hpd");
 
 	if (device_property_read_bool(dev, "split-mode")) {
 		struct dw_dp *secondary = dw_dp_find_by_id(dev->driver, !dp->id);

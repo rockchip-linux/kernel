@@ -422,8 +422,8 @@ static void dwc3_drd_update(struct dwc3 *dwc)
 			id = 0;
 
 #if defined(CONFIG_ARCH_ROCKCHIP) && defined(CONFIG_NO_GKI)
-		dwc->desired_role_sw_mode = (id ? USB_DR_MODE_HOST :
-					     USB_DR_MODE_PERIPHERAL);
+		if (extcon_get_state(dwc->edev, EXTCON_USB))
+			dwc->desired_role_sw_mode = USB_DR_MODE_PERIPHERAL;
 #endif
 
 		dwc3_set_mode(dwc, id ?
@@ -508,6 +508,7 @@ static int dwc3_usb_role_switch_set(struct usb_role_switch *sw,
 
 #if defined(CONFIG_ARCH_ROCKCHIP) && defined(CONFIG_NO_GKI)
 	dwc->desired_role_sw_mode = role;
+	phy_set_mode_ext(dwc->usb2_generic_phy, PHY_MODE_USB_OTG, role);
 #endif
 
 	switch (role) {

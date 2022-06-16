@@ -1189,75 +1189,43 @@ static int rv1106_codec_dac_disable(struct rv1106_codec_priv *rv1106)
 
 static int rv1106_codec_power_on(struct rv1106_codec_priv *rv1106)
 {
-	unsigned int v;
-
-	/* 0. Supply the power of digital part and reset the Audio Codec */
-	/* Do nothing */
-
 	/* vendor step 1 */
 	regmap_update_bits(rv1106->regmap, ACODEC_DAC_ANA_CTL0,
 			   ACODEC_DAC_L_REF_POP_SOUND_MSK,
-			   ACODEC_DAC_L_REF_POP_SOUND_DIS);
-
-	/* vendor step 2 */
+			   ACODEC_DAC_L_REF_POP_SOUND_WORK);
+	/* vendor step 2. Charging */
 	regmap_update_bits(rv1106->regmap, ACODEC_CURRENT_CHARGE_CTL,
 			   ACODEC_ADC_CURRENT_CHARGE_MSK,
-			   ACODEC_ADC_SEL_I(0x1));
-
-	/* 5. Supply the power of the analog part(AVDD,AVDDRV) */
-
-	/* vendor step 6 */
+			   ACODEC_ADC_SEL_I(0xff));
+	/* vendor step 3. Supply the power of the analog part. */
+	/* vendor step 4 */
 	regmap_update_bits(rv1106->regmap, ACODEC_ADC_ANA_CTL0,
 			   ACODEC_ADC_REF_VOL_MSK, ACODEC_ADC_REF_VOL_EN);
-
-	/* vendor step 8 */
-	for (v = 0x1; v <= 0xff; v++) {
-		regmap_update_bits(rv1106->regmap, ACODEC_CURRENT_CHARGE_CTL,
-				   ACODEC_ADC_CURRENT_CHARGE_MSK,
-				   v);
-		/* ref is 20ms */
-		udelay(100);
-	}
-
-	/* vendor step 11 */
+	/* vendor step 5. Wait charging completed */
+	msleep(20);
+	/* vendor step 6 */
 	regmap_update_bits(rv1106->regmap, ACODEC_CURRENT_CHARGE_CTL,
-			   ACODEC_ADC_CURRENT_CHARGE_MSK, 0x7c);
-
+			   ACODEC_ADC_CURRENT_CHARGE_MSK,
+			   ACODEC_ADC_SEL_I(0x02));
 	return 0;
 }
 
 static int rv1106_codec_power_off(struct rv1106_codec_priv *rv1106)
 {
-	unsigned int v;
-
 	/*
-	 * 0. Keep the power on and disable the DAC and ADC path according to
-	 *    the section power on configuration standard usage flow.
+	 * 0. Keep the power on and disable the DAC and ADC path.
 	 */
 
-	/* vendor step 2 */
+	/* vendor step 1 */
 	regmap_update_bits(rv1106->regmap, ACODEC_CURRENT_CHARGE_CTL,
 			   ACODEC_ADC_CURRENT_CHARGE_MSK,
-			   ACODEC_ADC_SEL_I(0x1));
-
+			   ACODEC_ADC_SEL_I(0xff));
 	/* vendor step 3 */
 	regmap_update_bits(rv1106->regmap, ACODEC_ADC_ANA_CTL0,
 			   ACODEC_ADC_REF_VOL_MSK,
 			   ACODEC_ADC_REF_VOL_DIS);
-
-	for (v = 0x1; v <= 0xff; v++) {
-		regmap_update_bits(rv1106->regmap, ACODEC_CURRENT_CHARGE_CTL,
-				   ACODEC_ADC_CURRENT_CHARGE_MSK,
-				   v);
-		/* ref is 20ms */
-		udelay(100);
-	}
-
-	/* 7. Wait until the voltage of VCM keeps stable at the AGND */
-	/* 8. Power off the analog power supply */
-	/* 9. Power off the digital power supply */
-
-	/* Do something via hardware */
+	/* vendor step 3. Wait until the voltage of VCM keep stable at AGND. */
+	msleep(20);
 
 	return 0;
 }
@@ -1668,7 +1636,7 @@ static struct snd_soc_dai_driver rv1106_dai[] = {
 		.capture = {
 			.stream_name = "HiFi Capture",
 			.channels_min = 1,
-			.channels_max = 2,
+			.channels_max = 4,
 			.rates = SNDRV_PCM_RATE_8000_192000,
 			.formats = (SNDRV_PCM_FMTBIT_S16_LE |
 				    SNDRV_PCM_FMTBIT_S20_3LE |
@@ -1752,8 +1720,8 @@ static int rv1106_codec_check_micbias(struct rv1106_codec_priv *rv1106,
 	rv1106->micbias_used =
 		of_property_read_bool(np, "acodec,micbias");
 
-	/* Using 0.975*AVDD by default */
-	rv1106->micbias_volt = ACODEC_ADC_MICBIAS_VOLT_0_975;
+	/* Using 0.9*AVDD by default */
+	rv1106->micbias_volt = ACODEC_ADC_MICBIAS_VOLT_0_9;
 
 	return 0;
 }
