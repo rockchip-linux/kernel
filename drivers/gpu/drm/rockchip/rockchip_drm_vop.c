@@ -721,7 +721,13 @@ static void scl_vop_cal_scl_fac(struct vop *vop, struct vop_win *win,
 	if (!win->phy->scl)
 		return;
 
-	if ((adjusted_mode->flags & DRM_MODE_FLAG_INTERLACE) && vop->version == VOP_VERSION(2, 2)) {
+	/*
+	 * It is necessary for rk3036 win0/win1 and rk312x win0 to enable scaling when displaying
+	 * interlace mode. The scale factor should be an integer 2, so the calculation formula
+	 * need to be rewritten.
+	 */
+	if ((vop->version == VOP_VERSION(2, 2) || vop->version == VOP_VERSION(2, 4)) &&
+	    (adjusted_mode->flags & DRM_MODE_FLAG_INTERLACE)) {
 		VOP_SCL_SET(vop, win, scale_yrgb_x, ((src_w << 12) / dst_w));
 		VOP_SCL_SET(vop, win, scale_yrgb_y, ((src_h << 12) / dst_h));
 		if (is_yuv) {
@@ -1809,7 +1815,8 @@ static void vop_plane_atomic_update(struct drm_plane *plane,
 	}
 
 	dest_height = drm_rect_height(dest);
-	if ((adjusted_mode->flags & DRM_MODE_FLAG_INTERLACE) && vop->version == VOP_VERSION(2, 2))
+	if ((vop->version == VOP_VERSION(2, 2) || vop->version == VOP_VERSION(2, 4)) &&
+	    (adjusted_mode->flags & DRM_MODE_FLAG_INTERLACE))
 		dest_height = drm_rect_height(dest) / 2;
 	dest_width = drm_rect_width(dest);
 
@@ -1823,7 +1830,8 @@ static void vop_plane_atomic_update(struct drm_plane *plane,
 
 	dsp_stx = dest->x1 + mode->crtc_htotal - mode->crtc_hsync_start;
 	dsp_sty = dest->y1 + mode->crtc_vtotal - mode->crtc_vsync_start;
-	if ((adjusted_mode->flags & DRM_MODE_FLAG_INTERLACE) && vop->version == VOP_VERSION(2, 2))
+	if ((vop->version == VOP_VERSION(2, 2) || vop->version == VOP_VERSION(2, 4)) &&
+	    (adjusted_mode->flags & DRM_MODE_FLAG_INTERLACE))
 		dsp_sty = dest->y1 / 2 + mode->crtc_vtotal - mode->crtc_vsync_start;
 	dsp_st = dsp_sty << 16 | (dsp_stx & 0xffff);
 	vop = to_vop(state->crtc);
@@ -1912,6 +1920,9 @@ static void vop_plane_atomic_update(struct drm_plane *plane,
 		VOP_WIN_SET(vop, win, alpha_en, 0);
 	}
 	VOP_WIN_SET(vop, win, global_alpha_val, vop_plane_state->global_alpha);
+
+	VOP_WIN_SET(vop, win, interlace_read,
+		    (adjusted_mode->flags & DRM_MODE_FLAG_INTERLACE) ? 1 : 0);
 
 	VOP_WIN_SET(vop, win, csc_mode, vop_plane_state->csc_mode);
 	if (win->csc) {

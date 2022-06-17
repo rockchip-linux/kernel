@@ -438,6 +438,7 @@ struct vop_win_phy {
 	struct vop_reg ex_wc;
 	struct vop_reg data_type;
 	struct vop_reg vact_st_end_info;
+	struct vop_reg interlace_read;
 };
 
 struct vop_win_data {

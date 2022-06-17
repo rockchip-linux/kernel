@@ -1463,6 +1463,7 @@ static const struct vop_win_phy rk3126_win1_data = {
 	.alpha_mode = VOP_REG(RK3036_DSP_CTRL0, 0x1, 19),
 	.alpha_en = VOP_REG(RK3036_ALPHA_CTRL, 0x1, 1),
 	.alpha_pre_mul = VOP_REG(RK3036_DSP_CTRL0, 0x1, 29),
+	.interlace_read = VOP_REG(RK3036_DSP_CTRL0, 0x1, 15),
 };
 
 static const struct vop_win_data rk3126_vop_win_data[] = {
