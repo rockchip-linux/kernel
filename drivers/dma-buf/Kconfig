@@ -35,4 +35,9 @@ config SW_SYNC
 	  WARNING: improper use of this can result in deadlocking kernel
 	  drivers from userspace. Intended for test and debug only.
 
+config DMABUF_PAGE_POOL
+	bool "DMA-BUF page-pool library"
+	help
+	  Choose this option to enable the DMA-BUF page-pool library.
+
 endmenu
