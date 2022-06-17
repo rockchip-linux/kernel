@@ -634,6 +634,35 @@
 				reg = <2>;
 				remote-endpoint = <&rgb_in_vop>;
 			};
+			vop_out_tve: endpoint@3 {
+				reg = <3>;
+				remote-endpoint = <&tve_in_vop>;
+			};
+		};
+	};
+
+	tve: tve@1010e200 {
+		compatible = "rockchip,rk312x-tve";
+		reg = <0x1010e200 0x100>;
+		rockchip,saturation = <0x002b4d3c>;
+		rockchip,brightcontrast = <0x00007700>;
+		rockchip,adjtiming = <0xa6c00880>;
+		rockchip,lumafilter0 = <0x02ff0000>;
+		rockchip,lumafilter1 = <0xf40202fd>;
+		rockchip,lumafilter2 = <0xf332d919>;
+		rockchip,daclevel = <0x3a>;
+		rockchip,grf = <&grf>;
+		status = "disabled";
+
+		ports {
+			tve_in: port {
+				#address-cells = <1>;
+				#size-cells = <0>;
+				tve_in_vop: endpoint@0 {
+					reg = <0>;
+					remote-endpoint = <&vop_out_tve>;
+				};
+			};
 		};
 	};
 
