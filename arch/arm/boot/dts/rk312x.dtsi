@@ -230,7 +230,7 @@
 		system-status-freq = <
 			/*system status		freq(KHz)*/
 			SYS_STATUS_NORMAL	456000
-			SYS_STATUS_SUSPEND	200000
+			SYS_STATUS_SUSPEND	300000
 			SYS_STATUS_REBOOT	396000
 		>;
 		auto-min-freq = <300000>;
@@ -244,6 +244,7 @@
 		opp-200000000 {
 			opp-hz = /bits/ 64 <200000000>;
 			opp-microvolt = <1025000>;
+			status = "disabled";
 		};
 		opp-300000000 {
 			opp-hz = /bits/ 64 <300000000>;
