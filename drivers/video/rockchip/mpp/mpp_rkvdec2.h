@@ -181,6 +181,17 @@ struct rkvdec2_dev {
 	struct reset_control *rst_cabac;
 	struct reset_control *rst_hevc_cabac;
 
+#ifdef CONFIG_PM_DEVFREQ
+	struct regulator *vdd;
+	struct devfreq *devfreq;
+	unsigned long volt;
+	unsigned long core_rate_hz;
+	unsigned long core_last_rate_hz;
+	struct ipa_power_model_data *model_data;
+	struct thermal_cooling_device *devfreq_cooling;
+	struct monitor_dev_info *mdev_info;
+#endif
+
 	/* internal rcb-memory */
 	u32 sram_size;
 	u32 rcb_size;

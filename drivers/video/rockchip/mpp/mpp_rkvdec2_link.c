@@ -17,6 +17,10 @@
 
 #include "hack/mpp_rkvdec2_link_hack_rk3568.c"
 
+#ifdef CONFIG_PM_DEVFREQ
+#include "../../../devfreq/governor.h"
+#endif
+
 #define WAIT_TIMEOUT_MS		(500)
 
 #define RKVDEC_MAX_WRITE_PART	6
@@ -1034,9 +1038,26 @@ static void rkvdec2_link_power_on(struct mpp_dev *mpp)
 		}
 
 		mpp_clk_set_rate(&dec->aclk_info, CLK_MODE_ADVANCED);
-		mpp_clk_set_rate(&dec->core_clk_info, CLK_MODE_ADVANCED);
 		mpp_clk_set_rate(&dec->cabac_clk_info, CLK_MODE_ADVANCED);
 		mpp_clk_set_rate(&dec->hevc_cabac_clk_info, CLK_MODE_ADVANCED);
+
+#ifdef CONFIG_PM_DEVFREQ
+		if (dec->devfreq) {
+			unsigned long core_rate_hz;
+
+			mutex_lock(&dec->devfreq->lock);
+			core_rate_hz = mpp_get_clk_info_rate_hz(&dec->core_clk_info,
+								CLK_MODE_ADVANCED);
+			if (dec->core_rate_hz != core_rate_hz) {
+				dec->core_rate_hz = core_rate_hz;
+				update_devfreq(dec->devfreq);
+			}
+			mutex_unlock(&dec->devfreq->lock);
+
+			return;
+		}
+#endif
+		mpp_clk_set_rate(&dec->core_clk_info, CLK_MODE_ADVANCED);
 	}
 }
 
@@ -1057,6 +1078,28 @@ static void rkvdec2_link_power_off(struct mpp_dev *mpp)
 
 		link_dec->task_decoded = 0;
 		link_dec->task_total = 0;
+
+		mpp_clk_set_rate(&dec->aclk_info, CLK_MODE_NORMAL);
+		mpp_clk_set_rate(&dec->cabac_clk_info, CLK_MODE_NORMAL);
+		mpp_clk_set_rate(&dec->hevc_cabac_clk_info, CLK_MODE_NORMAL);
+
+#ifdef CONFIG_PM_DEVFREQ
+		if (dec->devfreq) {
+			unsigned long core_rate_hz;
+
+			mutex_lock(&dec->devfreq->lock);
+			core_rate_hz = mpp_get_clk_info_rate_hz(&dec->core_clk_info,
+								CLK_MODE_NORMAL);
+			if (dec->core_rate_hz != core_rate_hz) {
+				dec->core_rate_hz = core_rate_hz;
+				update_devfreq(dec->devfreq);
+			}
+			mutex_unlock(&dec->devfreq->lock);
+
+			return;
+		}
+#endif
+		mpp_clk_set_rate(&dec->core_clk_info, CLK_MODE_NORMAL);
 	}
 }
 

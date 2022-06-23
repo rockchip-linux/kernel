@@ -1216,7 +1216,7 @@ static int rkvenc_init(struct mpp_dev *mpp)
 
 	mpp->iommu_info->hdl = rkvenc_iommu_fault_handle;
 
-	return 0;
+	return ret;
 }
 
 static int rkvenc_exit(struct mpp_dev *mpp)
