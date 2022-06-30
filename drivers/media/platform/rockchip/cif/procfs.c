@@ -224,7 +224,7 @@ static void rkcif_show_mixed_info(struct rkcif_device *dev, struct seq_file *f)
 		   dev->workmode == RKCIF_WORKMODE_ONEFRAME ? "one frame" :
 		   dev->workmode == RKCIF_WORKMODE_PINGPONG ? "ping pong" : "line loop");
 
-	monitor_mode = dev->reset_watchdog_timer.monitor_mode;
+	monitor_mode = dev->hw_dev->hw_timer.monitor_mode;
 	seq_printf(f, "Monitor Mode:%s\n",
 		   rkcif_get_monitor_mode(monitor_mode));
 }

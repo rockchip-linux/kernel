@@ -31,7 +31,7 @@
 #define OF_CIF_MONITOR_PARA	"rockchip,cif-monitor"
 #define OF_CIF_WAIT_LINE	"wait-line"
 
-#define CIF_MONITOR_PARA_NUM	(6)
+#define CIF_MONITOR_PARA_NUM	(5)
 
 #define RKCIF_SINGLE_STREAM	1
 #define RKCIF_STREAM_CIF	0
@@ -60,6 +60,8 @@
 #define RKCIF_MAX_STREAM_LVDS	4
 #define RKCIF_MAX_STREAM_DVP	4
 #define RKCIF_STREAM_DVP	4
+
+#define RKCIF_MAX_DEV		8
 
 #define RKCIF_MAX_SENSOR	2
 #define RKCIF_MAX_CSI_CHANNEL	4
@@ -331,17 +333,6 @@ struct rkcif_irq_stats {
 };
 
 /*
- * the detecting mode of cif reset timer
- * related with dts property:rockchip,cif-monitor
- */
-enum rkcif_monitor_mode {
-	RKCIF_MONITOR_MODE_IDLE = 0x0,
-	RKCIF_MONITOR_MODE_CONTINUE,
-	RKCIF_MONITOR_MODE_TRIGGER,
-	RKCIF_MONITOR_MODE_HOTPLUG,
-};
-
-/*
  * the parameters to resume when reset cif in running
  */
 struct rkcif_resume_info {
@@ -355,39 +346,18 @@ struct rkcif_work_struct {
 };
 
 struct rkcif_timer {
-	struct timer_list	timer;
-	spinlock_t		timer_lock;
 	spinlock_t		csi2_err_lock;
-	unsigned long		cycle;
-	/* unit: us */
-	unsigned long		line_end_cycle;
-	unsigned int		run_cnt;
-	unsigned int		max_run_cnt;
-	unsigned int		stop_index_of_run_cnt;
 	unsigned int		last_buf_wakeup_cnt[RKCIF_MAX_CSI_CHANNEL];
 	unsigned long		csi2_err_cnt_even;
 	unsigned long		csi2_err_cnt_odd;
-	unsigned int		csi2_err_ref_cnt;
 	unsigned int		csi2_err_fs_fe_cnt;
 	unsigned int		csi2_err_fs_fe_detect_cnt;
-	unsigned int		frm_num_of_monitor_cycle;
-	unsigned int		is_reset_by_user;
-	unsigned int		triggered_frame_num;
-	unsigned int		vts;
-	unsigned int		raw_height;
-	/* unit: ms */
-	unsigned int		err_time_interval;
 	unsigned int		csi2_err_triggered_cnt;
 	unsigned int		notifer_called_cnt;
-	unsigned long		frame_end_cycle_us;
 	u64			csi2_first_err_timestamp;
 	bool			is_triggered;
 	bool			is_buf_stop_update;
-	bool			is_running;
 	bool			is_csi2_err_occurred;
-	bool			has_been_init;
-	enum rkcif_monitor_mode	monitor_mode;
-	enum rkmodule_reset_src	reset_src;
 };
 
 struct rkcif_extend_info {
@@ -436,9 +406,9 @@ struct rkcif_stream {
 	struct rkcif_extend_info	extend_line;
 	struct rkcif_readout_stats	readout;
 	unsigned int			fs_cnt_in_single_frame;
-	unsigned int			buf_wake_up_cnt;
 	u64				line_int_cnt;
 	int				vc;
+	u64				streamon_timestamp;
 	bool				stopping;
 	bool				crop_enable;
 	bool				crop_dyn_en;
@@ -551,7 +521,6 @@ struct rkcif_device {
 	unsigned int			wait_line_bak;
 	unsigned int			wait_line_cache;
 	struct rkcif_dummy_buffer	dummy_buf;
-	struct rkcif_reset_info		reset_info;
 	bool				is_start_hdr;
 	bool				reset_work_cancel;
 	bool				iommu_en;
@@ -599,6 +568,6 @@ void rkcif_config_dvp_clk_sampling_edge(struct rkcif_device *dev,
 					enum rkcif_clk_edge edge);
 void rkcif_enable_dvp_clk_dual_edge(struct rkcif_device *dev, bool on);
 void rkcif_reset_work(struct work_struct *work);
-void rkcif_monitor_reset_event(struct rkcif_device *dev);
+void rkcif_monitor_reset_event(struct rkcif_hw *hw);
 
 #endif

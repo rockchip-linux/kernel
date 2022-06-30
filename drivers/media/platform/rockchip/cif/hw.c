@@ -833,6 +833,83 @@ void rkcif_hw_soft_reset(struct rkcif_hw *cif_hw, bool is_rst_iommu)
 		rkcif_iommu_enable(cif_hw);
 }
 
+static char *rkcif_get_monitor_mode(enum rkcif_monitor_mode mode)
+{
+	switch (mode) {
+	case RKCIF_MONITOR_MODE_IDLE:
+		return "idle";
+	case RKCIF_MONITOR_MODE_CONTINUE:
+		return "continue";
+	case RKCIF_MONITOR_MODE_TRIGGER:
+		return "trigger";
+	case RKCIF_MONITOR_MODE_HOTPLUG:
+		return "hotplug";
+	default:
+		return "unknown";
+	}
+}
+
+static void rkcif_init_reset_timer(struct rkcif_hw *hw)
+{
+	struct device_node *node = hw->dev->of_node;
+	struct rkcif_hw_timer *hw_timer = &hw->hw_timer;
+	u32 para[8];
+	int i;
+
+	if (!of_property_read_u32_array(node,
+					OF_CIF_MONITOR_PARA,
+					para,
+					CIF_MONITOR_PARA_NUM)) {
+		for (i = 0; i < CIF_MONITOR_PARA_NUM; i++) {
+			if (i == 0) {
+				hw_timer->monitor_mode = para[0];
+				dev_info(hw->dev,
+					 "%s: timer monitor mode:%s\n",
+					 __func__, rkcif_get_monitor_mode(hw_timer->monitor_mode));
+			}
+
+			if (i == 1) {
+				hw_timer->monitor_cycle = para[1];
+				dev_info(hw->dev,
+					 "timer of monitor cycle:%d\n",
+					 hw_timer->monitor_cycle);
+			}
+
+			if (i == 2) {
+				hw_timer->err_time_interval = para[2];
+				dev_info(hw->dev,
+					 "timer err time for keeping:%d ms\n",
+					 hw_timer->err_time_interval);
+			}
+
+			if (i == 3) {
+				hw_timer->err_ref_cnt = para[3];
+				dev_info(hw->dev,
+					 "timer err ref val for resetting:%d\n",
+					 hw_timer->err_ref_cnt);
+			}
+
+			if (i == 4) {
+				hw_timer->is_reset_by_user = para[4];
+				dev_info(hw->dev,
+					 "reset by user:%d\n",
+					 hw_timer->is_reset_by_user);
+			}
+		}
+	} else {
+		hw_timer->monitor_mode = RKCIF_MONITOR_MODE_IDLE;
+		hw_timer->err_time_interval = 0xffffffff;
+		hw_timer->monitor_cycle = 0xffffffff;
+		hw_timer->err_ref_cnt = 0xffffffff;
+		hw_timer->is_reset_by_user = 0;
+	}
+
+	hw_timer->is_running = false;
+	spin_lock_init(&hw_timer->timer_lock);
+	hw->reset_info.is_need_reset = 0;
+	timer_setup(&hw_timer->timer, rkcif_reset_watchdog_timer_handler, 0);
+}
+
 static int rkcif_plat_hw_probe(struct platform_device *pdev)
 {
 	const struct of_device_id *match;
@@ -964,6 +1041,7 @@ static int rkcif_plat_hw_probe(struct platform_device *pdev)
 	mutex_init(&cif_hw->dev_lock);
 
 	pm_runtime_enable(&pdev->dev);
+	rkcif_init_reset_timer(cif_hw);
 
 	if (data->chip_id == CHIP_RK1808_CIF ||
 	    data->chip_id == CHIP_RV1126_CIF ||
@@ -989,7 +1067,7 @@ static int rkcif_plat_remove(struct platform_device *pdev)
 	    cif_hw->chip_id != CHIP_RV1126_CIF_LITE &&
 	    cif_hw->chip_id != CHIP_RK3568_CIF)
 		rkcif_plat_uninit(cif_hw->cif_dev[0]);
-
+	del_timer_sync(&cif_hw->hw_timer.timer);
 	return 0;
 }
 
