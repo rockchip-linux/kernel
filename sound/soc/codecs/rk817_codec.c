@@ -1022,7 +1022,10 @@ static int rk817_probe(struct snd_soc_codec *codec)
 	rk817->chip_ver = (chip_ver & 0x0f);
 	dev_info(codec->dev, "%s: chip_name:0x%x, chip_ver:0x%x\n", __func__, chip_name, chip_ver);
 
+	clk_prepare_enable(rk817->mclk);
 	rk817_reset(codec);
+	clk_disable_unprepare(rk817->mclk);
+
 	snd_soc_add_codec_controls(codec, rk817_snd_path_controls,
 				   ARRAY_SIZE(rk817_snd_path_controls));
 	return 0;
