@@ -835,23 +835,6 @@ static const struct regval imx335_hdr3_10bit_2592x1944_regs[] = {
 static const struct imx335_mode supported_modes[] = {
 	{
 		/* 1H period = 7.4us */
-		.bus_fmt = MEDIA_BUS_FMT_SRGGB12_1X12,
-		.width = 1308,
-		.height = 984,
-		.max_fps = {
-			.numerator = 10000,
-			.denominator = 300000,
-		},
-		.exp_def = 0x600,
-		.hts_def = 0x0226 * IMX335_4LANES * 2,
-		.vts_def = 0x1194,
-		.reg_list = imx335_linear_12bit_1296x972_regs,
-		.hdr_mode = NO_HDR,
-		.bpp = 12,
-		.mipi_freq_idx = 0,
-	},
-	{
-		/* 1H period = 7.4us */
 		.bus_fmt = MEDIA_BUS_FMT_SRGGB10_1X10,
 		.width = 2616,
 		.height = 1964,
@@ -866,6 +849,23 @@ static const struct imx335_mode supported_modes[] = {
 		.hdr_mode = NO_HDR,
 		.bpp = 10,
 		.mipi_freq_idx = 1,
+	},
+	{
+		/* 1H period = 7.4us */
+		.bus_fmt = MEDIA_BUS_FMT_SRGGB12_1X12,
+		.width = 1308,
+		.height = 984,
+		.max_fps = {
+			.numerator = 10000,
+			.denominator = 300000,
+		},
+		.exp_def = 0x600,
+		.hts_def = 0x0226 * IMX335_4LANES * 2,
+		.vts_def = 0x1194,
+		.reg_list = imx335_linear_12bit_1296x972_regs,
+		.hdr_mode = NO_HDR,
+		.bpp = 12,
+		.mipi_freq_idx = 0,
 	},
 	{
 		/* 1H period = 3.70us */
@@ -2166,12 +2166,12 @@ static int imx335_set_ctrl(struct v4l2_ctrl *ctrl)
 		break;
 	case V4L2_CID_HFLIP:
 		ret = imx335_write_reg(imx335->client, IMX335_HREVERSE_REG,
-				       IMX335_REG_VALUE_08BIT, !!ctrl->val);
+				       IMX335_REG_VALUE_08BIT, ctrl->val);
 		break;
 	case V4L2_CID_VFLIP:
 		if (ctrl->val) {
 			ret = imx335_write_reg(imx335->client, IMX335_VREVERSE_REG,
-					       IMX335_REG_VALUE_08BIT, !!ctrl->val);
+					       IMX335_REG_VALUE_08BIT, ctrl->val);
 			if (imx335->cur_mode->width == 2616 && imx335->cur_mode->height == 1964) {
 				ret |= imx335_write_reg(imx335->client, 0x3078,
 						IMX335_REG_VALUE_08BIT, 0x01);
@@ -2301,7 +2301,7 @@ static int imx335_set_ctrl(struct v4l2_ctrl *ctrl)
 			}
 		} else {
 			ret = imx335_write_reg(imx335->client, IMX335_VREVERSE_REG,
-					       IMX335_REG_VALUE_08BIT, !!ctrl->val);
+					       IMX335_REG_VALUE_08BIT, ctrl->val);
 			if (imx335->cur_mode->width == 2616 && imx335->cur_mode->height == 1964) {
 				ret |= imx335_write_reg(imx335->client, 0x3078,
 						IMX335_REG_VALUE_08BIT, 0x01);
