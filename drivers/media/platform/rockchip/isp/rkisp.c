@@ -594,6 +594,16 @@ void rkisp_trigger_read_back(struct rkisp_device *dev, u8 dma2frm, u32 mode, boo
 		val = rkisp_read(dev, ISP_CTRL, false);
 		val |= CIF_ISP_CTRL_ISP_CFG_UPD;
 		rkisp_write(dev, ISP_CTRL, val, true);
+		/* fix ldch multi sensor case:
+		 * ldch will pre-read data when en and isp force upd or frame end,
+		 * udelay for ldch pre-read data.
+		 * ldch en=0 before start for frame end to stop ldch read data.
+		 */
+		if (!hw->is_single &&
+		    (rkisp_read(dev, ISP_LDCH_BASE, true) & 0x1)) {
+			udelay(50);
+			writel(0, hw->base_addr + ISP_LDCH_BASE);
+		}
 	}
 	if (is_3dlut_upd)
 		rkisp_write(dev, ISP_3DLUT_UPDATE, 1, true);
