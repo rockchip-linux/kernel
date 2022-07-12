@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2015-2021 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2015-2022 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -126,7 +126,9 @@ static void pm_callback_power_off(struct kbase_device *kbdev)
 	WARN_ON(kbdev->pm.backend.gpu_powered);
 #if MALI_USE_CSF
 	if (likely(kbdev->csf.firmware_inited)) {
+#ifdef CONFIG_MALI_BIFROST_DEBUG
 		WARN_ON(kbase_csf_scheduler_get_nr_active_csgs(kbdev));
+#endif
 		WARN_ON(kbdev->pm.backend.mcu_state != KBASE_MCU_OFF);
 	}
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);

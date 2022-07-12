@@ -15,6 +15,7 @@
 #define GET_GCD(n1, n2) \
 	({ \
 		int i; \
+		int gcd = 0; \
 		for (i = 1; i <= (n1) && i <= (n2); i++) { \
 			if ((n1) % i == 0 && (n2) % i == 0) \
 				gcd = i; \
@@ -43,6 +44,17 @@ static int rga_set_feature(struct rga_req *rga_base)
 		feature |= RGA_NN_QUANTIZE;
 
 	return feature;
+}
+
+static bool rga_check_resolution(const struct rga_rect_range *range, int width, int height)
+{
+	if (width > range->max.width || height > range->max.height)
+		return false;
+
+	if (width < range->min.width || height < range->min.height)
+		return false;
+
+	return true;
 }
 
 static bool rga_check_format(const struct rga_hw_data *data,
@@ -77,9 +89,9 @@ static bool rga_check_format(const struct rga_hw_data *data,
 	return matched;
 }
 
-static bool rga_check_align(uint32_t byte_stride, uint32_t format, uint16_t w_stride)
+static bool rga_check_align(uint32_t byte_stride_align, uint32_t format, uint16_t w_stride)
 {
-	uint32_t bit_stride = 0, pixel_stride = 0, align = 0, gcd = 0;
+	int bit_stride, pixel_stride, align, gcd;
 
 	pixel_stride = rga_get_pixel_stride_from_format(format);
 	if (pixel_stride <= 0)
@@ -87,14 +99,15 @@ static bool rga_check_align(uint32_t byte_stride, uint32_t format, uint16_t w_st
 
 	bit_stride = pixel_stride * w_stride;
 
-	if (bit_stride % (byte_stride * 8) == 0)
+	if (bit_stride % (byte_stride_align * 8) == 0)
 		return true;
 
-	gcd = GET_GCD(pixel_stride, byte_stride * 8);
-	align = GET_LCM(pixel_stride, byte_stride * 8, gcd) / pixel_stride;
-	if (DEBUGGER_EN(MSG))
+	if (DEBUGGER_EN(MSG)) {
+		gcd = GET_GCD(pixel_stride, byte_stride_align * 8);
+		align = GET_LCM(pixel_stride, byte_stride_align * 8, gcd) / pixel_stride;
 		pr_info("unsupported width stride %d, 0x%x should be %d aligned!",
-				w_stride, format, align);
+			w_stride, format, align);
+	}
 
 	return false;
 }
@@ -102,18 +115,13 @@ static bool rga_check_align(uint32_t byte_stride, uint32_t format, uint16_t w_st
 static bool rga_check_src0(const struct rga_hw_data *data,
 			 struct rga_img_info_t *src0)
 {
-	if (src0->act_w < data->min_input.w ||
-		src0->act_h < data->min_input.h)
-		return false;
-
-	if (src0->act_w > data->max_input.w ||
-		src0->act_h > data->max_input.h)
+	if (!rga_check_resolution(&data->input_range, src0->act_w, src0->act_h))
 		return false;
 
 	if (!rga_check_format(data, src0->rd_mode, src0->format, 0))
 		return false;
 
-	if (!rga_check_align(data->byte_stride, src0->format, src0->vir_w))
+	if (!rga_check_align(data->byte_stride_align, src0->format, src0->vir_w))
 		return false;
 
 	return true;
@@ -122,18 +130,13 @@ static bool rga_check_src0(const struct rga_hw_data *data,
 static bool rga_check_src1(const struct rga_hw_data *data,
 			 struct rga_img_info_t *src1)
 {
-	if (src1->act_w < data->min_input.w ||
-		src1->act_h < data->min_input.h)
-		return false;
-
-	if (src1->act_w > data->max_input.w ||
-		src1->act_h > data->max_input.h)
+	if (!rga_check_resolution(&data->input_range, src1->act_w, src1->act_h))
 		return false;
 
 	if (!rga_check_format(data, src1->rd_mode, src1->format, 1))
 		return false;
 
-	if (!rga_check_align(data->byte_stride, src1->format, src1->vir_w))
+	if (!rga_check_align(data->byte_stride_align, src1->format, src1->vir_w))
 		return false;
 
 	return true;
@@ -142,18 +145,13 @@ static bool rga_check_src1(const struct rga_hw_data *data,
 static bool rga_check_dst(const struct rga_hw_data *data,
 			 struct rga_img_info_t *dst)
 {
-	if (dst->act_w < data->min_output.w ||
-		dst->act_h < data->min_output.h)
-		return false;
-
-	if (dst->act_w > data->max_output.w ||
-		dst->act_h > data->max_output.h)
+	if (!rga_check_resolution(&data->output_range, dst->act_w, dst->act_h))
 		return false;
 
 	if (!rga_check_format(data, dst->rd_mode, dst->format, 2))
 		return false;
 
-	if (!rga_check_align(data->byte_stride, dst->format, dst->vir_w))
+	if (!rga_check_align(data->byte_stride_align, dst->format, dst->vir_w))
 		return false;
 
 	return true;
@@ -240,8 +238,8 @@ int rga_job_assign(struct rga_job *job)
 		if (DEBUGGER_EN(MSG))
 			pr_info("start policy on core = %d", scheduler->core);
 
-		if (scheduler->core == RGA2_SCHEDULER_CORE0 &&
-		    job->flags & RGA_JOB_UNSUPPORT_RGA2) {
+		if (scheduler->data->mmu == RGA_MMU &&
+		    job->flags & RGA_JOB_UNSUPPORT_RGA_MMU) {
 			if (DEBUGGER_EN(MSG))
 				pr_info("RGA2 only support under 4G memory!\n");
 				continue;

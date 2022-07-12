@@ -257,7 +257,11 @@ static int rga_mm_session_show(struct seq_file *m, void *data)
 		case RGA_DMA_BUFFER_PTR:
 			seq_puts(m, "dma_buffer:\n");
 			for (i = 0; i < dump_buffer->dma_buffer_size; i++) {
-				seq_printf(m, "\t core %d:\n", dump_buffer->dma_buffer[i].core);
+				if (rga_mm_is_invalid_dma_buffer(&dump_buffer->dma_buffer[i]))
+					continue;
+
+				seq_printf(m, "\t core %d:\n",
+					   dump_buffer->dma_buffer[i].scheduler->core);
 				seq_printf(m, "\t\t dma_buf = %p, iova = 0x%lx\n",
 					   dump_buffer->dma_buffer[i].dma_buf,
 					   (unsigned long)dump_buffer->dma_buffer[i].iova);
@@ -271,7 +275,11 @@ static int rga_mm_session_show(struct seq_file *m, void *data)
 				   dump_buffer->virt_addr->size);
 
 			for (i = 0; i < dump_buffer->dma_buffer_size; i++) {
-				seq_printf(m, "\t core %d:\n", dump_buffer->dma_buffer[i].core);
+				if (rga_mm_is_invalid_dma_buffer(&dump_buffer->dma_buffer[i]))
+					continue;
+
+				seq_printf(m, "\t core %d:\n",
+					   dump_buffer->dma_buffer[i].scheduler->core);
 				seq_printf(m, "\t\t iova = 0x%lx, sgt = %p, size = %ld\n",
 					   (unsigned long)dump_buffer->dma_buffer[i].iova,
 					   dump_buffer->dma_buffer[i].sgt,
@@ -328,14 +336,14 @@ static int rga_request_manager_show(struct seq_file *m, void *data)
 			continue;
 		}
 
-		seq_printf(m, "\t set cmd num: %d, finish job sum: %d\n",
-				task_count, finished_task_count);
+		seq_printf(m, "\t set cmd num: %d, finish job sum: %d, flags = 0x%x, ref = %d\n",
+			   task_count, finished_task_count,
+			   request->flags, kref_read(&request->refcount));
 
 		seq_puts(m, "\t cmd dump:\n\n");
 
 		for (i = 0; i < request->task_count; i++)
 			rga_request_task_debug_info(m, &(task_list[i]));
-
 	}
 
 	mutex_unlock(&request_manager->lock);

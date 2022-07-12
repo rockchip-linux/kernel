@@ -742,6 +742,7 @@ static const struct of_device_id rkisp_hw_of_match[] = {
 		.data = &rv1126_isp_match_data,
 	},
 #endif
+	{},
 };
 
 static inline bool is_iommu_enable(struct device *dev)
@@ -1205,4 +1206,15 @@ static int __init rkisp_hw_drv_init(void)
 	return ret;
 }
 
+static void __exit rkisp_hw_drv_exit(void)
+{
+	platform_driver_unregister(&rkisp_plat_drv);
+	platform_driver_unregister(&rkisp_hw_drv);
+}
+
+#if defined(CONFIG_VIDEO_ROCKCHIP_THUNDER_BOOT_ISP) && !defined(CONFIG_INITCALL_ASYNC)
+subsys_initcall(rkisp_hw_drv_init);
+#else
 module_init(rkisp_hw_drv_init);
+#endif
+module_exit(rkisp_hw_drv_exit);

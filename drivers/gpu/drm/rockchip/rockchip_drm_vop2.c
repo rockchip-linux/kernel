@@ -3538,6 +3538,10 @@ static int vop2_extend_clk_switch_pll(struct vop2 *vop2, struct vop2_extend_pll 
 	return 0;
 }
 
+static inline int vop2_extend_clk_get_vp_id(struct vop2_extend_pll *ext_pll)
+{
+	return ffs(ext_pll->vp_mask) - 1;
+}
 
 /*
  * Here are 2 hdmi phy pll can use for video port dclk. The strategies of how to use hdmi phy pll
@@ -3598,13 +3602,13 @@ static int vop2_clk_set_parent_extend(struct vop2_video_port *vp,
 		    (vcstate->output_if & VOP_OUTPUT_IF_HDMI1)) {
 			if (hdmi0_phy_pll->vp_mask) {
 				DRM_ERROR("hdmi0 phy pll is used by vp%d\n",
-					  hdmi0_phy_pll->vp_mask);
+					  vop2_extend_clk_get_vp_id(hdmi0_phy_pll));
 				return -EBUSY;
 			}
 
 			if (hdmi1_phy_pll->vp_mask) {
 				DRM_ERROR("hdmi1 phy pll is used by vp%d\n",
-					  hdmi1_phy_pll->vp_mask);
+					  vop2_extend_clk_get_vp_id(hdmi1_phy_pll));
 				return -EBUSY;
 			}
 
@@ -3621,8 +3625,8 @@ static int vop2_clk_set_parent_extend(struct vop2_video_port *vp,
 				if (hdmi1_phy_pll) {
 					if (hdmi1_phy_pll->vp_mask) {
 						DRM_ERROR("hdmi0: phy pll is used by vp%d:vp%d\n",
-							  hdmi0_phy_pll->vp_mask,
-							  hdmi1_phy_pll->vp_mask);
+							  vop2_extend_clk_get_vp_id(hdmi0_phy_pll),
+							  vop2_extend_clk_get_vp_id(hdmi1_phy_pll));
 						return -EBUSY;
 					}
 
@@ -3630,7 +3634,7 @@ static int vop2_clk_set_parent_extend(struct vop2_video_port *vp,
 								   hdmi1_phy_pll);
 				} else {
 					DRM_ERROR("hdmi0: phy pll is used by vp%d\n",
-						  hdmi0_phy_pll->vp_mask);
+						  vop2_extend_clk_get_vp_id(hdmi0_phy_pll));
 					return -EBUSY;
 				}
 			}
@@ -3647,8 +3651,8 @@ static int vop2_clk_set_parent_extend(struct vop2_video_port *vp,
 				if (hdmi0_phy_pll) {
 					if (hdmi0_phy_pll->vp_mask) {
 						DRM_ERROR("hdmi1: phy pll is used by vp%d:vp%d\n",
-							  hdmi0_phy_pll->vp_mask,
-							  hdmi1_phy_pll->vp_mask);
+							  vop2_extend_clk_get_vp_id(hdmi0_phy_pll),
+							  vop2_extend_clk_get_vp_id(hdmi1_phy_pll));
 						return -EBUSY;
 					}
 
@@ -3656,7 +3660,7 @@ static int vop2_clk_set_parent_extend(struct vop2_video_port *vp,
 								   hdmi0_phy_pll);
 				} else {
 					DRM_ERROR("hdmi1: phy pll is used by vp%d\n",
-						  hdmi1_phy_pll->vp_mask);
+						  vop2_extend_clk_get_vp_id(hdmi1_phy_pll));
 					return -EBUSY;
 				}
 			}
@@ -3792,6 +3796,8 @@ static void vop2_crtc_atomic_disable(struct drm_crtc *crtc,
 
 	spin_lock(&vop2->reg_lock);
 
+	VOP_MODULE_SET(vop2, vp, splice_en, 0);
+
 	if (vcstate->splice_mode)
 		VOP_MODULE_SET(vop2, splice_vp, standby, 1);
 	VOP_MODULE_SET(vop2, vp, standby, 1);
@@ -3806,13 +3812,15 @@ static void vop2_crtc_atomic_disable(struct drm_crtc *crtc,
 
 	vop2_disable(crtc);
 
+	vop2->active_vp_mask &= ~BIT(vp->id);
+	if (vcstate->splice_mode)
+		vop2->active_vp_mask &= ~BIT(splice_vp->id);
 	vcstate->splice_mode = false;
 	vp->splice_mode_right = false;
 	vp->loader_protect = false;
 	splice_vp->splice_mode_right = false;
 	vop2_unlock(vop2);
 
-	vop2->active_vp_mask &= ~BIT(vp->id);
 	vop2_set_system_status(vop2);
 
 out:
@@ -5397,20 +5405,28 @@ vop2_crtc_mode_valid(struct drm_crtc *crtc, const struct drm_display_mode *mode)
 	int request_clock = mode->clock;
 	int clock;
 
+	/*
+	 * For RK3588, VP0 and VP1 will be both used in splice mode. All display
+	 * modes of the right VP should be set as invalid when vop2 is working in
+	 * splice mode.
+	 */
+	if (vp->splice_mode_right)
+		return MODE_BAD;
+
 	if (mode->hdisplay > vp_data->max_output.width)
 		return MODE_BAD_HVALUE;
 
 	if (mode->flags & DRM_MODE_FLAG_DBLCLK)
 		request_clock *= 2;
 
-	if (request_clock <= VOP2_MAX_DCLK_RATE) {
-		if (vop2_extend_clk_find_by_name(vop2, "hdmi0_phy_pll") ||
-		    vop2_extend_clk_find_by_name(vop2, "hdmi1_phy_pll"))
-			clock = request_clock;
-		else
-			clock = clk_round_rate(vp->dclk, request_clock * 1000) / 1000;
-	} else {
+	if ((request_clock <= VOP2_MAX_DCLK_RATE) &&
+	    (vop2_extend_clk_find_by_name(vop2, "hdmi0_phy_pll") ||
+	     vop2_extend_clk_find_by_name(vop2, "hdmi1_phy_pll"))) {
 		clock = request_clock;
+	} else {
+		if (request_clock > VOP2_MAX_DCLK_RATE)
+			request_clock = request_clock >> 2;
+		clock = clk_round_rate(vp->dclk, request_clock * 1000) / 1000;
 	}
 
 	/*
@@ -5951,8 +5967,10 @@ static int vop2_calc_if_clk(struct drm_crtc *crtc, const struct vop2_connector_i
 			if (vcstate->output_mode == ROCKCHIP_OUT_MODE_YUV420 ||
 			    (vcstate->output_flags & ROCKCHIP_OUTPUT_DUAL_CHANNEL_LEFT_RIGHT_MODE))
 				v_pixclk = v_pixclk >> 1;
-			clk_set_rate(dclk->hw.clk, v_pixclk);
+		} else {
+			v_pixclk = v_pixclk >> 2;
 		}
+		clk_set_rate(dclk->hw.clk, v_pixclk);
 	}
 
 	if (vcstate->dsc_enable) {
@@ -6019,9 +6037,11 @@ static int vop2_calc_dsc_clk(struct drm_crtc *crtc)
 	/* dsc_cds = crtc_clock / (cds_dat_width / bits_per_pixel)
 	 * cds_dat_width = 96;
 	 * bits_per_pixel = [8-12];
-	 * As only support 1/2/4 div, so we set dsc_cds = crtc_clock / 8;
+	 * As cds clk is div from txp clk and only support 1/2/4 div,
+	 * so when txp_clk is equal to v_pixclk, we set dsc_cds = crtc_clock / 4,
+	 * otherwise dsc_cds = crtc_clock / 8;
 	 */
-	vcstate->dsc_cds_clk_rate = v_pixclk / 8;
+	vcstate->dsc_cds_clk_rate = v_pixclk / (vcstate->dsc_txp_clk_rate == v_pixclk ? 4 : 8);
 
 	return 0;
 }
@@ -6179,6 +6199,15 @@ static void vop2_crtc_enable_dsc(struct drm_crtc *crtc, struct drm_crtc_state *o
 		u64 dsc_cds_rate = vcstate->dsc_cds_clk_rate;
 		u32 v_pixclk_mhz = adjusted_mode->crtc_clock / 1000; /* video timing pixclk */
 		u32 dly_num, dsc_cds_rate_mhz, val = 0;
+		struct vop2_clk *dclk_core;
+		char clk_name[32];
+		int k = 1;
+
+		if (vcstate->output_flags & ROCKCHIP_OUTPUT_DUAL_CHANNEL_LEFT_RIGHT_MODE)
+			k = 2;
+
+		snprintf(clk_name, sizeof(clk_name), "dclk_core%d", vp->id);
+		dclk_core = vop2_clk_get(vop2, clk_name);
 
 		if (target_bpp >> 4 < dsc->min_bits_per_pixel)
 			DRM_ERROR("Unsupported bpp less than: %d\n", dsc->min_bits_per_pixel);
@@ -6200,12 +6229,23 @@ static void vop2_crtc_enable_dsc(struct drm_crtc *crtc, struct drm_crtc_state *o
 		VOP_MODULE_SET(vop2, dsc, dsc_init_dly_num, dly_num);
 
 		dsc_hsync = hsync_len / 2;
-		dsc_htotal = htotal / (1 << dsc_cds_clk->div_val);
+		/*
+		 * htotal / dclk_core = dsc_htotal /cds_clk
+		 *
+		 * dclk_core = DCLK / (1 << dclk_core->div_val)
+		 * cds_clk = txp_clk / (1 << dsc_cds_clk->div_val)
+		 * txp_clk = DCLK / (1 << dsc_txp_clk->div_val)
+		 *
+		 * dsc_htotal = htotal * (1 << dclk_core->div_val) /
+				((1 << dsc_txp_clk->div_val) * (1 << dsc_cds_clk->div_val))
+		*/
+		dsc_htotal = htotal * (1 << dclk_core->div_val) /
+				((1 << dsc_txp_clk->div_val) * (1 << dsc_cds_clk->div_val));
 		val = dsc_htotal << 16 | dsc_hsync;
 		VOP_MODULE_SET(vop2, dsc, dsc_htotal_pw, val);
 
 		dsc_hact_st = hact_st / 2;
-		dsc_hact_end = (hdisplay * target_bpp >> 4) / 24 + dsc_hact_st;
+		dsc_hact_end = (hdisplay / k * target_bpp >> 4) / 24 + dsc_hact_st;
 		val = dsc_hact_end << 16 | dsc_hact_st;
 		VOP_MODULE_SET(vop2, dsc, dsc_hact_st_end, val);
 
@@ -6385,6 +6425,7 @@ static void vop2_crtc_atomic_enable(struct drm_crtc *crtc, struct drm_crtc_state
 		splice_vp->splice_mode_right = true;
 		splice_vp->left_vp = vp;
 		splice_en = 1;
+		vop2->active_vp_mask |= BIT(splice_vp->id);
 	}
 
 	if (vcstate->dsc_enable) {

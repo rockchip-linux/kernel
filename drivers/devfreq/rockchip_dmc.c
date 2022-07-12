@@ -137,6 +137,7 @@ struct rockchip_dmcfreq {
 	unsigned long video_4k_10b_rate;
 	unsigned long performance_rate;
 	unsigned long hdmi_rate;
+	unsigned long hdmirx_rate;
 	unsigned long idle_rate;
 	unsigned long suspend_rate;
 	unsigned long reboot_rate;
@@ -1207,6 +1208,16 @@ int rockchip_dmcfreq_wait_complete(void)
 	wait_event_timeout(wait_ctrl.wait_wq, (wait_ctrl.wait_flag == 0),
 			   msecs_to_jiffies(wait_ctrl.wait_time_out_ms));
 
+	/*
+	 * If waiting for wait_ctrl.complt_irq times out, clear the IRQ and stop the MCU by
+	 * sip_smc_dram(DRAM_POST_SET_RATE).
+	 */
+	if (wait_ctrl.dcf_en == 2 && wait_ctrl.wait_flag != 0) {
+		res = sip_smc_dram(SHARE_PAGE_TYPE_DDR, 0, ROCKCHIP_SIP_CONFIG_DRAM_POST_SET_RATE);
+		if (res.a0)
+			pr_err("%s: dram post set rate error:%lx\n", __func__, res.a0);
+	}
+
 	cpu_latency_qos_update_request(&pm_qos, PM_QOS_DEFAULT_VALUE);
 	disable_irq(wait_ctrl.complt_irq);
 
@@ -2275,6 +2286,9 @@ static int rockchip_get_system_status_rate(struct device_node *np,
 		case SYS_STATUS_HDMI:
 			dmcfreq->hdmi_rate = freq * 1000;
 			break;
+		case SYS_STATUS_HDMIRX:
+			dmcfreq->hdmirx_rate = freq * 1000;
+			break;
 		case SYS_STATUS_IDLE:
 			dmcfreq->idle_rate = freq * 1000;
 			break;
@@ -2419,6 +2433,10 @@ static int rockchip_get_system_status_level(struct device_node *np,
 			dmcfreq->hdmi_rate = rockchip_freq_level_2_rate(dmcfreq, level);
 			dev_info(dmcfreq->dev, "hdmi_rate = %ld\n", dmcfreq->hdmi_rate);
 			break;
+		case SYS_STATUS_HDMIRX:
+			dmcfreq->hdmirx_rate = rockchip_freq_level_2_rate(dmcfreq, level);
+			dev_info(dmcfreq->dev, "hdmirx_rate = %ld\n", dmcfreq->hdmirx_rate);
+			break;
 		case SYS_STATUS_IDLE:
 			dmcfreq->idle_rate = rockchip_freq_level_2_rate(dmcfreq, level);
 			dev_info(dmcfreq->dev, "idle_rate = %ld\n", dmcfreq->idle_rate);
@@ -2507,6 +2525,11 @@ static int rockchip_dmcfreq_system_status_notifier(struct notifier_block *nb,
 	if (dmcfreq->hdmi_rate && (status & SYS_STATUS_HDMI)) {
 		if (dmcfreq->hdmi_rate > target_rate)
 			target_rate = dmcfreq->hdmi_rate;
+	}
+
+	if (dmcfreq->hdmirx_rate && (status & SYS_STATUS_HDMIRX)) {
+		if (dmcfreq->hdmirx_rate > target_rate)
+			target_rate = dmcfreq->hdmirx_rate;
 	}
 
 	if (dmcfreq->video_4k_rate && (status & SYS_STATUS_VIDEO_4K)) {

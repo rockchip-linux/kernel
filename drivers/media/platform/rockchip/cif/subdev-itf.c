@@ -134,7 +134,8 @@ static int sditf_get_set_fmt(struct v4l2_subdev *sd,
 		v4l2_dbg(3, rkcif_debug, &cif_dev->v4l2_dev,
 			"%s, width %d, height %d, hdr mode %d\n",
 			__func__, fmt->format.width, fmt->format.height, priv->hdr_cfg.hdr_mode);
-		if (priv->hdr_cfg.hdr_mode == NO_HDR) {
+		if (priv->hdr_cfg.hdr_mode == NO_HDR ||
+		    priv->hdr_cfg.hdr_mode == HDR_COMPR) {
 			rkcif_set_fmt(&cif_dev->stream[0], &pixm, false);
 		} else if (priv->hdr_cfg.hdr_mode == HDR_X2) {
 			rkcif_set_fmt(&cif_dev->stream[0], &pixm, false);
@@ -351,16 +352,17 @@ static int sditf_channel_enable(struct sditf_priv *priv, int user)
 	unsigned int width = priv->cap_info.width;
 	unsigned int height = priv->cap_info.height;
 
-	if (priv->hdr_cfg.hdr_mode == NO_HDR) {
+	if (priv->hdr_cfg.hdr_mode == NO_HDR ||
+	    priv->hdr_cfg.hdr_mode == HDR_COMPR) {
 		if (cif_dev->inf_id == RKCIF_MIPI_LVDS)
 			ch0 = cif_dev->csi_host_idx * 4;
 		else
 			ch0 = 24;//dvp
 		ctrl_val = (ch0 << 3) | 0x1;
 		if (user == 0)
-			int_en = CIF_TOISP0_FE(0) | CIF_TOISP1_FS(0);
+			int_en = CIF_TOISP1_FS(0);
 		else
-			int_en = CIF_TOISP1_FE(0) | CIF_TOISP1_FS(0);
+			int_en = CIF_TOISP1_FS(0);
 		priv->toisp_inf.ch_info[0].is_valid = true;
 		priv->toisp_inf.ch_info[0].id = ch0;
 	} else if (priv->hdr_cfg.hdr_mode == HDR_X2) {
@@ -369,11 +371,9 @@ static int sditf_channel_enable(struct sditf_priv *priv, int user)
 		ctrl_val = (ch0 << 3) | 0x1;
 		ctrl_val |= (ch1 << 11) | 0x100;
 		if (user == 0)
-			int_en = CIF_TOISP0_FE(0) | CIF_TOISP0_FE(1) |
-				 CIF_TOISP0_FS(0) | CIF_TOISP0_FS(1);
+			int_en = CIF_TOISP0_FS(0) | CIF_TOISP0_FS(1);
 		else
-			int_en = CIF_TOISP1_FE(0) | CIF_TOISP1_FE(1) |
-				 CIF_TOISP1_FS(0) | CIF_TOISP1_FS(1);
+			int_en = CIF_TOISP1_FS(0) | CIF_TOISP1_FS(1);
 		priv->toisp_inf.ch_info[0].is_valid = true;
 		priv->toisp_inf.ch_info[0].id = ch0;
 		priv->toisp_inf.ch_info[1].is_valid = true;
@@ -386,11 +386,9 @@ static int sditf_channel_enable(struct sditf_priv *priv, int user)
 		ctrl_val |= (ch1 << 11) | 0x100;
 		ctrl_val |= (ch2 << 19) | 0x10000;
 		if (user == 0)
-			int_en = CIF_TOISP0_FE(0) | CIF_TOISP0_FE(1) | CIF_TOISP1_FE(2) |
-				 CIF_TOISP0_FS(0) | CIF_TOISP0_FS(1) | CIF_TOISP1_FS(2);
+			int_en = CIF_TOISP0_FS(0) | CIF_TOISP0_FS(1) | CIF_TOISP0_FS(2);
 		else
-			int_en = CIF_TOISP1_FE(0) | CIF_TOISP1_FE(1) | CIF_TOISP1_FE(2) |
-				 CIF_TOISP1_FS(0) | CIF_TOISP1_FS(1) | CIF_TOISP1_FS(2);
+			int_en = CIF_TOISP1_FS(0) | CIF_TOISP1_FS(1) | CIF_TOISP1_FS(2);
 		priv->toisp_inf.ch_info[0].is_valid = true;
 		priv->toisp_inf.ch_info[0].id = ch0;
 		priv->toisp_inf.ch_info[1].is_valid = true;
@@ -428,10 +426,7 @@ static int sditf_channel_enable(struct sditf_priv *priv, int user)
 #if IS_ENABLED(CONFIG_CPU_RV1106)
 	rv1106_sdmmc_get_lock();
 #endif
-	if (rkcif_debug == 3)
-		rkcif_write_register_or(cif_dev, CIF_REG_GLB_INTEN, int_en);
-	else
-		rkcif_write_register_and(cif_dev, CIF_REG_GLB_INTEN, ~int_en);
+	rkcif_write_register_or(cif_dev, CIF_REG_GLB_INTEN, int_en);
 #if IS_ENABLED(CONFIG_CPU_RV1106)
 	rv1106_sdmmc_put_lock();
 #endif
@@ -443,7 +438,8 @@ static void sditf_channel_disable(struct sditf_priv *priv, int user)
 	struct rkcif_device *cif_dev = priv->cif_dev;
 	unsigned int ctrl_val = 0;
 
-	if (priv->hdr_cfg.hdr_mode == NO_HDR) {
+	if (priv->hdr_cfg.hdr_mode == NO_HDR ||
+	    priv->hdr_cfg.hdr_mode == HDR_COMPR) {
 		if (user == 0)
 			ctrl_val = CIF_TOISP0_FE(0);
 		else
@@ -455,7 +451,7 @@ static void sditf_channel_disable(struct sditf_priv *priv, int user)
 			ctrl_val = CIF_TOISP1_FE(0) | CIF_TOISP1_FE(1);
 	} else if (priv->hdr_cfg.hdr_mode == HDR_X3) {
 		if (user == 0)
-			ctrl_val = CIF_TOISP0_FE(0) | CIF_TOISP0_FE(1) | CIF_TOISP1_FE(2);
+			ctrl_val = CIF_TOISP0_FE(0) | CIF_TOISP0_FE(1) | CIF_TOISP0_FE(2);
 		else
 			ctrl_val = CIF_TOISP1_FE(0) | CIF_TOISP1_FE(1) | CIF_TOISP1_FE(2);
 	}
@@ -486,7 +482,8 @@ static int sditf_start_stream(struct sditf_priv *priv)
 		sditf_channel_enable(priv, 1);
 	}
 
-	if (priv->hdr_cfg.hdr_mode == NO_HDR) {
+	if (priv->hdr_cfg.hdr_mode == NO_HDR ||
+	    priv->hdr_cfg.hdr_mode == HDR_COMPR) {
 		rkcif_do_start_stream(&cif_dev->stream[0], RKCIF_STREAM_MODE_TOISP);
 	} else if (priv->hdr_cfg.hdr_mode == HDR_X2) {
 		rkcif_do_start_stream(&cif_dev->stream[0], RKCIF_STREAM_MODE_TOISP);
@@ -511,7 +508,9 @@ static int sditf_stop_stream(struct sditf_priv *priv)
 		sditf_channel_disable(priv, 0);
 		sditf_channel_disable(priv, 1);
 	}
-	if (priv->hdr_cfg.hdr_mode == NO_HDR) {
+
+	if (priv->hdr_cfg.hdr_mode == NO_HDR ||
+	    priv->hdr_cfg.hdr_mode == HDR_COMPR) {
 		rkcif_do_stop_stream(&cif_dev->stream[0], RKCIF_STREAM_MODE_TOISP);
 	} else if (priv->hdr_cfg.hdr_mode == HDR_X2) {
 		rkcif_do_stop_stream(&cif_dev->stream[0], RKCIF_STREAM_MODE_TOISP);

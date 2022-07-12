@@ -5,6 +5,7 @@
  * Author: Dingxian Wen <shawn.wen@rock-chips.com>
  */
 
+#include <dt-bindings/soc/rockchip-system-status.h>
 #include <linux/clk.h>
 #include <linux/cpufreq.h>
 #include <linux/debugfs.h>
@@ -40,6 +41,7 @@
 #include <media/v4l2-ioctl.h>
 #include <media/videobuf2-dma-contig.h>
 #include <media/videobuf2-v4l2.h>
+#include <soc/rockchip/rockchip-system-status.h>
 #include <sound/hdmi-codec.h>
 #include "rk_hdmirx.h"
 #include "rk_hdmirx_cec.h"
@@ -262,11 +264,11 @@ static u8 edid_init_data_340M[] = {
 	0x00, 0x3B, 0x46, 0x1F, 0x8C, 0x3C, 0x00, 0x0A,
 	0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x01, 0xA7,
 
-	0x02, 0x03, 0x2F, 0xD1, 0x51, 0x07, 0x16, 0x14,
+	0x02, 0x03, 0x2F, 0xF1, 0x51, 0x07, 0x16, 0x14,
 	0x05, 0x01, 0x03, 0x12, 0x13, 0x84, 0x22, 0x1F,
 	0x90, 0x5D, 0x5E, 0x5F, 0x60, 0x61, 0x23, 0x09,
 	0x07, 0x07, 0x83, 0x01, 0x00, 0x00, 0x67, 0x03,
-	0x0C, 0x00, 0x30, 0x00, 0x10, 0x44, 0xE3, 0x05,
+	0x0C, 0x00, 0x30, 0x00, 0x18, 0x44, 0xE3, 0x05,
 	0x03, 0x01, 0xE4, 0x0F, 0x00, 0x80, 0x01, 0x02,
 	0x3A, 0x80, 0x18, 0x71, 0x38, 0x2D, 0x40, 0x58,
 	0x2C, 0x45, 0x00, 0x20, 0xC2, 0x31, 0x00, 0x00,
@@ -277,7 +279,7 @@ static u8 edid_init_data_340M[] = {
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1F,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xF7,
 };
 
 static u8 edid_init_data_600M[] = {
@@ -298,9 +300,9 @@ static u8 edid_init_data_600M[] = {
 	0x00, 0x3B, 0x46, 0x1F, 0x8C, 0x3C, 0x00, 0x0A,
 	0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x01, 0x39,
 
-	0x02, 0x03, 0x21, 0xD2, 0x41, 0x61, 0x23, 0x09,
+	0x02, 0x03, 0x21, 0xF2, 0x41, 0x61, 0x23, 0x09,
 	0x07, 0x07, 0x83, 0x01, 0x00, 0x00, 0x66, 0x03,
-	0x0C, 0x00, 0x30, 0x00, 0x10, 0x67, 0xD8, 0x5D,
+	0x0C, 0x00, 0x30, 0x00, 0x18, 0x67, 0xD8, 0x5D,
 	0xC4, 0x01, 0x78, 0xC0, 0x07, 0xE3, 0x05, 0x03,
 	0x01, 0x08, 0xE8, 0x00, 0x30, 0xF2, 0x70, 0x5A,
 	0x80, 0xB0, 0x58, 0x8A, 0x00, 0xC4, 0x8E, 0x21,
@@ -313,7 +315,7 @@ static u8 edid_init_data_600M[] = {
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xE8,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xC0,
 };
 
 static const struct v4l2_dv_timings_cap hdmirx_timings_cap = {
@@ -331,7 +333,7 @@ static const struct v4l2_dv_timings_cap hdmirx_timings_cap = {
 
 static const struct hdmirx_output_fmt g_out_fmts[] = {
 	{
-		.fourcc = V4L2_PIX_FMT_RGB24,
+		.fourcc = V4L2_PIX_FMT_BGR24,
 		.cplanes = 1,
 		.mplanes = 1,
 		.bpp = { 24 },
@@ -558,7 +560,7 @@ static void hdmirx_get_pix_fmt(struct rk_hdmirx_dev *hdmirx_dev)
 
 	switch (hdmirx_dev->pix_fmt) {
 	case HDMIRX_RGB888:
-		hdmirx_dev->cur_fmt_fourcc = V4L2_PIX_FMT_RGB24;
+		hdmirx_dev->cur_fmt_fourcc = V4L2_PIX_FMT_BGR24;
 		break;
 	case HDMIRX_YUV422:
 		hdmirx_dev->cur_fmt_fourcc = V4L2_PIX_FMT_NV16;
@@ -575,7 +577,7 @@ static void hdmirx_get_pix_fmt(struct rk_hdmirx_dev *hdmirx_dev)
 			"%s: err pix_fmt: %d, set RGB888 as default\n",
 			__func__, hdmirx_dev->pix_fmt);
 		hdmirx_dev->pix_fmt = HDMIRX_RGB888;
-		hdmirx_dev->cur_fmt_fourcc = V4L2_PIX_FMT_RGB24;
+		hdmirx_dev->cur_fmt_fourcc = V4L2_PIX_FMT_BGR24;
 		break;
 	}
 
@@ -661,12 +663,12 @@ static bool hdmirx_check_timing_valid(struct v4l2_bt_timings *bt)
 	    bt->vsync == 0 || bt->vsync > 100)
 		return false;
 
-	if (bt->hbackporch == 0 || bt->hbackporch > 2000 ||
-	    bt->vbackporch == 0 || bt->vbackporch > 2000)
+	if (bt->hbackporch == 0 || bt->hbackporch > 3000 ||
+	    bt->vbackporch == 0 || bt->vbackporch > 3000)
 		return false;
 
-	if (bt->hfrontporch == 0 || bt->hfrontporch > 2000 ||
-	    bt->vfrontporch == 0 || bt->vfrontporch > 2000)
+	if (bt->hfrontporch == 0 || bt->hfrontporch > 3000 ||
+	    bt->vfrontporch == 0 || bt->vfrontporch > 3000)
 		return false;
 
 	return true;
@@ -1426,7 +1428,7 @@ static u32 hdmirx_align_bits_per_pixel(const struct hdmirx_output_fmt *fmt,
 		case V4L2_PIX_FMT_NV24:
 		case V4L2_PIX_FMT_NV16:
 		case V4L2_PIX_FMT_NV12:
-		case V4L2_PIX_FMT_RGB24:
+		case V4L2_PIX_FMT_BGR24:
 			bpp = fmt->bpp[plane_index];
 			break;
 
@@ -2361,6 +2363,7 @@ static void hdmirx_plugin(struct rk_hdmirx_dev *hdmirx_dev)
 {
 	int ret;
 
+	rockchip_set_system_status(SYS_STATUS_HDMIRX);
 	cpu_latency_qos_update_request(&hdmirx_dev->pm_qos, 0);
 	schedule_delayed_work_on(hdmirx_dev->bound_cpu,
 		&hdmirx_dev->delayed_work_heartbeat, msecs_to_jiffies(10));
@@ -2414,6 +2417,7 @@ static void hdmirx_plugout(struct rk_hdmirx_dev *hdmirx_dev)
 	cancel_delayed_work(&hdmirx_dev->delayed_work_heartbeat);
 	flush_work(&hdmirx_dev->work_wdt_config);
 	sip_wdt_config(WDT_STOP, 0, 0, 0);
+	rockchip_clear_system_status(SYS_STATUS_HDMIRX);
 }
 
 static void hdmirx_delayed_work_hotplug(struct work_struct *work)
@@ -3633,7 +3637,7 @@ static int hdmirx_probe(struct platform_device *pdev)
 	if (ret)
 		goto err_work_queues;
 
-	hdmirx_dev->cur_fmt_fourcc = V4L2_PIX_FMT_RGB24;
+	hdmirx_dev->cur_fmt_fourcc = V4L2_PIX_FMT_BGR24;
 	hdmirx_dev->timings = timings_def;
 
 	irq = platform_get_irq_byname(pdev, "hdmi");
