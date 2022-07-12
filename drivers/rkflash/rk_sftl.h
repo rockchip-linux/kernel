@@ -40,6 +40,8 @@ void *ftl_memset(void *s, int c, unsigned int n);
 void *ftl_memcpy(void *pv_to,
 		 const void *pv_from,
 		 unsigned int size);
+unsigned long ftl_copy_from_user(void *to, const void __user *from, unsigned long n);
+unsigned long ftl_copy_to_user(void __user *to, const void *from, unsigned long n);
 
 /*
  * Function that needs to be defined

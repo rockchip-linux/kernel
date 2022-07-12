@@ -75,6 +75,16 @@ static unsigned int rknand_req_do;
 static int rkflash_dev_initialised = 0;
 static DEFINE_MUTEX(g_flash_ops_mutex);
 
+unsigned long ftl_copy_from_user(void *to, const void __user *from, unsigned long n)
+{
+	return copy_from_user(to, from, n);
+}
+
+unsigned long ftl_copy_to_user(void __user *to, const void *from, unsigned long n)
+{
+	return copy_to_user(to, from, n);
+}
+
 static int rkflash_flash_gc(void)
 {
 	int ret;
