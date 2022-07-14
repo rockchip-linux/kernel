@@ -2907,8 +2907,11 @@ static void vop2_crtc_load_lut(struct drm_crtc *crtc)
 	if (!vop2->is_enabled || !vp->lut || !vop2->lut_regs)
 		return;
 
-	if (WARN_ON(!drm_modeset_is_locked(&crtc->mutex)))
+	if (!drm_modeset_is_locked(&crtc->mutex)) {
+		DRM_WARN("pending gramma_lut (crtc %p, vp %p) dropped\n",
+				crtc->state->gamma_lut, vp->gamma_lut);
 		return;
+	}
 
 	if (vop2->version == VOP_VERSION_RK3568)
 		return rk3568_crtc_load_lut(crtc);
