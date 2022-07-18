@@ -71,7 +71,10 @@ static void free_buffer_page(struct ion_system_heap *heap,
 		return;
 	}
 
-	pool = heap->pools[order_to_index(order)];
+	if (buffer->flags & ION_FLAG_DMA32)
+		pool = heap->dma32_pools[order_to_index(order)];
+	else
+		pool = heap->pools[order_to_index(order)];
 
 	ion_page_pool_free(pool, page);
 }
