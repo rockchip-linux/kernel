@@ -52,41 +52,59 @@ static __maybe_unused const struct regval common_setting_594M_1080p_regs[] = {
 
 static struct techpoint_video_modes supported_modes[] = {
 	{
-	 .bus_fmt = MEDIA_BUS_FMT_UYVY8_2X8,
-	 .width = 1920,
-	 .height = 1080,
-	 .max_fps = {
-		     .numerator = 10000,
-		     .denominator = 250000,
-		     },
-	 .link_freq_value = TP2855_LINK_FREQ_594M,
-	 .common_reg_list = common_setting_594M_1080p_regs,
-	 .common_reg_size = ARRAY_SIZE(common_setting_594M_1080p_regs),
-	 .bpp = 8,
-	 .lane = 4,
-	 .vc[PAD0] = V4L2_MBUS_CSI2_CHANNEL_0,
-	 .vc[PAD1] = V4L2_MBUS_CSI2_CHANNEL_1,
-	 .vc[PAD2] = V4L2_MBUS_CSI2_CHANNEL_2,
-	 .vc[PAD3] = V4L2_MBUS_CSI2_CHANNEL_3,
-	  },
+		.bus_fmt = MEDIA_BUS_FMT_UYVY8_2X8,
+		.width = 1920,
+		.height = 1080,
+		.max_fps = {
+			.numerator = 10000,
+			.denominator = 250000,
+			},
+		.link_freq_value = TP2855_LINK_FREQ_594M,
+		.common_reg_list = common_setting_594M_1080p_regs,
+		.common_reg_size = ARRAY_SIZE(common_setting_594M_1080p_regs),
+		.bpp = 8,
+		.lane = 4,
+		.vc[PAD0] = V4L2_MBUS_CSI2_CHANNEL_0,
+		.vc[PAD1] = V4L2_MBUS_CSI2_CHANNEL_1,
+		.vc[PAD2] = V4L2_MBUS_CSI2_CHANNEL_2,
+		.vc[PAD3] = V4L2_MBUS_CSI2_CHANNEL_3,
+	},
 	{
-	 .bus_fmt = MEDIA_BUS_FMT_UYVY8_2X8,
-	 .width = 1280,
-	 .height = 720,
-	 .max_fps = {
-		     .numerator = 10000,
-		     .denominator = 250000,
-		     },
-	 .link_freq_value = TP2855_LINK_FREQ_297M,
-	 .common_reg_list = common_setting_297M_720p_regs,
-	 .common_reg_size = ARRAY_SIZE(common_setting_297M_720p_regs),
-	 .bpp = 8,
-	 .lane = 4,
-	 .vc[PAD0] = V4L2_MBUS_CSI2_CHANNEL_0,
-	 .vc[PAD1] = V4L2_MBUS_CSI2_CHANNEL_1,
-	 .vc[PAD2] = V4L2_MBUS_CSI2_CHANNEL_2,
-	 .vc[PAD3] = V4L2_MBUS_CSI2_CHANNEL_3,
-	  },
+		.bus_fmt = MEDIA_BUS_FMT_UYVY8_2X8,
+		.width = 1280,
+		.height = 720,
+		.max_fps = {
+			.numerator = 10000,
+			.denominator = 250000,
+			},
+		.link_freq_value = TP2855_LINK_FREQ_297M,
+		.common_reg_list = common_setting_297M_720p_regs,
+		.common_reg_size = ARRAY_SIZE(common_setting_297M_720p_regs),
+		.bpp = 8,
+		.lane = 4,
+		.vc[PAD0] = V4L2_MBUS_CSI2_CHANNEL_0,
+		.vc[PAD1] = V4L2_MBUS_CSI2_CHANNEL_1,
+		.vc[PAD2] = V4L2_MBUS_CSI2_CHANNEL_2,
+		.vc[PAD3] = V4L2_MBUS_CSI2_CHANNEL_3,
+	},
+	{
+		.bus_fmt = MEDIA_BUS_FMT_UYVY8_2X8,
+		.width = 720,
+		.height = 576,
+		.max_fps = {
+			.numerator = 10000,
+			.denominator = 250000,
+			},
+		.link_freq_value = TP2855_LINK_FREQ_297M,
+		.common_reg_list = common_setting_297M_720p_regs,
+		.common_reg_size = ARRAY_SIZE(common_setting_297M_720p_regs),
+		.bpp = 8,
+		.lane = 4,
+		.vc[PAD0] = V4L2_MBUS_CSI2_CHANNEL_0,
+		.vc[PAD1] = V4L2_MBUS_CSI2_CHANNEL_1,
+		.vc[PAD2] = V4L2_MBUS_CSI2_CHANNEL_2,
+		.vc[PAD3] = V4L2_MBUS_CSI2_CHANNEL_3,
+	},
 };
 
 int tp2855_initialize(struct techpoint *techpoint)
@@ -97,7 +115,7 @@ int tp2855_initialize(struct techpoint *techpoint)
 
 	techpoint->video_modes_num = ARRAY_SIZE(supported_modes);
 	array_size =
-	    sizeof(struct techpoint_video_modes) * techpoint->video_modes_num;
+		sizeof(struct techpoint_video_modes) * techpoint->video_modes_num;
 	techpoint->video_modes = devm_kzalloc(dev, array_size, GFP_KERNEL);
 	memcpy(techpoint->video_modes, supported_modes, array_size);
 
@@ -141,7 +159,7 @@ int tp2855_set_channel_reso(struct i2c_client *client, int ch,
 
 	switch (val) {
 	case TECHPOINT_S_RESO_1080P_30:
-		dev_err(&client->dev, "set channel %d 1080P_30, TBD\n", ch);
+		dev_info(&client->dev, "set channel %d 1080P_30, TBD\n", ch);
 		techpoint_read_reg(client, 0xf5, &tmp);
 		tmp &= ~SYS_MODE[ch];
 		techpoint_write_reg(client, 0xf5, tmp);
@@ -191,7 +209,7 @@ int tp2855_set_channel_reso(struct i2c_client *client, int ch,
 		techpoint_write_reg(client, 0x33, 0x60);
 		break;
 	case TECHPOINT_S_RESO_1080P_25:
-		dev_err(&client->dev, "set channel %d 1080P_25\n", ch);
+		dev_info(&client->dev, "set channel %d 1080P_25\n", ch);
 		techpoint_read_reg(client, 0xf5, &tmp);
 		tmp &= ~SYS_MODE[ch];
 		techpoint_write_reg(client, 0xf5, tmp);
@@ -241,7 +259,7 @@ int tp2855_set_channel_reso(struct i2c_client *client, int ch,
 		techpoint_write_reg(client, 0x33, 0x60);
 		break;
 	case TECHPOINT_S_RESO_720P_30:
-		dev_err(&client->dev, "set channel %d 720P_30\n", ch);
+		dev_info(&client->dev, "set channel %d 720P_30\n", ch);
 		techpoint_read_reg(client, 0xf5, &tmp);
 		tmp |= SYS_MODE[ch];
 		techpoint_write_reg(client, 0xf5, tmp);
@@ -289,7 +307,7 @@ int tp2855_set_channel_reso(struct i2c_client *client, int ch,
 		techpoint_write_reg(client, 0x33, 0xd0);
 		break;
 	case TECHPOINT_S_RESO_720P_25:
-		dev_err(&client->dev, "set channel %d 720P_25\n", ch);
+		dev_info(&client->dev, "set channel %d 720P_25\n", ch);
 		techpoint_read_reg(client, 0xf5, &tmp);
 		tmp |= SYS_MODE[ch];
 		techpoint_write_reg(client, 0xf5, tmp);
@@ -336,8 +354,43 @@ int tp2855_set_channel_reso(struct i2c_client *client, int ch,
 		techpoint_write_reg(client, 0x32, 0x10);
 		techpoint_write_reg(client, 0x33, 0x90);
 		break;
+	case TECHPOINT_S_RESO_SD:
+		dev_info(&client->dev, "set channel %d SD\n", ch);
+		techpoint_read_reg(client, 0xf5, &tmp);
+		tmp |= SYS_MODE[ch];
+		techpoint_write_reg(client, 0xf5, tmp);
+		techpoint_write_reg(client, 0x06, 0x32);
+		techpoint_write_reg(client, 0x02, 0x47);
+		techpoint_write_reg(client, 0x07, 0x80);
+		techpoint_write_reg(client, 0x0b, 0x80);
+		techpoint_write_reg(client, 0x0c, 0x13);
+		techpoint_write_reg(client, 0x0d, 0x51);
+		techpoint_write_reg(client, 0x15, 0x13);
+		techpoint_write_reg(client, 0x16, 0x18);
+		techpoint_write_reg(client, 0x17, 0xa0);
+		techpoint_write_reg(client, 0x18, 0x17);
+		techpoint_write_reg(client, 0x19, 0x20);
+		techpoint_write_reg(client, 0x1a, 0x15);
+		techpoint_write_reg(client, 0x1c, 0x06);
+		techpoint_write_reg(client, 0x1d, 0xf0);
+		techpoint_write_reg(client, 0x20, 0x48);
+		techpoint_write_reg(client, 0x21, 0x84);
+		techpoint_write_reg(client, 0x22, 0x37);
+		techpoint_write_reg(client, 0x23, 0x3f);
+		techpoint_write_reg(client, 0x2b, 0x70);
+		techpoint_write_reg(client, 0x2c, 0x2a);
+		techpoint_write_reg(client, 0x2d, 0x4b);
+		techpoint_write_reg(client, 0x2e, 0x56);
+		techpoint_write_reg(client, 0x30, 0x7a);
+		techpoint_write_reg(client, 0x31, 0x4a);
+		techpoint_write_reg(client, 0x32, 0x4d);
+		techpoint_write_reg(client, 0x33, 0xfb);
+		techpoint_write_reg(client, 0x35, 0x65);
+		techpoint_write_reg(client, 0x38, 0x00);
+		techpoint_write_reg(client, 0x39, 0x04);
+		break;
 	default:
-		dev_err(&client->dev,
+		dev_info(&client->dev,
 			"set channel %d UNSUPPORT, default 1080P_25\n", ch);
 		techpoint_read_reg(client, 0xf5, &tmp);
 		tmp &= ~SYS_MODE[ch];
@@ -422,6 +475,9 @@ int tp2855_get_channel_reso(struct i2c_client *client, int ch)
 		dev_err(&client->dev, "detect channel %d 720P_25\n", ch);
 		return TECHPOINT_S_RESO_720P_25;
 		break;
+	case TP2855_CVSTD_SD:
+		dev_err(&client->dev, "detect channel %d SD\n", ch);
+		return TECHPOINT_S_RESO_SD;
 	default:
 		dev_err(&client->dev,
 			"detect channel %d UNSUPPORT, default 1080P_25\n", ch);
@@ -440,6 +496,7 @@ int tp2855_set_quick_stream(struct i2c_client *client, u32 stream)
 	} else {
 		techpoint_write_reg(client, 0x40, 0x8);
 		techpoint_write_reg(client, 0x23, 0x2);
+		usleep_range(40 * 1000, 50 * 1000);
 	}
 
 	return 0;

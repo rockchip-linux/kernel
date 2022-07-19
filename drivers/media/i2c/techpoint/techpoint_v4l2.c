@@ -106,8 +106,8 @@ static int techpoint_analyze_dts(struct techpoint *techpoint)
 	fwnode = of_fwnode_handle(endpoint);
 	rval = fwnode_property_read_u32_array(fwnode, "data-lanes", NULL, 0);
 	if (rval <= 0) {
-		dev_warn(dev, " Get mipi lane num failed!\n");
-		return -1;
+		dev_err(dev, " Get mipi lane num failed!\n");
+		return -EINVAL;
 	}
 	techpoint->data_lanes = rval;
 
@@ -127,7 +127,7 @@ static int techpoint_analyze_dts(struct techpoint *techpoint)
 	ret =
 	    regulator_bulk_enable(TECHPOINT_NUM_SUPPLIES, techpoint->supplies);
 	if (ret < 0)
-		dev_err(dev, "Failed to enable regulators\n");
+		dev_warn(dev, "Failed to enable regulators\n");
 
 	techpoint->reset_gpio = devm_gpiod_get(dev, "reset", GPIOD_OUT_LOW);
 	if (IS_ERR(techpoint->reset_gpio))
@@ -141,15 +141,15 @@ static int techpoint_analyze_dts(struct techpoint *techpoint)
 		    pinctrl_lookup_state(techpoint->pinctrl,
 					 OF_CAMERA_PINCTRL_STATE_DEFAULT);
 		if (IS_ERR(techpoint->pins_default))
-			dev_info(dev, "could not get default pinstate\n");
+			dev_warn(dev, "could not get default pinstate\n");
 
 		techpoint->pins_sleep =
 		    pinctrl_lookup_state(techpoint->pinctrl,
 					 OF_CAMERA_PINCTRL_STATE_SLEEP);
 		if (IS_ERR(techpoint->pins_sleep))
-			dev_info(dev, "could not get sleep pinstate\n");
+			dev_warn(dev, "could not get sleep pinstate\n");
 	} else {
-		dev_info(dev, "no pinctrl\n");
+		dev_warn(dev, "no pinctrl\n");
 	}
 
 	return 0;
@@ -351,14 +351,14 @@ exit:
 	return ret;
 }
 
-static int techpoint_get_reso_dist(const struct techpoint_video_modes *mode,
+static int techpoint_get_reso_dist(struct techpoint_video_modes *mode,
 				   struct v4l2_mbus_framefmt *framefmt)
 {
 	return abs(mode->width - framefmt->width) +
 	       abs(mode->height - framefmt->height);
 }
 
-static const struct techpoint_video_modes *
+static struct techpoint_video_modes *
 techpoint_find_best_fit(struct techpoint *techpoint,
 			struct v4l2_subdev_format *fmt)
 {
@@ -387,7 +387,7 @@ static int techpoint_set_fmt(struct v4l2_subdev *sd,
 			     struct v4l2_subdev_format *fmt)
 {
 	struct techpoint *techpoint = to_techpoint(sd);
-	const struct techpoint_video_modes *mode;
+	struct techpoint_video_modes *mode;
 
 	mutex_lock(&techpoint->mutex);
 
@@ -438,7 +438,11 @@ static int techpoint_get_fmt(struct v4l2_subdev *sd,
 		fmt->format.height = mode->height;
 		fmt->format.code = mode->bus_fmt;
 		fmt->format.field = V4L2_FIELD_NONE;
-		fmt->reserved[0] = mode->vc[fmt->pad];
+		if (fmt->pad < PAD_MAX) {
+			if (mode->channel_reso[fmt->pad] == TECHPOINT_S_RESO_SD)
+				fmt->format.field = V4L2_FIELD_INTERLACED;
+			fmt->reserved[0] = mode->vc[fmt->pad];
+		}
 	}
 	mutex_unlock(&techpoint->mutex);
 
@@ -535,10 +539,10 @@ static __maybe_unused void techpoint_get_module_inf(struct techpoint *techpoint,
 						    struct rkmodule_inf *inf)
 {
 	memset(inf, 0, sizeof(*inf));
-	strlcpy(inf->base.sensor, TECHPOINT_NAME, sizeof(inf->base.sensor));
-	strlcpy(inf->base.module, techpoint->module_name,
+	strscpy(inf->base.sensor, TECHPOINT_NAME, sizeof(inf->base.sensor));
+	strscpy(inf->base.module, techpoint->module_name,
 		sizeof(inf->base.module));
-	strlcpy(inf->base.lens, techpoint->len_name, sizeof(inf->base.lens));
+	strscpy(inf->base.lens, techpoint->len_name, sizeof(inf->base.lens));
 }
 
 static __maybe_unused void

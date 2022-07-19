@@ -189,11 +189,11 @@ static int detect_thread_function(void *data)
 				if (techpoint->detect_status[i] !=
 				    detect_status) {
 					if (!detect_status)
-						dev_err(&client->dev,
+						dev_info(&client->dev,
 							"detect channel %d video plug out\n",
 							i);
 					else
-						dev_err(&client->dev,
+						dev_info(&client->dev,
 							"detect channel %d video plug in\n",
 							i);
 
@@ -212,7 +212,7 @@ static int detect_thread_function(void *data)
 			} else if (need_reset_wait == 0) {
 				need_reset_wait = -1;
 				techpoint->do_reset = 1;
-				dev_err(&client->dev,
+				dev_info(&client->dev,
 					"trigger reset time up\n");
 			}
 		}
@@ -291,8 +291,10 @@ void __techpoint_get_vc_fmt_inf(struct techpoint *techpoint,
 	for (ch = 0; ch < PAD_MAX; ch++) {
 		if (techpoint->chip_id == CHIP_TP9930) {
 			reso = tp9930_get_channel_reso(client, ch);
+			techpoint->cur_video_mode->channel_reso[ch] = reso;
 		} else if (techpoint->chip_id == CHIP_TP2855) {
 			reso = tp2855_get_channel_reso(client, ch);
+			techpoint->cur_video_mode->channel_reso[ch] = reso;
 		}
 		val = reso;
 		switch (val) {
@@ -314,6 +316,11 @@ void __techpoint_get_vc_fmt_inf(struct techpoint *techpoint,
 		case TECHPOINT_S_RESO_720P_25:
 			inf->width[ch] = 1280;
 			inf->height[ch] = 720;
+			inf->fps[ch] = 25;
+			break;
+		case TECHPOINT_S_RESO_SD:
+			inf->width[ch] = 720;
+			inf->height[ch] = 560;
 			inf->fps[ch] = 25;
 			break;
 		default:
