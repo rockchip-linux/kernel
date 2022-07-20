@@ -1,0 +1,120 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright (c) 2022 Rockchip Electronics Co., Ltd.
+ *
+ */
+
+#include "rk3568.dtsi"
+
+&cru {
+	/* remove PLL_NPLL and ACLK_VOP */
+	assigned-clocks =
+		<&pmucru CLK_RTC_32K>, <&cru ACLK_RKVDEC_PRE>,
+		<&cru CLK_RKVDEC_CORE>, <&pmucru PLL_PPLL>,
+		<&pmucru PCLK_PMU>, <&cru PLL_CPLL>,
+		<&cru CPLL_500M>, <&cru CPLL_333M>,
+		<&cru CPLL_250M>, <&cru CPLL_125M>,
+		<&cru CPLL_100M>, <&cru CPLL_62P5M>,
+		<&cru CPLL_50M>, <&cru CPLL_25M>,
+		<&cru PLL_GPLL>,
+		<&cru ACLK_BUS>, <&cru PCLK_BUS>,
+		<&cru ACLK_TOP_HIGH>, <&cru ACLK_TOP_LOW>,
+		<&cru HCLK_TOP>, <&cru PCLK_TOP>,
+		<&cru ACLK_PERIMID>, <&cru HCLK_PERIMID>,
+		<&cru ACLK_PIPE>,
+		<&cru PCLK_PIPE>, <&cru CLK_I2S0_8CH_TX_SRC>,
+		<&cru CLK_I2S0_8CH_RX_SRC>, <&cru CLK_I2S1_8CH_TX_SRC>,
+		<&cru CLK_I2S1_8CH_RX_SRC>, <&cru CLK_I2S2_2CH_SRC>,
+		<&cru CLK_I2S2_2CH_SRC>, <&cru CLK_I2S3_2CH_RX_SRC>,
+		<&cru CLK_I2S3_2CH_TX_SRC>, <&cru MCLK_SPDIF_8CH_SRC>;
+	assigned-clock-rates =
+		<32768>, <300000000>,
+		<300000000>, <200000000>,
+		<100000000>, <1000000000>,
+		<500000000>, <333000000>,
+		<250000000>, <125000000>,
+		<100000000>, <62500000>,
+		<50000000>, <25000000>,
+		<1188000000>,
+		<150000000>, <100000000>,
+		<500000000>, <400000000>,
+		<150000000>, <100000000>,
+		<300000000>, <150000000>,
+		<400000000>,
+		<100000000>, <1188000000>,
+		<1188000000>, <1188000000>,
+		<1188000000>, <1188000000>,
+		<1188000000>, <1188000000>,
+		<1188000000>, <1188000000>;
+	assigned-clock-parents =
+		<&pmucru CLK_RTC32K_FRAC>, <&cru PLL_GPLL>,
+		<&cru PLL_GPLL>;
+};
+
+&cpu0_opp_table {
+	/delete-node/ mbist-vmin;
+	/delete-node/ opp-408000000;
+	/delete-node/ opp-600000000;
+	/delete-node/ opp-816000000;
+	/delete-node/ opp-1104000000;
+	/delete-node/ opp-1416000000;
+	/delete-node/ opp-1608000000;
+	/delete-node/ opp-1800000000;
+	/delete-node/ opp-1992000000;
+	opp-1416000000 {
+		opp-hz = /bits/ 64 <1416000000>;
+		opp-microvolt = <900000 900000 900000>;
+		clock-latency-ns = <40000>;
+	};
+};
+
+&display_subsystem {
+	status = "disabled";
+};
+
+&dmc {
+	system-status-level = <
+		/*system status         freq level*/
+		SYS_STATUS_NORMAL       DMC_FREQ_LEVEL_HIGH
+	>;
+	auto-freq-en = <0>;
+};
+
+&dmc_opp_table {
+	/delete-node/ mbist-vmin;
+	/delete-node/ opp-1560000000;
+	opp-780000000 {
+		opp-hz = /bits/ 64 <780000000>;
+		opp-microvolt = <850000>;
+	};
+};
+
+&gpu_opp_table {
+	/delete-node/ mbist-vmin;
+	/delete-node/ opp-200000000;
+	/delete-node/ opp-300000000;
+	/delete-node/ opp-400000000;
+	/delete-node/ opp-600000000;
+	/delete-node/ opp-700000000;
+	/delete-node/ opp-800000000;
+	opp-600000000 {
+		opp-hz = /bits/ 64 <600000000>;
+		opp-microvolt = <900000>;
+	};
+};
+
+&npu_opp_table {
+	/delete-node/ mbist-vmin;
+	/delete-node/ opp-200000000;
+	/delete-node/ opp-300000000;
+	/delete-node/ opp-400000000;
+	/delete-node/ opp-600000000;
+	/delete-node/ opp-700000000;
+	/delete-node/ opp-800000000;
+	/delete-node/ opp-900000000;
+	opp-600000000 {
+		opp-hz = /bits/ 64 <600000000>;
+		opp-microvolt = <900000 900000 900000>;
+	};
+};
+
