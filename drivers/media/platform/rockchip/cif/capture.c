@@ -611,6 +611,15 @@ cif_input_fmt *get_input_fmt(struct v4l2_subdev *sd, struct v4l2_rect *rect,
 	struct v4l2_subdev_format fmt;
 	int ret;
 	u32 i;
+	struct rkmodule_vc_fmt_info vc_info = {0};
+
+	ret = v4l2_subdev_call(sd,
+			core, ioctl,
+			RKMODULE_GET_VC_FMT_INFO,
+			&vc_info);
+	if (ret < 0)
+		v4l2_warn(sd->v4l2_dev,
+			  "get sensor vc info failed, maybe not support\n");
 
 	fmt.pad = pad;
 	fmt.which = V4L2_SUBDEV_FORMAT_ACTIVE;
