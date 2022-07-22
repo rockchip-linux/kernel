@@ -1055,19 +1055,25 @@ static int rga_drv_probe(struct platform_device *pdev)
 
 	data->num_of_scheduler++;
 
+#ifndef CONFIG_ROCKCHIP_FPGA
 	for (i = rga_scheduler->num_clks - 1; i >= 0; i--)
 		if (!IS_ERR(rga_scheduler->clks[i]))
 			clk_disable_unprepare(rga_scheduler->clks[i]);
 
 	pm_runtime_put_sync(&pdev->dev);
+#endif //CONFIG_ROCKCHIP_FPGA
 
 	pr_err("probe successfully\n");
 
 	return 0;
 
+#ifndef CONFIG_ROCKCHIP_FPGA
 failed:
+#endif //CONFIG_ROCKCHIP_FPGA
 	device_init_wakeup(dev, false);
+#ifndef CONFIG_ROCKCHIP_FPGA
 	pm_runtime_disable(dev);
+#endif //CONFIG_ROCKCHIP_FPGA
 
 	return ret;
 }
