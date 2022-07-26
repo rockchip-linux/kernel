@@ -122,6 +122,14 @@ struct rockchip_hdr_state {
 
 struct rockchip_crtc_state {
 	struct drm_crtc_state base;
+
+	/**
+	 * @hold_mode: enabled when it's:
+	 * (1) mcu hold mode
+	 * (2) mipi dsi cmd mode
+	 * (3) edp psr mode
+	 */
+	bool hold_mode;
 	struct drm_tv_connector_state *tv_state;
 	int left_margin;
 	int right_margin;

@@ -620,6 +620,10 @@ struct vop2_video_port_regs {
 	struct vop_reg cubic_lut_en;
 	struct vop_reg cubic_lut_update_en;
 	struct vop_reg cubic_lut_mst;
+
+	struct vop_reg edpi_wms_hold_en;
+	struct vop_reg edpi_te_en;
+	struct vop_reg edpi_wms_fs;
 };
 
 struct vop2_wb_regs {
