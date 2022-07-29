@@ -57,17 +57,6 @@
 	status = "okay";
 };
 
-&dmc_opp_table {
-	opp-324000000 {
-		opp-hz = /bits/ 64 <324000000>;
-		opp-microvolt = <875000>;
-	};
-	opp-528000000 {
-		opp-hz = /bits/ 64 <528000000>;
-		opp-microvolt = <875000>;
-	};
-};
-
 &ebc {
 	status = "okay";
 };
