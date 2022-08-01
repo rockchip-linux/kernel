@@ -546,7 +546,7 @@ static void rkisp_buf_queue(struct vb2_buffer *vb)
 		    isp_fmt->fmt_type == FMT_BAYER &&
 		    stream->id == RKISP_STREAM_RAWRD2) {
 			u32 line = pixm->plane_fmt[0].bytesperline;
-			u32 val = 8;
+			u32 val = RKMODULE_EXTEND_LINE;
 
 			vaddr += line * (pixm->height - 2);
 			while (val) {
