@@ -28,6 +28,8 @@
 		machine = "NANOPI4";
 		hwrev = <255>;
 		model = "NanoPi 4 Series";
+		nvmem-cells = <&cpu_id>;
+		nvmem-cell-names = "id";
 	};
 
 	aliases {
@@ -110,6 +112,15 @@
 		regulator-max-microvolt = <3300000>;
 		regulator-boot-on;
 		vin-supply = <&vcc5v0_sys>;
+	};
+
+	vccadc_ref: vccadc-ref {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc1v8_sys";
+		regulator-always-on;
+		regulator-boot-on;
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
 	};
 
 	vbus_typec: vbus-typec {
@@ -1009,6 +1020,7 @@
 
 &saradc {
 	status = "okay";
+	vref-supply = <&vccadc_ref>;
 };
 
 &sdhci {
