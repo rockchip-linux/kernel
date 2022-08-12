@@ -328,7 +328,7 @@ static void hook_once_work(struct work_struct *work)
 	else if(val >= HOOK_LEVEL_HIGH)
 	{
 		headset_info->isMic = 1;//have mic
-		schedule_delayed_work(&headset_info->hook_work,msecs_to_jiffies(100));
+		schedule_delayed_work(&headset_info->hook_work,msecs_to_jiffies(HOOK_ADC_SAMPLE_TIME));
 	}
 
 	headset_info->cur_headset_status = headset_info->isMic ? BIT_HEADSET:BIT_HEADSET_NO_MIC;
@@ -454,7 +454,7 @@ static void hook_work_callback(struct work_struct *work)
 		input_sync(headset->input_dev);
 	}	
 status_error:
-	 schedule_delayed_work(&headset_info->hook_work,msecs_to_jiffies(100));
+	 schedule_delayed_work(&headset_info->hook_work,msecs_to_jiffies(HOOK_ADC_SAMPLE_TIME));
 out:;
 }
 
@@ -574,7 +574,9 @@ int rk_headset_adc_resume(struct platform_device *pdev)
 	DBG("%s----%d\n",__FUNCTION__,__LINE__);	
 //	enable_irq(headset_info->irq[HEADSET]);
 //	if(headset_info->isMic)
-//		mod_timer(&headset_info->hook_timer, jiffies + msecs_to_jiffies(1500));	
+//		mod_timer(&headset_info->hook_timer, jiffies + msecs_to_jiffies(1500));
+	if(headset_info->headset_status = HEADSET_IN)
+		schedule_delayed_work(&headset_info->hook_work, msecs_to_jiffies(HOOK_ADC_SAMPLE_TIME));
 	return 0;
 }
 
