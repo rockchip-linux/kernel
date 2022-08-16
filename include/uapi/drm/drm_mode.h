@@ -53,7 +53,6 @@ extern "C" {
 #define DRM_MODE_TYPE_DEFAULT	(1<<4) /* deprecated */
 #define DRM_MODE_TYPE_USERDEF	(1<<5)
 #define DRM_MODE_TYPE_DRIVER	(1<<6)
-#define DRM_MODE_TYPE_NATIVE	(1<<7)
 
 #define DRM_MODE_TYPE_ALL	(DRM_MODE_TYPE_PREFERRED |	\
 				 DRM_MODE_TYPE_USERDEF |	\

@@ -85,8 +85,6 @@
 #define EDID_QUIRK_FORCE_10BPC			(1 << 11)
 /* Non desktop display (i.e. HMD) */
 #define EDID_QUIRK_NON_DESKTOP			(1 << 12)
-/* Prefer the native CEA mode */
-#define EDID_QUIRK_NATIVE_CEA_PREFERRED		(1 << 13)
 
 struct detailed_mode_closure {
 	struct drm_connector *connector;
@@ -153,7 +151,7 @@ static const struct edid_quirk {
 	{ "SAM", 638, EDID_QUIRK_PREFER_LARGE_60 },
 
 	/* Skyworth */
-	{ "SKW", 1, (EDID_QUIRK_NATIVE_CEA_PREFERRED | EDID_QUIRK_PREFER_LARGE_60) },
+	{ "SKW", 1, EDID_QUIRK_PREFER_LARGE_60 },
 
 	/* Sony PVM-2541A does up to 12 bpc, but only reports max 8 bpc */
 	{ "SNY", 0x2541, EDID_QUIRK_FORCE_12BPC },
@@ -2190,12 +2188,6 @@ static void edid_fixup_preferred(struct drm_connector *connector,
 		if (cur_mode == preferred_mode)
 			continue;
 
-		if ((quirks & EDID_QUIRK_NATIVE_CEA_PREFERRED) &&
-		    (cur_mode->type & DRM_MODE_TYPE_NATIVE)) {
-			preferred_mode = cur_mode;
-			break;
-		}
-
 		/* Largest mode is preferred */
 		if (MODE_SIZE(cur_mode) > MODE_SIZE(preferred_mode))
 			preferred_mode = cur_mode;
@@ -3699,9 +3691,6 @@ drm_display_mode_from_vic_index(struct drm_connector *connector,
 	newmode = drm_mode_duplicate(dev, cea_mode_for_vic(vic));
 	if (!newmode)
 		return NULL;
-
-	if (video_db[video_index] & 0x80)
-		newmode->type |= DRM_MODE_TYPE_NATIVE;
 
 	return newmode;
 }
