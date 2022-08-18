@@ -930,7 +930,9 @@ _Pragma("GCC diagnostic pop")
 #endif /* STRICT_GCC_WARNINGS */
 
 #define BCM_LIST_FOR_EACH_ENTRY_SAFE(pos, next, head, member) \
-	list_for_each_entry_safe((pos), (next), (head), member)
+	if(!((head)->next)) ; else \
+		list_for_each_entry_safe((pos), (next), (head), member)
+
 extern int ioctl_version;
 
 static inline struct wl_bss_info *next_bss(struct wl_scan_results *list, struct wl_bss_info *bss)
