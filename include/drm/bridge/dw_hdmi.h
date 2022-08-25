@@ -95,6 +95,13 @@ enum dw_hdmi_phy_type {
 	DW_HDMI_PHY_VENDOR_PHY = 0xfe,
 };
 
+struct dw_hdmi_audio_frl_n {
+	unsigned int r_bit;
+	unsigned int n_32k;
+	unsigned int n_44k1;
+	unsigned int n_48k;
+};
+
 struct dw_hdmi_audio_tmds_n {
 	unsigned long tmds;
 	unsigned int n_32k;
@@ -235,9 +242,11 @@ struct dw_hdmi_plat_data {
 				 struct drm_connector *connector);
 	struct dw_hdmi_link_config *(*get_link_cfg)(void *data);
 	void (*set_grf_cfg)(void *data);
+	u64 (*get_grf_color_fmt)(void *data);
 	void (*convert_to_split_mode)(struct drm_display_mode *mode);
 	void (*convert_to_origin_mode)(struct drm_display_mode *mode);
 	int (*dclk_set)(void *data, bool enable);
+	int (*link_clk_set)(void *data, bool enable);
 
 	/* Vendor Property support */
 	const struct dw_hdmi_property_ops *property_ops;

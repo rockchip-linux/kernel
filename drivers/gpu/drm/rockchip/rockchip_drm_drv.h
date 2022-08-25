@@ -92,6 +92,8 @@ struct rockchip_drm_sub_dev {
 	struct device_node *of_node;
 	void (*loader_protect)(struct drm_encoder *encoder, bool on);
 	void (*oob_hotplug_event)(struct drm_connector *connector);
+	void (*update_vfp_for_vrr)(struct drm_connector *connector, struct drm_display_mode *mode,
+				   int vfp);
 };
 
 struct rockchip_sdr2hdr_state {
@@ -181,6 +183,11 @@ struct rockchip_crtc_state {
 	 * (3) edp psr mode
 	 */
 	bool hold_mode;
+	/**
+	 * when enable soft_te, use gpio irq to triggle new fs,
+	 * otherwise use hardware te
+	 */
+	bool soft_te;
 
 	struct drm_tv_connector_state *tv_state;
 	int left_margin;
@@ -224,6 +231,10 @@ struct rockchip_crtc_state {
 	struct drm_dsc_picture_parameter_set pps;
 	struct rockchip_dsc_sink_cap dsc_sink_cap;
 	struct rockchip_hdr_state hdr;
+
+	int request_refresh_rate;
+	int max_refresh_rate;
+	int min_refresh_rate;
 };
 
 #define to_rockchip_crtc_state(s) \
@@ -440,6 +451,8 @@ struct rockchip_drm_private {
 	struct loader_cubic_lut cubic_lut[ROCKCHIP_MAX_CRTC];
 };
 
+void rockchip_connector_update_vfp_for_vrr(struct drm_crtc *crtc, struct drm_display_mode *mode,
+					   int vfp);
 int rockchip_drm_dma_attach_device(struct drm_device *drm_dev,
 				   struct device *dev);
 void rockchip_drm_dma_detach_device(struct drm_device *drm_dev,

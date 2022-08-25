@@ -662,10 +662,13 @@ static void
 isp_lsc_enable(struct rkisp_isp_params_vdev *params_vdev, bool en, u32 id)
 {
 	struct isp3x_isp_params_cfg *params_rec = params_vdev->isp3x_params + id;
-	u32 val = ISP_LSC_EN;
+	u32 val = isp3_param_read(params_vdev, ISP3X_LSC_CTRL, id);
+
+	if (en == !!(val & ISP_LSC_EN))
+		return;
 
 	if (en) {
-		isp3_param_set_bits(params_vdev, ISP3X_LSC_CTRL, val, id);
+		isp3_param_set_bits(params_vdev, ISP3X_LSC_CTRL, ISP_LSC_EN, id);
 		if (params_vdev->dev->hw_dev->is_single)
 			isp_lsc_matrix_cfg_sram(params_vdev,
 						&params_rec->others.lsc_cfg, false, id);
@@ -886,7 +889,6 @@ isp_cproc_config(struct rkisp_isp_params_vdev *params_vdev,
 	if (quantization != V4L2_QUANTIZATION_FULL_RANGE) {
 		isp3_param_clear_bits(params_vdev, ISP3X_CPROC_CTRL,
 				      CIF_C_PROC_YOUT_FULL |
-				      CIF_C_PROC_YIN_FULL |
 				      CIF_C_PROC_COUT_FULL, id);
 	} else {
 		isp3_param_set_bits(params_vdev, ISP3X_CPROC_CTRL,
@@ -1020,6 +1022,15 @@ isp_rawaf_config(struct rkisp_isp_params_vdev *params_vdev,
 	size_t num_of_win = min_t(size_t, ARRAY_SIZE(arg->win),
 				  arg->num_afm_win);
 
+	/* To config must be off, store the current status firstly */
+	ctrl = isp3_param_read(params_vdev, ISP3X_RAWAF_CTRL, id);
+	if (ctrl & ISP3X_RAWAF_EN) {
+		var = ctrl;
+		var &= ~ISP3X_REG_WR_MASK;
+		var &= ~ISP3X_RAWAF_EN;
+		isp3_param_write(params_vdev, var, ISP3X_RAWAF_CTRL, id);
+	}
+
 	for (i = 0; i < num_of_win; i++) {
 		h_size = arg->win[i].h_size;
 		v_size = arg->win[i].v_size;
@@ -1094,7 +1105,6 @@ isp_rawaf_config(struct rkisp_isp_params_vdev *params_vdev,
 	if (viir_en == 0)
 		v1_fir_sel = 0;
 
-	ctrl = isp3_param_read(params_vdev, ISP3X_RAWAF_CTRL, id);
 	ctrl &= ISP3X_RAWAF_EN;
 	if (arg->hiir_en) {
 		ctrl |= ISP3X_RAWAF_HIIR_EN;
@@ -3693,7 +3703,7 @@ isp_cgc_config(struct rkisp_isp_params_vdev *params_vdev,
 	/* cproc limit replace cgc limit config */
 	cproc_ctrl = isp3_param_read(params_vdev, ISP3X_CPROC_CTRL, id);
 	if (arg->yuv_limit) {
-		cproc_ctrl = CIF_C_PROC_CTR_ENABLE;
+		cproc_ctrl = CIF_C_PROC_CTR_ENABLE | CIF_C_PROC_YIN_FULL;
 	} else {
 		cproc_ctrl |= CIF_C_PROC_YOUT_FULL | CIF_C_PROC_YIN_FULL | CIF_C_PROC_COUT_FULL;
 	}
@@ -4202,40 +4212,183 @@ err_3dlut:
 static bool
 rkisp_params_check_bigmode_v3x(struct rkisp_isp_params_vdev *params_vdev)
 {
-	struct device *dev = params_vdev->dev->dev;
-	struct rkisp_hw_dev *hw = params_vdev->dev->hw_dev;
-	struct v4l2_rect *out_crop = &params_vdev->dev->isp_sdev.out_crop;
-	u32 width = hw->max_in.w ? hw->max_in.w : out_crop->width;
-	u32 height = hw->max_in.h ? hw->max_in.h : out_crop->height;
-	u32 size = width * height;
+	struct rkisp_device *ispdev = params_vdev->dev;
+	struct device *dev = ispdev->dev;
+	struct rkisp_hw_dev *hw = ispdev->hw_dev;
+	struct v4l2_rect *crop = &params_vdev->dev->isp_sdev.in_crop;
+	u32 width = hw->max_in.w, height = hw->max_in.h, size = width * height;
 	u32 bigmode_max_w, bigmode_max_size;
+	int k = 0, idx1[DEV_MAX] = { 0 };
+	int n = 0, idx2[DEV_MAX] = { 0 };
+	int i = 0, j = 0;
 	bool is_bigmode = false;
 
-	if (hw->dev_link_num > 2) {
-		bigmode_max_w = ISP3X_VIR4_AUTO_BIGMODE_WIDTH;
-		bigmode_max_size = ISP3X_VIR4_NOBIG_OVERFLOW_SIZE;
-		if (width > ISP3X_VIR4_MAX_WIDTH || size > ISP3X_VIR4_MAX_SIZE)
-			dev_err(dev, "%dx%d > max:2560x1536 for %d virtual isp\n",
-				width, height, hw->dev_link_num);
-	} else if (hw->dev_link_num > 1) {
-		bigmode_max_w = ISP3X_VIR2_AUTO_BIGMODE_WIDTH;
-		bigmode_max_size = ISP3X_VIR2_NOBIG_OVERFLOW_SIZE;
-		if (width > ISP3X_VIR2_MAX_WIDTH || size > ISP3X_VIR2_MAX_SIZE)
-			dev_err(dev, "%dx%d > max:3840x2160 for %d virtual isp\n",
-				width, height, hw->dev_link_num);
-	} else {
+multi_overflow:
+	if (hw->is_multi_overflow) {
+		ispdev->multi_index = 0;
+		ispdev->multi_mode = 0;
 		bigmode_max_w = ISP3X_AUTO_BIGMODE_WIDTH;
 		bigmode_max_size = ISP3X_NOBIG_OVERFLOW_SIZE;
+		dev_warn(dev, "over virtual isp max resolution, force to 2 readback\n");
+		goto end;
 	}
 
-	if (hw->is_unite) {
-		width = width / 2 + RKMOUDLE_UNITE_EXTEND_PIXEL;
-		size = width * out_crop->height;
+	switch (hw->dev_link_num) {
+	case 4:
+		bigmode_max_w = ISP3X_VIR4_AUTO_BIGMODE_WIDTH;
+		bigmode_max_size = ISP3X_VIR4_NOBIG_OVERFLOW_SIZE;
+		ispdev->multi_index = ispdev->dev_id;
+		ispdev->multi_mode = 2;
+		/* internal buf of hw divided to four parts
+		 *             bigmode             nobigmode
+		 *  _________  max width:2560      max width:1280
+		 * |_sensor0_| max size:2560*1536  max size:1280*800
+		 * |_sensor1_| max size:2560*1536  max size:1280*800
+		 * |_sensor2_| max size:2560*1536  max size:1280*800
+		 * |_sensor3_| max size:2560*1536  max size:1280*800
+		 */
+		for (i = 0; i < hw->dev_num; i++) {
+			if (hw->isp_size[i].w <= ISP3X_VIR4_MAX_WIDTH &&
+			    hw->isp_size[i].size <= ISP3X_VIR4_MAX_SIZE)
+				continue;
+			dev_warn(dev, "isp%d %dx%d over four vir isp max:%dx1536\n",
+				 i, hw->isp_size[i].w, hw->isp_size[i].h,
+				 hw->is_unite ? (2560 - RKMOUDLE_UNITE_EXTEND_PIXEL) * 2 : 2560);
+			hw->is_multi_overflow = true;
+			goto multi_overflow;
+		}
+		break;
+	case 3:
+		bigmode_max_w = ISP3X_VIR4_AUTO_BIGMODE_WIDTH;
+		bigmode_max_size = ISP3X_VIR4_NOBIG_OVERFLOW_SIZE;
+		ispdev->multi_index = ispdev->dev_id;
+		ispdev->multi_mode = 2;
+		/* case0:      bigmode             nobigmode
+		 *  _________  max width:2560      max width:1280
+		 * |_sensor0_| max size:2560*1536  max size:1280*800
+		 * |_sensor1_| max size:2560*1536  max size:1280*800
+		 * |_sensor2_| max size:2560*1536  max size:1280*800
+		 * |_________|
+		 *
+		 * case1:      bigmode               special reg cfg
+		 *  _________  max width:4672
+		 * | sensor0 | max size:2560*1536*2  mode=0 index=0
+		 * |_________|
+		 * |_sensor1_| max size:2560*1536    mode=2 index=2
+		 * |_sensor2_| max size:2560*1536    mode=2 index=3
+		 *             max width:2560
+		 */
+		for (i = 0; i < hw->dev_num; i++) {
+			if (!hw->isp_size[i].size) {
+				if (i < hw->dev_link_num)
+					idx2[n++] = i;
+				continue;
+			}
+			if (hw->isp_size[i].w <= ISP3X_VIR4_MAX_WIDTH &&
+			    hw->isp_size[i].size <= ISP3X_VIR4_MAX_SIZE)
+				continue;
+			idx1[k++] = i;
+		}
+		if (k) {
+			is_bigmode = true;
+			if (k != 1 ||
+			    (hw->isp_size[idx1[0]].size > ISP3X_VIR4_MAX_SIZE * 2)) {
+				dev_warn(dev, "isp%d %dx%d over three vir isp max:%dx1536\n",
+					 idx1[0], hw->isp_size[idx1[0]].w, hw->isp_size[idx1[0]].h,
+					 hw->is_unite ? (2560 - RKMOUDLE_UNITE_EXTEND_PIXEL) * 2 : 2560);
+				hw->is_multi_overflow = true;
+				goto multi_overflow;
+			} else {
+				if (idx1[0] == ispdev->dev_id) {
+					ispdev->multi_mode = 0;
+					ispdev->multi_index = 0;
+				} else {
+					ispdev->multi_mode = 2;
+					if (ispdev->multi_index == 0 ||
+					    ispdev->multi_index == 1)
+						ispdev->multi_index = 3;
+				}
+			}
+		} else if (ispdev->multi_index >= hw->dev_link_num) {
+			ispdev->multi_index = idx2[ispdev->multi_index - hw->dev_link_num];
+		}
+		break;
+	case 2:
+		bigmode_max_w = ISP3X_VIR2_AUTO_BIGMODE_WIDTH;
+		bigmode_max_size = ISP3X_VIR2_NOBIG_OVERFLOW_SIZE;
+		ispdev->multi_index = ispdev->dev_id;
+		ispdev->multi_mode = 1;
+		/* case0:      bigmode            nobigmode
+		 *  _________  max width:3840     max width:1920
+		 * | sensor0 | max size:3840*2160 max size:1920*1080
+		 * |_________|
+		 * | sensor1 | max size:3840*2160 max size:1920*1080
+		 * |_________|
+		 *
+		 * case1:      bigmode              special reg cfg
+		 *  _________  max width:4672
+		 * | sensor0 | max size:2560*2160*3 mode=0 index=0
+		 * |         |
+		 * |_________|
+		 * |_sensor1_| max size:2560*1536   mode=2 index=3
+		 *             max width:2560
+		 */
+		for (i = 0; i < hw->dev_num; i++) {
+			if (!hw->isp_size[i].size) {
+				if (i < hw->dev_link_num)
+					idx2[n++] = i;
+				continue;
+			}
+			if (hw->isp_size[i].w <= ISP3X_VIR2_MAX_WIDTH &&
+			    hw->isp_size[i].size <= ISP3X_VIR2_MAX_SIZE) {
+				if (hw->isp_size[i].w > ISP3X_VIR4_MAX_WIDTH ||
+				    hw->isp_size[i].size > ISP3X_VIR4_MAX_SIZE)
+					j++;
+				continue;
+			}
+			idx1[k++] = i;
+		}
+		if (k) {
+			is_bigmode = true;
+			if (k == 2 || j ||
+			    hw->isp_size[idx1[k - 1]].size > ISP3X_VIR4_MAX_SIZE * 3) {
+				dev_warn(dev, "isp%d %dx%d over two vir isp max:%dx2160\n",
+					 idx1[k - 1], hw->isp_size[idx1[k - 1]].w, hw->isp_size[idx1[k - 1]].h,
+					 hw->is_unite ? (3840 - RKMOUDLE_UNITE_EXTEND_PIXEL) * 2 : 3840);
+				hw->is_multi_overflow = true;
+				goto multi_overflow;
+			} else {
+				if (idx1[0] == ispdev->dev_id) {
+					ispdev->multi_mode = 0;
+					ispdev->multi_index = 0;
+				} else {
+					ispdev->multi_mode = 2;
+					ispdev->multi_index = 3;
+				}
+			}
+		} else if (ispdev->multi_index >= hw->dev_link_num) {
+			ispdev->multi_index = idx2[ispdev->multi_index - hw->dev_link_num];
+		}
+		break;
+	default:
+		bigmode_max_w = ISP3X_AUTO_BIGMODE_WIDTH;
+		bigmode_max_size = ISP3X_NOBIG_OVERFLOW_SIZE;
+		ispdev->multi_mode = 0;
+		ispdev->multi_index = 0;
+		width = crop->width;
+		if (hw->is_unite)
+			width = width / 2 + RKMOUDLE_UNITE_EXTEND_PIXEL;
+		height = crop->height;
+		size = width * height;
+		break;
 	}
 
-	if (width > bigmode_max_w || size > bigmode_max_size)
+end:
+	if (!is_bigmode &&
+	    (width > bigmode_max_w || size > bigmode_max_size))
 		is_bigmode = true;
-	return is_bigmode;
+
+	return ispdev->is_bigmode = is_bigmode;
 }
 
 /* Not called when the camera active, thus not isr protection. */

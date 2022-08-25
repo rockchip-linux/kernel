@@ -36,7 +36,9 @@ int RGA_DEBUG_NONUSE;
 int RGA_DEBUG_DEBUG_MODE;
 int RGA_DEBUG_DUMP_IMAGE;
 
+#ifdef CONFIG_NO_GKI
 static char g_dump_path[100] = "/data";
+#endif
 
 static int rga_debug_show(struct seq_file *m, void *data)
 {
@@ -235,7 +237,7 @@ static int rga_scheduler_show(struct seq_file *m, void *data)
 
 static int rga_mm_session_show(struct seq_file *m, void *data)
 {
-	int id, i;
+	int id;
 	struct rga_mm *mm_session = NULL;
 	struct rga_internal_buffer *dump_buffer;
 
@@ -255,36 +257,45 @@ static int rga_mm_session_show(struct seq_file *m, void *data)
 		switch (dump_buffer->type) {
 		case RGA_DMA_BUFFER:
 		case RGA_DMA_BUFFER_PTR:
-			seq_puts(m, "dma_buffer:\n");
-			for (i = 0; i < dump_buffer->dma_buffer_size; i++) {
-				if (rga_mm_is_invalid_dma_buffer(&dump_buffer->dma_buffer[i]))
-					continue;
+			if (rga_mm_is_invalid_dma_buffer(dump_buffer->dma_buffer))
+				break;
 
-				seq_printf(m, "\t core %d:\n",
-					   dump_buffer->dma_buffer[i].scheduler->core);
-				seq_printf(m, "\t\t dma_buf = %p, iova = 0x%lx\n",
-					   dump_buffer->dma_buffer[i].dma_buf,
-					   (unsigned long)dump_buffer->dma_buffer[i].iova);
-			}
+			seq_puts(m, "dma_buffer:\n");
+			seq_printf(m, "\t dma_buf = %p, iova = 0x%lxsgt = 0x%p, size = %ld, map_core = 0x%x\n",
+				   dump_buffer->dma_buffer->dma_buf,
+				   (unsigned long)dump_buffer->dma_buffer->iova,
+				   dump_buffer->dma_buffer->sgt,
+				   dump_buffer->dma_buffer->size,
+				   dump_buffer->dma_buffer->scheduler->core);
+
+			if (dump_buffer->mm_flag & RGA_MEM_PHYSICAL_CONTIGUOUS)
+				seq_printf(m, "\t is contiguous, pa = 0x%lx\n",
+					   (unsigned long)dump_buffer->phys_addr);
+
 			break;
 		case RGA_VIRTUAL_ADDRESS:
+			if (dump_buffer->virt_addr == NULL)
+				break;
 			seq_puts(m, "virtual address:\n");
-			seq_printf(m, "\t va = 0x%lx, pages = %p, size = %ld\n",
+			seq_printf(m, "\t va = 0x%lx, pages = 0x%p, size = %ld\n",
 				   (unsigned long)dump_buffer->virt_addr->addr,
 				   dump_buffer->virt_addr->pages,
 				   dump_buffer->virt_addr->size);
 
-			for (i = 0; i < dump_buffer->dma_buffer_size; i++) {
-				if (rga_mm_is_invalid_dma_buffer(&dump_buffer->dma_buffer[i]))
-					continue;
+			if (rga_mm_is_invalid_dma_buffer(dump_buffer->dma_buffer))
+				break;
 
-				seq_printf(m, "\t core %d:\n",
-					   dump_buffer->dma_buffer[i].scheduler->core);
-				seq_printf(m, "\t\t iova = 0x%lx, sgt = %p, size = %ld\n",
-					   (unsigned long)dump_buffer->dma_buffer[i].iova,
-					   dump_buffer->dma_buffer[i].sgt,
-					   dump_buffer->dma_buffer[i].size);
-			}
+			seq_printf(m, "\t iova = 0x%lx, offset = 0x%lx, sgt = 0x%p, size = %ld, map_core = 0x%x\n",
+				   (unsigned long)dump_buffer->dma_buffer->iova,
+				   (unsigned long)dump_buffer->dma_buffer->offset,
+				   dump_buffer->dma_buffer->sgt,
+				   dump_buffer->dma_buffer->size,
+				   dump_buffer->dma_buffer->scheduler->core);
+
+			if (dump_buffer->mm_flag & RGA_MEM_PHYSICAL_CONTIGUOUS)
+				seq_printf(m, "\t is contiguous, pa = 0x%lx\n",
+					   (unsigned long)dump_buffer->phys_addr);
+
 			break;
 		case RGA_PHYSICAL_ADDRESS:
 			seq_puts(m, "physical address:\n");
@@ -310,7 +321,7 @@ static int rga_request_manager_show(struct seq_file *m, void *data)
 	struct rga_req *task_list;
 	unsigned long flags;
 	int task_count = 0;
-	int finished_task_count = 0;
+	int finished_task_count = 0, failed_task_count = 0;
 
 	request_manager = rga_drvdata->pend_request_manager;
 
@@ -327,6 +338,7 @@ static int rga_request_manager_show(struct seq_file *m, void *data)
 
 		task_count = request->task_count;
 		finished_task_count = request->finished_task_count;
+		failed_task_count = request->failed_task_count;
 		task_list = request->task_list;
 
 		spin_unlock_irqrestore(&request->lock, flags);
@@ -336,8 +348,8 @@ static int rga_request_manager_show(struct seq_file *m, void *data)
 			continue;
 		}
 
-		seq_printf(m, "\t set cmd num: %d, finish job sum: %d, flags = 0x%x, ref = %d\n",
-			   task_count, finished_task_count,
+		seq_printf(m, "\t set cmd num: %d, finish job: %d, failed job: %d, flags = 0x%x, ref = %d\n",
+			   task_count, finished_task_count, failed_task_count,
 			   request->flags, kref_read(&request->refcount));
 
 		seq_puts(m, "\t cmd dump:\n\n");
@@ -351,6 +363,7 @@ static int rga_request_manager_show(struct seq_file *m, void *data)
 	return 0;
 }
 
+#ifdef CONFIG_NO_GKI
 static int rga_dump_path_show(struct seq_file *m, void *data)
 {
 	seq_printf(m, "dump path: %s\n", g_dump_path);
@@ -411,6 +424,43 @@ static ssize_t rga_dump_image_write(struct file *file, const char __user *ubuf,
 
 	return len;
 }
+#endif /* #ifdef CONFIG_NO_GKI */
+
+static int rga_hardware_show(struct seq_file *m, void *data)
+{
+	struct rga_scheduler_t *scheduler = NULL;
+	const struct rga_hw_data *hw_data = NULL;
+	int i;
+
+	seq_puts(m, "===================================\n");
+
+	for (i = 0; i < rga_drvdata->num_of_scheduler; i++) {
+		scheduler = rga_drvdata->scheduler[i];
+		hw_data = scheduler->data;
+
+		seq_printf(m, "%s, core %d: version: %s\n",
+			   dev_driver_string(scheduler->dev),
+			   scheduler->core, scheduler->version.str);
+		seq_printf(m, "input range: %dx%d ~ %dx%d\n",
+			   hw_data->input_range.min.width, hw_data->input_range.min.height,
+			   hw_data->input_range.max.width, hw_data->input_range.max.height);
+		seq_printf(m, "output range: %dx%d ~ %dx%d\n",
+			   hw_data->output_range.min.width, hw_data->output_range.min.height,
+			   hw_data->output_range.max.width, hw_data->output_range.max.height);
+		seq_printf(m, "scale limit: 1/%d ~ %d\n",
+			   (1 << hw_data->max_downscale_factor),
+			   (1 << hw_data->max_upscale_factor));
+		seq_printf(m, "byte_stride_align: %d\n", hw_data->byte_stride_align);
+		seq_printf(m, "max_byte_stride: %d\n", hw_data->max_byte_stride);
+		seq_printf(m, "csc: RGB2YUV 0x%x YUV2RGB 0x%x\n",
+			   hw_data->csc_r2y_mode, hw_data->csc_y2r_mode);
+		seq_printf(m, "feature: 0x%x\n", hw_data->feature);
+		seq_printf(m, "mmu: %s\n", rga_get_mmu_type_str(hw_data->mmu));
+		seq_puts(m, "-----------------------------------\n");
+	}
+
+	return 0;
+}
 
 static struct rga_debugger_list rga_debugger_root_list[] = {
 	{"debug", rga_debug_show, rga_debug_write, NULL},
@@ -419,8 +469,11 @@ static struct rga_debugger_list rga_debugger_root_list[] = {
 	{"scheduler_status", rga_scheduler_show, NULL, NULL},
 	{"mm_session", rga_mm_session_show, NULL, NULL},
 	{"request_manager", rga_request_manager_show, NULL, NULL},
+#ifdef CONFIG_NO_GKI
 	{"dump_path", rga_dump_path_show, rga_dump_path_write, NULL},
 	{"dump_image", rga_dump_image_show, rga_dump_image_write, NULL},
+#endif
+	{"hardware", rga_hardware_show, NULL, NULL},
 };
 
 static ssize_t rga_debugger_write(struct file *file, const char __user *ubuf,
@@ -783,6 +836,7 @@ void rga_dump_external_buffer(struct rga_external_buffer *buffer)
 		buffer->memory_parm.size);
 }
 
+#ifdef CONFIG_NO_GKI
 static int rga_dump_image_to_file(struct rga_internal_buffer *dump_buffer,
 				  const char *channel_name,
 				  int plane_id,
@@ -906,3 +960,4 @@ void rga_dump_job_image(struct rga_job *dump_job)
 	if (RGA_DEBUG_DUMP_IMAGE > 0)
 		RGA_DEBUG_DUMP_IMAGE--;
 }
+#endif /* #ifdef CONFIG_NO_GKI */

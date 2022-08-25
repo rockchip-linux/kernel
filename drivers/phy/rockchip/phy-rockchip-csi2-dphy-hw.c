@@ -414,6 +414,7 @@ static const struct csi2dphy_reg rv1106_csi2dphy_regs[] = {
 	[CSI2PHY_LANE3_CALIB_ENABLE] = CSI2PHY_REG(CSI2_DPHY_LANE3_CALIB_EN),
 	[CSI2PHY_CLK1_THS_SETTLE] = CSI2PHY_REG(CSI2_DPHY_CLK1_WR_THS_SETTLE),
 	[CSI2PHY_CLK1_CALIB_ENABLE] = CSI2PHY_REG(CSI2_DPHY_CLK1_CALIB_EN),
+	[CSI2PHY_CLK1_LANE_ENABLE] = CSI2PHY_REG(CSI2_DPHY_CLK1_LANE_EN),
 	[CSI2PHY_PATH0_MODEL] = CSI2PHY_REG(CSI2_DPHY_PATH0_MODE_SEL),
 	[CSI2PHY_PATH0_LVDS_MODEL] = CSI2PHY_REG(CSI2_DPHY_PATH0_LVDS_MODE_SEL),
 	[CSI2PHY_PATH1_MODEL] = CSI2PHY_REG(CSI2_DPHY_PATH1_MODE_SEL),
@@ -637,7 +638,8 @@ static int csi2_dphy_hw_stream_on(struct csi2_dphy *dphy,
 		if (dphy->phy_index % 3 == DPHY2) {
 			val |= (GENMASK(sensor->lanes - 1, 0) <<
 				CSI2_DPHY_CTRL_DATALANE_SPLIT_LANE2_3_OFFSET_BIT);
-			write_csi2_dphy_reg(hw, CSI2PHY_CLK1_LANE_ENABLE, BIT(6));
+			if (hw->drv_data->chip_id >= CHIP_ID_RK3588)
+				write_csi2_dphy_reg(hw, CSI2PHY_CLK1_LANE_ENABLE, BIT(6));
 		}
 	}
 	val |= pre_val;
@@ -782,6 +784,29 @@ static int csi2_dphy_hw_stream_off(struct csi2_dphy *dphy,
 	return 0;
 }
 
+static int csi2_dphy_hw_ttl_mode_enable(struct csi2_dphy_hw *hw)
+{
+	int ret = 0;
+
+	ret = clk_bulk_prepare_enable(hw->num_clks, hw->clks_bulk);
+	if (ret) {
+		dev_err(hw->dev, "failed to enable clks\n");
+		return ret;
+	}
+
+	write_csi2_dphy_reg(hw, CSI2PHY_REG_CTRL_LANE_ENABLE, 0x7d);
+	write_csi2_dphy_reg(hw, CSI2PHY_DUAL_CLK_EN, 0x5f);
+	write_csi2_dphy_reg(hw, CSI2PHY_PATH0_MODEL, 0x1);
+	write_csi2_dphy_reg(hw, CSI2PHY_PATH1_MODEL, 0x1);
+	return ret;
+}
+
+static void csi2_dphy_hw_ttl_mode_disable(struct csi2_dphy_hw *hw)
+{
+	write_csi2_dphy_reg(hw, CSI2PHY_REG_CTRL_LANE_ENABLE, 0x01);
+	clk_bulk_disable_unprepare(hw->num_clks, hw->clks_bulk);
+}
+
 static void rk3568_csi2_dphy_hw_individual_init(struct csi2_dphy_hw *hw)
 {
 	hw->grf_regs = rk3568_grf_dphy_regs;
@@ -914,6 +939,14 @@ static int rockchip_csi2_dphy_hw_probe(struct platform_device *pdev)
 	}
 	dphy_hw->stream_on = drv_data->stream_on;
 	dphy_hw->stream_off = drv_data->stream_off;
+
+	if (drv_data->chip_id == CHIP_ID_RV1106) {
+		dphy_hw->ttl_mode_enable = csi2_dphy_hw_ttl_mode_enable;
+		dphy_hw->ttl_mode_disable = csi2_dphy_hw_ttl_mode_disable;
+	} else {
+		dphy_hw->ttl_mode_enable = NULL;
+		dphy_hw->ttl_mode_disable = NULL;
+	}
 
 	atomic_set(&dphy_hw->stream_cnt, 0);
 

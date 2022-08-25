@@ -28,6 +28,7 @@
 #define trace_xrun(substream)
 #define trace_hw_ptr_error(substream, reason)
 #define trace_applptr(substream, prev, curr)
+#define trace_applptr_start(substream, frame)
 #endif
 
 static int fill_silence_frames(struct snd_pcm_substream *substream,
@@ -2131,6 +2132,8 @@ snd_pcm_sframes_t __snd_pcm_lib_xfer(struct snd_pcm_substream *substream,
 	if (err < 0)
 		return err;
 
+	trace_applptr_start(substream, size);
+
 	is_playback = substream->stream == SNDRV_PCM_STREAM_PLAYBACK;
 	if (interleaved) {
 		if (runtime->access != SNDRV_PCM_ACCESS_RW_INTERLEAVED &&
@@ -2221,10 +2224,15 @@ snd_pcm_sframes_t __snd_pcm_lib_xfer(struct snd_pcm_substream *substream,
 			err = -EINVAL;
 			goto _end_unlock;
 		}
+		if (!atomic_inc_unless_negative(&runtime->buffer_accessing)) {
+			err = -EBUSY;
+			goto _end_unlock;
+		}
 		snd_pcm_stream_unlock_irq(substream);
 		err = writer(substream, appl_ofs, data, offset, frames,
 			     transfer);
 		snd_pcm_stream_lock_irq(substream);
+		atomic_dec(&runtime->buffer_accessing);
 		if (err < 0)
 			goto _end_unlock;
 		err = pcm_accessible_state(runtime);

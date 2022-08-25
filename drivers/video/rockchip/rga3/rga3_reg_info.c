@@ -82,44 +82,9 @@ static void RGA3_set_reg_win0_info(u8 *base, struct rga3_req *msg)
 	bRGA3_WIN0_SCL_FAC = (u32 *) (base + RGA3_WIN0_SCL_FAC_OFFSET);
 
 	if (msg->win0.rotate_mode != 0) {
-		switch (msg->rotate_mode) {
-			/* rot 90 */
-		case 0x1:
-			rotate_mode = 1;
-			break;
-			/* rot 180 */
-		case 0x2:
-			xmirror = 1;
-			ymirror = 1;
-			break;
-			/* rot 270 or rot -90 */
-		case 0x3:
-			rotate_mode = 1;
-			xmirror = 1;
-			ymirror = 1;
-			break;
-			/* ymirror */
-		case 0x4:
-			ymirror = 1;
-			break;
-			/* xmirror */
-		case 0x5:
-			xmirror = 1;
-			break;
-			/* rot 90 + xmirror */
-		case 0x6:
-			rotate_mode = 1;
-			xmirror = 1;
-			break;
-			/* rot 90 + ymirror */
-		case 0x7:
-			rotate_mode = 1;
-			ymirror = 1;
-			break;
-			/* bypass */
-		default:
-			break;
-		};
+		rotate_mode = msg->rotate_mode & RGA3_ROT_BIT_ROT_90 ? 1 : 0;
+		xmirror = msg->rotate_mode & RGA3_ROT_BIT_X_MIRROR ? 1 : 0;
+		ymirror = msg->rotate_mode & RGA3_ROT_BIT_Y_MIRROR ? 1 : 0;
 	}
 
 	/* scale */
@@ -127,8 +92,7 @@ static void RGA3_set_reg_win0_info(u8 *base, struct rga3_req *msg)
 	dh = msg->win0.dst_act_h;
 
 	if (msg->win0.rotate_mode != 0) {
-		if (msg->rotate_mode == 1 || msg->rotate_mode == 3 ||
-			msg->rotate_mode == 6 || msg->rotate_mode == 7) {
+		if (rotate_mode) {
 			sh = msg->win0.src_act_w;
 			sw = msg->win0.src_act_h;
 		} else {
@@ -379,7 +343,7 @@ static void RGA3_set_reg_win0_info(u8 *base, struct rga3_req *msg)
 		((reg & (~m_RGA3_WIN0_RD_CTRL_SW_WIN0_YUV10B_COMPACT)) |
 		 (s_RGA3_WIN0_RD_CTRL_SW_WIN0_YUV10B_COMPACT(1)));
 
-	/* Only on roster mode, yuv 10bit can change to compact or set endian */
+	/* Only on raster mode, yuv 10bit can change to compact or set endian */
 	if (msg->win0.rd_mode == RGA_RASTER_MODE && yuv10 == 1) {
 		reg =
 			((reg & (~m_RGA3_WIN0_RD_CTRL_SW_WIN0_YUV10B_COMPACT)) |
@@ -499,50 +463,16 @@ static void RGA3_set_reg_win1_info(u8 *base, struct rga3_req *msg)
 	bRGA3_WIN1_SCL_FAC = (u32 *) (base + RGA3_WIN1_SCL_FAC_OFFSET);
 
 	if (msg->win1.rotate_mode != 0) {
-		switch (msg->rotate_mode) {
-			/* rot 90 */
-		case 0x1:
-			rotate_mode = 1;
-			break;
-			/* rot 180 */
-		case 0x2:
-			xmirror = 1;
-			ymirror = 1;
-			break;
-			/* rot 270 or rot -90 */
-		case 0x3:
-			rotate_mode = 1;
-			xmirror = 1;
-			ymirror = 1;
-			break;
-			/* ymirror */
-		case 0x4:
-			ymirror = 1;
-			break;
-			/* xmirror */
-		case 0x5:
-			xmirror = 1;
-			break;
-			/* rot 90 + xmirror */
-		case 0x6:
-			rotate_mode = 1;
-			xmirror = 1;
-			break;
-			/* rot 90 + ymirror */
-		case 0x7:
-			rotate_mode = 1;
-			ymirror = 1;
-			break;
-			/* bypass */
-		};
+		rotate_mode = msg->rotate_mode & RGA3_ROT_BIT_ROT_90 ? 1 : 0;
+		xmirror = msg->rotate_mode & RGA3_ROT_BIT_X_MIRROR ? 1 : 0;
+		ymirror = msg->rotate_mode & RGA3_ROT_BIT_Y_MIRROR ? 1 : 0;
 	}
 
 	/* scale */
 	dw = msg->win1.dst_act_w;
 	dh = msg->win1.dst_act_h;
 
-	if (msg->rotate_mode == 1 || msg->rotate_mode == 3 ||
-		msg->rotate_mode == 6 || msg->rotate_mode == 7) {
+	if (rotate_mode) {
 		sh = msg->win1.src_act_w;
 		sw = msg->win1.src_act_h;
 	} else {
@@ -1251,7 +1181,16 @@ static void set_win_info(struct rga_win_info_t *win, struct rga_img_info_t *img)
 	else if (img->rd_mode == RGA_TILE_MODE)
 		win->rd_mode = 2;
 
-	win->is_10b_compact = img->is_10b_compact;
+	switch (img->compact_mode) {
+	case RGA_10BIT_INCOMPACT:
+		win->is_10b_compact = 0;
+		break;
+	case RGA_10BIT_COMPACT:
+	default:
+		win->is_10b_compact = 1;
+		break;
+	}
+
 	win->is_10b_endian = img->is_10b_endian;
 }
 
@@ -1272,7 +1211,16 @@ static void set_wr_info(struct rga_req *req_rga, struct rga3_req *req)
 	else if (req_rga->dst.rd_mode == RGA_TILE_MODE)
 		req->wr.rd_mode = 2;
 
-	req->wr.is_10b_compact = req_rga->dst.is_10b_compact;
+	switch (req_rga->dst.compact_mode) {
+	case RGA_10BIT_INCOMPACT:
+		req->wr.is_10b_compact = 0;
+		break;
+	case RGA_10BIT_COMPACT:
+	default:
+		req->wr.is_10b_compact = 1;
+		break;
+	}
+
 	req->wr.is_10b_endian = req_rga->dst.is_10b_endian;
 }
 
@@ -1288,50 +1236,50 @@ void rga_cmd_to_rga3_cmd(struct rga_req *req_rga, struct rga3_req *req)
 	switch (req_rga->rotate_mode & 0x0f) {
 	case 0x1:
 		if (req_rga->sina == 65536 && req_rga->cosa == 0) {
-			/* rot 90 */
-			req->rotate_mode = 1;
+			/* rot-90 */
+			req->rotate_mode = RGA3_ROT_BIT_ROT_90;
 		} else if (req_rga->sina == 0 && req_rga->cosa == -65536) {
-			/* rot 180 */
-			req->rotate_mode = 2;
+			/* rot-180 = X-mirror + Y-mirror */
+			req->rotate_mode = RGA3_ROT_BIT_X_MIRROR | RGA3_ROT_BIT_Y_MIRROR;
 		} else if (req_rga->sina == -65536 && req_rga->cosa == 0) {
-			/* rot 270 or -90 */
-			req->rotate_mode = 3;
+			/* rot-270 or -90 = rot-90 + X-mirror + Y-mirror */
+			req->rotate_mode = RGA3_ROT_BIT_X_MIRROR | RGA3_ROT_BIT_Y_MIRROR |
+					   RGA3_ROT_BIT_ROT_90;
 		} else if (req_rga->sina == 0 && req_rga->cosa == 65536) {
 			/* bypass */
 			req->rotate_mode = 0;
 		}
 		break;
 	case 0x2:
-		/* xmirror */
-		req->rotate_mode = 5;
+		/* X-mirror */
+		req->rotate_mode = RGA3_ROT_BIT_X_MIRROR;
 		break;
 	case 0x3:
-		/* ymirror */
-		req->rotate_mode = 4;
+		/* Y-mirror */
+		req->rotate_mode = RGA3_ROT_BIT_Y_MIRROR;
 		break;
 	case 0x4:
-		/* x+y mirror = rot 180 */
-		req->rotate_mode = 2;
+		/* X-mirror + Y-mirror */
+		req->rotate_mode = RGA3_ROT_BIT_X_MIRROR | RGA3_ROT_BIT_Y_MIRROR;
 		break;
 	default:
 		req->rotate_mode = 0;
 		break;
 	}
 
+	/* The upper four bits are only allowed to configure the mirror. */
 	switch ((req_rga->rotate_mode & 0xf0) >> 4) {
-	/* xmirror */
 	case 2:
-		if (req->rotate_mode == 1) {
-			/* xmirror + rot 90 */
-			req->rotate_mode = 6;
-		}
+		/* X-mirror */
+		req->rotate_mode ^= RGA3_ROT_BIT_X_MIRROR;
 		break;
-	/* ymirror */
 	case 3:
-		if (req->rotate_mode == 1) {
-			/* ymirror + rot 90 */
-			req->rotate_mode = 7;
-		}
+		/* Y-mirror */
+		req->rotate_mode ^= RGA3_ROT_BIT_Y_MIRROR;
+		break;
+	case 0x4:
+		/* X-mirror + Y-mirror */
+		req->rotate_mode ^= RGA3_ROT_BIT_X_MIRROR | RGA3_ROT_BIT_Y_MIRROR;
 		break;
 	}
 
@@ -1464,8 +1412,7 @@ void rga_cmd_to_rga3_cmd(struct rga_req *req_rga, struct rga3_req *req)
 	}
 	set_wr_info(req_rga, req);
 
-	if (req->rotate_mode == 1 || req->rotate_mode == 3 ||
-		req->rotate_mode == 6 || req->rotate_mode == 7) {
+	if (req->rotate_mode & RGA3_ROT_BIT_ROT_90) {
 		if (req->win1.yrgb_addr != 0) {
 			/* ABB */
 			if (req->win0.yrgb_addr == req->wr.yrgb_addr) {

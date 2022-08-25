@@ -15,7 +15,7 @@
 	compatible = "rockchip,rv1106g-smart-door-lock-rmsl-v10", "rockchip,rv1106";
 
 	chosen {
-		bootargs = "loglevel=0 console=ttyFIQ0 root=/dev/rd0 snd_soc_core.prealloc_buffer_size_kbytes=16 coherent_pool=0 driver_async_probe=dwmmc_rockchip rk_dma_heap_cma=24M mtdparts=sfc_nor:64K(env),256K@64K(idblock),256K(uboot),8M(boot),6M(oem),-(media)";
+		bootargs = "loglevel=0 console=ttyFIQ0 root=/dev/rd0 snd_soc_core.prealloc_buffer_size_kbytes=16 coherent_pool=0 driver_async_probe=dwmmc_rockchip";
 	};
 
 	acodec_sound: acodec-sound {
@@ -98,6 +98,11 @@
 	status = "disabled";
 };
 
+&meta {
+	/* reserved meta partition 384KB */
+	reg = <0x01e00000 (384 * 0x400)>;
+};
+
 &pinctrl {
 	mcu {
 		/omit-if-no-ref/
@@ -116,12 +121,13 @@
 	status = "okay";
 };
 
-&sdio {
+&sdmmc {
 	max-frequency = <50000000>;
 	bus-width = <1>;
 	cap-sd-highspeed;
 	cap-sdio-irq;
 	keep-power-in-suspend;
+	non-removable;
 	rockchip,default-sample-phase = <90>;
 	supports-sdio;
 	supports-chip-alive;

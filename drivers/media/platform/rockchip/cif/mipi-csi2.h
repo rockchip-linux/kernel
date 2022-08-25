@@ -117,7 +117,7 @@ struct csi2_match_data {
 	int num_pads;
 };
 
-struct csi2_sensor {
+struct csi2_sensor_info {
 	struct v4l2_subdev *sd;
 	struct v4l2_mbus_config mbus;
 	int lanes;
@@ -147,16 +147,17 @@ struct csi2_dev {
 	int			stream_count;
 	struct v4l2_subdev	*src_sd;
 	bool			sink_linked[CSI2_NUM_SRC_PADS];
-	struct csi2_sensor	sensors[MAX_CSI2_SENSORS];
+	bool			is_check_sot_sync;
+	struct csi2_sensor_info	sensors[MAX_CSI2_SENSORS];
 	const struct csi2_match_data	*match_data;
 	int			num_sensors;
 	atomic_t		frm_sync_seq;
 	struct csi2_err_stats	err_list[RK_CSI2_ERR_MAX];
 	int			irq1;
 	int			irq2;
-	bool			is_check_sot_sync;
-	const char		*dev_name;
 	int			dsi_input_en;
+	u32			csi_idx;
+	const char		*dev_name;
 };
 
 u32 rkcif_csi2_get_sof(struct csi2_dev *csi2_dev);
@@ -166,5 +167,6 @@ int __init rkcif_csi2_plat_drv_init(void);
 void __exit rkcif_csi2_plat_drv_exit(void);
 int rkcif_csi2_register_notifier(struct notifier_block *nb);
 int rkcif_csi2_unregister_notifier(struct notifier_block *nb);
+void rkcif_csi2_event_reset_pipe(struct csi2_dev *csi2_dev, int reset_src);
 
 #endif

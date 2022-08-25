@@ -177,6 +177,7 @@
 static inline void rwsem_set_owner(struct rw_semaphore *sem)
 {
 	atomic_long_set(&sem->owner, (long)current);
+	trace_android_vh_rwsem_set_owner(sem);
 }
 
 static inline void rwsem_clear_owner(struct rw_semaphore *sem)
@@ -214,6 +215,7 @@ static inline void __rwsem_set_reader_owned(struct rw_semaphore *sem,
 static inline void rwsem_set_reader_owned(struct rw_semaphore *sem)
 {
 	__rwsem_set_reader_owned(sem, current);
+	trace_android_vh_rwsem_set_reader_owned(sem);
 }
 
 /*
@@ -497,6 +499,7 @@ static void rwsem_mark_wake(struct rw_semaphore *sem,
 		woken++;
 		list_move_tail(&waiter->list, &wlist);
 
+		trace_android_vh_rwsem_mark_wake_readers(sem, waiter);
 		/*
 		 * Limit # of readers that can be woken up per wakeup call.
 		 */
@@ -1183,7 +1186,7 @@ rwsem_down_write_slowpath(struct rw_semaphore *sem, int state)
 
 		/*
 		 * If there were already threads queued before us and:
-		 *  1) there are no no active locks, wake the front
+		 *  1) there are no active locks, wake the front
 		 *     queued process(es) as the handoff bit might be set.
 		 *  2) there are no active writers and some readers, the lock
 		 *     must be read owned; so we try to wake any read lock
@@ -1461,6 +1464,7 @@ static inline void __up_read(struct rw_semaphore *sem)
 		clear_wr_nonspinnable(sem);
 		rwsem_wake(sem, tmp);
 	}
+	trace_android_vh_rwsem_up_read_end(sem);
 }
 
 /*
@@ -1482,6 +1486,7 @@ static inline void __up_write(struct rw_semaphore *sem)
 	tmp = atomic_long_fetch_add_release(-RWSEM_WRITER_LOCKED, &sem->count);
 	if (unlikely(tmp & RWSEM_FLAG_WAITERS))
 		rwsem_wake(sem, tmp);
+	trace_android_vh_rwsem_up_write_end(sem);
 }
 
 /*

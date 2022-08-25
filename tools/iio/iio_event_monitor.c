@@ -58,6 +58,16 @@ static const char * const iio_chan_type_name_spec[] = {
 	[IIO_POSITIONRELATIVE] = "positionrelative",
 	[IIO_PHASE] = "phase",
 	[IIO_MASSCONCENTRATION] = "massconcentration",
+#ifdef CONFIG_NO_GKI
+	[IIO_SIGN_MOTION] = "signmotion",
+	[IIO_STEP_DETECTOR] = "stepdetector",
+	[IIO_STEP_COUNTER] = "stepcounter",
+	[IIO_TILT] = "tilt",
+	[IIO_TAP] = "tap",
+	[IIO_TAP_TAP] = "taptap",
+	[IIO_WRIST_TILT_GESTURE] = "wristtiltgesture",
+	[IIO_GESTURE] = "gesture",
+#endif
 };
 
 static const char * const iio_ev_type_text[] = {
@@ -67,12 +77,19 @@ static const char * const iio_ev_type_text[] = {
 	[IIO_EV_TYPE_THRESH_ADAPTIVE] = "thresh_adaptive",
 	[IIO_EV_TYPE_MAG_ADAPTIVE] = "mag_adaptive",
 	[IIO_EV_TYPE_CHANGE] = "change",
+#ifdef CONFIG_NO_GKI
+	[IIO_EV_TYPE_FIFO_FLUSH] = "fifo_flush",
+#endif
 };
 
 static const char * const iio_ev_dir_text[] = {
 	[IIO_EV_DIR_EITHER] = "either",
 	[IIO_EV_DIR_RISING] = "rising",
-	[IIO_EV_DIR_FALLING] = "falling"
+	[IIO_EV_DIR_FALLING] = "falling",
+#ifdef CONFIG_NO_GKI
+	[IIO_EV_DIR_FIFO_EMPTY] = "empty",
+	[IIO_EV_DIR_FIFO_DATA] = "data",
+#endif
 };
 
 static const char * const iio_modifier_names[] = {

@@ -703,6 +703,9 @@ static int rk3588_combphy_cfg(struct rockchip_combphy_priv *priv)
 		/* Set PLL KVCO to min and set PLL charge pump current to max */
 		writel(0xf0, priv->mmio + (0xa << 2));
 
+		/* Set Rx squelch input filler bandwidth */
+		writel(0x0d, priv->mmio + (0x14 << 2));
+
 		param_write(priv->phy_grf, &cfg->pipe_txcomp_sel, false);
 		param_write(priv->phy_grf, &cfg->pipe_txelec_sel, false);
 		param_write(priv->phy_grf, &cfg->usb_mode_set, true);
@@ -789,12 +792,14 @@ static int rk3588_combphy_cfg(struct rockchip_combphy_priv *priv)
 			val = 0x4c;
 			writel(val, priv->mmio + (0x1b << 2));
 
-			/* Set up su_trim: T3 */
-			val = 0xb0;
+			/* Set up su_trim: T3_P1 650mv */
+			val = 0x90;
 			writel(val, priv->mmio + (0xa << 2));
-			val = 0x47;
+			val = 0x43;
 			writel(val, priv->mmio + (0xb << 2));
-			val = 0x57;
+			val = 0x88;
+			writel(val, priv->mmio + (0xc << 2));
+			val = 0x56;
 			writel(val, priv->mmio + (0xd << 2));
 		} else if (priv->mode == PHY_TYPE_SATA) {
 			/* downward spread spectrum +500ppm */
@@ -802,6 +807,12 @@ static int rk3588_combphy_cfg(struct rockchip_combphy_priv *priv)
 			val &= ~GENMASK(7, 4);
 			val |= 0x50;
 			writel(val, priv->mmio + (0x1f << 2));
+
+			/* ssc ppm adjust to 3500ppm */
+			val = readl(priv->mmio + (0x9 << 2));
+			val &= ~GENMASK(3, 0);
+			val |= 0x7;
+			writel(val, priv->mmio + (0x9 << 2));
 		}
 		break;
 	default:
@@ -818,14 +829,14 @@ static int rk3588_combphy_cfg(struct rockchip_combphy_priv *priv)
 			val = 0x0c;
 			writel(val, priv->mmio + (0x1b << 2));
 
-			/* Set up su_trim:  */
-			val = 0xf0;
+			/* Set up su_trim: T3_P1 650mv */
+			val = 0x90;
 			writel(val, priv->mmio + (0xa << 2));
-			val = 0x45;
+			val = 0x43;
 			writel(val, priv->mmio + (0xb << 2));
-			val = 0xb8;
+			val = 0x88;
 			writel(val, priv->mmio + (0xc << 2));
-			val = 0x59;
+			val = 0x56;
 			writel(val, priv->mmio + (0xd << 2));
 		}
 	}

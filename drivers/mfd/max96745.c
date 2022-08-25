@@ -95,31 +95,103 @@ static void max96745_power_off(void *data)
 		gpiod_direction_output(max96745->enable_gpio, 0);
 }
 
-static int max96745_power_on(struct max96745 *max96745)
+static void max96745_power_on(struct max96745 *max96745)
 {
 	u32 val;
 	int ret;
 
 	ret = regmap_read(max96745->regmap, 0x0107, &val);
 	if (!ret && FIELD_GET(VID_TX_ACTIVE_A | VID_TX_ACTIVE_B, val))
-		return 0;
+		return;
 
 	if (max96745->enable_gpio)
 		gpiod_direction_output(max96745->enable_gpio, 1);
+	else
+		regmap_update_bits(max96745->regmap, 0x0010, RESET_ALL,
+				   FIELD_PREP(RESET_ALL, 1));
+	msleep(200);
 
-	msleep(100);
-
-	ret = regmap_update_bits(max96745->regmap, 0x0010, RESET_ALL,
-				 FIELD_PREP(RESET_ALL, 1));
-	if (ret < 0)
-		return ret;
-
-	msleep(100);
-
+	regmap_update_bits(max96745->regmap, 0x0100, VID_TX_EN,
+			   FIELD_PREP(VID_TX_EN, 0));
 	regmap_update_bits(max96745->regmap, 0x0076, DIS_REM_CC,
 			   FIELD_PREP(DIS_REM_CC, 1));
 	regmap_update_bits(max96745->regmap, 0x0086, DIS_REM_CC,
 			   FIELD_PREP(DIS_REM_CC, 1));
+}
+
+static ssize_t line_fault_monitor_show(struct device *device,
+				       struct device_attribute *attr,
+				       char *buf)
+{
+	struct max96745 *max96745 = dev_get_drvdata(device);
+	u32 pu_lf, lf, status;
+
+	regmap_read(max96745->regmap, 0x0005, &pu_lf);
+
+	/*
+	 * Line-fault status of wire connected to LMN0/1/2/3 pin
+	 *
+	 * 0b000: Short to battery
+	 * 0b001: Short to GND
+	 * 0b010: Normal operation
+	 * 0b011: Line open
+	 * 0b1XX: Line-to-line short
+	 */
+	regmap_read(max96745->regmap, 0x0026, &lf);
+
+	if (FIELD_GET(PU_LF0, pu_lf)) {
+		status = (lf & LF_0);
+		return sprintf(buf, "%d\n", status);
+	}
+
+	if (FIELD_GET(PU_LF1, pu_lf)) {
+		status = (lf & LF_1) >> 4;
+		return sprintf(buf, "%d\n", status);
+	}
+
+	regmap_read(max96745->regmap, 0x0027, &lf);
+
+	if (FIELD_GET(PU_LF2, pu_lf)) {
+		status = (lf & LF_2);
+		return sprintf(buf, "%d\n", status);
+	}
+
+	if (FIELD_GET(PU_LF3, pu_lf)) {
+		status = (lf & LF_3) >> 4;
+		return sprintf(buf, "%d\n", status);
+	}
+
+
+	return sprintf(buf, "%d\n", -EINVAL);
+}
+
+static DEVICE_ATTR_RO(line_fault_monitor);
+
+static struct attribute *max96745_attrs[] = {
+	&dev_attr_line_fault_monitor.attr,
+	NULL
+};
+
+static const struct attribute_group max96745_attr_group = {
+	.attrs = max96745_attrs,
+};
+
+static int max96745_sysfs_add(struct max96745 *max96745)
+{
+	struct device *dev = max96745->dev;
+	int ret;
+	u32 ch;
+
+	ret = of_property_read_u32(dev->of_node, "line-fault-monitor", &ch);
+	if (!ret)
+		regmap_update_bits(max96745->regmap, 0x0005,
+				   PU_LF0 << ch, PU_LF0 << ch);
+
+	ret = devm_device_add_group(dev, &max96745_attr_group);
+	if (ret) {
+		dev_err(dev, "failed to register sysfs. err: %d\n", ret);
+		return ret;
+	};
 
 	return 0;
 }
@@ -130,6 +202,7 @@ static int max96745_i2c_probe(struct i2c_client *client)
 	struct device_node *child;
 	struct max96745 *max96745;
 	unsigned int nr = 0;
+	bool idle_disc;
 	int ret;
 
 	for_each_available_child_of_node(dev->of_node, child) {
@@ -143,9 +216,11 @@ static int max96745_i2c_probe(struct i2c_client *client)
 	if (!max96745)
 		return -ENOMEM;
 
+	idle_disc = device_property_read_bool(dev, "i2c-mux-idle-disconnect");
+
 	max96745->muxc = i2c_mux_alloc(client->adapter, dev, nr,
-				       0, I2C_MUX_LOCKED,
-				       max96745_select, max96745_deselect);
+				       0, I2C_MUX_LOCKED, max96745_select,
+				       idle_disc ? max96745_deselect : NULL);
 	if (!max96745->muxc)
 		return -ENOMEM;
 
@@ -168,9 +243,7 @@ static int max96745_i2c_probe(struct i2c_client *client)
 		return dev_err_probe(dev, PTR_ERR(max96745->lock_gpio),
 				     "failed to get lock GPIO\n");
 
-	ret = max96745_power_on(max96745);
-	if (ret)
-		return ret;
+	max96745_power_on(max96745);
 
 	ret = devm_add_action_or_reset(dev, max96745_power_off, max96745);
 	if (ret)
@@ -191,6 +264,10 @@ static int max96745_i2c_probe(struct i2c_client *client)
 			return ret;
 		}
 	}
+
+	ret = max96745_sysfs_add(max96745);
+	if (ret)
+		return dev_err_probe(dev, ret, "failed to registers sysfs\n");
 
 	return 0;
 }

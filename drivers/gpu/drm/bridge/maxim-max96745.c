@@ -13,12 +13,15 @@
 #include <drm/drm_connector.h>
 #include <drm/drm_probe_helper.h>
 
+#include <linux/irq.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/platform_device.h>
 #include <linux/err.h>
+#include <linux/extcon-provider.h>
 #include <linux/of.h>
 #include <linux/regmap.h>
+#include <linux/gpio/consumer.h>
 #include <linux/mfd/max96745.h>
 
 struct max96745_bridge {
@@ -29,9 +32,21 @@ struct max96745_bridge {
 
 	struct device *dev;
 	struct regmap *regmap;
+	struct {
+		struct gpio_desc *gpio;
+		int irq;
+		bool irq_enabled;
+		atomic_t triggered;
+	} lock;
+	struct extcon_dev *extcon;
 };
 
 #define to_max96745_bridge(x)	container_of(x, struct max96745_bridge, x)
+
+static const unsigned int max96745_bridge_cable[] = {
+	EXTCON_JACK_VIDEO_OUT,
+	EXTCON_NONE,
+};
 
 static int max96745_bridge_connector_get_modes(struct drm_connector *connector)
 {
@@ -55,6 +70,9 @@ max96745_bridge_connector_detect(struct drm_connector *connector, bool force)
 	struct drm_bridge *bridge = &ser->bridge;
 	struct drm_bridge *prev_bridge = drm_bridge_get_prev_bridge(bridge);
 
+	if (!drm_kms_helper_is_poll_worker())
+		return connector->status;
+
 	if (prev_bridge && (prev_bridge->ops & DRM_BRIDGE_OP_DETECT))
 		return drm_bridge_detect(prev_bridge);
 
@@ -69,6 +87,32 @@ static const struct drm_connector_funcs max96745_bridge_connector_funcs = {
 	.atomic_duplicate_state = drm_atomic_helper_connector_duplicate_state,
 	.atomic_destroy_state = drm_atomic_helper_connector_destroy_state,
 };
+
+static bool max96745_bridge_link_locked(struct max96745_bridge *ser)
+{
+	u32 val;
+
+	if (regmap_read(ser->regmap, 0x002a, &val))
+		return false;
+
+	if (!FIELD_GET(LINK_LOCKED, val))
+		return false;
+
+	return true;
+}
+
+static bool max96745_bridge_vid_tx_active(struct max96745_bridge *ser)
+{
+	u32 val;
+
+	if (regmap_read(ser->regmap, 0x0107, &val))
+		return false;
+
+	if (!FIELD_GET(VID_TX_ACTIVE_A | VID_TX_ACTIVE_B, val))
+		return false;
+
+	return true;
+}
 
 static int max96745_bridge_attach(struct drm_bridge *bridge,
 				  enum drm_bridge_attach_flags flags)
@@ -103,6 +147,19 @@ static int max96745_bridge_attach(struct drm_bridge *bridge,
 		return ret;
 	}
 
+	if (max96745_bridge_link_locked(ser))
+		connector->status = connector_status_connected;
+	else
+		connector->status = connector_status_disconnected;
+
+	if (max96745_bridge_vid_tx_active(ser)) {
+		extcon_set_state(ser->extcon, EXTCON_JACK_VIDEO_OUT, true);
+		enable_irq(ser->lock.irq);
+		ser->lock.irq_enabled = true;
+	} else {
+		extcon_set_state(ser->extcon, EXTCON_JACK_VIDEO_OUT, false);
+	}
+
 	drm_connector_attach_encoder(connector, bridge->encoder);
 
 	return 0;
@@ -122,14 +179,29 @@ static void max96745_bridge_enable(struct drm_bridge *bridge)
 
 	regmap_update_bits(ser->regmap, 0x0100, VID_TX_EN,
 			   FIELD_PREP(VID_TX_EN, 1));
+	msleep(50);
 
 	if (ser->panel)
 		drm_panel_enable(ser->panel);
+
+	extcon_set_state_sync(ser->extcon, EXTCON_JACK_VIDEO_OUT, true);
+
+	if (!ser->lock.irq_enabled) {
+		enable_irq(ser->lock.irq);
+		ser->lock.irq_enabled = true;
+	}
 }
 
 static void max96745_bridge_disable(struct drm_bridge *bridge)
 {
 	struct max96745_bridge *ser = to_max96745_bridge(bridge);
+
+	if (ser->lock.irq_enabled) {
+		disable_irq(ser->lock.irq);
+		ser->lock.irq_enabled = false;
+	}
+
+	extcon_set_state_sync(ser->extcon, EXTCON_JACK_VIDEO_OUT, false);
 
 	if (ser->panel)
 		drm_panel_disable(ser->panel);
@@ -150,13 +222,25 @@ static enum drm_connector_status
 max96745_bridge_detect(struct drm_bridge *bridge)
 {
 	struct max96745_bridge *ser = to_max96745_bridge(bridge);
-	u32 val;
+	struct drm_connector *connector = &ser->connector;
 
-	if (regmap_read(ser->regmap, 0x002a, &val))
+	if (!max96745_bridge_link_locked(ser))
 		return connector_status_disconnected;
 
-	if (!FIELD_GET(LINK_LOCKED, val))
-		return connector_status_disconnected;
+	if (connector->status == connector_status_connected) {
+		u32 dprx_trn_status2;
+
+		if (atomic_cmpxchg(&ser->lock.triggered, 1, 0))
+			return connector_status_disconnected;
+
+		if (regmap_read(ser->regmap, 0x641a, &dprx_trn_status2))
+			return connector_status_disconnected;
+
+		if ((dprx_trn_status2 & DPRX_TRAIN_STATE) != DPRX_TRAIN_STATE)
+			return connector_status_disconnected;
+	} else {
+		atomic_set(&ser->lock.triggered, 0);
+	}
 
 	if (ser->next_bridge && (ser->next_bridge->ops & DRM_BRIDGE_OP_DETECT))
 		return drm_bridge_detect(ser->next_bridge);
@@ -177,10 +261,20 @@ static const struct drm_bridge_funcs max96745_bridge_funcs = {
 	.atomic_reset = drm_atomic_helper_bridge_reset,
 };
 
+static irqreturn_t max96745_bridge_lock_irq_handler(int irq, void *arg)
+{
+	struct max96745_bridge *ser = arg;
+
+	atomic_set(&ser->lock.triggered, 1);
+
+	return IRQ_HANDLED;
+}
+
 static int max96745_bridge_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct max96745_bridge *ser;
+	int ret;
 
 	ser = devm_kzalloc(dev, sizeof(*ser), GFP_KERNEL);
 	if (!ser)
@@ -193,12 +287,32 @@ static int max96745_bridge_probe(struct platform_device *pdev)
 	if (!ser->regmap)
 		return dev_err_probe(dev, -ENODEV, "failed to get regmap\n");
 
-	regmap_update_bits(ser->regmap, 0x7070, MAX_LANE_COUNT,
-			   FIELD_PREP(MAX_LANE_COUNT, 0x04));
-	regmap_update_bits(ser->regmap, 0x7074, MAX_LINK_RATE,
-			   FIELD_PREP(MAX_LINK_RATE, 0x14));
-	regmap_update_bits(ser->regmap, 0x7000, LINK_ENABLE,
-			   FIELD_PREP(LINK_ENABLE, 1));
+	ser->lock.gpio = devm_gpiod_get(dev, "lock", GPIOD_IN);
+	if (IS_ERR(ser->lock.gpio))
+		return dev_err_probe(dev, PTR_ERR(ser->lock.gpio),
+				     "failed to get lock GPIO\n");
+
+	ser->extcon = devm_extcon_dev_allocate(dev, max96745_bridge_cable);
+	if (IS_ERR(ser->extcon))
+		return dev_err_probe(dev, PTR_ERR(ser->extcon),
+				     "failed to allocate extcon device\n");
+
+	ret = devm_extcon_dev_register(dev, ser->extcon);
+	if (ret)
+		return dev_err_probe(dev, ret,
+				     "failed to register extcon device\n");
+
+	ser->lock.irq = gpiod_to_irq(ser->lock.gpio);
+	if (ser->lock.irq < 0)
+		return ser->lock.irq;
+
+	irq_set_status_flags(ser->lock.irq, IRQ_NOAUTOEN);
+	ret = devm_request_threaded_irq(dev, ser->lock.irq, NULL,
+					max96745_bridge_lock_irq_handler,
+					IRQF_TRIGGER_RISING | IRQF_ONESHOT,
+					dev_name(dev), ser);
+	if (ret)
+		return dev_err_probe(dev, ret, "failed to request lock IRQ\n");
 
 	ser->bridge.funcs = &max96745_bridge_funcs;
 	ser->bridge.of_node = dev->of_node;

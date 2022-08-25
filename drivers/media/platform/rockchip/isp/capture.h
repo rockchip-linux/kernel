@@ -268,6 +268,8 @@ struct rkisp_stream {
 	struct rkisp_buffer *next_buf;
 	struct rkisp_dummy_buffer dummy_buf;
 	struct mutex apilock;
+	struct tasklet_struct buf_done_tasklet;
+	struct list_head buf_done_list;
 	bool streaming;
 	bool stopping;
 	bool frame_end;
@@ -277,8 +279,8 @@ struct rkisp_stream {
 	bool is_flip;
 	bool is_pause;
 	bool is_crop_upd;
-	bool is_pre_on;
 	bool is_using_resmem;
+	bool is_tb_s_info;
 	wait_queue_head_t done;
 	unsigned int burst;
 	atomic_t sequence;
@@ -319,6 +321,8 @@ extern struct stream_config rkisp_mp_stream_config;
 extern struct stream_config rkisp_sp_stream_config;
 extern struct rockit_isp_ops rockit_isp_ops;
 
+void rkisp_stream_buf_done(struct rkisp_stream *stream,
+			   struct rkisp_buffer *buf);
 void rkisp_unregister_stream_vdev(struct rkisp_stream *stream);
 int rkisp_register_stream_vdev(struct rkisp_stream *stream);
 void rkisp_unregister_stream_vdevs(struct rkisp_device *dev);

@@ -139,10 +139,15 @@ static int rkispp_sd_get_fmt(struct v4l2_subdev *sd,
 			ispp_fmt = find_fmt(fmt->format.code);
 			if (!ispp_fmt)
 				goto err;
+			if (ispp_sdev->in_fmt.width != mf->width ||
+			    ispp_sdev->in_fmt.height != mf->height) {
+				ispp_sdev->out_fmt = *ispp_fmt;
+				ispp_sdev->out_fmt.width = mf->width;
+				ispp_sdev->out_fmt.height = mf->height;
+			}
 			ispp_sdev->in_fmt = *mf;
-			ispp_sdev->out_fmt = *ispp_fmt;
 		}
-	} else if (fmt->pad == RKISPP_PAD_SOURCE) {
+	} else {
 		*mf = ispp_sdev->in_fmt;
 		mf->width = ispp_sdev->out_fmt.width;
 		mf->height = ispp_sdev->out_fmt.height;
@@ -181,87 +186,6 @@ static int rkispp_sd_set_fmt(struct v4l2_subdev *sd,
 	}
 
 	return 0;
-}
-
-static int rkispp_sd_get_selection(struct v4l2_subdev *sd,
-				   struct v4l2_subdev_pad_config *cfg,
-				   struct v4l2_subdev_selection *sel)
-{
-	struct rkispp_subdev *ispp_sdev = v4l2_get_subdevdata(sd);
-	struct v4l2_rect *crop;
-	int ret = 0;
-
-	if (!sel)
-		goto err;
-	if (sel->pad != RKISPP_PAD_SINK)
-		goto err;
-
-	crop = &sel->r;
-	if (sel->which == V4L2_SUBDEV_FORMAT_TRY) {
-		if (!cfg)
-			goto err;
-		crop = v4l2_subdev_get_try_crop(sd, cfg, sel->pad);
-	}
-
-	if (ispp_sdev->dev->inp != INP_ISP) {
-		crop->left = 0;
-		crop->top = 0;
-		crop->width = ispp_sdev->in_fmt.width;
-		crop->height = ispp_sdev->in_fmt.height;
-		return 0;
-	}
-
-	ret = v4l2_subdev_call(ispp_sdev->remote_sd,
-			pad, get_selection, cfg, sel);
-	if (!ret && sel->target == V4L2_SEL_TGT_CROP) {
-		ispp_sdev->out_fmt.width = crop->width;
-		ispp_sdev->out_fmt.height = crop->height;
-	}
-
-	return ret;
-err:
-	return -EINVAL;
-}
-
-static int rkispp_sd_set_selection(struct v4l2_subdev *sd,
-				   struct v4l2_subdev_pad_config *cfg,
-				   struct v4l2_subdev_selection *sel)
-{
-	struct rkispp_subdev *ispp_sdev = v4l2_get_subdevdata(sd);
-	struct v4l2_rect *crop;
-	int ret = 0;
-
-	if (!sel)
-		goto err;
-	if (sel->pad != RKISPP_PAD_SINK ||
-	    sel->target != V4L2_SEL_TGT_CROP)
-		goto err;
-
-	crop = &sel->r;
-	if (sel->which == V4L2_SUBDEV_FORMAT_TRY) {
-		if (!cfg)
-			goto err;
-		crop = v4l2_subdev_get_try_crop(sd, cfg, sel->pad);
-	}
-
-	if (ispp_sdev->dev->inp != INP_ISP) {
-		crop->left = 0;
-		crop->top = 0;
-		crop->width = ispp_sdev->in_fmt.width;
-		crop->height = ispp_sdev->in_fmt.height;
-		return 0;
-	}
-
-	ret = v4l2_subdev_call(ispp_sdev->remote_sd,
-			pad, set_selection, cfg, sel);
-	if (!ret) {
-		ispp_sdev->out_fmt.width = crop->width;
-		ispp_sdev->out_fmt.height = crop->height;
-	}
-
-	return ret;
-err:
-	return -EINVAL;
 }
 
 static int rkispp_sd_s_stream(struct v4l2_subdev *sd, int on)
@@ -338,7 +262,6 @@ static int rkispp_sd_s_power(struct v4l2_subdev *sd, int on)
 	if (on) {
 		if (ispp_dev->inp == INP_ISP) {
 			struct v4l2_subdev_format fmt;
-			struct v4l2_subdev_selection sel;
 
 			/* update format, if ispp input change */
 			fmt.pad = RKISPP_PAD_SINK;
@@ -347,17 +270,6 @@ static int rkispp_sd_s_power(struct v4l2_subdev *sd, int on)
 			if (ret) {
 				v4l2_err(&ispp_dev->v4l2_dev,
 					 "%s get format fail:%d\n",
-					 __func__, ret);
-				return ret;
-			}
-			sel.pad = RKISPP_PAD_SINK;
-			sel.target = V4L2_SEL_TGT_CROP;
-			sel.which = V4L2_SUBDEV_FORMAT_ACTIVE;
-			ret = v4l2_subdev_call(sd, pad,
-				get_selection, NULL, &sel);
-			if (ret) {
-				v4l2_err(&ispp_dev->v4l2_dev,
-					 "%s get crop fail:%d\n",
 					 __func__, ret);
 				return ret;
 			}
@@ -408,13 +320,18 @@ static long rkispp_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 		return -EINVAL;
 
 	switch (cmd) {
+	case RKISPP_CMD_SET_INIT_MODULE:
+		ispp_dev->stream_vdev.module_ens = *((int *)arg);
+		if (ispp_dev->hw_dev->is_fec_ext)
+			ispp_dev->stream_vdev.module_ens &= ~ISPP_MODULE_FEC_ST;
+		break;
 	case RKISPP_CMD_GET_FECBUF_INFO:
 		fecbuf = (struct rkispp_fecbuf_info *)arg;
-		rkispp_params_get_fecbuf_inf(&ispp_dev->params_vdev, fecbuf);
+		rkispp_params_get_fecbuf_inf(&ispp_dev->params_vdev[PARAM_VDEV_FEC], fecbuf);
 		break;
 	case RKISPP_CMD_SET_FECBUF_SIZE:
 		fecsize = (struct rkispp_fecbuf_size *)arg;
-		rkispp_params_set_fecbuf_size(&ispp_dev->params_vdev, fecsize);
+		rkispp_params_set_fecbuf_size(&ispp_dev->params_vdev[PARAM_VDEV_FEC], fecsize);
 		break;
 	case RKISP_ISPP_CMD_REQUEST_REGBUF:
 		reg_buf = (struct rkisp_ispp_reg **)arg;
@@ -425,11 +342,11 @@ static long rkispp_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 		*rkispp_reg_withstream = rkispp_is_reg_withstream_global();
 		break;
 	#if IS_ENABLED(CONFIG_VIDEO_ROCKCHIP_ISPP_VERSION_V10)
-	case RKISPP_CMD_TRIGGER_YNRRUN:
-		rkispp_sendbuf_to_nr(ispp_dev, (struct rkispp_tnr_inf *)arg);
-		break;
 	case RKISPP_CMD_GET_TNRBUF_FD:
 		ret = rkispp_get_tnrbuf_fd(ispp_dev, (struct rkispp_buf_idxfd *)arg);
+		break;
+	case RKISPP_CMD_GET_NRBUF_FD:
+		ret = rkispp_get_nrbuf_fd(ispp_dev, (struct rkispp_buf_idxfd *)arg);
 		break;
 	case RKISPP_CMD_TRIGGER_MODE:
 		rkispp_set_trigger_mode(ispp_dev, (struct rkispp_trigger_mode *)arg);
@@ -449,7 +366,6 @@ static long rkispp_compat_ioctl32(struct v4l2_subdev *sd,
 	void __user *up = compat_ptr(arg);
 	struct rkispp_fecbuf_info fecbuf;
 	struct rkispp_fecbuf_size fecsize;
-	struct rkispp_tnr_inf tnr_inf;
 	struct rkispp_buf_idxfd idxfd;
 	struct rkispp_trigger_mode t_mode;
 	long ret = 0;
@@ -468,12 +384,8 @@ static long rkispp_compat_ioctl32(struct v4l2_subdev *sd,
 			return -EFAULT;
 		ret = rkispp_ioctl(sd, cmd, &fecsize);
 		break;
-	case RKISPP_CMD_TRIGGER_YNRRUN:
-		if (copy_from_user(&tnr_inf, up, sizeof(tnr_inf)))
-			return -EFAULT;
-		ret = rkispp_ioctl(sd, cmd, &tnr_inf);
-		break;
 	case RKISPP_CMD_GET_TNRBUF_FD:
+	case RKISPP_CMD_GET_NRBUF_FD:
 		ret = rkispp_ioctl(sd, cmd, &idxfd);
 		if (!ret && copy_to_user(up, &idxfd, sizeof(idxfd)))
 			ret = -EFAULT;
@@ -511,8 +423,6 @@ static const struct media_entity_operations rkispp_sd_media_ops = {
 static const struct v4l2_subdev_pad_ops rkispp_sd_pad_ops = {
 	.get_fmt = rkispp_sd_get_fmt,
 	.set_fmt = rkispp_sd_set_fmt,
-	.get_selection = rkispp_sd_get_selection,
-	.set_selection = rkispp_sd_set_selection,
 };
 
 static const struct v4l2_subdev_video_ops rkispp_sd_video_ops = {

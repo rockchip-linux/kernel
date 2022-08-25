@@ -18,6 +18,8 @@
 #include <linux/rk-camera-module.h>
 #include <media/v4l2-ioctl.h>
 #include "mipi-csi2.h"
+#include <linux/rkcif-config.h>
+#include <linux/regulator/consumer.h>
 
 static int csi2_debug;
 module_param_named(debug_csi2, csi2_debug, int, 0644);
@@ -43,7 +45,7 @@ static inline struct csi2_dev *sd_to_dev(struct v4l2_subdev *sdev)
 	return container_of(sdev, struct csi2_dev, sd);
 }
 
-static struct csi2_sensor *sd_to_sensor(struct csi2_dev *csi2,
+static struct csi2_sensor_info *sd_to_sensor(struct csi2_dev *csi2,
 					struct v4l2_subdev *sd)
 {
 	int i;
@@ -104,8 +106,8 @@ static void get_remote_terminal_sensor(struct v4l2_subdev *sd,
 
 static void csi2_update_sensor_info(struct csi2_dev *csi2)
 {
-	struct csi2_sensor *sensor = &csi2->sensors[0];
 	struct v4l2_subdev *terminal_sensor_sd = NULL;
+	struct csi2_sensor_info *sensor = &csi2->sensors[0];
 	struct v4l2_mbus_config mbus;
 	int ret = 0;
 
@@ -377,6 +379,7 @@ static int csi2_media_init(struct v4l2_subdev *sd)
 	csi2->crop.left = 0;
 	csi2->crop.width = RKCIF_DEFAULT_WIDTH;
 	csi2->crop.height = RKCIF_DEFAULT_HEIGHT;
+	csi2->csi_idx = 0;
 
 	return media_entity_pads_init(&sd->entity, num_pads, csi2->pad);
 }
@@ -509,6 +512,17 @@ static const struct media_entity_operations csi2_entity_ops = {
 	.link_validate = v4l2_subdev_link_validate,
 };
 
+void rkcif_csi2_event_reset_pipe(struct csi2_dev *csi2_dev, int reset_src)
+{
+	if (csi2_dev) {
+		struct v4l2_event event = {
+			.type = V4L2_EVENT_RESET_DEV,
+			.reserved[0] = reset_src,
+		};
+		v4l2_event_queue(csi2_dev->sd.devnode, &event);
+	}
+}
+
 void rkcif_csi2_event_inc_sof(struct csi2_dev *csi2_dev)
 {
 	if (csi2_dev) {
@@ -538,10 +552,11 @@ void rkcif_csi2_set_sof(struct csi2_dev *csi2_dev, u32 seq)
 static int rkcif_csi2_subscribe_event(struct v4l2_subdev *sd, struct v4l2_fh *fh,
 					     struct v4l2_event_subscription *sub)
 {
-	if (sub->type != V4L2_EVENT_FRAME_SYNC)
+	if (sub->type == V4L2_EVENT_FRAME_SYNC ||
+	    sub->type == V4L2_EVENT_RESET_DEV)
+		return v4l2_event_subscribe(fh, sub, RKCIF_V4L2_EVENT_ELEMS, NULL);
+	else
 		return -EINVAL;
-
-	return v4l2_event_subscribe(fh, sub, RKCIF_V4L2_EVENT_ELEMS, NULL);
 }
 
 static int rkcif_csi2_s_power(struct v4l2_subdev *sd, int on)
@@ -549,10 +564,55 @@ static int rkcif_csi2_s_power(struct v4l2_subdev *sd, int on)
 	return 0;
 }
 
+static long rkcif_csi2_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
+{
+	struct csi2_dev *csi2 = sd_to_dev(sd);
+	long ret = 0;
+
+	switch (cmd) {
+	case RKCIF_CMD_SET_CSI_IDX:
+		csi2->csi_idx = *((u32 *)arg);
+		break;
+	default:
+		ret = -ENOIOCTLCMD;
+		break;
+	}
+
+	return ret;
+}
+
+#ifdef CONFIG_COMPAT
+static long rkcif_csi2_compat_ioctl32(struct v4l2_subdev *sd,
+				      unsigned int cmd, unsigned long arg)
+{
+	void __user *up = compat_ptr(arg);
+	u32 csi_idx = 0;
+	long ret;
+
+	switch (cmd) {
+	case RKCIF_CMD_SET_CSI_IDX:
+		if (copy_from_user(&csi_idx, up, sizeof(u32)))
+			return -EFAULT;
+
+		ret = rkcif_csi2_ioctl(sd, cmd, &csi_idx);
+		break;
+	default:
+		ret = -ENOIOCTLCMD;
+		break;
+	}
+
+	return ret;
+}
+#endif
+
 static const struct v4l2_subdev_core_ops csi2_core_ops = {
 	.subscribe_event = rkcif_csi2_subscribe_event,
 	.unsubscribe_event = v4l2_event_subdev_unsubscribe,
 	.s_power = rkcif_csi2_s_power,
+	.ioctl = rkcif_csi2_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl32 = rkcif_csi2_compat_ioctl32,
+#endif
 };
 
 static const struct v4l2_subdev_video_ops csi2_video_ops = {
@@ -599,7 +659,7 @@ csi2_notifier_bound(struct v4l2_async_notifier *notifier,
 	struct csi2_dev *csi2 = container_of(notifier,
 			struct csi2_dev,
 			notifier);
-	struct csi2_sensor *sensor;
+	struct csi2_sensor_info *sensor;
 	struct media_link *link;
 	unsigned int pad, ret;
 
@@ -655,7 +715,7 @@ static void csi2_notifier_unbind(struct v4l2_async_notifier *notifier,
 	struct csi2_dev *csi2 = container_of(notifier,
 						  struct csi2_dev,
 						  notifier);
-	struct csi2_sensor *sensor = sd_to_sensor(csi2, sd);
+	struct csi2_sensor_info *sensor = sd_to_sensor(csi2, sd);
 
 	sensor->sd = NULL;
 
@@ -687,6 +747,7 @@ static irqreturn_t rk_csirx_irq1_handler(int irq, void *ctx)
 	u32 val;
 	char err_str[CSI_ERRSTR_LEN] = {0};
 	char vc_info[CSI_VCINFO_LEN] = {0};
+	bool is_add_cnt = false;
 
 	val = read_csihost_reg(csi2->base, CSIHOST_ERR1);
 	if (val) {
@@ -708,6 +769,7 @@ static irqreturn_t rk_csirx_irq1_handler(int irq, void *ctx)
 			} else {
 				csi2_find_err_vc(val & 0xf, vc_info);
 				snprintf(err_str, CSI_ERRSTR_LEN, "%s(sot sync,lane:%s) ", err_str, vc_info);
+				is_add_cnt = true;
 			}
 		}
 
@@ -716,6 +778,8 @@ static irqreturn_t rk_csirx_irq1_handler(int irq, void *ctx)
 			err_list->cnt++;
 			csi2_find_err_vc((val >> 4) & 0xf, vc_info);
 			snprintf(err_str, CSI_ERRSTR_LEN, "%s(fs/fe mis,vc:%s) ", err_str, vc_info);
+			if (csi2->match_data->chip_id < CHIP_RK3588_CSI2)
+				is_add_cnt = true;
 		}
 
 		if (val & CSIHOST_ERR1_ERR_SEQ) {
@@ -727,6 +791,7 @@ static irqreturn_t rk_csirx_irq1_handler(int irq, void *ctx)
 
 		if (val & CSIHOST_ERR1_ERR_FRM_DATA) {
 			err_list = &csi2->err_list[RK_CSI2_ERR_CRC_ONCE];
+			is_add_cnt = true;
 			err_list->cnt++;
 			csi2_find_err_vc((val >> 12) & 0xf, vc_info);
 			snprintf(err_str, CSI_ERRSTR_LEN, "%s(err_data,vc:%s) ", err_str, vc_info);
@@ -735,6 +800,7 @@ static irqreturn_t rk_csirx_irq1_handler(int irq, void *ctx)
 		if (val & CSIHOST_ERR1_ERR_CRC) {
 			err_list = &csi2->err_list[RK_CSI2_ERR_CRC];
 			err_list->cnt++;
+			is_add_cnt = true;
 			csi2_find_err_vc((val >> 24) & 0xf, vc_info);
 			snprintf(err_str, CSI_ERRSTR_LEN, "%s(crc,vc:%s) ", err_str, vc_info);
 		}
@@ -742,17 +808,21 @@ static irqreturn_t rk_csirx_irq1_handler(int irq, void *ctx)
 		if (val & CSIHOST_ERR1_ERR_ECC2) {
 			err_list = &csi2->err_list[RK_CSI2_ERR_CRC];
 			err_list->cnt++;
+			is_add_cnt = true;
 			snprintf(err_str, CSI_ERRSTR_LEN, "%s(ecc2)", err_str);
 		}
 
 		pr_err("%s ERR1:0x%x %s\n", csi2->dev_name, val, err_str);
-		csi2->err_list[RK_CSI2_ERR_ALL].cnt++;
-		err_stat = ((csi2->err_list[RK_CSI2_ERR_FS_FE_MIS].cnt & 0xff) << 8) |
-			    ((csi2->err_list[RK_CSI2_ERR_ALL].cnt) & 0xff);
 
-		atomic_notifier_call_chain(&g_csi_host_chain,
-					   err_stat,
-					   NULL);
+		if (is_add_cnt) {
+			csi2->err_list[RK_CSI2_ERR_ALL].cnt++;
+			err_stat = ((csi2->err_list[RK_CSI2_ERR_FS_FE_MIS].cnt & 0xff) << 8) |
+				    ((csi2->err_list[RK_CSI2_ERR_ALL].cnt) & 0xff);
+
+			atomic_notifier_call_chain(&g_csi_host_chain,
+						   err_stat,
+						   &csi2->csi_idx);
+		}
 
 	}
 

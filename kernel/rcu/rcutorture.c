@@ -1347,7 +1347,6 @@ rcutorture_extend_mask(int oldmask, struct torture_random_state *trsp)
 	tmp = atomic_bhs | nonatomic_bhs;
 	if (mask & RCUTORTURE_RDR_IRQ)
 		mask |= oldmask & tmp;
-
 	/*
 	 * Ideally these sequences would be detected in debug builds
 	 * (regardless of RT), but until then don't stop testing

@@ -902,6 +902,7 @@ dw_mipi_dsi2_encoder_atomic_check(struct drm_encoder *encoder,
 
 	if (!(dsi2->mode_flags & MIPI_DSI_MODE_VIDEO)) {
 		s->output_flags |= ROCKCHIP_OUTPUT_MIPI_DS_MODE;
+		s->soft_te = dsi2->te_gpio ? true : false;
 		s->hold_mode = true;
 	}
 
@@ -993,8 +994,9 @@ static int dw_mipi_dsi2_connector_get_modes(struct drm_connector *connector)
 	return -EINVAL;
 }
 
-static int dw_mipi_dsi2_connector_mode_valid(struct drm_connector *connector,
-					     struct drm_display_mode *mode)
+static enum drm_mode_status
+dw_mipi_dsi2_connector_mode_valid(struct drm_connector *connector,
+				  struct drm_display_mode *mode)
 {
 	struct videomode vm;
 
@@ -1089,7 +1091,8 @@ static irqreturn_t dw_mipi_dsi2_te_irq_handler(int irq, void *dev_id)
 	struct dw_mipi_dsi2 *dsi2 = (struct dw_mipi_dsi2 *)dev_id;
 	struct drm_encoder *encoder = &dsi2->encoder;
 
-	rockchip_drm_te_handle(encoder->crtc);
+	if (encoder->crtc)
+		rockchip_drm_te_handle(encoder->crtc);
 
 	return IRQ_HANDLED;
 }

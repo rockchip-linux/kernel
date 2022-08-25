@@ -404,7 +404,7 @@ struct rkcif_timer {
 	unsigned int		run_cnt;
 	unsigned int		max_run_cnt;
 	unsigned int		stop_index_of_run_cnt;
-	unsigned int		last_buf_wakeup_cnt;
+	unsigned int		last_buf_wakeup_cnt[RKCIF_MAX_STREAM_MIPI];
 	unsigned long		csi2_err_cnt_even;
 	unsigned long		csi2_err_cnt_odd;
 	unsigned int		csi2_err_ref_cnt;
@@ -425,6 +425,7 @@ struct rkcif_timer {
 	bool			is_running;
 	bool			is_csi2_err_occurred;
 	bool			has_been_init;
+	bool			is_ctrl_by_user;
 	enum rkcif_monitor_mode	monitor_mode;
 	enum rkmodule_reset_src	reset_src;
 };
@@ -518,6 +519,7 @@ struct rkcif_stream {
 	int				buf_num_toisp;
 	u64				line_int_cnt;
 	int				lack_buf_cnt;
+	unsigned int                    buf_wake_up_cnt;
 	struct rkcif_skip_info		skip_info;
 	bool				stopping;
 	bool				crop_enable;
@@ -531,6 +533,7 @@ struct rkcif_stream {
 	bool				is_buf_active;
 	bool				is_high_align;
 	bool				to_en_scale;
+	bool				is_finish_stop_dma;
 };
 
 struct rkcif_lvds_subdev {
@@ -791,8 +794,6 @@ struct rkcif_device {
 	struct rkcif_irq_stats		irq_stats;
 	spinlock_t			hdr_lock; /* lock for hdr buf sync */
 	struct rkcif_timer		reset_watchdog_timer;
-	unsigned int			buf_wake_up_cnt;
-	struct notifier_block		reset_notifier; /* reset for mipi csi crc err */
 	struct rkcif_work_struct	reset_work;
 	int				id_use_cnt;
 	unsigned int			csi_host_idx;
@@ -802,6 +803,7 @@ struct rkcif_device {
 	unsigned int			wait_line_cache;
 	struct rkcif_dummy_buffer	dummy_buf;
 	struct completion		cmpl_ntf;
+	struct csi2_dphy_hw		*dphy_hw;
 	bool				is_start_hdr;
 	bool				reset_work_cancel;
 	bool				iommu_en;
@@ -881,5 +883,7 @@ void rkcif_enable_dma_capture(struct rkcif_stream *stream, bool is_only_enable);
 void rkcif_do_soft_reset(struct rkcif_device *dev);
 
 u32 rkcif_mbus_pixelcode_to_v4l2(u32 pixelcode);
+
+void rkcif_config_dvp_pin(struct rkcif_device *dev, bool on);
 
 #endif

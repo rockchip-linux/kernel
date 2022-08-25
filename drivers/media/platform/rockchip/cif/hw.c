@@ -862,6 +862,8 @@ static const struct cif_reg rv1106_cif_regs[] = {
 	[CIF_REG_TOISP0_CTRL] = CIF_REG(TOISP0_CH_CTRL),
 	[CIF_REG_TOISP0_SIZE] = CIF_REG(TOISP0_CROP_SIZE),
 	[CIF_REG_TOISP0_CROP] = CIF_REG(TOISP0_CROP),
+	[CIF_REG_GRF_CIFIO_CON] = CIF_REG(RV1106_CIF_GRF_VI_CON),
+	[CIF_REG_GRF_CIFIO_VENC] = CIF_REG(RV1106_CIF_GRF_VENC_WRAPPER),
 };
 
 static const struct rkcif_hw_match_data px30_cif_match_data = {
@@ -1145,6 +1147,7 @@ static int rkcif_plat_hw_probe(struct platform_device *pdev)
 	struct resource *res;
 	int i, ret, irq;
 	bool is_mem_reserved = false;
+	struct notifier_block *notifier;
 
 	match = of_match_node(rkcif_plat_of_match, node);
 	if (IS_ERR(match))
@@ -1195,6 +1198,11 @@ static int rkcif_plat_hw_probe(struct platform_device *pdev)
 		cif_hw->base_addr = devm_ioremap_resource(dev, res);
 		if (IS_ERR(cif_hw->base_addr))
 			return PTR_ERR(cif_hw->base_addr);
+	}
+
+	if (of_property_read_bool(np, "rockchip,android-usb-camerahal-enable")) {
+		dev_info(dev, "config cif adapt to android usb camera hal!\n");
+		cif_hw->adapt_to_usbcamerahal = true;
 	}
 
 	cif_hw->grf = syscon_regmap_lookup_by_phandle(np, "rockchip,grf");
@@ -1275,6 +1283,11 @@ static int rkcif_plat_hw_probe(struct platform_device *pdev)
 		platform_driver_register(&rkcif_subdev_driver);
 	}
 
+	notifier = &cif_hw->reset_notifier;
+	notifier->priority = 1;
+	notifier->notifier_call = rkcif_reset_notifier;
+	rkcif_csi2_register_notifier(notifier);
+
 	return 0;
 }
 
@@ -1289,6 +1302,8 @@ static int rkcif_plat_remove(struct platform_device *pdev)
 	mutex_destroy(&cif_hw->dev_lock);
 	if (cif_hw->chip_id < CHIP_RK1808_CIF)
 		rkcif_plat_uninit(cif_hw->cif_dev[0]);
+
+	rkcif_csi2_unregister_notifier(&cif_hw->reset_notifier);
 
 	return 0;
 }

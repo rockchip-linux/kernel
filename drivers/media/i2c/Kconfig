@@ -379,6 +379,17 @@ config VIDEO_LT7911D
 	  To compile this driver as a module, choose M here: the
 	  module will be called lt7911d.
 
+config VIDEO_LT7911UXC
+	tristate "Lontium LT7911UXC decoder"
+	depends on VIDEO_V4L2 && I2C && VIDEO_V4L2_SUBDEV_API
+	select HDMI
+	select V4L2_FWNODE
+	help
+	  Support for the Lontium LT7911UXC series type-c DP to MIPI CSI-2 bridge.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called lt7911uxc.
+
 config VIDEO_LT8619C
 	tristate "Lontium LT8619C decoder"
 	depends on VIDEO_V4L2 && I2C && VIDEO_V4L2_SUBDEV_API
@@ -488,6 +499,19 @@ config VIDEO_TC35874X
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called tc35874x.
+
+config VIDEO_THCV244
+	tristate "Thine THCV244 decoder"
+	depends on VIDEO_V4L2 && I2C
+	select MEDIA_CONTROLLER
+	select VIDEO_V4L2_SUBDEV_API
+	select HDMI
+	select V4L2_FWNODE
+	help
+	  Support for the Thine THCV244 deserializer.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called thcv244.
 
 config VIDEO_TVP514X
 	tristate "Texas Instruments TVP514x video decoder"
@@ -994,6 +1018,17 @@ config VIDEO_GC5025
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called gc5025.
+
+config VIDEO_GC5035
+	tristate "GalaxyCore GC5035 sensor support"
+	depends on VIDEO_V4L2 && I2C && MEDIA_CONTROLLER
+	depends on MEDIA_CAMERA_SUPPORT
+	select V4L2_FWNODE
+	help
+	  Support for the GalaxyCore GC5035 sensor.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called gc5035.
 
 config VIDEO_GC8034
 	tristate "GalaxyCore GC8034 sensor support"
@@ -1768,6 +1803,28 @@ config VIDEO_MT9V111
 	  To compile this driver as a module, choose M here: the
 	  module will be called mt9v111.
 
+config VIDEO_SC031GS
+	tristate "SmartSens SC031GS sensor support"
+	depends on I2C && VIDEO_V4L2 && VIDEO_V4L2_SUBDEV_API
+	depends on MEDIA_CAMERA_SUPPORT
+	select V4L2_FWNODE
+	help
+	  Support for the SmartSens SC031GS sensor.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called sc031gs.
+
+config VIDEO_SC035GS
+	tristate "SmartSens SC035GS sensor support"
+	depends on I2C && VIDEO_V4L2 && VIDEO_V4L2_SUBDEV_API
+	depends on MEDIA_CAMERA_SUPPORT
+	select V4L2_FWNODE
+	help
+	  Support for the SmartSens SC035GS sensor.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called sc1035gs.
+
 config VIDEO_SC132GS
 	tristate "SmartSens SC132GS sensor support"
 	depends on I2C && VIDEO_V4L2 && VIDEO_V4L2_SUBDEV_API
@@ -1808,6 +1865,16 @@ config VIDEO_SC3336
 	help
 	  This is a Video4Linux2 sensor driver for the SmartSens
 	  SC3336 camera.
+
+config VIDEO_SC3338
+	tristate "SmartSens SC3338 sensor support"
+	depends on I2C && VIDEO_V4L2
+	select MEDIA_CONTROLLER
+	select VIDEO_V4L2_SUBDEV_API
+	select V4L2_FWNODE
+	help
+	  This is a Video4Linux2 sensor driver for the SmartSens
+	  SC3338 camera.
 
 config VIDEO_SC401AI
 	tristate "SmartSens SC401AI sensor support"

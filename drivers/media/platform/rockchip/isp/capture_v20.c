@@ -239,6 +239,10 @@ static int rkisp_stream_config_dcrop(struct rkisp_stream *stream, bool async)
 		rkisp_disable_dcrop(stream, async);
 		v4l2_dbg(1, rkisp_debug, &dev->v4l2_dev,
 			 "stream %d crop disabled\n", stream->id);
+		if (RKMODULE_EXTEND_LINE != 0) {
+			rkisp_write(dev, stream->config->dual_crop.h_size, src_w, false);
+			rkisp_write(dev, stream->config->dual_crop.v_size, src_h, false);
+		}
 		return 0;
 	}
 
@@ -937,16 +941,11 @@ static void rdbk_frame_end(struct rkisp_stream *stream)
 				goto RDBK_FRM_UNMATCH;
 			}
 
-			cap->rdbk_buf[RDBK_S]->vb.sequence =
-				cap->rdbk_buf[RDBK_L]->vb.sequence;
-			cap->rdbk_buf[RDBK_M]->vb.sequence =
-				cap->rdbk_buf[RDBK_L]->vb.sequence;
-			vb2_buffer_done(&cap->rdbk_buf[RDBK_L]->vb.vb2_buf,
-				VB2_BUF_STATE_DONE);
-			vb2_buffer_done(&cap->rdbk_buf[RDBK_M]->vb.vb2_buf,
-				VB2_BUF_STATE_DONE);
-			vb2_buffer_done(&cap->rdbk_buf[RDBK_S]->vb.vb2_buf,
-				VB2_BUF_STATE_DONE);
+			cap->rdbk_buf[RDBK_S]->vb.sequence = cap->rdbk_buf[RDBK_L]->vb.sequence;
+			cap->rdbk_buf[RDBK_M]->vb.sequence = cap->rdbk_buf[RDBK_L]->vb.sequence;
+			rkisp_stream_buf_done(&cap->stream[RKISP_STREAM_DMATX0], cap->rdbk_buf[RDBK_L]);
+			rkisp_stream_buf_done(&cap->stream[RKISP_STREAM_DMATX1], cap->rdbk_buf[RDBK_M]);
+			rkisp_stream_buf_done(stream, cap->rdbk_buf[RDBK_S]);
 		} else {
 			v4l2_err(&isp_dev->v4l2_dev, "lost long or middle frames\n");
 			goto RDBK_FRM_UNMATCH;
@@ -981,18 +980,15 @@ static void rdbk_frame_end(struct rkisp_stream *stream)
 				goto RDBK_FRM_UNMATCH;
 			}
 
-			cap->rdbk_buf[RDBK_S]->vb.sequence =
-				cap->rdbk_buf[RDBK_L]->vb.sequence;
-			vb2_buffer_done(&cap->rdbk_buf[RDBK_L]->vb.vb2_buf,
-				VB2_BUF_STATE_DONE);
-			vb2_buffer_done(&cap->rdbk_buf[RDBK_S]->vb.vb2_buf,
-				VB2_BUF_STATE_DONE);
+			cap->rdbk_buf[RDBK_S]->vb.sequence = cap->rdbk_buf[RDBK_L]->vb.sequence;
+			rkisp_stream_buf_done(&cap->stream[RKISP_STREAM_DMATX0], cap->rdbk_buf[RDBK_L]);
+			rkisp_stream_buf_done(stream, cap->rdbk_buf[RDBK_S]);
 		} else {
 			v4l2_err(&isp_dev->v4l2_dev, "lost long frames\n");
 			goto RDBK_FRM_UNMATCH;
 		}
 	} else {
-		vb2_buffer_done(&cap->rdbk_buf[RDBK_S]->vb.vb2_buf, VB2_BUF_STATE_DONE);
+		rkisp_stream_buf_done(stream, cap->rdbk_buf[RDBK_S]);
 	}
 
 	cap->rdbk_buf[RDBK_L] = NULL;
@@ -1097,7 +1093,7 @@ static int mi_frame_end(struct rkisp_stream *stream)
 				cap->rdbk_buf[RDBK_S] = stream->curr_buf;
 				rdbk_frame_end(stream);
 			} else {
-				vb2_buffer_done(vb2_buf, VB2_BUF_STATE_DONE);
+				rkisp_stream_buf_done(stream, stream->curr_buf);
 			}
 		} else {
 			if (stream->id == RKISP_STREAM_SP && isp_fmt->fmt_type == FMT_FBCGAIN) {
@@ -1108,7 +1104,7 @@ static int mi_frame_end(struct rkisp_stream *stream)
 				stream->curr_buf->dev_id = dev->dev_id;
 				rkisp_bridge_save_spbuf(dev, stream->curr_buf);
 			} else {
-				vb2_buffer_done(vb2_buf, VB2_BUF_STATE_DONE);
+				rkisp_stream_buf_done(stream, stream->curr_buf);
 			}
 		}
 
@@ -1446,6 +1442,7 @@ static void rkisp_stop_streaming(struct vb2_queue *queue)
 	rkisp_destroy_dummy_buf(stream);
 	atomic_dec(&dev->cap_dev.refcnt);
 	stream->start_stream = false;
+	tasklet_disable(&stream->buf_done_tasklet);
 end:
 	mutex_unlock(&dev->hw_dev->dev_lock);
 }
@@ -1579,7 +1576,7 @@ rkisp_start_streaming(struct vb2_queue *queue, unsigned int count)
 	}
 
 	stream->start_stream = true;
-
+	tasklet_enable(&stream->buf_done_tasklet);
 	mutex_unlock(&dev->hw_dev->dev_lock);
 	return 0;
 
@@ -1864,7 +1861,7 @@ void rkisp_mi_v20_isr(u32 mis_val, struct rkisp_device *dev)
 			 * frame end that sync the configurations to shadow
 			 * regs.
 			 */
-			if (stream->ops->is_stream_stopped(dev->base_addr)) {
+			if (stream->ops->is_stream_stopped(stream)) {
 				stream->stopping = false;
 				stream->streaming = false;
 				wake_up(&stream->done);

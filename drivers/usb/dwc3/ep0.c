@@ -271,6 +271,7 @@ void dwc3_ep0_out_start(struct dwc3 *dwc)
 {
 	struct dwc3_ep			*dep;
 	int				ret;
+	int                             i;
 
 	complete(&dwc->ep0_in_setup);
 
@@ -279,17 +280,41 @@ void dwc3_ep0_out_start(struct dwc3 *dwc)
 			DWC3_TRBCTL_CONTROL_SETUP, false);
 	ret = dwc3_ep0_start_trans(dep);
 	WARN_ON(ret < 0);
+	for (i = 2; i < DWC3_ENDPOINTS_NUM; i++) {
+		struct dwc3_ep *dwc3_ep;
+
+		dwc3_ep = dwc->eps[i];
+		if (!dwc3_ep)
+			continue;
+
+		if (!(dwc3_ep->flags & DWC3_EP_DELAY_STOP))
+			continue;
+
+		dwc3_ep->flags &= ~DWC3_EP_DELAY_STOP;
+		dwc3_stop_active_transfer(dwc3_ep, true, true);
+	}
 }
 
 static struct dwc3_ep *dwc3_wIndex_to_dep(struct dwc3 *dwc, __le16 wIndex_le)
 {
 	struct dwc3_ep		*dep;
 	u32			windex = le16_to_cpu(wIndex_le);
-	u32			epnum;
+	u32			ep, epnum;
+	u8			num_in_eps, num_out_eps, min_eps;
 
-	epnum = (windex & USB_ENDPOINT_NUMBER_MASK) << 1;
-	if ((windex & USB_ENDPOINT_DIR_MASK) == USB_DIR_IN)
-		epnum |= 1;
+	num_in_eps = DWC3_NUM_IN_EPS(&dwc->hwparams);
+	num_out_eps = dwc->num_eps - num_in_eps;
+	min_eps = min_t(u8, num_in_eps, num_out_eps);
+	ep = windex & USB_ENDPOINT_NUMBER_MASK;
+
+	if (ep + 1 > min_eps && num_in_eps != num_out_eps) {
+		epnum = ep + min_eps;
+
+	} else {
+		epnum = ep << 1;
+		if ((windex & USB_ENDPOINT_DIR_MASK) == USB_DIR_IN)
+			epnum |= 1;
+	}
 
 	dep = dwc->eps[epnum];
 	if (dep == NULL)

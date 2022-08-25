@@ -66,6 +66,13 @@
 
 #define ROCKCHIP_DSC_PPS_SIZE_BYTE	88
 
+enum vop_vp_id {
+	ROCKCHIP_VOP_VP0 = 0,
+	ROCKCHIP_VOP_VP1,
+	ROCKCHIP_VOP_VP2,
+	ROCKCHIP_VOP_VP3,
+};
+
 enum vop_win_phy_id {
 	ROCKCHIP_VOP_WIN0 = 0,
 	ROCKCHIP_VOP_WIN1,
@@ -632,7 +639,9 @@ struct vop2_video_port_regs {
 	struct vop_reg pre_scan_htiming;
 	struct vop_reg htotal_pw;
 	struct vop_reg hact_st_end;
-	struct vop_reg vtotal_pw;
+	struct vop_reg dsp_vtotal;
+	struct vop_reg sw_dsp_vtotal_imd;
+	struct vop_reg dsp_vs_end;
 	struct vop_reg vact_st_end;
 	struct vop_reg vact_st_end_f1;
 	struct vop_reg vs_st_end_f1;
@@ -746,7 +755,8 @@ struct vop2_dsc_regs {
 	struct vop_reg scan_timing_para_imd_en;
 	struct vop_reg dsc_htotal_pw;
 	struct vop_reg dsc_hact_st_end;
-	struct vop_reg dsc_vtotal_pw;
+	struct vop_reg dsc_vtotal;
+	struct vop_reg dsc_vs_end;
 	struct vop_reg dsc_vact_st_end;
 	struct vop_reg dsc_error_status;
 

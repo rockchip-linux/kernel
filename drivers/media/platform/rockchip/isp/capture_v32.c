@@ -809,6 +809,7 @@ static void update_mi(struct rkisp_stream *stream)
 
 		if (dev->tb_addr_idx < dev->tb_stream_info.buf_max - 1)
 			dev->tb_addr_idx++;
+		stream->is_tb_s_info = true;
 	} else if (!stream->is_pause) {
 		stream->is_pause = true;
 		stream->ops->disable_mi(stream);
@@ -957,7 +958,7 @@ static int mp_set_wrap(struct rkisp_stream *stream, int line)
 	int ret = 0;
 
 	dev->cap_dev.wrap_line = line;
-	if (stream->is_pre_on &&
+	if (dev->is_pre_on &&
 	    stream->streaming &&
 	    !stream->dummy_buf.mem_priv) {
 		ret = rkisp_create_dummy_buf(stream);
@@ -1035,7 +1036,7 @@ static int mi_frame_start(struct rkisp_stream *stream, u32 mis)
 {
 	unsigned long lock_flags = 0;
 
-	if (mis && stream->streaming) {
+	if (stream->streaming) {
 		rkisp_rockit_buf_done(stream, ROCKIT_DVBM_START);
 		rkisp_rockit_ctrl_fps(stream);
 	}
@@ -1049,7 +1050,7 @@ static int mi_frame_start(struct rkisp_stream *stream, u32 mis)
 			rkisp_stream_config_rsz(stream, false);
 			stream->is_crop_upd = false;
 		}
-		/* update buf for mulit sensor at readback */
+		/* update buf for multi sensor at readback */
 		if (!mis && !stream->ispdev->hw_dev->is_single &&
 		    !stream->curr_buf &&
 		    !list_empty(&stream->buf_queue)) {
@@ -1090,7 +1091,7 @@ static int mi_frame_end(struct rkisp_stream *stream)
 		}
 
 		if (vb2_buf->memory)
-			vb2_buffer_done(vb2_buf, VB2_BUF_STATE_DONE);
+			rkisp_stream_buf_done(stream, stream->curr_buf);
 		else
 			rkisp_rockit_buf_done(stream, ROCKIT_DVBM_END);
 	}
@@ -1392,12 +1393,14 @@ static void rkisp_stop_streaming(struct vb2_queue *queue)
 		v4l2_err(v4l2_dev, "pipeline close failed error:%d\n", ret);
 	rkisp_destroy_dummy_buf(stream);
 	atomic_dec(&dev->cap_dev.refcnt);
-
+	tasklet_disable(&stream->buf_done_tasklet);
 end:
 	mutex_unlock(&dev->hw_dev->dev_lock);
 
-	if (stream->is_pre_on) {
-		stream->is_pre_on = false;
+	if (dev->is_pre_on && stream->id == RKISP_STREAM_MP) {
+		dev->is_rdbk_auto = false;
+		dev->is_pre_on = false;
+		dev->pipe.close(&dev->pipe);
 		v4l2_pipeline_pm_put(&stream->vnode.vdev.entity);
 	}
 }
@@ -1452,10 +1455,7 @@ rkisp_start_streaming(struct vb2_queue *queue, unsigned int count)
 
 	if (WARN_ON(stream->streaming)) {
 		mutex_unlock(&dev->hw_dev->dev_lock);
-		if (stream->is_pre_on)
-			return 0;
-		else
-			return -EBUSY;
+		return -EBUSY;
 	}
 
 	memset(&stream->dbg, 0, sizeof(stream->dbg));
@@ -1527,6 +1527,7 @@ rkisp_start_streaming(struct vb2_queue *queue, unsigned int count)
 		v4l2_err(v4l2_dev, "start pipeline failed %d\n", ret);
 		goto pipe_stream_off;
 	}
+	tasklet_enable(&stream->buf_done_tasklet);
 end:
 	mutex_unlock(&dev->hw_dev->dev_lock);
 	return 0;
@@ -1754,7 +1755,7 @@ void rkisp_mi_v32_isr(u32 mis_val, struct rkisp_device *dev)
 		stream->dbg.timestamp = ns;
 		stream->dbg.id = seq;
 
-		if (stream->is_using_resmem) {
+		if (stream->is_tb_s_info) {
 			struct rkisp_tb_stream_info *tb_info = &dev->tb_stream_info;
 			u32 idx;
 
@@ -1763,6 +1764,7 @@ void rkisp_mi_v32_isr(u32 mis_val, struct rkisp_device *dev)
 			idx = tb_info->buf_cnt - 1;
 			dev->tb_stream_info.buf[idx].sequence = seq;
 			dev->tb_stream_info.buf[idx].timestamp = ns;
+			stream->is_tb_s_info = false;
 		}
 
 		if (stream->stopping) {

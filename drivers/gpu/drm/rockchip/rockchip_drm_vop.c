@@ -2736,7 +2736,12 @@ vop_crtc_mode_valid(struct drm_crtc *crtc, const struct drm_display_mode *mode)
 	    VOP_MINOR(vop->version) <= 2)
 		return MODE_BAD;
 
-	if (mode->flags & DRM_MODE_FLAG_DBLCLK)
+	/*
+	 * Dclk need to be double if BT656 interface and vop version >= 2.12.
+	 */
+	if (mode->flags & DRM_MODE_FLAG_DBLCLK ||
+	    (VOP_MAJOR(vop->version) == 2 && VOP_MINOR(vop->version) >= 12 &&
+	     s->output_if & VOP_OUTPUT_IF_BT656))
 		request_clock *= 2;
 	clock = clk_round_rate(vop->dclk, request_clock * 1000) / 1000;
 
@@ -3038,6 +3043,8 @@ static bool vop_crtc_mode_fixup(struct drm_crtc *crtc,
 {
 	struct vop *vop = to_vop(crtc);
 	const struct vop_data *vop_data = vop->data;
+	struct rockchip_crtc_state *s =
+			to_rockchip_crtc_state(crtc->state);
 
 	if (mode->hdisplay > vop_data->max_output.width)
 		return false;
@@ -3045,7 +3052,12 @@ static bool vop_crtc_mode_fixup(struct drm_crtc *crtc,
 	drm_mode_set_crtcinfo(adj_mode,
 			      CRTC_INTERLACE_HALVE_V | CRTC_STEREO_DOUBLE);
 
-	if (mode->flags & DRM_MODE_FLAG_DBLCLK)
+	/*
+	 * Dclk need to be double if BT656 interface and vop version >= 2.12.
+	 */
+	if (mode->flags & DRM_MODE_FLAG_DBLCLK ||
+	    (VOP_MAJOR(vop->version) == 2 && VOP_MINOR(vop->version) >= 12 &&
+	     s->output_if & VOP_OUTPUT_IF_BT656))
 		adj_mode->crtc_clock *= 2;
 
 	adj_mode->crtc_clock =
@@ -3256,6 +3268,9 @@ static void vop_crtc_atomic_enable(struct drm_crtc *crtc,
 		vop_mcu_mode(crtc);
 
 	dclk_inv = (s->bus_flags & DRM_BUS_FLAG_PIXDATA_DRIVE_NEGEDGE) ? 1 : 0;
+	/* For improving signal quality, dclk need to be inverted by default on rv1106. */
+	if ((VOP_MAJOR(vop->version) == 2 && VOP_MINOR(vop->version) == 12))
+		dclk_inv = !dclk_inv;
 
 	VOP_CTRL_SET(vop, dclk_pol, dclk_inv);
 	val = (adjusted_mode->flags & DRM_MODE_FLAG_NHSYNC) ?
@@ -4477,7 +4492,7 @@ static int vop_plane_init(struct vop *vop, struct vop_win *win,
 		win->color_key_prop = drm_property_create_range(vop->drm_dev, 0,
 								"colorkey", 0, 0x80ffffff);
 	if (!win->input_width_prop || !win->input_height_prop ||
-	    !win->scale_prop || !win->color_key_prop) {
+	    !win->scale_prop) {
 		DRM_ERROR("failed to create property\n");
 		return -ENOMEM;
 	}
@@ -4487,7 +4502,8 @@ static int vop_plane_init(struct vop *vop, struct vop_win *win,
 	drm_object_attach_property(&win->base.base, win->output_width_prop, 0);
 	drm_object_attach_property(&win->base.base, win->output_height_prop, 0);
 	drm_object_attach_property(&win->base.base, win->scale_prop, 0);
-	drm_object_attach_property(&win->base.base, win->color_key_prop, 0);
+	if (VOP_WIN_SUPPORT(vop, win, color_key))
+		drm_object_attach_property(&win->base.base, win->color_key_prop, 0);
 
 	return 0;
 }

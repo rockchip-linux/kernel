@@ -9,12 +9,11 @@
 
 #include "rga_job.h"
 #include "rga2_reg_info.h"
-#include "rga2_mmu_info.h"
+#include "rga_dma_buf.h"
+#include "rga_iommu.h"
 #include "rga_common.h"
 #include "rga_hw_config.h"
 #include "rga_debugger.h"
-
-extern struct rga2_mmu_info_t rga2_mmu_info;
 
 unsigned int rga2_rop_code[256] = {
 	0x00000007, 0x00000451, 0x00006051, 0x00800051,
@@ -2246,7 +2245,7 @@ int rga2_init_reg(struct rga_job *job)
 			return -EINVAL;
 		}
 
-		ret = rga2_set_mmu_base(job, &req);
+		ret = rga_set_mmu_base(job, &req);
 		if (ret < 0) {
 			pr_err("%s, [%d] set mmu info error\n", __func__,
 				 __LINE__);
@@ -2260,13 +2259,6 @@ int rga2_init_reg(struct rga_job *job)
 	}
 
 	return ret;
-}
-
-static void rga_dma_flush_range(void *pstart, void *pend,
-		struct rga_scheduler_t *scheduler)
-{
-	dma_sync_single_for_device(scheduler->dev, virt_to_phys(pstart),
-				 pend - pstart, DMA_TO_DEVICE);
 }
 
 static void rga2_dump_read_back_sys_reg(struct rga_scheduler_t *scheduler)
@@ -2399,12 +2391,11 @@ int rga2_set_reg(struct rga_job *job, struct rga_scheduler_t *scheduler)
 	ktime_t now = ktime_get();
 	int i;
 
-	rga_dma_flush_range(&job->cmd_reg[0], &job->cmd_reg[32], scheduler);
-
 	rga_write(0x0, RGA2_SYS_CTRL, scheduler);
 
 #ifndef CONFIG_ROCKCHIP_FPGA
-	/* CMD buff */
+	/* flush cache to ddr */
+	rga_dma_sync_flush_range(&job->cmd_reg[0], &job->cmd_reg[32], scheduler);
 	rga_write(virt_to_phys(job->cmd_reg), RGA2_CMD_BASE, scheduler);
 #else
 

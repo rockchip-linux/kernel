@@ -2,6 +2,7 @@
 
 # tell define_trace.h where to find the cros ec trace header
 CFLAGS_cros_ec_trace.o:=		-I$(src)
+CFLAGS_cros_ec_sensorhub_ring.o:=	-I$(src)
 
 obj-$(CONFIG_CHROMEOS_LAPTOP)		+= chromeos_laptop.o
 obj-$(CONFIG_CHROMEOS_PSTORE)		+= chromeos_pstore.o

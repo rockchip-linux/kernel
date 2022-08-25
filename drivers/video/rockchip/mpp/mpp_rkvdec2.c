@@ -26,6 +26,16 @@ static struct mpp_hw_info rkvdec_v2_hw_info = {
 	.reg_start = RKVDEC_REG_START_INDEX,
 	.reg_end = RKVDEC_REG_END_INDEX,
 	.reg_en = RKVDEC_REG_START_EN_INDEX,
+	.link_info = &rkvdec_link_v2_hw_info,
+};
+
+static struct mpp_hw_info rkvdec_rk356x_hw_info = {
+	.reg_num = RKVDEC_REG_NUM,
+	.reg_id = RKVDEC_REG_HW_ID_INDEX,
+	.reg_start = RKVDEC_REG_START_INDEX,
+	.reg_end = RKVDEC_REG_END_INDEX,
+	.reg_en = RKVDEC_REG_START_EN_INDEX,
+	.link_info = &rkvdec_link_rk356x_hw_info,
 };
 
 /*
@@ -621,6 +631,10 @@ static int rkvdec2_procfs_init(struct mpp_dev *mpp)
 		dec->procfs = NULL;
 		return -EIO;
 	}
+
+	/* for common mpp_dev options */
+	mpp_procfs_create_common(dec->procfs, mpp);
+
 	mpp_procfs_create_u32("aclk", 0644,
 			      dec->procfs, &dec->aclk_info.debug_rate_hz);
 	mpp_procfs_create_u32("clk_core", 0644,
@@ -635,8 +649,6 @@ static int rkvdec2_procfs_init(struct mpp_dev *mpp)
 			   dec->procfs, rkvdec2_show_pref_sel_offset);
 	mpp_procfs_create_u32("task_count", 0644,
 			      dec->procfs, &mpp->task_index);
-	mpp_procfs_create_u32("disable_work", 0644,
-			      dec->procfs, &dec->disable_work);
 
 	return 0;
 }
@@ -899,7 +911,7 @@ static const struct mpp_dev_var rkvdec_v2_data = {
 
 static const struct mpp_dev_var rkvdec_rk3568_data = {
 	.device_type = MPP_DEVICE_RKVDEC,
-	.hw_info = &rkvdec_v2_hw_info,
+	.hw_info = &rkvdec_rk356x_hw_info,
 	.trans_info = rkvdec_v2_trans,
 	.hw_ops = &rkvdec_rk3568_hw_ops,
 	.dev_ops = &rkvdec_rk3568_dev_ops,

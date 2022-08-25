@@ -77,7 +77,7 @@ struct csi2_dphy {
 	bool is_streaming;
 	enum csi2_dphy_lane_mode lane_mode;
 	const struct dphy_drv_data *drv_data;
-	struct rkmodule_csi_dphy_param *dphy_param;
+	struct rkmodule_csi_dphy_param dphy_param;
 };
 
 struct dphy_hw_drv_data {
@@ -116,6 +116,8 @@ struct csi2_dphy_hw {
 
 	int (*stream_on)(struct csi2_dphy *dphy, struct v4l2_subdev *sd);
 	int (*stream_off)(struct csi2_dphy *dphy, struct v4l2_subdev *sd);
+	int (*ttl_mode_enable)(struct csi2_dphy_hw *hw);
+	void (*ttl_mode_disable)(struct csi2_dphy_hw *hw);
 };
 
 #endif

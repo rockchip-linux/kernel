@@ -53,6 +53,7 @@ void arch_setup_dma_ops(struct device *dev, u64 dma_base, u64 size,
 	if (iommu) {
 		iommu_setup_dma_ops(dev, dma_base, size);
 		trace_android_vh_iommu_setup_dma_ops(dev, dma_base, size);
+		trace_android_rvh_iommu_setup_dma_ops(dev, dma_base, size);
 	}
 
 #ifdef CONFIG_XEN
@@ -60,3 +61,8 @@ void arch_setup_dma_ops(struct device *dev, u64 dma_base, u64 size,
 		dev->dma_ops = &xen_swiotlb_dma_ops;
 #endif
 }
+
+#ifdef CONFIG_NO_GKI
+EXPORT_SYMBOL(__dma_map_area);
+EXPORT_SYMBOL(__dma_unmap_area);
+#endif

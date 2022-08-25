@@ -173,6 +173,7 @@ obj-$(CONFIG_MFD_MAX8998)	+= max8998.o max8998-irq.o
 obj-$(CONFIG_MFD_MAX96745)	+= max96745.o
 obj-$(CONFIG_MFD_MAX96752F)	+= max96752f.o
 obj-$(CONFIG_MFD_MAX96755F)	+= max96755f.o
+obj-$(CONFIG_MFD_MAX96776)	+= max96776.o
 
 obj-$(CONFIG_MFD_MP2629)	+= mp2629.o
 
@@ -222,6 +223,7 @@ obj-$(CONFIG_MFD_INTEL_PMC_BXT)	+= intel_pmc_bxt.o
 obj-$(CONFIG_MFD_PALMAS)	+= palmas.o
 obj-$(CONFIG_MFD_VIPERBOARD)    += viperboard.o
 obj-$(CONFIG_MFD_RC5T583)	+= rc5t583.o rc5t583-irq.o
+obj-$(CONFIG_MFD_RK618)		+= rk618.o
 obj-$(CONFIG_MFD_RK628)		+= rk628.o
 obj-$(CONFIG_MFD_RK630)		+= rk630.o
 obj-$(CONFIG_MFD_RK630_I2C)	+= rk630-i2c.o
