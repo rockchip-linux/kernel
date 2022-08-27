@@ -472,7 +472,7 @@ struct sock {
 	u32			sk_ack_backlog;
 	u32			sk_max_ack_backlog;
 	kuid_t			sk_uid;
-#if IS_ENABLED(CONFIG_DEBUG_SPINLOCK) || IS_ENABLED(CONFIG_DEBUG_LOCK_ALLOC)
+#if IS_ENABLED(CONFIG_DEBUG_SPINLOCK) || IS_ENABLED(CONFIG_DEBUG_LOCK_ALLOC) || IS_ENABLED(CONFIG_PREEMPT_RT)
 	spinlock_t		sk_peer_lock;
 #else
 	/* sk_peer_lock is in the ANDROID_KABI_RESERVE(1) field below */
@@ -517,7 +517,7 @@ struct sock {
 	struct sock_reuseport __rcu	*sk_reuseport_cb;
 	struct rcu_head		sk_rcu;
 
-#if IS_ENABLED(CONFIG_DEBUG_SPINLOCK) || IS_ENABLED(CONFIG_DEBUG_LOCK_ALLOC)
+#if IS_ENABLED(CONFIG_DEBUG_SPINLOCK) || IS_ENABLED(CONFIG_DEBUG_LOCK_ALLOC) || IS_ENABLED(CONFIG_PREEMPT_RT)
 	ANDROID_KABI_RESERVE(1);
 #else
 	ANDROID_KABI_USE(1, spinlock_t sk_peer_lock);
