@@ -784,6 +784,16 @@ long drm_ioctl_kernel(struct file *file, drm_ioctl_t *func, void *kdata,
 	if (unlikely(retcode))
 		return retcode;
 
+#ifdef CONFIG_PREEMPT_RT
+	if (func == drm_mode_atomic_ioctl) {
+		mutex_lock(&drm_global_mutex);
+		retcode = func(dev, kdata, file_priv);
+		mutex_unlock(&drm_global_mutex);
+
+		return retcode;
+	}
+#endif
+
 	/* Enforce sane locking for modern driver ioctls. */
 	if (likely(!drm_core_check_feature(dev, DRIVER_LEGACY)) ||
 	    (flags & DRM_UNLOCKED))
