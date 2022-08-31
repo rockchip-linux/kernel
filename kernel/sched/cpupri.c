@@ -77,11 +77,11 @@ static inline int __cpupri_find(struct cpupri *cp, struct task_struct *p,
 	if (skip)
 		return 0;
 
-	if (cpumask_any_and(&p->cpus_allowed, vec->mask) >= nr_cpu_ids)
+	if (cpumask_any_and(p->cpus_ptr, vec->mask) >= nr_cpu_ids)
 		return 0;
 
 	if (lowest_mask) {
-		cpumask_and(lowest_mask, &p->cpus_allowed, vec->mask);
+		cpumask_and(lowest_mask, p->cpus_ptr, vec->mask);
 
 		/*
 		 * We have to ensure that we have at least one bit

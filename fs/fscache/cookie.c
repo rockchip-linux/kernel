@@ -950,3 +950,11 @@ inconsistent:
 	return -ESTALE;
 }
 EXPORT_SYMBOL(__fscache_check_consistency);
+
+void __init fscache_cookie_init(void)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(fscache_cookie_hash); i++)
+		INIT_HLIST_BL_HEAD(&fscache_cookie_hash[i]);
+}

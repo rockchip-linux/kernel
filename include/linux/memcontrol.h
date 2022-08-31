@@ -665,6 +665,7 @@ static inline void __mod_lruvec_state(struct lruvec *lruvec,
 
 	pn = container_of(lruvec, struct mem_cgroup_per_node, lruvec);
 
+	preempt_disable_rt();
 	/* Update memcg */
 	__mod_memcg_state(pn->memcg, idx, val);
 
@@ -675,6 +676,7 @@ static inline void __mod_lruvec_state(struct lruvec *lruvec,
 		x = 0;
 	}
 	__this_cpu_write(pn->lruvec_stat_cpu->count[idx], x);
+	preempt_enable_rt();
 }
 
 static inline void mod_lruvec_state(struct lruvec *lruvec,

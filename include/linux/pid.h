@@ -4,6 +4,7 @@
 
 #include <linux/rculist.h>
 #include <linux/wait.h>
+#include <linux/atomic.h>
 
 enum pid_type
 {
