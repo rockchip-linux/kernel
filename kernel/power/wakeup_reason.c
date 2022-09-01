@@ -44,7 +44,7 @@ struct wakeup_irq_node {
 	const char *irq_name;
 };
 
-static DEFINE_SPINLOCK(wakeup_reason_lock);
+static DEFINE_RAW_SPINLOCK(wakeup_reason_lock);
 
 static LIST_HEAD(leaf_irqs);   /* kept in ascending IRQ sorted order */
 static LIST_HEAD(parent_irqs); /* unordered */
@@ -149,17 +149,17 @@ void log_irq_wakeup_reason(int irq)
 {
 	unsigned long flags;
 
-	spin_lock_irqsave(&wakeup_reason_lock, flags);
+	raw_spin_lock_irqsave(&wakeup_reason_lock, flags);
 
 	if (!capture_reasons) {
-		spin_unlock_irqrestore(&wakeup_reason_lock, flags);
+		raw_spin_unlock_irqrestore(&wakeup_reason_lock, flags);
 		return;
 	}
 
 	if (find_node_in_list(&parent_irqs, irq) == NULL)
 		add_sibling_node_sorted(&leaf_irqs, irq);
 
-	spin_unlock_irqrestore(&wakeup_reason_lock, flags);
+	raw_spin_unlock_irqrestore(&wakeup_reason_lock, flags);
 }
 
 void log_threaded_irq_wakeup_reason(int irq, int parent_irq)
@@ -177,10 +177,10 @@ void log_threaded_irq_wakeup_reason(int irq, int parent_irq)
 	if (!capture_reasons)
 		return;
 
-	spin_lock_irqsave(&wakeup_reason_lock, flags);
+	raw_spin_lock_irqsave(&wakeup_reason_lock, flags);
 
 	if (!capture_reasons || (find_node_in_list(&leaf_irqs, irq) != NULL)) {
-		spin_unlock_irqrestore(&wakeup_reason_lock, flags);
+		raw_spin_unlock_irqrestore(&wakeup_reason_lock, flags);
 		return;
 	}
 
@@ -196,7 +196,7 @@ void log_threaded_irq_wakeup_reason(int irq, int parent_irq)
 		}
 	}
 
-	spin_unlock_irqrestore(&wakeup_reason_lock, flags);
+	raw_spin_unlock_irqrestore(&wakeup_reason_lock, flags);
 }
 
 static void __log_abort_or_abnormal_wake(bool abort, const char *fmt,
@@ -204,11 +204,11 @@ static void __log_abort_or_abnormal_wake(bool abort, const char *fmt,
 {
 	unsigned long flags;
 
-	spin_lock_irqsave(&wakeup_reason_lock, flags);
+	raw_spin_lock_irqsave(&wakeup_reason_lock, flags);
 
 	/* Suspend abort or abnormal wake reason has already been logged. */
 	if (suspend_abort || abnormal_wake) {
-		spin_unlock_irqrestore(&wakeup_reason_lock, flags);
+		raw_spin_unlock_irqrestore(&wakeup_reason_lock, flags);
 		return;
 	}
 
@@ -216,7 +216,7 @@ static void __log_abort_or_abnormal_wake(bool abort, const char *fmt,
 	abnormal_wake = !abort;
 	vsnprintf(non_irq_wake_reason, MAX_SUSPEND_ABORT_LEN, fmt, args);
 
-	spin_unlock_irqrestore(&wakeup_reason_lock, flags);
+	raw_spin_unlock_irqrestore(&wakeup_reason_lock, flags);
 }
 
 void log_suspend_abort_reason(const char *fmt, ...)
@@ -241,7 +241,7 @@ void clear_wakeup_reasons(void)
 {
 	unsigned long flags;
 
-	spin_lock_irqsave(&wakeup_reason_lock, flags);
+	raw_spin_lock_irqsave(&wakeup_reason_lock, flags);
 
 	delete_list(&leaf_irqs);
 	delete_list(&parent_irqs);
@@ -249,7 +249,7 @@ void clear_wakeup_reasons(void)
 	abnormal_wake = false;
 	capture_reasons = true;
 
-	spin_unlock_irqrestore(&wakeup_reason_lock, flags);
+	raw_spin_unlock_irqrestore(&wakeup_reason_lock, flags);
 }
 
 static void print_wakeup_sources(void)
@@ -257,13 +257,13 @@ static void print_wakeup_sources(void)
 	struct wakeup_irq_node *n;
 	unsigned long flags;
 
-	spin_lock_irqsave(&wakeup_reason_lock, flags);
+	raw_spin_lock_irqsave(&wakeup_reason_lock, flags);
 
 	capture_reasons = false;
 
 	if (suspend_abort) {
 		pr_info("Abort: %s\n", non_irq_wake_reason);
-		spin_unlock_irqrestore(&wakeup_reason_lock, flags);
+		raw_spin_unlock_irqrestore(&wakeup_reason_lock, flags);
 		return;
 	}
 
@@ -276,7 +276,7 @@ static void print_wakeup_sources(void)
 	else
 		pr_info("Resume cause unknown\n");
 
-	spin_unlock_irqrestore(&wakeup_reason_lock, flags);
+	raw_spin_unlock_irqrestore(&wakeup_reason_lock, flags);
 }
 
 static ssize_t last_resume_reason_show(struct kobject *kobj,
@@ -286,12 +286,12 @@ static ssize_t last_resume_reason_show(struct kobject *kobj,
 	struct wakeup_irq_node *n;
 	unsigned long flags;
 
-	spin_lock_irqsave(&wakeup_reason_lock, flags);
+	raw_spin_lock_irqsave(&wakeup_reason_lock, flags);
 
 	if (suspend_abort) {
 		buf_offset = scnprintf(buf, PAGE_SIZE, "Abort: %s",
 				       non_irq_wake_reason);
-		spin_unlock_irqrestore(&wakeup_reason_lock, flags);
+		raw_spin_unlock_irqrestore(&wakeup_reason_lock, flags);
 		return buf_offset;
 	}
 
@@ -304,7 +304,7 @@ static ssize_t last_resume_reason_show(struct kobject *kobj,
 		buf_offset = scnprintf(buf, PAGE_SIZE, "-1 %s",
 				       non_irq_wake_reason);
 
-	spin_unlock_irqrestore(&wakeup_reason_lock, flags);
+	raw_spin_unlock_irqrestore(&wakeup_reason_lock, flags);
 
 	return buf_offset;
 }
