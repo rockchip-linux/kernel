@@ -741,6 +741,8 @@
 };
 
 &rkvdec {
+	rockchip,disable-auto-freq;
+	assigned-clock-rates = <396000000>, <396000000>, <396000000>, <600000000>;
 	status = "okay";
 };
 
