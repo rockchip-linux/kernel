@@ -54,57 +54,6 @@ struct rkvdec_link_info {
 };
 
 static struct rkvdec_link_info rkvdec_link_v2_hw_info = {
-	.tb_reg_num = 202,
-	.tb_reg_next = 0,
-	.tb_reg_r = 1,
-	.tb_reg_second_en = 8,
-
-	.part_w_num = 6,
-	.part_r_num = 2,
-	.part_w[0] = {
-		.tb_reg_off = 4,
-		.reg_start = 8,
-		.reg_num = 20,
-	},
-	.part_w[1] = {
-		.tb_reg_off = 24,
-		.reg_start = 64,
-		.reg_num = 52,
-	},
-	.part_w[2] = {
-		.tb_reg_off = 76,
-		.reg_start = 128,
-		.reg_num = 16,
-	},
-	.part_w[3] = {
-		.tb_reg_off = 92,
-		.reg_start = 160,
-		.reg_num = 40,
-	},
-	.part_w[4] = {
-		.tb_reg_off = 132,
-		.reg_start = 224,
-		.reg_num = 16,
-	},
-	.part_w[5] = {
-		.tb_reg_off = 148,
-		.reg_start = 256,
-		.reg_num = 16,
-	},
-	.part_r[0] = {
-		.tb_reg_off = 164,
-		.reg_start = 224,
-		.reg_num = 10,
-	},
-	.part_r[1] = {
-		.tb_reg_off = 174,
-		.reg_start = 258,
-		.reg_num = 28,
-	},
-	.tb_reg_int = 164,
-};
-
-static struct rkvdec_link_info rkvdec_link_ccu_hw_info = {
 	.tb_reg_num = 218,
 	.tb_reg_next = 0,
 	.tb_reg_r = 1,
@@ -983,8 +932,6 @@ int rkvdec2_link_init(struct platform_device *pdev, struct rkvdec2_dev *dec)
 	if (ret)
 		goto done;
 
-	rkvdec2_link_hack_data_setup(dec->fix);
-
 	link_dec->mpp = mpp;
 	link_dec->dev = dev;
 	atomic_set(&link_dec->task_timeout, 0);
@@ -1296,18 +1243,12 @@ int rkvdec2_link_process_task(struct mpp_session *session,
 {
 	struct mpp_task *task = NULL;
 	struct mpp_dev *mpp = session->mpp;
-	struct rkvdec2_task *dec_task;
-	u32 fmt;
 
 	task = rkvdec2_alloc_task(session, msgs);
 	if (!task) {
 		mpp_err("alloc_task failed.\n");
 		return -ENOMEM;
 	}
-
-	dec_task = to_rkvdec2_task(task);
-	fmt = RKVDEC_GET_FORMAT(dec_task->reg[RKVDEC_REG_FORMAT_INDEX]);
-	dec_task->need_hack = (fmt == RKVDEC_FMT_H264D);
 
 	kref_init(&task->ref);
 	atomic_set(&task->abort_request, 0);
@@ -1587,7 +1528,7 @@ int rkvdec2_ccu_link_init(struct platform_device *pdev, struct rkvdec2_dev *dec)
 	if (!res)
 		return -ENOMEM;
 
-	link_dec->info = &rkvdec_link_ccu_hw_info;
+	link_dec->info = &rkvdec_link_v2_hw_info;
 	link_dec->reg_base = devm_ioremap(dev, res->start, resource_size(res));
 	if (!link_dec->reg_base) {
 		dev_err(dev, "ioremap failed for resource %pR\n", res);
