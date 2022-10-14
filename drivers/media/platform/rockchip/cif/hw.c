@@ -862,6 +862,8 @@ static const struct cif_reg rv1106_cif_regs[] = {
 	[CIF_REG_TOISP0_CTRL] = CIF_REG(TOISP0_CH_CTRL),
 	[CIF_REG_TOISP0_SIZE] = CIF_REG(TOISP0_CROP_SIZE),
 	[CIF_REG_TOISP0_CROP] = CIF_REG(TOISP0_CROP),
+	[CIF_REG_GRF_CIFIO_CON] = CIF_REG(RV1106_CIF_GRF_VI_CON),
+	[CIF_REG_GRF_CIFIO_VENC] = CIF_REG(RV1106_CIF_GRF_VENC_WRAPPER),
 };
 
 static const struct rkcif_hw_match_data px30_cif_match_data = {
@@ -1145,6 +1147,7 @@ static int rkcif_plat_hw_probe(struct platform_device *pdev)
 	struct resource *res;
 	int i, ret, irq;
 	bool is_mem_reserved = false;
+	struct notifier_block *notifier;
 
 	match = of_match_node(rkcif_plat_of_match, node);
 	if (IS_ERR(match))
@@ -1197,6 +1200,11 @@ static int rkcif_plat_hw_probe(struct platform_device *pdev)
 			return PTR_ERR(cif_hw->base_addr);
 	}
 
+	if (of_property_read_bool(np, "rockchip,android-usb-camerahal-enable")) {
+		dev_info(dev, "config cif adapt to android usb camera hal!\n");
+		cif_hw->adapt_to_usbcamerahal = true;
+	}
+
 	cif_hw->grf = syscon_regmap_lookup_by_phandle(np, "rockchip,grf");
 	if (IS_ERR(cif_hw->grf))
 		dev_warn(dev, "unable to get rockchip,grf\n");
@@ -1238,6 +1246,7 @@ static int rkcif_plat_hw_probe(struct platform_device *pdev)
 	cif_hw->is_dma_contig = true;
 	mutex_init(&cif_hw->dev_lock);
 	spin_lock_init(&cif_hw->group_lock);
+	atomic_set(&cif_hw->power_cnt, 0);
 
 	cif_hw->iommu_en = is_iommu_enable(dev);
 	ret = of_reserved_mem_device_init(dev);
@@ -1264,8 +1273,6 @@ static int rkcif_plat_hw_probe(struct platform_device *pdev)
 			return ret;
 	}
 
-	rkcif_hw_soft_reset(cif_hw, true);
-
 	mutex_init(&cif_hw->dev_lock);
 
 	pm_runtime_enable(&pdev->dev);
@@ -1275,6 +1282,11 @@ static int rkcif_plat_hw_probe(struct platform_device *pdev)
 		platform_driver_register(&rkcif_plat_drv);
 		platform_driver_register(&rkcif_subdev_driver);
 	}
+
+	notifier = &cif_hw->reset_notifier;
+	notifier->priority = 1;
+	notifier->notifier_call = rkcif_reset_notifier;
+	rkcif_csi2_register_notifier(notifier);
 
 	return 0;
 }
@@ -1290,6 +1302,8 @@ static int rkcif_plat_remove(struct platform_device *pdev)
 	mutex_destroy(&cif_hw->dev_lock);
 	if (cif_hw->chip_id < CHIP_RK1808_CIF)
 		rkcif_plat_uninit(cif_hw->cif_dev[0]);
+
+	rkcif_csi2_unregister_notifier(&cif_hw->reset_notifier);
 
 	return 0;
 }
@@ -1330,6 +1344,8 @@ static int __maybe_unused rkcif_runtime_suspend(struct device *dev)
 {
 	struct rkcif_hw *cif_hw = dev_get_drvdata(dev);
 
+	if (atomic_dec_return(&cif_hw->power_cnt))
+		return 0;
 	rkcif_disable_sys_clk(cif_hw);
 
 	return pinctrl_pm_select_sleep_state(dev);
@@ -1340,10 +1356,13 @@ static int __maybe_unused rkcif_runtime_resume(struct device *dev)
 	struct rkcif_hw *cif_hw = dev_get_drvdata(dev);
 	int ret;
 
+	if (atomic_inc_return(&cif_hw->power_cnt) > 1)
+		return 0;
 	ret = pinctrl_pm_select_default_state(dev);
 	if (ret < 0)
 		return ret;
 	rkcif_enable_sys_clk(cif_hw);
+	rkcif_hw_soft_reset(cif_hw, true);
 
 	return 0;
 }
@@ -1381,7 +1400,11 @@ static void __exit rk_cif_plat_drv_exit(void)
 	rkcif_csi2_plat_drv_exit();
 }
 
+#if defined(CONFIG_VIDEO_ROCKCHIP_THUNDER_BOOT_ISP) && !defined(CONFIG_INITCALL_ASYNC)
+subsys_initcall(rk_cif_plat_drv_init);
+#else
 module_init(rk_cif_plat_drv_init);
+#endif
 module_exit(rk_cif_plat_drv_exit);
 
 MODULE_AUTHOR("Rockchip Camera/ISP team");

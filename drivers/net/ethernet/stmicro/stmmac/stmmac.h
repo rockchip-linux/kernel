@@ -265,20 +265,9 @@ static inline void stmmac_set_ethtool_ops(struct net_device *netdev)
 }
 #endif
 
-#ifdef CONFIG_STMMAC_PTP
+int stmmac_init_tstamp_counter(struct stmmac_priv *priv, u32 systime_flags);
 void stmmac_ptp_register(struct stmmac_priv *priv);
 void stmmac_ptp_unregister(struct stmmac_priv *priv);
-#else
-static inline void stmmac_ptp_register(struct stmmac_priv *priv)
-{
-}
-
-static inline void stmmac_ptp_unregister(struct stmmac_priv *priv)
-{
-}
-#endif
-int stmmac_init_tstamp_counter(struct stmmac_priv *priv, u32 systime_flags);
-
 int stmmac_resume(struct device *dev);
 int stmmac_suspend(struct device *dev);
 int stmmac_dvr_remove(struct device *dev);

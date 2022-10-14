@@ -47,9 +47,9 @@ struct kbase_kcpu_command_import_info {
  * struct kbase_kcpu_command_fence_info - Structure which holds information
  *		about the fence object enqueued in the kcpu command queue
  *
- * @fence_cb:   Fence callback
- * @fence:      Fence
- * @kcpu_queue: kcpu command queue
+ * @fence_cb:      Fence callback
+ * @fence:         Fence
+ * @kcpu_queue:    kcpu command queue
  */
 struct kbase_kcpu_command_fence_info {
 #if (KERNEL_VERSION(4, 10, 0) > LINUX_VERSION_CODE)
@@ -184,7 +184,7 @@ struct kbase_suspend_copy_buffer {
 };
 
 /**
- * struct base_kcpu_command_group_suspend - structure which contains
+ * struct kbase_kcpu_command_group_suspend_info - structure which contains
  *		suspend buffer data captured for a suspended queue group.
  *
  * @sus_buf:		Pointer to the structure which contains details of the
@@ -198,7 +198,7 @@ struct kbase_kcpu_command_group_suspend_info {
 
 
 /**
- * struct kbase_cpu_command - Command which is to be part of the kernel
+ * struct kbase_kcpu_command - Command which is to be part of the kernel
  *                            command queue
  *
  * @type:	Type of the command.
@@ -271,6 +271,7 @@ struct kbase_kcpu_command {
  *				or without errors since last cleaned.
  * @jit_blocked:		Used to keep track of command queues blocked
  *				by a pending JIT allocation command.
+ * @fence_timeout:		Timer used to detect the fence wait timeout.
  */
 struct kbase_kcpu_command_queue {
 	struct kbase_context *kctx;
@@ -287,6 +288,9 @@ struct kbase_kcpu_command_queue {
 	bool command_started;
 	struct list_head jit_blocked;
 	bool has_error;
+#ifdef CONFIG_MALI_BIFROST_FENCE_DEBUG
+	struct timer_list fence_timeout;
+#endif /* CONFIG_MALI_BIFROST_FENCE_DEBUG */
 };
 
 /**

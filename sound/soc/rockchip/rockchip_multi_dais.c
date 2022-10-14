@@ -95,6 +95,59 @@ static int rockchip_mdais_trigger(struct snd_pcm_substream *substream,
 	return 0;
 }
 
+static int rockchip_mdais_startup(struct snd_pcm_substream *substream,
+				  struct snd_soc_dai *dai)
+{
+	struct rk_mdais_dev *mdais = to_info(dai);
+	struct snd_soc_dai *child;
+	int ret = 0, i = 0;
+
+	for (i = 0; i < mdais->num_dais; i++) {
+		child = mdais->dais[i].dai;
+		if (child->driver->ops && child->driver->ops->startup) {
+			ret = child->driver->ops->startup(substream, child);
+			if (ret < 0)
+				return ret;
+		}
+	}
+
+	return 0;
+}
+
+static void rockchip_mdais_shutdown(struct snd_pcm_substream *substream,
+				  struct snd_soc_dai *dai)
+{
+	struct rk_mdais_dev *mdais = to_info(dai);
+	struct snd_soc_dai *child;
+	int i = 0;
+
+	for (i = 0; i < mdais->num_dais; i++) {
+		child = mdais->dais[i].dai;
+		if (child->driver->ops && child->driver->ops->shutdown) {
+			child->driver->ops->shutdown(substream, child);
+		}
+	}
+}
+
+static int rockchip_mdais_prepare(struct snd_pcm_substream *substream,
+				  struct snd_soc_dai *dai)
+{
+	struct rk_mdais_dev *mdais = to_info(dai);
+	struct snd_soc_dai *child;
+	int ret = 0, i = 0;
+
+	for (i = 0; i < mdais->num_dais; i++) {
+		child = mdais->dais[i].dai;
+		if (child->driver->ops && child->driver->ops->prepare) {
+			ret = child->driver->ops->prepare(substream, child);
+			if (ret < 0)
+				return ret;
+		}
+	}
+
+	return 0;
+}
+
 static int rockchip_mdais_set_sysclk(struct snd_soc_dai *cpu_dai, int clk_id,
 				     unsigned int freq, int dir)
 {
@@ -163,6 +216,7 @@ static int rockchip_mdais_dai_probe(struct snd_soc_dai *dai)
 	for (i = 0; i < mdais->num_dais; i++) {
 		child = mdais->dais[i].dai;
 		if (!child->probed && child->driver->probe) {
+			child->component->card = dai->component->card;
 			ret = child->driver->probe(child);
 			if (ret < 0) {
 				dev_err(child->dev,
@@ -183,6 +237,9 @@ static const struct snd_soc_dai_ops rockchip_mdais_dai_ops = {
 	.set_fmt = rockchip_mdais_set_fmt,
 	.set_tdm_slot = rockchip_mdais_tdm_slot,
 	.trigger = rockchip_mdais_trigger,
+	.startup = rockchip_mdais_startup,
+	.shutdown = rockchip_mdais_shutdown,
+	.prepare = rockchip_mdais_prepare,
 };
 
 static const struct snd_soc_component_driver rockchip_mdais_component = {

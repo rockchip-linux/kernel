@@ -20,8 +20,17 @@
 #define OF_CAMERA_VCMDRV_DLC_ENABLE	"rockchip,vcm-dlc-enable"
 #define OF_CAMERA_VCMDRV_MCLK		"rockchip,vcm-mclk"
 #define OF_CAMERA_VCMDRV_T_SRC		"rockchip,vcm-t-src"
-#define OF_CAMERA_VCMDRV_T_DIV          "rockchip,vcm-t-div"
-#define VCMDRV_SETZOOM_MAXCNT	300U
+#define OF_CAMERA_VCMDRV_T_DIV		"rockchip,vcm-t-div"
+#define OF_CAMERA_VCMDRV_ADVANCED_MODE	"rockchip,vcm-adcanced-mode"
+#define OF_CAMERA_VCMDRV_SAC_MODE	"rockchip,vcm-sac-mode"
+#define OF_CAMERA_VCMDRV_SAC_TIME	"rockchip,vcm-sac-time"
+#define OF_CAMERA_VCMDRV_PRESC		"rockchip,vcm-prescl"
+#define OF_CAMERA_VCMDRV_NRC_EN		"rockchip,vcm-nrc-en"
+#define OF_CAMERA_VCMDRV_NRC_MODE	"rockchip,vcm-nrc-mode"
+#define OF_CAMERA_VCMDRV_NRC_PRESET	"rockchip,vcm-nrc-preset"
+#define OF_CAMERA_VCMDRV_NRC_INFL	"rockchip,vcm-nrc-infl"
+#define OF_CAMERA_VCMDRV_NRC_TIME	"rockchip,vcm-nrc-time"
+#define VCMDRV_SETZOOM_MAXCNT		300U
 
 #define RK_VIDIOC_VCM_TIMEINFO \
 	_IOR('V', BASE_VIDIOC_PRIVATE + 0, struct rk_cam_vcm_tim)
@@ -62,6 +71,9 @@
 	_IOW('V', BASE_VIDIOC_PRIVATE + 15, struct rk_cam_set_focus)
 #define RK_VIDIOC_MODIFY_POSITION \
 	_IOW('V', BASE_VIDIOC_PRIVATE + 16, struct rk_cam_modify_pos)
+
+#define RK_VIDIOC_SET_VCM_MAX_LOGICALPOS \
+	_IOW('V', BASE_VIDIOC_PRIVATE + 17, unsigned int)
 
 #define RK_VIDIOC_COMPAT_VCM_TIMEINFO \
 	_IOR('V', BASE_VIDIOC_PRIVATE + 0, struct rk_cam_compat_vcm_tim)

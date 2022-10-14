@@ -487,17 +487,20 @@ wl_cfg80211_get_iface_policy(struct net_device *ndev)
 wl_iftype_t
 wl_cfg80211_get_sec_iface(struct bcm_cfg80211 *cfg)
 {
-#ifndef WL_STATIC_IF
+#ifdef WL_STATIC_IF
+	struct net_device *static_if_ndev;
+#else
 	dhd_pub_t *dhd = (dhd_pub_t *)(cfg->pub);
-#endif /* !WL_STATIC_IF */
+#endif /* WL_STATIC_IF */
 	struct net_device *p2p_ndev = NULL;
 
 	p2p_ndev = wl_to_p2p_bss_ndev(cfg,
 		P2PAPI_BSSCFG_CONNECTION1);
 
 #ifdef WL_STATIC_IF
-	if (IS_CFG80211_STATIC_IF_ACTIVE(cfg)) {
-		if (IS_AP_IFACE(cfg->static_ndev->ieee80211_ptr)) {
+	static_if_ndev = wl_cfg80211_static_if_active(cfg);
+	if (static_if_ndev) {
+		if (IS_AP_IFACE(static_if_ndev->ieee80211_ptr)) {
 			return WL_IF_TYPE_AP;
 		}
 	}
@@ -838,9 +841,22 @@ wl_cfg80211_handle_if_role_conflict(struct bcm_cfg80211 *cfg,
 	wl_iftype_t new_wl_iftype)
 {
 	s32 ret = BCME_OK;
+#ifdef P2P_AP_CONCURRENT
+	dhd_pub_t *dhd = (dhd_pub_t *)(cfg->pub);
+#endif
 
 	WL_INFORM_MEM(("Incoming iface = %s\n", wl_iftype_to_str(new_wl_iftype)));
 
+#ifdef P2P_AP_CONCURRENT
+	if (dhd->conf->war & P2P_AP_MAC_CONFLICT) {
+		return ret;
+	} else
+#endif
+#ifdef WL_STATIC_IF
+	if (wl_cfg80211_get_sec_iface(cfg) == WL_IF_TYPE_AP &&
+			new_wl_iftype == WL_IF_TYPE_AP) {
+	} else
+#endif /* WL_STATIC_IF */
 	if (!is_discovery_iface(new_wl_iftype)) {
 		/* Incoming data interface request */
 		if (wl_cfg80211_get_sec_iface(cfg) != WL_IFACE_NOT_PRESENT) {
@@ -1211,7 +1227,7 @@ wl_cfg80211_change_virtual_iface(struct wiphy *wiphy, struct net_device *ndev,
 	netinfo = wl_get_netinfo_by_wdev(cfg, ndev->ieee80211_ptr);
 	if (unlikely(!netinfo)) {
 #ifdef WL_STATIC_IF
-		if (IS_CFG80211_STATIC_IF(cfg, ndev)) {
+		if (wl_cfg80211_static_if(cfg, ndev)) {
 			/* Incase of static interfaces, the netinfo will be
 			 * allocated only when FW interface is initialized. So
 			 * store the value and use it during initialization.
@@ -1326,7 +1342,7 @@ wl_cfg80211_change_virtual_iface(struct wiphy *wiphy, struct net_device *ndev,
 
 	WL_INFORM_MEM(("[%s] cfg_iftype changed to %d\n", ndev->name, type));
 #ifdef WL_EXT_IAPSTA
-	wl_ext_iapsta_update_iftype(ndev, netinfo->ifidx, wl_iftype);
+	wl_ext_iapsta_update_iftype(ndev, wl_iftype);
 #endif
 
 fail:
@@ -1418,7 +1434,7 @@ wl_cfg80211_cleanup_virtual_ifaces(struct bcm_cfg80211 *cfg, bool rtnl_lock_reqd
 			/* Ensure interfaces are down before deleting */
 #ifdef WL_STATIC_IF
 			/* Avoiding cleaning static ifaces */
-			if (!IS_CFG80211_STATIC_IF(cfg, iter->ndev))
+			if (!wl_cfg80211_static_if(cfg, iter->ndev))
 #endif /* WL_STATIC_IF */
 			{
 				dev_close(iter->ndev);
@@ -1443,6 +1459,9 @@ wl_get_bandwidth_cap(struct net_device *ndev, uint32 band, uint32 *bandwidth)
 
 	if (band == WL_CHANSPEC_BAND_5G) {
 		param.band = WLC_BAND_5G;
+	}
+	else if (band == WL_CHANSPEC_BAND_2G) {
+		param.band = WLC_BAND_2G;
 	}
 #ifdef WL_6G_BAND
 	else if (band == WL_CHANSPEC_BAND_6G) {
@@ -1526,30 +1545,34 @@ wl_cfg80211_set_channel(struct wiphy *wiphy, struct net_device *dev,
 	u32 bw = WL_CHANSPEC_BW_20;
 	s32 err = BCME_OK;
 	struct bcm_cfg80211 *cfg = wiphy_priv(wiphy);
-#if defined(CUSTOM_SET_CPUCORE) || defined(APSTA_RESTRICTED_CHANNEL) || defined(WL_EXT_IAPSTA)
+#if defined(CUSTOM_SET_CPUCORE) || defined(APSTA_RESTRICTED_CHANNEL)
 	dhd_pub_t *dhd =  (dhd_pub_t *)(cfg->pub);
-	enum nl80211_band band;
-	s32 _chan;
 #endif /* CUSTOM_SET_CPUCORE || APSTA_RESTRICTED_CHANNEL */
 	u16 center_freq = chan->center_freq;
 
 	dev = ndev_to_wlc_ndev(dev, cfg);
 #ifdef WL_EXT_IAPSTA
-	_chan = ieee80211_frequency_to_channel(chan->center_freq);
-	if (dev->ieee80211_ptr->iftype == NL80211_IFTYPE_AP) {
-		wl_ext_iapsta_update_iftype(dev, dhd_net2idx(dhd->info, dev), WL_IF_TYPE_AP);
-		_chan = wl_ext_iapsta_update_channel(dhd, dev, _chan);
-	}
-	if (CHANNEL_IS_5G(_chan))
-		band = NL80211_BAND_5GHZ;
-	else
-		band = NL80211_BAND_2GHZ;
-	center_freq = ieee80211_channel_to_frequency(_chan, band);
+	if (dev->ieee80211_ptr->iftype == NL80211_IFTYPE_AP ||
+			dev->ieee80211_ptr->iftype == NL80211_IFTYPE_P2P_GO) {
+		u16 wl_iftype = 0;
+		u16 wl_mode = 0;
+
+		chspec = wl_freq_to_chanspec(chan->center_freq);
+		if (cfg80211_to_wl_iftype(dev->ieee80211_ptr->iftype,
+				&wl_iftype, &wl_mode) < 0) {
+			WL_ERR(("Unknown interface type:0x%x\n", dev->ieee80211_ptr->iftype));
+			return -EINVAL;
+		}
+		wl_ext_iapsta_update_iftype(dev, wl_iftype);
+		chspec = wl_ext_iapsta_update_channel(dev, chspec);
+		center_freq = wl_channel_to_frequency(wf_chspec_primary20_chan(chspec),
+			CHSPEC_BAND(chspec));
+	} else
 #endif
 	chspec = wl_freq_to_chanspec(center_freq);
 
-	WL_MSG(dev->name, "netdev_ifidx(%d), chan_type(%d) target channel(%d) \n",
-		dev->ifindex, channel_type, CHSPEC_CHANNEL(chspec));
+	WL_MSG(dev->name, "netdev_ifidx(%d), chan_type(%d) target channel(%s-%d) \n",
+		dev->ifindex, channel_type, CHSPEC2BANDSTR(chspec), CHSPEC_CHANNEL(chspec));
 
 #ifdef WL_P2P_6G
 	if (!(cfg->p2p_6g_enabled)) {
@@ -2534,13 +2557,13 @@ wl_cfg80211_bcn_validate_sec(
 
 	if (dev_role == NL80211_IFTYPE_P2P_GO && (ies->wpa2_ie)) {
 		/* For P2P GO, the sec type is WPA2-PSK */
-		WL_DBG(("P2P GO: validating wpa2_ie"));
+		WL_DBG(("P2P GO: validating wpa2_ie\n"));
 		if (wl_validate_wpa2ie(dev, ies->wpa2_ie, bssidx)  < 0)
 			return BCME_ERROR;
 
 	} else if (dev_role == NL80211_IFTYPE_AP) {
 
-		WL_DBG(("SoftAP: validating security"));
+		WL_DBG(("SoftAP: validating security\n"));
 		/* If wpa2_ie or wpa_ie is present validate it */
 
 #if defined(SUPPORT_SOFTAP_WPAWPA2_MIXED)
@@ -2652,7 +2675,7 @@ static s32 wl_cfg80211_bcn_set_params(
 	struct bcm_cfg80211 *cfg = wl_get_cfg(dev);
 	s32 err = BCME_OK;
 
-	WL_DBG(("interval (%d) \ndtim_period (%d) \n",
+	WL_DBG(("interval (%d) dtim_period (%d) \n",
 		info->beacon_interval, info->dtim_period));
 
 	if (info->beacon_interval) {
@@ -2777,7 +2800,7 @@ wl_cfg80211_set_ap_role(
 	}
 #ifdef WLEASYMESH
 	else if (dhd->conf->fw_type == FW_TYPE_EZMESH) {
-		WL_MSG(dev->name, "Getting AP mode ok, set map and dwds");
+		WL_MSG(dev->name, "Getting AP mode ok, set map and dwds\n");
 		err = wldev_ioctl_set(dev, WLC_DOWN, &ap, sizeof(s32));
 		if (err < 0) {
 			WL_ERR(("WLC_DOWN error %d\n", err));
@@ -2794,7 +2817,7 @@ wl_cfg80211_set_ap_role(
 			WL_ERR(("wl dwds 1 error %d\n", err));
 			return err;
 		}
-		WL_MSG(dev->name, "Get AP %d", (int)ap);
+		WL_MSG(dev->name, "Get AP %d\n", (int)ap);
 	}
 #endif /* WLEASYMESH*/
 
@@ -2812,10 +2835,10 @@ wl_cfg80211_set_ap_role(
 			if (wl_get_drv_status_all(cfg, CONNECTED) > 0) {
 #ifdef WLEASYMESH
 				if (dhd->conf->fw_type == FW_TYPE_EZMESH) {
-					WL_MSG(dev->name, "do wl down");
+					WL_MSG(dev->name, "do wl down\n");
 				} else {
 #endif /* WLEASYMESH */
-					WL_ERR(("Concurrent i/f operational. can't do wl down"));
+					WL_ERR(("Concurrent i/f operational. can't do wl down\n"));
 					return BCME_ERROR;
 #ifdef WLEASYMESH
 				}
@@ -2845,7 +2868,7 @@ wl_cfg80211_set_ap_role(
 #ifdef WLEASYMESH
 			//For FrontHaulAP
 			if (dhd->conf->fw_type == FW_TYPE_EZMESH) {
-				WL_MSG(dev->name, "wl map 2");
+				WL_MSG(dev->name, "wl map 2\n");
 				err = wldev_iovar_setint(dev, "map", 2);
 				if (err < 0) {
 					WL_ERR(("wl map 2 error %d\n", err));
@@ -2958,7 +2981,7 @@ wl_cfg80211_bcn_bringup_ap(
 	s32 err = BCME_OK;
 	dhd_pub_t *dhd = (dhd_pub_t *)(cfg->pub);
 	s32 is_rsdb_supported = BCME_ERROR;
-	char sec[32];
+	char sec[64];
 
 #if defined (BCMDONGLEHOST)
 	is_rsdb_supported = DHD_OPMODE_SUPPORTED(cfg->pub, DHD_FLAG_RSDB_MODE);
@@ -3063,6 +3086,14 @@ wl_cfg80211_bcn_bringup_ap(
 		}
 #endif /* SOFTAP_UAPSD_OFF */
 
+#ifdef WLDWDS
+		err = wldev_iovar_setint(dev, "dwds", 1);
+		if (err < 0) {
+			WL_ERR(("set dwds error %d\n", err));
+			goto exit;
+		}
+#endif /* WLDWDS */
+
 		err = wldev_ioctl_set(dev, WLC_UP, &ap, sizeof(s32));
 		if (unlikely(err)) {
 			WL_ERR(("WLC_UP error (%d)\n", err));
@@ -3104,11 +3135,22 @@ wl_cfg80211_bcn_bringup_ap(
 		}
 		if (dhd->conf->chip == BCM43430_CHIP_ID && bssidx > 0 &&
 				(wsec & (TKIP_ENABLED|AES_ENABLED))) {
+			struct net_device *primary_ndev = bcmcfg_to_prmry_ndev(cfg);
+			struct ether_addr bssid;
+			int ret = 0;
 			wsec |= WSEC_SWFLAG; // terence 20180628: fix me, this is a workaround
 			err = wldev_iovar_setint_bsscfg(dev, "wsec", wsec, bssidx);
 			if (err < 0) {
 				WL_ERR(("wsec error %d\n", err));
 				goto exit;
+			}
+			bzero(&bssid, sizeof(bssid));
+			ret = wldev_ioctl_get(primary_ndev, WLC_GET_BSSID, &bssid, ETHER_ADDR_LEN);
+			if (ret != BCME_NOTASSOCIATED && memcmp(&ether_null, &bssid, ETHER_ADDR_LEN)) {
+				scb_val_t scbval;
+				bzero(&scbval, sizeof(scb_val_t));
+				scbval.val = WLAN_REASON_DEAUTH_LEAVING;
+				wldev_ioctl_set(primary_ndev, WLC_DISASSOC, &scbval, sizeof(scb_val_t));
 			}
 		}
 		if ((wsec == WEP_ENABLED) && cfg->wep_key.len) {
@@ -3593,8 +3635,9 @@ wl_cfg80211_start_ap(
 		if (err) {
 			WL_ERR(("Disabling NDO Failed %d\n", err));
 		}
+		wl_wlfc_enable(cfg, TRUE);
 #ifdef WL_EXT_IAPSTA
-		wl_ext_iapsta_update_iftype(dev, dhd_net2idx(dhd->info, dev), WL_IF_TYPE_AP);
+		wl_ext_iapsta_update_iftype(dev, WL_IF_TYPE_AP);
 #endif /* WL_EXT_IAPSTA */
 #ifdef PKT_FILTER_SUPPORT
 		/* Disable packet filter */
@@ -3692,7 +3735,7 @@ wl_cfg80211_start_ap(
 	/* Set IEs to FW */
 	if ((err = wl_cfg80211_set_ies(dev, &info->beacon, bssidx)) < 0)
 		WL_ERR(("Set IEs failed \n"));
-	
+
 #ifdef WLDWDS
 	if (dev->ieee80211_ptr->use_4addr) {
 		if ((err = wl_cfg80211_set_mgmt_vndr_ies(cfg, ndev_to_cfgdev(dev), bssidx,
@@ -3729,6 +3772,9 @@ wl_cfg80211_start_ap(
 		}
 	}
 #endif /* SUPPORT_AP_RADIO_PWRSAVE */
+#ifdef WL_EXT_IAPSTA
+		wl_ext_in4way_sync(dev, 0, WL_EXT_STATUS_AP_ENABLING, NULL);
+#endif
 fail:
 	if (err) {
 		WL_ERR(("ADD/SET beacon failed\n"));
@@ -3754,6 +3800,7 @@ fail:
 			wl_cfg80211_set_frameburst(cfg, TRUE);
 #endif /* DISABLE_WL_FRAMEBURST_SOFTAP */
 #endif /* BCMDONGLEHOST */
+			wl_wlfc_enable(cfg, FALSE);
 #ifdef WL_EXT_IAPSTA
 		}
 #endif /* WL_EXT_IAPSTA */
@@ -3804,10 +3851,10 @@ wl_cfg80211_stop_ap(
 
 	if (dev->ieee80211_ptr->iftype == NL80211_IFTYPE_AP) {
 		dev_role = NL80211_IFTYPE_AP;
-		WL_DBG(("stopping AP operation\n"));
+		WL_MSG(dev->name, "stopping AP operation\n");
 	} else if (dev->ieee80211_ptr->iftype == NL80211_IFTYPE_P2P_GO) {
 		dev_role = NL80211_IFTYPE_P2P_GO;
-		WL_DBG(("stopping P2P GO operation\n"));
+		WL_MSG(dev->name, "stopping P2P GO operation\n");
 	} else {
 		WL_ERR(("no AP/P2P GO interface is operational.\n"));
 		return -EINVAL;
@@ -3823,6 +3870,9 @@ wl_cfg80211_stop_ap(
 		err = -EINVAL;
 		goto exit;
 	}
+#ifdef WL_EXT_IAPSTA
+	wl_ext_in4way_sync(dev, 0, WL_EXT_STATUS_AP_DISABLING, NULL);
+#endif
 
 	/* Free up resources */
 	wl_cfg80211_cleanup_if(dev);
@@ -3908,6 +3958,7 @@ exit:
 #endif /* WL_EXT_IAPSTA */
 		/* clear the AP mode */
 		dhd->op_mode &= ~DHD_FLAG_HOSTAP_MODE;
+		wl_wlfc_enable(cfg, FALSE);
 #ifdef WL_EXT_IAPSTA
 		}
 #endif /* WL_EXT_IAPSTA */
@@ -4443,6 +4494,9 @@ wl_notify_connect_status_ap(struct bcm_cfg80211 *cfg, struct net_device *ndev,
 		wl_add_remove_eventmsg(ndev, WLC_E_PROBREQ_MSG, false);
 		WL_MSG(ndev->name, "AP mode link down !! \n");
 		complete(&cfg->iface_disable);
+#ifdef WL_EXT_IAPSTA
+		wl_ext_in4way_sync(ndev, 0, WL_EXT_STATUS_AP_DISABLED, NULL);
+#endif
 		return 0;
 	}
 
@@ -4509,6 +4563,11 @@ wl_notify_connect_status_ap(struct bcm_cfg80211 *cfg, struct net_device *ndev,
 		wl_ext_in4way_sync(ndev, AP_WAIT_STA_RECONNECT,
 			WL_EXT_STATUS_STA_CONNECTED, (void *)&e->addr);
 #endif
+#ifdef STA_MGMT
+		if (!wl_ext_add_sta_info(ndev, (u8 *)&e->addr)) {
+			return -EINVAL;
+		}
+#endif /* STA_MGMT */
 		cfg80211_new_sta(ndev, e->addr.octet, &sinfo, GFP_ATOMIC);
 #ifdef WL_WPS_SYNC
 		wl_wps_session_update(ndev, WPS_STATE_LINKUP, e->addr.octet);
@@ -4531,6 +4590,11 @@ wl_notify_connect_status_ap(struct bcm_cfg80211 *cfg, struct net_device *ndev,
 		wl_ext_in4way_sync(ndev, AP_WAIT_STA_RECONNECT,
 			WL_EXT_STATUS_STA_DISCONNECTED, (void *)&e->addr);
 #endif
+#ifdef STA_MGMT
+		if (!wl_ext_del_sta_info(ndev, (u8 *)&e->addr)) {
+			return -EINVAL;
+		}
+#endif /* STA_MGMT */
 		cfg80211_del_sta(ndev, e->addr.octet, GFP_ATOMIC);
 #ifdef WL_WPS_SYNC
 		wl_wps_session_update(ndev, WPS_STATE_LINKDOWN, e->addr.octet);
@@ -5151,6 +5215,9 @@ wl_cfg80211_ch_switch_notify(struct net_device *dev, uint16 chanspec, struct wip
 
 	WL_MSG(dev->name, "Channel switch notification for freq: %d chanspec: 0x%x\n",
 		freq, chanspec);
+#ifdef WL_EXT_IAPSTA
+	wl_ext_fw_reinit_incsa(dev);
+#endif
 	return;
 }
 #endif /* LINUX_VERSION_CODE >= (3, 5, 0) */

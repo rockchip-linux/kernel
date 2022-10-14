@@ -422,8 +422,7 @@ static void kbase_pm_l2_clock_slow(struct kbase_device *kbdev)
 		return;
 
 	/* Stop the metrics gathering framework */
-	if (kbase_pm_metrics_is_active(kbdev))
-		kbase_pm_metrics_stop(kbdev);
+	kbase_pm_metrics_stop(kbdev);
 
 	/* Keep the current freq to restore it upon resume */
 	kbdev->previous_frequency = clk_get_rate(clk);
@@ -865,7 +864,7 @@ void kbase_pm_power_changed(struct kbase_device *kbdev)
 	kbase_pm_update_state(kbdev);
 
 #if !MALI_USE_CSF
-		kbase_backend_slot_update(kbdev);
+	kbase_backend_slot_update(kbdev);
 #endif /* !MALI_USE_CSF */
 
 	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
@@ -975,7 +974,7 @@ void kbase_hwaccess_pm_resume(struct kbase_device *kbdev)
 void kbase_pm_handle_gpu_lost(struct kbase_device *kbdev)
 {
 	unsigned long flags;
-	ktime_t end_timestamp = ktime_get();
+	ktime_t end_timestamp = ktime_get_raw();
 	struct kbase_arbiter_vm_state *arb_vm_state = kbdev->pm.arb_vm_state;
 
 	if (!kbdev->arb.arb_if)
@@ -1050,6 +1049,7 @@ static int pm_handle_mcu_sleep_on_runtime_suspend(struct kbase_device *kbdev)
 	lockdep_assert_held(&kbdev->csf.scheduler.lock);
 	lockdep_assert_held(&kbdev->pm.lock);
 
+#ifdef CONFIG_MALI_BIFROST_DEBUG
 	/* In case of no active CSG on slot, powering up L2 could be skipped and
 	 * proceed directly to suspend GPU.
 	 * ToDo: firmware has to be reloaded after wake-up as no halt command
@@ -1059,6 +1059,7 @@ static int pm_handle_mcu_sleep_on_runtime_suspend(struct kbase_device *kbdev)
 		dev_info(
 			kbdev->dev,
 			"No active CSGs. Can skip the power up of L2 and go for suspension directly");
+#endif
 
 	ret = kbase_pm_force_mcu_wakeup_after_sleep(kbdev);
 	if (ret) {

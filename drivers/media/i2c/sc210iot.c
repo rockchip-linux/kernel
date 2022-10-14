@@ -140,6 +140,8 @@ struct sc210iot {
 	struct v4l2_ctrl    *link_freq;
 	struct v4l2_ctrl    *pixel_rate;
 	struct mutex        lock;
+	struct v4l2_fract cur_fps;
+	u32		cur_vts;
 	bool		streaming;
 	bool		power_on;
 	bool		is_thunderboot;
@@ -363,6 +365,14 @@ static int sc210iot_set_exp(struct sc210iot *sc210iot, u32 exp)
 	return ret;
 }
 
+static void sc210iot_modify_fps_info(struct sc210iot *sc210iot)
+{
+	const struct sc210iot_mode *mode = sc210iot->cur_mode;
+
+	sc210iot->cur_fps.denominator = mode->max_fps.denominator * sc210iot->cur_vts /
+				       mode->vts_def;
+}
+
 static int sc210iot_set_ctrl(struct v4l2_ctrl *ctrl)
 {
 	struct sc210iot *sc210iot = container_of(ctrl->handler,
@@ -394,8 +404,12 @@ static int sc210iot_set_ctrl(struct v4l2_ctrl *ctrl)
 		dev_dbg(sc210iot->dev, "set vblank 0x%x\n", ctrl->val);
 		ret = sc210iot_write_reg(sc210iot, SC210IOT_REG_VTS_H,
 					(ctrl->val + sc210iot->cur_mode->height) >> 8);
-		ret = sc210iot_write_reg(sc210iot, SC210IOT_REG_VTS_L,
+		ret |= sc210iot_write_reg(sc210iot, SC210IOT_REG_VTS_L,
 					(ctrl->val + sc210iot->cur_mode->height) & 0xff);
+		if (!ret)
+			sc210iot->cur_vts = ctrl->val + sc210iot->cur_mode->height;
+		if (sc210iot->cur_vts != sc210iot->cur_mode->vts_def)
+			sc210iot_modify_fps_info(sc210iot);
 		break;
 	case V4L2_CID_HFLIP:
 		regmap_update_bits(sc210iot->regmap, SC210IOT_REG_MIRROR_FLIP,
@@ -479,6 +493,8 @@ static int sc210iot_initialize_controls(struct sc210iot *sc210iot)
 	}
 	sc210iot->subdev.ctrl_handler = handler;
 	sc210iot->has_init_exp = false;
+	sc210iot->cur_fps = mode->max_fps;
+	sc210iot->cur_vts = mode->vts_def;
 	return 0;
 err_free_handler:
 	v4l2_ctrl_handler_free(handler);
@@ -679,8 +695,11 @@ static long sc210iot_compat_ioctl32(struct v4l2_subdev *sd,
 			return ret;
 		}
 		ret = sc210iot_ioctl(sd, cmd, inf);
-		if (!ret)
+		if (!ret) {
 			ret = copy_to_user(up, inf, sizeof(*inf));
+			if (ret)
+				ret = -EFAULT;
+		}
 		kfree(inf);
 		break;
 	case RKMODULE_GET_HDR_CFG:
@@ -690,16 +709,19 @@ static long sc210iot_compat_ioctl32(struct v4l2_subdev *sd,
 			return ret;
 		}
 		ret = sc210iot_ioctl(sd, cmd, hdr);
-		if (!ret)
+		if (!ret) {
 			ret = copy_to_user(up, hdr, sizeof(*hdr));
+			if (ret)
+				ret = -EFAULT;
+		}
 		kfree(hdr);
-		break;
-	case RKMODULE_SET_HDR_CFG:
 		break;
 	case RKMODULE_SET_QUICK_STREAM:
 		ret = copy_from_user(&stream, up, sizeof(u32));
 		if (!ret)
 			ret = sc210iot_ioctl(sd, cmd, &stream);
+		else
+			ret = -EFAULT;
 		break;
 	default:
 		ret = -ENOIOCTLCMD;
@@ -750,20 +772,21 @@ static int sc210iot_g_frame_interval(struct v4l2_subdev *sd,
 	struct sc210iot *sc210iot = to_sc210iot(sd);
 	const struct sc210iot_mode *mode = sc210iot->cur_mode;
 
-	mutex_lock(&sc210iot->lock);
-	fi->interval = mode->max_fps;
-	mutex_unlock(&sc210iot->lock);
+	if (sc210iot->streaming)
+		fi->interval = sc210iot->cur_fps;
+	else
+		fi->interval = mode->max_fps;
 	return 0;
 }
 
-static int sc210iot_g_mbus_config(struct v4l2_subdev *sd,
+static int sc210iot_g_mbus_config(struct v4l2_subdev *sd, unsigned int pad_id,
 				struct v4l2_mbus_config *config)
 {
 	struct sc210iot *sc210iot = to_sc210iot(sd);
 
 	u32 val = 1 << (SC210IOT_LANES - 1) | V4L2_MBUS_CSI2_CHANNEL_0 |
 		  V4L2_MBUS_CSI2_CONTINUOUS_CLOCK;
-	config->type = V4L2_MBUS_CSI2;
+	config->type = V4L2_MBUS_CSI2_DPHY;
 	config->flags = (sc210iot->cur_mode->hdr_mode == NO_HDR) ?
 			val : (val | V4L2_MBUS_CSI2_CHANNEL_1);
 	return 0;
@@ -848,6 +871,8 @@ static int sc210iot_set_fmt(struct v4l2_subdev *sd,
 		__v4l2_ctrl_modify_range(sc210iot->vblank, vblank_def,
 					 SC210IOT_VTS_MAX - mode->height,
 					 1, vblank_def);
+		sc210iot->cur_fps = mode->max_fps;
+		sc210iot->cur_vts = mode->vts_def;
 	}
 	mutex_unlock(&sc210iot->lock);
 	return 0;
@@ -943,7 +968,6 @@ static const struct v4l2_subdev_core_ops sc210iot_core_ops = {
 static const struct v4l2_subdev_video_ops sc210iot_video_ops = {
 	.s_stream = sc210iot_s_stream,
 	.g_frame_interval = sc210iot_g_frame_interval,
-	.g_mbus_config = sc210iot_g_mbus_config,
 };
 
 static const struct v4l2_subdev_pad_ops sc210iot_pad_ops = {
@@ -952,6 +976,7 @@ static const struct v4l2_subdev_pad_ops sc210iot_pad_ops = {
 	.enum_frame_interval = sc210iot_enum_frame_interval,
 	.get_fmt = sc210iot_get_fmt,
 	.set_fmt = sc210iot_set_fmt,
+	.get_mbus_config = sc210iot_g_mbus_config,
 };
 
 static const struct v4l2_subdev_ops sc210iot_subdev_ops = {

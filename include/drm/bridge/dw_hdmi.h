@@ -78,6 +78,8 @@ struct platform_device;
  * +----------------------+----------------------------------+------------------------------+
  */
 
+#define SUPPORT_HDMI_ALLM	BIT(1)
+
 enum {
 	DW_HDMI_RES_8,
 	DW_HDMI_RES_10,
@@ -93,6 +95,13 @@ enum dw_hdmi_phy_type {
 	DW_HDMI_PHY_DWC_HDMI_3D_TX_PHY = 0xf2,
 	DW_HDMI_PHY_DWC_HDMI20_TX_PHY = 0xf3,
 	DW_HDMI_PHY_VENDOR_PHY = 0xfe,
+};
+
+struct dw_hdmi_audio_frl_n {
+	unsigned int r_bit;
+	unsigned int n_32k;
+	unsigned int n_44k1;
+	unsigned int n_48k;
 };
 
 struct dw_hdmi_audio_tmds_n {
@@ -128,6 +137,7 @@ struct dw_hdmi_link_config {
 	int frl_lanes;
 	int rate_per_lane;
 	int hcactive;
+	u8 add_func;
 	u8 pps_payload[128];
 };
 
@@ -158,7 +168,7 @@ struct dw_hdmi_qp_phy_ops {
 struct dw_hdmi_property_ops {
 	void (*attach_properties)(struct drm_connector *connector,
 				  unsigned int color, int version,
-				  void *data);
+				  void *data, bool allm_en);
 	void (*destroy_properties)(struct drm_connector *connector,
 				   void *data);
 	int (*set_property)(struct drm_connector *connector,
@@ -235,9 +245,11 @@ struct dw_hdmi_plat_data {
 				 struct drm_connector *connector);
 	struct dw_hdmi_link_config *(*get_link_cfg)(void *data);
 	void (*set_grf_cfg)(void *data);
+	u64 (*get_grf_color_fmt)(void *data);
 	void (*convert_to_split_mode)(struct drm_display_mode *mode);
 	void (*convert_to_origin_mode)(struct drm_display_mode *mode);
 	int (*dclk_set)(void *data, bool enable);
+	int (*link_clk_set)(void *data, bool enable);
 
 	/* Vendor Property support */
 	const struct dw_hdmi_property_ops *property_ops;
@@ -287,6 +299,7 @@ void dw_hdmi_set_output_type(struct dw_hdmi *hdmi, u64 val);
 bool dw_hdmi_get_output_whether_hdmi(struct dw_hdmi *hdmi);
 int dw_hdmi_get_output_type_cap(struct dw_hdmi *hdmi);
 void dw_hdmi_set_cec_adap(struct dw_hdmi *hdmi, struct cec_adapter *adap);
+void dw_hdmi_qp_set_allm_enable(struct dw_hdmi_qp *hdmi_qp, bool enable);
 
 void dw_hdmi_qp_unbind(struct dw_hdmi_qp *hdmi);
 struct dw_hdmi_qp *dw_hdmi_qp_bind(struct platform_device *pdev,

@@ -128,6 +128,12 @@ static int rkisp_params_vb2_queue_setup(struct vb2_queue *vq,
 	params_vdev->ops->get_param_size(params_vdev, sizes);
 
 	INIT_LIST_HEAD(&params_vdev->params);
+
+	if (params_vdev->first_cfg_params) {
+		params_vdev->first_cfg_params = false;
+		return 0;
+	}
+
 	params_vdev->first_params = true;
 
 	return 0;
@@ -141,17 +147,29 @@ static void rkisp_params_vb2_buf_queue(struct vb2_buffer *vb)
 	struct rkisp_isp_params_vdev *params_vdev = vq->drv_priv;
 	void *first_param;
 	unsigned long flags;
-
 	unsigned int cur_frame_id = -1;
+
 	cur_frame_id = atomic_read(&params_vdev->dev->isp_sdev.frm_sync_seq) - 1;
 	if (params_vdev->first_params) {
 		first_param = vb2_plane_vaddr(vb, 0);
 		params_vdev->ops->save_first_param(params_vdev, first_param);
+		params_vdev->is_first_cfg = true;
 		vbuf->sequence = cur_frame_id;
 		vb2_buffer_done(&params_buf->vb.vb2_buf, VB2_BUF_STATE_DONE);
 		params_vdev->first_params = false;
 		wake_up(&params_vdev->dev->sync_onoff);
+		if (params_vdev->dev->is_first_double) {
+			dev_info(params_vdev->dev->dev, "first params for fast\n");
+			params_vdev->dev->is_first_double = false;
+			rkisp_trigger_read_back(params_vdev->dev, false, false, false);
+		}
 		dev_info(params_vdev->dev->dev, "first params buf queue\n");
+		return;
+	}
+
+	if (params_vdev->dev->procfs.mode &
+	    (RKISP_PROCFS_FIL_AIQ | RKISP_PROCFS_FIL_SW)) {
+		vb2_buffer_done(&params_buf->vb.vb2_buf, VB2_BUF_STATE_DONE);
 		return;
 	}
 
@@ -200,6 +218,10 @@ static void rkisp_params_vb2_stop_streaming(struct vb2_queue *vq)
 		params_vdev->cur_buf = NULL;
 	}
 
+	if (dev->is_pre_on) {
+		params_vdev->first_cfg_params = true;
+		return;
+	}
 	rkisp_params_disable_isp(params_vdev);
 	/* clean module params */
 	params_vdev->ops->clear_first_param(params_vdev);
@@ -212,7 +234,6 @@ rkisp_params_vb2_start_streaming(struct vb2_queue *queue, unsigned int count)
 	struct rkisp_isp_params_vdev *params_vdev = queue->drv_priv;
 	unsigned long flags;
 
-	params_vdev->is_first_cfg = true;
 	params_vdev->hdrtmo_en = false;
 	params_vdev->afaemode_en = false;
 	params_vdev->cur_buf = NULL;
@@ -333,6 +354,9 @@ void rkisp_params_cfg(struct rkisp_isp_params_vdev *params_vdev, u32 frame_id)
 
 void rkisp_params_cfgsram(struct rkisp_isp_params_vdev *params_vdev)
 {
+	if (params_vdev->dev->procfs.mode & RKISP_PROCFS_FIL_SW)
+		return;
+
 	/* multi device to switch sram config */
 	if (params_vdev->dev->hw_dev->is_single)
 		return;

@@ -36,7 +36,6 @@
 #include "mpp_common.h"
 #include "mpp_iommu.h"
 
-#define MPP_WORK_TIMEOUT_DELAY		(500)
 #define MPP_WAIT_TIMEOUT_DELAY		(2000)
 
 /* Use 'v' as magic number */
@@ -75,6 +74,7 @@ const char *mpp_device_name[MPP_DEVICE_BUTT] = {
 	[MPP_DEVICE_RKVENC]		= "RKVENC",
 	[MPP_DEVICE_VEPU1]		= "VEPU1",
 	[MPP_DEVICE_VEPU2]		= "VEPU2",
+	[MPP_DEVICE_VEPU2_JPEG]		= "VEPU2",
 	[MPP_DEVICE_VEPU22]		= "VEPU22",
 	[MPP_DEVICE_IEP2]		= "IEP2",
 };
@@ -415,9 +415,9 @@ static void mpp_session_deinit_default(struct mpp_session *session)
 		mpp_session_clear_pending(session);
 
 		if (session->dma) {
-			mpp_iommu_down_write(mpp->iommu_info);
+			mpp_iommu_down_read(mpp->iommu_info);
 			mpp_dma_session_destroy(session->dma);
-			mpp_iommu_up_write(mpp->iommu_info);
+			mpp_iommu_up_read(mpp->iommu_info);
 			session->dma = NULL;
 		}
 	}
@@ -484,6 +484,10 @@ mpp_session_push_pending(struct mpp_session *session,
 {
 	kref_get(&task->ref);
 	mutex_lock(&session->pending_lock);
+	if (session->srv->timing_en) {
+		task->on_pending = ktime_get();
+		set_bit(TASK_TIMING_PENDING, &task->state);
+	}
 	list_add_tail(&task->pending_link, &session->pending_list);
 	mutex_unlock(&session->pending_lock);
 
@@ -569,7 +573,10 @@ static void mpp_task_timeout_work(struct work_struct *work_s)
 		return;
 	}
 
+	mpp_task_dump_timing(task, ktime_us_delta(ktime_get(), task->on_create));
+
 	mpp = mpp_get_task_used_device(task, session);
+
 	/* hardware maybe dead, reset it */
 	mpp_reset_up_read(mpp->reset_group);
 	mpp_dev_reset(mpp);
@@ -589,6 +596,8 @@ static int mpp_process_task_default(struct mpp_session *session,
 {
 	struct mpp_task *task = NULL;
 	struct mpp_dev *mpp = session->mpp;
+	u32 timing_en;
+	ktime_t on_create;
 
 	if (unlikely(!mpp)) {
 		mpp_err("pid %d client %d found invalid process function\n",
@@ -596,12 +605,24 @@ static int mpp_process_task_default(struct mpp_session *session,
 		return -EINVAL;
 	}
 
+	timing_en = session->srv->timing_en;
+	if (timing_en)
+		on_create = ktime_get();
+
 	if (mpp->dev_ops->alloc_task)
 		task = mpp->dev_ops->alloc_task(session, msgs);
 	if (!task) {
 		mpp_err("alloc_task failed.\n");
 		return -ENOMEM;
 	}
+
+	if (timing_en) {
+		task->on_create_end = ktime_get();
+		task->on_create = on_create;
+		set_bit(TASK_TIMING_CREATE_END, &task->state);
+		set_bit(TASK_TIMING_CREATE, &task->state);
+	}
+
 	/* ensure current device */
 	mpp = mpp_get_task_used_device(task, session);
 
@@ -729,12 +750,48 @@ int mpp_dev_reset(struct mpp_dev *mpp)
 	return 0;
 }
 
+void mpp_task_run_begin(struct mpp_task *task, u32 timing_en, u32 timeout)
+{
+	preempt_disable();
+
+	set_bit(TASK_STATE_START, &task->state);
+
+	mpp_time_record(task);
+	schedule_delayed_work(&task->timeout_work, msecs_to_jiffies(timeout));
+
+	if (timing_en) {
+		task->on_sched_timeout = ktime_get();
+		set_bit(TASK_TIMING_TO_SCHED, &task->state);
+	}
+}
+
+void mpp_task_run_end(struct mpp_task *task, u32 timing_en)
+{
+	if (timing_en) {
+		task->on_run_end = ktime_get();
+		set_bit(TASK_TIMING_RUN_END, &task->state);
+	}
+
+#ifdef MODULE
+	preempt_enable();
+#else
+	preempt_enable_no_resched();
+#endif
+}
+
 static int mpp_task_run(struct mpp_dev *mpp,
 			struct mpp_task *task)
 {
 	int ret;
+	u32 timing_en;
 
 	mpp_debug_enter();
+
+	timing_en = mpp->srv->timing_en;
+	if (timing_en) {
+		task->on_run = ktime_get();
+		set_bit(TASK_TIMING_RUN, &task->state);
+	}
 
 	/*
 	 * before running, we have to switch grf ctrl bit to ensure
@@ -762,10 +819,6 @@ static int mpp_task_run(struct mpp_dev *mpp,
 	 */
 	mpp_reset_down_read(mpp->reset_group);
 
-	set_bit(TASK_STATE_START, &task->state);
-	mpp_time_record(task);
-	schedule_delayed_work(&task->timeout_work,
-			      msecs_to_jiffies(MPP_WORK_TIMEOUT_DELAY));
 	if (mpp->dev_ops->run)
 		mpp->dev_ops->run(mpp, task);
 
@@ -817,6 +870,7 @@ again:
 	if (task) {
 		struct mpp_dev *task_mpp = mpp_get_task_used_device(task, task->session);
 
+		atomic_inc(&task_mpp->task_count);
 		mpp_taskqueue_pending_to_run(queue, task);
 		set_bit(TASK_STATE_RUNNING, &task->state);
 		if (mpp_task_run(task_mpp, task))
@@ -998,6 +1052,8 @@ static void mpp_attach_workqueue(struct mpp_dev *mpp,
 
 	set_bit(core_id, &queue->core_idle);
 	list_add_tail(&mpp->queue_link, &queue->dev_list);
+	if (queue->core_id_max < (u32)core_id)
+		queue->core_id_max = (u32)core_id;
 
 	mpp->core_id = core_id;
 	mpp->queue = queue;
@@ -1022,7 +1078,7 @@ static void mpp_detach_workqueue(struct mpp_dev *mpp)
 		queue->cores[mpp->core_id] = NULL;
 		queue->core_count--;
 
-		clear_bit(queue->core_count, &queue->core_idle);
+		clear_bit(mpp->core_id, &queue->core_idle);
 		list_del_init(&mpp->queue_link);
 
 		mpp->queue = NULL;
@@ -1521,8 +1577,6 @@ static void mpp_msgs_trigger(struct list_head *msgs_list)
 		if (test_bit(TASK_STATE_ABORT, &task->state))
 			pr_info("try to trigger abort task %d\n", task->task_id);
 
-		atomic_inc(&mpp->task_count);
-
 		set_bit(TASK_STATE_PENDING, &task->state);
 		list_add_tail(&task->queue_link, &queue->pending_list);
 	}
@@ -1887,6 +1941,19 @@ int mpp_task_finish(struct mpp_session *session,
 
 	set_bit(TASK_STATE_FINISH, &task->state);
 	set_bit(TASK_STATE_DONE, &task->state);
+
+	if (session->srv->timing_en) {
+		s64 time_diff;
+
+		task->on_finish = ktime_get();
+		set_bit(TASK_TIMING_FINISH, &task->state);
+
+		time_diff = ktime_us_delta(task->on_finish, task->on_create);
+
+		if (mpp->timing_check && time_diff > (s64)mpp->timing_check)
+			mpp_task_dump_timing(task, time_diff);
+	}
+
 	/* Wake up the GET thread */
 	wake_up(&task->wait);
 	mpp_taskqueue_pop_running(mpp->queue, task);
@@ -1905,9 +1972,9 @@ int mpp_task_finalize(struct mpp_session *session,
 				 &task->mem_region_list,
 				 reg_link) {
 		if (!mem_region->is_dup) {
-			mpp_iommu_down_write(mpp->iommu_info);
+			mpp_iommu_down_read(mpp->iommu_info);
 			mpp_dma_release(session->dma, mem_region->hdl);
-			mpp_iommu_up_write(mpp->iommu_info);
+			mpp_iommu_up_read(mpp->iommu_info);
 		}
 		list_del_init(&mem_region->reg_link);
 	}
@@ -1996,6 +2063,15 @@ static int mpp_iommu_handle(struct iommu_domain *iommu,
 		mpp->iommu_info->hdl(iommu, iommu_dev, iova, status, arg);
 
 	return 0;
+}
+
+void mpp_reg_show(struct mpp_dev *mpp, u32 offset)
+{
+	if (!mpp)
+		return;
+
+	dev_err(mpp->dev, "reg[%03d]: %04x: 0x%08x\n",
+		offset >> 2, offset, mpp_read_relaxed(mpp, offset));
 }
 
 /* The device will do more probing work after this */
@@ -2165,6 +2241,12 @@ irqreturn_t mpp_dev_irq(int irq, void *param)
 	struct mpp_dev *mpp = param;
 	struct mpp_task *task = mpp->cur_task;
 	irqreturn_t irq_ret = IRQ_NONE;
+	u32 timing_en = mpp->srv->timing_en;
+
+	if (task && timing_en) {
+		task->on_irq = ktime_get();
+		set_bit(TASK_TIMING_IRQ, &task->state);
+	}
 
 	if (mpp->dev_ops->irq)
 		irq_ret = mpp->dev_ops->irq(mpp);
@@ -2179,6 +2261,10 @@ irqreturn_t mpp_dev_irq(int irq, void *param)
 					mpp->irq_status);
 				irq_ret = IRQ_HANDLED;
 				goto done;
+			}
+			if (timing_en) {
+				task->on_cancel_timeout = ktime_get();
+				set_bit(TASK_TIMING_TO_CANCEL, &task->state);
 			}
 			cancel_delayed_work(&task->timeout_work);
 			/* normal condition, set state and wake up isr thread */
@@ -2195,6 +2281,12 @@ irqreturn_t mpp_dev_isr_sched(int irq, void *param)
 {
 	irqreturn_t ret = IRQ_NONE;
 	struct mpp_dev *mpp = param;
+	struct mpp_task *task = mpp->cur_task;
+
+	if (task && mpp->srv->timing_en) {
+		task->on_isr = ktime_get();
+		set_bit(TASK_TIMING_ISR, &task->state);
+	}
 
 	if (mpp->auto_freq_en &&
 	    mpp->hw_ops->reduce_freq &&
@@ -2277,6 +2369,33 @@ int mpp_time_diff(struct mpp_task *task)
 		  task->session->index, ktime_us_delta(end, task->start));
 
 	return 0;
+}
+
+#define LOG_TIMING(state, id, stage, time, base) \
+	do { \
+		if (test_bit(id, &state)) \
+			pr_info("timing: %-14s : %lld us\n", stage, ktime_us_delta(time, base)); \
+		else \
+			pr_info("timing: %-14s : invalid\n", stage); \
+	} while (0)
+
+void mpp_task_dump_timing(struct mpp_task *task, s64 time_diff)
+{
+	ktime_t s = task->on_create;
+	unsigned long state = task->state;
+
+	pr_info("task %d dump timing at %lld us:", task->task_id, time_diff);
+
+	pr_info("timing: %-14s : %lld us\n", "create", ktime_to_us(s));
+	LOG_TIMING(state, TASK_TIMING_CREATE_END, "create end",     task->on_create_end, s);
+	LOG_TIMING(state, TASK_TIMING_PENDING,    "pending",        task->on_pending, s);
+	LOG_TIMING(state, TASK_TIMING_RUN,        "run",            task->on_run, s);
+	LOG_TIMING(state, TASK_TIMING_TO_SCHED,   "timeout start",  task->on_sched_timeout, s);
+	LOG_TIMING(state, TASK_TIMING_RUN_END,    "run end",        task->on_run_end, s);
+	LOG_TIMING(state, TASK_TIMING_IRQ,        "irq",            task->on_irq, s);
+	LOG_TIMING(state, TASK_TIMING_TO_CANCEL,  "timeout cancel", task->on_cancel_timeout, s);
+	LOG_TIMING(state, TASK_TIMING_ISR,        "isr",            task->on_isr, s);
+	LOG_TIMING(state, TASK_TIMING_FINISH,     "finish",         task->on_finish, s);
 }
 
 int mpp_write_req(struct mpp_dev *mpp, u32 *regs,
@@ -2458,5 +2577,11 @@ mpp_procfs_create_u32(const char *name, umode_t mode,
 		      struct proc_dir_entry *parent, void *data)
 {
 	return proc_create_data(name, mode, parent, &procfs_fops_u32, data);
+}
+
+void mpp_procfs_create_common(struct proc_dir_entry *parent, struct mpp_dev *mpp)
+{
+	mpp_procfs_create_u32("disable_work", 0644, parent, &mpp->disable);
+	mpp_procfs_create_u32("timing_check", 0644, parent, &mpp->timing_check);
 }
 #endif

@@ -4,6 +4,7 @@
  * Author: Addy Ke <addy.ke@rock-chips.com>
  */
 
+#include <linux/acpi.h>
 #include <linux/clk.h>
 #include <linux/dmaengine.h>
 #include <linux/interrupt.h>
@@ -168,6 +169,10 @@
 #define ROCKCHIP_SPI_VER2_TYPE1			0x05EC0002
 #define ROCKCHIP_SPI_VER2_TYPE2			0x00110002
 
+struct rockchip_spi_quirks {
+	u32 max_baud_div_in_cpha;
+};
+
 struct rockchip_spi {
 	struct device *dev;
 
@@ -190,6 +195,8 @@ struct rockchip_spi {
 	u32 fifo_len;
 	/* frequency of spiclk */
 	u32 freq;
+	/* speed of io rate */
+	u32 speed_hz;
 
 	u8 n_bytes;
 	u8 rsd;
@@ -199,7 +206,12 @@ struct rockchip_spi {
 	struct pinctrl_state *high_speed_state;
 	bool slave_abort;
 	bool cs_inactive; /* spi slave tansmition stop when cs inactive */
+	bool cs_high_supported; /* native CS supports active-high polarity */
+
 	struct spi_transfer *xfer; /* Store xfer temporarily */
+
+	/* quirks */
+	u32 max_baud_div_in_cpha;
 };
 
 static inline void spi_enable_chip(struct rockchip_spi *rs, bool enable)
@@ -382,14 +394,17 @@ static int rockchip_spi_prepare_irq(struct rockchip_spi *rs,
 	rs->tx_left = rs->tx ? xfer->len / rs->n_bytes : 0;
 	rs->rx_left = xfer->len / rs->n_bytes;
 
-	if (rs->cs_inactive)
-		writel_relaxed(INT_RF_FULL | INT_CS_INACTIVE, rs->regs + ROCKCHIP_SPI_IMR);
-	else
-		writel_relaxed(INT_RF_FULL, rs->regs + ROCKCHIP_SPI_IMR);
+	writel_relaxed(0xffffffff, rs->regs + ROCKCHIP_SPI_ICR);
+
 	spi_enable_chip(rs, true);
 
 	if (rs->tx_left)
 		rockchip_spi_pio_writer(rs);
+
+	if (rs->cs_inactive)
+		writel_relaxed(INT_RF_FULL | INT_CS_INACTIVE, rs->regs + ROCKCHIP_SPI_IMR);
+	else
+		writel_relaxed(INT_RF_FULL, rs->regs + ROCKCHIP_SPI_IMR);
 
 	/* 1 means the transfer is in progress */
 	return 1;
@@ -608,12 +623,26 @@ static int rockchip_spi_config(struct rockchip_spi *rs,
 		       rs->regs + ROCKCHIP_SPI_DMARDLR);
 	writel_relaxed(dmacr, rs->regs + ROCKCHIP_SPI_DMACR);
 
+	if (rs->max_baud_div_in_cpha && xfer->speed_hz != rs->speed_hz) {
+		/* the minimum divisor is 2 */
+		if (rs->freq < 2 * xfer->speed_hz) {
+			clk_set_rate(rs->spiclk, 2 * xfer->speed_hz);
+			rs->freq = clk_get_rate(rs->spiclk);
+		}
+
+		if ((spi->mode & SPI_CPHA) && (DIV_ROUND_UP(rs->freq, xfer->speed_hz) > rs->max_baud_div_in_cpha)) {
+			clk_set_rate(rs->spiclk, rs->max_baud_div_in_cpha * xfer->speed_hz);
+			rs->freq = clk_get_rate(rs->spiclk);
+		}
+	}
+
 	/* the hardware only supports an even clock divisor, so
 	 * round divisor = spiclk / speed up to nearest even number
 	 * so that the resulting speed is <= the requested speed
 	 */
 	writel_relaxed(2 * DIV_ROUND_UP(rs->freq, 2 * xfer->speed_hz),
 			rs->regs + ROCKCHIP_SPI_BAUDR);
+	rs->speed_hz = xfer->speed_hz;
 
 	return 0;
 }
@@ -736,6 +765,11 @@ static int rockchip_spi_setup(struct spi_device *spi)
 	struct rockchip_spi *rs = spi_controller_get_devdata(spi->controller);
 	u32 cr0;
 
+	if (!spi->cs_gpiod && (spi->mode & SPI_CS_HIGH) && !rs->cs_high_supported) {
+		dev_warn(&spi->dev, "setup: non GPIO CS can't be active-high\n");
+		return -EINVAL;
+	}
+
 	pm_runtime_get_sync(rs->dev);
 
 	cr0 = readl_relaxed(rs->regs + ROCKCHIP_SPI_CTRLR0);
@@ -761,6 +795,7 @@ static int rockchip_spi_probe(struct platform_device *pdev)
 	u32 rsd_nsecs, num_cs;
 	bool slave_mode;
 	struct pinctrl *pinctrl = NULL;
+	const struct rockchip_spi_quirks *quirks_cfg;
 
 	slave_mode = of_property_read_bool(np, "spi-slave");
 
@@ -787,14 +822,16 @@ static int rockchip_spi_probe(struct platform_device *pdev)
 		goto err_put_ctlr;
 	}
 
-	rs->apb_pclk = devm_clk_get(&pdev->dev, "apb_pclk");
+	if (!has_acpi_companion(&pdev->dev))
+		rs->apb_pclk = devm_clk_get(&pdev->dev, "apb_pclk");
 	if (IS_ERR(rs->apb_pclk)) {
 		dev_err(&pdev->dev, "Failed to get apb_pclk\n");
 		ret = PTR_ERR(rs->apb_pclk);
 		goto err_put_ctlr;
 	}
 
-	rs->spiclk = devm_clk_get(&pdev->dev, "spiclk");
+	if (!has_acpi_companion(&pdev->dev))
+		rs->spiclk = devm_clk_get(&pdev->dev, "spiclk");
 	if (IS_ERR(rs->spiclk)) {
 		dev_err(&pdev->dev, "Failed to get spi_pclk\n");
 		ret = PTR_ERR(rs->spiclk);
@@ -838,10 +875,17 @@ static int rockchip_spi_probe(struct platform_device *pdev)
 		goto err_disable_sclk_in;
 
 	rs->dev = &pdev->dev;
-	rs->freq = clk_get_rate(rs->spiclk);
 
-	if (!of_property_read_u32(pdev->dev.of_node, "rx-sample-delay-ns",
-				  &rsd_nsecs)) {
+	rs->freq = clk_get_rate(rs->spiclk);
+	if (!rs->freq) {
+		ret = device_property_read_u32(&pdev->dev, "clock-frequency", &rs->freq);
+		if (ret) {
+			dev_warn(rs->dev, "Failed to get clock or clock-frequency property\n");
+			goto err_disable_sclk_in;
+		}
+	}
+
+	if (!device_property_read_u32(&pdev->dev, "rx-sample-delay-ns", &rsd_nsecs)) {
 		/* rx sample delay is expressed in parent clock cycles (max 3) */
 		u32 rsd = DIV_ROUND_CLOSEST(rsd_nsecs * (rs->freq >> 8),
 				1000000000 >> 8);
@@ -863,6 +907,9 @@ static int rockchip_spi_probe(struct platform_device *pdev)
 		ret = -EINVAL;
 		goto err_disable_sclk_in;
 	}
+	quirks_cfg = device_get_match_data(&pdev->dev);
+	if (quirks_cfg)
+		rs->max_baud_div_in_cpha = quirks_cfg->max_baud_div_in_cpha;
 
 	pm_runtime_set_active(&pdev->dev);
 	pm_runtime_enable(&pdev->dev);
@@ -880,7 +927,7 @@ static int rockchip_spi_probe(struct platform_device *pdev)
 		 * rk spi0 has two native cs, spi1..5 one cs only
 		 * if num-cs is missing in the dts, default to 1
 		 */
-		if (of_property_read_u32(np, "num-cs", &num_cs))
+		if (device_property_read_u32(&pdev->dev, "num-cs", &num_cs))
 			num_cs = 1;
 		ctlr->num_chipselect = num_cs;
 		ctlr->use_gpio_descriptors = true;
@@ -925,6 +972,7 @@ static int rockchip_spi_probe(struct platform_device *pdev)
 
 	switch (readl_relaxed(rs->regs + ROCKCHIP_SPI_VERSION)) {
 	case ROCKCHIP_SPI_VER2_TYPE2:
+		rs->cs_high_supported = true;
 		ctlr->mode_bits |= SPI_CS_HIGH;
 		if (ctlr->can_dma && slave_mode)
 			rs->cs_inactive = true;
@@ -998,51 +1046,6 @@ static int rockchip_spi_remove(struct platform_device *pdev)
 	return 0;
 }
 
-#ifdef CONFIG_PM_SLEEP
-static int rockchip_spi_suspend(struct device *dev)
-{
-	int ret;
-	struct spi_controller *ctlr = dev_get_drvdata(dev);
-	struct rockchip_spi *rs = spi_controller_get_devdata(ctlr);
-
-	ret = spi_controller_suspend(ctlr);
-	if (ret < 0)
-		return ret;
-
-	clk_disable_unprepare(rs->spiclk);
-	clk_disable_unprepare(rs->apb_pclk);
-
-	pinctrl_pm_select_sleep_state(dev);
-
-	return 0;
-}
-
-static int rockchip_spi_resume(struct device *dev)
-{
-	int ret;
-	struct spi_controller *ctlr = dev_get_drvdata(dev);
-	struct rockchip_spi *rs = spi_controller_get_devdata(ctlr);
-
-	pinctrl_pm_select_default_state(dev);
-
-	ret = clk_prepare_enable(rs->apb_pclk);
-	if (ret < 0)
-		return ret;
-
-	ret = clk_prepare_enable(rs->spiclk);
-	if (ret < 0)
-		clk_disable_unprepare(rs->apb_pclk);
-
-	ret = spi_controller_resume(ctlr);
-	if (ret < 0) {
-		clk_disable_unprepare(rs->spiclk);
-		clk_disable_unprepare(rs->apb_pclk);
-	}
-
-	return 0;
-}
-#endif /* CONFIG_PM_SLEEP */
-
 #ifdef CONFIG_PM
 static int rockchip_spi_runtime_suspend(struct device *dev)
 {
@@ -1073,14 +1076,61 @@ static int rockchip_spi_runtime_resume(struct device *dev)
 }
 #endif /* CONFIG_PM */
 
+#ifdef CONFIG_PM_SLEEP
+static int rockchip_spi_suspend(struct device *dev)
+{
+	int ret;
+	struct spi_controller *ctlr = dev_get_drvdata(dev);
+
+	ret = spi_controller_suspend(ctlr);
+	if (ret < 0)
+		return ret;
+
+	/* Avoid redundant clock disable */
+	if (!pm_runtime_status_suspended(dev))
+		rockchip_spi_runtime_suspend(dev);
+
+	pinctrl_pm_select_sleep_state(dev);
+
+	return 0;
+}
+
+static int rockchip_spi_resume(struct device *dev)
+{
+	int ret;
+	struct spi_controller *ctlr = dev_get_drvdata(dev);
+
+	pinctrl_pm_select_default_state(dev);
+
+	if (!pm_runtime_status_suspended(dev)) {
+		ret = rockchip_spi_runtime_resume(dev);
+		if (ret < 0)
+			return ret;
+	}
+
+	ret = spi_controller_resume(ctlr);
+	if (ret < 0)
+		rockchip_spi_runtime_suspend(dev);
+
+	return 0;
+}
+#endif /* CONFIG_PM_SLEEP */
+
 static const struct dev_pm_ops rockchip_spi_pm = {
 	SET_NOIRQ_SYSTEM_SLEEP_PM_OPS(rockchip_spi_suspend, rockchip_spi_resume)
 	SET_RUNTIME_PM_OPS(rockchip_spi_runtime_suspend,
 			   rockchip_spi_runtime_resume, NULL)
 };
 
+static const struct rockchip_spi_quirks rockchip_spi_quirks_cfg = {
+	.max_baud_div_in_cpha	= 4,
+};
+
 static const struct of_device_id rockchip_spi_dt_match[] = {
-	{ .compatible = "rockchip,px30-spi", },
+	{
+		.compatible = "rockchip,px30-spi",
+		.data = &rockchip_spi_quirks_cfg,
+	},
 	{ .compatible = "rockchip,rk3036-spi", },
 	{ .compatible = "rockchip,rk3066-spi", },
 	{ .compatible = "rockchip,rk3188-spi", },

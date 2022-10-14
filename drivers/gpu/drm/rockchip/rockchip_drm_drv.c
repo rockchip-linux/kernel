@@ -49,6 +49,7 @@ static bool is_support_iommu = false;
 #else
 static bool is_support_iommu = true;
 #endif
+static bool iommu_reserve_map;
 
 static struct drm_driver rockchip_drm_driver;
 
@@ -205,6 +206,22 @@ EXPORT_SYMBOL(rockchip_drm_of_find_possible_crtcs);
 
 static DEFINE_MUTEX(rockchip_drm_sub_dev_lock);
 static LIST_HEAD(rockchip_drm_sub_dev_list);
+
+void rockchip_connector_update_vfp_for_vrr(struct drm_crtc *crtc, struct drm_display_mode *mode,
+					   int vfp)
+{
+	struct rockchip_drm_sub_dev *sub_dev;
+
+	mutex_lock(&rockchip_drm_sub_dev_lock);
+	list_for_each_entry(sub_dev, &rockchip_drm_sub_dev_list, list) {
+		if (sub_dev->connector->state->crtc == crtc) {
+			if (sub_dev->update_vfp_for_vrr)
+				sub_dev->update_vfp_for_vrr(sub_dev->connector, mode, vfp);
+		}
+	}
+	mutex_unlock(&rockchip_drm_sub_dev_lock);
+}
+EXPORT_SYMBOL(rockchip_connector_update_vfp_for_vrr);
 
 void rockchip_drm_register_sub_dev(struct rockchip_drm_sub_dev *sub_dev)
 {
@@ -603,7 +620,7 @@ void get_max_frl_rate(int max_frl_rate, u8 *max_lanes, u8 *max_rate_per_lane)
 
 static
 void parse_edid_forum_vsdb(struct rockchip_drm_dsc_cap *dsc_cap,
-			   u8 *max_frl_rate_per_lane, u8 *max_lanes,
+			   u8 *max_frl_rate_per_lane, u8 *max_lanes, u8 *add_func,
 			   const u8 *hf_vsdb)
 {
 	u8 max_frl_rate;
@@ -617,6 +634,8 @@ void parse_edid_forum_vsdb(struct rockchip_drm_dsc_cap *dsc_cap,
 	max_frl_rate = (hf_vsdb[7] & EDID_MAX_FRL_RATE_MASK) >> 4;
 	get_max_frl_rate(max_frl_rate, max_lanes,
 			 max_frl_rate_per_lane);
+
+	*add_func = hf_vsdb[8];
 
 	if (cea_db_payload_len(hf_vsdb) < 13)
 		return;
@@ -827,13 +846,13 @@ void parse_next_hdr_block(struct next_hdr_sink_data *sink_data,
 }
 
 int rockchip_drm_parse_cea_ext(struct rockchip_drm_dsc_cap *dsc_cap,
-			       u8 *max_frl_rate_per_lane, u8 *max_lanes,
+			       u8 *max_frl_rate_per_lane, u8 *max_lanes, u8 *add_func,
 			       const struct edid *edid)
 {
 	const u8 *edid_ext;
 	int i, start, end;
 
-	if (!dsc_cap || !max_frl_rate_per_lane || !max_lanes || !edid)
+	if (!dsc_cap || !max_frl_rate_per_lane || !max_lanes || !edid || !add_func)
 		return -EINVAL;
 
 	edid_ext = find_cea_extension(edid);
@@ -848,7 +867,7 @@ int rockchip_drm_parse_cea_ext(struct rockchip_drm_dsc_cap *dsc_cap,
 
 		if (cea_db_is_hdmi_forum_vsdb(db))
 			parse_edid_forum_vsdb(dsc_cap, max_frl_rate_per_lane,
-					      max_lanes, db);
+					      max_lanes, add_func, db);
 	}
 
 	return 0;
@@ -984,6 +1003,7 @@ static int rockchip_drm_init_iommu(struct drm_device *drm_dev)
 	struct rockchip_drm_private *private = drm_dev->dev_private;
 	struct iommu_domain_geometry *geometry;
 	u64 start, end;
+	int ret = 0;
 
 	if (!is_support_iommu)
 		return 0;
@@ -1004,7 +1024,14 @@ static int rockchip_drm_init_iommu(struct drm_device *drm_dev)
 	iommu_set_fault_handler(private->domain, rockchip_drm_fault_handler,
 				drm_dev);
 
-	return 0;
+	if (iommu_reserve_map) {
+		ret = iommu_map(private->domain, 0, 0, (size_t)SZ_4G,
+				IOMMU_WRITE | IOMMU_READ | IOMMU_PRIV);
+		if (ret)
+			dev_err(drm_dev->dev, "failed to create pre mapping\n");
+	}
+
+	return ret;
 }
 
 static void rockchip_iommu_cleanup(struct drm_device *drm_dev)
@@ -1014,6 +1041,8 @@ static void rockchip_iommu_cleanup(struct drm_device *drm_dev)
 	if (!is_support_iommu)
 		return;
 
+	if (iommu_reserve_map)
+		iommu_unmap(private->domain, 0, (size_t)SZ_4G);
 	drm_mm_takedown(&private->mm);
 	iommu_domain_free(private->domain);
 }
@@ -1167,7 +1196,7 @@ static void rockchip_drm_set_property_default(struct drm_device *drm)
 	drm_modeset_lock_all(drm);
 
 	state = drm_atomic_helper_duplicate_state(drm, conf->acquire_ctx);
-	if (!state) {
+	if (IS_ERR(state)) {
 		DRM_ERROR("failed to alloc atomic state\n");
 		goto err_unlock;
 	}
@@ -1286,13 +1315,9 @@ static int rockchip_drm_bind(struct device *dev)
 		goto err_free;
 	}
 
-	ret = rockchip_drm_init_iommu(drm_dev);
-	if (ret)
-		goto err_free;
-
 	ret = drmm_mode_config_init(drm_dev);
 	if (ret)
-		goto err_iommu_cleanup;
+		goto err_free;
 
 	rockchip_drm_mode_config_init(drm_dev);
 	rockchip_drm_create_properties(drm_dev);
@@ -1318,6 +1343,10 @@ static int rockchip_drm_bind(struct device *dev)
 	/* init kms poll for handling hpd */
 	drm_kms_helper_poll_init(drm_dev);
 
+	ret = rockchip_drm_init_iommu(drm_dev);
+	if (ret)
+		goto err_unbind_all;
+
 	rockchip_gem_pool_init(drm_dev);
 	ret = of_reserved_mem_device_init(drm_dev->dev);
 	if (ret)
@@ -1327,7 +1356,7 @@ static int rockchip_drm_bind(struct device *dev)
 
 	ret = rockchip_drm_fbdev_init(drm_dev);
 	if (ret)
-		goto err_unbind_all;
+		goto err_iommu_cleanup;
 
 	drm_dev->mode_config.allow_fb_modifiers = true;
 
@@ -1340,12 +1369,12 @@ err_kms_helper_poll_fini:
 	rockchip_gem_pool_destroy(drm_dev);
 	drm_kms_helper_poll_fini(drm_dev);
 	rockchip_drm_fbdev_fini(drm_dev);
+err_iommu_cleanup:
+	rockchip_iommu_cleanup(drm_dev);
 err_unbind_all:
 	component_unbind_all(dev, drm_dev);
 err_mode_config_cleanup:
 	drm_mode_config_cleanup(drm_dev);
-err_iommu_cleanup:
-	rockchip_iommu_cleanup(drm_dev);
 err_free:
 	drm_dev->dev_private = NULL;
 	dev_set_drvdata(dev, NULL);
@@ -1802,6 +1831,7 @@ static int rockchip_drm_platform_of_probe(struct device *dev)
 
 		found = true;
 
+		iommu_reserve_map |= of_property_read_bool(iommu, "rockchip,reserve-map");
 		of_node_put(iommu);
 		of_node_put(port);
 	}
@@ -1836,17 +1866,19 @@ static int rockchip_drm_platform_probe(struct platform_device *pdev)
 	if (IS_ERR(match))
 		return PTR_ERR(match);
 
-	ret = component_master_add_with_match(dev, &rockchip_drm_ops, match);
-	if (ret < 0) {
-		rockchip_drm_match_remove(dev);
-		return ret;
-	}
-
 	ret = dma_coerce_mask_and_coherent(dev, DMA_BIT_MASK(64));
 	if (ret)
-		return ret;
+		goto err;
+
+	ret = component_master_add_with_match(dev, &rockchip_drm_ops, match);
+	if (ret < 0)
+		goto err;
 
 	return 0;
+err:
+	rockchip_drm_match_remove(dev);
+
+	return ret;
 }
 
 static int rockchip_drm_platform_remove(struct platform_device *pdev)

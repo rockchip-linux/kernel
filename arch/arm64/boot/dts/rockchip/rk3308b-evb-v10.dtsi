@@ -109,9 +109,10 @@
 	};
 
 	spdif_rx_sound: spdif-rx-sound {
-		status = "disabled";
 		compatible = "simple-audio-card";
 		simple-audio-card,name = "rockchip,spdif-rx-sound";
+		status = "disabled";
+
 		simple-audio-card,cpu {
 			sound-dai = <&spdif_rx>;
 		};
@@ -121,9 +122,10 @@
 	};
 
 	spdif_tx_sound: spdif-tx-sound {
-		status = "disabled";
 		compatible = "simple-audio-card";
 		simple-audio-card,name = "rockchip,spdif-tx-sound";
+		status = "disabled";
+
 		simple-audio-card,cpu {
 			sound-dai = <&spdif_tx>;
 		};
@@ -163,6 +165,15 @@
 		regulator-max-microvolt = <1000000>;
 	};
 
+	vcc_3v3_codec: vcc_io: vcc-io {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc_io";
+		regulator-always-on;
+		regulator-boot-on;
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+	};
+
 	vccio_sdio: vcc_1v8: vcc-1v8 {
 		compatible = "regulator-fixed";
 		regulator-name = "vcc_1v8";
@@ -190,15 +201,6 @@
 		regulator-boot-on;
 		regulator-min-microvolt = <1500000>;
 		regulator-max-microvolt = <1500000>;
-	};
-
-	vcc_3v3_codec: vcc_io: vcc-io {
-		compatible = "regulator-fixed";
-		regulator-name = "vcc_io";
-		regulator-always-on;
-		regulator-boot-on;
-		regulator-min-microvolt = <3300000>;
-		regulator-max-microvolt = <3300000>;
 	};
 
 	vccio_flash: vccio-flash {
@@ -231,7 +233,7 @@
 		uart_rts_gpios = <&gpio2 RK_PA3 GPIO_ACTIVE_LOW>;
 		pinctrl-names = "default", "rts_gpio";
 		pinctrl-0 = <&uart0_rts>;
-		pinctrl-1 = <&uart0_rts_gpio>;
+		pinctrl-1 = <&uart0_rts_pin>;
 		BT,power_gpio    = <&gpio2 RK_PA6 GPIO_ACTIVE_HIGH>;
 		BT,wake_host_irq = <&gpio2 RK_PB0 GPIO_ACTIVE_HIGH>;
 		status = "okay";
@@ -241,7 +243,7 @@
 		compatible = "wlan-platdata";
 		rockchip,grf = <&grf>;
 		pinctrl-names = "default";
-		pinctrl-0 = <&wifi_wake_host>;
+		pinctrl-0 = <&wifi_wake_host>, <&rtc_32k>;
 		wifi_chip_type = "ap6255";
 		WIFI,host_wake_irq = <&gpio2 RK_PB4 GPIO_ACTIVE_HIGH>;
 		status = "okay";
@@ -265,6 +267,15 @@
 		status = "okay";
 	};
 	opp-1296000000 {
+		status = "okay";
+	};
+};
+
+&rk3308bs_cpu0_opp_table {
+	opp-1008000000 {
+		status = "okay";
+	};
+	opp-1104000000 {
 		status = "okay";
 	};
 };
@@ -672,9 +683,6 @@
 };
 
 &pinctrl {
-	pinctrl-names = "default";
-	pinctrl-0 = <&rtc_32k>;
-
 	buttons {
 		pwr_key: pwr-key {
 			rockchip,pins = <0 RK_PA6 RK_FUNC_GPIO &pcfg_pull_up>;
@@ -718,6 +726,14 @@
 	>;
 
 	status = "okay";
+};
+
+&spdif_rx {
+	#sound-dai-cells = <0>;
+};
+
+&spdif_tx {
+	#sound-dai-cells = <0>;
 };
 
 &saradc {

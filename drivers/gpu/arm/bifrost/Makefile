@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 #
-# (C) COPYRIGHT 2010-2021 ARM Limited. All rights reserved.
+# (C) COPYRIGHT 2010-2022 ARM Limited. All rights reserved.
 #
 # This program is free software and is provided to you under the terms of the
 # GNU General Public License version 2 as published by the Free Software
@@ -130,16 +130,19 @@ ifeq ($(CONFIG_MALI_BIFROST),m)
         ifeq ($(CONFIG_MALI_KUTF), y)
             CONFIG_MALI_KUTF_IRQ_TEST ?= y
             CONFIG_MALI_KUTF_CLK_RATE_TRACE ?= y
+            CONFIG_MALI_KUTF_MGM_INTEGRATION_TEST ?= y
         else
             # Prevent misuse when CONFIG_MALI_KUTF=n
             CONFIG_MALI_KUTF_IRQ_TEST = n
             CONFIG_MALI_KUTF_CLK_RATE_TRACE = n
+            CONFIG_MALI_KUTF_MGM_INTEGRATION_TEST = n
         endif
     else
         # Prevent misuse when CONFIG_MALI_BIFROST_DEBUG=n
         CONFIG_MALI_KUTF = n
         CONFIG_MALI_KUTF_IRQ_TEST = n
         CONFIG_MALI_KUTF_CLK_RATE_TRACE = n
+        CONFIG_MALI_KUTF_MGM_INTEGRATION_TEST = n
     endif
 else
     # Prevent misuse when CONFIG_MALI_BIFROST=n
@@ -149,6 +152,7 @@ else
     CONFIG_MALI_KUTF = n
     CONFIG_MALI_KUTF_IRQ_TEST = n
     CONFIG_MALI_KUTF_CLK_RATE_TRACE = n
+    CONFIG_MALI_KUTF_MGM_INTEGRATION_TEST = n
 endif
 
 # All Mali CONFIG should be listed here
@@ -189,6 +193,7 @@ CONFIGS := \
     CONFIG_MALI_KUTF \
     CONFIG_MALI_KUTF_IRQ_TEST \
     CONFIG_MALI_KUTF_CLK_RATE_TRACE \
+    CONFIG_MALI_KUTF_MGM_INTEGRATION_TEST \
     CONFIG_MALI_XEN
 
 
@@ -221,6 +226,26 @@ EXTRA_CFLAGS += -DCONFIG_MALI_PLATFORM_NAME=$(CONFIG_MALI_PLATFORM_NAME)
 #
 # KBUILD_EXTRA_SYMBOLS to prevent warnings about unknown functions
 #
+
+# The following were added to align with W=1 in scripts/Makefile.extrawarn
+# from the Linux source tree
+KBUILD_CFLAGS += -Wall -Werror
+KBUILD_CFLAGS += -Wextra -Wunused -Wno-unused-parameter
+KBUILD_CFLAGS += -Wmissing-declarations
+KBUILD_CFLAGS += -Wmissing-format-attribute
+KBUILD_CFLAGS += -Wmissing-prototypes
+KBUILD_CFLAGS += -Wold-style-definition
+KBUILD_CFLAGS += -Wmissing-include-dirs
+KBUILD_CFLAGS += $(call cc-option, -Wunused-but-set-variable)
+KBUILD_CFLAGS += $(call cc-option, -Wunused-const-variable)
+KBUILD_CFLAGS += $(call cc-option, -Wpacked-not-aligned)
+KBUILD_CFLAGS += $(call cc-option, -Wstringop-truncation)
+# The following turn off the warnings enabled by -Wextra
+KBUILD_CFLAGS += -Wno-missing-field-initializers
+KBUILD_CFLAGS += -Wno-sign-compare
+KBUILD_CFLAGS += -Wno-type-limits
+
+KBUILD_CPPFLAGS += -DKBUILD_EXTRA_WARN1
 
 all:
 	$(MAKE) -C $(KDIR) M=$(CURDIR) $(MAKE_ARGS) EXTRA_CFLAGS="$(EXTRA_CFLAGS)" KBUILD_EXTRA_SYMBOLS="$(EXTRA_SYMBOLS)" modules

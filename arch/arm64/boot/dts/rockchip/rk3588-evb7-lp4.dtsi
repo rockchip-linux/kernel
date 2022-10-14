@@ -16,11 +16,11 @@
 		#size-cells = <2>;
 		ranges;
 
-		/* Reserve 256MB memory for hdmirx-controller@fdee0000 */
+		/* Reserve 128MB memory for hdmirx-controller@fdee0000 */
 		cma {
 			compatible = "shared-dma-pool";
 			reusable;
-			reg = <0x0 (256 * 0x100000) 0x0 (256 * 0x100000)>;
+			reg = <0x0 (256 * 0x100000) 0x0 (128 * 0x100000)>;
 			linux,cma-default;
 		};
 	};
@@ -66,6 +66,14 @@
 		compatible = "pwm-fan";
 		#cooling-cells = <2>;
 		pwms = <&pwm3 0 50000 0>;
+		cooling-levels = <0 50 100 150 200 255>;
+		rockchip,temp-trips = <
+			50000	1
+			55000	2
+			60000	3
+			65000	4
+			70000	5
+		>;
 	};
 
 	hdmiin_dc: hdmiin-dc {
@@ -407,6 +415,8 @@
 	/* Effective level used to trigger HPD: 0-low, 1-high */
 	hpd-trigger-level = <1>;
 	hdmirx-det-gpios = <&gpio1 RK_PD5 GPIO_ACTIVE_LOW>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&hdmim1_rx &hdmirx_det>;
 };
 
 &hdptxphy_hdmi0 {
@@ -642,6 +652,12 @@
 	vga {
 		vga_hpdin_l: vga-hpdin-l {
 			rockchip,pins = <3 RK_PA6 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	hdmi {
+		hdmirx_det: hdmirx-det {
+			rockchip,pins = <1 RK_PD5 RK_FUNC_GPIO &pcfg_pull_up>;
 		};
 	};
 

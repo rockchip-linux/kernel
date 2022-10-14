@@ -37,6 +37,18 @@
 		mmc0 = &emmc;
 		mmc1 = &sdmmc;
 		mmc2 = &sdio;
+		pwm0 = &pwm0;
+		pwm1 = &pwm1;
+		pwm2 = &pwm2;
+		pwm3 = &pwm3;
+		pwm4 = &pwm4;
+		pwm5 = &pwm5;
+		pwm6 = &pwm6;
+		pwm7 = &pwm7;
+		pwm8 = &pwm8;
+		pwm9 = &pwm9;
+		pwm10 = &pwm10;
+		pwm11 = &pwm11;
 		rkcif_mipi_lvds0 = &rkcif_mipi_lvds;
 		rkcif_mipi_lvds1 = &rkcif_mipi_lvds1;
 		serial0 = &uart0;
@@ -48,6 +60,39 @@
 		spi0 = &spi0;
 		spi1 = &spi1;
 		spi2 = &sfc;
+	};
+
+	clocks {
+		compatible = "simple-bus";
+
+		cpu_pvtpll: cpu-pvtpll {
+			compatible = "fixed-clock";
+			clock-frequency = <1300000000>;
+			clock-output-names = "cpu_pvtpll";
+			#clock-cells = <0>;
+			status = "disabled";
+		};
+
+		rkvenc_pvtpll: pvtpll-0 {
+			compatible = "fixed-clock";
+			clock-frequency = <410000000>;
+			clock-output-names = "clk_pvtpll_0";
+			#clock-cells = <0>;
+		};
+
+		npu_pvtpll: pvtpll-1 {
+			compatible = "fixed-clock";
+			clock-frequency = <420000000>;
+			clock-output-names = "clk_pvtpll_1";
+			#clock-cells = <0>;
+		};
+
+		xin24m: oscillator {
+			compatible = "fixed-clock";
+			clock-frequency = <24000000>;
+			clock-output-names = "xin24m";
+			#clock-cells = <0>;
+		};
 	};
 
 	cpus {
@@ -74,48 +119,48 @@
 
 		opp-408000000 {
 			opp-hz = /bits/ 64 <408000000>;
-			opp-microvolt = <825000 825000 1050000>;
+			opp-microvolt = <850000 850000 1050000>;
 			clock-latency-ns = <40000>;
 		};
 		opp-600000000 {
 			opp-hz = /bits/ 64 <600000000>;
-			opp-microvolt = <825000 825000 1050000>;
+			opp-microvolt = <850000 850000 1050000>;
 			clock-latency-ns = <40000>;
 		};
 		opp-816000000 {
 			opp-hz = /bits/ 64 <816000000>;
-			opp-microvolt = <825000 825000 1050000>;
+			opp-microvolt = <850000 850000 1050000>;
 			clock-latency-ns = <40000>;
 			opp-suspend;
 		};
 		opp-1104000000 {
 			opp-hz = /bits/ 64 <1104000000>;
-			opp-microvolt = <825000 825000 1050000>;
+			opp-microvolt = <850000 850000 1050000>;
 			clock-latency-ns = <40000>;
 		};
 		opp-1200000000 {
 			opp-hz = /bits/ 64 <1200000000>;
-			opp-microvolt = <837500 825000 1050000>;
+			opp-microvolt = <850000 850000 1050000>;
 			clock-latency-ns = <40000>;
 		};
 		opp-1296000000 {
 			opp-hz = /bits/ 64 <1296000000>;
-			opp-microvolt = <875000 825000 1050000>;
+			opp-microvolt = <875000 850000 1050000>;
 			clock-latency-ns = <40000>;
 		};
 		opp-1416000000 {
 			opp-hz = /bits/ 64 <1416000000>;
-			opp-microvolt = <925000 825000 1050000>;
+			opp-microvolt = <925000 850000 1050000>;
 			clock-latency-ns = <40000>;
 		};
 		opp-1512000000 {
 			opp-hz = /bits/ 64 <1512000000>;
-			opp-microvolt = <975000 825000 1050000>;
+			opp-microvolt = <975000 850000 1050000>;
 			clock-latency-ns = <40000>;
 		};
 		opp-1608000000 {
 			opp-hz = /bits/ 64 <1608000000>;
-			opp-microvolt = <1012500 825000 1050000>;
+			opp-microvolt = <1012500 850000 1050000>;
 			clock-latency-ns = <40000>;
 		};
 	};
@@ -157,6 +202,17 @@
 		compatible = "rockchip,display-subsystem";
 		ports = <&vop_out>;
 		status = "disabled";
+
+		route {
+			route_rgb: route-rgb {
+				status = "disabled";
+				logo,uboot = "logo.bmp";
+				logo,kernel = "logo_kernel.bmp";
+				logo,mode = "center";
+				charge_logo,mode = "center";
+				connect = <&vop_out_rgb>;
+			};
+		};
 	};
 
 	fiq_debugger: fiq-debugger {
@@ -280,13 +336,6 @@
 		compatible = "arm,armv7-timer";
 		interrupts = <GIC_PPI 13 (GIC_CPU_MASK_SIMPLE(1) | IRQ_TYPE_LEVEL_HIGH)>;
 		clock-frequency = <24000000>;
-	};
-
-	xin24m: oscillator {
-		compatible = "fixed-clock";
-		clock-frequency = <24000000>;
-		clock-output-names = "xin24m";
-		#clock-cells = <0>;
 	};
 
 	grf: syscon@ff000000 {
@@ -574,7 +623,7 @@
 
 	saradc: saradc@ff3c0000 {
 		compatible = "rockchip,rv1106-saradc";
-		reg = <0xff3c0000 0x100>;
+		reg = <0xff3c0000 0x200>;
 		interrupts = <GIC_SPI 62 IRQ_TYPE_LEVEL_HIGH>;
 		#io-channel-cells = <1>;
 		clocks = <&cru CLK_SARADC>, <&cru PCLK_SARADC>;
@@ -632,6 +681,12 @@
 		};
 		log_leakage: log-leakage@1b {
 			reg = <0x1b 0x1>;
+		};
+		macphy_bgs: macphy-bgs@2d {
+			reg = <0x2d 0x1>;
+		};
+		macphy_txlevel: macphy-txlevel@2e {
+			reg = <0x2e 0x2>;
 		};
 	};
 
@@ -695,7 +750,7 @@
 			 <&cru CLK_CORE_CRYPTO>, <&cru CLK_PKA_CRYPTO>;
 		clock-names = "aclk", "hclk", "sclk", "pka";
 		assigned-clocks = <&cru CLK_CORE_CRYPTO>, <&cru CLK_PKA_CRYPTO>;
-		assigned-clock-rates = <300000000>, <300000000>;
+		assigned-clock-rates = <200000000>, <200000000>;
 		resets = <&cru SRST_CORE_CRYPTO>;
 		reset-names = "crypto-rst";
 		status = "disabled";
@@ -973,6 +1028,8 @@
 		interrupts = <GIC_SPI 109 IRQ_TYPE_LEVEL_HIGH>;
 		clocks = <&cru ACLK_RKNN>, <&cru HCLK_RKNN>;
 		clock-names = "aclk", "hclk";
+		assigned-clocks = <&cru ACLK_RKNN>;
+		assigned-clock-rates = <420000000>;
 		resets = <&cru SRST_A_RKNN>, <&cru SRST_H_RKNN>;
 		reset-names = "srst_a", "srst_h";
 		status = "disabled";
@@ -1116,7 +1173,7 @@
 		interrupt-names = "irq_rkvenc";
 		clocks = <&cru ACLK_VEPU>, <&cru HCLK_VEPU>, <&cru CLK_CORE_VEPU>;
 		clock-names = "aclk_vcodec", "hclk_vcodec", "clk_core";
-		rockchip,normal-rates = <300000000>, <0>, <400000000>;
+		rockchip,normal-rates = <300000000>, <0>, <410000000>;
 		assigned-clocks = <&cru ACLK_VEPU>, <&cru CLK_CORE_VEPU>;
 		assigned-clock-rates = <300000000>, <400000000>;
 		resets = <&cru SRST_A_VEPU>, <&cru SRST_H_VEPU>, <&cru SRST_CORE_VEPU>;
@@ -1182,6 +1239,9 @@
 		phy-mode = "rmii";
 		clock_in_out = "input";
 		phy-handle = <&rmii_phy>;
+
+		nvmem-cells = <&macphy_bgs>;
+		nvmem-cell-names = "bgs";
 		status = "disabled";
 
 		mdio: mdio {
@@ -1194,6 +1254,8 @@
 				clocks = <&cru CLK_MACPHY>;
 				resets = <&cru SRST_MACPHY>;
 				phy-is-integrated;
+				nvmem-cells = <&macphy_txlevel>;
+				nvmem-cell-names = "txlevel";
 			};
 		};
 
@@ -1307,6 +1369,7 @@
 			snps,dis-del-phy-power-chg-quirk;
 			snps,dis-tx-ipgap-linecheck-quirk;
 			snps,usb2-gadget-lpm-disable;
+			snps,usb2-lpm-disable;
 			status = "disabled";
 		};
 	};

@@ -213,6 +213,7 @@ struct msg_init {
 	s8 bayer;
 	u8 sensor_name[32];
 	u8 i2c_slave_addr;
+	u8 sub_sensor_num;
 };
 
 struct preisp_vc_cfg {
@@ -330,7 +331,7 @@ struct msg_calib_temp {
 	u32 calib_exist;
 	u32 calib_sn_size;
 	u32 calib_sn_offset;
-	u32 calib_sn_code;
+	u8 calib_sn_code[64];
 #endif
 };
 
@@ -635,4 +636,6 @@ void rk1608_set_spi_speed(struct rk1608_state *pdata, u32 hz);
 
 int rk1608_set_log_level(struct rk1608_state *pdata, int level);
 
+int rk1608_get_dcrop_cfg(struct v4l2_rect *crop_in,
+			 struct v4l2_rect *crop_out);
 #endif

@@ -534,11 +534,11 @@ static int av1dec_set_l2_cache(struct av1dec_dev *dec, struct av1dec_task *task)
 		writel_relaxed(AV1_L2_CACHE_SHAPER_EN,
 			       dec->reg_base[AV1DEC_CLASS_CACHE] + AV1_L2_CACHE_SHAPER_CTRL);
 
-		/* TODO: set exception list */
-
-		/* multi id enable bit */
-		writel_relaxed(0x00000001, dec->reg_base[AV1DEC_CLASS_CACHE] +
-			       AV1_L2_CACHE_RD_ONLY_CONFIG);
+		/* not enable cache en when multi tiles */
+		if (!(regs[10] & BIT(1)))
+			/* cache all en */
+			writel_relaxed(0x00000001, dec->reg_base[AV1DEC_CLASS_CACHE] +
+				AV1_L2_CACHE_RD_ONLY_CONFIG);
 		/* reorder_e and cache_e */
 		writel_relaxed(0x00000081, dec->reg_base[AV1DEC_CLASS_CACHE] +
 			       AV1_L2_CACHE_RD_ONLY_CTRL);
@@ -652,6 +652,7 @@ static int av1dec_run(struct mpp_dev *mpp, struct mpp_task *mpp_task)
 	struct av1dec_dev *dec = to_av1dec_dev(mpp);
 	struct av1dec_hw_info *hw = dec->hw_info;
 	struct av1dec_task *task = to_av1dec_task(mpp_task);
+	u32 timing_en = mpp->srv->timing_en;
 
 	mpp_debug_enter();
 	mpp_iommu_flush_tlb(mpp->iommu_info);
@@ -687,9 +688,14 @@ static int av1dec_run(struct mpp_dev *mpp, struct mpp_task *mpp_task)
 
 	/* init current task */
 	mpp->cur_task = mpp_task;
+
+	mpp_task_run_begin(mpp_task, timing_en, MPP_WORK_TIMEOUT_DELAY);
+
 	/* Flush the register before the start the device */
 	wmb();
 	mpp_write(mpp, hw->en_base, en_val);
+
+	mpp_task_run_end(mpp_task, timing_en);
 
 	mpp_debug_leave();
 
@@ -879,6 +885,10 @@ static int av1dec_procfs_init(struct mpp_dev *mpp)
 		dec->procfs = NULL;
 		return -EIO;
 	}
+
+	/* for common mpp_dev options */
+	mpp_procfs_create_common(dec->procfs, mpp);
+
 	/* for debug */
 	mpp_procfs_create_u32("aclk", 0644,
 			      dec->procfs, &dec->aclk_info.debug_rate_hz);
@@ -1189,25 +1199,8 @@ int av1dec_driver_register(struct platform_driver *drv)
 	return driver_register(&drv->driver);
 }
 
-static irqreturn_t av1dec_cache_irq(int irq, void *dev_id)
-{
-	struct av1dec_dev *dec = dev_id;
-	u32 shaper_st, rd_st;
-
-	shaper_st = readl(dec->reg_base[AV1DEC_CLASS_CACHE] + 0x2c);
-	rd_st = readl(dec->reg_base[AV1DEC_CLASS_CACHE] + 0x204);
-
-	mpp_debug(DEBUG_IRQ_STATUS, "cache irq st shaper 0x%x read 0x%x\n", shaper_st, rd_st);
-
-	writel(shaper_st, dec->reg_base[AV1DEC_CLASS_CACHE] + 0x2c);
-	writel(rd_st, dec->reg_base[AV1DEC_CLASS_CACHE] + 0x204);
-
-	return IRQ_HANDLED;
-}
-
 static int av1dec_cache_init(struct platform_device *pdev, struct av1dec_dev *dec)
 {
-	int ret;
 	struct resource *res;
 	struct device *dev = &pdev->dev;
 
@@ -1220,14 +1213,7 @@ static int av1dec_cache_init(struct platform_device *pdev, struct av1dec_dev *de
 		dev_err(dev, "ioremap failed for resource %pR\n", res);
 		return -EINVAL;
 	}
-
-	dec->irq[AV1DEC_CLASS_CACHE] = platform_get_irq(pdev, 1);
-
-	ret = devm_request_irq(dev, dec->irq[AV1DEC_CLASS_CACHE],
-			       av1dec_cache_irq, IRQF_SHARED, "irq_cache", dec);
-	if (ret)
-		mpp_err("ret=%d\n", ret);
-	return ret;
+	return 0;
 }
 
 static int av1dec_afbc_init(struct platform_device *pdev, struct av1dec_dev *dec)

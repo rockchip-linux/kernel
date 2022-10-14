@@ -3454,6 +3454,7 @@ static int sd_probe(struct device *dev)
 	}
 
 	dev_set_drvdata(dev, sdkp);
+	device_init_wakeup(dev, true);
 
 	gd->major = sd_major((index & 0xf0) >> 4);
 	gd->first_minor = ((index & 0xf) << 4) | (index & 0xfff00);

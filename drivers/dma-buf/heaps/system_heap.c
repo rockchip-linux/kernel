@@ -19,23 +19,13 @@
 #include <linux/module.h>
 #include <linux/scatterlist.h>
 #include <linux/slab.h>
-#include <linux/swiotlb.h>
 #include <linux/vmalloc.h>
-#include <linux/rockchip/rockchip_sip.h>
 
 #include "page_pool.h"
 #include "deferred-free-helper.h"
 
-#define CONFIG_SYSTEM_HEAP_FORCE_DMA_SYNC
-
 static struct dma_heap *sys_heap;
-static struct dma_heap *sys_dma32_heap;
 static struct dma_heap *sys_uncached_heap;
-static struct dma_heap *sys_uncached_dma32_heap;
-
-/* Default setting */
-static u32 bank_bit_first = 12;
-static u32 bank_bit_mask = 0x7;
 
 struct system_heap_buffer {
 	struct dma_heap *heap;
@@ -71,10 +61,9 @@ static gfp_t order_flags[] = {HIGH_ORDER_GFP, MID_ORDER_GFP, LOW_ORDER_GFP};
  * of order 0 pages can significantly improve the performance of many IOMMUs
  * by reducing TLB pressure and time spent updating page tables.
  */
-static unsigned int orders[] = {8, 4, 0};
+static const unsigned int orders[] = {8, 4, 0};
 #define NUM_ORDERS ARRAY_SIZE(orders)
 struct dmabuf_page_pool *pools[NUM_ORDERS];
-struct dmabuf_page_pool *dma32_pools[NUM_ORDERS];
 
 static struct sg_table *dup_sg_table(struct sg_table *table)
 {
@@ -223,141 +212,6 @@ static int system_heap_dma_buf_end_cpu_access(struct dma_buf *dmabuf,
 	mutex_unlock(&buffer->lock);
 
 	return 0;
-}
-
-static int system_heap_sgl_sync_range(struct device *dev,
-				      struct scatterlist *sgl,
-				      unsigned int nents,
-				      unsigned int offset,
-				      unsigned int length,
-				      enum dma_data_direction dir,
-				      bool for_cpu)
-{
-	struct scatterlist *sg;
-	unsigned int len = 0;
-	dma_addr_t sg_dma_addr;
-	int i;
-
-	for_each_sg(sgl, sg, nents, i) {
-		unsigned int sg_offset, sg_left, size = 0;
-
-		sg_dma_addr = sg_dma_address(sg);
-
-		len += sg->length;
-		if (len <= offset)
-			continue;
-
-		sg_left = len - offset;
-		sg_offset = sg->length - sg_left;
-
-		size = (length < sg_left) ? length : sg_left;
-		if (for_cpu)
-			dma_sync_single_range_for_cpu(dev, sg_dma_addr,
-						      sg_offset, size, dir);
-		else
-			dma_sync_single_range_for_device(dev, sg_dma_addr,
-							 sg_offset, size, dir);
-
-		offset += size;
-		length -= size;
-
-		if (length == 0)
-			break;
-	}
-
-	return 0;
-}
-
-static int
-system_heap_dma_buf_begin_cpu_access_partial(struct dma_buf *dmabuf,
-					     enum dma_data_direction direction,
-					     unsigned int offset,
-					     unsigned int len)
-{
-	struct system_heap_buffer *buffer = dmabuf->priv;
-	struct dma_heap_attachment *a;
-	int ret = 0;
-
-	if (direction == DMA_TO_DEVICE)
-		return 0;
-
-	mutex_lock(&buffer->lock);
-	if (IS_ENABLED(CONFIG_SYSTEM_HEAP_FORCE_DMA_SYNC)) {
-		struct dma_heap *heap = buffer->heap;
-		struct sg_table *table = &buffer->sg_table;
-
-		ret = system_heap_sgl_sync_range(dma_heap_get_dev(heap),
-						 table->sgl,
-						 table->nents,
-						 offset, len,
-						 direction, true);
-		goto unlock;
-	}
-
-	if (buffer->vmap_cnt)
-		invalidate_kernel_vmap_range(buffer->vaddr, buffer->len);
-
-	if (!buffer->uncached)
-		goto unlock;
-
-	list_for_each_entry(a, &buffer->attachments, list) {
-		if (!a->mapped)
-			continue;
-
-		ret = system_heap_sgl_sync_range(a->dev, a->table->sgl,
-						 a->table->nents,
-						 offset, len,
-						 direction, true);
-	}
-
-unlock:
-	mutex_unlock(&buffer->lock);
-
-	return ret;
-}
-
-static int
-system_heap_dma_buf_end_cpu_access_partial(struct dma_buf *dmabuf,
-					   enum dma_data_direction direction,
-					   unsigned int offset,
-					   unsigned int len)
-{
-	struct system_heap_buffer *buffer = dmabuf->priv;
-	struct dma_heap_attachment *a;
-	int ret = 0;
-
-	mutex_lock(&buffer->lock);
-	if (IS_ENABLED(CONFIG_SYSTEM_HEAP_FORCE_DMA_SYNC)) {
-		struct dma_heap *heap = buffer->heap;
-		struct sg_table *table = &buffer->sg_table;
-
-		ret = system_heap_sgl_sync_range(dma_heap_get_dev(heap),
-						 table->sgl,
-						 table->nents,
-						 offset, len,
-						 direction, false);
-		goto unlock;
-	}
-
-	if (buffer->vmap_cnt)
-		flush_kernel_vmap_range(buffer->vaddr, buffer->len);
-
-	if (!buffer->uncached)
-		goto unlock;
-
-	list_for_each_entry(a, &buffer->attachments, list) {
-		if (!a->mapped)
-			continue;
-
-		ret = system_heap_sgl_sync_range(a->dev, a->table->sgl,
-						 a->table->nents,
-						 offset, len,
-						 direction, false);
-	}
-unlock:
-	mutex_unlock(&buffer->lock);
-
-	return ret;
 }
 
 static int system_heap_mmap(struct dma_buf *dmabuf, struct vm_area_struct *vma)
@@ -516,30 +370,24 @@ static const struct dma_buf_ops system_heap_buf_ops = {
 	.unmap_dma_buf = system_heap_unmap_dma_buf,
 	.begin_cpu_access = system_heap_dma_buf_begin_cpu_access,
 	.end_cpu_access = system_heap_dma_buf_end_cpu_access,
-	.begin_cpu_access_partial = system_heap_dma_buf_begin_cpu_access_partial,
-	.end_cpu_access_partial = system_heap_dma_buf_end_cpu_access_partial,
 	.mmap = system_heap_mmap,
 	.vmap = system_heap_vmap,
 	.vunmap = system_heap_vunmap,
 	.release = system_heap_dma_buf_release,
 };
 
-static struct page *system_heap_alloc_largest_available(struct dma_heap *heap,
-							unsigned long size,
-							unsigned int max_order)
+static struct page *alloc_largest_available(unsigned long size,
+					    unsigned int max_order)
 {
 	struct page *page;
 	int i;
-	const char *name = dma_heap_get_name(heap);
-	struct dmabuf_page_pool **pool;
 
-	pool = strstr(name, "dma32") ? dma32_pools : pools;
 	for (i = 0; i < NUM_ORDERS; i++) {
 		if (size <  (PAGE_SIZE << orders[i]))
 			continue;
 		if (max_order < orders[i])
 			continue;
-		page = dmabuf_page_pool_alloc(pool[i]);
+		page = dmabuf_page_pool_alloc(pools[i]);
 		if (!page)
 			continue;
 		return page;
@@ -563,12 +411,6 @@ static struct dma_buf *system_heap_do_allocate(struct dma_heap *heap,
 	struct list_head pages;
 	struct page *page, *tmp_page;
 	int i, ret = -ENOMEM;
-	struct list_head lists[8];
-	unsigned int block_index[8] = {0};
-	unsigned int block_1M = 0;
-	unsigned int block_64K = 0;
-	unsigned int maximum;
-	int j;
 
 	buffer = kzalloc(sizeof(*buffer), GFP_KERNEL);
 	if (!buffer)
@@ -581,8 +423,6 @@ static struct dma_buf *system_heap_do_allocate(struct dma_heap *heap,
 	buffer->uncached = uncached;
 
 	INIT_LIST_HEAD(&pages);
-	for (i = 0; i < 8; i++)
-		INIT_LIST_HEAD(&lists[i]);
 	i = 0;
 	while (size_remaining > 0) {
 		/*
@@ -592,25 +432,13 @@ static struct dma_buf *system_heap_do_allocate(struct dma_heap *heap,
 		if (fatal_signal_pending(current))
 			goto free_buffer;
 
-		page = system_heap_alloc_largest_available(heap, size_remaining, max_order);
+		page = alloc_largest_available(size_remaining, max_order);
 		if (!page)
 			goto free_buffer;
 
+		list_add_tail(&page->lru, &pages);
 		size_remaining -= page_size(page);
 		max_order = compound_order(page);
-		if (max_order) {
-			if (max_order == 8)
-				block_1M++;
-			if (max_order == 4)
-				block_64K++;
-			list_add_tail(&page->lru, &pages);
-		} else {
-			dma_addr_t phys = page_to_phys(page);
-			unsigned int bit_index = ((phys >> bank_bit_first) & bank_bit_mask) & 0x7;
-
-			list_add_tail(&page->lru, &lists[bit_index]);
-			block_index[bit_index]++;
-		}
 		i++;
 	}
 
@@ -618,24 +446,11 @@ static struct dma_buf *system_heap_do_allocate(struct dma_heap *heap,
 	if (sg_alloc_table(table, i, GFP_KERNEL))
 		goto free_buffer;
 
-	maximum = block_index[0];
-	for (i = 1; i < 8; i++)
-		maximum = max(maximum, block_index[i]);
 	sg = table->sgl;
 	list_for_each_entry_safe(page, tmp_page, &pages, lru) {
 		sg_set_page(sg, page, page_size(page), 0);
 		sg = sg_next(sg);
 		list_del(&page->lru);
-	}
-	for (i = 0; i < maximum; i++) {
-		for (j = 0; j < 8; j++) {
-			if (!list_empty(&lists[j])) {
-				page = list_first_entry(&lists[j], struct page, lru);
-				sg_set_page(sg, page, PAGE_SIZE, 0);
-				sg = sg_next(sg);
-				list_del(&page->lru);
-			}
-		}
 	}
 
 	/* create the dmabuf */
@@ -673,10 +488,6 @@ free_pages:
 free_buffer:
 	list_for_each_entry_safe(page, tmp_page, &pages, lru)
 		__free_pages(page, compound_order(page));
-	for (i = 0; i < 8; i++) {
-		list_for_each_entry_safe(page, tmp_page, &lists[i], lru)
-			__free_pages(page, compound_order(page));
-	}
 	kfree(buffer);
 
 	return ERR_PTR(ret);
@@ -695,11 +506,8 @@ static long system_get_pool_size(struct dma_heap *heap)
 	int i;
 	long num_pages = 0;
 	struct dmabuf_page_pool **pool;
-	const char *name = dma_heap_get_name(heap);
 
 	pool = pools;
-	if (!strcmp(name, "system-dma32") || !strcmp(name, "system-uncached-dma32"))
-		pool = dma32_pools;
 	for (i = 0; i < NUM_ORDERS; i++, pool++) {
 		num_pages += ((*pool)->count[POOL_LOWPAGE] +
 			      (*pool)->count[POOL_HIGHPAGE]) << (*pool)->order;
@@ -766,31 +574,6 @@ static int system_heap_create(void)
 {
 	struct dma_heap_export_info exp_info;
 	int i, err = 0;
-	struct dram_addrmap_info *ddr_map_info;
-
-	/*
-	 * Since swiotlb has memory size limitation, this will calculate
-	 * the maximum size locally.
-	 *
-	 * Once swiotlb_max_segment() return not '0', means that the totalram size
-	 * is larger than 4GiB and swiotlb is not force mode, in this case, system
-	 * heap should limit largest allocation.
-	 *
-	 * FIX: fix the orders[] as a workaround.
-	 */
-	if (swiotlb_max_segment()) {
-		unsigned int max_size = (1 << IO_TLB_SHIFT) * IO_TLB_SEGSIZE;
-		int max_order = MAX_ORDER;
-		int i;
-
-		max_size = max_t(unsigned int, max_size, PAGE_SIZE) >> PAGE_SHIFT;
-		max_order = min(max_order, ilog2(max_size));
-		for (i = 0; i < NUM_ORDERS; i++) {
-			if (max_order < orders[i])
-				orders[i] = max_order;
-			pr_info("system_heap: orders[%d] = %u\n", i, orders[i]);
-		}
-	}
 
 	for (i = 0; i < NUM_ORDERS; i++) {
 		pools[i] = dmabuf_page_pool_create(order_flags[i], orders[i]);
@@ -805,19 +588,6 @@ static int system_heap_create(void)
 		}
 	}
 
-	for (i = 0; i < NUM_ORDERS; i++) {
-		dma32_pools[i] = dmabuf_page_pool_create(order_flags[i] | GFP_DMA32, orders[i]);
-
-		if (!dma32_pools[i]) {
-			int j;
-
-			pr_err("%s: page dma32 pool creation failed!\n", __func__);
-			for (j = 0; j < i; j++)
-				dmabuf_page_pool_destroy(dma32_pools[j]);
-			goto err_dma32_pool;
-		}
-	}
-
 	exp_info.name = "system";
 	exp_info.ops = &system_heap_ops;
 	exp_info.priv = NULL;
@@ -825,14 +595,6 @@ static int system_heap_create(void)
 	sys_heap = dma_heap_add(&exp_info);
 	if (IS_ERR(sys_heap))
 		return PTR_ERR(sys_heap);
-
-	exp_info.name = "system-dma32";
-	exp_info.ops = &system_heap_ops;
-	exp_info.priv = NULL;
-
-	sys_dma32_heap = dma_heap_add(&exp_info);
-	if (IS_ERR(sys_dma32_heap))
-		return PTR_ERR(sys_dma32_heap);
 
 	exp_info.name = "system-uncached";
 	exp_info.ops = &system_uncached_heap_ops;
@@ -846,34 +608,10 @@ static int system_heap_create(void)
 	if (err)
 		return err;
 
-	exp_info.name = "system-uncached-dma32";
-	exp_info.ops = &system_uncached_heap_ops;
-	exp_info.priv = NULL;
-
-	sys_uncached_dma32_heap = dma_heap_add(&exp_info);
-	if (IS_ERR(sys_uncached_dma32_heap))
-		return PTR_ERR(sys_uncached_dma32_heap);
-
-	err = set_heap_dev_dma(dma_heap_get_dev(sys_uncached_dma32_heap));
-	if (err)
-		return err;
-	dma_coerce_mask_and_coherent(dma_heap_get_dev(sys_uncached_dma32_heap), DMA_BIT_MASK(32));
-
 	mb(); /* make sure we only set allocate after dma_mask is set */
 	system_uncached_heap_ops.allocate = system_uncached_heap_allocate;
 
-	ddr_map_info = sip_smc_get_dram_map();
-	if (ddr_map_info) {
-		bank_bit_first = ddr_map_info->bank_bit_first;
-		bank_bit_mask = ddr_map_info->bank_bit_mask;
-	}
-
 	return 0;
-err_dma32_pool:
-	for (i = 0; i < NUM_ORDERS; i++)
-		dmabuf_page_pool_destroy(pools[i]);
-
-	return -ENOMEM;
 }
 module_init(system_heap_create);
 MODULE_LICENSE("GPL v2");

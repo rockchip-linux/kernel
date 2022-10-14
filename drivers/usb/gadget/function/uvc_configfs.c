@@ -2766,18 +2766,122 @@ UVCG_OPTS_ATTR(streaming_bulk, streaming_bulk, 1);
 UVCG_OPTS_ATTR(streaming_interval, streaming_interval, 16);
 UVCG_OPTS_ATTR(streaming_maxpacket, streaming_maxpacket, 3072);
 UVCG_OPTS_ATTR(streaming_maxburst, streaming_maxburst, 15);
-UVCG_OPTS_ATTR(uvc_num_request, uvc_num_request, UVC_MAX_NUM_REQUESTS);
 UVCG_OPTS_ATTR(pm_qos_latency, pm_qos_latency, PM_QOS_LATENCY_ANY);
+#if defined(CONFIG_ARCH_ROCKCHIP) && defined(CONFIG_NO_GKI)
+UVCG_OPTS_ATTR(uvc_num_request, uvc_num_request, 64);
+UVCG_OPTS_ATTR(uvc_zero_copy, uvc_zero_copy, 1);
+#endif
 
 #undef UVCG_OPTS_ATTR
+
+#if defined(CONFIG_ARCH_ROCKCHIP) && defined(CONFIG_NO_GKI)
+static ssize_t f_uvc_opts_device_name_show(struct config_item *item,
+					   char *page)
+{
+	struct f_uvc_opts *opts = to_f_uvc_opts(item);
+	int ret;
+
+	mutex_lock(&opts->lock);
+	ret = sprintf(page, "%s\n", opts->device_name ?: "");
+	mutex_unlock(&opts->lock);
+
+	return ret;
+}
+
+static ssize_t f_uvc_opts_device_name_store(struct config_item *item,
+					    const char *page, size_t len)
+{
+	struct f_uvc_opts *opts = to_f_uvc_opts(item);
+	const char *old_name;
+	char *name;
+	int ret;
+
+	if (strlen(page) < len)
+		return -EOVERFLOW;
+
+	mutex_lock(&opts->lock);
+	if (opts->refcnt) {
+		ret = -EBUSY;
+		goto unlock;
+	}
+
+	name = kstrdup(page, GFP_KERNEL);
+	if (!name) {
+		ret = -ENOMEM;
+		goto unlock;
+	}
+
+	if (name[len - 1] == '\n')
+		name[len - 1] = '\0';
+
+	old_name = opts->device_name;
+	opts->device_name = name;
+
+	if (opts->device_name_allocated)
+		kfree(old_name);
+
+	opts->device_name_allocated = true;
+	ret = len;
+unlock:
+	mutex_unlock(&opts->lock);
+
+	return ret;
+}
+UVC_ATTR(f_uvc_opts_, device_name, device_name);
+#endif
+
+#define UVCG_OPTS_STRING_ATTR(cname, aname)				\
+static ssize_t f_uvc_opts_string_##cname##_show(struct config_item *item,\
+					 char *page)			\
+{									\
+	struct f_uvc_opts *opts = to_f_uvc_opts(item);			\
+	int result;							\
+									\
+	mutex_lock(&opts->lock);					\
+	result = snprintf(page, sizeof(opts->aname), "%s", opts->aname);\
+	mutex_unlock(&opts->lock);					\
+									\
+	return result;							\
+}									\
+									\
+static ssize_t f_uvc_opts_string_##cname##_store(struct config_item *item,\
+					  const char *page, size_t len)	\
+{									\
+	struct f_uvc_opts *opts = to_f_uvc_opts(item);			\
+	int ret = 0;							\
+									\
+	mutex_lock(&opts->lock);					\
+	if (opts->refcnt) {						\
+		ret = -EBUSY;						\
+		goto end;						\
+	}								\
+									\
+	ret = snprintf(opts->aname, min(sizeof(opts->aname), len),	\
+			"%s", page);					\
+									\
+end:									\
+	mutex_unlock(&opts->lock);					\
+	return ret;							\
+}									\
+									\
+UVC_ATTR(f_uvc_opts_string_, cname, aname)
+
+UVCG_OPTS_STRING_ATTR(function_name, function_name);
+
+#undef UVCG_OPTS_STRING_ATTR
 
 static struct configfs_attribute *uvc_attrs[] = {
 	&f_uvc_opts_attr_streaming_bulk,
 	&f_uvc_opts_attr_streaming_interval,
 	&f_uvc_opts_attr_streaming_maxpacket,
 	&f_uvc_opts_attr_streaming_maxburst,
-	&f_uvc_opts_attr_uvc_num_request,
 	&f_uvc_opts_attr_pm_qos_latency,
+#if defined(CONFIG_ARCH_ROCKCHIP) && defined(CONFIG_NO_GKI)
+	&f_uvc_opts_attr_device_name,
+	&f_uvc_opts_attr_uvc_num_request,
+	&f_uvc_opts_attr_uvc_zero_copy,
+#endif
+	&f_uvc_opts_string_attr_function_name,
 	NULL,
 };
 

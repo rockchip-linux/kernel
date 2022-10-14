@@ -297,15 +297,15 @@ static const struct snd_kcontrol_new rv1106_codec_dapm_controls[] = {
 	/* ADC ALC */
 	SOC_SINGLE_RANGE_TLV("ADC ALC Left Volume",
 			     ACODEC_ADC_ANA_CTL4,
-			     ACODEC_ADC_L_DIG_VOL_SFT,
-			     ACODEC_ADC_L_DIG_VOL_MIN,
-			     ACODEC_ADC_L_DIG_VOL_MAX,
+			     ACODEC_ADC_L_ALC_GAIN_SFT,
+			     ACODEC_ADC_L_ALC_GAIN_MIN,
+			     ACODEC_ADC_L_ALC_GAIN_MAX,
 			     0, rv1106_codec_adc_alc_gain_tlv),
 	SOC_SINGLE_RANGE_TLV("ADC ALC Right Volume",
 			     ACODEC_ADC_ANA_CTL5,
-			     ACODEC_ADC_R_DIG_VOL_SFT,
-			     ACODEC_ADC_R_DIG_VOL_MIN,
-			     ACODEC_ADC_R_DIG_VOL_MAX,
+			     ACODEC_ADC_R_ALC_GAIN_SFT,
+			     ACODEC_ADC_R_ALC_GAIN_MIN,
+			     ACODEC_ADC_R_ALC_GAIN_MAX,
 			     0, rv1106_codec_adc_alc_gain_tlv),
 
 	/* ADC Digital Volume */
@@ -755,9 +755,9 @@ static int rv1106_codec_hpf_get(struct snd_kcontrol *kcontrol,
 
 	regmap_read(rv1106->regmap, ACODEC_ADC_HPF_PGA_CTL, &value);
 	if (value & ACODEC_ADC_HPF_MSK)
-		rv1106->hpf_cutoff = 0;
-	else
 		rv1106->hpf_cutoff = 1;
+	else
+		rv1106->hpf_cutoff = 0;
 
 	ucontrol->value.integer.value[0] = rv1106->hpf_cutoff;
 
@@ -775,7 +775,7 @@ static int rv1106_codec_hpf_put(struct snd_kcontrol *kcontrol,
 		/* Enable high pass filter for ADCs */
 		regmap_update_bits(rv1106->regmap, ACODEC_ADC_HPF_PGA_CTL,
 				   ACODEC_ADC_HPF_MSK,
-				   ACODEC_ADC_HPF_50_48K);
+				   ACODEC_ADC_HPF_EN);
 	} else {
 		/* Disable high pass filter for ADCs. */
 		regmap_update_bits(rv1106->regmap, ACODEC_ADC_HPF_PGA_CTL,
@@ -1348,7 +1348,7 @@ static int rv1106_codec_adc_enable(struct rv1106_codec_priv *rv1106)
 		return ret;
 	}
 
-	/* vendor step 1 */
+	/* vendor step 00 */
 	if (rv1106->soc_id == SOC_RV1103 && rv1106->adc_mode == DIFF_ADCL) {
 		/* The ADCL is differential mode on rv1103 */
 		regmap_update_bits(rv1106->regmap, ACODEC_ADC_ANA_CTL3,
@@ -1370,86 +1370,81 @@ static int rv1106_codec_adc_enable(struct rv1106_codec_priv *rv1106)
 				   R(lr, ACODEC_ADC_R_SINGLE_END));
 	}
 
-	regmap_update_bits(rv1106->regmap,
-			   ACODEC_ADC_ANA_CTL3,
-			   L(lr, ACODEC_MIC_L_MSK) |
-			   R(lr, ACODEC_MIC_R_MSK),
-			   L(lr, ACODEC_MIC_L_EN) |
-			   R(lr, ACODEC_MIC_R_EN));
-
-	/* vendor step 2 */
+	/* vendor step 01 */
 	regmap_update_bits(rv1106->regmap, ACODEC_ADC_ANA_CTL1,
 			   L(lr, ACODEC_ADC_L_MIC_MSK) |
 			   R(lr, ACODEC_ADC_R_MIC_MSK),
 			   L(lr, ACODEC_ADC_L_MIC_WORK) |
 			   R(lr, ACODEC_ADC_R_MIC_WORK));
 
-	/* vendor step 3 */
+	/* vendor step 02 */
 	regmap_update_bits(rv1106->regmap, ACODEC_ADC_ANA_CTL0,
-			   ACODEC_ADC_CUR_SRC_MSK,
-			   ACODEC_ADC_CUR_SRC_EN);
+			   ACODEC_ADC_IBIAS_MSK,
+			   ACODEC_ADC_IBIAS_EN);
 
-	/* vendor step 4*/
+	/* vendor step 03 */
 	regmap_update_bits(rv1106->regmap, ACODEC_ADC_ANA_CTL1,
 			   L(lr, ACODEC_ADC_L_REF_VOL_BUF_MSK) |
 			   R(lr, ACODEC_ADC_R_REF_VOL_BUF_MSK),
 			   L(lr, ACODEC_ADC_L_REF_VOL_BUF_EN) |
 			   R(lr, ACODEC_ADC_R_REF_VOL_BUF_EN));
+	/* waiting VREF be stable */
+	msleep(100);
 
-	/* vendor step 5 */
+	/* vendor step 04 */
 	regmap_update_bits(rv1106->regmap, ACODEC_ADC_ANA_CTL3,
 			   L(lr, ACODEC_MIC_L_MSK) |
 			   R(lr, ACODEC_MIC_R_MSK),
 			   L(lr, ACODEC_MIC_L_EN) |
 			   R(lr, ACODEC_MIC_R_EN));
 
-	/* vendor step 6 */
+	/* vendor step 05 */
 	regmap_update_bits(rv1106->regmap, ACODEC_ADC_ANA_CTL3,
 			   L(lr, ACODEC_ADC_L_MSK) |
 			   R(lr, ACODEC_ADC_R_MSK),
 			   L(lr, ACODEC_ADC_L_EN) |
 			   R(lr, ACODEC_ADC_R_EN));
 
-	/* vendor step 7 */
+	/* vendor step 06 */
 	regmap_update_bits(rv1106->regmap, ACODEC_ADC_ANA_CTL6,
 			   L(lr, ACODEC_ADC_L_CLK_MSK) |
 			   R(lr, ACODEC_ADC_R_CLK_MSK),
 			   L(lr, ACODEC_ADC_L_CLK_WORK) |
 			   R(lr, ACODEC_ADC_R_CLK_WORK));
 
-	/* vendor step 8 */
+	/* vendor step 07 */
 	regmap_update_bits(rv1106->regmap, ACODEC_ADC_ANA_CTL6,
 			   L(lr, ACODEC_ADC_L_WORK) |
 			   R(lr, ACODEC_ADC_R_WORK),
 			   L(lr, ACODEC_ADC_L_WORK) |
 			   R(lr, ACODEC_ADC_R_WORK));
 
-	/* vendor step 9 */
+	/* vendor step 08 */
 	regmap_update_bits(rv1106->regmap, ACODEC_ADC_ANA_CTL6,
 			   L(lr, ACODEC_ADC_L_SIGNAL_EN) |
 			   R(lr, ACODEC_ADC_R_SIGNAL_EN),
 			   L(lr, ACODEC_ADC_L_SIGNAL_EN) |
 			   R(lr, ACODEC_ADC_R_SIGNAL_EN));
 
-	/* vendor step 10 */
+	/* vendor step 09 */
 	regmap_update_bits(rv1106->regmap, ACODEC_ADC_ANA_CTL6,
 			   L(lr, ACODEC_ADC_L_ALC_MSK) |
 			   R(lr, ACODEC_ADC_R_ALC_MSK),
 			   L(lr, ACODEC_ADC_L_ALC_WORK) |
 			   R(lr, ACODEC_ADC_R_ALC_WORK));
 
-	/* vendor step 11 */
+	/* vendor step 10 */
 	regmap_update_bits(rv1106->regmap, ACODEC_ADC_ANA_CTL1,
 			   L(lr, ACODEC_ADC_L_MIC_SIGNAL_MSK) |
 			   R(lr, ACODEC_ADC_R_MIC_SIGNAL_MSK),
 			   L(lr, ACODEC_ADC_L_MIC_SIGNAL_WORK) |
 			   R(lr, ACODEC_ADC_R_MIC_SIGNAL_WORK));
 
-	/* vendor step 12 */
+	/* vendor step 11, configure GAIN_MICL/R by user */
+
+	/* vendor step 12, configure GAIN_ALCL/R by user */
 
 	/* vendor step 13 */
-
-	/* vendor step 14 */
 	regmap_read(rv1106->regmap, ACODEC_ADC_ANA_CTL1, &agc_func_en);
 	if (agc_func_en & ACODEC_AGC_FUNC_SEL_EN) {
 		regmap_update_bits(rv1106->regmap,
@@ -1511,8 +1506,8 @@ static int rv1106_codec_adc_disable(struct rv1106_codec_priv *rv1106)
 
 	/* vendor step 7 */
 	regmap_update_bits(rv1106->regmap, ACODEC_ADC_ANA_CTL0,
-			   ACODEC_ADC_CUR_SRC_MSK,
-			   ACODEC_ADC_CUR_SRC_DIS);
+			   ACODEC_ADC_IBIAS_MSK,
+			   ACODEC_ADC_IBIAS_DIS);
 
 	/* vendor step 8 */
 	regmap_update_bits(rv1106->regmap, ACODEC_ADC_ANA_CTL6,
@@ -1636,7 +1631,7 @@ static struct snd_soc_dai_driver rv1106_dai[] = {
 		.capture = {
 			.stream_name = "HiFi Capture",
 			.channels_min = 1,
-			.channels_max = 2,
+			.channels_max = 4,
 			.rates = SNDRV_PCM_RATE_8000_192000,
 			.formats = (SNDRV_PCM_FMTBIT_S16_LE |
 				    SNDRV_PCM_FMTBIT_S20_3LE |
@@ -1720,8 +1715,8 @@ static int rv1106_codec_check_micbias(struct rv1106_codec_priv *rv1106,
 	rv1106->micbias_used =
 		of_property_read_bool(np, "acodec,micbias");
 
-	/* Using 0.975*AVDD by default */
-	rv1106->micbias_volt = ACODEC_ADC_MICBIAS_VOLT_0_975;
+	/* Using 0.9*AVDD by default */
+	rv1106->micbias_volt = ACODEC_ADC_MICBIAS_VOLT_0_9;
 
 	return 0;
 }

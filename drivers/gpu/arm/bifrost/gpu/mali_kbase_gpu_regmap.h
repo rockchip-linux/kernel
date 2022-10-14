@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2010-2021 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2010-2022 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -34,8 +34,12 @@
 /* GPU_U definition */
 #ifdef __ASSEMBLER__
 #define GPU_U(x) x
+#define GPU_UL(x) x
+#define GPU_ULL(x) x
 #else
 #define GPU_U(x) x##u
+#define GPU_UL(x) x##ul
+#define GPU_ULL(x) x##ull
 #endif /* __ASSEMBLER__ */
 
 /* Begin Register Offsets */
@@ -95,6 +99,7 @@
 #define TEXTURE_FEATURES_3      0x0BC   /* (RO) Support flags for texture order */
 
 #define TEXTURE_FEATURES_REG(n) GPU_CONTROL_REG(TEXTURE_FEATURES_0 + ((n) << 2))
+
 
 #define SHADER_PRESENT_LO       0x100   /* (RO) Shader core present bitmap, low word */
 #define SHADER_PRESENT_HI       0x104   /* (RO) Shader core present bitmap, high word */
@@ -355,8 +360,8 @@
 	 (((value) << AS_LOCKADDR_LOCKADDR_SIZE_SHIFT) &                             \
 	 AS_LOCKADDR_LOCKADDR_SIZE_MASK))
 #define AS_LOCKADDR_LOCKADDR_BASE_SHIFT GPU_U(12)
-#define AS_LOCKADDR_LOCKADDR_BASE_MASK                                         \
-	(GPU_U(0xFFFFFFFFFFFFF) << AS_LOCKADDR_LOCKADDR_BASE_SHIFT)
+#define AS_LOCKADDR_LOCKADDR_BASE_MASK                                                             \
+	(GPU_ULL(0xFFFFFFFFFFFFF) << AS_LOCKADDR_LOCKADDR_BASE_SHIFT)
 #define AS_LOCKADDR_LOCKADDR_BASE_GET(reg_val)                                 \
 	(((reg_val)&AS_LOCKADDR_LOCKADDR_BASE_MASK) >>                               \
 	 AS_LOCKADDR_LOCKADDR_BASE_SHIFT)
@@ -364,6 +369,11 @@
 	(((reg_val) & ~AS_LOCKADDR_LOCKADDR_BASE_MASK) |                             \
 	 (((value) << AS_LOCKADDR_LOCKADDR_BASE_SHIFT) &                             \
 	 AS_LOCKADDR_LOCKADDR_BASE_MASK))
+#define AS_LOCKADDR_FLUSH_SKIP_LEVELS_SHIFT (6)
+#define AS_LOCKADDR_FLUSH_SKIP_LEVELS_MASK ((0xF) << AS_LOCKADDR_FLUSH_SKIP_LEVELS_SHIFT)
+#define AS_LOCKADDR_FLUSH_SKIP_LEVELS_SET(reg_val, value)                                          \
+	(((reg_val) & ~AS_LOCKADDR_FLUSH_SKIP_LEVELS_MASK) |                                       \
+	 ((value << AS_LOCKADDR_FLUSH_SKIP_LEVELS_SHIFT) & AS_LOCKADDR_FLUSH_SKIP_LEVELS_MASK))
 
 /* GPU_STATUS values */
 #define GPU_STATUS_PRFCNT_ACTIVE            (1 << 2)    /* Set if the performance counters are active. */

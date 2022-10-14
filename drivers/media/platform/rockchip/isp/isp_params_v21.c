@@ -2647,6 +2647,8 @@ isp_dhaz_config(struct rkisp_isp_params_vdev *params_vdev,
 		 (arg->hpara_en & 0x1) << 12 |
 		 (arg->hist_en & 0x1) << 8 |
 		 (arg->dc_en & 0x1) << 4;
+	if (!params_vdev->dev->hw_dev->is_single)
+		value |= ISP21_SELF_FORCE_UPD;
 	rkisp_iowrite32(params_vdev, value, ISP21_DHAZ_CTRL);
 
 	value = ISP2X_PACK_4BYTE(arg->dc_min_th, arg->dc_max_th,
@@ -3793,35 +3795,178 @@ rkisp_alloc_bay3d_buf(struct rkisp_isp_params_vdev *params_vdev,
 static bool
 rkisp_params_check_bigmode_v21(struct rkisp_isp_params_vdev *params_vdev)
 {
+	struct rkisp_device *ispdev = params_vdev->dev;
 	struct device *dev = params_vdev->dev->dev;
 	struct rkisp_hw_dev *hw = params_vdev->dev->hw_dev;
-	struct v4l2_rect *out_crop = &params_vdev->dev->isp_sdev.out_crop;
-	u32 width = hw->max_in.w ? hw->max_in.w : out_crop->width;
-	u32 height = hw->max_in.h ? hw->max_in.h : out_crop->height;
-	u32 size = width * height;
+	struct v4l2_rect *crop = &params_vdev->dev->isp_sdev.in_crop;
+	u32 width = hw->max_in.w, height = hw->max_in.h, size = width * height;
 	u32 bigmode_max_w, bigmode_max_size;
+	int k = 0, idx1[DEV_MAX] = { 0 };
+	int n = 0, idx2[DEV_MAX] = { 0 };
+	int i = 0, j = 0;
 	bool is_bigmode = false;
 
-	if (hw->dev_link_num > 2) {
-		bigmode_max_w = ISP21_VIR4_AUTO_BIGMODE_WIDTH;
-		bigmode_max_size = ISP21_VIR4_NOBIG_OVERFLOW_SIZE;
-		if (width > ISP21_VIR4_MAX_WIDTH || size > ISP21_VIR4_MAX_SIZE)
-			dev_err(dev, "%dx%d > max:3840x2160 for %d virtual isp\n",
-				width, height, hw->dev_link_num);
-	} else if (hw->dev_link_num > 1) {
-		bigmode_max_w = ISP21_VIR2_AUTO_BIGMODE_WIDTH;
-		bigmode_max_size = ISP21_VIR2_NOBIG_OVERFLOW_SIZE;
-		if (width > ISP21_VIR2_MAX_WIDTH || size > ISP21_VIR2_MAX_SIZE)
-			dev_err(dev, "%dx%d > max:1920x1080 for %d virtual isp\n",
-				width, height, hw->dev_link_num);
-	} else {
+multi_overflow:
+	if (hw->is_multi_overflow) {
+		ispdev->multi_index = 0;
+		ispdev->multi_mode = 0;
 		bigmode_max_w = ISP21_AUTO_BIGMODE_WIDTH;
 		bigmode_max_size = ISP21_NOBIG_OVERFLOW_SIZE;
+		dev_warn(dev, "over virtual isp max resolution, force to 2 readback\n");
+		goto end;
 	}
 
-	if (width > bigmode_max_w || size > bigmode_max_size)
+	switch (hw->dev_link_num) {
+	case 4:
+		bigmode_max_w = ISP21_VIR4_AUTO_BIGMODE_WIDTH;
+		bigmode_max_size = ISP21_VIR4_NOBIG_OVERFLOW_SIZE;
+		ispdev->multi_index = ispdev->dev_id;
+		ispdev->multi_mode = 2;
+		/* internal buf of hw divided to four parts
+		 *             bigmode             nobigmode
+		 *  _________  max width:1920      max width:960
+		 * |_sensor0_| max size:1920*1080  max size:960*540
+		 * |_sensor1_| max size:1920*1080  max size:960*540
+		 * |_sensor2_| max size:1920*1080  max size:960*540
+		 * |_sensor3_| max size:1920*1080  max size:960*540
+		 */
+		for (i = 0; i < hw->dev_num; i++) {
+			if (hw->isp_size[i].w <= ISP21_VIR4_MAX_WIDTH &&
+			    hw->isp_size[i].size <= ISP21_VIR4_MAX_SIZE)
+				continue;
+			dev_warn(dev, "isp%d %dx%d over four vir isp max:1920x1080\n",
+				 i, hw->isp_size[i].w, hw->isp_size[i].h);
+			hw->is_multi_overflow = true;
+			goto multi_overflow;
+		}
+		break;
+	case 3:
+		bigmode_max_w = ISP21_VIR4_AUTO_BIGMODE_WIDTH;
+		bigmode_max_size = ISP21_VIR4_NOBIG_OVERFLOW_SIZE;
+		ispdev->multi_index = ispdev->dev_id;
+		ispdev->multi_mode = 2;
+		/* case0:      bigmode             nobigmode
+		 *  _________  max width:1920      max width:960
+		 * |_sensor0_| max size:1920*1080  max size:960*540
+		 * |_sensor1_| max size:1920*1080  max size:960*540
+		 * |_sensor2_| max size:1920*1080  max size:960*540
+		 * |_________|
+		 *
+		 * case1:      bigmode               special reg cfg
+		 *  _________  max width:4096
+		 * | sensor0 | max size:3840*2160    mode=0 index=0
+		 * |_________|
+		 * |_sensor1_| max size:1920*1080    mode=2 index=2
+		 * |_sensor2_| max size:1920*1080    mode=2 index=3
+		 *             max width:1920
+		 */
+		for (i = 0; i < hw->dev_num; i++) {
+			if (!hw->isp_size[i].size) {
+				if (i < hw->dev_link_num)
+					idx2[n++] = i;
+				continue;
+			}
+			if (hw->isp_size[i].w <= ISP21_VIR4_MAX_WIDTH &&
+			    hw->isp_size[i].size <= ISP21_VIR4_MAX_SIZE)
+				continue;
+			idx1[k++] = i;
+		}
+		if (k) {
+			is_bigmode = true;
+			if (k != 1 ||
+			    (hw->isp_size[idx1[0]].size > ISP21_VIR2_MAX_SIZE)) {
+				dev_warn(dev, "isp%d %dx%d over three vir isp max:1920x1080\n",
+					 idx1[0], hw->isp_size[idx1[0]].h, hw->isp_size[idx1[0]].w);
+				hw->is_multi_overflow = true;
+				goto multi_overflow;
+			} else {
+				if (idx1[0] == ispdev->dev_id) {
+					ispdev->multi_mode = 0;
+					ispdev->multi_index = 0;
+				} else {
+					ispdev->multi_mode = 2;
+					if (ispdev->multi_index == 0 ||
+					    ispdev->multi_index == 1)
+						ispdev->multi_index = 3;
+				}
+			}
+		} else if (ispdev->multi_index >= hw->dev_link_num) {
+			ispdev->multi_index = idx2[ispdev->multi_index - hw->dev_link_num];
+		}
+		break;
+	case 2:
+		bigmode_max_w = ISP21_VIR2_AUTO_BIGMODE_WIDTH;
+		bigmode_max_size = ISP21_VIR2_NOBIG_OVERFLOW_SIZE;
+		ispdev->multi_index = ispdev->dev_id;
+		ispdev->multi_mode = 1;
+		/* case0:      bigmode            nobigmode
+		 *  _________  max width:3840     max width:1920
+		 * | sensor0 | max size:3840*2160 max size:1920*1080
+		 * |_________|
+		 * | sensor1 | max size:3840*2160 max size:1920*1080
+		 * |_________|
+		 *
+		 * case1:      bigmode              special reg cfg
+		 *  _________  max width:4096
+		 * | sensor0 | max size:            mode=0 index=0
+		 * |         | 3840*2160+1920*1080
+		 * |_________|
+		 * |_sensor1_| max size:1920*1080   mode=2 index=3
+		 *             max width:1920
+		 */
+		for (i = 0; i < hw->dev_num; i++) {
+			if (!hw->isp_size[i].size) {
+				if (i < hw->dev_link_num)
+					idx2[n++] = i;
+				continue;
+			}
+			if (hw->isp_size[i].w <= ISP21_VIR2_MAX_WIDTH &&
+			    hw->isp_size[i].size <= ISP21_VIR2_MAX_SIZE) {
+				if (hw->isp_size[i].w > ISP21_VIR4_MAX_WIDTH ||
+				    hw->isp_size[i].size > ISP21_VIR4_MAX_SIZE)
+					j++;
+				continue;
+			}
+			idx1[k++] = i;
+		}
+		if (k) {
+			is_bigmode = true;
+			if (k == 2 || j ||
+			    hw->isp_size[idx1[k - 1]].size > (ISP21_VIR4_MAX_SIZE + ISP21_VIR2_MAX_SIZE)) {
+				dev_warn(dev, "isp%d %dx%d over two vir isp max:3840x2160\n",
+					 idx1[k - 1], hw->isp_size[idx1[k - 1]].w, hw->isp_size[idx1[k - 1]].h);
+				hw->is_multi_overflow = true;
+				goto multi_overflow;
+			} else {
+				if (idx1[0] == ispdev->dev_id) {
+					ispdev->multi_mode = 0;
+					ispdev->multi_index = 0;
+				} else {
+					ispdev->multi_mode = 2;
+					ispdev->multi_index = 3;
+				}
+			}
+		} else if (ispdev->multi_index >= hw->dev_link_num) {
+			ispdev->multi_index = idx2[ispdev->multi_index - hw->dev_link_num];
+		}
+		break;
+	default:
+		bigmode_max_w = ISP21_AUTO_BIGMODE_WIDTH;
+		bigmode_max_size = ISP21_NOBIG_OVERFLOW_SIZE;
+		ispdev->multi_mode = 0;
+		ispdev->multi_index = 0;
+		width = crop->width;
+		height = crop->height;
+		size = width * height;
+		break;
+	}
+
+end:
+	if (!is_bigmode &&
+	    (width > bigmode_max_w || size > bigmode_max_size))
 		is_bigmode = true;
-	return is_bigmode;
+
+	return ispdev->is_bigmode = is_bigmode;
 }
 
 /* Not called when the camera active, thus not isr protection. */
@@ -3832,7 +3977,6 @@ rkisp_params_first_cfg_v2x(struct rkisp_isp_params_vdev *params_vdev)
 	struct rkisp_isp_params_val_v21 *priv_val =
 		(struct rkisp_isp_params_val_v21 *)params_vdev->priv_val;
 
-	rkisp_alloc_bay3d_buf(params_vdev, params_vdev->isp21_params);
 	dev->is_bigmode = rkisp_params_check_bigmode_v21(params_vdev);
 	spin_lock(&params_vdev->config_lock);
 	/* override the default things */
@@ -3867,6 +4011,7 @@ static void rkisp_save_first_param_v2x(struct rkisp_isp_params_vdev *params_vdev
 
 	new_params = (struct isp21_isp_params_cfg *)param;
 	*params_vdev->isp21_params = *new_params;
+	rkisp_alloc_bay3d_buf(params_vdev, params_vdev->isp21_params);
 }
 
 static void rkisp_clear_first_param_v2x(struct rkisp_isp_params_vdev *params_vdev)
@@ -4081,10 +4226,14 @@ rkisp_params_cfg_v2x(struct rkisp_isp_params_vdev *params_vdev,
 			list_del(&cur_buf->queue);
 			if (list_empty(&params_vdev->params))
 				break;
-			else if (new_params->module_en_update) {
+			else if (new_params->module_en_update ||
+				 (new_params->module_cfg_update & ISP2X_MODULE_FORCE)) {
 				/* update en immediately */
+				__isp_isr_meas_config(params_vdev, new_params, type);
+				__isp_isr_other_config(params_vdev, new_params, type);
 				__isp_isr_other_en(params_vdev, new_params, type);
 				__isp_isr_meas_en(params_vdev, new_params, type);
+				new_params->module_cfg_update = 0;
 			}
 			if (new_params->module_cfg_update & ISP2X_MODULE_LDCH)
 				ldch_data_abandon(params_vdev, new_params);
@@ -4118,6 +4267,7 @@ rkisp_params_cfg_v2x(struct rkisp_isp_params_vdev *params_vdev,
 		priv_val->last_hdrdrc = priv_val->cur_hdrdrc;
 		priv_val->cur_hdrmge = new_params->others.hdrmge_cfg;
 		priv_val->cur_hdrdrc = new_params->others.drc_cfg;
+		new_params->module_cfg_update = 0;
 		vb2_buffer_done(&cur_buf->vb.vb2_buf, VB2_BUF_STATE_DONE);
 		cur_buf = NULL;
 	}

@@ -25,6 +25,7 @@
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-subdev.h>
 #include <linux/pinctrl/consumer.h>
+#include "../platform/rockchip/isp/rkisp_tb_helper.h"
 
 #define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x00)
 
@@ -35,9 +36,14 @@
 #define SC230AI_LANES			2
 #define SC230AI_BITS_PER_SAMPLE		10
 #define SC230AI_LINK_FREQ_185		92812500// 185.625Mbps
+#define SC230AI_LINK_FREQ_371		185625000// 371.25Mbps
 
 #define PIXEL_RATE_WITH_185M_10BIT		(SC230AI_LINK_FREQ_185 * 2 * \
 					SC230AI_LANES / SC230AI_BITS_PER_SAMPLE)
+
+#define PIXEL_RATE_WITH_371M_10BIT		(SC230AI_LINK_FREQ_371 * 2 * \
+					SC230AI_LANES / SC230AI_BITS_PER_SAMPLE)
+
 #define SC230AI_XVCLK_FREQ		27000000
 
 #define CHIP_ID				0xcb34
@@ -132,6 +138,8 @@ struct sc230ai_mode {
 	u32 hts_def;
 	u32 vts_def;
 	u32 exp_def;
+	u32 mipi_freq_idx;
+	u32 bpp;
 	const struct regval *reg_list;
 	u32 hdr_mode;
 	u32 vc[PAD_MAX];
@@ -156,8 +164,11 @@ struct sc230ai {
 	struct v4l2_ctrl	*digi_gain;
 	struct v4l2_ctrl	*hblank;
 	struct v4l2_ctrl	*vblank;
+	struct v4l2_ctrl	*pixel_rate;
+	struct v4l2_ctrl	*link_freq;
 	struct v4l2_ctrl	*test_pattern;
 	struct mutex		mutex;
+	struct v4l2_fract	cur_fps;
 	bool			streaming;
 	bool			power_on;
 	const struct sc230ai_mode *cur_mode;
@@ -167,37 +178,230 @@ struct sc230ai {
 	const char		*len_name;
 	u32			cur_vts;
 	bool			has_init_exp;
+	bool			is_thunderboot;
+	bool			is_first_streamoff;
 	struct preisp_hdrae_exp_s init_hdrae_exp;
 };
 
 #define to_sc230ai(sd) container_of(sd, struct sc230ai, subdev)
 
 /*
- * Xclk 24Mhz
+ * Xclk 27Mhz
  */
 static const struct regval sc230ai_global_regs[] = {
 	{REG_NULL, 0x00},
 };
 
+static const struct regval sc230ai_linear_10_640x480_regs[] = {
+	{0x0103, 0x01},
+	{0x0100, 0x00},
+	{0x36e9, 0x80},
+	{0x37f9, 0x80},
+	{0x301f, 0x2d},
+	{0x3200, 0x00},
+	{0x3201, 0x00},
+	{0x3202, 0x00},
+	{0x3203, 0x3c},
+	{0x3204, 0x07},
+	{0x3205, 0x87},
+	{0x3206, 0x04},
+	{0x3207, 0x03},
+	{0x3208, 0x02},
+	{0x3209, 0x80},
+	{0x320a, 0x01},
+	{0x320b, 0xe0},
+	{0x320e, 0x02},
+	{0x320f, 0x32},
+	{0x3210, 0x00},
+	{0x3211, 0xa2},
+	{0x3212, 0x00},
+	{0x3213, 0x02},
+	{0x3215, 0x31},
+	{0x3220, 0x01},
+	{0x3301, 0x09},
+	{0x3304, 0x50},
+	{0x3306, 0x48},
+	{0x3308, 0x18},
+	{0x3309, 0x68},
+	{0x330a, 0x00},
+	{0x330b, 0xc0},
+	{0x331e, 0x41},
+	{0x331f, 0x59},
+	{0x3333, 0x10},
+	{0x3334, 0x40},
+	{0x335d, 0x60},
+	{0x335e, 0x06},
+	{0x335f, 0x08},
+	{0x3364, 0x5e},
+	{0x337c, 0x02},
+	{0x337d, 0x0a},
+	{0x3390, 0x01},
+	{0x3391, 0x0b},
+	{0x3392, 0x0f},
+	{0x3393, 0x0c},
+	{0x3394, 0x0d},
+	{0x3395, 0x60},
+	{0x3396, 0x48},
+	{0x3397, 0x49},
+	{0x3398, 0x4f},
+	{0x3399, 0x0a},
+	{0x339a, 0x0f},
+	{0x339b, 0x14},
+	{0x339c, 0x60},
+	{0x33a2, 0x04},
+	{0x33af, 0x40},
+	{0x33b1, 0x80},
+	{0x33b3, 0x40},
+	{0x33b9, 0x0a},
+	{0x33f9, 0x70},
+	{0x33fb, 0x90},
+	{0x33fc, 0x4b},
+	{0x33fd, 0x5f},
+	{0x349f, 0x03},
+	{0x34a6, 0x4b},
+	{0x34a7, 0x4f},
+	{0x34a8, 0x30},
+	{0x34a9, 0x20},
+	{0x34aa, 0x00},
+	{0x34ab, 0xe0},
+	{0x34ac, 0x01},
+	{0x34ad, 0x00},
+	{0x34f8, 0x5f},
+	{0x34f9, 0x10},
+	{0x3630, 0xc0},
+	{0x3633, 0x44},
+	{0x3637, 0x29},
+	{0x363b, 0x20},
+	{0x3670, 0x09},
+	{0x3674, 0xb0},
+	{0x3675, 0x80},
+	{0x3676, 0x88},
+	{0x367c, 0x40},
+	{0x367d, 0x49},
+	{0x3690, 0x44},
+	{0x3691, 0x44},
+	{0x3692, 0x54},
+	{0x369c, 0x49},
+	{0x369d, 0x4f},
+	{0x36ae, 0x4b},
+	{0x36af, 0x4f},
+	{0x36b0, 0x87},
+	{0x36b1, 0x9b},
+	{0x36b2, 0xb7},
+	{0x36d0, 0x01},
+	{0x36ea, 0x0b},
+	{0x36eb, 0x04},
+	{0x36ec, 0x1c},
+	{0x36ed, 0x24},
+	{0x370f, 0x01},
+	{0x3722, 0x17},
+	{0x3728, 0x90},
+	{0x37b0, 0x17},
+	{0x37b1, 0x17},
+	{0x37b2, 0x97},
+	{0x37b3, 0x4b},
+	{0x37b4, 0x4f},
+	{0x37fa, 0x0b},
+	{0x37fb, 0x24},
+	{0x37fc, 0x10},
+	{0x37fd, 0x22},
+	{0x3901, 0x02},
+	{0x3902, 0xc5},
+	{0x3904, 0x04},
+	{0x3907, 0x00},
+	{0x3908, 0x41},
+	{0x3909, 0x00},
+	{0x390a, 0x00},
+	{0x391f, 0x04},
+	{0x3933, 0x84},
+	{0x3934, 0x02},
+	{0x3940, 0x62},
+	{0x3941, 0x00},
+	{0x3942, 0x04},
+	{0x3943, 0x03},
+	{0x3e00, 0x00},
+	{0x3e01, 0x45},
+	{0x3e02, 0xb0},
+	{0x440e, 0x02},
+	{0x450d, 0x11},
+	{0x4819, 0x05},
+	{0x481b, 0x03},
+	{0x481d, 0x0a},
+	{0x481f, 0x02},
+	{0x4821, 0x08},
+	{0x4823, 0x03},
+	{0x4825, 0x02},
+	{0x4827, 0x03},
+	{0x4829, 0x04},
+	{0x5000, 0x46},
+	{0x5010, 0x01},
+	{0x5787, 0x08},
+	{0x5788, 0x03},
+	{0x5789, 0x00},
+	{0x578a, 0x10},
+	{0x578b, 0x08},
+	{0x578c, 0x00},
+	{0x5790, 0x08},
+	{0x5791, 0x04},
+	{0x5792, 0x00},
+	{0x5793, 0x10},
+	{0x5794, 0x08},
+	{0x5795, 0x00},
+	{0x5799, 0x06},
+	{0x57ad, 0x00},
+	{0x5900, 0xf1},
+	{0x5901, 0x04},
+	{0x5ae0, 0xfe},
+	{0x5ae1, 0x40},
+	{0x5ae2, 0x3f},
+	{0x5ae3, 0x38},
+	{0x5ae4, 0x28},
+	{0x5ae5, 0x3f},
+	{0x5ae6, 0x38},
+	{0x5ae7, 0x28},
+	{0x5ae8, 0x3f},
+	{0x5ae9, 0x3c},
+	{0x5aea, 0x2c},
+	{0x5aeb, 0x3f},
+	{0x5aec, 0x3c},
+	{0x5aed, 0x2c},
+	{0x5af4, 0x3f},
+	{0x5af5, 0x38},
+	{0x5af6, 0x28},
+	{0x5af7, 0x3f},
+	{0x5af8, 0x38},
+	{0x5af9, 0x28},
+	{0x5afa, 0x3f},
+	{0x5afb, 0x3c},
+	{0x5afc, 0x2c},
+	{0x5afd, 0x3f},
+	{0x5afe, 0x3c},
+	{0x5aff, 0x2c},
+	{0x36e9, 0x20},
+	{0x37f9, 0x24},
+	{REG_NULL, 0x00},
+};
+
 /*
- * Xclk 24Mhz
- * max_framerate 15fps
- * mipi_datarate per lane 74.25Mbps, 2lane
+ * Xclk 27Mhz
+ * max_framerate 25fps
+ * mipi_datarate per lane 371.25Mbps, 2lane
  */
 static const struct regval sc230ai_linear_10_1920x1080_regs[] = {
 	{0x0103, 0x01},
 	{0x0100, 0x00},
 	{0x36e9, 0x80},
 	{0x37f9, 0x80},
-	{0x301f, 0x0f},
+	{0x301f, 0x01},
+	{0x320e, 0x05},
+	{0x320f, 0x46},
 	{0x3301, 0x07},
 	{0x3304, 0x50},
 	{0x3306, 0x70},
-	{0x3308, 0x0c},
+	{0x3308, 0x18},
 	{0x3309, 0x68},
 	{0x330a, 0x01},
 	{0x330b, 0x20},
-	{0x330d, 0x16},
 	{0x3314, 0x15},
 	{0x331e, 0x41},
 	{0x331f, 0x59},
@@ -240,7 +444,7 @@ static const struct regval sc230ai_linear_10_1920x1080_regs[] = {
 	{0x34aa, 0x01},
 	{0x34ab, 0x28},
 	{0x34ac, 0x01},
-	{0x34ad, 0x50},
+	{0x34ad, 0x58},
 	{0x34f8, 0x7f},
 	{0x34f9, 0x10},
 	{0x3630, 0xc0},
@@ -265,7 +469,6 @@ static const struct regval sc230ai_linear_10_1920x1080_regs[] = {
 	{0x36b1, 0x9b},
 	{0x36b2, 0xb7},
 	{0x36d0, 0x01},
-	{0x36eb, 0x1c},
 	{0x3722, 0x97},
 	{0x3724, 0x22},
 	{0x3728, 0x90},
@@ -287,15 +490,6 @@ static const struct regval sc230ai_linear_10_1920x1080_regs[] = {
 	{0x3e02, 0x10},
 	{0x440e, 0x02},
 	{0x450d, 0x11},
-	{0x4819, 0x03},
-	{0x481b, 0x02},
-	{0x481d, 0x05},
-	{0x481f, 0x01},
-	{0x4821, 0x07},
-	{0x4823, 0x02},
-	{0x4825, 0x01},
-	{0x4827, 0x02},
-	{0x4829, 0x02},
 	{0x5010, 0x01},
 	{0x5787, 0x08},
 	{0x5788, 0x03},
@@ -338,10 +532,11 @@ static const struct regval sc230ai_linear_10_1920x1080_regs[] = {
 	{0x5afe, 0x3c},
 	{0x5aff, 0x2c},
 	{0x36e9, 0x20},
-	{0x37f9, 0x57},
-	{0x0100, 0x01},
+	{0x37f9, 0x27},
+	//{0x0100, 0x01},
 	{REG_NULL, 0x00},
 };
+
 
 static const struct sc230ai_mode supported_modes[] = {
 	{
@@ -349,20 +544,39 @@ static const struct sc230ai_mode supported_modes[] = {
 		.height = 1080,
 		.max_fps = {
 			.numerator = 10000,
-			.denominator = 150000,
+			.denominator = 250000,
 		},
 		.exp_def = 0x0460,
 		.hts_def = 0x44C * 2,
-		.vts_def = 0x0465,
+		.vts_def = 0x0546,
 		.bus_fmt = MEDIA_BUS_FMT_SBGGR10_1X10,
 		.reg_list = sc230ai_linear_10_1920x1080_regs,
 		.hdr_mode = NO_HDR,
+		.bpp = 10,
+		.mipi_freq_idx = 1,
+		.vc[PAD0] = V4L2_MBUS_CSI2_CHANNEL_0,
+	}, {
+		.width = 640,
+		.height = 480,
+		.max_fps = {
+			.numerator = 10000,
+			.denominator = 1200000,
+		},
+		.exp_def = 0x0232 - 9,
+		.hts_def = 0x96 * 8,
+		.vts_def = 0x0232,
+		.bus_fmt = MEDIA_BUS_FMT_SBGGR10_1X10,
+		.reg_list = sc230ai_linear_10_640x480_regs,
+		.hdr_mode = NO_HDR,
+		.bpp = 10,
+		.mipi_freq_idx = 1,
 		.vc[PAD0] = V4L2_MBUS_CSI2_CHANNEL_0,
 	},
 };
 
 static const s64 link_freq_menu_items[] = {
-	SC230AI_LINK_FREQ_185
+	SC230AI_LINK_FREQ_185,
+	SC230AI_LINK_FREQ_371
 };
 
 static const char * const sc230ai_test_pattern_menu[] = {
@@ -551,6 +765,7 @@ static int sc230ai_set_fmt(struct v4l2_subdev *sd,
 	struct sc230ai *sc230ai = to_sc230ai(sd);
 	const struct sc230ai_mode *mode;
 	s64 h_blank, vblank_def;
+	u64 pixel_rate = 0;
 
 	mutex_lock(&sc230ai->mutex);
 
@@ -575,6 +790,12 @@ static int sc230ai_set_fmt(struct v4l2_subdev *sd,
 		__v4l2_ctrl_modify_range(sc230ai->vblank, vblank_def,
 					 SC230AI_VTS_MAX - mode->height,
 					 1, vblank_def);
+
+		__v4l2_ctrl_s_ctrl(sc230ai->link_freq, mode->mipi_freq_idx);
+		pixel_rate = (u32)link_freq_menu_items[mode->mipi_freq_idx] /
+			     mode->bpp * 2 * SC230AI_LANES;
+		__v4l2_ctrl_s_ctrl_int64(sc230ai->pixel_rate, pixel_rate);
+		sc230ai->cur_fps = mode->max_fps;
 	}
 
 	mutex_unlock(&sc230ai->mutex);
@@ -633,7 +854,7 @@ static int sc230ai_enum_frame_sizes(struct v4l2_subdev *sd,
 	if (fse->index >= ARRAY_SIZE(supported_modes))
 		return -EINVAL;
 
-	if (fse->code != supported_modes[0].bus_fmt)
+	if (fse->code != supported_modes[fse->index].bus_fmt)
 		return -EINVAL;
 
 	fse->min_width  = supported_modes[fse->index].width;
@@ -667,9 +888,10 @@ static int sc230ai_g_frame_interval(struct v4l2_subdev *sd,
 	struct sc230ai *sc230ai = to_sc230ai(sd);
 	const struct sc230ai_mode *mode = sc230ai->cur_mode;
 
-	mutex_lock(&sc230ai->mutex);
-	fi->interval = mode->max_fps;
-	mutex_unlock(&sc230ai->mutex);
+	if (sc230ai->streaming)
+		fi->interval = sc230ai->cur_fps;
+	else
+		fi->interval = mode->max_fps;
 
 	return 0;
 }
@@ -744,6 +966,7 @@ static long sc230ai_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 			__v4l2_ctrl_modify_range(sc230ai->hblank, w, w, 1, w);
 			__v4l2_ctrl_modify_range(sc230ai->vblank, h,
 						 SC230AI_VTS_MAX - sc230ai->cur_mode->height, 1, h);
+			sc230ai->cur_fps = sc230ai->cur_mode->max_fps;
 		}
 		break;
 	case PREISP_CMD_SET_HDRAE_EXP:
@@ -859,24 +1082,24 @@ static int __sc230ai_start_stream(struct sc230ai *sc230ai)
 {
 	int ret;
 
-	ret = sc230ai_write_array(sc230ai->client, sc230ai->cur_mode->reg_list);
-	if (ret)
-		return ret;
-
-	/* In case these controls are set before streaming */
-	ret = __v4l2_ctrl_handler_setup(&sc230ai->ctrl_handler);
-	if (ret)
-		return ret;
-	if (sc230ai->has_init_exp && sc230ai->cur_mode->hdr_mode != NO_HDR) {
-		ret = sc230ai_ioctl(&sc230ai->subdev, PREISP_CMD_SET_HDRAE_EXP,
-			&sc230ai->init_hdrae_exp);
-		if (ret) {
-			dev_err(&sc230ai->client->dev,
-				"init exp fail in hdr mode\n");
+	if (!sc230ai->is_thunderboot) {
+		ret = sc230ai_write_array(sc230ai->client, sc230ai->cur_mode->reg_list);
+		if (ret)
 			return ret;
+		/* In case these controls are set before streaming */
+		ret = __v4l2_ctrl_handler_setup(&sc230ai->ctrl_handler);
+		if (ret)
+			return ret;
+		if (sc230ai->has_init_exp && sc230ai->cur_mode->hdr_mode != NO_HDR) {
+			ret = sc230ai_ioctl(&sc230ai->subdev, PREISP_CMD_SET_HDRAE_EXP,
+				&sc230ai->init_hdrae_exp);
+			if (ret) {
+				dev_err(&sc230ai->client->dev,
+					"init exp fail in hdr mode\n");
+				return ret;
+			}
 		}
 	}
-
 	return sc230ai_write_reg(sc230ai->client, SC230AI_REG_CTRL_MODE,
 				 SC230AI_REG_VALUE_08BIT, SC230AI_MODE_STREAMING);
 }
@@ -884,10 +1107,13 @@ static int __sc230ai_start_stream(struct sc230ai *sc230ai)
 static int __sc230ai_stop_stream(struct sc230ai *sc230ai)
 {
 	sc230ai->has_init_exp = false;
+	if (sc230ai->is_thunderboot)
+		sc230ai->is_first_streamoff = true;
 	return sc230ai_write_reg(sc230ai->client, SC230AI_REG_CTRL_MODE,
 				 SC230AI_REG_VALUE_08BIT, SC230AI_MODE_SW_STANDBY);
 }
 
+static int __sc230ai_power_on(struct sc230ai *sc230ai);
 static int sc230ai_s_stream(struct v4l2_subdev *sd, int on)
 {
 	struct sc230ai *sc230ai = to_sc230ai(sd);
@@ -900,6 +1126,10 @@ static int sc230ai_s_stream(struct v4l2_subdev *sd, int on)
 		goto unlock_and_return;
 
 	if (on) {
+		if (sc230ai->is_thunderboot && rkisp_tb_get_state() == RKISP_TB_NG) {
+			sc230ai->is_thunderboot = false;
+			__sc230ai_power_on(sc230ai);
+		}
 		ret = pm_runtime_get_sync(&client->dev);
 		if (ret < 0) {
 			pm_runtime_put_noidle(&client->dev);
@@ -943,12 +1173,13 @@ static int sc230ai_s_power(struct v4l2_subdev *sd, int on)
 			pm_runtime_put_noidle(&client->dev);
 			goto unlock_and_return;
 		}
-
-		ret = sc230ai_write_array(sc230ai->client, sc230ai_global_regs);
-		if (ret) {
-			v4l2_err(sd, "could not set init registers\n");
-			pm_runtime_put_noidle(&client->dev);
-			goto unlock_and_return;
+		if (!sc230ai->is_thunderboot) {
+			ret = sc230ai_write_array(sc230ai->client, sc230ai_global_regs);
+			if (ret) {
+				v4l2_err(sd, "could not set init registers\n");
+				pm_runtime_put_noidle(&client->dev);
+				goto unlock_and_return;
+			}
 		}
 
 		sc230ai->power_on = true;
@@ -991,6 +1222,9 @@ static int __sc230ai_power_on(struct sc230ai *sc230ai)
 		dev_err(dev, "Failed to enable xvclk\n");
 		return ret;
 	}
+	if (sc230ai->is_thunderboot)
+		return 0;
+
 	if (!IS_ERR(sc230ai->reset_gpio))
 		gpiod_set_value_cansleep(sc230ai->reset_gpio, 0);
 
@@ -1029,9 +1263,17 @@ static void __sc230ai_power_off(struct sc230ai *sc230ai)
 	int ret;
 	struct device *dev = &sc230ai->client->dev;
 
+	clk_disable_unprepare(sc230ai->xvclk);
+	if (sc230ai->is_thunderboot) {
+		if (sc230ai->is_first_streamoff) {
+			sc230ai->is_thunderboot = false;
+			sc230ai->is_first_streamoff = false;
+		} else {
+			return;
+		}
+	}
 	if (!IS_ERR(sc230ai->pwdn_gpio))
 		gpiod_set_value_cansleep(sc230ai->pwdn_gpio, 0);
-	clk_disable_unprepare(sc230ai->xvclk);
 	if (!IS_ERR(sc230ai->reset_gpio))
 		gpiod_set_value_cansleep(sc230ai->reset_gpio, 0);
 	if (!IS_ERR_OR_NULL(sc230ai->pins_sleep)) {
@@ -1139,6 +1381,14 @@ static const struct v4l2_subdev_ops sc230ai_subdev_ops = {
 	.pad	= &sc230ai_pad_ops,
 };
 
+static void sc230ai_modify_fps_info(struct sc230ai *sc230ai)
+{
+	const struct sc230ai_mode *mode = sc230ai->cur_mode;
+
+	sc230ai->cur_fps.denominator = mode->max_fps.denominator * sc230ai->cur_vts /
+				       mode->vts_def;
+}
+
 static int sc230ai_set_ctrl(struct v4l2_ctrl *ctrl)
 {
 	struct sc230ai *sc230ai = container_of(ctrl->handler,
@@ -1217,6 +1467,8 @@ static int sc230ai_set_ctrl(struct v4l2_ctrl *ctrl)
 					 (ctrl->val + sc230ai->cur_mode->height)
 					 & 0xff);
 		sc230ai->cur_vts = ctrl->val + sc230ai->cur_mode->height;
+		if (sc230ai->cur_vts != sc230ai->cur_mode->vts_def)
+			sc230ai_modify_fps_info(sc230ai);
 		break;
 	case V4L2_CID_TEST_PATTERN:
 		ret = sc230ai_enable_test_pattern(sc230ai, ctrl->val);
@@ -1254,8 +1506,8 @@ static int sc230ai_initialize_controls(struct sc230ai *sc230ai)
 {
 	const struct sc230ai_mode *mode;
 	struct v4l2_ctrl_handler *handler;
-	struct v4l2_ctrl *ctrl;
 	s64 exposure_max, vblank_def;
+	u64 dst_pixel_rate = 0;
 	u32 h_blank;
 	int ret;
 
@@ -1266,13 +1518,21 @@ static int sc230ai_initialize_controls(struct sc230ai *sc230ai)
 		return ret;
 	handler->lock = &sc230ai->mutex;
 
-	ctrl = v4l2_ctrl_new_int_menu(handler, NULL, V4L2_CID_LINK_FREQ,
-				      0, 0, link_freq_menu_items);
-	if (ctrl)
-		ctrl->flags |= V4L2_CTRL_FLAG_READ_ONLY;
+	sc230ai->link_freq = v4l2_ctrl_new_int_menu(handler, NULL,
+				V4L2_CID_LINK_FREQ,
+				ARRAY_SIZE(link_freq_menu_items) - 1, 0,
+				link_freq_menu_items);
+	__v4l2_ctrl_s_ctrl(sc230ai->link_freq, mode->mipi_freq_idx);
 
-	v4l2_ctrl_new_std(handler, NULL, V4L2_CID_PIXEL_RATE,
-			  0, PIXEL_RATE_WITH_185M_10BIT, 1, PIXEL_RATE_WITH_185M_10BIT);
+	if (mode->mipi_freq_idx == 0)
+		dst_pixel_rate = PIXEL_RATE_WITH_371M_10BIT;
+	else if (mode->mipi_freq_idx == 1)
+		dst_pixel_rate = PIXEL_RATE_WITH_371M_10BIT;
+
+	sc230ai->pixel_rate = v4l2_ctrl_new_std(handler, NULL,
+						V4L2_CID_PIXEL_RATE, 0,
+						PIXEL_RATE_WITH_371M_10BIT,
+						1, dst_pixel_rate);
 
 	h_blank = mode->hts_def - mode->width;
 	sc230ai->hblank = v4l2_ctrl_new_std(handler, NULL, V4L2_CID_HBLANK,
@@ -1313,7 +1573,7 @@ static int sc230ai_initialize_controls(struct sc230ai *sc230ai)
 
 	sc230ai->subdev.ctrl_handler = handler;
 	sc230ai->has_init_exp = false;
-
+	sc230ai->cur_fps = mode->max_fps;
 	return 0;
 
 err_free_handler:
@@ -1329,6 +1589,10 @@ static int sc230ai_check_sensor_id(struct sc230ai *sc230ai,
 	u32 id = 0;
 	int ret;
 
+	if (sc230ai->is_thunderboot) {
+		dev_info(dev, "Enable thunderboot mode, skip sensor id check\n");
+		return 0;
+	}
 	ret = sc230ai_read_reg(client, SC230AI_REG_CHIP_ID,
 			       SC230AI_REG_VALUE_16BIT, &id);
 	if (id != CHIP_ID) {
@@ -1386,7 +1650,7 @@ static int sc230ai_probe(struct i2c_client *client,
 		dev_err(dev, "could not get module information!\n");
 		return -EINVAL;
 	}
-
+	sc230ai->is_thunderboot = IS_ENABLED(CONFIG_VIDEO_ROCKCHIP_THUNDER_BOOT_ISP);
 	sc230ai->client = client;
 	for (i = 0; i < ARRAY_SIZE(supported_modes); i++) {
 		if (hdr_mode == supported_modes[i].hdr_mode) {
@@ -1403,11 +1667,11 @@ static int sc230ai_probe(struct i2c_client *client,
 		return -EINVAL;
 	}
 
-	sc230ai->reset_gpio = devm_gpiod_get(dev, "reset", GPIOD_OUT_LOW);
+	sc230ai->reset_gpio = devm_gpiod_get(dev, "reset", GPIOD_ASIS);
 	if (IS_ERR(sc230ai->reset_gpio))
 		dev_warn(dev, "Failed to get reset-gpios\n");
 
-	sc230ai->pwdn_gpio = devm_gpiod_get(dev, "pwdn", GPIOD_OUT_LOW);
+	sc230ai->pwdn_gpio = devm_gpiod_get(dev, "pwdn", GPIOD_ASIS);
 	if (IS_ERR(sc230ai->pwdn_gpio))
 		dev_warn(dev, "Failed to get pwdn-gpios\n");
 
@@ -1552,7 +1816,11 @@ static void __exit sensor_mod_exit(void)
 	i2c_del_driver(&sc230ai_i2c_driver);
 }
 
+#if defined(CONFIG_VIDEO_ROCKCHIP_THUNDER_BOOT_ISP) && !defined(CONFIG_INITCALL_ASYNC)
+subsys_initcall(sensor_mod_init);
+#else
 device_initcall_sync(sensor_mod_init);
+#endif
 module_exit(sensor_mod_exit);
 
 MODULE_DESCRIPTION("smartsens sc230ai sensor driver");

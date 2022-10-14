@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2014-2021 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2014-2022 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -72,9 +72,7 @@ static void kbase_jd_debugfs_fence_info(struct kbase_jd_atom *atom,
 #endif
 
 			seq_printf(sfile,
-#if (KERNEL_VERSION(4, 8, 0) > LINUX_VERSION_CODE)
-				   "Sd(%u#%u: %s) ",
-#elif (KERNEL_VERSION(5, 1, 0) > LINUX_VERSION_CODE)
+#if (KERNEL_VERSION(5, 1, 0) > LINUX_VERSION_CODE)
 				   "Sd(%llu#%u: %s) ",
 #else
 				   "Sd(%llu#%llu: %s) ",
@@ -93,9 +91,7 @@ static void kbase_jd_debugfs_fence_info(struct kbase_jd_atom *atom,
 #endif
 
 			seq_printf(sfile,
-#if (KERNEL_VERSION(4, 8, 0) > LINUX_VERSION_CODE)
-				   "Wd(%u#%u: %s) ",
-#elif (KERNEL_VERSION(5, 1, 0) > LINUX_VERSION_CODE)
+#if (KERNEL_VERSION(5, 1, 0) > LINUX_VERSION_CODE)
 				   "Wd(%llu#%u: %s) ",
 #else
 				   "Wd(%llu#%llu: %s) ",
@@ -164,7 +160,7 @@ static int kbasep_jd_debugfs_atoms_show(struct seq_file *sfile, void *data)
 			BASE_UK_VERSION_MINOR);
 
 	/* Print table heading */
-	seq_puts(sfile, " ID, Core req, St, CR,   Predeps,           Start time, Additional info...\n");
+	seq_puts(sfile, " ID, Core req, St,   Predeps,           Start time, Additional info...\n");
 
 	atoms = kctx->jctx.atoms;
 	/* General atom states */
@@ -184,8 +180,8 @@ static int kbasep_jd_debugfs_atoms_show(struct seq_file *sfile, void *data)
 		 * it is valid
 		 */
 		if (ktime_to_ns(atom->start_timestamp))
-			start_timestamp = ktime_to_ns(
-					ktime_sub(ktime_get(), atom->start_timestamp));
+			start_timestamp =
+				ktime_to_ns(ktime_sub(ktime_get_raw(), atom->start_timestamp));
 
 		kbasep_jd_debugfs_atom_deps(deps, atom);
 
@@ -230,11 +226,7 @@ static const struct file_operations kbasep_jd_debugfs_atoms_fops = {
 
 void kbasep_jd_debugfs_ctx_init(struct kbase_context *kctx)
 {
-#if (KERNEL_VERSION(4, 7, 0) <= LINUX_VERSION_CODE)
 	const mode_t mode = 0444;
-#else
-	const mode_t mode = 0400;
-#endif
 
 	/* Caller already ensures this, but we keep the pattern for
 	 * maintenance safety.

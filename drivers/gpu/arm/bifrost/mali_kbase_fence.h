@@ -104,7 +104,7 @@ static inline void kbase_fence_out_remove(struct kbase_jd_atom *katom)
 
 #if defined(CONFIG_SYNC_FILE)
 /**
- * kbase_fence_out_remove() - Removes the input fence from atom
+ * kbase_fence_in_remove() - Removes the input fence from atom
  * @katom: Atom to remove input fence for
  *
  * This will also release the reference to this fence which the atom keeps
@@ -270,6 +270,16 @@ bool kbase_fence_free_callbacks(struct kbase_jd_atom *katom);
 #define kbase_fence_out_get(katom) dma_fence_get((katom)->dma_fence.fence)
 
 #endif /* !MALI_USE_CSF */
+
+/**
+ * kbase_fence_get() - Retrieve fence for a KCPUQ fence command.
+ * @fence_info: KCPUQ fence command
+ *
+ * A ref will be taken for the fence, so use @kbase_fence_put() to release it
+ *
+ * Return: The fence, or NULL if there is no fence for KCPUQ fence command
+ */
+#define kbase_fence_get(fence_info) dma_fence_get((fence_info)->fence)
 
 /**
  * kbase_fence_put() - Releases a reference to a fence

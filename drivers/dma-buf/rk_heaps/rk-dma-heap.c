@@ -456,6 +456,8 @@ struct rk_dma_heap *rk_dma_heap_add(const struct rk_dma_heap_export_info *exp_in
 		goto err2;
 	}
 
+	heap->procfs = proc_rk_dma_heap_dir;
+
 	/* Make sure it doesn't disappear on us */
 	heap->heap_dev = get_device(heap->heap_dev);
 
@@ -501,7 +503,7 @@ static int rk_dma_heap_dump_dmabuf(const struct dma_buf *dmabuf, void *data)
 				size = buf->end - buf->start + 1;
 				seq_printf(heap->s,
 					   "\tAlloc by (%-20s)\t[%pa-%pa]\t%pa (%lu KiB)\n",
-					   buf->orig_alloc, &buf->start,
+					   dmabuf->name, &buf->start,
 					   &buf->end, &size, K(size));
 				seq_puts(heap->s, "\t\tAttached Devices:\n");
 				attach_count = 0;

@@ -159,6 +159,7 @@ struct sc4238 {
 	struct v4l2_ctrl	*h_flip;
 	struct v4l2_ctrl	*v_flip;
 	struct mutex		mutex;
+	struct v4l2_fract	cur_fps;
 	bool			streaming;
 	bool			power_on;
 	const struct sc4238_mode *cur_mode;
@@ -1573,6 +1574,8 @@ static int sc4238_set_fmt(struct v4l2_subdev *sd,
 					 mode->pixel_rate);
 		__v4l2_ctrl_s_ctrl(sc4238->link_freq,
 					 mode->link_freq);
+		sc4238->cur_fps = mode->max_fps;
+		sc4238->cur_vts = mode->vts_def;
 	}
 
 	mutex_unlock(&sc4238->mutex);
@@ -1666,14 +1669,15 @@ static int sc4238_g_frame_interval(struct v4l2_subdev *sd,
 	struct sc4238 *sc4238 = to_sc4238(sd);
 	const struct sc4238_mode *mode = sc4238->cur_mode;
 
-	mutex_lock(&sc4238->mutex);
-	fi->interval = mode->max_fps;
-	mutex_unlock(&sc4238->mutex);
+	if (sc4238->streaming)
+		fi->interval = sc4238->cur_fps;
+	else
+		fi->interval = mode->max_fps;
 
 	return 0;
 }
 
-static int sc4238_g_mbus_config(struct v4l2_subdev *sd,
+static int sc4238_g_mbus_config(struct v4l2_subdev *sd, unsigned int pad_id,
 				struct v4l2_mbus_config *config)
 {
 	struct sc4238 *sc4238 = to_sc4238(sd);
@@ -1690,7 +1694,7 @@ static int sc4238_g_mbus_config(struct v4l2_subdev *sd,
 		V4L2_MBUS_CSI2_CONTINUOUS_CLOCK |
 		V4L2_MBUS_CSI2_CHANNEL_1;
 
-	config->type = V4L2_MBUS_CSI2;
+	config->type = V4L2_MBUS_CSI2_DPHY;
 	config->flags = val;
 
 	return 0;
@@ -1876,10 +1880,22 @@ static int sc4238_set_hdrae(struct sc4238 *sc4238,
 	return ret;
 }
 
+static int sc4238_get_channel_info(struct sc4238 *sc4238, struct rkmodule_channel_info *ch_info)
+{
+	if (ch_info->index < PAD0 || ch_info->index >= PAD_MAX)
+		return -EINVAL;
+	ch_info->vc = sc4238->cur_mode->vc[ch_info->index];
+	ch_info->width = sc4238->cur_mode->width;
+	ch_info->height = sc4238->cur_mode->height;
+	ch_info->bus_fmt = sc4238->cur_mode->bus_fmt;
+	return 0;
+}
+
 static long sc4238_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 {
 	struct sc4238 *sc4238 = to_sc4238(sd);
 	struct rkmodule_hdr_cfg *hdr_cfg;
+	struct rkmodule_channel_info *ch_info;
 	long ret = 0;
 	u32 i, h, w;
 	u32 stream = 0;
@@ -1915,6 +1931,8 @@ static long sc4238_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 			__v4l2_ctrl_modify_range(sc4238->vblank, h,
 				SC4238_VTS_MAX - sc4238->cur_mode->height,
 				1, h);
+			sc4238->cur_fps = sc4238->cur_mode->max_fps;
+			sc4238->cur_vts = sc4238->cur_mode->vts_def;
 			dev_info(&sc4238->client->dev,
 				"sensor mode: %d\n",
 				sc4238->cur_mode->hdr_mode);
@@ -1939,6 +1957,10 @@ static long sc4238_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 			ret = sc4238_write_reg(sc4238->client, SC4238_REG_CTRL_MODE,
 				SC4238_REG_VALUE_08BIT, SC4238_MODE_SW_STANDBY);
 		break;
+	case RKMODULE_GET_CHANNEL_INFO:
+		ch_info = (struct rkmodule_channel_info *)arg;
+		ret = sc4238_get_channel_info(sc4238, ch_info);
+		break;
 	default:
 		ret = -ENOIOCTLCMD;
 		break;
@@ -1956,6 +1978,7 @@ static long sc4238_compat_ioctl32(struct v4l2_subdev *sd,
 	struct rkmodule_awb_cfg *cfg;
 	struct rkmodule_hdr_cfg *hdr;
 	struct preisp_hdrae_exp_s *hdrae;
+	struct rkmodule_channel_info *ch_info;
 	long ret;
 	u32 stream = 0;
 
@@ -1968,8 +1991,11 @@ static long sc4238_compat_ioctl32(struct v4l2_subdev *sd,
 		}
 
 		ret = sc4238_ioctl(sd, cmd, inf);
-		if (!ret)
+		if (!ret) {
 			ret = copy_to_user(up, inf, sizeof(*inf));
+			if (ret)
+				ret = -EFAULT;
+		}
 		kfree(inf);
 		break;
 	case RKMODULE_AWB_CFG:
@@ -1982,6 +2008,8 @@ static long sc4238_compat_ioctl32(struct v4l2_subdev *sd,
 		ret = copy_from_user(cfg, up, sizeof(*cfg));
 		if (!ret)
 			ret = sc4238_ioctl(sd, cmd, cfg);
+		else
+			ret = -EFAULT;
 		kfree(cfg);
 		break;
 	case RKMODULE_GET_HDR_CFG:
@@ -1992,8 +2020,11 @@ static long sc4238_compat_ioctl32(struct v4l2_subdev *sd,
 		}
 
 		ret = sc4238_ioctl(sd, cmd, hdr);
-		if (!ret)
+		if (!ret) {
 			ret = copy_to_user(up, hdr, sizeof(*hdr));
+			if (ret)
+				ret = -EFAULT;
+		}
 		kfree(hdr);
 		break;
 	case RKMODULE_SET_HDR_CFG:
@@ -2006,6 +2037,8 @@ static long sc4238_compat_ioctl32(struct v4l2_subdev *sd,
 		ret = copy_from_user(hdr, up, sizeof(*hdr));
 		if (!ret)
 			ret = sc4238_ioctl(sd, cmd, hdr);
+		else
+			ret = -EFAULT;
 		kfree(hdr);
 		break;
 	case PREISP_CMD_SET_HDRAE_EXP:
@@ -2018,12 +2051,31 @@ static long sc4238_compat_ioctl32(struct v4l2_subdev *sd,
 		ret = copy_from_user(hdrae, up, sizeof(*hdrae));
 		if (!ret)
 			ret = sc4238_ioctl(sd, cmd, hdrae);
+		else
+			ret = -EFAULT;
 		kfree(hdrae);
 		break;
 	case RKMODULE_SET_QUICK_STREAM:
 		ret = copy_from_user(&stream, up, sizeof(u32));
 		if (!ret)
 			ret = sc4238_ioctl(sd, cmd, &stream);
+		else
+			ret = -EFAULT;
+		break;
+	case RKMODULE_GET_CHANNEL_INFO:
+		ch_info = kzalloc(sizeof(*ch_info), GFP_KERNEL);
+		if (!ch_info) {
+			ret = -ENOMEM;
+			return ret;
+		}
+
+		ret = sc4238_ioctl(sd, cmd, ch_info);
+		if (!ret) {
+			ret = copy_to_user(up, ch_info, sizeof(*ch_info));
+			if (ret)
+				ret = -EFAULT;
+		}
+		kfree(ch_info);
 		break;
 	default:
 		ret = -ENOIOCTLCMD;
@@ -2337,7 +2389,6 @@ static const struct v4l2_subdev_core_ops sc4238_core_ops = {
 static const struct v4l2_subdev_video_ops sc4238_video_ops = {
 	.s_stream = sc4238_s_stream,
 	.g_frame_interval = sc4238_g_frame_interval,
-	.g_mbus_config = sc4238_g_mbus_config,
 };
 
 static const struct v4l2_subdev_pad_ops sc4238_pad_ops = {
@@ -2346,6 +2397,7 @@ static const struct v4l2_subdev_pad_ops sc4238_pad_ops = {
 	.enum_frame_interval = sc4238_enum_frame_interval,
 	.get_fmt = sc4238_get_fmt,
 	.set_fmt = sc4238_set_fmt,
+	.get_mbus_config = sc4238_g_mbus_config,
 };
 
 static const struct v4l2_subdev_ops sc4238_subdev_ops = {
@@ -2353,6 +2405,14 @@ static const struct v4l2_subdev_ops sc4238_subdev_ops = {
 	.video	= &sc4238_video_ops,
 	.pad	= &sc4238_pad_ops,
 };
+
+static void sc4238_modify_fps_info(struct sc4238 *sc4238)
+{
+	const struct sc4238_mode *mode = sc4238->cur_mode;
+
+	sc4238->cur_fps.denominator = mode->max_fps.denominator * sc4238->cur_vts /
+				       mode->vts_def;
+}
 
 static int sc4238_set_ctrl(struct v4l2_ctrl *ctrl)
 {
@@ -2424,6 +2484,8 @@ static int sc4238_set_ctrl(struct v4l2_ctrl *ctrl)
 					ctrl->val + sc4238->cur_mode->height);
 		if (ret == 0)
 			sc4238->cur_vts = ctrl->val + sc4238->cur_mode->height;
+		if (sc4238->cur_vts != sc4238->cur_mode->vts_def)
+			sc4238_modify_fps_info(sc4238);
 		dev_dbg(&client->dev, "set vblank 0x%x\n",
 			ctrl->val);
 		break;
@@ -2557,6 +2619,8 @@ static int sc4238_initialize_controls(struct sc4238 *sc4238)
 
 	sc4238->subdev.ctrl_handler = handler;
 	sc4238->has_init_exp = false;
+	sc4238->cur_fps = mode->max_fps;
+	sc4238->cur_vts = mode->vts_def;
 
 	return 0;
 

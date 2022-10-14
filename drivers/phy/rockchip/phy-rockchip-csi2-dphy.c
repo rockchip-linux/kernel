@@ -176,9 +176,9 @@ static int csi2_dphy_update_sensor_mbus(struct v4l2_subdev *sd)
 	if (dphy->drv_data->vendor == PHY_VENDOR_SAMSUNG) {
 		ret = v4l2_subdev_call(sensor_sd, core, ioctl,
 				       RKMODULE_GET_CSI_DPHY_PARAM,
-				       dphy->dphy_param);
+				       &dphy->dphy_param);
 		if (ret) {
-			dev_err(dphy->dev, "%s fail to get dphy param, used default value\n",
+			dev_dbg(dphy->dev, "%s fail to get dphy param, used default value\n",
 				__func__);
 			ret = 0;
 		}
@@ -738,7 +738,7 @@ static int rockchip_csi2_dphy_probe(struct platform_device *pdev)
 		csi2dphy->phy_index = 0;
 	if (csi2dphy->drv_data->vendor == PHY_VENDOR_SAMSUNG) {
 		ret = rockchip_csi2_dphy_attach_samsung_phy(csi2dphy);
-		csi2dphy->dphy_param = &rk3588_dcphy_param;
+		csi2dphy->dphy_param = rk3588_dcphy_param;
 	} else {
 		ret = rockchip_csi2_dphy_attach_hw(csi2dphy);
 	}
@@ -806,7 +806,16 @@ struct platform_driver rockchip_csi2_dphy_driver = {
 		.of_match_table = rockchip_csi2_dphy_match_id,
 	},
 };
+#if defined(CONFIG_VIDEO_ROCKCHIP_THUNDER_BOOT_ISP) && !defined(CONFIG_INITCALL_ASYNC)
+static int __init rockchip_csi2_dphy_init(void)
+{
+	return platform_driver_register(&rockchip_csi2_dphy_driver);
+}
+
+subsys_initcall(rockchip_csi2_dphy_init);
+#else
 module_platform_driver(rockchip_csi2_dphy_driver);
+#endif
 
 MODULE_AUTHOR("Rockchip Camera/ISP team");
 MODULE_DESCRIPTION("Rockchip MIPI CSI2 DPHY driver");

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2010-2015, 2020-2021 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2010-2015, 2020-2022 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -23,8 +23,7 @@
 #define _UAPI_BASE_MEM_PRIV_H_
 
 #include <linux/types.h>
-
-#include "mali_base_kernel.h"
+#include "mali_base_common_kernel.h"
 
 #define BASE_SYNCSET_OP_MSYNC	(1U << 0)
 #define BASE_SYNCSET_OP_CSYNC	(1U << 1)

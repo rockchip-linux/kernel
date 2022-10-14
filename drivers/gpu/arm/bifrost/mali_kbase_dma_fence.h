@@ -88,7 +88,7 @@ int kbase_dma_fence_wait(struct kbase_jd_atom *katom,
 			 struct kbase_dma_fence_resv_info *info);
 
 /**
- * kbase_dma_fence_cancel_ctx() - Cancel all dma-fences blocked atoms on kctx
+ * kbase_dma_fence_cancel_all_atoms() - Cancel all dma-fences blocked atoms on kctx
  * @kctx: Pointer to kbase context
  *
  * This function will cancel and clean up all katoms on @kctx that is waiting
@@ -105,7 +105,7 @@ void kbase_dma_fence_cancel_all_atoms(struct kbase_context *kctx);
  * This function cancels all dma-buf fence callbacks on @katom, but does not
  * cancel the katom itself.
  *
- * The caller is responsible for ensuring that jd_done_nolock is called on
+ * The caller is responsible for ensuring that kbase_jd_done_nolock is called on
  * @katom.
  *
  * Locking: jctx.lock must be held when calling this function.

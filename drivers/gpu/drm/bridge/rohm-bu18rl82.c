@@ -148,6 +148,8 @@ static void bu18rl82_bridge_disable(struct drm_bridge *bridge)
 	struct bu18rl82 *bu18rl82 = bridge_to_bu18rl82(bridge);
 
 	drm_panel_disable(bu18rl82->panel);
+
+	regmap_write(bu18rl82->regmap, 0x91, 0x00);
 }
 
 static void bu18rl82_bridge_pre_enable(struct drm_bridge *bridge)
@@ -164,15 +166,8 @@ static void bu18rl82_bridge_post_disable(struct drm_bridge *bridge)
 	drm_panel_unprepare(bu18rl82->panel);
 }
 
-static enum
-drm_connector_status bu18rl82_bridge_detect(struct drm_bridge *bridge)
-{
-	return connector_status_connected;
-}
-
 static const struct drm_bridge_funcs bu18rl82_bridge_funcs = {
 	.attach = bu18rl82_bridge_attach,
-	.detect = bu18rl82_bridge_detect,
 	.enable = bu18rl82_bridge_enable,
 	.disable = bu18rl82_bridge_disable,
 	.pre_enable = bu18rl82_bridge_pre_enable,
@@ -205,7 +200,7 @@ static int bu18rl82_i2c_probe(struct i2c_client *client,
 
 	bu18rl82->base.funcs = &bu18rl82_bridge_funcs;
 	bu18rl82->base.of_node = dev->of_node;
-	bu18rl82->base.ops = DRM_BRIDGE_OP_DETECT | DRM_BRIDGE_OP_MODES;
+	bu18rl82->base.ops = DRM_BRIDGE_OP_MODES;
 
 	drm_bridge_add(&bu18rl82->base);
 

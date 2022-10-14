@@ -55,7 +55,7 @@
 #define CSF_FIRMWARE_ENTRY_ZERO       (1ul << 31)
 
 /**
- * enum kbase_csf_bind_state - bind state of the queue
+ * enum kbase_csf_queue_bind_state - bind state of the queue
  *
  * @KBASE_CSF_QUEUE_UNBOUND: Set when the queue is registered or when the link
  * between queue and the group to which it was bound or being bound is removed.
@@ -259,6 +259,11 @@ enum kbase_queue_group_priority {
  * @CSF_PM_TIMEOUT: Timeout for GPU Power Management to reach the desired
  *                  Shader, L2 and MCU state.
  * @CSF_GPU_RESET_TIMEOUT: Waiting timeout for GPU reset to complete.
+ * @CSF_CSG_SUSPEND_TIMEOUT: Timeout given for all active CSGs to be suspended.
+ * @CSF_FIRMWARE_BOOT_TIMEOUT: Maximum time to wait for firmware to boot.
+ * @CSF_FIRMWARE_PING_TIMEOUT: Maximum time to wait for firmware to respond
+ *                             to a ping from KBase.
+ * @CSF_SCHED_PROTM_PROGRESS_TIMEOUT: Timeout used to prevent protected mode execution hang.
  * @KBASE_TIMEOUT_SELECTOR_COUNT: Number of timeout selectors. Must be last in
  *                                the enum.
  */
@@ -266,6 +271,10 @@ enum kbase_timeout_selector {
 	CSF_FIRMWARE_TIMEOUT,
 	CSF_PM_TIMEOUT,
 	CSF_GPU_RESET_TIMEOUT,
+	CSF_CSG_SUSPEND_TIMEOUT,
+	CSF_FIRMWARE_BOOT_TIMEOUT,
+	CSF_FIRMWARE_PING_TIMEOUT,
+	CSF_SCHED_PROTM_PROGRESS_TIMEOUT,
 
 	/* Must be the last in the enum */
 	KBASE_TIMEOUT_SELECTOR_COUNT
@@ -446,6 +455,7 @@ struct kbase_protected_suspend_buffer {
  *                  allowed to use.
  * @compute_max:    Maximum number of compute endpoints the group is
  *                  allowed to use.
+ * @csi_handlers:   Requested CSI exception handler flags for the group.
  * @tiler_mask:     Mask of tiler endpoints the group is allowed to use.
  * @fragment_mask:  Mask of fragment endpoints the group is allowed to use.
  * @compute_mask:   Mask of compute endpoints the group is allowed to use.
@@ -467,6 +477,12 @@ struct kbase_protected_suspend_buffer {
  * @faulted:          Indicates that a GPU fault occurred for the queue group.
  *                    This flag persists until the fault has been queued to be
  *                    reported to userspace.
+ * @cs_unrecoverable: Flag to unblock the thread waiting for CSG termination in
+ *                    case of CS_FATAL_EXCEPTION_TYPE_CS_UNRECOVERABLE
+ * @reevaluate_idle_status : Flag set when work is submitted for the normal group
+ *                           or it becomes unblocked during protected mode. The
+ *                           flag helps Scheduler confirm if the group actually
+ *                           became non idle or not.
  * @bound_queues:   Array of registered queues bound to this queue group.
  * @doorbell_nr:    Index of the hardware doorbell page assigned to the
  *                  group.
@@ -494,6 +510,7 @@ struct kbase_queue_group {
 	u8 tiler_max;
 	u8 fragment_max;
 	u8 compute_max;
+	u8 csi_handlers;
 
 	u64 tiler_mask;
 	u64 fragment_mask;
@@ -507,6 +524,8 @@ struct kbase_queue_group {
 	u32 prepared_seq_num;
 	u32 scan_seq_num;
 	bool faulted;
+	bool cs_unrecoverable;
+	bool reevaluate_idle_status;
 
 	struct kbase_queue *bound_queues[MAX_SUPPORTED_STREAMS_PER_GROUP];
 
@@ -914,6 +933,7 @@ struct kbase_csf_csg_slot {
  *                          protected mode execution compared to other such
  *                          groups. It is updated on every tick/tock.
  *                          @interrupt_lock is used to serialize the access.
+ * @protm_enter_time:       GPU protected mode enter time.
  */
 struct kbase_csf_scheduler {
 	struct mutex lock;
@@ -954,6 +974,7 @@ struct kbase_csf_scheduler {
 	unsigned int csg_scheduling_period_ms;
 	bool tick_timer_active;
 	u32 tick_protm_pending_seq;
+	ktime_t protm_enter_time;
 };
 
 /*
@@ -1174,6 +1195,19 @@ struct kbase_csf_hwcnt {
 	bool enable_pending;
 };
 
+/*
+ * struct kbase_csf_mcu_fw - Object containing device loaded MCU firmware data.
+ *
+ * @size:                    Loaded firmware data size. Meaningful only when the
+ *                           other field @p data is not NULL.
+ * @data:                    Pointer to the device retained firmware data. If NULL
+ *                           means not loaded yet or error in loading stage.
+ */
+struct kbase_csf_mcu_fw {
+	size_t size;
+	u8 *data;
+};
+
 /**
  * struct kbase_csf_device - Object representing CSF for an instance of GPU
  *                           platform device.
@@ -1285,6 +1319,7 @@ struct kbase_csf_hwcnt {
  *                          for any request sent to the firmware.
  * @hwcnt:                  Contain members required for handling the dump of
  *                          HW counters.
+ * @fw:                     Copy of the loaded MCU firmware image.
  */
 struct kbase_csf_device {
 	struct kbase_mmu_table mcu_mmu;
@@ -1324,6 +1359,7 @@ struct kbase_csf_device {
 	u32 gpu_idle_dur_count;
 	unsigned int fw_timeout_ms;
 	struct kbase_csf_hwcnt hwcnt;
+	struct kbase_csf_mcu_fw fw;
 };
 
 /**

@@ -99,6 +99,7 @@
 #include <linux/compat.h>	/* is_compat_task/in_compat_syscall */
 #include <linux/mman.h>
 #include <linux/version.h>
+#include <linux/version_compat_defs.h>
 #include <mali_kbase_hw.h>
 #if defined(CONFIG_SYNC) || defined(CONFIG_SYNC_FILE)
 #include <mali_kbase_sync.h>
@@ -311,10 +312,9 @@ static int kbase_file_create_kctx(struct kbase_file *kfile,
  *
  * @kfile: A device file created by kbase_file_new()
  *
- * This function returns an error code (encoded with ERR_PTR) if no context
- * has been created for the given @kfile. This makes it safe to use in
- * circumstances where the order of initialization cannot be enforced, but
- * only if the caller checks the return value.
+ * This function returns NULL if no context has been created for the given @kfile.
+ * This makes it safe to use in circumstances where the order of initialization
+ * cannot be enforced, but only if the caller checks the return value.
  *
  * Return: Address of the kernel base context associated with the @kfile, or
  *         NULL if no context exists.
@@ -502,27 +502,6 @@ void kbase_release_device(struct kbase_device *kbdev)
 EXPORT_SYMBOL(kbase_release_device);
 
 #if IS_ENABLED(CONFIG_DEBUG_FS)
-#if KERNEL_VERSION(4, 6, 0) > LINUX_VERSION_CODE &&                            \
-	!(KERNEL_VERSION(4, 4, 28) <= LINUX_VERSION_CODE &&                    \
-	  KERNEL_VERSION(4, 5, 0) > LINUX_VERSION_CODE)
-/*
- * Older versions, before v4.6, of the kernel doesn't have
- * kstrtobool_from_user(), except longterm 4.4.y which had it added in 4.4.28
- */
-static int kstrtobool_from_user(const char __user *s, size_t count, bool *res)
-{
-	char buf[4];
-
-	count = min(count, sizeof(buf) - 1);
-
-	if (copy_from_user(buf, s, count))
-		return -EFAULT;
-	buf[count] = '\0';
-
-	return strtobool(buf, res);
-}
-#endif
-
 static ssize_t write_ctx_infinite_cache(struct file *f, const char __user *ubuf, size_t size, loff_t *off)
 {
 	struct kbase_context *kctx = f->private_data;
@@ -634,13 +613,8 @@ static int kbase_file_create_kctx(struct kbase_file *const kfile,
 
 	kbdev = kfile->kbdev;
 
-#if (KERNEL_VERSION(4, 6, 0) <= LINUX_VERSION_CODE)
 	kctx = kbase_create_context(kbdev, in_compat_syscall(),
 		flags, kfile->api_version, kfile->filp);
-#else
-	kctx = kbase_create_context(kbdev, is_compat_task(),
-		flags, kfile->api_version, kfile->filp);
-#endif /* (KERNEL_VERSION(4, 6, 0) <= LINUX_VERSION_CODE) */
 
 	/* if bad flags, will stay stuck in setup mode */
 	if (!kctx)
@@ -661,16 +635,8 @@ static int kbase_file_create_kctx(struct kbase_file *const kfile,
 		/* we don't treat this as a fail - just warn about it */
 		dev_warn(kbdev->dev, "couldn't create debugfs dir for kctx\n");
 	} else {
-#if (KERNEL_VERSION(4, 7, 0) > LINUX_VERSION_CODE)
-		/* prevent unprivileged use of debug file system
-		 * in old kernel version
-		 */
-		debugfs_create_file("infinite_cache", 0600, kctx->kctx_dentry,
-			kctx, &kbase_infinite_cache_fops);
-#else
 		debugfs_create_file("infinite_cache", 0644, kctx->kctx_dentry,
 			kctx, &kbase_infinite_cache_fops);
-#endif
 		debugfs_create_file("force_same_va", 0600, kctx->kctx_dentry,
 			kctx, &kbase_force_same_va_fops);
 
@@ -1009,9 +975,9 @@ static int kbase_api_get_cpu_gpu_timeinfo(struct kbase_context *kctx,
 		union kbase_ioctl_get_cpu_gpu_timeinfo *timeinfo)
 {
 	u32 flags = timeinfo->in.request_flags;
-	struct timespec64 ts;
-	u64 timestamp;
-	u64 cycle_cnt;
+	struct timespec64 ts = { 0 };
+	u64 timestamp = 0;
+	u64 cycle_cnt = 0;
 
 	kbase_pm_context_active(kctx->kbdev);
 
@@ -1040,11 +1006,7 @@ static int kbase_api_get_cpu_gpu_timeinfo(struct kbase_context *kctx,
 static int kbase_api_hwcnt_set(struct kbase_context *kctx,
 		struct kbase_ioctl_hwcnt_values *values)
 {
-	gpu_model_set_dummy_prfcnt_sample(
-			(u32 __user *)(uintptr_t)values->data,
-			values->size);
-
-	return 0;
+	return gpu_model_set_dummy_prfcnt_user_sample(u64_to_user_ptr(values->data), values->size);
 }
 #endif /* CONFIG_MALI_BIFROST_NO_MALI */
 
@@ -2204,18 +2166,28 @@ static ssize_t kbase_read(struct file *filp, char __user *buf, size_t count, lof
 }
 #endif /* MALI_USE_CSF */
 
-static unsigned int kbase_poll(struct file *filp, poll_table *wait)
+static __poll_t kbase_poll(struct file *filp, poll_table *wait)
 {
 	struct kbase_file *const kfile = filp->private_data;
 	struct kbase_context *const kctx =
 		kbase_file_get_kctx_if_setup_complete(kfile);
 
-	if (unlikely(!kctx))
+	if (unlikely(!kctx)) {
+#if (KERNEL_VERSION(4, 19, 0) > LINUX_VERSION_CODE)
 		return POLLERR;
+#else
+		return EPOLLERR;
+#endif
+	}
 
 	poll_wait(filp, &kctx->event_queue, wait);
-	if (kbase_event_pending(kctx))
+	if (kbase_event_pending(kctx)) {
+#if (KERNEL_VERSION(4, 19, 0) > LINUX_VERSION_CODE)
 		return POLLIN | POLLRDNORM;
+#else
+		return EPOLLIN | EPOLLRDNORM;
+#endif
+	}
 
 	return 0;
 }
@@ -3223,12 +3195,14 @@ static ssize_t gpuinfo_show(struct device *dev,
 	u32 gpu_id;
 	unsigned int product_id, product_id_mask;
 	unsigned int i;
+	struct kbase_gpu_props *gpu_props;
 
 	kbdev = to_kbase_device(dev);
 	if (!kbdev)
 		return -ENODEV;
 
-	gpu_id = kbdev->gpu_props.props.raw_props.gpu_id;
+	gpu_props = &kbdev->gpu_props;
+	gpu_id = gpu_props->props.raw_props.gpu_id;
 	product_id = gpu_id >> KBASE_GPU_ID_VERSION_PRODUCT_ID_SHIFT;
 	product_id_mask = GPU_ID2_PRODUCT_MODEL >> KBASE_GPU_ID_VERSION_PRODUCT_ID_SHIFT;
 
@@ -3241,6 +3215,32 @@ static ssize_t gpuinfo_show(struct device *dev,
 			break;
 		}
 	}
+
+#if MALI_USE_CSF
+	if ((product_id & product_id_mask) ==
+	    ((GPU_ID2_PRODUCT_TTUX >> KBASE_GPU_ID_VERSION_PRODUCT_ID_SHIFT) & product_id_mask)) {
+		const bool rt_supported =
+			GPU_FEATURES_RAY_TRACING_GET(gpu_props->props.raw_props.gpu_features);
+		const u8 nr_cores = gpu_props->num_cores;
+
+		/* Mali-TTUX_B(ig) if 10 < number of cores with ray tracing supproted.
+		 * Mali-TTUX if 10 < number of cores without ray tracing supported.
+		 * Mali-TTUX if 7 <= number of cores <= 10 regardless ray tracing.
+		 * Mali-LTUX if number of cores < 7.
+		 */
+		if ((nr_cores > 10) && rt_supported)
+			product_name = "Mali-TTUX_B";
+		else if (nr_cores >= 7)
+			product_name = "Mali-TTUX";
+
+		if (nr_cores < 7) {
+			dev_warn(kbdev->dev, "nr_cores(%u) GPU ID must be LTUX", nr_cores);
+			product_name = "Mali-LTUX";
+		} else
+			dev_dbg(kbdev->dev, "GPU ID_Name: %s, nr_cores(%u)\n", product_name,
+				nr_cores);
+	}
+#endif /* MALI_USE_CSF */
 
 	return scnprintf(buf, PAGE_SIZE, "%s %d cores r%dp%d 0x%04X\n", product_name,
 			 kbdev->gpu_props.num_cores,
@@ -3313,6 +3313,46 @@ static ssize_t dvfs_period_show(struct device *dev,
 }
 
 static DEVICE_ATTR_RW(dvfs_period);
+
+int kbase_pm_lowest_gpu_freq_init(struct kbase_device *kbdev)
+{
+	/* Uses default reference frequency defined in below macro */
+	u64 lowest_freq_khz = DEFAULT_REF_TIMEOUT_FREQ_KHZ;
+
+	/* Only check lowest frequency in cases when OPPs are used and
+	 * present in the device tree.
+	 */
+#ifdef CONFIG_PM_OPP
+	struct dev_pm_opp *opp_ptr;
+	unsigned long found_freq = 0;
+
+	/* find lowest frequency OPP */
+	opp_ptr = dev_pm_opp_find_freq_ceil(kbdev->dev, &found_freq);
+	if (IS_ERR(opp_ptr)) {
+		dev_err(kbdev->dev, "No OPPs found in device tree! Scaling timeouts using %llu kHz",
+			(unsigned long long)lowest_freq_khz);
+	} else {
+#if KERNEL_VERSION(4, 11, 0) <= LINUX_VERSION_CODE
+		dev_pm_opp_put(opp_ptr); /* decrease OPP refcount */
+#endif
+		/* convert found frequency to KHz */
+		found_freq /= 1000;
+
+		/* If lowest frequency in OPP table is still higher
+		 * than the reference, then keep the reference frequency
+		 * as the one to use for scaling .
+		 */
+		if (found_freq < lowest_freq_khz)
+			lowest_freq_khz = found_freq;
+	}
+#else
+	dev_err(kbdev->dev, "No operating-points-v2 node or operating-points property in DT");
+#endif
+
+	kbdev->lowest_gpu_freq_khz = lowest_freq_khz;
+	dev_dbg(kbdev->dev, "Lowest frequency identified is %llu kHz", kbdev->lowest_gpu_freq_khz);
+	return 0;
+}
 
 /**
  * pm_poweroff_store - Store callback for the pm_poweroff sysfs file.
@@ -4478,7 +4518,7 @@ int power_control_init(struct kbase_device *kbdev)
 		}
 	}
 	if (err == -EPROBE_DEFER) {
-		while ((i > 0) && (i < BASE_MAX_NR_CLOCKS_REGULATORS))
+		while (i > 0)
 			regulator_put(kbdev->regulators[--i]);
 		return err;
 	}
@@ -4515,8 +4555,8 @@ int power_control_init(struct kbase_device *kbdev)
 		}
 	}
 	if (err == -EPROBE_DEFER) {
-		while ((i > 0) && (i < BASE_MAX_NR_CLOCKS_REGULATORS)) {
-			clk_unprepare(kbdev->clocks[--i]);
+		while (i > 0) {
+			clk_disable_unprepare(kbdev->clocks[--i]);
 			clk_put(kbdev->clocks[i]);
 		}
 		goto clocks_probe_defer;
@@ -4562,6 +4602,19 @@ int power_control_init(struct kbase_device *kbdev)
 #endif
 #endif /* CONFIG_PM_OPP */
 	return 0;
+
+#if defined(CONFIG_PM_OPP) &&                                                                      \
+	((KERNEL_VERSION(4, 10, 0) <= LINUX_VERSION_CODE) && defined(CONFIG_REGULATOR))
+	for (i = 0; i < BASE_MAX_NR_CLOCKS_REGULATORS; i++) {
+		if (kbdev->clocks[i]) {
+			if (__clk_is_enabled(kbdev->clocks[i]))
+				clk_disable_unprepare(kbdev->clocks[i]);
+			clk_put(kbdev->clocks[i]);
+			kbdev->clocks[i] = NULL;
+		} else
+			break;
+	}
+#endif
 
 clocks_probe_defer:
 #if defined(CONFIG_REGULATOR)
@@ -4623,18 +4676,18 @@ static int type##_quirks_set(void *data, u64 val) \
 	kbdev = (struct kbase_device *)data; \
 	kbdev->hw_quirks_##type = (u32)val; \
 	trigger_reset(kbdev); \
-	return 0;\
+	return 0; \
 } \
 \
 static int type##_quirks_get(void *data, u64 *val) \
 { \
-	struct kbase_device *kbdev;\
-	kbdev = (struct kbase_device *)data;\
-	*val = kbdev->hw_quirks_##type;\
-	return 0;\
+	struct kbase_device *kbdev; \
+	kbdev = (struct kbase_device *)data; \
+	*val = kbdev->hw_quirks_##type; \
+	return 0; \
 } \
-DEFINE_SIMPLE_ATTRIBUTE(fops_##type##_quirks, type##_quirks_get,\
-		type##_quirks_set, "%llu\n")
+DEFINE_DEBUGFS_ATTRIBUTE(fops_##type##_quirks, type##_quirks_get, \
+			 type##_quirks_set, "%llu\n")
 
 MAKE_QUIRK_ACCESSORS(sc);
 MAKE_QUIRK_ACCESSORS(tiler);
@@ -4664,8 +4717,7 @@ static int kbase_device_debugfs_reset_write(void *data, u64 wait_for_reset)
 	return 0;
 }
 
-DEFINE_SIMPLE_ATTRIBUTE(fops_trigger_reset,
-		NULL, &kbase_device_debugfs_reset_write, "%llu\n");
+DEFINE_DEBUGFS_ATTRIBUTE(fops_trigger_reset, NULL, &kbase_device_debugfs_reset_write, "%llu\n");
 
 /**
  * debugfs_protected_debug_mode_read - "protected_debug_mode" debugfs read
@@ -4756,12 +4808,7 @@ int kbase_device_debugfs_init(struct kbase_device *kbdev)
 	/* prevent unprivileged use of debug file system
 	 * in old kernel version
 	 */
-#if (KERNEL_VERSION(4, 7, 0) <= LINUX_VERSION_CODE)
-	/* only for newer kernel version debug file system is safe */
 	const mode_t mode = 0644;
-#else
-	const mode_t mode = 0600;
-#endif
 
 	kbdev->mali_debugfs_directory = debugfs_create_dir(kbdev->devname,
 			NULL);
@@ -4866,6 +4913,7 @@ int kbase_device_debugfs_init(struct kbase_device *kbdev)
 
 #endif
 	kbase_dvfs_status_debugfs_init(kbdev);
+
 
 	return 0;
 
@@ -5063,10 +5111,11 @@ static ssize_t fw_timeout_store(struct device *dev,
 
 	ret = kstrtouint(buf, 0, &fw_timeout);
 	if (ret || fw_timeout == 0) {
-		dev_err(kbdev->dev, "%s\n%s\n%u",
-			"Couldn't process fw_timeout write operation.",
-			"Use format 'fw_timeout_ms', and fw_timeout_ms > 0",
-			FIRMWARE_PING_INTERVAL_MS);
+		dev_err(kbdev->dev,
+			"Couldn't process fw_timeout write operation.\n"
+			"Use format 'fw_timeout_ms', and fw_timeout_ms > 0\n"
+			"Default fw_timeout: %u",
+			kbase_get_timeout_ms(kbdev, CSF_FIRMWARE_PING_TIMEOUT));
 		return -EINVAL;
 	}
 
@@ -5170,6 +5219,66 @@ static ssize_t idle_hysteresis_time_show(struct device *dev,
 }
 
 static DEVICE_ATTR_RW(idle_hysteresis_time);
+
+/**
+ * mcu_shader_pwroff_timeout_show - Get the MCU shader Core power-off time value.
+ *
+ * @dev:  The device this sysfs file is for.
+ * @attr: The attributes of the sysfs file.
+ * @buf:  The output buffer for the sysfs file contents
+ *
+ * Get the internally recorded MCU shader Core power-off (nominal) timeout value.
+ * The unit of the value is in micro-seconds.
+ *
+ * Return: The number of bytes output to @buf if the
+ *         function succeeded. A Negative value on failure.
+ */
+static ssize_t mcu_shader_pwroff_timeout_show(struct device *dev, struct device_attribute *attr,
+					      char *const buf)
+{
+	struct kbase_device *kbdev = dev_get_drvdata(dev);
+	u32 pwroff;
+
+	if (!kbdev)
+		return -ENODEV;
+
+	pwroff = kbase_csf_firmware_get_mcu_core_pwroff_time(kbdev);
+	return scnprintf(buf, PAGE_SIZE, "%u\n", pwroff);
+}
+
+/**
+ * mcu_shader_pwroff_timeout_store - Set the MCU shader core power-off time value.
+ *
+ * @dev:   The device with sysfs file is for
+ * @attr:  The attributes of the sysfs file
+ * @buf:   The value written to the sysfs file
+ * @count: The number of bytes to write to the sysfs file
+ *
+ * The duration value (unit: micro-seconds) for configuring MCU Shader Core
+ * timer, when the shader cores' power transitions are delegated to the
+ * MCU (normal operational mode)
+ *
+ * Return: @count if the function succeeded. An error code on failure.
+ */
+static ssize_t mcu_shader_pwroff_timeout_store(struct device *dev, struct device_attribute *attr,
+					       const char *buf, size_t count)
+{
+	struct kbase_device *kbdev = dev_get_drvdata(dev);
+	u32 dur;
+
+	if (!kbdev)
+		return -ENODEV;
+
+	if (kstrtouint(buf, 0, &dur))
+		return -EINVAL;
+
+	kbase_csf_firmware_set_mcu_core_pwroff_time(kbdev, dur);
+
+	return count;
+}
+
+static DEVICE_ATTR_RW(mcu_shader_pwroff_timeout);
+
 #endif /* MALI_USE_CSF */
 
 static struct attribute *kbase_scheduling_attrs[] = {
@@ -5200,6 +5309,7 @@ static struct attribute *kbase_attrs[] = {
 	&dev_attr_csg_scheduling_period.attr,
 	&dev_attr_fw_timeout.attr,
 	&dev_attr_idle_hysteresis_time.attr,
+	&dev_attr_mcu_shader_pwroff_timeout.attr,
 #endif /* !MALI_USE_CSF */
 	&dev_attr_power_policy.attr,
 	&dev_attr_core_mask.attr,
@@ -5437,14 +5547,14 @@ static int kbase_device_resume(struct device *dev)
 
 #ifdef CONFIG_MALI_BIFROST_DEVFREQ
 	dev_dbg(dev, "Callback %s\n", __func__);
-	if (kbdev->devfreq) {
-		mutex_lock(&kbdev->pm.lock);
-		if (kbdev->pm.active_count > 0)
-			kbase_devfreq_enqueue_work(kbdev, DEVFREQ_WORK_RESUME);
-		mutex_unlock(&kbdev->pm.lock);
-		flush_workqueue(kbdev->devfreq_queue.workq);
-	}
+	if (kbdev->devfreq)
+		kbase_devfreq_enqueue_work(kbdev, DEVFREQ_WORK_RESUME);
 #endif
+
+#if !MALI_USE_CSF
+	kbase_enable_quick_reset(kbdev);
+#endif
+
 	return 0;
 }
 

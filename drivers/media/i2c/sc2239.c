@@ -118,6 +118,8 @@ struct sc2239 {
 	struct v4l2_ctrl	*vblank;
 	struct v4l2_ctrl	*test_pattern;
 	struct mutex		mutex;
+	struct v4l2_fract	cur_fps;
+	u32			cur_vts;
 	bool			streaming;
 	bool			power_on;
 	const struct sc2239_mode *cur_mode;
@@ -406,6 +408,8 @@ static int sc2239_set_fmt(struct v4l2_subdev *sd,
 		__v4l2_ctrl_modify_range(sc2239->vblank, vblank_def,
 					 SC2239_VTS_MAX - mode->height,
 					 1, vblank_def);
+		sc2239->cur_fps = mode->max_fps;
+		sc2239->cur_vts = mode->vts_def;
 	}
 
 	mutex_unlock(&sc2239->mutex);
@@ -542,8 +546,11 @@ static long sc2239_compat_ioctl32(struct v4l2_subdev *sd,
 		}
 
 		ret = sc2239_ioctl(sd, cmd, inf);
-		if (!ret)
+		if (!ret) {
 			ret = copy_to_user(up, inf, sizeof(*inf));
+			if (ret)
+				ret = -EFAULT;
+		}
 		kfree(inf);
 		break;
 	case RKMODULE_AWB_CFG:
@@ -556,12 +563,16 @@ static long sc2239_compat_ioctl32(struct v4l2_subdev *sd,
 		ret = copy_from_user(cfg, up, sizeof(*cfg));
 		if (!ret)
 			ret = sc2239_ioctl(sd, cmd, cfg);
+		else
+			ret = -EFAULT;
 		kfree(cfg);
 		break;
 	case RKMODULE_SET_QUICK_STREAM:
 		ret = copy_from_user(&stream, up, sizeof(u32));
 		if (!ret)
 			ret = sc2239_ioctl(sd, cmd, &stream);
+		else
+			ret = -EFAULT;
 		break;
 	default:
 		ret = -ENOIOCTLCMD;
@@ -698,9 +709,10 @@ static int sc2239_g_frame_interval(struct v4l2_subdev *sd,
 	struct sc2239 *sc2239 = to_sc2239(sd);
 	const struct sc2239_mode *mode = sc2239->cur_mode;
 
-	mutex_lock(&sc2239->mutex);
-	fi->interval = mode->max_fps;
-	mutex_unlock(&sc2239->mutex);
+	if (sc2239->streaming)
+		fi->interval = sc2239->cur_fps;
+	else
+		fi->interval = mode->max_fps;
 
 	return 0;
 }
@@ -843,14 +855,14 @@ static int sc2239_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 }
 #endif
 
-static int sc2239_g_mbus_config(struct v4l2_subdev *sd,
+static int sc2239_g_mbus_config(struct v4l2_subdev *sd, unsigned int pad_id,
 				 struct v4l2_mbus_config *config)
 {
 	u32 val = 1 << (SC2239_LANES - 1) |
 		V4L2_MBUS_CSI2_CHANNEL_0 |
 		V4L2_MBUS_CSI2_CONTINUOUS_CLOCK;
 
-	config->type = V4L2_MBUS_CSI2;
+	config->type = V4L2_MBUS_CSI2_DPHY;
 	config->flags = val;
 
 	return 0;
@@ -894,7 +906,6 @@ static const struct v4l2_subdev_core_ops sc2239_core_ops = {
 static const struct v4l2_subdev_video_ops sc2239_video_ops = {
 	.s_stream = sc2239_s_stream,
 	.g_frame_interval = sc2239_g_frame_interval,
-	.g_mbus_config = sc2239_g_mbus_config,
 };
 
 static const struct v4l2_subdev_pad_ops sc2239_pad_ops = {
@@ -903,6 +914,7 @@ static const struct v4l2_subdev_pad_ops sc2239_pad_ops = {
 	.enum_frame_interval = sc2239_enum_frame_interval,
 	.get_fmt = sc2239_get_fmt,
 	.set_fmt = sc2239_set_fmt,
+	.get_mbus_config = sc2239_g_mbus_config,
 };
 
 static const struct v4l2_subdev_ops sc2239_subdev_ops = {
@@ -910,6 +922,14 @@ static const struct v4l2_subdev_ops sc2239_subdev_ops = {
 	.video	= &sc2239_video_ops,
 	.pad	= &sc2239_pad_ops,
 };
+
+static void sc2239_modify_fps_info(struct sc2239 *sc2239)
+{
+	const struct sc2239_mode *mode = sc2239->cur_mode;
+
+	sc2239->cur_fps.denominator = mode->max_fps.denominator * sc2239->cur_vts /
+				       mode->vts_def;
+}
 
 static int sc2239_set_ctrl(struct v4l2_ctrl *ctrl)
 {
@@ -953,6 +973,10 @@ static int sc2239_set_ctrl(struct v4l2_ctrl *ctrl)
 		ret = sc2239_write_reg(sc2239->client, SC2239_REG_VTS,
 				       SC2239_REG_VALUE_16BIT,
 				       ctrl->val + sc2239->cur_mode->height);
+		if (!ret)
+			sc2239->cur_vts = ctrl->val + sc2239->cur_mode->height;
+		if (sc2239->cur_vts != sc2239->cur_mode->vts_def)
+			sc2239_modify_fps_info(sc2239);
 		break;
 	case V4L2_CID_TEST_PATTERN:
 		ret = sc2239_enable_test_pattern(sc2239, ctrl->val);
@@ -1033,6 +1057,9 @@ static int sc2239_initialize_controls(struct sc2239 *sc2239)
 
 	sc2239->subdev.ctrl_handler = handler;
 	sc2239->old_gain = ANALOG_GAIN_DEFAULT;
+	sc2239->cur_fps = mode->max_fps;
+	sc2239->cur_vts = mode->vts_def;
+
 	return 0;
 
 err_free_handler:

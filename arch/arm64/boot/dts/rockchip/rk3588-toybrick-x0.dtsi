@@ -16,11 +16,11 @@
 		#size-cells = <2>;
 		ranges;
 
-		/* Reserve 256MB memory for hdmirx-controller@fdee0000 */
+		/* Reserve 128MB memory for hdmirx-controller@fdee0000 */
 		cma {
 			compatible = "shared-dma-pool";
 			reusable;
-			reg = <0x0 (256 * 0x100000) 0x0 (256 * 0x100000)>;
+			reg = <0x0 (256 * 0x100000) 0x0 (128 * 0x100000)>;
 			linux,cma-default;
 		};
 	};
@@ -345,7 +345,9 @@
 
 	/* Effective level used to trigger HPD: 0-low, 1-high */
 	hpd-trigger-level = <1>;
-	hdmirx-det-gpios = <&gpio2 13 GPIO_ACTIVE_LOW>;
+	hdmirx-det-gpios = <&gpio2 RK_PB5 GPIO_ACTIVE_LOW>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&hdmim1_rx &hdmirx_det>;
 };
 
 &hdptxphy_hdmi0 {
@@ -577,6 +579,11 @@
 };
 
 &pinctrl {
+	hdmi {
+		hdmirx_det: hdmirx-det {
+			rockchip,pins = <2 RK_PB5 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+	};
 
 	headphone {
 		hp_det: hp-det {
@@ -606,7 +613,7 @@
 		touch_gpio: touch-gpio {
 			rockchip,pins =
 				<0 RK_PD5 RK_FUNC_GPIO &pcfg_pull_up>,
-				<0 RK_PB0 RK_FUNC_GPIO &pcfg_pull_none>;
+				<0 RK_PB0 RK_FUNC_GPIO &pcfg_pull_up>;
 		};
 	};
 

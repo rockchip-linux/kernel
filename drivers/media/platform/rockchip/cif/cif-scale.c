@@ -430,12 +430,6 @@ static int rkcif_scale_fh_open(struct file *file)
 		v4l2_err(&cifdev->v4l2_dev, "Failed to get runtime pm, %d\n",
 			 ret);
 
-	mutex_lock(&cifdev->stream_lock);
-	if (!atomic_read(&cifdev->fh_cnt))
-		rkcif_soft_reset(cifdev, true);
-	atomic_inc(&cifdev->fh_cnt);
-	mutex_unlock(&cifdev->stream_lock);
-
 	ret = v4l2_fh_open(file);
 	if (!ret) {
 		ret = v4l2_pipeline_pm_get(&vnode->vdev.entity);
@@ -1054,7 +1048,7 @@ void rkcif_irq_handle_scale(struct rkcif_device *cif_dev, unsigned int intstat_g
 		rkcif_scale_update_stream(scale_vdev, ch);
 		stream = scale_vdev->stream;
 		if (stream->to_en_dma)
-			rkcif_enable_dma_capture(stream);
+			rkcif_enable_dma_capture(stream, false);
 	}
 }
 

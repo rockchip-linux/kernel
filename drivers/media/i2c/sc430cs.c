@@ -141,7 +141,7 @@ struct sc430cs {
 	struct pinctrl		*pinctrl;
 	struct pinctrl_state	*pins_default;
 	struct pinctrl_state	*pins_sleep;
-
+	struct v4l2_fract	cur_fps;
 	struct v4l2_subdev	subdev;
 	struct media_pad	pad;
 	struct v4l2_ctrl_handler ctrl_handler;
@@ -562,6 +562,8 @@ static int sc430cs_set_fmt(struct v4l2_subdev *sd,
 		__v4l2_ctrl_modify_range(sc430cs->vblank, vblank_def,
 					 SC430CS_VTS_MAX - mode->height,
 					 1, vblank_def);
+		sc430cs->cur_fps = mode->max_fps;
+		sc430cs->cur_vts = (u32)mode->vts_def;
 	}
 
 	mutex_unlock(&sc430cs->mutex);
@@ -654,14 +656,15 @@ static int sc430cs_g_frame_interval(struct v4l2_subdev *sd,
 	struct sc430cs *sc430cs = to_sc430cs(sd);
 	const struct sc430cs_mode *mode = sc430cs->cur_mode;
 
-	mutex_lock(&sc430cs->mutex);
-	fi->interval = mode->max_fps;
-	mutex_unlock(&sc430cs->mutex);
+	if (sc430cs->streaming)
+		fi->interval = sc430cs->cur_fps;
+	else
+		fi->interval = mode->max_fps;
 
 	return 0;
 }
 
-static int sc430cs_g_mbus_config(struct v4l2_subdev *sd,
+static int sc430cs_g_mbus_config(struct v4l2_subdev *sd, unsigned int pad_id,
 				 struct v4l2_mbus_config *config)
 {
 	struct sc430cs *sc430cs = to_sc430cs(sd);
@@ -675,7 +678,7 @@ static int sc430cs_g_mbus_config(struct v4l2_subdev *sd,
 	if (mode->hdr_mode == HDR_X3)
 		val |= V4L2_MBUS_CSI2_CHANNEL_2;
 
-	config->type = V4L2_MBUS_CSI2;
+	config->type = V4L2_MBUS_CSI2_DPHY;
 	config->flags = val;
 
 	return 0;
@@ -731,6 +734,8 @@ static long sc430cs_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 			__v4l2_ctrl_modify_range(sc430cs->hblank, w, w, 1, w);
 			__v4l2_ctrl_modify_range(sc430cs->vblank, h,
 						 SC430CS_VTS_MAX - sc430cs->cur_mode->height, 1, h);
+			sc430cs->cur_fps = sc430cs->cur_mode->max_fps;
+			sc430cs->cur_vts = sc430cs->cur_mode->vts_def;
 		}
 		break;
 	case PREISP_CMD_SET_HDRAE_EXP:
@@ -775,8 +780,11 @@ static long sc430cs_compat_ioctl32(struct v4l2_subdev *sd,
 		}
 
 		ret = sc430cs_ioctl(sd, cmd, inf);
-		if (!ret)
+		if (!ret) {
 			ret = copy_to_user(up, inf, sizeof(*inf));
+			if (ret)
+				ret = -EFAULT;
+		}
 		kfree(inf);
 		break;
 	case RKMODULE_AWB_CFG:
@@ -789,6 +797,8 @@ static long sc430cs_compat_ioctl32(struct v4l2_subdev *sd,
 		ret = copy_from_user(cfg, up, sizeof(*cfg));
 		if (!ret)
 			ret = sc430cs_ioctl(sd, cmd, cfg);
+		else
+			ret = -EFAULT;
 		kfree(cfg);
 		break;
 	case RKMODULE_GET_HDR_CFG:
@@ -799,8 +809,11 @@ static long sc430cs_compat_ioctl32(struct v4l2_subdev *sd,
 		}
 
 		ret = sc430cs_ioctl(sd, cmd, hdr);
-		if (!ret)
+		if (!ret) {
 			ret = copy_to_user(up, hdr, sizeof(*hdr));
+			if (ret)
+				ret = -EFAULT;
+		}
 		kfree(hdr);
 		break;
 	case RKMODULE_SET_HDR_CFG:
@@ -813,6 +826,8 @@ static long sc430cs_compat_ioctl32(struct v4l2_subdev *sd,
 		ret = copy_from_user(hdr, up, sizeof(*hdr));
 		if (!ret)
 			ret = sc430cs_ioctl(sd, cmd, hdr);
+		else
+			ret = -EFAULT;
 		kfree(hdr);
 		break;
 	case PREISP_CMD_SET_HDRAE_EXP:
@@ -825,12 +840,16 @@ static long sc430cs_compat_ioctl32(struct v4l2_subdev *sd,
 		ret = copy_from_user(hdrae, up, sizeof(*hdrae));
 		if (!ret)
 			ret = sc430cs_ioctl(sd, cmd, hdrae);
+		else
+			ret = -EFAULT;
 		kfree(hdrae);
 		break;
 	case RKMODULE_SET_QUICK_STREAM:
 		ret = copy_from_user(&stream, up, sizeof(u32));
 		if (!ret)
 			ret = sc430cs_ioctl(sd, cmd, &stream);
+		else
+			ret = -EFAULT;
 		break;
 	default:
 		ret = -ENOIOCTLCMD;
@@ -1098,7 +1117,6 @@ static const struct v4l2_subdev_core_ops sc430cs_core_ops = {
 static const struct v4l2_subdev_video_ops sc430cs_video_ops = {
 	.s_stream = sc430cs_s_stream,
 	.g_frame_interval = sc430cs_g_frame_interval,
-	.g_mbus_config = sc430cs_g_mbus_config,
 };
 
 static const struct v4l2_subdev_pad_ops sc430cs_pad_ops = {
@@ -1107,6 +1125,7 @@ static const struct v4l2_subdev_pad_ops sc430cs_pad_ops = {
 	.enum_frame_interval = sc430cs_enum_frame_interval,
 	.get_fmt = sc430cs_get_fmt,
 	.set_fmt = sc430cs_set_fmt,
+	.get_mbus_config = sc430cs_g_mbus_config,
 };
 
 static const struct v4l2_subdev_ops sc430cs_subdev_ops = {
@@ -1114,6 +1133,14 @@ static const struct v4l2_subdev_ops sc430cs_subdev_ops = {
 	.video	= &sc430cs_video_ops,
 	.pad	= &sc430cs_pad_ops,
 };
+
+static void sc430cs_modify_fps_info(struct sc430cs *sc430cs)
+{
+	const struct sc430cs_mode *mode = sc430cs->cur_mode;
+
+	sc430cs->cur_fps.denominator = mode->max_fps.denominator * sc430cs->cur_vts /
+				       mode->vts_def;
+}
 
 static int sc430cs_set_ctrl(struct v4l2_ctrl *ctrl)
 {
@@ -1173,7 +1200,10 @@ static int sc430cs_set_ctrl(struct v4l2_ctrl *ctrl)
 					 SC430CS_REG_VALUE_08BIT,
 					 (ctrl->val + sc430cs->cur_mode->height)
 					 & 0xff);
-		sc430cs->cur_vts = ctrl->val + sc430cs->cur_mode->height;
+		if (!ret)
+			sc430cs->cur_vts = ctrl->val + sc430cs->cur_mode->height;
+		if (sc430cs->cur_vts != sc430cs->cur_mode->vts_def)
+			sc430cs_modify_fps_info(sc430cs);
 		break;
 	case V4L2_CID_TEST_PATTERN:
 		ret = sc430cs_enable_test_pattern(sc430cs, ctrl->val);
@@ -1267,6 +1297,8 @@ static int sc430cs_initialize_controls(struct sc430cs *sc430cs)
 	}
 
 	sc430cs->subdev.ctrl_handler = handler;
+	sc430cs->cur_fps = mode->max_fps;
+	sc430cs->cur_vts = mode->vts_def;
 
 	return 0;
 

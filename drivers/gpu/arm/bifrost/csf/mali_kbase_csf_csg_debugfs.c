@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2019-2021 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2019-2022 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -500,11 +500,7 @@ static const struct file_operations kbasep_csf_queue_group_debugfs_fops = {
 void kbase_csf_queue_group_debugfs_init(struct kbase_context *kctx)
 {
 	struct dentry *file;
-#if (KERNEL_VERSION(4, 7, 0) <= LINUX_VERSION_CODE)
 	const mode_t mode = 0444;
-#else
-	const mode_t mode = 0400;
-#endif
 
 	if (WARN_ON(!kctx || IS_ERR_OR_NULL(kctx->kctx_dentry)))
 		return;
@@ -556,14 +552,11 @@ static int kbasep_csf_debugfs_scheduling_timer_kick_set(
 	return 0;
 }
 
-DEFINE_SIMPLE_ATTRIBUTE(kbasep_csf_debugfs_scheduling_timer_enabled_fops,
-		&kbasep_csf_debugfs_scheduling_timer_enabled_get,
-		&kbasep_csf_debugfs_scheduling_timer_enabled_set,
-		"%llu\n");
-DEFINE_SIMPLE_ATTRIBUTE(kbasep_csf_debugfs_scheduling_timer_kick_fops,
-		NULL,
-		&kbasep_csf_debugfs_scheduling_timer_kick_set,
-		"%llu\n");
+DEFINE_DEBUGFS_ATTRIBUTE(kbasep_csf_debugfs_scheduling_timer_enabled_fops,
+			 &kbasep_csf_debugfs_scheduling_timer_enabled_get,
+			 &kbasep_csf_debugfs_scheduling_timer_enabled_set, "%llu\n");
+DEFINE_DEBUGFS_ATTRIBUTE(kbasep_csf_debugfs_scheduling_timer_kick_fops, NULL,
+			 &kbasep_csf_debugfs_scheduling_timer_kick_set, "%llu\n");
 
 /**
  * kbase_csf_debugfs_scheduler_state_get() - Get the state of scheduler.

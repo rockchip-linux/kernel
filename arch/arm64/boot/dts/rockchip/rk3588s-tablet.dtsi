@@ -77,6 +77,11 @@
 		default-brightness-level = <200>;
 	};
 
+	battery: battery {
+		compatible = "simple-battery";
+		charge-full-design-microamp-hours = <4500000>;
+	};
+
 	charge-animation {
 		compatible = "rockchip,uboot-charge";
 		rockchip,uboot-charge-on = <1>;
@@ -104,6 +109,16 @@
 		       <&vdd_ddr_pll_s0>, <&slave_nldo3>, <&avdd_1v2_cam_s0>,
 		       <&avdd_1v2_s0>, <&vcc_3v3_s3>;
 		status = "okay";
+	};
+
+	dp0_sound: dp0-sound {
+		status = "okay";
+		compatible = "rockchip,hdmi";
+		rockchip,card-name= "rockchip,dp0";
+		rockchip,mclk-fs = <512>;
+		rockchip,cpu = <&spdif_tx2>;
+		rockchip,codec = <&dp0 1>;
+		rockchip,jack-det;
 	};
 
 	es7202_sound_micarray: es7202-sound-micarray {
@@ -400,6 +415,7 @@
 			 0x2F 0x00 0x64 0xA5 0xB5 0x00 0xF8 0x39>;
 		cellwise,dual-cell = <1>;
 		cellwise,monitor-interval-ms = <5000>;
+		monitored-battery = <&battery>;
 		power-supplies = <&bq25703>;
 	};
 
@@ -904,7 +920,7 @@
 		touch_gpio: touch-gpio {
 			rockchip,pins =
 				<1 RK_PB4 RK_FUNC_GPIO &pcfg_pull_up>,
-				<1 RK_PB5 RK_FUNC_GPIO &pcfg_pull_none>;
+				<1 RK_PB5 RK_FUNC_GPIO &pcfg_pull_up>;
 		};
 	};
 
@@ -1142,7 +1158,11 @@
 	vqmmc-supply = <&vccio_sd_s0>;
 	pinctrl-names = "default";
 	pinctrl-0 = <&sdmmc_bus4 &sdmmc_clk &sdmmc_cmd &sdmmc_det>;
-	status = "disabled";
+	status = "okay";
+};
+
+&spdif_tx2 {
+	status = "okay";
 };
 
 &tsadc {
@@ -1204,6 +1224,7 @@
 };
 
 &usbdp_phy0_dp {
+	max-link-rate = <5400>;	/* Maximum link rate supported by PHY (in Mbps) */
 	status = "okay";
 };
 
@@ -1243,6 +1264,10 @@
 };
 
 &vdpu_mmu {
+	status = "okay";
+};
+
+&vepu {
 	status = "okay";
 };
 

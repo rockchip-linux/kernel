@@ -1201,7 +1201,10 @@
 
 		opp-700000000 {
 			opp-hz = /bits/ 64 <700000000>;
-			opp-microvolt = <0>;
+			opp-microvolt = <900000>;
+			opp-microvolt-L0 = <900000>;
+			opp-microvolt-L1 = <850000>;
+			opp-microvolt-L2 = <850000>;
 		};
 		opp-900000000 {
 			opp-hz = /bits/ 64 <900000000>;
@@ -1212,7 +1215,7 @@
 			opp-microvolt = <950000>;
 			opp-microvolt-L0 = <950000>;
 			opp-microvolt-L1 = <925000>;
-			opp-microvolt-L2 = <0>;
+			opp-microvolt-L2 = <850000>;
 		};
 	};
 
@@ -1533,14 +1536,17 @@
 
 		opp-297000000 {
 			opp-hz = /bits/ 64 <297000000>;
-			opp-microvolt = <0>;
+			opp-microvolt = <900000>;
+			opp-microvolt-L0 = <900000>;
+			opp-microvolt-L1 = <850000>;
+			opp-microvolt-L2 = <850000>;
 		};
 		opp-400000000 {
 			opp-hz = /bits/ 64 <400000000>;
 			opp-microvolt = <950000>;
 			opp-microvolt-L0 = <950000>;
 			opp-microvolt-L1 = <925000>;
-			opp-microvolt-L2 = <0>;
+			opp-microvolt-L2 = <850000>;
 		};
 	};
 
@@ -1584,6 +1590,8 @@
 		reset-names = "video_a", "video_h", "video_cabac",
 			      "video_core", "video_hevc_cabac";
 		power-domains = <&power RK3568_PD_RKVDEC>;
+		operating-points-v2 = <&rkvdec_opp_table>;
+		vdec-supply = <&vdd_logic>;
 		iommus = <&rkvdec_mmu>;
 		rockchip,srv = <&mpp_srv>;
 		rockchip,taskqueue-node = <4>;
@@ -1594,6 +1602,33 @@
 		rockchip,rcb-min-width = <512>;
 		rockchip,task-capacity = <16>;
 		status = "disabled";
+	};
+
+	rkvdec_opp_table: rkvdec-opp-table {
+		compatible = "operating-points-v2";
+
+		nvmem-cells = <&log_leakage>, <&core_pvtm>;
+		nvmem-cell-names = "leakage", "pvtm";
+		rockchip,leakage-voltage-sel = <
+			1   80    0
+			81  254   1
+		>;
+		rockchip,pvtm-voltage-sel = <
+			0        84000   0
+			84001    100000  1
+		>;
+		rockchip,pvtm-ch = <0 5>;
+
+		opp-297000000 {
+			opp-hz = /bits/ 64 <297000000>;
+			opp-microvolt = <900000>;
+			opp-microvolt-L0 = <900000>;
+			opp-microvolt-L1 = <850000>;
+		};
+		opp-400000000 {
+			opp-hz = /bits/ 64 <400000000>;
+			opp-microvolt = <900000>;
+		};
 	};
 
 	rkvdec_mmu: iommu@fdf80800 {
@@ -2044,27 +2079,27 @@
 
 	nocp_cpu: nocp-cpu@fe102000 {
 		compatible = "rockchip,rk3568-nocp";
-		reg = <0x0 0xfe102000 0x0 0x100>;
+		reg = <0x0 0xfe102000 0x0 0x400>;
 	};
 
 	nocp_gpu_vpu_rga_venc: nocp-gpu-vpu-rga-venc@fe102400 {
 		compatible = "rockchip,rk3568-nocp";
-		reg = <0x0 0xfe102400 0x0 0x100>;
+		reg = <0x0 0xfe102400 0x0 0x400>;
 	};
 
 	nocp_npu_vdec: nocp-vdec@fe102800 {
 		compatible = "rockchip,rk3568-nocp";
-		reg = <0x0 0xfe102800 0x0 0x100>;
+		reg = <0x0 0xfe102800 0x0 0x400>;
 	};
 
 	nocp_vi_usb_peri_pipe: nocp-vi-usb-peri-pipe@fe102c00 {
 		compatible = "rockchip,rk3568-nocp";
-		reg = <0x0 0xfe102c00 0x0 0x100>;
+		reg = <0x0 0xfe102c00 0x0 0x400>;
 	};
 
 	nocp_vo: nocp-vo@fe103000 {
 		compatible = "rockchip,rk3568-nocp";
-		reg = <0x0 0xfe103000 0x0 0x100>;
+		reg = <0x0 0xfe103000 0x0 0x400>;
 	};
 
 	qos_gpu: qos@fe128000 {
@@ -2857,7 +2892,7 @@
 	};
 
 	can0: can@fe570000 {
-		compatible = "rockchip,canfd-1.0";
+		compatible = "rockchip,rk3568-can-2.0";
 		reg = <0x0 0xfe570000 0x0 0x1000>;
 		interrupts = <GIC_SPI 1 IRQ_TYPE_LEVEL_HIGH>;
 		clocks = <&cru CLK_CAN0>, <&cru PCLK_CAN0>;
@@ -2870,7 +2905,7 @@
 	};
 
 	can1: can@fe580000 {
-		compatible = "rockchip,canfd-1.0";
+		compatible = "rockchip,rk3568-can-2.0";
 		reg = <0x0 0xfe580000 0x0 0x1000>;
 		interrupts = <GIC_SPI 2 IRQ_TYPE_LEVEL_HIGH>;
 		clocks = <&cru CLK_CAN1>, <&cru PCLK_CAN1>;
@@ -2883,7 +2918,7 @@
 	};
 
 	can2: can@fe590000 {
-		compatible = "rockchip,canfd-1.0";
+		compatible = "rockchip,rk3568-can-2.0";
 		reg = <0x0 0xfe590000 0x0 0x1000>;
 		interrupts = <GIC_SPI 3 IRQ_TYPE_LEVEL_HIGH>;
 		clocks = <&cru CLK_CAN2>, <&cru PCLK_CAN2>;

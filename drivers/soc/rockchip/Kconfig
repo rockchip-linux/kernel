@@ -50,6 +50,14 @@ config ROCKCHIP_HW_DECOMPRESS
 	  This driver support Decompress IP built-in Rockchip SoC, support
 	  LZ4, GZIP, ZLIB.
 
+config ROCKCHIP_HW_DECOMPRESS_USER
+	tristate "Rockchip HardWare Decompress User Interface Support"
+	default n
+	select ROCKCHIP_HW_DECOMPRESS
+	help
+	  This driver support user invokes the Decompress IP built-in Rockchip SoC, support
+	  LZ4, GZIP, ZLIB.
+
 config ROCKCHIP_IODOMAIN
 	tristate "Rockchip IO domain support"
 	depends on OF
@@ -82,6 +90,16 @@ config ROCKCHIP_OPP
 	depends on PM_DEVFREQ
 	help
 	  Say y here to enable rockchip OPP support.
+
+config ROCKCHIP_OPTIMIZE_RT_PRIO
+	bool "Rockchip optimize prio for kernel RT thread and kworker"
+	depends on NO_GKI
+	help
+	  In some cases, there are too much userspace high priority RT threads, which
+	  cause kernel RT threads or kworkers block too long time. This config separate
+	  kernel and userspace RT threads into two priority regions, priority 0~49 for
+	  kernel and priority 50~99 for userspace, so that kernel RT threads is always
+	  higher priority than userspace. This config also set RT policy for kworkers.
 
 config ROCKCHIP_PERFORMANCE
 	bool "Rockchip performance configuration support"
@@ -209,6 +227,13 @@ config ROCKCHIP_THUNDER_BOOT_SFC
 	depends on ROCKCHIP_THUNDER_BOOT
 	help
 	  Say y if boot from SPI Flash from SFC controller.
+
+config ROCKCHIP_THUNDER_BOOT_SERVICE
+	bool "Rockchip Thunder Boot Service"
+	depends on ROCKCHIP_THUNDER_BOOT
+	depends on MAILBOX
+	help
+	  Say y if MCU need to notify AP.
 
 config ROCKCHIP_NPOR_POWERGOOD
 	bool "Rockchip NPOR Powergood"

@@ -26,10 +26,16 @@ struct f_uvc_opts {
 	unsigned int					streaming_interval;
 	unsigned int					streaming_maxpacket;
 	unsigned int					streaming_maxburst;
+#if defined(CONFIG_ARCH_ROCKCHIP) && defined(CONFIG_NO_GKI)
+	bool						device_name_allocated;
+	const char					*device_name;
+	unsigned int					uvc_num_request;
+	unsigned int					uvc_zero_copy;
+#endif
 
 	unsigned int					control_interface;
 	unsigned int					streaming_interface;
-	unsigned int					uvc_num_request;
+	char						function_name[32];
 
 	/*
 	 * Control descriptors array pointers for full-/high-speed and

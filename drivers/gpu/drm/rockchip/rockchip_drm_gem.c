@@ -300,6 +300,7 @@ static int rockchip_gem_alloc_dma(struct rockchip_gem_object *rk_obj,
 	rk_obj->pages = drm_calloc_large(rk_obj->num_pages,
 					 sizeof(*rk_obj->pages));
 	if (!rk_obj->pages) {
+		ret = -ENOMEM;
 		DRM_ERROR("failed to allocate pages.\n");
 		goto err_sg_table_free;
 	}
@@ -605,7 +606,8 @@ static void rockchip_gem_release_object(struct rockchip_gem_object *rk_obj)
 }
 
 static struct rockchip_gem_object *
-	rockchip_gem_alloc_object(struct drm_device *drm, unsigned int size)
+rockchip_gem_alloc_object(struct drm_device *drm, unsigned int size,
+			  unsigned int flags)
 {
 	struct address_space *mapping;
 	struct rockchip_gem_object *rk_obj;
@@ -616,6 +618,10 @@ static struct rockchip_gem_object *
 #else
 	gfp_t gfp_mask = GFP_HIGHUSER | __GFP_RECLAIMABLE;
 #endif
+
+	if (flags & ROCKCHIP_BO_DMA32)
+		gfp_mask |= __GFP_DMA32;
+
 	size = round_up(size, PAGE_SIZE);
 
 	rk_obj = kzalloc(sizeof(*rk_obj), GFP_KERNEL);
@@ -639,7 +645,7 @@ rockchip_gem_create_object(struct drm_device *drm, unsigned int size,
 	struct rockchip_gem_object *rk_obj;
 	int ret;
 
-	rk_obj = rockchip_gem_alloc_object(drm, size);
+	rk_obj = rockchip_gem_alloc_object(drm, size, flags);
 	if (IS_ERR(rk_obj))
 		return rk_obj;
 	rk_obj->flags = flags;
@@ -695,10 +701,7 @@ void rockchip_gem_free_object(struct drm_gem_object *obj)
 					  DMA_BIDIRECTIONAL, 0);
 		}
 		drm_free_large(rk_obj->pages);
-		if (IS_ENABLED(CONFIG_DMABUF_CACHE))
-			rockchip_gem_destroy(obj, rk_obj->sgt);
-		else
-			drm_prime_gem_destroy(obj, rk_obj->sgt);
+		rockchip_gem_destroy(obj, rk_obj->sgt);
 	} else {
 		rockchip_gem_free_buf(rk_obj);
 	}
@@ -846,7 +849,7 @@ rockchip_gem_prime_import_sg_table(struct drm_device *drm,
 	struct rockchip_gem_object *rk_obj;
 	int ret;
 
-	rk_obj = rockchip_gem_alloc_object(drm, attach->dmabuf->size);
+	rk_obj = rockchip_gem_alloc_object(drm, attach->dmabuf->size, 0);
 	if (IS_ERR(rk_obj))
 		return ERR_CAST(rk_obj);
 
@@ -1002,7 +1005,7 @@ static int rockchip_gem_prime_sgl_sync_range(struct device *dev,
 		if (len <= offset)
 			continue;
 
-		sg_dma_addr = sg_dma_address(sg);
+		sg_dma_addr = sg_phys(sg);
 		sg_left = len - offset;
 		sg_offset = sg->length - sg_left;
 

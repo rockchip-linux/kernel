@@ -13,6 +13,7 @@
 #include <linux/miscdevice.h>
 #include <linux/module.h>
 #include <linux/regmap.h>
+#include <linux/regulator/consumer.h>
 #include <uapi/linux/rk803.h>
 
 #define RK803_CHIPID1	0x0A
@@ -24,8 +25,7 @@
 #define RK803_TIMEOUT		1000 /* usec */
 
 enum SL_LED_CURRENT {
-	LED_0MA = 0,
-	LED_100MA,
+	LED_100MA = 0,
 	LED_200MA,
 	LED_300MA,
 	LED_400MA,
@@ -39,12 +39,12 @@ enum SL_LED_CURRENT {
 	LED_1200MA,
 	LED_1300MA,
 	LED_1400MA,
-	LED_1544MA = 15,
+	LED_1500MA,
 	LED_1600MA,
 	LED_1700MA,
 	LED_1800MA,
 	LED_1900MA,
-	LED_2000MA = 20,
+	LED_2000MA,
 	LED_2100MA,
 	LED_2200MA,
 	LED_2300MA,
@@ -54,10 +54,16 @@ enum SL_LED_CURRENT {
 	LED_2700MA,
 	LED_2800MA,
 	LED_2900MA,
-	LED_3000MA = 30,
+	LED_3000MA,
 	LED_3100MA,
 	LED_3200MA
 };
+
+static const char * const rk803_supply_names[] = {
+	"dvdd",     /* Digital power */
+};
+
+#define RK803_NUM_SUPPLIES ARRAY_SIZE(rk803_supply_names)
 
 struct rk803_data {
 	struct i2c_client *client;
@@ -69,12 +75,34 @@ struct rk803_data {
 	struct gpio_desc *gpio_encc1;
 	struct gpio_desc *gpio_encc2;
 	struct miscdevice misc;
+	struct regulator_bulk_data supplies[RK803_NUM_SUPPLIES];
 };
 
 static const struct of_device_id rk803_of_match[] = {
 	{ .compatible = "rockchip,rk803" },
 	{ },
 };
+
+static int rk803_power_on(struct rk803_data *rk803)
+{
+	int ret;
+	struct device *dev = &rk803->client->dev;
+
+	ret = regulator_bulk_enable(RK803_NUM_SUPPLIES, rk803->supplies);
+	if (ret < 0) {
+		dev_err(dev, "Failed to enable regulators\n");
+		return ret;
+	}
+
+	usleep_range(1000, 2000);
+
+	return 0;
+}
+
+static void rk803_power_off(struct rk803_data *rk803)
+{
+	regulator_bulk_disable(RK803_NUM_SUPPLIES, rk803->supplies);
+}
 
 static ssize_t
 rk803_i2c_write_reg(struct rk803_data *rk803, uint8_t reg, uint8_t val)
@@ -138,7 +166,7 @@ static long rk803_dev_ioctl(struct file *file, unsigned int cmd,
 		int val = (int)arg;
 
 		rk803->current2 = val;
-		rk803_i2c_write_reg(rk803, 0, rk803->current2);
+		rk803_i2c_write_reg(rk803, 1, rk803->current2);
 		break;
 	}
 	default:
@@ -156,6 +184,18 @@ static const struct file_operations rk803_fops = {
 #endif
 };
 
+static int rk803_configure_regulators(struct rk803_data *rk803)
+{
+	unsigned int i;
+
+	for (i = 0; i < RK803_NUM_SUPPLIES; i++)
+		rk803->supplies[i].supply = rk803_supply_names[i];
+
+	return devm_regulator_bulk_get(&rk803->client->dev,
+				       RK803_NUM_SUPPLIES,
+				       rk803->supplies);
+}
+
 static int
 rk803_probe(struct i2c_client *client, const struct i2c_device_id *id)
 {
@@ -168,18 +208,34 @@ rk803_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	struct regmap_config regmap_config = { };
 	int ret;
 
+	rk803 = devm_kzalloc(dev, sizeof(*rk803), GFP_KERNEL);
+	if (!rk803)
+		return -ENOMEM;
+
+	rk803->client = client;
+
+	ret = rk803_configure_regulators(rk803);
+	if (ret) {
+		dev_err(dev, "Failed to get power regulators\n");
+		return ret;
+	}
+
+	rk803_power_on(rk803);
+
 	/* check chip id */
 	msb = i2c_smbus_read_byte_data(client, RK803_CHIPID1);
 	if (msb < 0) {
 		dev_err(dev, "failed to read the chip1 id at 0x%x\n",
 			RK803_CHIPID1);
-		return msb;
+		ret = -EPROBE_DEFER;
+		goto error;
 	}
 	lsb = i2c_smbus_read_byte_data(client, RK803_CHIPID2);
 	if (lsb < 0) {
 		dev_err(dev, "failed to read the chip2 id at 0x%x\n",
 			RK803_CHIPID2);
-		return lsb;
+		ret = lsb;
+		goto error;
 	}
 
 	chipid = ((msb << 8) | lsb);
@@ -190,15 +246,12 @@ rk803_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	regmap_config.disable_locking = true;
 
 	regmap = devm_regmap_init_i2c(client, &regmap_config);
-	if (IS_ERR(regmap))
-		return PTR_ERR(regmap);
-
-	rk803 = devm_kzalloc(dev, sizeof(*rk803), GFP_KERNEL);
-	if (!rk803)
-		return -ENOMEM;
+	if (IS_ERR(regmap)) {
+		ret = PTR_ERR(regmap);
+		goto error;
+	}
 
 	rk803->chip_id = chipid;
-	rk803->client = client;
 	rk803->regmap = regmap;
 	rk803->current1 = IR_LED_DEFAULT_CURRENT;
 	rk803->current2 = PRO_LED_DEFAULT_CURRENT;
@@ -206,12 +259,14 @@ rk803_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	rk803->gpio_encc1 = devm_gpiod_get(dev, "gpio-encc1", GPIOD_OUT_LOW);
 	if (IS_ERR(rk803->gpio_encc1)) {
 		dev_err(dev, "can not find gpio_encc1\n");
-		return PTR_ERR(rk803->gpio_encc1);
+		ret = PTR_ERR(rk803->gpio_encc1);
+		goto error;
 	}
 	rk803->gpio_encc2 = devm_gpiod_get(dev, "gpio-encc2", GPIOD_OUT_LOW);
 	if (IS_ERR(rk803->gpio_encc2)) {
 		dev_err(dev, "can not find gpio_encc2\n");
-		return PTR_ERR(rk803->gpio_encc2);
+		ret = PTR_ERR(rk803->gpio_encc2);
+		goto error;
 	}
 
 	/* OVP */
@@ -239,11 +294,15 @@ rk803_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	if (ret < 0) {
 		dev_err(&client->dev, "Error: misc_register returned %d\n",
 			ret);
-		return ret;
+		goto error;
 	}
 
 	dev_info(dev, "rk803 probe ok!\n");
 	return 0;
+
+error:
+	rk803_power_off(rk803);
+	return ret;
 }
 
 static int rk803_remove(struct i2c_client *client)
@@ -252,6 +311,9 @@ static int rk803_remove(struct i2c_client *client)
 
 	rk803 = i2c_get_clientdata(client);
 	misc_deregister(&rk803->misc);
+
+	rk803_power_off(rk803);
+
 	return 0;
 }
 

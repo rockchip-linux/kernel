@@ -3,14 +3,11 @@
  * Copyright (c) 2017-2019 Fuzhou Rockchip Electronics Co., Ltd
  */
 
-/dts-v1/;
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/pinctrl/rockchip.h>
 #include <dt-bindings/input/input.h>
 #include <dt-bindings/display/drm_mipi_dsi.h>
 #include <dt-bindings/sensor-dev.h>
-#include "px30.dtsi"
-#include "px30-android.dtsi"
 
 / {
 	adc-keys {
@@ -99,33 +96,26 @@
 		status = "okay";
 	};
 
-	rk809-sound {
-		compatible = "simple-audio-card";
-		simple-audio-card,format = "i2s";
-		simple-audio-card,name = "rockchip,rk809-codec";
-		simple-audio-card,mclk-fs = <256>;
-		simple-audio-card,widgets =
-			"Microphone", "Mic Jack",
-			"Headphone", "Headphone Jack";
-		simple-audio-card,routing =
-			"Mic Jack", "MICBIAS1",
-			"IN1P", "Mic Jack",
-			"Headphone Jack", "HPOL",
-			"Headphone Jack", "HPOR";
-		simple-audio-card,cpu {
-			sound-dai = <&i2s1_2ch>;
-		};
-		simple-audio-card,codec {
-			sound-dai = <&rk809_codec>;
-		};
-	};
-
-	rk_headset: rk-headset {
-		compatible = "rockchip_headset";
-		headset_gpio = <&gpio3 RK_PA4 GPIO_ACTIVE_LOW>;
+	rk809_sound: rk809-sound {
+		status = "okay";
+		compatible = "rockchip,multicodecs-card";
+		rockchip,card-name = "rockchip-rk809";
+		hp-det-gpio = <&gpio2 RK_PB0 GPIO_ACTIVE_LOW>;
+		io-channels = <&saradc 1>;
+		io-channel-names = "adc-detect";
+		keyup-threshold-microvolt = <1800000>;
+		poll-interval = <100>;
+		rockchip,format = "i2s";
+		rockchip,mclk-fs = <256>;
+		rockchip,cpu = <&i2s1_2ch>;
+		rockchip,codec = <&rk809_codec>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&hp_det>;
-		io-channels = <&saradc 1>;
+		play-pause-key {
+			label = "playpause";
+			linux,code = <KEY_PLAYPAUSE>;
+			press-threshold-microvolt = <2000>;
+		};
 	};
 
 	sdio_pwrseq: sdio-pwrseq {
@@ -142,6 +132,10 @@
 		 * - PDN (power down when low)
 		 */
 		reset-gpios = <&gpio0 RK_PA2 GPIO_ACTIVE_LOW>; /* GPIO3_A4 */
+	};
+
+	test-power {
+		status = "okay";
 	};
 
 	vcc_phy: vcc-phy-regulator {
@@ -167,7 +161,7 @@
 		status = "okay";
 	};
 
-	wireless-bluetooth {
+	wireless_bluetooth: wireless-bluetooth {
 		compatible = "bluetooth-platdata";
 		clocks = <&rk809 1>;
 		clock-names = "ext_clock";
@@ -175,8 +169,8 @@
 		pinctrl-names = "default","rts_gpio";
 		pinctrl-0 = <&uart1_rts>;
 		pinctrl-1 = <&uart1_rts_gpio>;
-		BT,reset_gpio = <&gpio0 RK_PA1 GPIO_ACTIVE_HIGH>;
-		BT,wake_gpio = <&gpio2 RK_PB0 GPIO_ACTIVE_HIGH>;
+		BT,reset_gpio = <&gpio0 RK_PC1 GPIO_ACTIVE_HIGH>;
+		BT,wake_gpio = <&gpio0 RK_PA1 GPIO_ACTIVE_HIGH>;
 		BT,wake_host_irq = <&gpio0 RK_PB3 GPIO_ACTIVE_HIGH>;
 		status = "okay";
 	};
@@ -231,7 +225,11 @@
 
 &gmac {
 	phy-supply = <&vcc_phy>;
-	clock_in_out = "output";
+	clock_in_out = "input";
+	assigned-clocks = <&cru SCLK_GMAC>;
+	assigned-clock-parents = <&gmac_clkin>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&rmii_pins &mac_refclk>;
 	snps,reset-gpio = <&gpio2 13 GPIO_ACTIVE_LOW>;
 	snps,reset-active-low;
 	snps,reset-delays-us = <0 50000 50000>;
@@ -308,7 +306,7 @@
 			vdd_logic: DCDC_REG1 {
 				regulator-always-on;
 				regulator-boot-on;
-				regulator-min-microvolt = <950000>;
+				regulator-min-microvolt = <850000>;
 				regulator-max-microvolt = <1350000>;
 				regulator-ramp-delay = <6001>;
 				regulator-initial-mode = <0x2>;
@@ -322,7 +320,7 @@
 			vdd_arm: DCDC_REG2 {
 				regulator-always-on;
 				regulator-boot-on;
-				regulator-min-microvolt = <950000>;
+				regulator-min-microvolt = <850000>;
 				regulator-max-microvolt = <1350000>;
 				regulator-ramp-delay = <6001>;
 				regulator-initial-mode = <0x2>;
@@ -346,13 +344,13 @@
 			vcc_3v0: DCDC_REG4 {
 				regulator-always-on;
 				regulator-boot-on;
-				regulator-min-microvolt = <3000000>;
-				regulator-max-microvolt = <3000000>;
+				regulator-min-microvolt = <3300000>;
+				regulator-max-microvolt = <3300000>;
 				regulator-initial-mode = <0x2>;
 				regulator-name = "vcc_3v0";
 				regulator-state-mem {
 					regulator-on-in-suspend;
-					regulator-suspend-microvolt = <3000000>;
+					regulator-suspend-microvolt = <3300000>;
 				};
 			};
 
@@ -397,13 +395,13 @@
 			vcc3v0_pmu: LDO_REG4 {
 				regulator-always-on;
 				regulator-boot-on;
-				regulator-min-microvolt = <3000000>;
-				regulator-max-microvolt = <3000000>;
+				regulator-min-microvolt = <3300000>;
+				regulator-max-microvolt = <3300000>;
 
 				regulator-name = "vcc3v0_pmu";
 				regulator-state-mem {
 					regulator-on-in-suspend;
-					regulator-suspend-microvolt = <3000000>;
+					regulator-suspend-microvolt = <3300000>;
 
 				};
 			};
@@ -634,7 +632,7 @@
 &pinctrl {
 	headphone {
 		hp_det: hp-det {
-			rockchip,pins = <3 RK_PA4 RK_FUNC_GPIO &pcfg_pull_down>;
+			rockchip,pins = <2 RK_PB0 RK_FUNC_GPIO &pcfg_pull_down>;
 		};
 	};
 
@@ -739,7 +737,7 @@
 
 &tsadc {
 	pinctrl-names = "gpio", "otpout";
-	pinctrl-0 = <&tsadc_otp_gpio>;
+	pinctrl-0 = <&tsadc_otp_pin>;
 	pinctrl-1 = <&tsadc_otp_out>;
 	status = "okay";
 };

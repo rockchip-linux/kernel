@@ -193,7 +193,7 @@ struct rkisp_device {
 	struct rkisp_csi_device csi_dev;
 	struct rkisp_bridge_device br_dev;
 	struct rkisp_luma_vdev luma_vdev;
-	struct proc_dir_entry *procfs;
+	struct rkisp_procfs procfs;
 	struct rkisp_pipeline pipe;
 	enum rkisp_isp_ver isp_ver;
 	struct rkisp_emd_data emd_data_fifo[RKISP_EMDDATA_FIFO_MAX];
@@ -210,9 +210,15 @@ struct rkisp_device {
 	struct mutex apilock; /* mutex to serialize the calls of stream */
 	struct mutex iqlock; /* mutex to serialize the calls of iq */
 	wait_queue_head_t sync_onoff;
+
 	dma_addr_t resmem_addr;
 	phys_addr_t resmem_pa;
 	size_t resmem_size;
+	struct rkisp_thunderboot_resmem_head tb_head;
+	bool is_thunderboot;
+	struct rkisp_tb_stream_info tb_stream_info;
+	unsigned int tb_addr_idx;
+
 	int dev_id;
 	unsigned int skip_frame;
 	unsigned int irq_ends;
@@ -221,6 +227,7 @@ struct rkisp_device {
 	struct rkisp_ispp_buf *cur_fbcgain;
 	struct rkisp_buffer *cur_spbuf;
 
+	struct tasklet_struct rdbk_tasklet;
 	struct kfifo rdbk_kfifo;
 	spinlock_t rdbk_lock;
 	int rdbk_cnt;
@@ -228,6 +235,7 @@ struct rkisp_device {
 	int rdbk_cnt_x2;
 	int rdbk_cnt_x3;
 	u32 rd_mode;
+	int sw_rd_cnt;
 
 	struct rkisp_rx_buf_pool pv_pool[RKISP_RX_BUF_POOL_MAX];
 
@@ -237,7 +245,13 @@ struct rkisp_device {
 	bool is_cmsk_upd;
 	bool is_hw_link;
 	bool is_bigmode;
+	bool is_rdbk_auto;
+	bool is_pre_on;
+	bool is_first_double;
 
 	struct rkisp_vicap_input vicap_in;
+
+	u8 multi_mode;
+	u8 multi_index;
 };
 #endif

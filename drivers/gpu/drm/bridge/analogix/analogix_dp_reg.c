@@ -427,8 +427,17 @@ static void analogix_dp_handle_hpd_event(struct analogix_dp_device *dp)
 
 	reg = analogix_dp_read(dp, ANALOGIX_DP_INT_STA);
 	if (reg & INT_HPD) {
-		dev_info(dp->dev, "irq-hpd, it's being ignored for now\n");
 		analogix_dp_write(dp, ANALOGIX_DP_INT_STA, INT_HPD);
+
+		memset(&dp->compliance, 0, sizeof(dp->compliance));
+
+		analogix_dp_check_device_service_irq(dp);
+
+		if (dp->compliance.test_active &&
+		    dp->compliance.test_type == DP_TEST_LINK_PHY_TEST_PATTERN) {
+			analogix_dp_phy_test(dp);
+			return;
+		}
 	}
 
 	reg = analogix_dp_read(dp, ANALOGIX_DP_COMMON_INT_STA_4);
@@ -726,6 +735,22 @@ void analogix_dp_set_training_pattern(struct analogix_dp_device *dp,
 		reg = SCRAMBLING_DISABLE | SW_TRAINING_PATTERN_SET_PTN3;
 		analogix_dp_write(dp, ANALOGIX_DP_TRAINING_PTN_SET, reg);
 		break;
+	case TEST_PATTERN_80BIT:
+		reg = 0x3e0f83e0;
+		analogix_dp_write(dp, ANALOGIX_DP_TEST_80B_PATTERN0, reg);
+		reg = 0x0f83e0f8;
+		analogix_dp_write(dp, ANALOGIX_DP_TEST_80B_PATTERN1, reg);
+		reg = 0x0000f83e;
+		analogix_dp_write(dp, ANALOGIX_DP_TEST_80B_PATTERN2, reg);
+		reg = SCRAMBLING_ENABLE | LINK_QUAL_PATTERN_SET_80BIT;
+		analogix_dp_write(dp, ANALOGIX_DP_TRAINING_PTN_SET, reg);
+		break;
+	case TEST_PATTERN_HBR2:
+		reg = 0xfb;
+		analogix_dp_write(dp, ANALOGIX_DP_TEST_HBR2_PATTERN, reg);
+		reg = SCRAMBLING_ENABLE | LINK_QUAL_PATTERN_SET_HBR2;
+		analogix_dp_write(dp, ANALOGIX_DP_TRAINING_PTN_SET, reg);
+		break;
 	case DP_NONE:
 		reg = SCRAMBLING_ENABLE |
 			LINK_QUAL_PATTERN_SET_DISABLE |
@@ -765,7 +790,8 @@ void analogix_dp_init_video(struct analogix_dp_device *dp)
 	reg = CHA_CRI(4) | CHA_CTRL;
 	analogix_dp_write(dp, ANALOGIX_DP_SYS_CTL_2, reg);
 
-	reg = 0x0;
+	reg = analogix_dp_read(dp, ANALOGIX_DP_SYS_CTL_3);
+	reg |= VALID_CTRL | F_VALID;
 	analogix_dp_write(dp, ANALOGIX_DP_SYS_CTL_3, reg);
 
 	reg = VID_HRES_TH(2) | VID_VRES_TH(0);

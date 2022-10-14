@@ -3,15 +3,11 @@
  * Copyright (c) 2017 Fuzhou Rockchip Electronics Co., Ltd
  */
 
-/dts-v1/;
 #include <dt-bindings/display/drm_mipi_dsi.h>
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/input/input.h>
 #include <dt-bindings/pinctrl/rockchip.h>
 #include <dt-bindings/sensor-dev.h>
-#include "rk3326.dtsi"
-#include "rk3326-863-cif-sensor.dtsi"
-#include "px30-android.dtsi"
 
 / {
 	adc-keys {
@@ -92,32 +88,24 @@
 	};
 
 	rk817-sound {
-		compatible = "simple-audio-card";
-		simple-audio-card,format = "i2s";
-		simple-audio-card,name = "rockchip,rk817-codec";
-		simple-audio-card,mclk-fs = <256>;
-		simple-audio-card,widgets =
-			"Microphone", "Mic Jack",
-			"Headphone", "Headphone Jack";
-		simple-audio-card,routing =
-			"Mic Jack", "MICBIAS1",
-			"IN1P", "Mic Jack",
-			"Headphone Jack", "HPOL",
-			"Headphone Jack", "HPOR";
-		simple-audio-card,cpu {
-			sound-dai = <&i2s1_2ch>;
-		};
-		simple-audio-card,codec {
-			sound-dai = <&rk817_codec>;
-		};
-	};
-
-	rk_headset: rk-headset {
-		compatible = "rockchip_headset";
-		headset_gpio = <&gpio2 RK_PC6 GPIO_ACTIVE_LOW>;
+		compatible = "rockchip,multicodecs-card";
+		rockchip,card-name = "rockchip-rk817";
+		hp-det-gpio = <&gpio2 RK_PC6 GPIO_ACTIVE_LOW>;
+		io-channels = <&saradc 1>;
+		io-channel-names = "adc-detect";
+		keyup-threshold-microvolt = <1800000>;
+		poll-interval = <100>;
+		rockchip,format = "i2s";
+		rockchip,mclk-fs = <256>;
+		rockchip,cpu = <&i2s1_2ch>;
+		rockchip,codec = <&rk817_codec>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&hp_det>;
-		io-channels = <&saradc 1>;
+		play-pause-key {
+			label = "playpause";
+			linux,code = <KEY_PLAYPAUSE>;
+			press-threshold-microvolt = <2000>;
+		};
 	};
 
 	sdio_pwrseq: sdio-pwrseq {
@@ -134,6 +122,10 @@
 		 * - PDN (power down when low)
 		 */
 		reset-gpios = <&gpio0 RK_PA2 GPIO_ACTIVE_LOW>; /* GPIO3_A4 */
+	};
+
+	test-power {
+		status = "okay";
 	};
 
 	vccsys: vccsys {
@@ -312,10 +304,6 @@
 	status = "okay";
 };
 
-&dsi_in_vopl {
-	status = "disabled";
-};
-
 &route_dsi {
 	connect = <&vopb_out_dsi>;
 	status = "okay";
@@ -437,7 +425,7 @@
 			vdd_logic: DCDC_REG1 {
 				regulator-always-on;
 				regulator-boot-on;
-				regulator-min-microvolt = <950000>;
+				regulator-min-microvolt = <850000>;
 				regulator-max-microvolt = <1350000>;
 				regulator-ramp-delay = <6001>;
 				regulator-initial-mode = <0x2>;
@@ -451,7 +439,7 @@
 			vdd_arm: DCDC_REG2 {
 				regulator-always-on;
 				regulator-boot-on;
-				regulator-min-microvolt = <950000>;
+				regulator-min-microvolt = <850000>;
 				regulator-max-microvolt = <1350000>;
 				regulator-ramp-delay = <6001>;
 				regulator-initial-mode = <0x2>;
@@ -819,7 +807,7 @@
 
 &tsadc {
 	pinctrl-names = "gpio", "otpout";
-	pinctrl-0 = <&tsadc_otp_gpio>;
+	pinctrl-0 = <&tsadc_otp_pin>;
 	pinctrl-1 = <&tsadc_otp_out>;
 	status = "okay";
 };
@@ -851,14 +839,6 @@
 };
 
 &vopb_mmu {
-	status = "okay";
-};
-
-&vopl {
-	status = "okay";
-};
-
-&vopl_mmu {
 	status = "okay";
 };
 

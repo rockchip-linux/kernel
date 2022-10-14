@@ -20,14 +20,17 @@
  */
 #define CSI2_SINK_PAD			0
 #define CSI2_NUM_SINK_PADS		4
-#define CSI2_NUM_SRC_PADS		8
+#define CSI2_NUM_SRC_PADS		11
 #define CSI2_NUM_PADS			5
-#define CSI2_NUM_PADS_MAX		9
+#define CSI2_NUM_PADS_MAX		12
 #define CSI2_NUM_PADS_SINGLE_LINK	2
 #define MAX_CSI2_SENSORS		2
 
 #define RKCIF_DEFAULT_WIDTH	640
 #define RKCIF_DEFAULT_HEIGHT	480
+
+#define CSI_ERRSTR_LEN		(128)
+#define CSI_VCINFO_LEN		(12)
 
 /*
  * The default maximum bit-rate per lane in Mbps, if the
@@ -56,7 +59,8 @@
 #define CSIHOST_ERR1_ERR_BNDRY_MATCH	0x000000f0
 #define CSIHOST_ERR1_ERR_SEQ		0x00000f00
 #define CSIHOST_ERR1_ERR_FRM_DATA	0x0000f000
-#define CSIHOST_ERR1_ERR_CRC		0x1f000000
+#define CSIHOST_ERR1_ERR_CRC		0x0f000000
+#define CSIHOST_ERR1_ERR_ECC2		0x10000000
 
 #define CSIHOST_ERR2_PHYERR_ESC		0x0000000f
 #define CSIHOST_ERR2_PHYERR_SOTHS	0x000000f0
@@ -113,7 +117,7 @@ struct csi2_match_data {
 	int num_pads;
 };
 
-struct csi2_sensor {
+struct csi2_sensor_info {
 	struct v4l2_subdev *sd;
 	struct v4l2_mbus_config mbus;
 	int lanes;
@@ -143,14 +147,17 @@ struct csi2_dev {
 	int			stream_count;
 	struct v4l2_subdev	*src_sd;
 	bool			sink_linked[CSI2_NUM_SRC_PADS];
-	struct csi2_sensor	sensors[MAX_CSI2_SENSORS];
+	bool			is_check_sot_sync;
+	struct csi2_sensor_info	sensors[MAX_CSI2_SENSORS];
 	const struct csi2_match_data	*match_data;
 	int			num_sensors;
 	atomic_t		frm_sync_seq;
 	struct csi2_err_stats	err_list[RK_CSI2_ERR_MAX];
 	int			irq1;
 	int			irq2;
-	bool			is_check_sot_sync;
+	int			dsi_input_en;
+	u32			csi_idx;
+	const char		*dev_name;
 };
 
 u32 rkcif_csi2_get_sof(struct csi2_dev *csi2_dev);
@@ -160,5 +167,6 @@ int __init rkcif_csi2_plat_drv_init(void);
 void __exit rkcif_csi2_plat_drv_exit(void);
 int rkcif_csi2_register_notifier(struct notifier_block *nb);
 int rkcif_csi2_unregister_notifier(struct notifier_block *nb);
+void rkcif_csi2_event_reset_pipe(struct csi2_dev *csi2_dev, int reset_src);
 
 #endif

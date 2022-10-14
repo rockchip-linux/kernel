@@ -664,6 +664,12 @@ static int rk3588_combphy_cfg(struct rockchip_combphy_priv *priv)
 
 	switch (priv->mode) {
 	case PHY_TYPE_PCIE:
+		/* Set SSC downward spread spectrum */
+		val = readl(priv->mmio + (0x1f << 2));
+		val &= ~GENMASK(5, 4);
+		val |= 0x01 << 4;
+		writel(val, priv->mmio + 0x7c);
+
 		param_write(priv->phy_grf, &cfg->con0_for_pcie, true);
 		param_write(priv->phy_grf, &cfg->con1_for_pcie, true);
 		param_write(priv->phy_grf, &cfg->con2_for_pcie, true);
@@ -702,6 +708,9 @@ static int rk3588_combphy_cfg(struct rockchip_combphy_priv *priv)
 
 		/* Set PLL KVCO to min and set PLL charge pump current to max */
 		writel(0xf0, priv->mmio + (0xa << 2));
+
+		/* Set Rx squelch input filler bandwidth */
+		writel(0x0d, priv->mmio + (0x14 << 2));
 
 		param_write(priv->phy_grf, &cfg->pipe_txcomp_sel, false);
 		param_write(priv->phy_grf, &cfg->pipe_txelec_sel, false);
@@ -775,6 +784,10 @@ static int rk3588_combphy_cfg(struct rockchip_combphy_priv *priv)
 	case 100000000:
 		param_write(priv->phy_grf, &cfg->pipe_clk_100m, true);
 		if (priv->mode == PHY_TYPE_PCIE) {
+			/* gate_tx_pck_sel length select work for L1SS */
+			val = 0xc0;
+			writel(val, priv->mmio + 0x74);
+
 			/* PLL KVCO tuning fine */
 			val = readl(priv->mmio + (0x20 << 2));
 			val &= ~GENMASK(4, 2);
@@ -785,12 +798,14 @@ static int rk3588_combphy_cfg(struct rockchip_combphy_priv *priv)
 			val = 0x4c;
 			writel(val, priv->mmio + (0x1b << 2));
 
-			/* Set up su_trim: T3 */
-			val = 0xb0;
+			/* Set up su_trim: T3_P1 650mv */
+			val = 0x90;
 			writel(val, priv->mmio + (0xa << 2));
-			val = 0x47;
+			val = 0x43;
 			writel(val, priv->mmio + (0xb << 2));
-			val = 0x57;
+			val = 0x88;
+			writel(val, priv->mmio + (0xc << 2));
+			val = 0x56;
 			writel(val, priv->mmio + (0xd << 2));
 		} else if (priv->mode == PHY_TYPE_SATA) {
 			/* downward spread spectrum +500ppm */
@@ -798,11 +813,58 @@ static int rk3588_combphy_cfg(struct rockchip_combphy_priv *priv)
 			val &= ~GENMASK(7, 4);
 			val |= 0x50;
 			writel(val, priv->mmio + (0x1f << 2));
+
+			/* ssc ppm adjust to 3500ppm */
+			val = readl(priv->mmio + (0x9 << 2));
+			val &= ~GENMASK(3, 0);
+			val |= 0x7;
+			writel(val, priv->mmio + (0x9 << 2));
 		}
 		break;
 	default:
 		dev_err(priv->dev, "Unsupported rate: %lu\n", rate);
 		return -EINVAL;
+	}
+
+	if (device_property_read_bool(priv->dev, "rockchip,ext-refclk")) {
+		param_write(priv->phy_grf, &cfg->pipe_clk_ext, true);
+		if (priv->mode == PHY_TYPE_PCIE && rate == 100000000) {
+			val = 0x10;
+			writel(val, priv->mmio + (0x20 << 2));
+
+			val = 0x0c;
+			writel(val, priv->mmio + (0x1b << 2));
+
+			/* Set up su_trim: T3_P1 650mv */
+			val = 0x90;
+			writel(val, priv->mmio + (0xa << 2));
+			val = 0x43;
+			writel(val, priv->mmio + (0xb << 2));
+			val = 0x88;
+			writel(val, priv->mmio + (0xc << 2));
+			val = 0x56;
+			writel(val, priv->mmio + (0xd << 2));
+		}
+	}
+
+	if (device_property_read_bool(priv->dev, "rockchip,enable-ssc")) {
+		val = readl(priv->mmio + (0x7 << 2));
+		val |= BIT(4);
+		writel(val, priv->mmio + (0x7 << 2));
+
+		if (priv->mode == PHY_TYPE_PCIE && rate == 24000000) {
+			/* Xin24M T0_1 650mV */
+			writel(0x00, priv->mmio + (0x10 << 2));
+			writel(0x32, priv->mmio + (0x11 << 2));
+			writel(0x00, priv->mmio + (0x1b << 2));
+			writel(0x90, priv->mmio + (0x0a << 2));
+			writel(0x02, priv->mmio + (0x0b << 2));
+			writel(0x08, priv->mmio + (0x0c << 2));
+			writel(0x57, priv->mmio + (0x0d << 2));
+			writel(0x40, priv->mmio + (0x0e << 2));
+			writel(0x5f, priv->mmio + (0x0f << 2));
+			writel(0x10, priv->mmio + (0x20 << 2));
+		}
 	}
 
 	return 0;
@@ -833,7 +895,7 @@ static const struct rockchip_combphy_grfcfg rk3588_combphy_grfcfgs = {
 	.con3_for_sata		= { 0x000c, 15, 0, 0x00, 0x0407 },
 	/* pipe-grf */
 	.pipe_con0_for_sata	= { 0x0000, 11, 5, 0x00, 0x22 },
-	.pipe_con1_for_sata	= { 0x0000, 2, 0, 0x00, 0x2 },
+	.pipe_con1_for_sata	= { 0x0004, 2, 0, 0x00, 0x2 },
 };
 
 static const struct clk_bulk_data rk3588_clks[] = {

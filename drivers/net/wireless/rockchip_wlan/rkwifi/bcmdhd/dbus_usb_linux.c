@@ -125,7 +125,8 @@
  * been eliminated.
  */
 #if ((LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 21)) && defined(CONFIG_USB_SUSPEND)) \
-	|| ((LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)) && defined(CONFIG_PM_RUNTIME))
+	|| ((LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)) && defined(CONFIG_PM_RUNTIME)) \
+	|| (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0))
 /* For USB power management support, see Linux kernel: Documentation/usb/power-management.txt */
 #define USB_SUSPEND_AVAILABLE
 #endif
@@ -2159,7 +2160,7 @@ dbus_usbos_intf_up(void *bus)
 			return DBUS_ERR;
 		}
 	}
-#endif	
+#endif
 
 	if (usbos_info->ctl_urb) {
 		usbos_info->ctl_in_pipe = usb_rcvctrlpipe(usbos_info->usb, 0);

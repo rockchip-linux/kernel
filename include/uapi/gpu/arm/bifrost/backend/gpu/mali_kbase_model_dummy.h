@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2021 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2021-2022 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -43,11 +43,18 @@
 	(KBASE_DUMMY_MODEL_VALUES_PER_BLOCK * sizeof(__u32))
 #define KBASE_DUMMY_MODEL_MAX_MEMSYS_BLOCKS      8
 #define KBASE_DUMMY_MODEL_MAX_SHADER_CORES       32
-#define KBASE_DUMMY_MODEL_MAX_NUM_PERF_BLOCKS    \
+#define KBASE_DUMMY_MODEL_MAX_FIRMWARE_BLOCKS 0
+#define KBASE_DUMMY_MODEL_MAX_NUM_HARDWARE_BLOCKS                                                  \
 	(1 + 1 + KBASE_DUMMY_MODEL_MAX_MEMSYS_BLOCKS + KBASE_DUMMY_MODEL_MAX_SHADER_CORES)
+#define KBASE_DUMMY_MODEL_MAX_NUM_PERF_BLOCKS                                                      \
+	(KBASE_DUMMY_MODEL_MAX_NUM_HARDWARE_BLOCKS + KBASE_DUMMY_MODEL_MAX_FIRMWARE_BLOCKS)
 #define KBASE_DUMMY_MODEL_COUNTER_TOTAL                                        \
 	(KBASE_DUMMY_MODEL_MAX_NUM_PERF_BLOCKS *                               \
 	 KBASE_DUMMY_MODEL_COUNTER_PER_CORE)
+#define KBASE_DUMMY_MODEL_MAX_VALUES_PER_SAMPLE                                                    \
+	(KBASE_DUMMY_MODEL_MAX_NUM_PERF_BLOCKS * KBASE_DUMMY_MODEL_VALUES_PER_BLOCK)
+#define KBASE_DUMMY_MODEL_MAX_SAMPLE_SIZE                                                          \
+	(KBASE_DUMMY_MODEL_MAX_NUM_PERF_BLOCKS * KBASE_DUMMY_MODEL_BLOCK_SIZE)
 
 #define DUMMY_IMPLEMENTATION_SHADER_PRESENT (0xFull)
 #define DUMMY_IMPLEMENTATION_TILER_PRESENT (0x1ull)

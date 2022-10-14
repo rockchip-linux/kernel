@@ -36,6 +36,8 @@
 #define VEPU2_REG_HW_ID_INDEX		-1 /* INVALID */
 #define VEPU2_REG_START_INDEX			0
 #define VEPU2_REG_END_INDEX			183
+#define VEPU2_REG_OUT_INDEX			(77)
+#define VEPU2_REG_STRM_INDEX			(53)
 
 #define VEPU2_REG_ENC_EN			0x19c
 #define VEPU2_REG_ENC_EN_INDEX			(103)
@@ -97,6 +99,8 @@ struct vepu_task {
 	u32 width;
 	u32 height;
 	u32 pixels;
+	struct dma_buf *dmabuf_bs;
+	u32 offset_bs;
 };
 
 struct vepu_session_priv {
@@ -123,16 +127,16 @@ struct vepu_dev {
 	struct reset_control *rst_h;
 	/* for ccu(central control unit) */
 	struct vepu_ccu *ccu;
-	struct list_head core_link;
 	bool disable_work;
 };
 
 struct vepu_ccu {
 	u32 core_num;
 	/* lock for core attach */
-	struct mutex lock;
-	struct list_head core_list;
+	spinlock_t lock;
 	struct mpp_dev *main_core;
+	struct mpp_dev *cores[MPP_MAX_CORE_NUM];
+	unsigned long core_idle;
 };
 
 static struct mpp_hw_info vepu_v2_hw_info = {
@@ -179,7 +183,13 @@ static int vepu_process_reg_fd(struct mpp_session *session,
 			       struct mpp_task_msgs *msgs)
 {
 	int ret;
+	int fd_bs;
 	int fmt = VEPU2_GET_FORMAT(task->reg[VEPU2_REG_ENC_EN_INDEX]);
+
+	if (session->msg_flags & MPP_FLAGS_REG_NO_OFFSET)
+		fd_bs = task->reg[VEPU2_REG_OUT_INDEX];
+	else
+		fd_bs = task->reg[VEPU2_REG_OUT_INDEX] & 0x3ff;
 
 	ret = mpp_translate_reg_address(session, &task->mpp_task,
 					fmt, task->reg, &task->off_inf);
@@ -188,6 +198,19 @@ static int vepu_process_reg_fd(struct mpp_session *session,
 
 	mpp_translate_reg_offset_info(&task->mpp_task,
 				      &task->off_inf, task->reg);
+
+	if (fmt == VEPU2_FMT_JPEGE) {
+		task->offset_bs = mpp_query_reg_offset_info(&task->off_inf, VEPU2_REG_OUT_INDEX);
+
+		if (task->offset_bs > 0)
+			task->dmabuf_bs = dma_buf_get(fd_bs);
+
+		if (IS_ERR_OR_NULL(task->dmabuf_bs))
+			task->dmabuf_bs = NULL;
+		else
+			dma_buf_end_cpu_access_partial(task->dmabuf_bs, DMA_TO_DEVICE, 0,
+						       task->offset_bs);
+	}
 
 	return 0;
 }
@@ -295,29 +318,30 @@ fail:
 
 static void *vepu_prepare(struct mpp_dev *mpp, struct mpp_task *mpp_task)
 {
-	struct mpp_taskqueue *queue = mpp->queue;
 	unsigned long flags;
 	s32 core_id;
+	struct vepu_dev *enc = to_vepu_dev(mpp);
+	struct vepu_ccu *ccu = enc->ccu;
 
-	spin_lock_irqsave(&queue->running_lock, flags);
+	spin_lock_irqsave(&ccu->lock, flags);
 
-	core_id = find_first_bit(&queue->core_idle, queue->core_count);
+	core_id = find_first_bit(&ccu->core_idle, ccu->core_num);
 
-	if (core_id >= queue->core_count) {
+	if (core_id >= ccu->core_num) {
 		mpp_task = NULL;
-		mpp_dbg_core("core %d all busy %lx\n", core_id, queue->core_idle);
+		mpp_dbg_core("core %d all busy %lx\n", core_id, ccu->core_idle);
 	} else {
-		unsigned long core_idle = queue->core_idle;
+		unsigned long core_idle = ccu->core_idle;
 
-		clear_bit(core_id, &queue->core_idle);
-		mpp_task->mpp = queue->cores[core_id];
+		clear_bit(core_id, &ccu->core_idle);
+		mpp_task->mpp = ccu->cores[core_id];
 		mpp_task->core_id = core_id;
 
-		mpp_dbg_core("core %d set idle %lx -> %lx\n", core_id,
-			     core_idle, queue->core_idle);
+		mpp_dbg_core("core cnt %d core %d set idle %lx -> %lx\n",
+			     ccu->core_num, core_id, core_idle, ccu->core_idle);
 	}
 
-	spin_unlock_irqrestore(&queue->running_lock, flags);
+	spin_unlock_irqrestore(&ccu->lock, flags);
 
 	return mpp_task;
 }
@@ -328,6 +352,7 @@ static int vepu_run(struct mpp_dev *mpp,
 	u32 i;
 	u32 reg_en;
 	struct vepu_task *task = to_vepu_task(mpp_task);
+	u32 timing_en = mpp->srv->timing_en;
 
 	mpp_debug_enter();
 
@@ -348,10 +373,15 @@ static int vepu_run(struct mpp_dev *mpp,
 	}
 	/* init current task */
 	mpp->cur_task = mpp_task;
+
+	mpp_task_run_begin(mpp_task, timing_en, MPP_WORK_TIMEOUT_DELAY);
+
 	/* Last, flush the registers */
 	wmb();
 	mpp_write(mpp, VEPU2_REG_ENC_EN,
 		  task->reg[reg_en] | VEPU2_ENC_START);
+
+	mpp_task_run_end(mpp_task, timing_en);
 
 	mpp_debug_leave();
 
@@ -374,8 +404,9 @@ static int vepu_isr(struct mpp_dev *mpp)
 	u32 err_mask;
 	struct vepu_task *task = NULL;
 	struct mpp_task *mpp_task = mpp->cur_task;
-	struct mpp_taskqueue *queue = mpp->queue;
 	unsigned long core_idle;
+	struct vepu_dev *enc = to_vepu_dev(mpp);
+	struct vepu_ccu *ccu = enc->ccu;
 
 	/* FIXME use a spin lock here */
 	if (!mpp_task) {
@@ -397,12 +428,14 @@ static int vepu_isr(struct mpp_dev *mpp)
 		atomic_inc(&mpp->reset_request);
 
 	mpp_task_finish(mpp_task->session, mpp_task);
+	/* the whole vepu has no ccu that manage multi core */
+	if (ccu) {
+		core_idle = ccu->core_idle;
+		set_bit(mpp->core_id, &ccu->core_idle);
 
-	core_idle = queue->core_idle;
-	set_bit(mpp->core_id, &queue->core_idle);
-
-	mpp_dbg_core("core %d isr idle %lx -> %lx\n", mpp->core_id, core_idle,
-		     queue->core_idle);
+		mpp_dbg_core("core %d isr idle %lx -> %lx\n", mpp->core_id, core_idle,
+			ccu->core_idle);
+	}
 
 	mpp_debug_leave();
 
@@ -454,6 +487,11 @@ static int vepu_result(struct mpp_dev *mpp,
 		}
 	}
 
+	if (task->dmabuf_bs)
+		dma_buf_begin_cpu_access_partial(task->dmabuf_bs, DMA_FROM_DEVICE, 0,
+						 task->reg[VEPU2_REG_STRM_INDEX] / 8 +
+						 task->offset_bs);
+
 	return 0;
 }
 
@@ -461,6 +499,12 @@ static int vepu_free_task(struct mpp_session *session,
 			  struct mpp_task *mpp_task)
 {
 	struct vepu_task *task = to_vepu_task(mpp_task);
+
+	if (task->dmabuf_bs) {
+		dma_buf_put(task->dmabuf_bs);
+		task->dmabuf_bs = NULL;
+		task->offset_bs = 0;
+	}
 
 	mpp_task_finalize(session, mpp_task);
 	kfree(task);
@@ -571,7 +615,7 @@ static int vepu_dump_session(struct mpp_session *session, struct seq_file *seq)
 	}
 	seq_puts(seq, "\n");
 	/* item data*/
-	seq_printf(seq, "|%8p|", session);
+	seq_printf(seq, "|%8d|", session->index);
 	seq_printf(seq, "%8s|", mpp_device_name[session->device_type]);
 	for (i = ENC_INFO_BASE; i < ENC_INFO_BUTT; i++) {
 		u32 flag = priv->codec_info[i].flag;
@@ -604,8 +648,9 @@ static int vepu_show_session_info(struct seq_file *seq, void *offset)
 	mutex_lock(&mpp->srv->session_lock);
 	list_for_each_entry_safe(session, n,
 				 &mpp->srv->session_list,
-				 session_link) {
-		if (session->device_type != MPP_DEVICE_VEPU2)
+				 service_link) {
+		if (session->device_type != MPP_DEVICE_VEPU2 &&
+		    session->device_type != MPP_DEVICE_VEPU2_JPEG)
 			continue;
 		if (!session->priv)
 			continue;
@@ -625,9 +670,12 @@ static int vepu_procfs_init(struct mpp_dev *mpp)
 	if (!mpp->dev || !mpp->dev->of_node || !mpp->dev->of_node->name ||
 	    !mpp->srv || !mpp->srv->procfs)
 		return -EINVAL;
-
-	snprintf(name, sizeof(name) - 1, "%s%d",
-		 mpp->dev->of_node->name, mpp->core_id);
+	if (enc->ccu)
+		snprintf(name, sizeof(name) - 1, "%s%d",
+			mpp->dev->of_node->name, mpp->core_id);
+	else
+		snprintf(name, sizeof(name) - 1, "%s",
+			mpp->dev->of_node->name);
 
 	enc->procfs = proc_mkdir(name, mpp->srv->procfs);
 	if (IS_ERR_OR_NULL(enc->procfs)) {
@@ -635,6 +683,10 @@ static int vepu_procfs_init(struct mpp_dev *mpp)
 		enc->procfs = NULL;
 		return -EIO;
 	}
+
+	/* for common mpp_dev options */
+	mpp_procfs_create_common(enc->procfs, mpp);
+
 	mpp_procfs_create_u32("aclk", 0644,
 			      enc->procfs, &enc->aclk_info.debug_rate_hz);
 	mpp_procfs_create_u32("session_buffers", 0644,
@@ -653,8 +705,6 @@ static int vepu_procfs_ccu_init(struct mpp_dev *mpp)
 	if (!enc->procfs)
 		goto done;
 
-	mpp_procfs_create_u32("disable_work", 0644,
-			      enc->procfs, &enc->disable_work);
 done:
 	return 0;
 }
@@ -796,7 +846,7 @@ static int vepu_reduce_freq(struct mpp_dev *mpp)
 static int vepu_reset(struct mpp_dev *mpp)
 {
 	struct vepu_dev *enc = to_vepu_dev(mpp);
-	struct mpp_taskqueue *queue = mpp->queue;
+	struct vepu_ccu *ccu = enc->ccu;
 
 	if (enc->rst_a && enc->rst_h) {
 		/* Don't skip this or iommu won't work after reset */
@@ -810,8 +860,10 @@ static int vepu_reset(struct mpp_dev *mpp)
 	}
 	mpp_write(mpp, VEPU2_REG_INT, VEPU2_INT_CLEAR);
 
-	set_bit(mpp->core_id, &queue->core_idle);
-	mpp_dbg_core("core %d reset idle %lx\n", mpp->core_id, queue->core_idle);
+	if (ccu) {
+		set_bit(mpp->core_id, &ccu->core_idle);
+		mpp_dbg_core("core %d reset idle %lx\n", mpp->core_id, ccu->core_idle);
+	}
 
 	return 0;
 }
@@ -883,7 +935,7 @@ static const struct mpp_dev_var vepu_px30_data = {
 };
 
 static const struct mpp_dev_var vepu_ccu_data = {
-	.device_type = MPP_DEVICE_VEPU2,
+	.device_type = MPP_DEVICE_VEPU2_JPEG,
 	.hw_info = &vepu_v2_hw_info,
 	.trans_info = trans_rk_vepu2,
 	.hw_ops = &vepu_v2_hw_ops,
@@ -903,11 +955,11 @@ static const struct of_device_id mpp_vepu2_dt_match[] = {
 #endif
 #ifdef CONFIG_CPU_RK3588
 	{
-		.compatible = "rockchip,vpu-encoder-v2-core",
+		.compatible = "rockchip,vpu-jpege-core",
 		.data = &vepu_ccu_data,
 	},
 	{
-		.compatible = "rockchip,vpu-encoder-v2-ccu",
+		.compatible = "rockchip,vpu-jpege-ccu",
 	},
 #endif
 	{},
@@ -923,9 +975,7 @@ static int vepu_ccu_probe(struct platform_device *pdev)
 		return -ENOMEM;
 
 	platform_set_drvdata(pdev, ccu);
-	mutex_init(&ccu->lock);
-	INIT_LIST_HEAD(&ccu->core_list);
-
+	spin_lock_init(&ccu->lock);
 	return 0;
 }
 
@@ -934,6 +984,7 @@ static int vepu_attach_ccu(struct device *dev, struct vepu_dev *enc)
 	struct device_node *np;
 	struct platform_device *pdev;
 	struct vepu_ccu *ccu;
+	unsigned long flags;
 
 	np = of_parse_phandle(dev->of_node, "rockchip,ccu", 0);
 	if (!np || !of_device_is_available(np))
@@ -948,11 +999,11 @@ static int vepu_attach_ccu(struct device *dev, struct vepu_dev *enc)
 	if (!ccu)
 		return -ENOMEM;
 
-	INIT_LIST_HEAD(&enc->core_link);
-	mutex_lock(&ccu->lock);
+	spin_lock_irqsave(&ccu->lock, flags);
 	ccu->core_num++;
-	list_add_tail(&enc->core_link, &ccu->core_list);
-	mutex_unlock(&ccu->lock);
+	ccu->cores[enc->mpp.core_id] = &enc->mpp;
+	set_bit(enc->mpp.core_id, &ccu->core_idle);
+	spin_unlock_irqrestore(&ccu->lock, flags);
 
 	/* attach the ccu-domain to current core */
 	if (!ccu->main_core) {
@@ -1110,10 +1161,15 @@ static int vepu_remove(struct platform_device *pdev)
 
 		dev_info(dev, "remove core\n");
 		if (enc->ccu) {
-			mutex_lock(&enc->ccu->lock);
-			list_del_init(&enc->core_link);
-			enc->ccu->core_num--;
-			mutex_unlock(&enc->ccu->lock);
+			s32 core_id = mpp->core_id;
+			struct vepu_ccu *ccu = enc->ccu;
+			unsigned long flags;
+
+			spin_lock_irqsave(&ccu->lock, flags);
+			ccu->core_num--;
+			ccu->cores[core_id] = NULL;
+			clear_bit(core_id, &ccu->core_idle);
+			spin_unlock_irqrestore(&ccu->lock, flags);
 		}
 		mpp_dev_remove(&enc->mpp);
 		vepu_procfs_remove(&enc->mpp);

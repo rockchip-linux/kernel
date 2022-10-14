@@ -108,6 +108,46 @@ static struct platform_driver rockchip_cpuinfo_driver = {
 	},
 };
 
+static void rockchip_set_cpu_version_from_os_reg(u32 reg)
+{
+	void __iomem *r = ioremap(reg, 0x4);
+
+	if (r) {
+		rockchip_set_cpu_version(readl_relaxed(r) & GENMASK(2, 0));
+		iounmap(r);
+	}
+}
+
+static void px30_init(void)
+{
+	void __iomem *base;
+
+	rockchip_soc_id = ROCKCHIP_SOC_PX30;
+#define PX30_DDR_GRF_BASE	0xFF630000
+#define PX30_DDR_GRF_CON1	0x04
+	base = ioremap(PX30_DDR_GRF_BASE, SZ_4K);
+	if (base) {
+		unsigned int val = readl_relaxed(base + PX30_DDR_GRF_CON1);
+
+		if (((val >> 14) & 0x03) == 0x03)
+			rockchip_soc_id = ROCKCHIP_SOC_PX30S;
+		iounmap(base);
+	}
+}
+
+#define RV1106_OS_REG1	0xff020204
+static void rv1103_init(void)
+{
+	rockchip_soc_id = ROCKCHIP_SOC_RV1103;
+	rockchip_set_cpu_version_from_os_reg(RV1106_OS_REG1);
+}
+
+static void rv1106_init(void)
+{
+	rockchip_soc_id = ROCKCHIP_SOC_RV1106;
+	rockchip_set_cpu_version_from_os_reg(RV1106_OS_REG1);
+}
+
 static void rv1109_init(void)
 {
 	rockchip_soc_id = ROCKCHIP_SOC_RV1109;
@@ -162,8 +202,12 @@ static void rk3308_init(void)
 #define RK3308_GRF_CHIP_ID	0x800
 	base = ioremap(RK3308_GRF_PHYS, SZ_4K);
 	if (base) {
-		if (readl_relaxed(base + RK3308_GRF_CHIP_ID) == 0x3308)
+		u32 v = readl_relaxed(base + RK3308_GRF_CHIP_ID);
+
+		if (v == 0x3308)
 			rockchip_soc_id = ROCKCHIP_SOC_RK3308B;
+		if (v == 0x3308c)
+			rockchip_soc_id = ROCKCHIP_SOC_RK3308BS;
 		iounmap(base);
 	}
 }
@@ -209,6 +253,10 @@ int __init rockchip_soc_id_init(void)
 			rk3126_init();
 	} else if (cpu_is_rk3308()) {
 		rk3308_init();
+	} else if (cpu_is_rv1103()) {
+		rv1103_init();
+	} else if (cpu_is_rv1106()) {
+		rv1106_init();
 	} else if (cpu_is_rv1109()) {
 		rv1109_init();
 	} else if (cpu_is_rv1126()) {
@@ -217,6 +265,8 @@ int __init rockchip_soc_id_init(void)
 		rk3566_init();
 	} else if (cpu_is_rk3568()) {
 		rk3568_init();
+	} else if (cpu_is_px30()) {
+		px30_init();
 	}
 
 	return 0;

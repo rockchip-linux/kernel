@@ -323,25 +323,25 @@ get_framebuffer_by_node(struct drm_device *drm_dev, struct device_node *node)
 		return NULL;
 
 	if (of_property_read_u32(node, "logo,offset", &val)) {
-		pr_err("%s: failed to get logo,offset\n", __func__);
+		dev_err(drm_dev->dev, "%s: failed to get logo,offset\n", node->full_name);
 		return NULL;
 	}
 	mode_cmd.offsets[0] = val;
 
 	if (of_property_read_u32(node, "logo,width", &val)) {
-		pr_err("%s: failed to get logo,width\n", __func__);
+		dev_err(drm_dev->dev, "%s: failed to get logo,width\n", node->full_name);
 		return NULL;
 	}
 	mode_cmd.width = val;
 
 	if (of_property_read_u32(node, "logo,height", &val)) {
-		pr_err("%s: failed to get logo,height\n", __func__);
+		dev_err(drm_dev->dev, "%s: failed to get logo,height\n", node->full_name);
 		return NULL;
 	}
 	mode_cmd.height = val;
 
 	if (of_property_read_u32(node, "logo,bpp", &val)) {
-		pr_err("%s: failed to get logo,bpp\n", __func__);
+		dev_err(drm_dev->dev, "%s: failed to get logo,bpp\n", node->full_name);
 		return NULL;
 	}
 	bpp = val;
@@ -359,7 +359,7 @@ get_framebuffer_by_node(struct drm_device *drm_dev, struct device_node *node)
 		mode_cmd.pixel_format = DRM_FORMAT_XRGB8888;
 		break;
 	default:
-		pr_err("%s: unsupported to logo bpp %d\n", __func__, bpp);
+		dev_err(drm_dev->dev, "%s: unsupported to logo bpp %d\n", node->full_name, bpp);
 		return NULL;
 	}
 
@@ -559,7 +559,7 @@ static int rockchip_drm_fill_connector_modes(struct drm_connector *connector,
 		count = (*connector_funcs->get_modes)(connector);
 
 	if (count == 0 && connector->status == connector_status_connected)
-		count = drm_add_modes_noedid(connector, 1024, 768);
+		count = drm_add_modes_noedid(connector, 4096, 4096);
 	if (force_output)
 		count += rockchip_drm_add_modes_noedid(connector);
 	if (count == 0)
@@ -645,6 +645,8 @@ static int setup_initial_state(struct drm_device *drm_dev,
 	if (!set->hdisplay || !set->vdisplay || !set->vrefresh)
 		is_crtc_enabled = false;
 
+	crtc->state->state = state;
+
 	conn_state = drm_atomic_get_connector_state(state, connector);
 	if (IS_ERR(conn_state))
 		return PTR_ERR(conn_state);
@@ -714,7 +716,6 @@ static int setup_initial_state(struct drm_device *drm_dev,
 		goto error_conn;
 	}
 
-	crtc->state->state = state;
 	drm_mode_copy(&crtc_state->adjusted_mode, mode);
 	if (!match || !is_crtc_enabled) {
 		set->mode_changed = true;
@@ -873,6 +874,18 @@ static int update_state(struct drm_device *drm_dev,
 	return ret;
 }
 
+static void rockchip_drm_copy_mode_from_mode_set(struct drm_display_mode *mode,
+						 struct rockchip_drm_mode_set *set)
+{
+	mode->clock = set->clock;
+	mode->hdisplay = set->hdisplay;
+	mode->vdisplay = set->vdisplay;
+	mode->crtc_hsync_end = set->crtc_hsync_end;
+	mode->crtc_vsync_end = set->crtc_vsync_end;
+	mode->flags = set->flags & DRM_MODE_FLAG_ALL;
+	mode->picture_aspect_ratio = set->picture_aspect_ratio;
+}
+
 void rockchip_drm_show_logo(struct drm_device *drm_dev)
 {
 	struct drm_atomic_state *state, *old_state;
@@ -946,11 +959,22 @@ void rockchip_drm_show_logo(struct drm_device *drm_dev)
 
 		if (!find_used_crtc) {
 			struct drm_crtc *crtc = unset->crtc;
+			struct drm_crtc_state *crtc_state;
 			int pipe = drm_crtc_index(crtc);
 			struct rockchip_drm_private *priv =
 							drm_dev->dev_private;
 
+			/*
+			 * The display timing information of mode_set is parsed from dts, which
+			 * written in uboot. If the mode_set is added into mode_unset_list, it
+			 * should be converted to crtc_state->adjusted_mode, in order to check
+			 * splice_mode flag in loader_protect().
+			 */
 			if (unset->hdisplay && unset->vdisplay) {
+				crtc_state = drm_atomic_get_crtc_state(state, crtc);
+				if (crtc_state)
+					rockchip_drm_copy_mode_from_mode_set(&crtc_state->adjusted_mode,
+									     unset);
 				if (priv->crtc_funcs[pipe] &&
 				    priv->crtc_funcs[pipe]->loader_protect)
 					priv->crtc_funcs[pipe]->loader_protect(crtc, true);

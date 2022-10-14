@@ -921,6 +921,41 @@ config MFD_MAX8998
 	  additional drivers must be enabled in order to use the functionality
 	  of the device.
 
+config MFD_MAX96745
+	tristate "Maxim Semiconductor MAX96745 GMSL2 Serializer Support"
+	depends on I2C
+	select MFD_CORE
+	select REGMAP_I2C
+	select I2C_MUX
+	help
+	  Say yes here to add support for Maxim Semiconductor MAX96745.
+
+config MFD_MAX96752F
+	tristate "Maxim Semiconductor MAX96752F GMSL2 Deserializer Support"
+	depends on I2C
+	select MFD_CORE
+	select REGMAP_I2C
+	select I2C_MUX
+	help
+	  Say yes here to add support for Maxim Semiconductor MAX96752F.
+
+config MFD_MAX96755F
+	tristate "Maxim Semiconductor MAX96755 GMSL2 Serializer Support"
+	depends on I2C
+	select MFD_CORE
+	select REGMAP_I2C
+	help
+	  Say yes here to add support for Maxim Semiconductor MAX96755.
+
+config MFD_MAX96776
+	tristate "Maxim Semiconductor MAX96776 GMSL2 Deserializer Support"
+	depends on I2C
+	select MFD_CORE
+	select REGMAP_I2C
+	select I2C_MUX
+	help
+	  Say yes here to add support for Maxim Semiconductor MAX96776.
+
 config MFD_MT6360
 	tristate "Mediatek MT6360 SubPMIC"
 	select MFD_CORE
@@ -1115,6 +1150,16 @@ config MFD_RC5T583
 	  like GPIO, interrupts, RTC, LDO and DCDC regulators, onkey.
 	  Additional drivers must be enabled in order to use the
 	  different functionality of the device.
+
+config MFD_RK618
+	tristate "Rockchip RK618 MFD Driver"
+	depends on I2C
+	depends on OF
+	select MFD_CORE
+	select REGMAP_I2C
+	select REGMAP_IRQ
+	help
+	  if you say yes here you get support for the RK618 from Rockchip.
 
 config MFD_RK628
 	tristate "Rockchip RK628 MFD Driver"
