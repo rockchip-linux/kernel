@@ -569,6 +569,9 @@ stmmac_probe_config_dt(struct platform_device *pdev, const char **mac)
 			 "force_sf_dma_mode is ignored if force_thresh_dma_mode is set.\n");
 	}
 
+	/* To disable VLAN tag filter */
+	plat->vlhash_en = !of_property_read_bool(np, "snps,no-vlhash");
+
 	of_property_read_u32(np, "snps,ps-speed", &plat->mac_port_sel_speed);
 
 	plat->axi = stmmac_axi_setup(pdev);

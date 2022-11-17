@@ -206,6 +206,7 @@ struct plat_stmmacenet_data {
 	bool en_tx_lpi_clockgating;
 	int has_xgmac;
 	bool vlan_fail_q_en;
+	bool vlhash_en;
 	u8 vlan_fail_q;
 	unsigned int eee_usecs_rate;
 };
