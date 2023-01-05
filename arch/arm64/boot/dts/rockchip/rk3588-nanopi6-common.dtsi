@@ -566,6 +566,11 @@
 	>;
 };
 
+&route_hdmi0 {
+	status = "okay";
+	connect = <&vp0_out_hdmi0>;
+};
+
 &saradc {
 	status = "okay";
 	vref-supply = <&avcc_1v8_s0>;
