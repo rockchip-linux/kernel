@@ -21,6 +21,10 @@
 #include "rockchip_drm_gem.h"
 #include "rockchip_drm_logo.h"
 
+static int fb_max_sz = -1;
+module_param(fb_max_sz, int, 0444);
+MODULE_PARM_DESC(fb_max_sz, "Override the maximum framebuffer size");
+
 static bool is_rockchip_logo_fb(struct drm_framebuffer *fb)
 {
 	return fb->flags & ROCKCHIP_DRM_MODE_LOGO_FB ? true : false;
@@ -301,8 +305,13 @@ void rockchip_drm_mode_config_init(struct drm_device *dev)
 	 * this value would be used to check framebuffer size limitation
 	 * at drm_mode_addfb().
 	 */
-	dev->mode_config.max_width = 16384;
-	dev->mode_config.max_height = 16384;
+	if (fb_max_sz < 1024 || fb_max_sz > 16384)
+		fb_max_sz = 16384;
+	else
+		drm_info(dev, "fbdev: max size %d\n", fb_max_sz);
+
+	dev->mode_config.max_width = fb_max_sz;
+	dev->mode_config.max_height = fb_max_sz;
 	dev->mode_config.async_page_flip = true;
 
 	dev->mode_config.funcs = &rockchip_drm_mode_config_funcs;
