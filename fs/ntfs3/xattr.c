@@ -107,7 +107,7 @@ static int ntfs_read_ea(struct ntfs_inode *ni, struct EA_FULL **ea,
 		return -EFBIG;
 
 	/* Allocate memory for packed Ea. */
-	ea_p = kmalloc(size_add(size, add_bytes), GFP_NOFS);
+	ea_p = kmalloc(size + add_bytes, GFP_NOFS);
 	if (!ea_p)
 		return -ENOMEM;
 
@@ -534,11 +534,8 @@ static struct posix_acl *ntfs_get_acl_ex(struct inode *inode, int type,
 /*
  * ntfs_get_acl - inode_operations::get_acl
  */
-struct posix_acl *ntfs_get_acl(struct inode *inode, int type, bool rcu)
+struct posix_acl *ntfs_get_acl(struct inode *inode, int type)
 {
-	if (rcu)
-		return ERR_PTR(-ECHILD);
-
 	return ntfs_get_acl_ex(inode, type, 0);
 }
 

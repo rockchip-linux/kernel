@@ -995,7 +995,7 @@ static ssize_t ntfs_compress_write(struct kiocb *iocb, struct iov_iter *from)
 		frame_vbo = pos & ~(frame_size - 1);
 		index = frame_vbo >> PAGE_SHIFT;
 
-		if (unlikely(fault_in_iov_iter_readable(from, bytes))) {
+		if (unlikely(iov_iter_fault_in_readable(from, bytes))) {
 			err = -EFAULT;
 			goto out;
 		}
@@ -1034,8 +1034,9 @@ static ssize_t ntfs_compress_write(struct kiocb *iocb, struct iov_iter *from)
 			size_t cp, tail = PAGE_SIZE - off;
 
 			page = pages[ip];
-			cp = copy_page_from_iter_atomic(page, off,
-							min(tail, bytes), from);
+			cp = iov_iter_copy_from_user_atomic(page, from,
+							off, min(tail, bytes));
+			iov_iter_advance(from, cp);
 			flush_dcache_page(page);
 
 			copied += cp;

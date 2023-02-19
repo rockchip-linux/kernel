@@ -1604,7 +1604,7 @@ int ntfs_bio_fill_1(struct ntfs_sb_info *sbi, const struct runs_tree *run)
 		lbo = (u64)lcn << cluster_bits;
 		len = (u64)clen << cluster_bits;
 new_bio:
-		new = ntfs_alloc_bio(BIO_MAX_VECS);
+		new = ntfs_alloc_bio(BIO_MAX_PAGES);
 		if (!new) {
 			err = -ENOMEM;
 			break;
