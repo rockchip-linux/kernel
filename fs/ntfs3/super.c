@@ -1504,6 +1504,7 @@ MODULE_INFO(cluster, "Warning: Activated 64 bits per cluster. Windows does not s
 #ifdef CONFIG_NTFS3_LZX_XPRESS
 MODULE_INFO(compression, "Read-only lzx/xpress compression included");
 #endif
+MODULE_IMPORT_NS(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver);
 
 MODULE_AUTHOR("Konstantin Komarov");
 MODULE_ALIAS_FS("ntfs3");
