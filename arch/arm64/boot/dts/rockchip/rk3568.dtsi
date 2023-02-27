@@ -3564,6 +3564,7 @@
 		clock-names = "refclk_m", "refclk_n", "pclk";
 		resets = <&cru SRST_PCIE30PHY>;
 		reset-names = "phy";
+		rockchip,pipe-grf = <&pipegrf>;
 		rockchip,phy-grf = <&pcie30_phy_grf>;
 		status = "disabled";
 	};
