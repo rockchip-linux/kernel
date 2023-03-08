@@ -1,0 +1,45 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright (c) 2020 Rockchip Electronics Co., Ltd.
+ *
+ */
+
+/dts-v1/;
+
+#include "rk3568-firefly-itx-3568q.dtsi"
+
+/*
+* Screen.
+*/
+//#include "rk3568-firefly-itx-3568q-EDPtoVGA_LT8711V.dtsi"
+//#include "rk3568-firefly-itx-3568q-RGBtoVGA_ADV7123.dtsi"
+
+
+/*
+ * Camera.Select one of the three
+ * using single camera xc7160 ----> rk3568-firefly-itx-3568q-cam-8ms1m.dtsi
+ * using dual camera gc2053/gc2093   ----> rk3568-firefly-itx-3568q-cam-2ms2m.dtsi
+ * using hdmi-in module rk628d   ----> rk3568-firefly-itx-3568q-hdmi-mipi-rk628.dtsi
+ */
+//#include "rk3568-firefly-itx-3568q-cam-8ms1m.dtsi"
+//#include "rk3568-firefly-itx-3568q-cam-2ms2m.dtsi"
+//#include "rk3568-firefly-itx-3568q-hdmi-mipi-rk628.dtsi"
+
+
+/ {
+    model = "ITX-3568Q HDMI (Linux)";
+    compatible = "rockchip,rk3568-firefly-itx-3568q", "rockchip,rk3568";
+};
+
+&route_hdmi {
+    status = "okay";
+    connect = <&vp0_out_hdmi>;
+};
+
+&can1 {
+    status = "okay";
+};
+
+&can2 {
+    status = "disabled";
+};

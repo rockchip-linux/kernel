@@ -1,0 +1,49 @@
+/*
+ * (C) Copyright 2022 FireflyTeam <service@t-firefly.com>
+ *
+ * SPDX-License-Identifier:	GPL-2.0+
+ */
+
+
+/ {
+    compatible = "rockchip,rk356x-firefly-demo", "rockchip,rk356x";
+
+    adc_demo: adc_demo {
+        status = "disabled";
+        compatible = "firefly,rk356x-adc";
+        io-channels = <&saradc 5>;
+    };
+
+    led_demo: led_demo {
+        status = "disabled";
+        compatible = "firefly,rk356x-led";
+    };
+
+    gpio_demo: gpio_demo {
+        status = "disabled";
+        compatible = "firefly,rk356x-gpio";
+        firefly-gpio = <&gpio0 12 GPIO_ACTIVE_HIGH>;          /* GPIO0_B4 */
+        firefly-irq-gpio = <&gpio4 29 IRQ_TYPE_EDGE_RISING>;  /* GPIO4_D5 */
+    };
+
+    pwm_demo: pwm_demo {
+        status = "disabled";
+        compatible = "firefly,rk356x-pwm";
+        pwms = <&pwm1 0 10000 1>;   //pwm1:PWM number   0 10000:PWM period in nanoseconds  1:polarity
+        duty_ns = <5000>;           //pwm duty cycle activation time, unit ns
+    };
+};
+
+/* Firefly SPI demo */
+&spi1 {
+    spi_demo: spi-demo@00{
+        status = "disabled";
+        compatible = "firefly,rk356x-spi";
+        reg = <0x00>;
+        spi-max-frequency = <48000000>;
+        /* rk3399 driver support SPI_CPOL | SPI_CPHA | SPI_CS_HIGH */
+        //spi-cpha;             /* SPI mode: CPHA=1 */
+        //spi-cpol;     /* SPI mode: CPOL=1 */
+        //spi-cs-high;
+    };
+};
