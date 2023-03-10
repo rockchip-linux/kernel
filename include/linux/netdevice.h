@@ -852,6 +852,59 @@ typedef u16 (*select_queue_fallback_t)(struct net_device *dev,
 				       struct sk_buff *skb,
 				       struct net_device *sb_dev);
 
+enum net_device_path_type {
+	DEV_PATH_ETHERNET = 0,
+	DEV_PATH_VLAN,
+	DEV_PATH_BRIDGE,
+	DEV_PATH_PPPOE,
+	DEV_PATH_DSA,
+};
+
+struct net_device_path {
+	enum net_device_path_type	type;
+	const struct net_device		*dev;
+	union {
+		struct {
+			u16		id;
+			__be16		proto;
+			u8		h_dest[ETH_ALEN];
+		} encap;
+		struct {
+			enum {
+				DEV_PATH_BR_VLAN_KEEP,
+				DEV_PATH_BR_VLAN_TAG,
+				DEV_PATH_BR_VLAN_UNTAG,
+				DEV_PATH_BR_VLAN_UNTAG_HW,
+			}		vlan_mode;
+			u16		vlan_id;
+			__be16		vlan_proto;
+		} bridge;
+		struct {
+			int port;
+			u16 proto;
+		} dsa;
+	};
+};
+
+#define NET_DEVICE_PATH_STACK_MAX	5
+#define NET_DEVICE_PATH_VLAN_MAX	2
+
+struct net_device_path_stack {
+	int			num_paths;
+	struct net_device_path	path[NET_DEVICE_PATH_STACK_MAX];
+};
+
+struct net_device_path_ctx {
+	const struct net_device *dev;
+	u8			daddr[ETH_ALEN];
+
+	int			num_vlans;
+	struct {
+		u16		id;
+		__be16		proto;
+	} vlan[NET_DEVICE_PATH_VLAN_MAX];
+};
+
 enum tc_setup_type {
 	TC_SETUP_QDISC_MQPRIO,
 	TC_SETUP_CLSU32,
@@ -1303,6 +1356,8 @@ struct netdev_net_notifier {
  * struct net_device *(*ndo_get_peer_dev)(struct net_device *dev);
  *	If a device is paired with a peer device, return the peer instance.
  *	The caller must be under RCU read context.
+ * int (*ndo_fill_forward_path)(struct net_device_path_ctx *ctx, struct net_device_path *path);
+ *     Get the forwarding path to reach the real device from the HW destination address
  */
 struct net_device_ops {
 	int			(*ndo_init)(struct net_device *dev);
@@ -1511,6 +1566,8 @@ struct net_device_ops {
 	int			(*ndo_tunnel_ctl)(struct net_device *dev,
 						  struct ip_tunnel_parm *p, int cmd);
 	struct net_device *	(*ndo_get_peer_dev)(struct net_device *dev);
+	int                     (*ndo_fill_forward_path)(struct net_device_path_ctx *ctx,
+                                                         struct net_device_path *path);
 
 	ANDROID_KABI_RESERVE(1);
 	ANDROID_KABI_RESERVE(2);
@@ -1906,7 +1963,6 @@ struct net_device {
 	unsigned long		mem_end;
 	unsigned long		mem_start;
 	unsigned long		base_addr;
-	int			irq;
 
 	/*
 	 *	Some hardware also needs these fields (state,dev_list,
@@ -1928,6 +1984,23 @@ struct net_device {
 		struct list_head lower;
 	} adj_list;
 
+	/* Read-mostly cache-line for fast-path access */
+	unsigned int		flags;
+	unsigned int		priv_flags;
+	const struct net_device_ops *netdev_ops;
+	int			ifindex;
+	unsigned short		gflags;
+	unsigned short		hard_header_len;
+
+	/* Note : dev->mtu is often read without holding a lock.
+	 * Writers usually hold RTNL.
+	 * It is recommended to use READ_ONCE() to annotate the reads,
+	 * and to use WRITE_ONCE() to annotate the writes.
+	 */
+	unsigned int		mtu;
+	unsigned short		needed_headroom;
+	unsigned short		needed_tailroom;
+
 	netdev_features_t	features;
 	netdev_features_t	hw_features;
 	netdev_features_t	wanted_features;
@@ -1936,10 +2009,15 @@ struct net_device {
 	netdev_features_t	mpls_features;
 	netdev_features_t	gso_partial_features;
 
-	int			ifindex;
+	unsigned int		min_mtu;
+	unsigned int		max_mtu;
+	unsigned short		type;
+	unsigned char		min_header_len;
+	unsigned char		name_assign_type;
+
 	int			group;
 
-	struct net_device_stats	stats;
+	struct net_device_stats	stats; /* not used by modern drivers */
 
 	atomic_long_t		rx_dropped;
 	atomic_long_t		tx_dropped;
@@ -1953,7 +2031,6 @@ struct net_device {
 	const struct iw_handler_def *wireless_handlers;
 	struct iw_public_data	*wireless_data;
 #endif
-	const struct net_device_ops *netdev_ops;
 	const struct ethtool_ops *ethtool_ops;
 #ifdef CONFIG_NET_L3_MASTER_DEV
 	const struct l3mdev_ops	*l3mdev_ops;
@@ -1972,33 +2049,11 @@ struct net_device {
 
 	const struct header_ops *header_ops;
 
-	unsigned int		flags;
-	unsigned int		priv_flags;
-
-	unsigned short		gflags;
-	unsigned short		padded;
-
 	unsigned char		operstate;
 	unsigned char		link_mode;
 
 	unsigned char		if_port;
 	unsigned char		dma;
-
-	/* Note : dev->mtu is often read without holding a lock.
-	 * Writers usually hold RTNL.
-	 * It is recommended to use READ_ONCE() to annotate the reads,
-	 * and to use WRITE_ONCE() to annotate the writes.
-	 */
-	unsigned int		mtu;
-	unsigned int		min_mtu;
-	unsigned int		max_mtu;
-	unsigned short		type;
-	unsigned short		hard_header_len;
-	unsigned char		min_header_len;
-	unsigned char		name_assign_type;
-
-	unsigned short		needed_headroom;
-	unsigned short		needed_tailroom;
 
 	/* Interface address info. */
 	unsigned char		perm_addr[MAX_ADDR_LEN];
@@ -2010,7 +2065,10 @@ struct net_device {
 	unsigned short		neigh_priv_len;
 	unsigned short          dev_id;
 	unsigned short          dev_port;
+	unsigned short		padded;
+
 	spinlock_t		addr_list_lock;
+	int			irq;
 
 	struct netdev_hw_addr_list	uc;
 	struct netdev_hw_addr_list	mc;
@@ -2878,6 +2936,8 @@ void dev_remove_offload(struct packet_offload *po);
 
 int dev_get_iflink(const struct net_device *dev);
 int dev_fill_metadata_dst(struct net_device *dev, struct sk_buff *skb);
+int dev_fill_forward_path(const struct net_device *dev, const u8 *daddr,
+			  struct net_device_path_stack *stack);
 struct net_device *__dev_get_by_flags(struct net *net, unsigned short flags,
 				      unsigned short mask);
 struct net_device *dev_get_by_name(struct net *net, const char *name);

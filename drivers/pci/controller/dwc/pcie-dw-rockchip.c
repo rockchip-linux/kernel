@@ -46,6 +46,7 @@
 #include "pcie-designware.h"
 #include "../../pci.h"
 #include "../rockchip-pcie-dma.h"
+#include "pcie-dw-dmatest.h"
 
 enum rk_pcie_device_mode {
 	RK_PCIE_EP_TYPE,
@@ -86,6 +87,8 @@ enum rk_pcie_device_mode {
 #define PCIE_DMA_RD_INT_STATUS		0xa0
 #define PCIE_DMA_RD_INT_MASK		0xa8
 #define PCIE_DMA_RD_INT_CLEAR		0xac
+
+#define PCIE_DMA_CHANEL_MAX_NUM		2
 
 /* Parameters for the waiting for iATU enabled routine */
 #define LINK_WAIT_IATU_MIN		9000
@@ -835,14 +838,26 @@ static bool rk_pcie_udma_enabled(struct rk_pcie *rk_pcie)
 				 PCIE_DMA_CTRL_OFF);
 }
 
-static int rk_pcie_host_init_dma_trx(struct rk_pcie *rk_pcie)
+static int rk_pcie_init_dma_trx(struct rk_pcie *rk_pcie)
 {
 	if (!rk_pcie_udma_enabled(rk_pcie))
 		return 0;
 
 	rk_pcie->dma_obj = rk_pcie_dma_obj_probe(rk_pcie->pci->dev);
 	if (IS_ERR(rk_pcie->dma_obj)) {
+		if (rk_pcie->mode == RK_PCIE_RC_TYPE) {
+			/* dma_obj is optional for RC mode */
+			rk_pcie->dma_obj = NULL;
+			return 0;
+		}
+
 		dev_err(rk_pcie->pci->dev, "failed to prepare dma object\n");
+		return -EINVAL;
+	}
+
+	rk_pcie->dma_obj = pcie_dw_dmatest_register(rk_pcie->pci, true);
+	if (IS_ERR(rk_pcie->dma_obj)) {
+		dev_err(rk_pcie->pci->dev, "failed to prepare dmatest\n");
 		return -EINVAL;
 	}
 
@@ -1130,11 +1145,6 @@ static int rk_add_pcie_port(struct rk_pcie *rk_pcie, struct platform_device *pde
 		return ret;
 	}
 
-	ret = rk_pcie_host_init_dma_trx(rk_pcie);
-	if (ret) {
-		dev_err(dev, "failed to init host dma trx\n");
-		return ret;
-	}
 	return 0;
 }
 
@@ -1330,10 +1340,9 @@ static int rk_pcie_reset_grant_ctrl(struct rk_pcie *rk_pcie,
 	return ret;
 }
 
-static void rk_pcie_start_dma_rd(struct dma_trx_obj *obj, int ctr_off)
+static void rk_pcie_start_dma_rd(struct dma_trx_obj *obj, struct dma_table *cur, int ctr_off)
 {
 	struct rk_pcie *rk_pcie = dev_get_drvdata(obj->dev);
-	struct dma_table *cur = obj->cur;
 
 	dw_pcie_writel_dbi(rk_pcie->pci, PCIE_DMA_OFFSET + PCIE_DMA_RD_ENB,
 			   cur->enb.asdword);
@@ -1355,10 +1364,9 @@ static void rk_pcie_start_dma_rd(struct dma_trx_obj *obj, int ctr_off)
 			   cur->start.asdword);
 }
 
-static void rk_pcie_start_dma_wr(struct dma_trx_obj *obj, int ctr_off)
+static void rk_pcie_start_dma_wr(struct dma_trx_obj *obj, struct dma_table *cur, int ctr_off)
 {
 	struct rk_pcie *rk_pcie = dev_get_drvdata(obj->dev);
-	struct dma_table *cur = obj->cur;
 
 	dw_pcie_writel_dbi(rk_pcie->pci, PCIE_DMA_OFFSET + PCIE_DMA_WR_ENB,
 			   cur->enb.asdword);
@@ -1382,17 +1390,17 @@ static void rk_pcie_start_dma_wr(struct dma_trx_obj *obj, int ctr_off)
 			   cur->start.asdword);
 }
 
-static void rk_pcie_start_dma_dwc(struct dma_trx_obj *obj)
+static void rk_pcie_start_dma_dwc(struct dma_trx_obj *obj, struct dma_table *table)
 {
-	int dir = obj->cur->dir;
-	int chn = obj->cur->chn;
+	int dir = table->dir;
+	int chn = table->chn;
 
 	int ctr_off = PCIE_DMA_OFFSET + chn * 0x200;
 
 	if (dir == DMA_FROM_BUS)
-		rk_pcie_start_dma_rd(obj, ctr_off);
+		rk_pcie_start_dma_rd(obj, table, ctr_off);
 	else if (dir == DMA_TO_BUS)
-		rk_pcie_start_dma_wr(obj, ctr_off);
+		rk_pcie_start_dma_wr(obj, table, ctr_off);
 }
 
 static void rk_pcie_config_dma_dwc(struct dma_table *table)
@@ -1419,76 +1427,50 @@ static void rk_pcie_config_dma_dwc(struct dma_table *table)
 	table->start.chnl = table->chn;
 }
 
-static inline void
-rk_pcie_handle_dma_interrupt(struct rk_pcie *rk_pcie)
-{
-	struct dma_trx_obj *obj = rk_pcie->dma_obj;
-	struct dma_table *cur;
-
-	if (!obj)
-		return;
-
-	cur = obj->cur;
-	if (!cur) {
-		pr_err("no pcie dma table\n");
-		return;
-	}
-
-	obj->dma_free = true;
-	obj->irq_num++;
-
-	if (cur->dir == DMA_TO_BUS) {
-		if (list_empty(&obj->tbl_list)) {
-			if (obj->dma_free &&
-			    obj->loop_count >= obj->loop_count_threshold)
-				complete(&obj->done);
-		}
-	}
-}
-
 static irqreturn_t rk_pcie_sys_irq_handler(int irq, void *arg)
 {
 	struct rk_pcie *rk_pcie = arg;
-	u32 chn = 0;
+	u32 chn;
 	union int_status status;
 	union int_clear clears;
 	u32 reg, val;
 
 	status.asdword = dw_pcie_readl_dbi(rk_pcie->pci, PCIE_DMA_OFFSET +
 					   PCIE_DMA_WR_INT_STATUS);
+	for (chn = 0; chn < PCIE_DMA_CHANEL_MAX_NUM; chn++) {
+		if (status.donesta & BIT(chn)) {
+			clears.doneclr = 0x1 << chn;
+			dw_pcie_writel_dbi(rk_pcie->pci, PCIE_DMA_OFFSET +
+					PCIE_DMA_WR_INT_CLEAR, clears.asdword);
+			if (rk_pcie->dma_obj && rk_pcie->dma_obj->cb)
+				rk_pcie->dma_obj->cb(rk_pcie->dma_obj, chn, DMA_TO_BUS);
+		}
 
-	if (rk_pcie->dma_obj && rk_pcie->dma_obj->cur)
-		chn = rk_pcie->dma_obj->cur->chn;
-
-	if (status.donesta & BIT(chn)) {
-		clears.doneclr = 0x1 << chn;
-		dw_pcie_writel_dbi(rk_pcie->pci, PCIE_DMA_OFFSET +
-				   PCIE_DMA_WR_INT_CLEAR, clears.asdword);
-		rk_pcie_handle_dma_interrupt(rk_pcie);
-	}
-
-	if (status.abortsta & BIT(chn)) {
-		dev_err(rk_pcie->pci->dev, "%s, abort\n", __func__);
-		clears.abortclr = 0x1 << chn;
-		dw_pcie_writel_dbi(rk_pcie->pci, PCIE_DMA_OFFSET +
-				   PCIE_DMA_WR_INT_CLEAR, clears.asdword);
+		if (status.abortsta & BIT(chn)) {
+			dev_err(rk_pcie->pci->dev, "%s, abort\n", __func__);
+			clears.abortclr = 0x1 << chn;
+			dw_pcie_writel_dbi(rk_pcie->pci, PCIE_DMA_OFFSET +
+					PCIE_DMA_WR_INT_CLEAR, clears.asdword);
+		}
 	}
 
 	status.asdword = dw_pcie_readl_dbi(rk_pcie->pci, PCIE_DMA_OFFSET +
 					   PCIE_DMA_RD_INT_STATUS);
+	for (chn = 0; chn < PCIE_DMA_CHANEL_MAX_NUM; chn++) {
+		if (status.donesta & BIT(chn)) {
+			clears.doneclr = 0x1 << chn;
+			dw_pcie_writel_dbi(rk_pcie->pci, PCIE_DMA_OFFSET +
+					PCIE_DMA_RD_INT_CLEAR, clears.asdword);
+			if (rk_pcie->dma_obj && rk_pcie->dma_obj->cb)
+				rk_pcie->dma_obj->cb(rk_pcie->dma_obj, chn, DMA_FROM_BUS);
+		}
 
-	if (status.donesta & BIT(chn)) {
-		clears.doneclr = 0x1 << chn;
-		dw_pcie_writel_dbi(rk_pcie->pci, PCIE_DMA_OFFSET +
-				   PCIE_DMA_RD_INT_CLEAR, clears.asdword);
-		rk_pcie_handle_dma_interrupt(rk_pcie);
-	}
-
-	if (status.abortsta & BIT(chn)) {
-		dev_err(rk_pcie->pci->dev, "%s, abort\n", __func__);
-		clears.abortclr = 0x1 << chn;
-		dw_pcie_writel_dbi(rk_pcie->pci, PCIE_DMA_OFFSET +
-				   PCIE_DMA_RD_INT_CLEAR, clears.asdword);
+		if (status.abortsta & BIT(chn)) {
+			dev_err(rk_pcie->pci->dev, "%s, abort\n", __func__);
+			clears.abortclr = 0x1 << chn;
+			dw_pcie_writel_dbi(rk_pcie->pci, PCIE_DMA_OFFSET +
+					PCIE_DMA_RD_INT_CLEAR, clears.asdword);
+		}
 	}
 
 	reg = rk_pcie_readl_apb(rk_pcie, PCIE_CLIENT_INTR_STATUS_MISC);
@@ -1981,6 +1963,11 @@ static int rk_pcie_really_probe(void *p)
 		goto release_driver;
 	}
 
+	/* To ensure the ordering of pci device */
+	if (!device_property_read_u32(dev, "rockchip,init-delay-ms", &val)) {
+		msleep(val);
+	}
+
 	if (!IS_ERR_OR_NULL(rk_pcie->prsnt_gpio)) {
 		if (!gpiod_get_value(rk_pcie->prsnt_gpio)) {
 			ret = -ENODEV;
@@ -2105,6 +2092,12 @@ retry_regulator:
 
 	if (ret)
 		goto remove_irq_domain;
+
+	ret = rk_pcie_init_dma_trx(rk_pcie);
+	if (ret) {
+		dev_err(dev, "failed to add dma extension\n");
+		return ret;
+	}
 
 	if (rk_pcie->dma_obj) {
 		rk_pcie->dma_obj->start_dma_func = rk_pcie_start_dma_dwc;

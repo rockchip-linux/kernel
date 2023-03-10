@@ -56,8 +56,6 @@ config NF_TABLES_ARP
 	help
 	  This option enables the ARP support for nf_tables.
 
-endif # NF_TABLES
-
 config NF_FLOW_TABLE_IPV4
 	tristate "Netfilter flow table IPv4 module"
 	depends on NF_FLOW_TABLE
@@ -65,6 +63,8 @@ config NF_FLOW_TABLE_IPV4
 	  This option adds the flow table IPv4 support.
 
 	  To compile it as a module, choose M here.
+
+endif # NF_TABLES
 
 config NF_DUP_IPV4
 	tristate "Netfilter IPv4 packet duplication to alternate destination"

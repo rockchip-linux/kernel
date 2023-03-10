@@ -684,8 +684,6 @@ config NFT_FIB_NETDEV
 
 endif # NF_TABLES_NETDEV
 
-endif # NF_TABLES
-
 config NF_FLOW_TABLE_INET
 	tristate "Netfilter flow table mixed IPv4/IPv6 module"
 	depends on NF_FLOW_TABLE
@@ -694,11 +692,12 @@ config NF_FLOW_TABLE_INET
 
 	  To compile it as a module, choose M here.
 
+endif # NF_TABLES
+
 config NF_FLOW_TABLE
 	tristate "Netfilter flow table module"
 	depends on NETFILTER_INGRESS
 	depends on NF_CONNTRACK
-	depends on NF_TABLES
 	help
 	  This option adds the flow table core infrastructure.
 
@@ -977,6 +976,15 @@ config NETFILTER_XT_TARGET_NOTRACK
 	depends on IP_NF_RAW || IP6_NF_RAW
 	depends on NETFILTER_ADVANCED
 	select NETFILTER_XT_TARGET_CT
+
+config NETFILTER_XT_TARGET_FLOWOFFLOAD
+	tristate '"FLOWOFFLOAD" target support'
+	depends on NF_FLOW_TABLE
+	depends on NETFILTER_INGRESS
+	help
+	  This option adds a `FLOWOFFLOAD' target, which uses the nf_flow_offload
+	  module to speed up processing of packets by bypassing the usual
+	  netfilter chains
 
 config NETFILTER_XT_TARGET_RATEEST
 	tristate '"RATEEST" target support'

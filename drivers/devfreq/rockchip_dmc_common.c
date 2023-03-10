@@ -76,14 +76,16 @@ int rockchip_dmcfreq_vop_bandwidth_init(struct dmcfreq_common_info *info)
 }
 EXPORT_SYMBOL(rockchip_dmcfreq_vop_bandwidth_init);
 
+bool rockchip_dmcfreq_vop_bandwidth_avail(void)
+{
+	return !!common_info;
+}
+
 void rockchip_dmcfreq_vop_bandwidth_update(struct dmcfreq_vop_info *vop_info)
 {
 	unsigned long vop_last_rate, target = 0;
 	unsigned int readlatency = 0;
 	int i;
-
-	if (!common_info)
-		return;
 
 	dev_dbg(common_info->dev, "line bw=%u, frame bw=%u, pn=%u\n",
 		vop_info->line_bw_mbyte, vop_info->frame_bw_mbyte,

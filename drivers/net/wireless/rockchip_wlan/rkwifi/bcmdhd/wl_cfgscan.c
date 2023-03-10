@@ -2117,7 +2117,7 @@ wl_run_escan(struct bcm_cfg80211 *cfg, struct net_device *ndev,
 		}
 
 		bssidx = wl_get_bssidx_by_wdev(cfg, ndev->ieee80211_ptr);
-		WL_MSG(ndev->name, "LEGACY_SCAN sync ID: %d, bssidx: %d\n", sync_id, bssidx);
+		WL_SCAN(("LEGACY_SCAN sync ID: %d, bssidx: %d\n", sync_id, bssidx));
 		err = wldev_iovar_setbuf(ndev, "escan", params, params_size,
 			cfg->escan_ioctl_buf, WLC_IOCTL_MEDLEN, NULL);
 		if (unlikely(err)) {

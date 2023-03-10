@@ -183,6 +183,11 @@ static const struct drm_display_mode dw_hdmi_default_modes[] = {
 		   1760, 1980, 0, 720, 725, 730, 750, 0,
 		   DRM_MODE_FLAG_PHSYNC | DRM_MODE_FLAG_PVSYNC),
 	  .picture_aspect_ratio = HDMI_PICTURE_ASPECT_16_9, },
+	/* 0x10 - 1024x768@60Hz */
+	{ DRM_MODE("1024x768", DRM_MODE_TYPE_DRIVER, 65000, 1024, 1048,
+		   1184, 1344, 0,  768, 771, 777, 806, 0,
+		   DRM_MODE_FLAG_NHSYNC | DRM_MODE_FLAG_NVSYNC),
+	  .picture_aspect_ratio = HDMI_PICTURE_ASPECT_4_3, },
 	/* 17 - 720x576@50Hz 4:3 */
 	{ DRM_MODE("720x576", DRM_MODE_TYPE_DRIVER, 27000, 720, 732,
 		   796, 864, 0, 576, 581, 586, 625, 0,
@@ -275,6 +280,7 @@ struct dw_hdmi {
 	} phy;
 
 	struct drm_display_mode previous_mode;
+	int preferred_mode;
 
 	struct i2c_adapter *ddc;
 	void __iomem *regs;
@@ -2926,8 +2932,8 @@ static int dw_hdmi_connector_get_modes(struct drm_connector *connector)
 
 			mode = drm_mode_duplicate(connector->dev, ptr);
 			if (mode) {
-				if (!i) {
-					mode->type = DRM_MODE_TYPE_PREFERRED;
+				if (i == hdmi->preferred_mode) {
+					mode->type |= DRM_MODE_TYPE_PREFERRED;
 					mode->picture_aspect_ratio =
 						HDMI_PICTURE_ASPECT_NONE;
 				}
@@ -4493,6 +4499,12 @@ struct dw_hdmi *dw_hdmi_probe(struct platform_device *pdev,
 			goto err_iahb;
 		}
 	}
+
+	if (!of_property_read_u32(np, "rockchip,defaultmode", &val) &&
+	    val < ARRAY_SIZE(dw_hdmi_default_modes))
+		hdmi->preferred_mode = val;
+	else
+		hdmi->preferred_mode = 0;
 
 	/* Product and revision IDs */
 	hdmi->version = (hdmi_readb(hdmi, HDMI_DESIGN_ID) << 8)

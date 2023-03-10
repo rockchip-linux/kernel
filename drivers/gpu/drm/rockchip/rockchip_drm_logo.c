@@ -634,6 +634,7 @@ static int setup_initial_state(struct drm_device *drm_dev,
 	const struct drm_connector_helper_funcs *funcs;
 	int pipe = drm_crtc_index(crtc);
 	bool is_crtc_enabled = true;
+	bool is_clock_match;
 	int hdisplay, vdisplay;
 	int fb_width, fb_height;
 	int found = 0, match = 0;
@@ -668,7 +669,11 @@ static int setup_initial_state(struct drm_device *drm_dev,
 	}
 
 	list_for_each_entry(mode, &connector->modes, head) {
-		if (mode->clock == set->clock &&
+		/* allow different clock for eDP */
+		is_clock_match = (mode->clock == set->clock) ||
+			(connector->connector_type == DRM_MODE_CONNECTOR_eDP);
+
+		if (is_clock_match &&
 		    mode->hdisplay == set->hdisplay &&
 		    mode->vdisplay == set->vdisplay &&
 		    mode->crtc_hsync_end == set->crtc_hsync_end &&
@@ -690,9 +695,9 @@ static int setup_initial_state(struct drm_device *drm_dev,
 		connector->status = connector_status_disconnected;
 		dev_err(drm_dev->dev, "connector[%s] can't found any match mode\n",
 			connector->name);
-		DRM_INFO("%s support modes:\n\n", connector->name);
+		DRM_DEBUG("%s support modes:\n", connector->name);
 		list_for_each_entry(mode, &connector->modes, head) {
-			DRM_INFO(DRM_MODE_FMT "\n", DRM_MODE_ARG(mode));
+			DRM_DEBUG(DRM_MODE_FMT "\n", DRM_MODE_ARG(mode));
 		}
 		DRM_INFO("uboot set mode: h/v display[%d,%d] h/v sync_end[%d,%d] vfresh[%d], flags[0x%x], aspect_ratio[%d]\n",
 			 set->hdisplay, set->vdisplay, set->crtc_hsync_end, set->crtc_vsync_end,

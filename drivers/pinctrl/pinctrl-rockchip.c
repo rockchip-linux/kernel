@@ -535,95 +535,110 @@ static  struct rockchip_mux_recalced_data rk3128_mux_recalced_data[] = {
 
 static struct rockchip_mux_recalced_data rk3308_mux_recalced_data[] = {
 	{
+		/* gpio1b6_sel */
 		.num = 1,
 		.pin = 14,
 		.reg = 0x28,
 		.bit = 12,
 		.mask = 0xf
 	}, {
+		/* gpio1b7_sel */
 		.num = 1,
 		.pin = 15,
 		.reg = 0x2c,
 		.bit = 0,
 		.mask = 0x3
 	}, {
+		/* gpio1c2_sel */
 		.num = 1,
 		.pin = 18,
 		.reg = 0x30,
 		.bit = 4,
 		.mask = 0xf
 	}, {
+		/* gpio1c3_sel */
 		.num = 1,
 		.pin = 19,
 		.reg = 0x30,
 		.bit = 8,
 		.mask = 0xf
 	}, {
+		/* gpio1c4_sel */
 		.num = 1,
 		.pin = 20,
 		.reg = 0x30,
 		.bit = 12,
 		.mask = 0xf
 	}, {
+		/* gpio1c5_sel */
 		.num = 1,
 		.pin = 21,
 		.reg = 0x34,
 		.bit = 0,
 		.mask = 0xf
 	}, {
+		/* gpio1c6_sel */
 		.num = 1,
 		.pin = 22,
 		.reg = 0x34,
 		.bit = 4,
 		.mask = 0xf
 	}, {
+		/* gpio1c7_sel */
 		.num = 1,
 		.pin = 23,
 		.reg = 0x34,
 		.bit = 8,
 		.mask = 0xf
 	}, {
-		.num = 3,
-		.pin = 12,
-		.reg = 0x68,
-		.bit = 8,
-		.mask = 0xf
-	}, {
-		.num = 3,
-		.pin = 13,
-		.reg = 0x68,
-		.bit = 12,
-		.mask = 0xf
-	}, {
+		/* gpio2a2_sel_plus */
 		.num = 2,
 		.pin = 2,
 		.reg = 0x608,
 		.bit = 0,
 		.mask = 0x7
 	}, {
+		/* gpio2a3_sel_plus */
 		.num = 2,
 		.pin = 3,
 		.reg = 0x608,
 		.bit = 4,
 		.mask = 0x7
 	}, {
+		/* gpio2c0_sel_plus */
 		.num = 2,
 		.pin = 16,
 		.reg = 0x610,
 		.bit = 8,
 		.mask = 0x7
 	}, {
+		/* gpio3b2_sel_plus */
 		.num = 3,
 		.pin = 10,
 		.reg = 0x610,
 		.bit = 0,
 		.mask = 0x7
 	}, {
+		/* gpio3b3_sel_plus */
 		.num = 3,
 		.pin = 11,
-		.reg = 0x610,
-		.bit = 4,
-		.mask = 0x7
+		.reg = 0x68,
+		.bit = 6,
+		.mask = 0x3
+	}, {
+		/* gpio3b4_sel */
+		.num = 3,
+		.pin = 12,
+		.reg = 0x68,
+		.bit = 8,
+		.mask = 0xf
+	}, {
+		/* gpio3b5_sel */
+		.num = 3,
+		.pin = 13,
+		.reg = 0x68,
+		.bit = 12,
+		.mask = 0xf
 	},
 };
 
@@ -3198,11 +3213,22 @@ static int rockchip_pmx_set(struct pinctrl_dev *pctldev, unsigned selector,
 	return 0;
 }
 
+static int rockchip_pmx_gpio_set_direction(struct pinctrl_dev *pctldev,
+					   struct pinctrl_gpio_range *range,
+					   unsigned offset, bool input)
+{
+	struct rockchip_pinctrl *info = pinctrl_dev_get_drvdata(pctldev);
+	struct rockchip_pin_bank *bank = pin_to_bank(info, offset);
+
+	return rockchip_set_mux(bank, offset - range->gc->base, RK_FUNC_GPIO);
+}
+
 static const struct pinmux_ops rockchip_pmx_ops = {
 	.get_functions_count	= rockchip_pmx_get_funcs_count,
 	.get_function_name	= rockchip_pmx_get_func_name,
 	.get_function_groups	= rockchip_pmx_get_groups,
 	.set_mux		= rockchip_pmx_set,
+	.gpio_set_direction	= rockchip_pmx_gpio_set_direction,
 };
 
 /*
@@ -3946,9 +3972,8 @@ static int rockchip_pinctrl_probe(struct platform_device *pdev)
 			return PTR_ERR(info->regmap_pmu);
 	}
 
-	/* Special handle for some Socs */
-	if (ctrl->soc_data_init) {
-		ret = ctrl->soc_data_init(info);
+	if (IS_ENABLED(CONFIG_CPU_RK3308) && ctrl->type == RK3308) {
+		ret = rk3308_soc_data_init(info);
 		if (ret)
 			return ret;
 	}
@@ -4393,7 +4418,6 @@ static struct rockchip_pin_ctrl rk3308_pin_ctrl __maybe_unused = {
 		.niomux_recalced	= ARRAY_SIZE(rk3308_mux_recalced_data),
 		.iomux_routes		= rk3308_mux_route_data,
 		.niomux_routes		= ARRAY_SIZE(rk3308_mux_route_data),
-		.soc_data_init		= rk3308_soc_data_init,
 		.pull_calc_reg		= rk3308_calc_pull_reg_and_bit,
 		.drv_calc_reg		= rk3308_calc_drv_reg_and_bit,
 		.schmitt_calc_reg	= rk3308_calc_schmitt_reg_and_bit,

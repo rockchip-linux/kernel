@@ -793,13 +793,6 @@ static void rk8xx_syscore_shutdown(void)
 		return;
 	}
 
-	/* close rtc int when power off */
-	regmap_update_bits(rk808->regmap,
-			   RK808_INT_STS_MSK_REG1,
-			   (0x3 << 5), (0x3 << 5));
-	regmap_update_bits(rk808->regmap,
-			   RK808_RTC_INT_REG,
-			   (0x3 << 2), (0x0 << 2));
 	/*
 	 * For PMIC that power off supplies by write register via i2c bus,
 	 * it's better to do power off at syscore shutdown here.

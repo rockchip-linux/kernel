@@ -21,12 +21,16 @@
 #include "rockchip_drm_gem.h"
 #include "rockchip_drm_logo.h"
 
+static int fb_max_sz = -1;
+module_param(fb_max_sz, int, 0444);
+MODULE_PARM_DESC(fb_max_sz, "Override the maximum framebuffer size");
+
 static bool is_rockchip_logo_fb(struct drm_framebuffer *fb)
 {
 	return fb->flags & ROCKCHIP_DRM_MODE_LOGO_FB ? true : false;
 }
 
-static void rockchip_drm_fb_destroy(struct drm_framebuffer *fb)
+static void __rockchip_drm_fb_destroy(struct drm_framebuffer *fb)
 {
 	int i = 0;
 
@@ -46,6 +50,27 @@ static void rockchip_drm_fb_destroy(struct drm_framebuffer *fb)
 		}
 
 		kfree(fb);
+	}
+}
+
+static void rockchip_drm_fb_destroy_work(struct work_struct *work)
+{
+	struct rockchip_drm_logo_fb *fb;
+
+	fb = container_of(to_delayed_work(work), struct rockchip_drm_logo_fb, destroy_work);
+
+	__rockchip_drm_fb_destroy(&fb->fb);
+}
+
+static void rockchip_drm_fb_destroy(struct drm_framebuffer *fb)
+{
+
+	if (is_rockchip_logo_fb(fb)) {
+		struct rockchip_drm_logo_fb *rockchip_logo_fb = to_rockchip_logo_fb(fb);
+
+		schedule_delayed_work(&rockchip_logo_fb->destroy_work, HZ);
+	} else {
+		__rockchip_drm_fb_destroy(fb);
 	}
 }
 
@@ -123,7 +148,7 @@ rockchip_drm_logo_fb_alloc(struct drm_device *dev, const struct drm_mode_fb_cmd2
 	rockchip_logo_fb->rk_obj.dma_addr = logo->dma_addr;
 	rockchip_logo_fb->rk_obj.kvaddr = logo->kvaddr;
 	logo->count++;
-
+	INIT_DELAYED_WORK(&rockchip_logo_fb->destroy_work, rockchip_drm_fb_destroy_work);
 	return &rockchip_logo_fb->fb;
 }
 
@@ -171,9 +196,10 @@ static void rockchip_drm_atomic_helper_commit_tail_rpm(struct drm_atomic_state *
 
 	drm_atomic_helper_commit_modeset_enables(dev, old_state);
 
-	rockchip_drm_bandwidth_atomic_check(dev, old_state, &vop_bw_info);
-
-	rockchip_dmcfreq_vop_bandwidth_update(&vop_bw_info);
+	if (rockchip_dmcfreq_vop_bandwidth_avail()) {
+		rockchip_drm_bandwidth_atomic_check(dev, old_state, &vop_bw_info);
+		rockchip_dmcfreq_vop_bandwidth_update(&vop_bw_info);
+	}
 
 	mutex_lock(&prv->ovl_lock);
 	drm_atomic_helper_commit_planes(dev, old_state, DRM_PLANE_COMMIT_ACTIVE_ONLY);
@@ -279,8 +305,13 @@ void rockchip_drm_mode_config_init(struct drm_device *dev)
 	 * this value would be used to check framebuffer size limitation
 	 * at drm_mode_addfb().
 	 */
-	dev->mode_config.max_width = 16384;
-	dev->mode_config.max_height = 16384;
+	if (fb_max_sz < 1024 || fb_max_sz > 16384)
+		fb_max_sz = 16384;
+	else
+		drm_info(dev, "fbdev: max size %d\n", fb_max_sz);
+
+	dev->mode_config.max_width = fb_max_sz;
+	dev->mode_config.max_height = fb_max_sz;
 	dev->mode_config.async_page_flip = true;
 
 	dev->mode_config.funcs = &rockchip_drm_mode_config_funcs;
