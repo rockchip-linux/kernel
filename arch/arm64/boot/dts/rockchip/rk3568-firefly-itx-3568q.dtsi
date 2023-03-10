@@ -280,7 +280,7 @@
 &pcie3x2 {
     reset-gpios = <&gpio0 RK_PC6 GPIO_ACTIVE_HIGH>;
     vpcie3v3-supply = <&pcie30_3v3>;
-    status = "disabled";
+    status = "okay";
 };
 
 &its {
@@ -399,7 +399,7 @@
 
 &pcie2x1 {
 	reset-gpios = <&pca9555_1 PCA_IO0_6 GPIO_ACTIVE_HIGH>;
-	status = "disabled";
+	status = "okay";
 };
 
 &dfi {
