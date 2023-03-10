@@ -21,6 +21,7 @@
 
 /* Register for RK3568 */
 #define GRF_PCIE30PHY_CON1 0x4
+#define GRF_PCIE30PHY_CON4 0x10
 #define GRF_PCIE30PHY_CON6 0x18
 #define GRF_PCIE30PHY_CON9 0x24
 #define GRF_PCIE30PHY_STATUS0 0x80
@@ -55,6 +56,10 @@ struct rockchip_p3phy_ops {
 	int (*phy_init)(struct rockchip_p3phy_priv *priv);
 };
 
+static u16 phy_fw[] = {
+	#include "p3phy.fw"
+};
+
 static int rockchip_p3phy_set_mode(struct phy *phy, enum phy_mode mode, int submode)
 {
 	struct rockchip_p3phy_priv *priv = phy_get_drvdata(phy);
@@ -80,7 +85,8 @@ static int rockchip_p3phy_set_mode(struct phy *phy, enum phy_mode mode, int subm
 
 static int rockchip_p3phy_rk3568_init(struct rockchip_p3phy_priv *priv)
 {
-	int ret = 0;
+	int ret;
+	int i;
 	u32 reg;
 
 	/* Deassert PCIe PMA output clamp mode */
@@ -94,22 +100,35 @@ static int rockchip_p3phy_rk3568_init(struct rockchip_p3phy_priv *priv)
 			     (0x1 << 15) | (0x1 << 31));
 	}
 
-	reset_control_deassert(priv->p30phy);
+	regmap_write(priv->phy_grf, GRF_PCIE30PHY_CON4,
+		     (0x0 << 14) | (0x1 << (14 + 16))); //sdram_ld_done
+	regmap_write(priv->phy_grf, GRF_PCIE30PHY_CON4,
+		     (0x0 << 13) | (0x1 << (13 + 16))); //sdram_bypass
 
-	udelay(10);
-	/* Updata RX VCO calibration controls */
-	writel(0x2800, priv->mmio + (0x104a << 2));
-	writel(0x2800, priv->mmio + (0x114a << 2));
-	udelay(10);
+	reset_control_deassert(priv->p30phy);
 
 	ret = regmap_read_poll_timeout(priv->phy_grf,
 				       GRF_PCIE30PHY_STATUS0,
 				       reg, SRAM_INIT_DONE(reg),
 				       0, 500);
-	if (ret)
+	if (ret) {
 		pr_err("%s: lock failed 0x%x, check input refclk and power supply\n",
 		       __func__, reg);
-	return ret;
+		return ret;
+	}
+
+	regmap_write(priv->phy_grf, GRF_PCIE30PHY_CON9,
+		     (0x3 << 8) | (0x3 << (8 + 16))); //map to access sram
+	for (i = 0; i < 8192; i++)
+		writel(phy_fw[i], priv->mmio + (i<<2));
+
+	regmap_write(priv->phy_grf, GRF_PCIE30PHY_CON9,
+		     (0x0 << 8) | (0x3 << (8 + 16)));
+	regmap_write(priv->phy_grf, GRF_PCIE30PHY_CON4,
+		     (0x1 << 14) | (0x1 << (14 + 16))); //sdram_ld_done
+
+	dev_info(&priv->phy->dev, "p3phy (fw-d54d0eb) initialized\n");
+	return 0;
 }
 
 static const struct rockchip_p3phy_ops rk3568_ops = {

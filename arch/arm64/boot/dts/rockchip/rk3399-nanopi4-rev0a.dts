@@ -1,0 +1,215 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright (c) 2020 FriendlyElec Computer Tech. Co., Ltd.
+ * (http://www.friendlyarm.com)
+ */
+
+/dts-v1/;
+#include "rk3399-nanopi4-common.dtsi"
+
+/ {
+	model = "FriendlyElec NanoPi R4S";
+	compatible = "friendlyelec,nanopi-r4s", "rockchip,rk3399";
+
+	aliases {
+		ethernet1 = &r8169;
+	};
+};
+
+&mach {
+	hwrev = <0x0a>;
+	model = "NanoPi R4S";
+};
+
+&dfi {
+	status = "okay";
+};
+
+&dmc {
+	status = "okay";
+	center-supply = <&vdd_center>;
+	upthreshold = <40>;
+	downdifferential = <20>;
+	system-status-freq = <
+		/*system status         freq(KHz)*/
+		SYS_STATUS_NORMAL       856000
+		SYS_STATUS_REBOOT       416000
+		SYS_STATUS_SUSPEND      416000
+		SYS_STATUS_VIDEO_1080P  666000
+		SYS_STATUS_VIDEO_4K     856000
+		SYS_STATUS_VIDEO_4K_10B 856000
+		SYS_STATUS_PERFORMANCE  856000
+		SYS_STATUS_BOOST        856000
+		SYS_STATUS_DUALVIEW     856000
+		SYS_STATUS_ISP          856000
+	>;
+	vop-bw-dmc-freq = <
+	/* min_bw(MB/s) max_bw(MB/s) freq(KHz) */
+		0       924      416000
+		925     1893     666000
+		1894    99999    856000
+	>;
+
+	vop-pn-msch-readlatency = <
+		0   0x20
+		4   0x20
+	>;
+
+	auto-min-freq = <328000>;
+	auto-freq-en = <1>;
+};
+
+&dmc_opp_table {
+	compatible = "operating-points-v2";
+
+	/delete-node/ opp-200000000;
+	/delete-node/ opp-300000000;
+	/delete-node/ opp-400000000;
+	/delete-node/ opp-528000000;
+	/delete-node/ opp-600000000;
+	/delete-node/ opp-800000000;
+
+	opp-328000000 {
+		opp-hz = /bits/ 64 <328000000>;
+		opp-microvolt = <900000>;
+	};
+	opp-416000000 {
+		opp-hz = /bits/ 64 <416000000>;
+		opp-microvolt = <900000>;
+	};
+	opp-666000000 {
+		opp-hz = /bits/ 64 <666000000>;
+		opp-microvolt = <900000>;
+	};
+	opp-856000000 {
+		opp-hz = /bits/ 64 <856000000>;
+		opp-microvolt = <900000>;
+	};
+};
+
+&emmc_phy {
+	status = "disabled";
+};
+
+&sdhci {
+	status = "disabled";
+};
+
+&sdio0 {
+	status = "disabled";
+};
+
+&sdmmc {
+	host-index-min = <1>;
+};
+
+&i2s0 {
+	status = "disabled";
+};
+
+&pcie_gpios {
+	rockchip,pins =
+		<2 RK_PB1 RK_FUNC_GPIO &pcfg_output_high>;
+};
+
+&pcie0 {
+	ep-gpios = <&gpio2 RK_PB1 GPIO_ACTIVE_HIGH>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pcie_gpios>;
+
+	/* HACK: waiting for rockchip-iodomain setup gpio2ab */
+	vpcie1v8-supply = <&vcc1v8_dvp>;
+
+	pcie@0 {
+		reg = <0x00000000 0 0 0 0>;
+		#address-cells = <3>;
+		#size-cells = <2>;
+
+		r8169: pcie@0,0 {
+			reg = <0x000000 0 0 0 0>;
+			local-mac-address = [ 00 00 00 00 00 00 ];
+		};
+	};
+};
+
+&rt5651_card {
+	status = "disabled";
+};
+
+&rk_bluetooth {
+	status = "disabled";
+};
+
+&rk_wlan {
+	status = "disabled";
+};
+
+&fusb0 {
+	status = "disabled";
+};
+
+&cdn_dp {
+	/delete-property/ extcon;
+	status = "disabled";
+};
+
+&tcphy0 {
+	/delete-property/ extcon;
+};
+
+&u2phy0 {
+	/delete-property/ extcon;
+};
+
+&usbdrd_dwc3_0 {
+	/delete-property/ extcon;
+	extcon = <&u2phy0>;
+};
+
+&ov4689p0 {
+	status = "disabled";
+};
+
+&ov4689p1 {
+	status = "disabled";
+};
+
+&dw9718_0 {
+	status = "disabled";
+};
+
+&dw9718_1 {
+	status = "disabled";
+};
+
+&ov13850p0 {
+	status = "disabled";
+};
+
+&ov13850p1 {
+	status = "disabled";
+};
+
+&rkisp1_0 {
+	status = "disabled";
+};
+
+&rkisp1_1 {
+	status = "disabled";
+};
+
+&isp0_mmu {
+	status = "disabled";
+};
+
+&isp1_mmu {
+	status = "disabled";
+};
+
+&mipi_dphy_rx0 {
+	status = "disabled";
+};
+
+&mipi_dphy_tx1rx1 {
+	status = "disabled";
+};

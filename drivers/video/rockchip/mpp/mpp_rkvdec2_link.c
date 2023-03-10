@@ -1054,9 +1054,6 @@ static int rkvdec2_link_power_on(struct mpp_dev *mpp)
 		pm_runtime_get_sync(mpp->dev);
 		pm_stay_awake(mpp->dev);
 
-		if (mpp->hw_ops->clk_on)
-			mpp->hw_ops->clk_on(mpp);
-
 		if (!link_dec->irq_enabled) {
 			enable_irq(mpp->irq);
 			link_dec->irq_enabled = 1;
@@ -1079,11 +1076,8 @@ static void rkvdec2_link_power_off(struct mpp_dev *mpp)
 		disable_irq(mpp->irq);
 		link_dec->irq_enabled = 0;
 
-		if (mpp->hw_ops->clk_off)
-			mpp->hw_ops->clk_off(mpp);
-
-		pm_relax(mpp->dev);
-		pm_runtime_put_sync_suspend(mpp->dev);
+		pm_runtime_mark_last_busy(mpp->dev);
+		pm_runtime_put_autosuspend(mpp->dev);
 
 		link_dec->task_decoded = 0;
 		link_dec->task_total = 0;

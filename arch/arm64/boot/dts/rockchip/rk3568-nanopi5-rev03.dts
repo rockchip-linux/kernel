@@ -1,0 +1,18 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright (c) 2022 FriendlyElec Computer Tech. Co., Ltd.
+ * (http://www.friendlyelec.com)
+ */
+
+/dts-v1/;
+#include "rk3568-nanopi5-rev02.dts"
+
+/ {
+	model = "FriendlyElec NanoPi R5C";
+	compatible = "friendlyelec,nanopi-r5c", "rockchip,rk3568";
+};
+
+&mach {
+	hwrev = <3>;
+	model = "NanoPi R5C";
+};

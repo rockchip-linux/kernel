@@ -1,0 +1,41 @@
+#
+# Touchscreen driver configuration
+#
+
+menuconfig TOUCHSCREEN_FE_PANELS
+	bool "Support for FriendlyElec Panels"
+
+if TOUCHSCREEN_FE_PANELS
+
+config TOUCHSCREEN_GT9XX
+	tristate "Goodix GT9xx touchscreen driver"
+	depends on I2C
+	default n
+	help
+	  Say Y here if you have the Goodix GT9xx touchscreen.
+
+	  If unsure, say N.
+
+choice
+prompt "Select Touch Protocol"
+depends on TOUCHSCREEN_GT9XX
+default TOUCHSCREEN_PROT_MT_SLOT
+
+config TOUCHSCREEN_PROT_MT_SYNC
+	bool "Multi-touch Protocol A"
+	help
+	  This enables the stateless type A protocol for QT + tslib.
+
+config TOUCHSCREEN_PROT_MT_SLOT
+	bool "Multi-touch Protocol B"
+	help
+	  This enables the stateful type B slot protocol for Android.
+
+config TOUCHSCREEN_PROT_SINGLE
+	bool "Single-touch Protocol"
+	help
+	  This disables multi-touch mode for Debian (xserver-xorg-input-evdev).
+
+endchoice
+
+endif

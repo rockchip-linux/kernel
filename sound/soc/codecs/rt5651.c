@@ -303,21 +303,25 @@ static int rt5651_asrc_put(struct snd_kcontrol *kcontrol,
 {
 	struct snd_soc_component *component = snd_soc_kcontrol_component(kcontrol);
 	struct rt5651_priv *rt5651 = snd_soc_component_get_drvdata(component);
+	int val = ucontrol->value.integer.value[0];
 
-	rt5651->asrc_en = ucontrol->value.integer.value[0];
+	if (rt5651->asrc_en == val)
+		return 0;
+
+	rt5651->asrc_en = val;
 	if (rt5651->asrc_en) {
 		regmap_write(rt5651->regmap, 0x80, 0x4000);
 		regmap_write(rt5651->regmap, 0x81, 0x0302);
 		regmap_write(rt5651->regmap, 0x82, 0x0800);
 		regmap_write(rt5651->regmap, 0x73, 0x1004);
-		regmap_write(rt5651->regmap, 0x83, 0x1000);
-		regmap_write(rt5651->regmap, 0x84, 0x7000);
+		regmap_write(rt5651->regmap, 0x83, 0x9000);
+		snd_soc_component_update_bits(component, 0x84, 0xe000, 0xe000);
 		snd_soc_component_update_bits(component, 0x64, 0x0200, 0x0200);
 		snd_soc_component_update_bits(component, RT5651_D_MISC, 0xc00, 0xc00);
 	} else {
 		regmap_write(rt5651->regmap, 0x83, 0x0);
-		regmap_write(rt5651->regmap, 0x84, 0x0);
 	}
+
 	return 0;
 }
 
@@ -1348,7 +1352,7 @@ static int rt5651_hw_params(struct snd_pcm_substream *substream,
 	dev_dbg(dai->dev, "bclk is %dHz and lrck is %dHz\n",
 		rt5651->bclk[dai->id], rt5651->lrck[dai->id]);
 	dev_dbg(dai->dev, "bclk_ms is %d and pre_div is %d for iis %d\n",
-				bclk_ms, pre_div, dai->id);
+		bclk_ms, pre_div, dai->id);
 
 	switch (params_width(params)) {
 	case 16:
@@ -1518,11 +1522,11 @@ static int rt5651_set_dai_pll(struct snd_soc_dai *dai, int pll_id, int source,
 		break;
 	case RT5651_PLL1_S_BCLK1:
 		snd_soc_component_update_bits(component, RT5651_GLB_CLK,
-				RT5651_PLL1_SRC_MASK, RT5651_PLL1_SRC_BCLK1);
+			RT5651_PLL1_SRC_MASK, RT5651_PLL1_SRC_BCLK1);
 		break;
 	case RT5651_PLL1_S_BCLK2:
-			snd_soc_component_update_bits(component, RT5651_GLB_CLK,
-				RT5651_PLL1_SRC_MASK, RT5651_PLL1_SRC_BCLK2);
+		snd_soc_component_update_bits(component, RT5651_GLB_CLK,
+			RT5651_PLL1_SRC_MASK, RT5651_PLL1_SRC_BCLK2);
 		break;
 	default:
 		dev_err(component->dev, "Unknown PLL source %d\n", source);
@@ -2123,6 +2127,12 @@ static int rt5651_probe(struct snd_soc_component *component)
 
 	rt5651_apply_properties(component);
 
+	if (rt5651->jd_src == RT5651_JD_NULL) {
+		snd_soc_component_force_enable_pin(component, "LDO");
+		snd_soc_component_force_enable_pin(component, "micbias1");
+		snd_soc_dapm_sync(snd_soc_component_get_dapm(component));
+	}
+
 	return 0;
 }
 
@@ -2361,6 +2371,13 @@ static int rt5651_i2c_probe(struct i2c_client *i2c,
 	return ret;
 }
 
+static void rt5651_i2c_shutdown(struct i2c_client *client)
+{
+	struct rt5651_priv *rt5651 = i2c_get_clientdata(client);
+
+	regmap_write(rt5651->regmap, RT5651_RESET, 0);
+}
+
 static struct i2c_driver rt5651_i2c_driver = {
 	.driver = {
 		.name = "rt5651",
@@ -2368,6 +2385,7 @@ static struct i2c_driver rt5651_i2c_driver = {
 		.of_match_table = of_match_ptr(rt5651_of_match),
 	},
 	.probe = rt5651_i2c_probe,
+	.shutdown = rt5651_i2c_shutdown,
 	.id_table = rt5651_i2c_id,
 };
 module_i2c_driver(rt5651_i2c_driver);

@@ -684,7 +684,7 @@ static int tcpm_set_cc(struct tcpc_dev *dev, enum typec_cc_status cc)
 					     FUSB_REG_MASK_COMP_CHNG,
 					     FUSB_REG_MASK_COMP_CHNG);
 		if (ret < 0) {
-			fusb302_log(chip, "cannot set SRC interrupt, ret=%d",
+			fusb302_log(chip, "cannot set SNK interrupt, ret=%d",
 				    ret);
 			goto done;
 		}

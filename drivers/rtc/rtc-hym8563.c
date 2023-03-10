@@ -474,6 +474,9 @@ static int hym8563_init_device(struct i2c_client *client)
 {
 	int ret;
 
+	/* Workaround for possible error "could not init device, -6" */
+	i2c_smbus_read_byte_data(client, HYM8563_CTL1);
+
 	/* Clear stop flag if present */
 	ret = i2c_smbus_write_byte_data(client, HYM8563_CTL1, 0);
 	if (ret < 0)

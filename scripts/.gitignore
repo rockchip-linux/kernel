@@ -4,6 +4,7 @@ kallsyms
 unifdef
 recordmcount
 resource_tool
+mkkrnlimg
 sorttable
 asn1_compiler
 extract-cert

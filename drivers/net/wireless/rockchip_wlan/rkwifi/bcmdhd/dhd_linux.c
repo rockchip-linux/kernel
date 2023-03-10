@@ -369,6 +369,7 @@ extern void dhd_enable_oob_intr(struct dhd_bus *bus, bool enable);
 #if defined(OEM_ANDROID)
 static void dhd_hang_process(struct work_struct *work_data);
 #endif /* OEM_ANDROID */
+
 MODULE_LICENSE("GPL and additional rights");
 MODULE_IMPORT_NS(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver);
 

@@ -24,12 +24,17 @@
 #include <linux/irq.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
+#include <linux/platform_data/ctouch.h>
 #include <linux/ratelimit.h>
 #include <linux/regulator/consumer.h>
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 
 #include <asm/unaligned.h>
+
+#if defined(CONFIG_DRM_PANEL_FRIENDLYELEC)
+extern void panel_get_display_size(int *w, int *h);
+#endif
 
 #define WORK_REGISTER_THRESHOLD		0x00
 #define WORK_REGISTER_REPORT_RATE	0x08
@@ -192,6 +197,9 @@ static irqreturn_t edt_ft5x06_ts_isr(int irq, void *dev_id)
 	int i, type, x, y, id;
 	int offset, tplen, datalen, crclen;
 	int error;
+#if defined(CONFIG_TOUCHSCREEN_PROT_MT_SYNC)
+	int touch_point = 0;
+#endif
 
 	switch (tsdata->version) {
 	case EDT_M06:
@@ -261,14 +269,30 @@ static irqreturn_t edt_ft5x06_ts_isr(int irq, void *dev_id)
 
 		id = (buf[2] >> 4) & 0x0f;
 
+#if defined(CONFIG_TOUCHSCREEN_PROT_MT_SYNC)
+		if (type != TOUCH_EVENT_UP) {
+			touch_point++;
+			touchscreen_report_pos(tsdata->input, &tsdata->prop,
+					       x, y, true);
+			input_report_abs(tsdata->input, ABS_MT_TOUCH_MAJOR, 64);
+			input_report_abs(tsdata->input, ABS_MT_TRACKING_ID, id);
+			input_mt_sync(tsdata->input);
+		}
+#else
 		input_mt_slot(tsdata->input, id);
 		if (input_mt_report_slot_state(tsdata->input, MT_TOOL_FINGER,
 					       type != TOUCH_EVENT_UP))
 			touchscreen_report_pos(tsdata->input, &tsdata->prop,
 					       x, y, true);
+#endif
 	}
 
+#if defined(CONFIG_TOUCHSCREEN_PROT_MT_SYNC)
+	if (!touch_point)
+		input_mt_sync(tsdata->input);
+#else
 	input_mt_report_pointer_emulation(tsdata->input, true);
+#endif
 	input_sync(tsdata->input);
 
 out:
@@ -883,7 +907,7 @@ static int edt_ft5x06_ts_identify(struct i2c_client *client,
 		if (error)
 			return error;
 
-		strlcpy(fw_version, rdbuf, 2);
+		sprintf(fw_version, "%d.%d", rdbuf[0], rdbuf[1]);
 
 		error = edt_ft5x06_ts_readwrite(client, 1, "\xA8",
 						1, rdbuf);
@@ -900,6 +924,7 @@ static int edt_ft5x06_ts_identify(struct i2c_client *client,
 		case 0x50:   /* EDT EP0500M09 */
 		case 0x57:   /* EDT EP0570M09 */
 		case 0x70:   /* EDT EP0700M09 */
+		case 0x79:   /* EDT EP0790M09 */
 			tsdata->version = EDT_M09;
 			snprintf(model_name, EDT_NAME_LEN, "EP0%i%i0M09",
 				rdbuf[0] >> 4, rdbuf[0] & 0x0F);
@@ -1076,10 +1101,18 @@ static int edt_ft5x06_ts_probe(struct i2c_client *client,
 	u8 buf[2] = { 0xfc, 0x00 };
 	struct input_dev *input;
 	unsigned long irq_flags;
+	int ctp_id, max_x, max_y;
 	int error;
 	char fw_version[EDT_NAME_LEN];
 
 	dev_dbg(&client->dev, "probing for EDT FT5x06 I2C\n");
+
+	ctp_id = panel_get_touch_id();
+	if (ctp_id != CTP_FT5X06 &&
+	    ctp_id != CTP_FT5526_KR &&
+	    ctp_id != CTP_AUTO) {
+		return -ENODEV;
+	}
 
 	tsdata = devm_kzalloc(&client->dev, sizeof(*tsdata), GFP_KERNEL);
 	if (!tsdata) {
@@ -1198,26 +1231,43 @@ static int edt_ft5x06_ts_probe(struct i2c_client *client,
 	if (tsdata->version == EDT_M06 ||
 	    tsdata->version == EDT_M09 ||
 	    tsdata->version == EDT_M12) {
-		input_set_abs_params(input, ABS_MT_POSITION_X,
-				     0, tsdata->num_x * 64 - 1, 0, 0);
-		input_set_abs_params(input, ABS_MT_POSITION_Y,
-				     0, tsdata->num_y * 64 - 1, 0, 0);
+		max_x = tsdata->num_x * 64 - 1;
+		max_y = tsdata->num_y * 64 - 1;
 	} else {
 		/* Unknown maximum values. Specify via devicetree */
-		input_set_abs_params(input, ABS_MT_POSITION_X,
-				     0, 65535, 0, 0);
-		input_set_abs_params(input, ABS_MT_POSITION_Y,
-				     0, 65535, 0, 0);
+		max_x = max_y = 65535;
 	}
+#if defined(CONFIG_DRM_PANEL_FRIENDLYELEC)
+	panel_get_display_size(&max_x, &max_y);
+#endif
+
+	input_set_abs_params(input, ABS_MT_POSITION_X, 0, max_x, 0, 0);
+	input_set_abs_params(input, ABS_MT_POSITION_Y, 0, max_y, 0, 0);
 
 	touchscreen_parse_properties(input, true, &tsdata->prop);
+#if defined(CONFIG_DRM_PANEL_FRIENDLYELEC)
+	if (ctp_id == CTP_FT5526_KR) {
+		tsdata->prop.invert_x = true;
+		tsdata->prop.invert_y = true;
+		tsdata->max_support_points = 10;
+		dev_info(&client->dev, "FT5526_KR, Rev%s\n", fw_version);
+	}
+#endif
 
+#if defined(CONFIG_TOUCHSCREEN_PROT_MT_SYNC)
+	input_set_abs_params(input, ABS_MT_TOUCH_MAJOR, 0, 100, 0, 0);
+	input_set_abs_params(input, ABS_MT_TRACKING_ID,
+			     0, tsdata->max_support_points, 0, 0);
+
+	set_bit(INPUT_PROP_DIRECT, input->propbit);
+#else
 	error = input_mt_init_slots(input, tsdata->max_support_points,
 				INPUT_MT_DIRECT);
 	if (error) {
 		dev_err(&client->dev, "Unable to init MT slots.\n");
 		return error;
 	}
+#endif
 
 	i2c_set_clientdata(client, tsdata);
 
@@ -1243,6 +1293,8 @@ static int edt_ft5x06_ts_probe(struct i2c_client *client,
 		return error;
 
 	edt_ft5x06_ts_prepare_debugfs(tsdata, dev_driver_string(&client->dev));
+
+	panel_set_touch_id(CTP_FT5X06);
 
 	dev_dbg(&client->dev,
 		"EDT FT5x06 initialized: IRQ %d, WAKE pin %d, Reset pin %d.\n",
