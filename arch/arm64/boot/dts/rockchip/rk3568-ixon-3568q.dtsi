@@ -34,95 +34,95 @@
 // 		states = <0100000 0x0
 // 			  3300000 0x1>;
 // 	};
-
-	switch {
-		compatible = "realtek,rtl8366rb";
-		mdc-gpios = <&gpio2 RK_PC3 GPIO_ACTIVE_LOW>;
-		mdio-gpios = <&gpio2 RK_PC4 (GPIO_ACTIVE_LOW|GPIO_OPEN_DRAIN)>;
-		reset-gpios = <&gpio2 RK_PD2 (GPIO_ACTIVE_LOW|GPIO_OPEN_DRAIN)>;
-
-		switch_intc: interrupt-controller {
-			interrupt-parent = <&gpio3>;
-			interrupts = <RK_PA3 IRQ_TYPE_LEVEL_LOW>;
-			interrupt-controller;
-			#address-cells = <0>;
-			#interrupt-cells = <1>;
-		};
-
-		ports {
-			#address-cells = <1>;
-			#size-cells = <0>;
-			reg = <0>;
-			port@0 {
-				reg = <0>;
-				label = "lan0";
-				phy-handle = <&phy0>;
-			};
-			port@1 {
-				reg = <1>;
-				label = "lan1";
-				phy-handle = <&phy1>;
-			};
-			port@2 {
-				reg = <2>;
-				label = "lan2";
-				phy-handle = <&phy2>;
-			};
-			port@3 {
-				reg = <3>;
-				label = "lan3";
-				phy-handle = <&phy3>;
-			};
-			port@4 {
-				reg = <4>;
-				label = "wan";
-				phy-handle = <&phy4>;
-			};
-			cpu_phy0: port@5 {
-				reg = <5>;
-				label = "cpu";
-				ethernet = <&gmac0>;
-				phy-mode = "rgmii";
-				fixed-link {
-					speed = <1000>;
-					full-duplex;
-				};
-			};
-		};
-
-		mdio {
-			compatible = "realtek,smi-mdio", "dsa-mdio";
-			#address-cells = <1>;
-			#size-cells = <0>;
-
-			phy0: phy@0 {
-				reg = <0>;
-				interrupt-parent = <&switch_intc>;
-				interrupts = <0>;
-			};
-			phy1: phy@1 {
-				reg = <1>;
-				interrupt-parent = <&switch_intc>;
-				interrupts = <1>;
-			};
-			phy2: phy@2 {
-				reg = <2>;
-				interrupt-parent = <&switch_intc>;
-				interrupts = <2>;
-			};
-			phy3: phy@3 {
-				reg = <3>;
-				interrupt-parent = <&switch_intc>;
-				interrupts = <3>;
-			};
-			phy4: phy@4 {
-				reg = <4>;
-				interrupt-parent = <&switch_intc>;
-				interrupts = <12>;
-			};
-		};
-	};
-};
+//
+// 	switch {
+// 		compatible = "realtek,rtl8366rb";
+// 		mdc-gpios = <&gpio2 RK_PC3 GPIO_ACTIVE_LOW>;
+// 		mdio-gpios = <&gpio2 RK_PC4 (GPIO_ACTIVE_LOW|GPIO_OPEN_DRAIN)>;
+// 		reset-gpios = <&gpio2 RK_PD2 (GPIO_ACTIVE_LOW|GPIO_OPEN_DRAIN)>;
+//
+// 		switch_intc: interrupt-controller {
+// 			interrupt-parent = <&gpio3>;
+// 			interrupts = <RK_PA3 IRQ_TYPE_LEVEL_LOW>;
+// 			interrupt-controller;
+// 			#address-cells = <0>;
+// 			#interrupt-cells = <1>;
+// 		};
+//
+// 		ports {
+// 			#address-cells = <1>;
+// 			#size-cells = <0>;
+// 			reg = <0>;
+// 			port@0 {
+// 				reg = <0>;
+// 				label = "lan0";
+// 				phy-handle = <&phy0>;
+// 			};
+// 			port@1 {
+// 				reg = <1>;
+// 				label = "lan1";
+// 				phy-handle = <&phy1>;
+// 			};
+// 			port@2 {
+// 				reg = <2>;
+// 				label = "lan2";
+// 				phy-handle = <&phy2>;
+// 			};
+// 			port@3 {
+// 				reg = <3>;
+// 				label = "lan3";
+// 				phy-handle = <&phy3>;
+// 			};
+// 			port@4 {
+// 				reg = <4>;
+// 				label = "wan";
+// 				phy-handle = <&phy4>;
+// 			};
+// 			cpu_phy0: port@5 {
+// 				reg = <5>;
+// 				label = "cpu";
+// 				ethernet = <&gmac0>;
+// 				phy-mode = "rgmii";
+// 				fixed-link {
+// 					speed = <1000>;
+// 					full-duplex;
+// 				};
+// 			};
+// 		};
+//
+// 		mdio {
+// 			compatible = "realtek,smi-mdio", "dsa-mdio";
+// 			#address-cells = <1>;
+// 			#size-cells = <0>;
+//
+// 			phy0: phy@0 {
+// 				reg = <0>;
+// 				interrupt-parent = <&switch_intc>;
+// 				interrupts = <0>;
+// 			};
+// 			phy1: phy@1 {
+// 				reg = <1>;
+// 				interrupt-parent = <&switch_intc>;
+// 				interrupts = <1>;
+// 			};
+// 			phy2: phy@2 {
+// 				reg = <2>;
+// 				interrupt-parent = <&switch_intc>;
+// 				interrupts = <2>;
+// 			};
+// 			phy3: phy@3 {
+// 				reg = <3>;
+// 				interrupt-parent = <&switch_intc>;
+// 				interrupts = <3>;
+// 			};
+// 			phy4: phy@4 {
+// 				reg = <4>;
+// 				interrupt-parent = <&switch_intc>;
+// 				interrupts = <12>;
+// 			};
+// 		};
+// 	};
+ };
 
 
 &csi2_dphy0 {
@@ -261,13 +261,13 @@
 	status = "okay";
 };
 
-&spi1 {
-	status = "disabled";
-};
-
-&spi_wk2xxx {
-	status = "disabled";
-};
+// &spi1 {
+// 	status = "disabled";
+// };
+//
+// &spi_wk2xxx {
+// 	status = "disabled";
+// };
 
 
 &pcie30_3v3 {
@@ -316,13 +316,6 @@
 			&gmac0_rx_bus2
 			&gmac0_rgmii_clk
 			&gmac0_rgmii_bus>;
-
-	//delete-property/  mdio0;
-	phy-mode = "rgmii";
-	fixed-link {
-		speed = <1000>;
-		full-duplex;
-	};
 };
 
 &gmac1 {
@@ -346,6 +339,57 @@
 
 &mdio0 {
 	/delete-property/ phy@0;
+	#address-cells = <1>;
+	#size-cells = <0>;
+	clock-frequency = <1000000>;
+	switch@29 {
+		reg = <29>;
+		compatible = "realtek,rtl8366rb";
+		reset-gpios = <&gpio2 RK_PD2 (GPIO_ACTIVE_LOW|GPIO_OPEN_DRAIN)>;
+
+		switch_intc: interrupt-controller {
+			interrupt-parent = <&gpio3>;
+			interrupts = <RK_PA3 IRQ_TYPE_LEVEL_LOW>;
+			interrupt-controller;
+			#address-cells = <0>;
+			#interrupt-cells = <1>;
+		};
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			port@0 {
+					reg = <0>;
+					label = "lan4";
+			};
+			port@1 {
+					reg = <1>;
+					label = "lan3";
+			};
+			port@2 {
+					reg = <2>;
+					label = "lan2";
+			};
+			port@3 {
+					reg = <3>;
+					label = "lan1";
+			};
+			port@5 {
+				reg = <5>;
+				label = "cpu";
+				ethernet = <&gmac0>;
+				phy-mode = "rgmii";
+				tx-internal-delay-ps = <2000>;
+				rx-internal-delay-ps = <2000>;
+
+				fixed-link {
+					speed = <1000>;
+					full-duplex;
+					pause;
+				};
+			};
+		};
+	};
 };
 
 
@@ -420,9 +464,9 @@
 		gmac0_miim: gmac0-miim {
 			rockchip,pins =
 				/* gmac0_mdc */
-				<2 RK_PC3 RK_FUNC_GPIO &pcfg_pull_none>,
+				<2 RK_PC3 2 &pcfg_pull_none>,
 				/* gmac0_mdio */
-				<2 RK_PC4 RK_FUNC_GPIO &pcfg_pull_none>,
+				<2 RK_PC4 2 &pcfg_pull_none>,
 				/* gmac0_rst */
 				<2 RK_PD2 RK_FUNC_GPIO &pcfg_pull_none>;
 		};

@@ -20,7 +20,7 @@
 #include <linux/of_irq.h>
 #include <linux/regmap.h>
 
-#include "realtek-smi-core.h"
+#include "realtek-core.h"
 
 #define RTL8366RB_PORT_NUM_CPU		5
 #define RTL8366RB_NUM_PORTS		6
@@ -355,7 +355,7 @@ static struct rtl8366_mib_counter rtl8366rb_mib_counters[] = {
 	{ 0, 70, 2, "IfOutBroadcastPkts"			},
 };
 
-static int rtl8366rb_get_mib_counter(struct realtek_smi *smi,
+static int rtl8366rb_get_mib_counter(struct realtek_priv *priv,
 				     int port,
 				     struct rtl8366_mib_counter *mib,
 				     u64 *mibvalue)
@@ -371,12 +371,12 @@ static int rtl8366rb_get_mib_counter(struct realtek_smi *smi,
 	/* Writing access counter address first
 	 * then ASIC will prepare 64bits counter wait for being retrived
 	 */
-	ret = regmap_write(smi->map, addr, 0); /* Write whatever */
+	ret = regmap_write(priv->map, addr, 0); /* Write whatever */
 	if (ret)
 		return ret;
 
 	/* Read MIB control register */
-	ret = regmap_read(smi->map, RTL8366RB_MIB_CTRL_REG, &val);
+	ret = regmap_read(priv->map, RTL8366RB_MIB_CTRL_REG, &val);
 	if (ret)
 		return -EIO;
 
@@ -389,7 +389,7 @@ static int rtl8366rb_get_mib_counter(struct realtek_smi *smi,
 	/* Read each individual MIB 16 bits at the time */
 	*mibvalue = 0;
 	for (i = mib->length; i > 0; i--) {
-		ret = regmap_read(smi->map, addr + (i - 1), &val);
+		ret = regmap_read(priv->map, addr + (i - 1), &val);
 		if (ret)
 			return ret;
 		*mibvalue = (*mibvalue << 16) | (val & 0xFFFF);
@@ -414,38 +414,38 @@ static u32 rtl8366rb_get_irqmask(struct irq_data *d)
 
 static void rtl8366rb_mask_irq(struct irq_data *d)
 {
-	struct realtek_smi *smi = irq_data_get_irq_chip_data(d);
+	struct realtek_priv *priv = irq_data_get_irq_chip_data(d);
 	int ret;
 
-	ret = regmap_update_bits(smi->map, RTL8366RB_INTERRUPT_MASK_REG,
+	ret = regmap_update_bits(priv->map, RTL8366RB_INTERRUPT_MASK_REG,
 				 rtl8366rb_get_irqmask(d), 0);
 	if (ret)
-		dev_err(smi->dev, "could not mask IRQ\n");
+		dev_err(priv->dev, "could not mask IRQ\n");
 }
 
 static void rtl8366rb_unmask_irq(struct irq_data *d)
 {
-	struct realtek_smi *smi = irq_data_get_irq_chip_data(d);
+	struct realtek_priv *priv = irq_data_get_irq_chip_data(d);
 	int ret;
 
-	ret = regmap_update_bits(smi->map, RTL8366RB_INTERRUPT_MASK_REG,
+	ret = regmap_update_bits(priv->map, RTL8366RB_INTERRUPT_MASK_REG,
 				 rtl8366rb_get_irqmask(d),
 				 rtl8366rb_get_irqmask(d));
 	if (ret)
-		dev_err(smi->dev, "could not unmask IRQ\n");
+		dev_err(priv->dev, "could not unmask IRQ\n");
 }
 
 static irqreturn_t rtl8366rb_irq(int irq, void *data)
 {
-	struct realtek_smi *smi = data;
+	struct realtek_priv *priv = data;
 	u32 stat;
 	int ret;
 
 	/* This clears the IRQ status register */
-	ret = regmap_read(smi->map, RTL8366RB_INTERRUPT_STATUS_REG,
+	ret = regmap_read(priv->map, RTL8366RB_INTERRUPT_STATUS_REG,
 			  &stat);
 	if (ret) {
-		dev_err(smi->dev, "can't read interrupt status\n");
+		dev_err(priv->dev, "can't read interrupt status\n");
 		return IRQ_NONE;
 	}
 	stat &= RTL8366RB_INTERRUPT_VALID;
@@ -461,7 +461,7 @@ static irqreturn_t rtl8366rb_irq(int irq, void *data)
 		 */
 		if (line < 12 && line > 5)
 			line -= 5;
-		child_irq = irq_find_mapping(smi->irqdomain, line);
+		child_irq = irq_find_mapping(priv->irqdomain, line);
 		handle_nested_irq(child_irq);
 	}
 	return IRQ_HANDLED;
@@ -497,7 +497,7 @@ static const struct irq_domain_ops rtl8366rb_irqdomain_ops = {
 	.xlate  = irq_domain_xlate_onecell,
 };
 
-static int rtl8366rb_setup_cascaded_irq(struct realtek_smi *smi)
+static int rtl8366rb_setup_cascaded_irq(struct realtek_priv *priv)
 {
 	struct device_node *intc;
 	unsigned long irq_trig;
@@ -506,24 +506,24 @@ static int rtl8366rb_setup_cascaded_irq(struct realtek_smi *smi)
 	u32 val;
 	int i;
 
-	intc = of_get_child_by_name(smi->dev->of_node, "interrupt-controller");
+	intc = of_get_child_by_name(priv->dev->of_node, "interrupt-controller");
 	if (!intc) {
-		dev_err(smi->dev, "missing child interrupt-controller node\n");
+		dev_err(priv->dev, "missing child interrupt-controller node\n");
 		return -EINVAL;
 	}
 	/* RB8366RB IRQs cascade off this one */
 	irq = of_irq_get(intc, 0);
 	if (irq <= 0) {
-		dev_err(smi->dev, "failed to get parent IRQ\n");
+		dev_err(priv->dev, "failed to get parent IRQ\n");
 		ret = irq ? irq : -EINVAL;
 		goto out_put_node;
 	}
 
 	/* This clears the IRQ status register */
-	ret = regmap_read(smi->map, RTL8366RB_INTERRUPT_STATUS_REG,
+	ret = regmap_read(priv->map, RTL8366RB_INTERRUPT_STATUS_REG,
 			  &val);
 	if (ret) {
-		dev_err(smi->dev, "can't read interrupt status\n");
+		dev_err(priv->dev, "can't read interrupt status\n");
 		goto out_put_node;
 	}
 
@@ -532,48 +532,48 @@ static int rtl8366rb_setup_cascaded_irq(struct realtek_smi *smi)
 	switch (irq_trig) {
 	case IRQF_TRIGGER_RISING:
 	case IRQF_TRIGGER_HIGH:
-		dev_info(smi->dev, "active high/rising IRQ\n");
+		dev_info(priv->dev, "active high/rising IRQ\n");
 		val = 0;
 		break;
 	case IRQF_TRIGGER_FALLING:
 	case IRQF_TRIGGER_LOW:
-		dev_info(smi->dev, "active low/falling IRQ\n");
+		dev_info(priv->dev, "active low/falling IRQ\n");
 		val = RTL8366RB_INTERRUPT_POLARITY;
 		break;
 	}
-	ret = regmap_update_bits(smi->map, RTL8366RB_INTERRUPT_CONTROL_REG,
+	ret = regmap_update_bits(priv->map, RTL8366RB_INTERRUPT_CONTROL_REG,
 				 RTL8366RB_INTERRUPT_POLARITY,
 				 val);
 	if (ret) {
-		dev_err(smi->dev, "could not configure IRQ polarity\n");
+		dev_err(priv->dev, "could not configure IRQ polarity\n");
 		goto out_put_node;
 	}
 
-	ret = devm_request_threaded_irq(smi->dev, irq, NULL,
+	ret = devm_request_threaded_irq(priv->dev, irq, NULL,
 					rtl8366rb_irq, IRQF_ONESHOT,
-					"RTL8366RB", smi);
+					"RTL8366RB", priv);
 	if (ret) {
-		dev_err(smi->dev, "unable to request irq: %d\n", ret);
+		dev_err(priv->dev, "unable to request irq: %d\n", ret);
 		goto out_put_node;
 	}
-	smi->irqdomain = irq_domain_add_linear(intc,
+	priv->irqdomain = irq_domain_add_linear(intc,
 					       RTL8366RB_NUM_INTERRUPT,
 					       &rtl8366rb_irqdomain_ops,
-					       smi);
-	if (!smi->irqdomain) {
-		dev_err(smi->dev, "failed to create IRQ domain\n");
+					       priv);
+	if (!priv->irqdomain) {
+		dev_err(priv->dev, "failed to create IRQ domain\n");
 		ret = -EINVAL;
 		goto out_put_node;
 	}
-	for (i = 0; i < smi->num_ports; i++)
-		irq_set_parent(irq_create_mapping(smi->irqdomain, i), irq);
+	for (i = 0; i < priv->num_ports; i++)
+		irq_set_parent(irq_create_mapping(priv->irqdomain, i), irq);
 
 out_put_node:
 	of_node_put(intc);
 	return ret;
 }
 
-static int rtl8366rb_set_addr(struct realtek_smi *smi)
+static int rtl8366rb_set_addr(struct realtek_priv *priv)
 {
 	u8 addr[ETH_ALEN];
 	u16 val;
@@ -581,18 +581,18 @@ static int rtl8366rb_set_addr(struct realtek_smi *smi)
 
 	eth_random_addr(addr);
 
-	dev_info(smi->dev, "set MAC: %02X:%02X:%02X:%02X:%02X:%02X\n",
+	dev_info(priv->dev, "set MAC: %02X:%02X:%02X:%02X:%02X:%02X\n",
 		 addr[0], addr[1], addr[2], addr[3], addr[4], addr[5]);
 	val = addr[0] << 8 | addr[1];
-	ret = regmap_write(smi->map, RTL8366RB_SMAR0, val);
+	ret = regmap_write(priv->map, RTL8366RB_SMAR0, val);
 	if (ret)
 		return ret;
 	val = addr[2] << 8 | addr[3];
-	ret = regmap_write(smi->map, RTL8366RB_SMAR1, val);
+	ret = regmap_write(priv->map, RTL8366RB_SMAR1, val);
 	if (ret)
 		return ret;
 	val = addr[4] << 8 | addr[5];
-	ret = regmap_write(smi->map, RTL8366RB_SMAR2, val);
+	ret = regmap_write(priv->map, RTL8366RB_SMAR2, val);
 	if (ret)
 		return ret;
 
@@ -718,7 +718,7 @@ static const u16 rtl8366rb_green_jam[][2] = {
 
 static int rtl8366rb_setup(struct dsa_switch *ds)
 {
-	struct realtek_smi *smi = ds->priv;
+	struct realtek_priv *priv = ds->priv;
 	const u16 *jam_table;
 	struct rtl8366rb *rb;
 	u32 chip_ver = 0;
@@ -728,11 +728,11 @@ static int rtl8366rb_setup(struct dsa_switch *ds)
 	int ret;
 	int i;
 
-	rb = smi->chip_data;
+	rb = priv->chip_data;
 
-	ret = regmap_read(smi->map, RTL8366RB_CHIP_ID_REG, &chip_id);
+	ret = regmap_read(priv->map, RTL8366RB_CHIP_ID_REG, &chip_id);
 	if (ret) {
-		dev_err(smi->dev, "unable to read chip id\n");
+		dev_err(priv->dev, "unable to read chip id\n");
 		return ret;
 	}
 
@@ -740,18 +740,18 @@ static int rtl8366rb_setup(struct dsa_switch *ds)
 	case RTL8366RB_CHIP_ID_8366:
 		break;
 	default:
-		dev_err(smi->dev, "unknown chip id (%04x)\n", chip_id);
+		dev_err(priv->dev, "unknown chip id (%04x)\n", chip_id);
 		return -ENODEV;
 	}
 
-	ret = regmap_read(smi->map, RTL8366RB_CHIP_VERSION_CTRL_REG,
+	ret = regmap_read(priv->map, RTL8366RB_CHIP_VERSION_CTRL_REG,
 			  &chip_ver);
 	if (ret) {
-		dev_err(smi->dev, "unable to read chip version\n");
+		dev_err(priv->dev, "unable to read chip version\n");
 		return ret;
 	}
 
-	dev_info(smi->dev, "RTL%04x ver %u chip found\n",
+	dev_info(priv->dev, "RTL%04x ver %u chip found\n",
 		 chip_id, chip_ver & RTL8366RB_CHIP_VERSION_MASK);
 
 	/* Do the init dance using the right jam table */
@@ -791,23 +791,23 @@ static int rtl8366rb_setup(struct dsa_switch *ds)
 	i = 0;
 	while (i < jam_size) {
 		if ((jam_table[i] & 0xBE00) == 0xBE00) {
-			ret = regmap_read(smi->map,
+			ret = regmap_read(priv->map,
 					  RTL8366RB_PHY_ACCESS_BUSY_REG,
 					  &val);
 			if (ret)
 				return ret;
 			if (!(val & RTL8366RB_PHY_INT_BUSY)) {
-				ret = regmap_write(smi->map,
+				ret = regmap_write(priv->map,
 						RTL8366RB_PHY_ACCESS_CTRL_REG,
 						RTL8366RB_PHY_CTRL_WRITE);
 				if (ret)
 					return ret;
 			}
 		}
-		dev_dbg(smi->dev, "jam %04x into register %04x\n",
+		dev_dbg(priv->dev, "jam %04x into register %04x\n",
 			jam_table[i + 1],
 			jam_table[i]);
-		ret = regmap_write(smi->map,
+		ret = regmap_write(priv->map,
 				   jam_table[i],
 				   jam_table[i + 1]);
 		if (ret)
@@ -818,17 +818,17 @@ static int rtl8366rb_setup(struct dsa_switch *ds)
 	/* Set up the "green ethernet" feature */
 	i = 0;
 	while (i < ARRAY_SIZE(rtl8366rb_green_jam)) {
-		ret = regmap_read(smi->map, RTL8366RB_PHY_ACCESS_BUSY_REG,
+		ret = regmap_read(priv->map, RTL8366RB_PHY_ACCESS_BUSY_REG,
 				  &val);
 		if (ret)
 			return ret;
 		if (!(val & RTL8366RB_PHY_INT_BUSY)) {
-			ret = regmap_write(smi->map,
+			ret = regmap_write(priv->map,
 					   RTL8366RB_PHY_ACCESS_CTRL_REG,
 					   RTL8366RB_PHY_CTRL_WRITE);
 			if (ret)
 				return ret;
-			ret = regmap_write(smi->map,
+			ret = regmap_write(priv->map,
 					   rtl8366rb_green_jam[i][0],
 					   rtl8366rb_green_jam[i][1]);
 			if (ret)
@@ -836,22 +836,22 @@ static int rtl8366rb_setup(struct dsa_switch *ds)
 			i++;
 		}
 	}
-	ret = regmap_write(smi->map,
+	ret = regmap_write(priv->map,
 			   RTL8366RB_GREEN_FEATURE_REG,
 			   (chip_ver == 1) ? 0x0007 : 0x0003);
 	if (ret)
 		return ret;
 
 	/* Vendor driver sets 0x240 in registers 0xc and 0xd (undocumented) */
-	ret = regmap_write(smi->map, 0x0c, 0x240);
+	ret = regmap_write(priv->map, 0x0c, 0x240);
 	if (ret)
 		return ret;
-	ret = regmap_write(smi->map, 0x0d, 0x240);
+	ret = regmap_write(priv->map, 0x0d, 0x240);
 	if (ret)
 		return ret;
 
 	/* Set some random MAC address */
-	ret = rtl8366rb_set_addr(smi);
+	ret = rtl8366rb_set_addr(priv);
 	if (ret)
 		return ret;
 
@@ -860,21 +860,21 @@ static int rtl8366rb_setup(struct dsa_switch *ds)
 	 * If you set RTL8368RB_CPU_NO_TAG (bit 15) in this registers
 	 * the custom tag is turned off.
 	 */
-	ret = regmap_update_bits(smi->map, RTL8368RB_CPU_CTRL_REG,
+	ret = regmap_update_bits(priv->map, RTL8368RB_CPU_CTRL_REG,
 				 0xFFFF,
-				 BIT(smi->cpu_port));
+				 BIT(priv->cpu_port));
 	if (ret)
 		return ret;
 
 	/* Make sure we default-enable the fixed CPU port */
-	ret = regmap_update_bits(smi->map, RTL8366RB_PECR,
-				 BIT(smi->cpu_port),
+	ret = regmap_update_bits(priv->map, RTL8366RB_PECR,
+				 BIT(priv->cpu_port),
 				 0);
 	if (ret)
 		return ret;
 
 	/* Set maximum packet length to 1536 bytes */
-	ret = regmap_update_bits(smi->map, RTL8366RB_SGCR,
+	ret = regmap_update_bits(priv->map, RTL8366RB_SGCR,
 				 RTL8366RB_SGCR_MAX_LENGTH_MASK,
 				 RTL8366RB_SGCR_MAX_LENGTH_1536);
 	if (ret)
@@ -884,12 +884,12 @@ static int rtl8366rb_setup(struct dsa_switch *ds)
 		rb->max_mtu[i] = 1532;
 
 	/* Enable learning for all ports */
-	ret = regmap_write(smi->map, RTL8366RB_SSCR0, 0);
+	ret = regmap_write(priv->map, RTL8366RB_SSCR0, 0);
 	if (ret)
 		return ret;
 
 	/* Enable auto ageing for all ports */
-	ret = regmap_write(smi->map, RTL8366RB_SSCR1, 0);
+	ret = regmap_write(priv->map, RTL8366RB_SSCR1, 0);
 	if (ret)
 		return ret;
 
@@ -900,7 +900,7 @@ static int rtl8366rb_setup(struct dsa_switch *ds)
 	 * connected to something exotic such as fiber, then this might
 	 * be worth experimenting with.
 	 */
-	ret = regmap_update_bits(smi->map, RTL8366RB_PMC0,
+	ret = regmap_update_bits(priv->map, RTL8366RB_PMC0,
 				 RTL8366RB_PMC0_P4_IOMODE_MASK,
 				 0 << RTL8366RB_PMC0_P4_IOMODE_SHIFT);
 	if (ret)
@@ -909,19 +909,19 @@ static int rtl8366rb_setup(struct dsa_switch *ds)
 	/* Discard VLAN tagged packets if the port is not a member of
 	 * the VLAN with which the packets is associated.
 	 */
-	ret = regmap_write(smi->map, RTL8366RB_VLAN_INGRESS_CTRL2_REG,
+	ret = regmap_write(priv->map, RTL8366RB_VLAN_INGRESS_CTRL2_REG,
 			   RTL8366RB_PORT_ALL);
 	if (ret)
 		return ret;
 
 	/* Don't drop packets whose DA has not been learned */
-	ret = regmap_update_bits(smi->map, RTL8366RB_SSCR2,
+	ret = regmap_update_bits(priv->map, RTL8366RB_SSCR2,
 				 RTL8366RB_SSCR2_DROP_UNKNOWN_DA, 0);
 	if (ret)
 		return ret;
 
 	/* Set blinking, TODO: make this configurable */
-	ret = regmap_update_bits(smi->map, RTL8366RB_LED_BLINKRATE_REG,
+	ret = regmap_update_bits(priv->map, RTL8366RB_LED_BLINKRATE_REG,
 				 RTL8366RB_LED_BLINKRATE_MASK,
 				 RTL8366RB_LED_BLINKRATE_56MS);
 	if (ret)
@@ -932,15 +932,15 @@ static int rtl8366rb_setup(struct dsa_switch *ds)
 	 * behaviour (no individual config) but we can set up each
 	 * LED separately.
 	 */
-	if (smi->leds_disabled) {
+	if (priv->leds_disabled) {
 		/* Turn everything off */
-		regmap_update_bits(smi->map,
+		regmap_update_bits(priv->map,
 				   RTL8366RB_LED_0_1_CTRL_REG,
 				   0x0FFF, 0);
-		regmap_update_bits(smi->map,
+		regmap_update_bits(priv->map,
 				   RTL8366RB_LED_2_3_CTRL_REG,
 				   0x0FFF, 0);
-		regmap_update_bits(smi->map,
+		regmap_update_bits(priv->map,
 				   RTL8366RB_INTERRUPT_CONTROL_REG,
 				   RTL8366RB_P4_RGMII_LED,
 				   0);
@@ -950,7 +950,7 @@ static int rtl8366rb_setup(struct dsa_switch *ds)
 		val = RTL8366RB_LED_FORCE;
 	}
 	for (i = 0; i < 4; i++) {
-		ret = regmap_update_bits(smi->map,
+		ret = regmap_update_bits(priv->map,
 					 RTL8366RB_LED_CTRL_REG,
 					 0xf << (i * 4),
 					 val << (i * 4));
@@ -958,18 +958,20 @@ static int rtl8366rb_setup(struct dsa_switch *ds)
 			return ret;
 	}
 
-	ret = rtl8366_init_vlan(smi);
+	ret = rtl8366_init_vlan(priv);
 	if (ret)
 		return ret;
 
-	ret = rtl8366rb_setup_cascaded_irq(smi);
+	ret = rtl8366rb_setup_cascaded_irq(priv);
 	if (ret)
-		dev_info(smi->dev, "no interrupt support\n");
+		dev_info(priv->dev, "no interrupt support\n");
 
-	ret = realtek_smi_setup_mdio(smi);
+	if (priv->setup_interface) {
+		ret = priv->setup_interface(ds);
 	if (ret) {
-		dev_info(smi->dev, "could not set up MDIO bus\n");
+			dev_err(priv->dev, "could not set up MDIO bus\n");
 		return -ENODEV;
+	}
 	}
 
 	return 0;
@@ -988,35 +990,35 @@ rtl8366rb_mac_link_up(struct dsa_switch *ds, int port, unsigned int mode,
 		      phy_interface_t interface, struct phy_device *phydev,
 		      int speed, int duplex, bool tx_pause, bool rx_pause)
 {
-	struct realtek_smi *smi = ds->priv;
+	struct realtek_priv *priv = ds->priv;
 	int ret;
 
-	if (port != smi->cpu_port)
+	if (port != priv->cpu_port)
 		return;
 
-	dev_dbg(smi->dev, "MAC link up on CPU port (%d)\n", port);
+	dev_dbg(priv->dev, "MAC link up on CPU port (%d)\n", port);
 
 	/* Force the fixed CPU port into 1Gbit mode, no autonegotiation */
-	ret = regmap_update_bits(smi->map, RTL8366RB_MAC_FORCE_CTRL_REG,
+	ret = regmap_update_bits(priv->map, RTL8366RB_MAC_FORCE_CTRL_REG,
 				 BIT(port), BIT(port));
 	if (ret) {
-		dev_err(smi->dev, "failed to force 1Gbit on CPU port\n");
+		dev_err(priv->dev, "failed to force 1Gbit on CPU port\n");
 		return;
 	}
 
-	ret = regmap_update_bits(smi->map, RTL8366RB_PAACR2,
+	ret = regmap_update_bits(priv->map, RTL8366RB_PAACR2,
 				 0xFF00U,
 				 RTL8366RB_PAACR_CPU_PORT << 8);
 	if (ret) {
-		dev_err(smi->dev, "failed to set PAACR on CPU port\n");
+		dev_err(priv->dev, "failed to set PAACR on CPU port\n");
 		return;
 	}
 
 	/* Enable the CPU port */
-	ret = regmap_update_bits(smi->map, RTL8366RB_PECR, BIT(port),
+	ret = regmap_update_bits(priv->map, RTL8366RB_PECR, BIT(port),
 				 0);
 	if (ret) {
-		dev_err(smi->dev, "failed to enable the CPU port\n");
+		dev_err(priv->dev, "failed to enable the CPU port\n");
 		return;
 	}
 }
@@ -1025,111 +1027,111 @@ static void
 rtl8366rb_mac_link_down(struct dsa_switch *ds, int port, unsigned int mode,
 			phy_interface_t interface)
 {
-	struct realtek_smi *smi = ds->priv;
+	struct realtek_priv *priv = ds->priv;
 	int ret;
 
-	if (port != smi->cpu_port)
+	if (port != priv->cpu_port)
 		return;
 
-	dev_dbg(smi->dev, "MAC link down on CPU port (%d)\n", port);
+	dev_dbg(priv->dev, "MAC link down on CPU port (%d)\n", port);
 
 	/* Disable the CPU port */
-	ret = regmap_update_bits(smi->map, RTL8366RB_PECR, BIT(port),
+	ret = regmap_update_bits(priv->map, RTL8366RB_PECR, BIT(port),
 				 BIT(port));
 	if (ret) {
-		dev_err(smi->dev, "failed to disable the CPU port\n");
+		dev_err(priv->dev, "failed to disable the CPU port\n");
 		return;
 	}
 }
 
-static void rb8366rb_set_port_led(struct realtek_smi *smi,
+static void rb8366rb_set_port_led(struct realtek_priv *priv,
 				  int port, bool enable)
 {
 	u16 val = enable ? 0x3f : 0;
 	int ret;
 
-	if (smi->leds_disabled)
+	if (priv->leds_disabled)
 		return;
 
 	switch (port) {
 	case 0:
-		ret = regmap_update_bits(smi->map,
+		ret = regmap_update_bits(priv->map,
 					 RTL8366RB_LED_0_1_CTRL_REG,
 					 0x3F, val);
 		break;
 	case 1:
-		ret = regmap_update_bits(smi->map,
+		ret = regmap_update_bits(priv->map,
 					 RTL8366RB_LED_0_1_CTRL_REG,
 					 0x3F << RTL8366RB_LED_1_OFFSET,
 					 val << RTL8366RB_LED_1_OFFSET);
 		break;
 	case 2:
-		ret = regmap_update_bits(smi->map,
+		ret = regmap_update_bits(priv->map,
 					 RTL8366RB_LED_2_3_CTRL_REG,
 					 0x3F, val);
 		break;
 	case 3:
-		ret = regmap_update_bits(smi->map,
+		ret = regmap_update_bits(priv->map,
 					 RTL8366RB_LED_2_3_CTRL_REG,
 					 0x3F << RTL8366RB_LED_3_OFFSET,
 					 val << RTL8366RB_LED_3_OFFSET);
 		break;
 	case 4:
-		ret = regmap_update_bits(smi->map,
+		ret = regmap_update_bits(priv->map,
 					 RTL8366RB_INTERRUPT_CONTROL_REG,
 					 RTL8366RB_P4_RGMII_LED,
 					 enable ? RTL8366RB_P4_RGMII_LED : 0);
 		break;
 	default:
-		dev_err(smi->dev, "no LED for port %d\n", port);
+		dev_err(priv->dev, "no LED for port %d\n", port);
 		return;
 	}
 	if (ret)
-		dev_err(smi->dev, "error updating LED on port %d\n", port);
+		dev_err(priv->dev, "error updating LED on port %d\n", port);
 }
 
 static int
 rtl8366rb_port_enable(struct dsa_switch *ds, int port,
 		      struct phy_device *phy)
 {
-	struct realtek_smi *smi = ds->priv;
+	struct realtek_priv *priv = ds->priv;
 	int ret;
 
-	dev_dbg(smi->dev, "enable port %d\n", port);
-	ret = regmap_update_bits(smi->map, RTL8366RB_PECR, BIT(port),
+	dev_dbg(priv->dev, "enable port %d\n", port);
+	ret = regmap_update_bits(priv->map, RTL8366RB_PECR, BIT(port),
 				 0);
 	if (ret)
 		return ret;
 
-	rb8366rb_set_port_led(smi, port, true);
+	rb8366rb_set_port_led(priv, port, true);
 	return 0;
 }
 
 static void
 rtl8366rb_port_disable(struct dsa_switch *ds, int port)
 {
-	struct realtek_smi *smi = ds->priv;
+	struct realtek_priv *priv = ds->priv;
 	int ret;
 
-	dev_dbg(smi->dev, "disable port %d\n", port);
-	ret = regmap_update_bits(smi->map, RTL8366RB_PECR, BIT(port),
+	dev_dbg(priv->dev, "disable port %d\n", port);
+	ret = regmap_update_bits(priv->map, RTL8366RB_PECR, BIT(port),
 				 BIT(port));
 	if (ret)
 		return;
 
-	rb8366rb_set_port_led(smi, port, false);
+	rb8366rb_set_port_led(priv, port, false);
 }
 
 static int rtl8366rb_change_mtu(struct dsa_switch *ds, int port, int new_mtu)
 {
-	struct realtek_smi *smi = ds->priv;
+	struct realtek_priv *priv = ds->priv;
 	struct rtl8366rb *rb;
 	unsigned int max_mtu;
 	u32 len;
 	int i;
 
 	/* Cache the per-port MTU setting */
-	rb = smi->chip_data;
+	rb = priv->chip_data;
 	rb->max_mtu[port] = new_mtu;
 
 	/* Roof out the MTU for the entire switch to the greatest
@@ -1157,7 +1159,7 @@ static int rtl8366rb_change_mtu(struct dsa_switch *ds, int port, int new_mtu)
 	else
 		len = RTL8366RB_SGCR_MAX_LENGTH_16000;
 
-	return regmap_update_bits(smi->map, RTL8366RB_SGCR,
+	return regmap_update_bits(priv->map, RTL8366RB_SGCR,
 				  RTL8366RB_SGCR_MAX_LENGTH_MASK,
 				  len);
 }
@@ -1170,7 +1172,7 @@ static int rtl8366rb_max_mtu(struct dsa_switch *ds, int port)
 	return 15996;
 }
 
-static int rtl8366rb_get_vlan_4k(struct realtek_smi *smi, u32 vid,
+static int rtl8366rb_get_vlan_4k(struct realtek_priv *priv, u32 vid,
 				 struct rtl8366_vlan_4k *vlan4k)
 {
 	u32 data[3];
@@ -1183,19 +1185,19 @@ static int rtl8366rb_get_vlan_4k(struct realtek_smi *smi, u32 vid,
 		return -EINVAL;
 
 	/* write VID */
-	ret = regmap_write(smi->map, RTL8366RB_VLAN_TABLE_WRITE_BASE,
+	ret = regmap_write(priv->map, RTL8366RB_VLAN_TABLE_WRITE_BASE,
 			   vid & RTL8366RB_VLAN_VID_MASK);
 	if (ret)
 		return ret;
 
 	/* write table access control word */
-	ret = regmap_write(smi->map, RTL8366RB_TABLE_ACCESS_CTRL_REG,
+	ret = regmap_write(priv->map, RTL8366RB_TABLE_ACCESS_CTRL_REG,
 			   RTL8366RB_TABLE_VLAN_READ_CTRL);
 	if (ret)
 		return ret;
 
 	for (i = 0; i < 3; i++) {
-		ret = regmap_read(smi->map,
+		ret = regmap_read(priv->map,
 				  RTL8366RB_VLAN_TABLE_READ_BASE + i,
 				  &data[i]);
 		if (ret)
@@ -1211,7 +1213,7 @@ static int rtl8366rb_get_vlan_4k(struct realtek_smi *smi, u32 vid,
 	return 0;
 }
 
-static int rtl8366rb_set_vlan_4k(struct realtek_smi *smi,
+static int rtl8366rb_set_vlan_4k(struct realtek_priv *priv,
 				 const struct rtl8366_vlan_4k *vlan4k)
 {
 	u32 data[3];
@@ -1231,7 +1233,7 @@ static int rtl8366rb_set_vlan_4k(struct realtek_smi *smi,
 	data[2] = vlan4k->fid & RTL8366RB_VLAN_FID_MASK;
 
 	for (i = 0; i < 3; i++) {
-		ret = regmap_write(smi->map,
+		ret = regmap_write(priv->map,
 				   RTL8366RB_VLAN_TABLE_WRITE_BASE + i,
 				   data[i]);
 		if (ret)
@@ -1239,13 +1241,13 @@ static int rtl8366rb_set_vlan_4k(struct realtek_smi *smi,
 	}
 
 	/* write table access control word */
-	ret = regmap_write(smi->map, RTL8366RB_TABLE_ACCESS_CTRL_REG,
+	ret = regmap_write(priv->map, RTL8366RB_TABLE_ACCESS_CTRL_REG,
 			   RTL8366RB_TABLE_VLAN_WRITE_CTRL);
 
 	return ret;
 }
 
-static int rtl8366rb_get_vlan_mc(struct realtek_smi *smi, u32 index,
+static int rtl8366rb_get_vlan_mc(struct realtek_priv *priv, u32 index,
 				 struct rtl8366_vlan_mc *vlanmc)
 {
 	u32 data[3];
@@ -1258,7 +1260,7 @@ static int rtl8366rb_get_vlan_mc(struct realtek_smi *smi, u32 index,
 		return -EINVAL;
 
 	for (i = 0; i < 3; i++) {
-		ret = regmap_read(smi->map,
+		ret = regmap_read(priv->map,
 				  RTL8366RB_VLAN_MC_BASE(index) + i,
 				  &data[i]);
 		if (ret)
@@ -1276,7 +1278,7 @@ static int rtl8366rb_get_vlan_mc(struct realtek_smi *smi, u32 index,
 	return 0;
 }
 
-static int rtl8366rb_set_vlan_mc(struct realtek_smi *smi, u32 index,
+static int rtl8366rb_set_vlan_mc(struct realtek_priv *priv, u32 index,
 				 const struct rtl8366_vlan_mc *vlanmc)
 {
 	u32 data[3];
@@ -1300,7 +1302,7 @@ static int rtl8366rb_set_vlan_mc(struct realtek_smi *smi, u32 index,
 	data[2] = vlanmc->fid & RTL8366RB_VLAN_FID_MASK;
 
 	for (i = 0; i < 3; i++) {
-		ret = regmap_write(smi->map,
+		ret = regmap_write(priv->map,
 				   RTL8366RB_VLAN_MC_BASE(index) + i,
 				   data[i]);
 		if (ret)
@@ -1310,15 +1312,15 @@ static int rtl8366rb_set_vlan_mc(struct realtek_smi *smi, u32 index,
 	return 0;
 }
 
-static int rtl8366rb_get_mc_index(struct realtek_smi *smi, int port, int *val)
+static int rtl8366rb_get_mc_index(struct realtek_priv *priv, int port, int *val)
 {
 	u32 data;
 	int ret;
 
-	if (port >= smi->num_ports)
+	if (port >= priv->num_ports)
 		return -EINVAL;
 
-	ret = regmap_read(smi->map, RTL8366RB_PORT_VLAN_CTRL_REG(port),
+	ret = regmap_read(priv->map, RTL8366RB_PORT_VLAN_CTRL_REG(port),
 			  &data);
 	if (ret)
 		return ret;
@@ -1329,23 +1331,23 @@ static int rtl8366rb_get_mc_index(struct realtek_smi *smi, int port, int *val)
 	return 0;
 }
 
-static int rtl8366rb_set_mc_index(struct realtek_smi *smi, int port, int index)
+static int rtl8366rb_set_mc_index(struct realtek_priv *priv, int port, int index)
 {
-	if (port >= smi->num_ports || index >= RTL8366RB_NUM_VLANS)
+	if (port >= priv->num_ports || index >= RTL8366RB_NUM_VLANS)
 		return -EINVAL;
 
-	return regmap_update_bits(smi->map, RTL8366RB_PORT_VLAN_CTRL_REG(port),
+	return regmap_update_bits(priv->map, RTL8366RB_PORT_VLAN_CTRL_REG(port),
 				RTL8366RB_PORT_VLAN_CTRL_MASK <<
 					RTL8366RB_PORT_VLAN_CTRL_SHIFT(port),
 				(index & RTL8366RB_PORT_VLAN_CTRL_MASK) <<
 					RTL8366RB_PORT_VLAN_CTRL_SHIFT(port));
 }
 
-static bool rtl8366rb_is_vlan_valid(struct realtek_smi *smi, unsigned int vlan)
+static bool rtl8366rb_is_vlan_valid(struct realtek_priv *priv, unsigned int vlan)
 {
 	unsigned int max = RTL8366RB_NUM_VLANS - 1;
 
-	if (smi->vlan4k_enabled)
+	if (priv->vlan4k_enabled)
 		max = RTL8366RB_NUM_VIDS - 1;
 
 	if (vlan == 0 || vlan > max)
@@ -1354,23 +1356,23 @@ static bool rtl8366rb_is_vlan_valid(struct realtek_smi *smi, unsigned int vlan)
 	return true;
 }
 
-static int rtl8366rb_enable_vlan(struct realtek_smi *smi, bool enable)
+static int rtl8366rb_enable_vlan(struct realtek_priv *priv, bool enable)
 {
-	dev_dbg(smi->dev, "%s VLAN\n", enable ? "enable" : "disable");
-	return regmap_update_bits(smi->map,
+	dev_dbg(priv->dev, "%s VLAN\n", enable ? "enable" : "disable");
+	return regmap_update_bits(priv->map,
 				  RTL8366RB_SGCR, RTL8366RB_SGCR_EN_VLAN,
 				  enable ? RTL8366RB_SGCR_EN_VLAN : 0);
 }
 
-static int rtl8366rb_enable_vlan4k(struct realtek_smi *smi, bool enable)
+static int rtl8366rb_enable_vlan4k(struct realtek_priv *priv, bool enable)
 {
-	dev_dbg(smi->dev, "%s VLAN 4k\n", enable ? "enable" : "disable");
-	return regmap_update_bits(smi->map, RTL8366RB_SGCR,
+	dev_dbg(priv->dev, "%s VLAN 4k\n", enable ? "enable" : "disable");
+	return regmap_update_bits(priv->map, RTL8366RB_SGCR,
 				  RTL8366RB_SGCR_EN_VLAN_4KTB,
 				  enable ? RTL8366RB_SGCR_EN_VLAN_4KTB : 0);
 }
 
-static int rtl8366rb_phy_read(struct realtek_smi *smi, int phy, int regnum)
+static int rtl8366rb_phy_read(struct realtek_priv *priv, int phy, int regnum)
 {
 	u32 val;
 	u32 reg;
@@ -1379,32 +1381,32 @@ static int rtl8366rb_phy_read(struct realtek_smi *smi, int phy, int regnum)
 	if (phy > RTL8366RB_PHY_NO_MAX)
 		return -EINVAL;
 
-	ret = regmap_write(smi->map, RTL8366RB_PHY_ACCESS_CTRL_REG,
+	ret = regmap_write(priv->map, RTL8366RB_PHY_ACCESS_CTRL_REG,
 			   RTL8366RB_PHY_CTRL_READ);
 	if (ret)
 		return ret;
 
 	reg = 0x8000 | (1 << (phy + RTL8366RB_PHY_NO_OFFSET)) | regnum;
 
-	ret = regmap_write(smi->map, reg, 0);
+	ret = regmap_write(priv->map, reg, 0);
 	if (ret) {
-		dev_err(smi->dev,
+		dev_err(priv->dev,
 			"failed to write PHY%d reg %04x @ %04x, ret %d\n",
 			phy, regnum, reg, ret);
 		return ret;
 	}
 
-	ret = regmap_read(smi->map, RTL8366RB_PHY_ACCESS_DATA_REG, &val);
+	ret = regmap_read(priv->map, RTL8366RB_PHY_ACCESS_DATA_REG, &val);
 	if (ret)
 		return ret;
 
-	dev_dbg(smi->dev, "read PHY%d register 0x%04x @ %08x, val <- %04x\n",
+	dev_dbg(priv->dev, "read PHY%d register 0x%04x @ %08x, val <- %04x\n",
 		phy, regnum, reg, val);
 
 	return val;
 }
 
-static int rtl8366rb_phy_write(struct realtek_smi *smi, int phy, int regnum,
+static int rtl8366rb_phy_write(struct realtek_priv *priv, int phy, int regnum,
 			       u16 val)
 {
 	u32 reg;
@@ -1413,34 +1415,44 @@ static int rtl8366rb_phy_write(struct realtek_smi *smi, int phy, int regnum,
 	if (phy > RTL8366RB_PHY_NO_MAX)
 		return -EINVAL;
 
-	ret = regmap_write(smi->map, RTL8366RB_PHY_ACCESS_CTRL_REG,
+	ret = regmap_write(priv->map, RTL8366RB_PHY_ACCESS_CTRL_REG,
 			   RTL8366RB_PHY_CTRL_WRITE);
 	if (ret)
 		return ret;
 
 	reg = 0x8000 | (1 << (phy + RTL8366RB_PHY_NO_OFFSET)) | regnum;
 
-	dev_dbg(smi->dev, "write PHY%d register 0x%04x @ %04x, val -> %04x\n",
+	dev_dbg(priv->dev, "write PHY%d register 0x%04x @ %04x, val -> %04x\n",
 		phy, regnum, reg, val);
 
-	ret = regmap_write(smi->map, reg, val);
+	ret = regmap_write(priv->map, reg, val);
 	if (ret)
 		return ret;
 
 	return 0;
 }
 
-static int rtl8366rb_reset_chip(struct realtek_smi *smi)
+static int rtl8366rb_dsa_phy_read(struct dsa_switch *ds, int phy, int regnum)
+{
+	return rtl8366rb_phy_read(ds->priv, phy, regnum);
+}
+
+static int rtl8366rb_dsa_phy_write(struct dsa_switch *ds, int phy, int regnum,
+				   u16 val)
+{
+	return rtl8366rb_phy_write(ds->priv, phy, regnum, val);
+}
+static int rtl8366rb_reset_chip(struct realtek_priv *priv)
 {
 	int timeout = 10;
 	u32 val;
 	int ret;
 
-	realtek_smi_write_reg_noack(smi, RTL8366RB_RESET_CTRL_REG,
+	priv->write_reg_noack(priv, RTL8366RB_RESET_CTRL_REG,
 				    RTL8366RB_CHIP_CTRL_RESET_HW);
 	do {
 		usleep_range(20000, 25000);
-		ret = regmap_read(smi->map, RTL8366RB_RESET_CTRL_REG, &val);
+		ret = regmap_read(priv->map, RTL8366RB_RESET_CTRL_REG, &val);
 		if (ret)
 			return ret;
 
@@ -1449,21 +1461,21 @@ static int rtl8366rb_reset_chip(struct realtek_smi *smi)
 	} while (--timeout);
 
 	if (!timeout) {
-		dev_err(smi->dev, "timeout waiting for the switch to reset\n");
+		dev_err(priv->dev, "timeout waiting for the switch to reset\n");
 		return -EIO;
 	}
 
 	return 0;
 }
 
-static int rtl8366rb_detect(struct realtek_smi *smi)
+static int rtl8366rb_detect(struct realtek_priv *priv)
 {
-	struct device *dev = smi->dev;
+	struct device *dev = priv->dev;
 	int ret;
 	u32 val;
 
 	/* Detect device */
-	ret = regmap_read(smi->map, 0x5c, &val);
+	ret = regmap_read(priv->map, 0x5c, &val);
 	if (ret) {
 		dev_err(dev, "can't get chip ID (%d)\n", ret);
 		return ret;
@@ -1476,11 +1488,11 @@ static int rtl8366rb_detect(struct realtek_smi *smi)
 		return -ENODEV;
 	case 0x5937:
 		dev_info(dev, "found an RTL8366RB switch\n");
-		smi->cpu_port = RTL8366RB_PORT_NUM_CPU;
-		smi->num_ports = RTL8366RB_NUM_PORTS;
-		smi->num_vlan_mc = RTL8366RB_NUM_VLANS;
-		smi->mib_counters = rtl8366rb_mib_counters;
-		smi->num_mib_counters = ARRAY_SIZE(rtl8366rb_mib_counters);
+		priv->cpu_port = RTL8366RB_PORT_NUM_CPU;
+		priv->num_ports = RTL8366RB_NUM_PORTS;
+		priv->num_vlan_mc = RTL8366RB_NUM_VLANS;
+		priv->mib_counters = rtl8366rb_mib_counters;
+		priv->num_mib_counters = ARRAY_SIZE(rtl8366rb_mib_counters);
 		break;
 	default:
 		dev_info(dev, "found an Unknown Realtek switch (id=0x%04x)\n",
@@ -1488,14 +1500,14 @@ static int rtl8366rb_detect(struct realtek_smi *smi)
 		break;
 	}
 
-	ret = rtl8366rb_reset_chip(smi);
+	ret = rtl8366rb_reset_chip(priv);
 	if (ret)
 		return ret;
 
 	return 0;
 }
 
-static const struct dsa_switch_ops rtl8366rb_switch_ops = {
+static const struct dsa_switch_ops rtl8366rb_switch_ops_smi = {
 	.get_tag_protocol = rtl8366_get_tag_protocol,
 	.setup = rtl8366rb_setup,
 	.phylink_mac_link_up = rtl8366rb_mac_link_up,
@@ -1513,7 +1525,27 @@ static const struct dsa_switch_ops rtl8366rb_switch_ops = {
 	.port_max_mtu = rtl8366rb_max_mtu,
 };
 
-static const struct realtek_smi_ops rtl8366rb_smi_ops = {
+static const struct dsa_switch_ops rtl8366rb_switch_ops_mdio = {
+	.get_tag_protocol = rtl8366_get_tag_protocol,
+	.setup = rtl8366rb_setup,
+	.phy_read = rtl8366rb_dsa_phy_read,
+	.phy_write = rtl8366rb_dsa_phy_write,
+	.phylink_mac_link_up = rtl8366rb_mac_link_up,
+	.phylink_mac_link_down = rtl8366rb_mac_link_down,
+	.get_strings = rtl8366_get_strings,
+	.get_ethtool_stats = rtl8366_get_ethtool_stats,
+	.get_sset_count = rtl8366_get_sset_count,
+	.port_vlan_filtering = rtl8366_vlan_filtering,
+	.port_vlan_prepare = rtl8366_vlan_prepare,
+	.port_vlan_add = rtl8366_vlan_add,
+	.port_vlan_del = rtl8366_vlan_del,
+	.port_enable = rtl8366rb_port_enable,
+	.port_disable = rtl8366rb_port_disable,
+	.port_change_mtu = rtl8366rb_change_mtu,
+	.port_max_mtu = rtl8366rb_max_mtu,
+};
+
+static const struct realtek_ops rtl8366rb_ops = {
 	.detect		= rtl8366rb_detect,
 	.get_vlan_mc	= rtl8366rb_get_vlan_mc,
 	.set_vlan_mc	= rtl8366rb_set_vlan_mc,
@@ -1529,9 +1561,10 @@ static const struct realtek_smi_ops rtl8366rb_smi_ops = {
 	.phy_write	= rtl8366rb_phy_write,
 };
 
-const struct realtek_smi_variant rtl8366rb_variant = {
-	.ds_ops = &rtl8366rb_switch_ops,
-	.ops = &rtl8366rb_smi_ops,
+const struct realtek_variant rtl8366rb_variant= {
+	.ds_ops_smi  = &rtl8366rb_switch_ops_smi,
+	.ds_ops_mdio = &rtl8366rb_switch_ops_mdio,
+	.ops = &rtl8366rb_ops,
 	.clk_delay = 10,
 	.cmd_read = 0xa9,
 	.cmd_write = 0xa8,
