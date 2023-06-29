@@ -23,107 +23,7 @@
 		regulator-name = "usb3_hub_reset_n";
 		regulator-always-on;
 	};
-
-// 	pcie20_3v3: gpio-regulator {
-// 		compatible = "regulator-gpio";
-// 		regulator-name = "pcie20_3v3";
-// 		regulator-min-microvolt = <0100000>;
-// 		regulator-max-microvolt = <3300000>;
-// 		gpios = <&gpio4 RK_PD1 GPIO_ACTIVE_HIGH>;
-// 		gpios-states = <0x1>;
-// 		states = <0100000 0x0
-// 			  3300000 0x1>;
-// 	};
-//
-// 	switch {
-// 		compatible = "realtek,rtl8366rb";
-// 		mdc-gpios = <&gpio2 RK_PC3 GPIO_ACTIVE_LOW>;
-// 		mdio-gpios = <&gpio2 RK_PC4 (GPIO_ACTIVE_LOW|GPIO_OPEN_DRAIN)>;
-// 		reset-gpios = <&gpio2 RK_PD2 (GPIO_ACTIVE_LOW|GPIO_OPEN_DRAIN)>;
-//
-// 		switch_intc: interrupt-controller {
-// 			interrupt-parent = <&gpio3>;
-// 			interrupts = <RK_PA3 IRQ_TYPE_LEVEL_LOW>;
-// 			interrupt-controller;
-// 			#address-cells = <0>;
-// 			#interrupt-cells = <1>;
-// 		};
-//
-// 		ports {
-// 			#address-cells = <1>;
-// 			#size-cells = <0>;
-// 			reg = <0>;
-// 			port@0 {
-// 				reg = <0>;
-// 				label = "lan0";
-// 				phy-handle = <&phy0>;
-// 			};
-// 			port@1 {
-// 				reg = <1>;
-// 				label = "lan1";
-// 				phy-handle = <&phy1>;
-// 			};
-// 			port@2 {
-// 				reg = <2>;
-// 				label = "lan2";
-// 				phy-handle = <&phy2>;
-// 			};
-// 			port@3 {
-// 				reg = <3>;
-// 				label = "lan3";
-// 				phy-handle = <&phy3>;
-// 			};
-// 			port@4 {
-// 				reg = <4>;
-// 				label = "wan";
-// 				phy-handle = <&phy4>;
-// 			};
-// 			cpu_phy0: port@5 {
-// 				reg = <5>;
-// 				label = "cpu";
-// 				ethernet = <&gmac0>;
-// 				phy-mode = "rgmii";
-// 				fixed-link {
-// 					speed = <1000>;
-// 					full-duplex;
-// 				};
-// 			};
-// 		};
-//
-// 		mdio {
-// 			compatible = "realtek,smi-mdio", "dsa-mdio";
-// 			#address-cells = <1>;
-// 			#size-cells = <0>;
-//
-// 			phy0: phy@0 {
-// 				reg = <0>;
-// 				interrupt-parent = <&switch_intc>;
-// 				interrupts = <0>;
-// 			};
-// 			phy1: phy@1 {
-// 				reg = <1>;
-// 				interrupt-parent = <&switch_intc>;
-// 				interrupts = <1>;
-// 			};
-// 			phy2: phy@2 {
-// 				reg = <2>;
-// 				interrupt-parent = <&switch_intc>;
-// 				interrupts = <2>;
-// 			};
-// 			phy3: phy@3 {
-// 				reg = <3>;
-// 				interrupt-parent = <&switch_intc>;
-// 				interrupts = <3>;
-// 			};
-// 			phy4: phy@4 {
-// 				reg = <4>;
-// 				interrupt-parent = <&switch_intc>;
-// 				interrupts = <12>;
-// 			};
-// 		};
-// 	};
- };
-
+};
 
 &csi2_dphy0 {
 	status = "disabled";
@@ -178,15 +78,6 @@
 		/* rtc_int is not connected */
 	};
 
-// 	pca9555_1: gpio@22 {
-// 		status = "okay";
-// 		compatible = "nxp,pca9555";
-// 		reg = <0x22>;
-// 		gpio-controller;
-// 		#gpio-cells = <2>;
-// 		gpio-group-num = <300>;
-// 	};
-
     gslx680: gslx680@41 {
         status = "disabled";
         compatible = "gslX680";
@@ -212,8 +103,12 @@
 };
 
 &i2c2{
-	status = "okay";
+	status = "disabled";
 	pinctrl-0 = <&i2c2m1_xfer>;
+};
+
+&i2c4{
+	status = "disabled";
 };
 
 &vcc_camera {
@@ -225,24 +120,21 @@
 };
 
 &pwm14 {
-	status = "okay";
+	status = "disabled";
 };
 
 &i2c5 {
-    status = "okay";
+    status = "disabled";
     /delete-node/ hym8563@51;
+	/delete-node/ mxc6655xa;
 };
 
 &mc3230 {
-    status = "okay";
+    status = "disabled";
 };
 
 &pca9555 {
-    status = "okay";
-};
-
-&mc3230 {
-    status = "okay";
+    status = "disabled";
 };
 
 &uart9 {
@@ -261,24 +153,15 @@
 	status = "okay";
 };
 
-// &spi1 {
-// 	status = "disabled";
-// };
-//
-// &spi_wk2xxx {
-// 	status = "disabled";
-// };
-
-
-&pcie30_3v3 {
-	compatible = "regulator-fixed";
-	regulator-always-on;
-	/delete-property/ gpios;
-	/delete-property/ gpios-state;
-};
-
 &pcie30phy {
        status = "okay";
+};
+
+&spi1 {
+	status = "disabled";
+	/delete-property/ pinctrl-0;
+	/delete-property/ pinctrl-1;
+	/delete-property/ spi_wk2xxx;
 };
 
 &pcie3x2 {
@@ -290,7 +173,7 @@
 };
 
 &can1 {
-    status = "okay";
+    status = "disabled";
 };
 
 &can2 {
@@ -300,10 +183,12 @@
 /delete-node/ &vcc3v3_vga;
 
 &gmac0 {
+	/delete-property/ phy-handle;
     status = "okay";
-    tx_delay = <0x4a>;
-    rx_delay = <0x35>;
-	snps,reset-gpio = <&gpio0 RK_PD5 GPIO_ACTIVE_LOW>;
+	tx_delay = <0x4f>;
+	rx_delay = <0x0f>;
+// 	snps,reset-gpio = <&gpio0 RK_PD5 GPIO_ACTIVE_LOW>;
+// 	snps,reset-gpio = <&gpio2 RK_PD2 GPIO_ACTIVE_LOW>;
 
 	clock_in_out = "output";
 	assigned-clocks = <&cru SCLK_GMAC0_RX_TX>, <&cru SCLK_GMAC0>;
@@ -311,11 +196,18 @@
 	assigned-clock-parents = <&cru SCLK_GMAC0_RGMII_SPEED>;
 
 	pinctrl-names = "default";
-	pinctrl-0 = <&gmac0_miim
-			&gmac0_tx_bus2
+	pinctrl-0 = <&gmac0_gpio
+			&gmac0_miim
 			&gmac0_rx_bus2
-			&gmac0_rgmii_clk
-			&gmac0_rgmii_bus>;
+			&gmac0_tx_bus2
+			&gmac0_rgmii_bus
+			&gmac0_rgmii_clk>;
+	phy-mode = "rgmii";
+	fixed-link {
+		speed = <10>;
+		full-duplex;
+		pause;
+	};
 };
 
 &gmac1 {
@@ -338,15 +230,13 @@
 };
 
 &mdio0 {
-	/delete-property/ phy@0;
 	#address-cells = <1>;
 	#size-cells = <0>;
-	clock-frequency = <1000000>;
-	switch@29 {
-		reg = <29>;
-		compatible = "realtek,rtl8366rb";
-		reset-gpios = <&gpio2 RK_PD2 (GPIO_ACTIVE_LOW|GPIO_OPEN_DRAIN)>;
 
+	rtl_switch: switch@0 {
+		compatible = "realtek,rtl8365mb";
+		reg = <0>;
+		reset-gpios = <&gpio2 RK_PD2 (GPIO_ACTIVE_LOW|GPIO_OPEN_DRAIN)>;
 		switch_intc: interrupt-controller {
 			interrupt-parent = <&gpio3>;
 			interrupts = <RK_PA3 IRQ_TYPE_LEVEL_LOW>;
@@ -354,44 +244,48 @@
 			#address-cells = <0>;
 			#interrupt-cells = <1>;
 		};
-
 		ports {
 			#address-cells = <1>;
 			#size-cells = <0>;
+
 			port@0 {
-					reg = <0>;
-					label = "lan4";
+				reg = <0>;
+				label = "lan4";
 			};
+
 			port@1 {
-					reg = <1>;
-					label = "lan3";
+				reg = <1>;
+				label = "lan3";
 			};
+
 			port@2 {
-					reg = <2>;
-					label = "lan2";
+				reg = <2>;
+				label = "lan2";
 			};
+
 			port@3 {
-					reg = <3>;
-					label = "lan1";
+				reg = <3>;
+				label = "lan1";
 			};
-			port@5 {
-				reg = <5>;
+
+			port@6 {
+				reg = <6>;
 				label = "cpu";
 				ethernet = <&gmac0>;
 				phy-mode = "rgmii";
-				tx-internal-delay-ps = <2000>;
-				rx-internal-delay-ps = <2000>;
-
 				fixed-link {
-					speed = <1000>;
+					speed = <10>;
 					full-duplex;
-					pause;
 				};
 			};
 		};
 	};
 };
 
+&rgmii_phy0 {
+	status = "disabled";
+	led_status_value = <0x6940>;
+};
 
 &rgmii_phy1 {
 	led_status_value = <0x6940>;
@@ -411,7 +305,7 @@
 	BT,reset_gpio    = <&gpio1 RK_PB1 GPIO_ACTIVE_HIGH>;
 	BT,wake_gpio     = <&gpio1 RK_PA4 GPIO_ACTIVE_HIGH>;
 	BT,wake_host_irq = <&gpio1 RK_PB2 GPIO_ACTIVE_HIGH>;
-	status = "okay";
+	status = "disabled";
 };
 
 &spdif_8ch{
@@ -447,6 +341,25 @@
 
 &pcie2x1 {
 	status = "okay";
+	pinctrl-0 = <&pcie20m1_pins>;
+	pinctrl-1 = <&wlanen_pins>;
+	reset-gpios = <&gpio3 RK_PC1 GPIO_ACTIVE_HIGH>;
+};
+
+&hdmi {
+	status = "disabled";
+};
+
+&hdmi_in_vp0 {
+	status = "disabled";
+};
+
+&hdmi_in_vp1 {
+	status = "disabled";
+};
+
+&hdmi_sound {
+	status = "disabled";
 };
 
 &dfi {
@@ -460,67 +373,12 @@
 &pinctrl {
 
 	gmac0 {
-
-		gmac0_miim: gmac0-miim {
+		gmac0_gpio: gmac0-gpio {
 			rockchip,pins =
-				/* gmac0_mdc */
-				<2 RK_PC3 2 &pcfg_pull_none>,
-				/* gmac0_mdio */
-				<2 RK_PC4 2 &pcfg_pull_none>,
 				/* gmac0_rst */
-				<2 RK_PD2 RK_FUNC_GPIO &pcfg_pull_none>;
-		};
-
-		gmac0_clkinout: gmac0-clkinout {
-			rockchip,pins =
-				/* gmac0_mclkinout */
-				<2 RK_PC2 2 &pcfg_pull_none>;
-		};
-
-		gmac0_rx_er: gmac0-rx-er {
-			rockchip,pins =
-				/* gmac0_rxer */
-				<2 RK_PC5 2 &pcfg_pull_none>;
-		};
-
-		gmac0_rx_bus2: gmac0-rx-bus2 {
-			rockchip,pins =
-				/* gmac0_rxd0 */
-				<2 RK_PB6 1 &pcfg_pull_none>,
-				/* gmac0_rxd1 */
-				<2 RK_PB7 2 &pcfg_pull_none>,
-				/* gmac0_rxdvcrs */
-				<2 RK_PC0 2 &pcfg_pull_none>;
-		};
-
-		gmac0_tx_bus2: gmac0-tx-bus2 {
-			rockchip,pins =
-				/* gmac0_txd0 */
-				<2 RK_PB3 1 &pcfg_pull_none_drv_level_2>,
-				/* gmac0_txd1 */
-				<2 RK_PB4 1 &pcfg_pull_none_drv_level_2>,
-				/* gmac0_txen */
-				<2 RK_PB5 1 &pcfg_pull_none>;
-		};
-
-		gmac0_rgmii_clk: gmac0-rgmii-clk {
-			rockchip,pins =
-				/* gmac0_rxclk */
-				<2 RK_PA5 2 &pcfg_pull_none>,
-				/* gmac0_txclk */
-				<2 RK_PB0 2 &pcfg_pull_none_drv_level_1>;
-		};
-
-		gmac0_rgmii_bus: gmac0-rgmii-bus {
-			rockchip,pins =
-				/* gmac0_rxd2 */
-				<2 RK_PA3 2 &pcfg_pull_none>,
-				/* gmac0_rxd3 */
-				<2 RK_PA4 2 &pcfg_pull_none>,
-				/* gmac0_txd2 */
-				<2 RK_PA6 2 &pcfg_pull_none_drv_level_2>,
-				/* gmac0_txd3 */
-				<2 RK_PA7 2 &pcfg_pull_none_drv_level_2>;
+				<2 RK_PD2 RK_FUNC_GPIO &pcfg_pull_none>,
+				/* gmac0_rst */
+				<3 RK_PA3 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
 
@@ -536,21 +394,12 @@
 		};
 	};
 
-	pcie20 {
-		pcie20m1_pins: pcie20m1-pins {
+	pcie20x2 {
+		wlanen_pins: wlanen_pins {
 			rockchip,pins =
-				/* pcie20_clkreqnm1 */
-				<2 RK_PD0 4 &pcfg_pull_none>,
-				/* pcie20_perstnm1 */
-				<3 RK_PC1 4 &pcfg_pull_none>,
-				/* pcie20_wakenm1 */
-				<2 RK_PD1 4 &pcfg_pull_none>;
+				/* pcie20_en */
+				<4 RK_PD1 RK_FUNC_GPIO &pcfg_pull_up_drv_level_1>;
 		};
 	};
-//	touchscreen {
-//		tp_power_en: tp-power-en {
-//			rockchip,pins = <3 RK_PA4 RK_FUNC_GPIO &pcfg_pull_none>;
-//		};
-//	};
 
 };

@@ -40,7 +40,7 @@
 #include <linux/bitops.h>
 #include <linux/if_bridge.h>
 
-#include "realtek-core.h"
+#include "realtek.h"
 
 #define REALTEK_SMI_ACK_RETRY_COUNT		5
 
@@ -497,4 +497,6 @@ static struct platform_driver realtek_smi_driver = {
 };
 module_platform_driver(realtek_smi_driver);
 
+MODULE_AUTHOR("Linus Walleij <linus.walleij@linaro.org>");
+MODULE_DESCRIPTION("Driver for Realtek ethernet switch connected via SMI interface");
 MODULE_LICENSE("GPL");

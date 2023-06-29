@@ -11,7 +11,7 @@
 #include <linux/if_bridge.h>
 #include <net/dsa.h>
 
-#include "realtek-core.h"
+#include "realtek.h"
 
 int rtl8366_mc_is_used(struct realtek_priv *priv, int mc_index, int *used)
 {

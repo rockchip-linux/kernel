@@ -23,7 +23,7 @@
 #include <linux/of_device.h>
 #include <linux/regmap.h>
 
-#include "realtek-core.h"
+#include "realtek.h"
 
 /* Read/write via mdiobus */
 #define REALTEK_MDIO_CTRL0_REG		31
@@ -262,7 +262,12 @@ static void realtek_mdio_remove(struct mdio_device *mdiodev)
 // }
 
 static const struct of_device_id realtek_mdio_of_match[] = {
+#if IS_ENABLED(CONFIG_NET_DSA_REALTEK_RTL8366RB)
 	{ .compatible = "realtek,rtl8366rb", .data = &rtl8366rb_variant, },
+#endif
+#if IS_ENABLED(CONFIG_NET_DSA_REALTEK_RTL8365MB)
+	{ .compatible = "realtek,rtl8365mb", .data = &rtl8365mb_variant, },
+#endif
 	{ /* sentinel */ },
 };
 MODULE_DEVICE_TABLE(of, realtek_mdio_of_match);
