@@ -1,0 +1,23 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright (c) 2020 Rockchip Electronics Co., Ltd.
+ *
+ */
+
+/dts-v1/;
+
+#include "rk3568-ixon-3568q.dtsi"
+
+/*
+* Screen.
+*/
+//#include "rk3568-firefly-itx-3568q-EDPtoVGA_LT8711V.dtsi"
+//#include "rk3568-firefly-itx-3568q-RGBtoVGA_ADV7123.dtsi"
+
+
+
+
+/ {
+    model = "IXON-3568Q (Linux)";
+    compatible = "rockchip,rk3568-ixon-3568q", "rockchip,rk3568";
+};
