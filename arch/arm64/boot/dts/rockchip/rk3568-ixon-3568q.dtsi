@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+wdt// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
 /*
  * Copyright (c) 2020 Rockchip Electronics Co., Ltd.
  *
@@ -67,36 +67,16 @@
 
 &i2c1 {
 	status = "okay";
-	hym8563: hym8563@51 {
-		status = "okay";
-		compatible = "haoyu,hym8563";
-		reg = <0x51>;
-		#clock-cells = <0>;
-		rtc-irq-gpio = <&gpio0 RK_PD3 IRQ_TYPE_EDGE_FALLING>;
-		clock-frequency = <32768>;
-		//clock-output-names = "xin32k";
-		/* rtc_int is not connected */
-	};
-
-    gslx680: gslx680@41 {
-        status = "disabled";
-        compatible = "gslX680";
-        reg = <0x41>;
-        screen_max_x = <800>;
-        screen_max_y = <1280>;
-        touch-gpio = <&gpio3 RK_PA3 IRQ_TYPE_LEVEL_LOW>;
-        reset-gpio = <&gpio3 RK_PA5 GPIO_ACTIVE_HIGH>;
-        flip-x = <1>;
-        flip-y = <0>;
-        swap-xy = <0>;
-        gsl,fw = <1>;
-    };
-
 	rv3028@52 {
+		status = "okay";
 		compatible = "microcrystal,rv3028";
 		reg = <0x52>;
-		trickle-resistor-ohms = <11000>;
+		trickle-resistor-ohms = <3000>;
+	};
+	tpm@2e {
 		status = "okay";
+		compatible = "infineon,slb9673", "tcg,tpm-tis-i2c";
+		reg = <0x2e>;
 	};
 
 	/delete-node/ xc6130@23;
@@ -140,7 +120,7 @@
 &uart9 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&uart9m1_xfer>;
-	status = "okay";
+	status = "disabled";
 };
 
 &uart3 {
@@ -162,6 +142,72 @@
 	/delete-property/ pinctrl-0;
 	/delete-property/ pinctrl-1;
 	/delete-property/ spi_wk2xxx;
+};
+
+&spi3 {
+	status = "okay";
+	max-freq = <48000000>;
+	pinctrl-0 = <&spi3m1_pins>;
+	pinctrl-1 = <&spi3m1_cs0>;
+
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	display: display@0{
+		// MIPI DBI compatible driver
+		// This driver is used because it can ignore an illegal rotate value
+		// and doesn't have a set_gamma() function.
+		compatible = "samsung,s6d02a1";
+		reg = <0>; // Chip Select 0
+
+		spi-max-frequency = <32000000>; // 32MHz
+
+		pinctrl-0 = <&display_pins>;
+		reset-gpios = <&gpio3 RK_PA1 GPIO_ACTIVE_LOW>; // reset is active low hence the 1
+		dc-gpios = <&gpio0 RK_PB6 GPIO_ACTIVE_LOW>;
+		led-gpios = <&gpio3 RK_PC5 GPIO_ACTIVE_LOW>;
+
+		width = <240>;
+		height = <240>;
+		buswidth = <8>; // Most controllers use this value
+
+		// This is a hack to prevent fb_s6d02a1.c:set_var() from issuing
+		// command 0x36 after the init sequence has been applied and thus
+		// changing the config.
+		rotate = <1>;
+
+		// see drivers/staging/fbtft/fb_ili9341.c:init_display() for how this looks in the driver
+		// Command 0x36 is taken from the fb_ili9341.c:set_var() function.
+		init = <0x1000001
+			0x2000005
+			0x1000028
+			0x10000cf 0x00 0x83 0x30
+			0x10000ed 0x64 0x03 0x12 0x81
+			0x10000e8 0x85 0x01 0x79
+			0x10000cb 0x39 0x2c 0x00 0x34 0x02
+			0x10000f7 0x20
+			0x10000ea 0x00 0x00
+			0x10000c0 0x26
+			0x10000c1 0x11
+			0x10000c5 0x35 0x3e
+			0x10000c7 0xbe
+			0x100003a 0x55
+			0x1000036 0x28
+			0x10000b1 0x00 0x1b
+			0x1000026 0x01
+			0x10000f2 0x08
+			0x1000026 0x01
+			0x10000e0 0x1f 0x1a 0x18 0x0a 0x0f 0x06 0x45 0x87 0x32 0x0a 0x07 0x02 0x07 0x05 0x00
+			0x10000e1 0x00 0x25 0x27 0x05 0x10 0x09 0x3a 0x78 0x4d 0x05 0x18 0x0d 0x38 0x3a 0x1f
+			0x10000b7 0x07
+			0x10000b6 0x0a 0x82 0x27 0x00
+			0x1000011
+			0x2000064
+			0x1000029
+			0x2000064>;
+
+		debug = <0x4000000>; // print init commands to the kernel log
+	};
 };
 
 &pcie3x2 {
@@ -292,7 +338,7 @@
 };
 
 &uart8 {
-	status = "okay";
+	status = "disabled";
 };
 
 &sdio_pwrseq {
@@ -399,6 +445,15 @@
 			rockchip,pins =
 				/* pcie20_en */
 				<4 RK_PD1 RK_FUNC_GPIO &pcfg_pull_up_drv_level_1>;
+		};
+	};
+
+	display {
+	display_pins: display_pins {
+		rockchip,pins =
+			<0 RK_PB6 RK_FUNC_GPIO &pcfg_pull_none>,
+			<3 RK_PC5 RK_FUNC_GPIO &pcfg_pull_none>,
+			<3 RK_PA1 RK_FUNC_GPIO &pcfg_pull_up_drv_level_1>;
 		};
 	};
 
