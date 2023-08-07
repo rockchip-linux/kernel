@@ -1,4 +1,4 @@
-wdt// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
 /*
  * Copyright (c) 2020 Rockchip Electronics Co., Ltd.
  *
@@ -71,7 +71,8 @@ wdt// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
 		status = "okay";
 		compatible = "microcrystal,rv3028";
 		reg = <0x52>;
-		trickle-resistor-ohms = <3000>;
+			backup-switchover-mode = <0x01>;
+			trickle-resistor-ohms = <3000>;
 	};
 	tpm@2e {
 		status = "okay";
