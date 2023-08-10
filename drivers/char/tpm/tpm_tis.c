@@ -50,6 +50,45 @@ static inline struct tpm_tis_tcg_phy *to_tpm_tis_tcg_phy(struct tpm_tis_data *da
 	return container_of(data, struct tpm_tis_tcg_phy, priv);
 }
 
+#ifdef CONFIG_PREEMPT_RT
+/*
+ * Flush previous write operations with a dummy read operation to the
+ * TPM MMIO base address.
+ */
+static inline void tpm_tis_flush(void __iomem *iobase)
+{
+	ioread8(iobase + TPM_ACCESS(0));
+}
+#else
+#define tpm_tis_flush(iobase) do { } while (0)
+#endif
+
+/*
+ * Write a byte word to the TPM MMIO address, and flush the write queue.
+ * The flush ensures that the data is sent immediately over the bus and not
+ * aggregated with further requests and transferred later in a batch. The large
+ * write requests can lead to unwanted latency spikes by blocking the CPU until
+ * the complete batch has been transferred.
+ */
+static inline void tpm_tis_iowrite8(u8 b, void __iomem *iobase, u32 addr)
+{
+	iowrite8(b, iobase + addr);
+	tpm_tis_flush(iobase);
+}
+
+/*
+ * Write a 32-bit word to the TPM MMIO address, and flush the write queue.
+ * The flush ensures that the data is sent immediately over the bus and not
+ * aggregated with further requests and transferred later in a batch. The large
+ * write requests can lead to unwanted latency spikes by blocking the CPU until
+ * the complete batch has been transferred.
+ */
+static inline void tpm_tis_iowrite32(u32 b, void __iomem *iobase, u32 addr)
+{
+	iowrite32(b, iobase + addr);
+	tpm_tis_flush(iobase);
+}
+
 static int interrupts = -1;
 module_param(interrupts, int, 0444);
 MODULE_PARM_DESC(interrupts, "Enable interrupts");
@@ -153,23 +192,46 @@ static int check_acpi_tpm2(struct device *dev)
 #endif
 
 static int tpm_tcg_read_bytes(struct tpm_tis_data *data, u32 addr, u16 len,
-			      u8 *result)
+			      u8 *result, enum tpm_tis_io_mode io_mode)
 {
-	struct tpm_tis_tcg_phy *phy = to_tpm_tis_tcg_phy(data);
+		struct tpm_tis_tcg_phy *phy = to_tpm_tis_tcg_phy(data);
+	__le16 result_le16;
+	__le32 result_le32;
 
-	while (len--)
-		*result++ = ioread8(phy->iobase + addr);
+	switch (io_mode) {
+	case TPM_TIS_PHYS_8:
+		while (len--)
+			*result++ = ioread8(phy->iobase + addr);
+		break;
+	case TPM_TIS_PHYS_16:
+		result_le16 = cpu_to_le16(ioread16(phy->iobase + addr));
+		memcpy(result, &result_le16, sizeof(u16));
+		break;
+	case TPM_TIS_PHYS_32:
+		result_le32 = cpu_to_le32(ioread32(phy->iobase + addr));
+		memcpy(result, &result_le32, sizeof(u32));
+		break;
+	}
 
 	return 0;
 }
 
 static int tpm_tcg_write_bytes(struct tpm_tis_data *data, u32 addr, u16 len,
-			       const u8 *value)
+			       const u8 *value, enum tpm_tis_io_mode io_mode)
 {
 	struct tpm_tis_tcg_phy *phy = to_tpm_tis_tcg_phy(data);
 
-	while (len--)
-		iowrite8(*value++, phy->iobase + addr);
+	switch (io_mode) {
+	case TPM_TIS_PHYS_8:
+		while (len--)
+			tpm_tis_iowrite8(*value++, phy->iobase, addr);
+		break;
+	case TPM_TIS_PHYS_16:
+		return -EINVAL;
+	case TPM_TIS_PHYS_32:
+		tpm_tis_iowrite32(le32_to_cpu(*((__le32 *)value)), phy->iobase, addr);
+		break;
+	}
 
 	return 0;
 }
