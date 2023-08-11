@@ -36,7 +36,7 @@
 
 /* Firefly SPI demo */
 &spi1 {
-    spi_demo: spi-demo@00{
+    spi_demo: spi-demo@0{
         status = "disabled";
         compatible = "firefly,rk356x-spi";
         reg = <0x00>;

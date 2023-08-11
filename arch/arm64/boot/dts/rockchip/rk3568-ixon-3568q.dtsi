@@ -80,6 +80,16 @@
 		reg = <0x2e>;
 	};
 
+	slb9673@2e{
+		compatible = "infineon,slb9673","tcg,tpm-tis-i2c" ;
+		reg = <0x2e>;
+		#address-cells = <2>;
+		#size-cells = <1>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&slb9673_gpio>;
+		status = "okay";
+    };
+
 	/delete-node/ xc6130@23;
 };
 
@@ -419,6 +429,13 @@
 
 &pinctrl {
 
+	slb9673 {
+		slb9673_gpio: slb9673-gpio{
+			rockchip,pins =
+			/*TPM_RST*/
+			<3 RK_PC0 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+	};
 	gmac0 {
 		gmac0_gpio: gmac0-gpio {
 			rockchip,pins =
