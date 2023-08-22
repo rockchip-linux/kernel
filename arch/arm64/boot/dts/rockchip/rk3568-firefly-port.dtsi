@@ -541,7 +541,7 @@
 	pinctrl-0 = <&spi1m1_pins>;
 	pinctrl-1 = <&spi1m1_pins_hs>;
 
-	spi_wk2xxx: spi_wk2xxx@00{
+	spi_wk2xxx: spi_wk2xxx@0{
 		status = "disabled";
 		compatible = "firefly,spi-wk2xxx";
 		reg = <0x00>;
