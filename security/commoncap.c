@@ -144,30 +144,41 @@ int cap_settime(const struct timespec *ts, const struct timezone *tz)
  * Determine whether a process may access another, returning 0 if permission
  * granted, -ve if denied.
  */
+
+
+/**/
 int cap_ptrace_access_check(struct task_struct *child, unsigned int mode)
 {
-	int ret = 0;
-	const struct cred *cred, *child_cred;
-	const kernel_cap_t *caller_caps;
+    const struct cred *cred, *child_cred;
+    const kernel_cap_t *caller_caps;
+    int ret = 0;
 
-	rcu_read_lock();
-	cred = current_cred();
-	child_cred = __task_cred(child);
-	if (mode & PTRACE_MODE_FSCREDS)
-		caller_caps = &cred->cap_effective;
-	else
-		caller_caps = &cred->cap_permitted;
-	if (cred->user_ns == child_cred->user_ns &&
-	    cap_issubset(child_cred->cap_permitted, *caller_caps))
-		goto out;
-	if (ns_capable(child_cred->user_ns, CAP_SYS_PTRACE))
-		goto out;
-	ret = -EPERM;
+    rcu_read_lock();
+    cred = current_cred();
+    child_cred = __task_cred(child);
+
+    if (mode & PTRACE_MODE_FSCREDS) {
+        caller_caps = &cred->cap_effective;
+    } else {
+        caller_caps = &cred->cap_permitted;
+    }
+
+    if (cred->user_ns == child_cred->user_ns &&
+        cap_issubset(child_cred->cap_permitted, *caller_caps)) {
+        goto out;
+    }
+
+    if (ns_capable(child_cred->user_ns, CAP_SYS_PTRACE)) {
+        goto out;
+    }
+
+    ret = -EPERM;
+
 out:
-	rcu_read_unlock();
-	return ret;
-}
-
+    rcu_read_unlock();
+    return ret;
+} 
+،
 /**
  * cap_ptrace_traceme - Determine whether another process may trace the current
  * @parent: The task proposed to be the tracer
