@@ -90,6 +90,20 @@
 		status = "okay";
     };
 
+	gt1x@14 {
+		status = "okay";
+		compatible = "goodix,gt911";
+		reg        = <0x14>;
+		pinctrl-0 = <&touch_panel_gpio>;
+		interrupt-parent = <&gpio0>;                              //Parent of interrupt.
+		interrupts = <RK_PB5 IRQ_TYPE_LEVEL_HIGH>;   			  //Configuration of touch panel  interrupt controller.
+		goodix,irq-gpio   = <&gpio0 RK_PB5 IRQ_TYPE_EDGE_RISING>; //Interrupt gpio which is to provide interrupts to  host, same as "interrupts" node.
+		goodix,rst-gpio   = <&gpio0 RK_PC5 GPIO_ACTIVE_HIGH>;	  //Reset gpio to control the reset of chip
+		irq-flag  = <1>;                                          //1 for rising edge trigger, 2 for failing edge trigger
+
+		touchscreen-size-x = <240>;
+		touchscreen-size-y = <240>;
+	};
 	/delete-node/ xc6130@23;
 };
 
@@ -436,6 +450,14 @@
 			<0 RK_PB6 RK_FUNC_GPIO &pcfg_pull_none>,
 			<3 RK_PC5 RK_FUNC_GPIO &pcfg_pull_none>,
 			<3 RK_PA1 RK_FUNC_GPIO &pcfg_pull_up_drv_level_1>;
+		};
+	};
+
+	gt911 {
+		touch_panel_gpio: touch_panel_gpio{
+			rockchip,pins =
+			<0  RK_PB5 RK_FUNC_GPIO &pcfg_pull_none>,			//Interupt pin
+			<0  RK_PC5 RK_FUNC_GPIO &pcfg_pull_up>;				//Reset pin should have external 10 kOmh resistor.
 		};
 	};
 
