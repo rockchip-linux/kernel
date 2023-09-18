@@ -186,16 +186,18 @@
 		spi-max-frequency = <32000000>;
 		txbuflen = <16384>;
 		fps = <33>;
-		bgr = <0>;
 		buswidth = <8>;
-		rotate = <90>;
+		rotate = <0>;
 		width = <240>;
 		height = <240>;
 		reset-gpios = <&gpio3 RK_PA1 GPIO_ACTIVE_LOW>;
-		dc-gpios = <&gpio0 RK_PB6 GPIO_ACTIVE_LOW>;
-		led-gpios = <&gpio3 RK_PC5 GPIO_ACTIVE_LOW>;
+		dc-gpios = <&gpio0 RK_PB6 GPIO_ACTIVE_HIGH>;
+		led-gpios = <&gpio3 RK_PC5 GPIO_ACTIVE_HIGH>;
 		debug = <4>;
 		status = "okay";
+// 		bgr = <1>;
+		spi-cpol;
+		spi-cpha;
 	};
 };
 
@@ -447,9 +449,9 @@
 	display {
 	display_pins: display_pins {
 		rockchip,pins =
-			<0 RK_PB6 RK_FUNC_GPIO &pcfg_pull_none>,
-			<3 RK_PC5 RK_FUNC_GPIO &pcfg_pull_none>,
-			<3 RK_PA1 RK_FUNC_GPIO &pcfg_pull_up_drv_level_1>;
+			<0 RK_PB6 RK_FUNC_GPIO &pcfg_pull_up>,		  //dc_gpios
+			<3 RK_PC5 RK_FUNC_GPIO &pcfg_pull_up>,        //led_gpios
+			<3 RK_PA1 RK_FUNC_GPIO &pcfg_pull_up>;	      //reset_gpios
 		};
 	};
 
