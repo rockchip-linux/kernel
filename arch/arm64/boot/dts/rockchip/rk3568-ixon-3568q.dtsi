@@ -245,7 +245,7 @@
 /delete-node/ &vcc3v3_vga;
 
 &combphy1_usq {
-// 	rockchip,sgmii-mac-sel = <0>; /* Use gmac0 for sgmii */
+ 	rockchip,sgmii-mac-sel = <0>; /* Use gmac0 for sgmii */
 	status = "okay";
 };
 
