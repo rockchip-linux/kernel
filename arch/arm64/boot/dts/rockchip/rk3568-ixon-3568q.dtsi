@@ -25,6 +25,20 @@
 	};
 };
 
+
+&pmu_io_domains {
+	status = "okay";
+	pmuio1-supply = <&vcc3v3_pmu>;
+	pmuio2-supply = <&vcc3v3_pmu>;
+	vccio1-supply = <&vccio_acodec>;
+	vccio3-supply = <&vccio_sd>;
+	vccio4-supply = <&vcc_3v3>;
+	vccio5-supply = <&vcc_3v3>;
+	vccio6-supply = <&vcc_1v8>;
+	vccio7-supply = <&vcc_3v3>;
+};
+
+
 &csi2_dphy0 {
 	status = "disabled";
 };
@@ -111,6 +125,30 @@
 	status = "disabled";
 	pinctrl-0 = <&i2c2m1_xfer>;
 };
+
+// &i2c0{
+// 	/delete-node/ tcs4525@1c;
+// 	vdd_cpu: syr827-rk8600@40 {
+// 		compatible = "silergy,syr827";
+// 		reg = <0x40>;
+// 		vin-supply = <&vcc5v0_sys>;
+// 		vsel-gpios = <&gpio1 RK_PB6 GPIO_ACTIVE_HIGH>;
+// 		regulator-compatible = "fan53555-reg";
+// 		regulator-name = "vdd_cpu";
+// 		regulator-min-microvolt = <712500>;
+// 		regulator-max-microvolt = <1390000>;
+//  		regulator-init-microvolt = <1000000>;
+// 		regulator-initial-mode = <1>;
+// 		regulator-ramp-delay = <2300>;
+// 		fcs,suspend-voltage-selector = <1>;
+// 		regulator-boot-on;
+// 		regulator-always-on;
+// 		regulator-state-mem {
+// 			regulator-off-in-suspend;
+// 		};
+//
+// 	};
+// };
 
 &i2c4{
 	status = "disabled";
@@ -230,31 +268,35 @@
 
 /delete-node/ &vcc3v3_vga;
 
+&combphy1_usq {
+ 	rockchip,sgmii-mac-sel = <0>; /* Use gmac0 for sgmii */
+	status = "okay";
+};
+
+&xpcs {
+	status = "okay";
+};
+
 &gmac0 {
 	/delete-property/ phy-handle;
     status = "okay";
-	tx_delay = <0x4f>;
-	rx_delay = <0x0f>;
-// 	snps,reset-gpio = <&gpio0 RK_PD5 GPIO_ACTIVE_LOW>;
-// 	snps,reset-gpio = <&gpio2 RK_PD2 GPIO_ACTIVE_LOW>;
+	snps,reset-gpio = <&gpio2 RK_PD2 GPIO_ACTIVE_HIGH>;
+	snps,reset-delays-us = <0 20000 100000>;
 
-	clock_in_out = "output";
-	assigned-clocks = <&cru SCLK_GMAC0_RX_TX>, <&cru SCLK_GMAC0>;
-	assigned-clock-rates = <0>, <125000000>;
-	assigned-clock-parents = <&cru SCLK_GMAC0_RGMII_SPEED>;
+	rockchip,pipegrf = <&pipegrf>;
+	rockchip,xpcs = <&xpcs>;
+	assigned-clocks = <&cru SCLK_GMAC0_RX_TX>;
+	assigned-clock-parents = <&gmac0_xpcsclk>;
+	power-domains = <&power RK3568_PD_PIPE>;
 
-	pinctrl-names = "default";
-	pinctrl-0 = <&gmac0_gpio
-			&gmac0_miim
-			&gmac0_rx_bus2
-			&gmac0_tx_bus2
-			&gmac0_rgmii_bus
-			&gmac0_rgmii_clk>;
-	phy-mode = "rgmii";
+// 	pinctrl-names = "default";
+// 	pinctrl-0 = <&gmac0_gpio
+// 			&gmac0_miim>;
+	phys = <&combphy1_usq PHY_TYPE_SGMII>;
+	phy-mode = "sgmii";
 	fixed-link {
-		speed = <10>;
+		speed = <1000>;
 		full-duplex;
-		pause;
 	};
 };
 
@@ -281,29 +323,29 @@
 	#address-cells = <1>;
 	#size-cells = <0>;
 
-	rtl_switch: switch@0 {
-		compatible = "realtek,rtl8365mb";
-		reg = <0>;
-		reset-gpios = <&gpio2 RK_PD2 (GPIO_ACTIVE_LOW|GPIO_OPEN_DRAIN)>;
-		switch_intc: interrupt-controller {
-			interrupt-parent = <&gpio3>;
-			interrupts = <RK_PA3 IRQ_TYPE_LEVEL_LOW>;
-			interrupt-controller;
-			#address-cells = <0>;
-			#interrupt-cells = <1>;
-		};
+	mt7530: switch@1f {
+		compatible = "mediatek,mt7531";
+		reg = <0x1f>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		interrupt-controller;
+		interrupt-parent = <&gpio3>;                              //Parent of interrupt.
+		interrupts = <RK_PA3 IRQ_TYPE_LEVEL_HIGH>;
+
+// 		reset-gpios = <&gpio2 RK_PD2 GPIO_ACTIVE_HIGH>;
+
 		ports {
 			#address-cells = <1>;
 			#size-cells = <0>;
 
 			port@0 {
 				reg = <0>;
-				label = "lan4";
+				label = "lan0";
 			};
 
 			port@1 {
 				reg = <1>;
-				label = "lan3";
+				label = "lan1";
 			};
 
 			port@2 {
@@ -313,17 +355,23 @@
 
 			port@3 {
 				reg = <3>;
-				label = "lan1";
+				label = "lan3";
 			};
 
-			port@6 {
+			port@4 {
+				reg = <4>;
+				label = "lan4";
+			};
+
+			cpu_port0: port@6 {
 				reg = <6>;
 				label = "cpu";
 				ethernet = <&gmac0>;
-				phy-mode = "rgmii";
+				phy-mode = "1000base-x";
 				fixed-link {
-					speed = <10>;
+					speed = <1000>;
 					full-duplex;
+					pause;
 				};
 			};
 		};
@@ -345,7 +393,7 @@
 
 &sdio_pwrseq {
 	status = "okay";
-	reset-gpios = <&gpio3 RK_PD5 GPIO_ACTIVE_LOW>;
+	reset-rebootgpios = <&gpio3 RK_PD5 GPIO_ACTIVE_LOW>;
 	post-power-on-delay-ms = <100>;
 };
 
@@ -374,12 +422,19 @@
 };
 
 &sata1 {
-	status = "okay";
+	status = "disabled";
+};
+
+&usbhost30 {
+	status = "disabled";
+};
+
+&usbhost_dwc3 {
+	status = "disabled";
 };
 
 &sata2 {
 	status = "disabled";
-	/delete-property/ pinctrl-0;
 };
 
 &pcie2x1 {
@@ -429,8 +484,14 @@
 				<2 RK_PD2 RK_FUNC_GPIO &pcfg_pull_none>,
 				/* gmac0_rst */
 				<3 RK_PA3 RK_FUNC_GPIO &pcfg_pull_none>;
+// 				/* gmac0_mdc */
+// 				<2 RK_PC3 2 &pcfg_pull_up>,
+// 				/* gmac0_mdio */
+// 				<2 RK_PC4 2 &pcfg_pull_up>;
 		};
 	};
+
+
 
 	pcie30x2 {
 		pcie30x2m1_pins: pcie30x2m1-pins {

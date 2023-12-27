@@ -17,6 +17,7 @@
 #include <linux/module.h>
 #include <linux/nvmem-consumer.h>
 #include <linux/of_gpio.h>
+#include <linux/of_mdio.h>
 #include <linux/of_device.h>
 #include <linux/platform_device.h>
 #include <linux/regulator/consumer.h>
@@ -159,11 +160,15 @@ static int xpcs_soft_reset(struct rk_priv_data *bsp_priv, int dev)
 
 static int xpcs_setup(struct rk_priv_data *bsp_priv, int mode)
 {
-	int ret, i, id = bsp_priv->bus_id;
+	struct device_node *np = bsp_priv->pdev->dev.of_node;
+ 	int ret, i, id = bsp_priv->bus_id;
+	bool is_fixed_link;
 	u32 val;
 
 	if (mode == PHY_INTERFACE_MODE_QSGMII && id > 0)
 		return 0;
+
+	is_fixed_link = of_phy_is_fixed_link(np);
 
 	ret = xpcs_soft_reset(bsp_priv, id);
 	if (ret) {
@@ -171,32 +176,42 @@ static int xpcs_setup(struct rk_priv_data *bsp_priv, int mode)
 		return ret;
 	}
 
-	xpcs_write(bsp_priv, SR_MII_OFFSET(0) + VR_MII_AN_INTR_STS, 0x0);
-	xpcs_write(bsp_priv, SR_MII_OFFSET(0) + VR_MII_LINK_TIMER_CTRL, 0x1);
+	if (!is_fixed_link) {
+		xpcs_write(bsp_priv, SR_MII_OFFSET(0) + VR_MII_AN_INTR_STS, 0x0);
+		xpcs_write(bsp_priv, SR_MII_OFFSET(0) + VR_MII_LINK_TIMER_CTRL, 0x1);
 
-	if (mode == PHY_INTERFACE_MODE_SGMII)
-		xpcs_write(bsp_priv, SR_MII_OFFSET(0) + VR_MII_AN_CTRL,
-			   VR_MII_CTRL_SGMII_AN_EN);
-	else
-		xpcs_write(bsp_priv, SR_MII_OFFSET(0) + VR_MII_AN_CTRL,
-			   VR_MII_CTRL_QSGMII_AN_EN);
+		if (mode == PHY_INTERFACE_MODE_SGMII)
+			xpcs_write(bsp_priv, SR_MII_OFFSET(0) + VR_MII_AN_CTRL,
+				   VR_MII_CTRL_SGMII_AN_EN);
+		else
+			xpcs_write(bsp_priv, SR_MII_OFFSET(0) + VR_MII_AN_CTRL,
+				   VR_MII_CTRL_QSGMII_AN_EN);
+	}
 
 	if (mode == PHY_INTERFACE_MODE_QSGMII) {
 		for (i = 0; i < 4; i++) {
-			val = xpcs_read(bsp_priv,
-					SR_MII_OFFSET(i) + VR_MII_DIG_CTRL1);
-			xpcs_write(bsp_priv,
-				   SR_MII_OFFSET(i) + VR_MII_DIG_CTRL1,
-				   val | MII_MAC_AUTO_SW);
-			xpcs_write(bsp_priv, SR_MII_OFFSET(i) + MII_BMCR,
-				   SR_MII_CTRL_AN_ENABLE);
+			if (!is_fixed_link) {
+				val = xpcs_read(bsp_priv,
+						SR_MII_OFFSET(i) + VR_MII_DIG_CTRL1);
+				xpcs_write(bsp_priv,
+					   SR_MII_OFFSET(i) + VR_MII_DIG_CTRL1,
+					   val | MII_MAC_AUTO_SW);
+				xpcs_write(bsp_priv, SR_MII_OFFSET(i) + MII_BMCR,
+					   SR_MII_CTRL_AN_ENABLE);
+			} else {
+				xpcs_write(bsp_priv, SR_MII_OFFSET(i) + MII_BMCR,
+					   BMCR_FULLDPLX | BMCR_SPEED1000);
+			}
 		}
 	} else {
-		val = xpcs_read(bsp_priv, SR_MII_OFFSET(id) + VR_MII_DIG_CTRL1);
-		xpcs_write(bsp_priv, SR_MII_OFFSET(id) + VR_MII_DIG_CTRL1,
-			   val | MII_MAC_AUTO_SW);
-		xpcs_write(bsp_priv, SR_MII_OFFSET(id) + MII_BMCR,
-			   SR_MII_CTRL_AN_ENABLE);
+		if (!is_fixed_link) {
+			val = xpcs_read(bsp_priv, SR_MII_OFFSET(0) + VR_MII_DIG_CTRL1);
+			xpcs_write(bsp_priv, SR_MII_OFFSET(0) + VR_MII_DIG_CTRL1,
+				   val | MII_MAC_AUTO_SW);
+		} else {
+			xpcs_write(bsp_priv, SR_MII_OFFSET(0) + MII_BMCR,
+				   BMCR_FULLDPLX | BMCR_SPEED1000);
+		}
 	}
 
 	return ret;
