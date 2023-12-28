@@ -491,7 +491,13 @@
 		};
 	};
 
-
+// 	lte {
+// 		lte_gpio: lte-gpio{
+// 			rockchip,pins =
+// 			/*TPM_RST*/
+// 			<3 RK_PB3 RK_FUNC_GPIO &pcfg_output_active_high >;
+// 		};
+// 	};
 
 	pcie30x2 {
 		pcie30x2m1_pins: pcie30x2m1-pins {
@@ -509,7 +515,9 @@
 		wlanen_pins: wlanen_pins {
 			rockchip,pins =
 				/* pcie20_en */
-				<4 RK_PD1 RK_FUNC_GPIO &pcfg_pull_up_drv_level_1>;
+				<4 RK_PD1 RK_FUNC_GPIO &pcfg_pull_up_drv_level_1>,
+				// TODO: fix this LTE enable
+				<3 RK_PB3 RK_FUNC_GPIO &pcfg_output_high_pull_up >;
 		};
 	};
 
