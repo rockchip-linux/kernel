@@ -312,7 +312,8 @@
 	assigned-clock-parents = <&cru SCLK_GMAC1_RGMII_SPEED>;
 
 	pinctrl-names = "default";
-	pinctrl-0 = <&gmac1m1_miim
+	pinctrl-0 = <&gmac1_gpio
+			 &gmac1m1_miim
 		     &gmac1m1_tx_bus2
 		     &gmac1m1_rx_bus2
 		     &gmac1m1_rgmii_clk
@@ -477,6 +478,12 @@
 			<3 RK_PC0 RK_FUNC_GPIO &pcfg_pull_up>;
 		};
 	};
+	gmac1{
+		gmac1_gpio: gmac1-gpio {
+			rockchip,pins =
+			<3 RK_PB3 RK_FUNC_GPIO &pcfg_output_high_pull_up >;
+		};
+	};
 	gmac0 {
 		gmac0_gpio: gmac0-gpio {
 			rockchip,pins =
@@ -515,9 +522,9 @@
 		wlanen_pins: wlanen_pins {
 			rockchip,pins =
 				/* pcie20_en */
-				<4 RK_PD1 RK_FUNC_GPIO &pcfg_pull_up_drv_level_1>,
+				<4 RK_PD1 RK_FUNC_GPIO &pcfg_pull_up_drv_level_1>;
 				// TODO: fix this LTE enable
-				<3 RK_PB3 RK_FUNC_GPIO &pcfg_output_high_pull_up >;
+
 		};
 	};
 
