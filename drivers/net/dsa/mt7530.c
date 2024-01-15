@@ -495,8 +495,9 @@ static bool mt7531_dual_sgmii_supported(struct mt7530_priv *priv)
 	u32 val;
 
 	val = mt7530_read(priv, MT7531_TOP_SIG_SR);
+   
 
-	return (val & PAD_DUAL_SGMII_EN) != 0;
+    	return false;
 }
 
 static int
@@ -1958,8 +1959,8 @@ static void mt7531_sgmii_validate(struct mt7530_priv *priv, int port,
 		fallthrough;
 	case 6:
 		phylink_set(supported, 1000baseX_Full);
-		phylink_set(supported, 2500baseX_Full);
-		phylink_set(supported, 2500baseT_Full);
+		//phylink_set(supported, 2500baseX_Full);
+		//phylink_set(supported, 2500baseT_Full);
 	}
 }
 
@@ -2108,6 +2109,7 @@ mt7531_mac_config(struct dsa_switch *ds, int port, unsigned int mode,
 	case PHY_INTERFACE_MODE_NA:
 	case PHY_INTERFACE_MODE_1000BASEX:
 	case PHY_INTERFACE_MODE_2500BASEX:
+
 		if (phylink_autoneg_inband(mode))
 			return -EINVAL;
 
@@ -2279,12 +2281,12 @@ mt7531_cpu_port_config(struct dsa_switch *ds, int port)
 		if (mt7531_is_rgmii_port(priv, port))
 			interface = PHY_INTERFACE_MODE_RGMII;
 		else
-			interface = PHY_INTERFACE_MODE_2500BASEX;
+			interface = PHY_INTERFACE_MODE_1000BASEX;
 
 		priv->p5_interface = interface;
 		break;
 	case 6:
-		interface = PHY_INTERFACE_MODE_2500BASEX;
+		interface = PHY_INTERFACE_MODE_1000BASEX;
 
 		mt7531_pad_setup(ds, interface);
 
@@ -2293,6 +2295,8 @@ mt7531_cpu_port_config(struct dsa_switch *ds, int port)
 	default:
 		return -EINVAL;
 	}
+    	interface = PHY_INTERFACE_MODE_1000BASEX;
+    	speed = SPEED_1000;
 
 	if (interface == PHY_INTERFACE_MODE_2500BASEX)
 		speed = SPEED_2500;
