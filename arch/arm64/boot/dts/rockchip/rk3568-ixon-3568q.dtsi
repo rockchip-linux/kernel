@@ -478,12 +478,15 @@
 			<3 RK_PC0 RK_FUNC_GPIO &pcfg_pull_up>;
 		};
 	};
+
 	gmac1{
-		gmac1_gpio: gmac1-gpio {
-			rockchip,pins =
-			<3 RK_PB3 RK_FUNC_GPIO &pcfg_output_high_pull_up >;
+			gmac1_gpio: gmac1-gpio {
+				rockchip,pins =
+					/* TODO:HOt fix for LTE modem to be enabled on 5.2 board.Probably should not be in gma1 node.*/
+					<3 RK_PB3 RK_FUNC_GPIO &pcfg_output_high_pull_up>;
+			};
 		};
-	};
+
 	gmac0 {
 		gmac0_gpio: gmac0-gpio {
 			rockchip,pins =
@@ -498,13 +501,6 @@
 		};
 	};
 
-// 	lte {
-// 		lte_gpio: lte-gpio{
-// 			rockchip,pins =
-// 			/*TPM_RST*/
-// 			<3 RK_PB3 RK_FUNC_GPIO &pcfg_output_active_high >;
-// 		};
-// 	};
 
 	pcie30x2 {
 		pcie30x2m1_pins: pcie30x2m1-pins {
@@ -523,8 +519,6 @@
 			rockchip,pins =
 				/* pcie20_en */
 				<4 RK_PD1 RK_FUNC_GPIO &pcfg_pull_up_drv_level_1>;
-				// TODO: fix this LTE enable
-
 		};
 	};
 
