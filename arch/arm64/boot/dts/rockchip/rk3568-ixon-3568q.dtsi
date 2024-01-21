@@ -126,29 +126,29 @@
 	pinctrl-0 = <&i2c2m1_xfer>;
 };
 
-// &i2c0{
-// 	/delete-node/ tcs4525@1c;
-// 	vdd_cpu: syr827-rk8600@40 {
-// 		compatible = "silergy,syr827";
-// 		reg = <0x40>;
-// 		vin-supply = <&vcc5v0_sys>;
-// 		vsel-gpios = <&gpio1 RK_PB6 GPIO_ACTIVE_HIGH>;
-// 		regulator-compatible = "fan53555-reg";
-// 		regulator-name = "vdd_cpu";
-// 		regulator-min-microvolt = <712500>;
-// 		regulator-max-microvolt = <1390000>;
-//  		regulator-init-microvolt = <1000000>;
-// 		regulator-initial-mode = <1>;
-// 		regulator-ramp-delay = <2300>;
-// 		fcs,suspend-voltage-selector = <1>;
-// 		regulator-boot-on;
-// 		regulator-always-on;
-// 		regulator-state-mem {
-// 			regulator-off-in-suspend;
-// 		};
-//
-// 	};
-// };
+&i2c0{
+	/delete-node/ tcs4525@1c;
+	vdd_cpu: syr827-rk8600@40 {
+		compatible = "silergy,syr827";
+		reg = <0x40>;
+		vin-supply = <&vcc5v0_sys>;
+		vsel-gpios = <&gpio1 RK_PB6 GPIO_ACTIVE_HIGH>;
+		regulator-compatible = "fan53555-reg";
+		regulator-name = "vdd_cpu";
+		regulator-min-microvolt = <900000>;
+		regulator-max-microvolt = <1390000>;
+ 		regulator-init-microvolt = <1300000>;
+		regulator-initial-mode = <1>;
+		regulator-ramp-delay = <2300>;
+		fcs,suspend-voltage-selector = <1>;
+		regulator-boot-on;
+		regulator-always-on;
+		regulator-state-mem {
+			regulator-off-in-suspend;
+		};
+
+	};
+};
 
 &i2c4{
 	status = "disabled";
@@ -264,6 +264,10 @@
 
 &can2 {
     status = "disabled";
+};
+
+&rk809_sound {
+	status = "disabled";
 };
 
 /delete-node/ &vcc3v3_vga;
