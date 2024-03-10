@@ -2160,7 +2160,9 @@ free_endpoint:
 put_node:
 	of_node_put(ep);
 clk_put:
-	clk_disable_unprepare(csi->soc_24M);
+	if (ret != 0) {
+		clk_disable_unprepare(csi->soc_24M);
+	}
 
 	return ret;
 }
@@ -2475,6 +2477,7 @@ static int rk628_csi_remove(struct i2c_client *client)
 	rk628_control_assert(csi->rk628, RGU_VOP);
 	rk628_control_assert(csi->rk628, RGU_CSI);
 
+	clk_disable_unprepare(csi->soc_24M);
 	return 0;
 }
 
