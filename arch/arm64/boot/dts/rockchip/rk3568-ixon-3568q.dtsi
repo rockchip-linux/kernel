@@ -23,6 +23,36 @@
 		regulator-name = "usb3_hub_reset_n";
 		regulator-always-on;
 	};
+
+	led-controller {
+        compatible = "pwm-leds";
+        led-1 {
+            label = "ot_red_led";
+            pwms = <&pwm9 0 1000000 0>;
+            max-brightness = <255>;
+        };
+		led-2 {
+            label = "ot_green_led";
+            pwms = <&pwm10 0 1000000 0>;
+            max-brightness = <255>;
+        };
+		led-3 {
+            label = "pwr_red_led";
+            pwms = <&pwm14 0 1000000 0>;
+            max-brightness = <255>;
+        };
+		led-4 {
+            label = "pwr_green_led";
+            pwms = <&pwm11 0 1000000 0>;
+            max-brightness = <255>;
+        };
+		led-5 {
+            label = "bl_led";
+            pwms = <&pwm15 0 1000000 0>;
+            max-brightness = <255>;
+        };
+    };
+
 };
 
 
@@ -158,13 +188,36 @@
 	status = "disabled";
 };
 
-&pwm11 {
-	status = "disabled";
+// red OT LED
+&pwm9 {
+	status = "okay";
+	pinctrl-0 = <&pwm9m0_pins>;
 };
 
-&pwm14 {
-	status = "disabled";
+// green OT LED
+&pwm10 {
+	status = "okay";
+	pinctrl-0 = <&pwm10m0_pins>;
 };
+
+// green PWR LED
+&pwm11 {
+	status = "okay";
+	pinctrl-0 = <&pwm11m0_pins>;
+};
+
+// red PWR LED
+&pwm14 {
+	status = "okay";
+	pinctrl-0 = <&pwm14m0_pins>;
+};
+
+// PWM display backlight
+&pwm15 {
+	status = "okay";
+	pinctrl-0 = <&pwm15m0_pins>;
+};
+
 
 &i2c5 {
     status = "disabled";
