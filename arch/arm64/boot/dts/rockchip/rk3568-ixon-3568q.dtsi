@@ -23,6 +23,40 @@
 		regulator-name = "usb3_hub_reset_n";
 		regulator-always-on;
 	};
+
+	led-controller {
+		compatible = "pwm-leds";
+		led-1 {
+			label = "ot_red_led";
+			pwms = <&pwm9 0 10000 0>;
+			max-brightness = <100>;
+			default-brightness = <0>;
+		};
+		led-2 {
+			label = "ot_green_led";
+			pwms = <&pwm10 0 10000 0>;
+			max-brightness = <100>;
+			default-brightness = <0>;
+		};
+		led-3 {
+			label = "pwr_red_led";
+			pwms = <&pwm14 0 10000 0>;
+			max-brightness = <100>;
+			default-brightness = <100>;
+		};
+		led-4 {
+			label = "pwr_green_led";
+			pwms = <&pwm11 0 10000 0>;
+			max-brightness = <100>;
+			default-brightness = <0>;
+		};
+		led-5 {
+			label = "bl_led";
+			pwms = <&pwm15 0 10000 0>;
+			max-brightness = <100>;
+			default-brightness = <100>;
+		};
+	};
 };
 
 
@@ -158,13 +192,36 @@
 	status = "disabled";
 };
 
-&pwm11 {
-	status = "disabled";
+// red OT LED
+&pwm9 {
+	status = "okay";
+	pinctrl-0 = <&pwm9m0_pins>;
 };
 
-&pwm14 {
-	status = "disabled";
+// green OT LED
+&pwm10 {
+	status = "okay";
+	pinctrl-0 = <&pwm10m0_pins>;
 };
+
+// green PWR LED
+&pwm11 {
+	status = "okay";
+	pinctrl-0 = <&pwm11m0_pins>;
+};
+
+// red PWR LED
+&pwm14 {
+	status = "okay";
+	pinctrl-0 = <&pwm14m0_pins>;
+};
+
+// PWM display backlight
+&pwm15 {
+	status = "okay";
+	pinctrl-0 = <&pwm15m0_pins>;
+};
+
 
 &i2c5 {
     status = "disabled";
@@ -241,7 +298,7 @@
 		height = <240>;
 		reset-gpios = <&gpio3 RK_PA1 GPIO_ACTIVE_LOW>;
 		dc-gpios = <&gpio0 RK_PB6 GPIO_ACTIVE_HIGH>;
-		led-gpios = <&gpio3 RK_PC5 GPIO_ACTIVE_HIGH>;
+// 		led-gpios = <&gpio3 RK_PC5 GPIO_ACTIVE_HIGH>;
 		debug = <4>;
 		status = "okay";
 // 		bgr = <1>;
@@ -345,27 +402,27 @@
 
 			port@0 {
 				reg = <0>;
-				label = "lan0";
+				label = "ot/lan5";
 			};
 
 			port@1 {
 				reg = <1>;
-				label = "lan1";
+				label = "lan4";
 			};
 
 			port@2 {
 				reg = <2>;
-				label = "lan2";
+				label = "lan3";
 			};
 
 			port@3 {
 				reg = <3>;
-				label = "lan3";
+				label = "lan2";
 			};
 
 			port@4 {
 				reg = <4>;
-				label = "lan4";
+				label = "lan1";
 			};
 
 			cpu_port0: port@6 {
@@ -409,6 +466,7 @@
 };
 
 &rk809_codec {
+	status = "disabled";
     spk-ctl-gpios = <&pca9555 PCA_IO0_7 GPIO_ACTIVE_HIGH>;
 	/delete-property/ pinctrl-1;
     hp-ctl-gpios = <&gpio2 RK_PC1 GPIO_ACTIVE_HIGH>;
@@ -530,7 +588,7 @@
 	display_pins: display_pins {
 		rockchip,pins =
 			<0 RK_PB6 RK_FUNC_GPIO &pcfg_pull_up>,		  //dc_gpios
-			<3 RK_PC5 RK_FUNC_GPIO &pcfg_pull_up>,        //led_gpios
+// 			<3 RK_PC5 RK_FUNC_GPIO &pcfg_pull_up>,        //led_gpios
 			<3 RK_PA1 RK_FUNC_GPIO &pcfg_pull_up>;	      //reset_gpios
 		};
 	};
