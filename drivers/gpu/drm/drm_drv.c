@@ -610,7 +610,7 @@ static int drm_dev_init(struct drm_device *dev,
 	mutex_init(&dev->clientlist_mutex);
 	mutex_init(&dev->master_mutex);
 
-	ret = drmm_add_action(dev, drm_dev_init_release, NULL);
+	ret = drmm_add_action_or_reset(dev, drm_dev_init_release, NULL);
 	if (ret)
 		return ret;
 
@@ -1070,5 +1070,9 @@ error:
 	return ret;
 }
 
+#ifdef CONFIG_VIDEO_REVERSE_IMAGE
+fs_initcall(drm_core_init);
+#else
 module_init(drm_core_init);
+#endif
 module_exit(drm_core_exit);

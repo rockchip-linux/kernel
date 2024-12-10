@@ -13,6 +13,7 @@
 
 #include <linux/iommu.h>
 #include <linux/dma-mapping.h>
+#include <linux/interrupt.h>
 
 struct mpp_dma_buffer {
 	/* link to dma session buffer list */
@@ -64,6 +65,8 @@ struct mpp_rk_iommu {
 	u32 is_paged;
 };
 
+struct mpp_dev;
+
 struct mpp_iommu_info {
 	struct rw_semaphore rw_sem;
 
@@ -73,6 +76,10 @@ struct mpp_iommu_info {
 	struct iommu_group *group;
 	struct mpp_rk_iommu *iommu;
 	iommu_fault_handler_t hdl;
+
+	spinlock_t dev_lock;
+	struct mpp_dev *dev_active;
+
 	u32 av1d_iommu;
 	int irq;
 	int got_irq;
@@ -97,6 +104,9 @@ int mpp_dma_unmap_kernel(struct mpp_dma_session *dma,
 			 struct mpp_dma_buffer *buffer);
 int mpp_dma_map_kernel(struct mpp_dma_session *dma,
 		       struct mpp_dma_buffer *buffer);
+struct mpp_dma_buffer *mpp_dma_find_buffer_fd(struct mpp_dma_session *dma, int fd);
+void mpp_dma_buf_sync(struct mpp_dma_buffer *buffer, u32 offset, u32 length,
+		      enum dma_data_direction dir, bool for_cpu);
 
 struct mpp_iommu_info *
 mpp_iommu_probe(struct device *dev);
@@ -109,6 +119,9 @@ int mpp_iommu_refresh(struct mpp_iommu_info *info, struct device *dev);
 int mpp_iommu_flush_tlb(struct mpp_iommu_info *info);
 int mpp_av1_iommu_disable(struct device *dev);
 int mpp_av1_iommu_enable(struct device *dev);
+
+int mpp_iommu_dev_activate(struct mpp_iommu_info *info, struct mpp_dev *dev);
+int mpp_iommu_dev_deactivate(struct mpp_iommu_info *info, struct mpp_dev *dev);
 
 static inline int mpp_iommu_down_read(struct mpp_iommu_info *info)
 {
@@ -140,6 +153,18 @@ static inline int mpp_iommu_up_write(struct mpp_iommu_info *info)
 		up_write(&info->rw_sem);
 
 	return 0;
+}
+
+static inline void mpp_iommu_enable_irq(struct mpp_iommu_info *info)
+{
+	if (info && info->got_irq)
+		enable_irq(info->irq);
+}
+
+static inline void mpp_iommu_disable_irq(struct mpp_iommu_info *info)
+{
+	if (info && info->got_irq)
+		disable_irq(info->irq);
 }
 
 #endif

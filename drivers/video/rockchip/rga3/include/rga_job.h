@@ -21,12 +21,9 @@ enum job_flags {
 	RGA_JOB_UNSUPPORT_RGA_MMU	= 1 << 4,
 };
 
-struct rga_scheduler_t *rga_job_get_scheduler(struct rga_job *job);
-
-void rga_job_session_destroy(struct rga_session *session);
-
 void rga_job_scheduler_dump_info(struct rga_scheduler_t *scheduler);
-void rga_job_done(struct rga_scheduler_t *scheduler, int ret);
+void rga_job_next(struct rga_scheduler_t *scheduler);
+struct rga_job *rga_job_done(struct rga_scheduler_t *scheduler);
 struct rga_job *rga_job_commit(struct rga_req *rga_command_base, struct rga_request *request);
 int rga_job_mpi_commit(struct rga_req *rga_command_base, struct rga_request *request);
 
@@ -38,6 +35,7 @@ struct rga_request *rga_request_lookup(struct rga_pending_request_manager *reque
 				       uint32_t id);
 
 int rga_request_commit(struct rga_request *user_request);
+void rga_request_session_destroy_abort(struct rga_session *session);
 int rga_request_put(struct rga_request *request);
 void rga_request_get(struct rga_request *request);
 int rga_request_free(struct rga_request *request);
@@ -51,11 +49,5 @@ int rga_request_release_signal(struct rga_scheduler_t *scheduler, struct rga_job
 
 int rga_request_manager_init(struct rga_pending_request_manager **request_manager_session);
 int rga_request_manager_remove(struct rga_pending_request_manager **request_manager_session);
-
-struct rga_job *
-rga_scheduler_get_pending_job_list(struct rga_scheduler_t *scheduler);
-
-struct rga_job *
-rga_scheduler_get_running_job(struct rga_scheduler_t *scheduler);
 
 #endif /* __LINUX_RKRGA_JOB_H_ */

@@ -957,6 +957,47 @@ int sdei_event_routing_set(u32 event_num, unsigned long flags,
 
 	return err;
 }
+
+static int sdei_api_interrupt_bind(u32 intr_num, u64 *result)
+{
+	return invoke_sdei_fn(SDEI_1_0_FN_SDEI_INTERRUPT_BIND, intr_num, 0, 0, 0,
+			      0, result);
+}
+
+int sdei_interrupt_bind(u32 intr_num, u32 *event_num)
+{
+	int err;
+	u64 result;
+
+	err = sdei_api_interrupt_bind(intr_num, &result);
+	if (!err)
+		*event_num = (u32)result;
+
+	return err;
+}
+
+static int sdei_api_interrupt_release(u32 event_num)
+{
+	return invoke_sdei_fn(SDEI_1_0_FN_SDEI_INTERRUPT_RELEASE, event_num, 0, 0, 0,
+			      0, NULL);
+}
+
+int sdei_interrupt_release(u32 event_num)
+{
+	struct sdei_event *event;
+
+	mutex_lock(&sdei_events_lock);
+	event = sdei_event_find(event_num);
+	mutex_unlock(&sdei_events_lock);
+
+	if (event) {
+		pr_err("%s: need unregister event:%d before release\n",
+		       __func__, event_num);
+		return SDEI_DENIED;
+	}
+
+	return sdei_api_interrupt_release(event_num);
+}
 #endif
 
 static int sdei_get_conduit(struct platform_device *pdev)
@@ -1099,14 +1140,14 @@ static bool __init sdei_present_acpi(void)
 	return true;
 }
 
-static int __init sdei_init(void)
+void __init sdei_init(void)
 {
 	struct platform_device *pdev;
 	int ret;
 
 	ret = platform_driver_register(&sdei_driver);
 	if (ret || !sdei_present_acpi())
-		return ret;
+		return;
 
 	pdev = platform_device_register_simple(sdei_driver.driver.name,
 					       0, NULL, 0);
@@ -1116,16 +1157,7 @@ static int __init sdei_init(void)
 		pr_info("Failed to register ACPI:SDEI platform device %d\n",
 			ret);
 	}
-
-	return ret;
 }
-
-/*
- * On an ACPI system SDEI needs to be ready before HEST:GHES tries to register
- * its events. ACPI is initialised from a subsys_initcall(), GHES is initialised
- * by device_initcall(). We want to be called in the middle.
- */
-subsys_initcall_sync(sdei_init);
 
 int sdei_event_handler(struct pt_regs *regs,
 		       struct sdei_registered_event *arg)
@@ -1154,3 +1186,22 @@ int sdei_event_handler(struct pt_regs *regs,
 	return err;
 }
 NOKPROBE_SYMBOL(sdei_event_handler);
+
+void sdei_handler_abort(void)
+{
+	/*
+	 * If the crash happened in an SDEI event handler then we need to
+	 * finish the handler with the firmware so that we can have working
+	 * interrupts in the crash kernel.
+	 */
+	if (__this_cpu_read(sdei_active_critical_event)) {
+	        pr_warn("still in SDEI critical event context, attempting to finish handler.\n");
+	        __sdei_handler_abort();
+	        __this_cpu_write(sdei_active_critical_event, NULL);
+	}
+	if (__this_cpu_read(sdei_active_normal_event)) {
+	        pr_warn("still in SDEI normal event context, attempting to finish handler.\n");
+	        __sdei_handler_abort();
+	        __this_cpu_write(sdei_active_normal_event, NULL);
+	}
+}

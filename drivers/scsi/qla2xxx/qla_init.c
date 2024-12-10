@@ -483,6 +483,7 @@ static
 void qla24xx_handle_adisc_event(scsi_qla_host_t *vha, struct event_arg *ea)
 {
 	struct fc_port *fcport = ea->fcport;
+	unsigned long flags;
 
 	ql_dbg(ql_dbg_disc, vha, 0x20d2,
 	    "%s %8phC DS %d LS %d rc %d login %d|%d rscn %d|%d lid %d\n",
@@ -497,9 +498,15 @@ void qla24xx_handle_adisc_event(scsi_qla_host_t *vha, struct event_arg *ea)
 		ql_dbg(ql_dbg_disc, vha, 0x2066,
 		    "%s %8phC: adisc fail: post delete\n",
 		    __func__, ea->fcport->port_name);
+
+		spin_lock_irqsave(&vha->work_lock, flags);
 		/* deleted = 0 & logout_on_delete = force fw cleanup */
-		fcport->deleted = 0;
+		if (fcport->deleted == QLA_SESS_DELETED)
+			fcport->deleted = 0;
+
 		fcport->logout_on_delete = 1;
+		spin_unlock_irqrestore(&vha->work_lock, flags);
+
 		qlt_schedule_sess_for_deletion(ea->fcport);
 		return;
 	}
@@ -1405,7 +1412,6 @@ void __qla24xx_handle_gpdb_event(scsi_qla_host_t *vha, struct event_arg *ea)
 
 	spin_lock_irqsave(&vha->hw->tgt.sess_lock, flags);
 	ea->fcport->login_gen++;
-	ea->fcport->deleted = 0;
 	ea->fcport->logout_on_delete = 1;
 
 	if (!ea->fcport->login_succ && !IS_SW_RESV_ADDR(ea->fcport->d_id)) {
@@ -1734,7 +1740,8 @@ void qla2x00_handle_rscn(scsi_qla_host_t *vha, struct event_arg *ea)
 	case RSCN_PORT_ADDR:
 		fcport = qla2x00_find_fcport_by_nportid(vha, &ea->id, 1);
 		if (fcport) {
-			if (fcport->flags & FCF_FCP2_DEVICE) {
+			if (fcport->flags & FCF_FCP2_DEVICE &&
+			    atomic_read(&fcport->state) == FCS_ONLINE) {
 				ql_dbg(ql_dbg_disc, vha, 0x2115,
 				       "Delaying session delete for FCP2 portid=%06x %8phC ",
 					fcport->d_id.b24, fcport->port_name);
@@ -1746,7 +1753,8 @@ void qla2x00_handle_rscn(scsi_qla_host_t *vha, struct event_arg *ea)
 		break;
 	case RSCN_AREA_ADDR:
 		list_for_each_entry(fcport, &vha->vp_fcports, list) {
-			if (fcport->flags & FCF_FCP2_DEVICE)
+			if (fcport->flags & FCF_FCP2_DEVICE &&
+			    atomic_read(&fcport->state) == FCS_ONLINE)
 				continue;
 
 			if ((ea->id.b24 & 0xffff00) == (fcport->d_id.b24 & 0xffff00)) {
@@ -1757,7 +1765,8 @@ void qla2x00_handle_rscn(scsi_qla_host_t *vha, struct event_arg *ea)
 		break;
 	case RSCN_DOM_ADDR:
 		list_for_each_entry(fcport, &vha->vp_fcports, list) {
-			if (fcport->flags & FCF_FCP2_DEVICE)
+			if (fcport->flags & FCF_FCP2_DEVICE &&
+			    atomic_read(&fcport->state) == FCS_ONLINE)
 				continue;
 
 			if ((ea->id.b24 & 0xff0000) == (fcport->d_id.b24 & 0xff0000)) {
@@ -1769,7 +1778,8 @@ void qla2x00_handle_rscn(scsi_qla_host_t *vha, struct event_arg *ea)
 	case RSCN_FAB_ADDR:
 	default:
 		list_for_each_entry(fcport, &vha->vp_fcports, list) {
-			if (fcport->flags & FCF_FCP2_DEVICE)
+			if (fcport->flags & FCF_FCP2_DEVICE &&
+			    atomic_read(&fcport->state) == FCS_ONLINE)
 				continue;
 
 			fcport->scan_needed = 1;
@@ -4328,17 +4338,20 @@ qla2x00_init_rings(scsi_qla_host_t *vha)
 			 BIT_6) != 0;
 		ql_dbg(ql_dbg_init, vha, 0x00bc, "FA-WWPN Support: %s.\n",
 		    (ha->flags.fawwpn_enabled) ? "enabled" : "disabled");
+		/* Init_cb will be reused for other command(s).  Save a backup copy of port_name */
+		memcpy(ha->port_name, ha->init_cb->port_name, WWN_SIZE);
 	}
 
+	QLA_FW_STARTED(ha);
 	rval = qla2x00_init_firmware(vha, ha->init_cb_size);
 next_check:
 	if (rval) {
+		QLA_FW_STOPPED(ha);
 		ql_log(ql_log_fatal, vha, 0x00d2,
 		    "Init Firmware **** FAILED ****.\n");
 	} else {
 		ql_dbg(ql_dbg_init, vha, 0x00d3,
 		    "Init Firmware -- success.\n");
-		QLA_FW_STARTED(ha);
 		vha->u_ql2xexchoffld = vha->u_ql2xiniexchg = 0;
 	}
 
@@ -5268,6 +5281,22 @@ static int qla2x00_configure_n2n_loop(scsi_qla_host_t *vha)
 	return QLA_FUNCTION_FAILED;
 }
 
+static void
+qla_reinitialize_link(scsi_qla_host_t *vha)
+{
+	int rval;
+
+	atomic_set(&vha->loop_state, LOOP_DOWN);
+	atomic_set(&vha->loop_down_timer, LOOP_DOWN_TIME);
+	rval = qla2x00_full_login_lip(vha);
+	if (rval == QLA_SUCCESS) {
+		ql_dbg(ql_dbg_disc, vha, 0xd050, "Link reinitialized\n");
+	} else {
+		ql_dbg(ql_dbg_disc, vha, 0xd051,
+			"Link reinitialization failed (%d)\n", rval);
+	}
+}
+
 /*
  * qla2x00_configure_local_loop
  *	Updates Fibre Channel Device Database with local loop devices.
@@ -5319,6 +5348,19 @@ qla2x00_configure_local_loop(scsi_qla_host_t *vha)
 		spin_unlock_irqrestore(&vha->work_lock, flags);
 
 		if (vha->scan.scan_retry < MAX_SCAN_RETRIES) {
+			u8 loop_map_entries = 0;
+			int rc;
+
+			rc = qla2x00_get_fcal_position_map(vha, NULL,
+						&loop_map_entries);
+			if (rc == QLA_SUCCESS && loop_map_entries > 1) {
+				/*
+				 * There are devices that are still not logged
+				 * in. Reinitialize to give them a chance.
+				 */
+				qla_reinitialize_link(vha);
+				return QLA_FUNCTION_FAILED;
+			}
 			set_bit(LOCAL_LOOP_UPDATE, &vha->dpc_flags);
 			set_bit(LOOP_RESYNC_NEEDED, &vha->dpc_flags);
 		}
@@ -5547,8 +5589,6 @@ qla2x00_reg_remote_port(scsi_qla_host_t *vha, fc_port_t *fcport)
 	if (atomic_read(&fcport->state) == FCS_ONLINE)
 		return;
 
-	qla2x00_set_fcport_state(fcport, FCS_ONLINE);
-
 	rport_ids.node_name = wwn_to_u64(fcport->node_name);
 	rport_ids.port_name = wwn_to_u64(fcport->port_name);
 	rport_ids.port_id = fcport->d_id.b.domain << 16 |
@@ -5606,6 +5646,8 @@ qla2x00_reg_remote_port(scsi_qla_host_t *vha, fc_port_t *fcport)
 void
 qla2x00_update_fcport(scsi_qla_host_t *vha, fc_port_t *fcport)
 {
+	unsigned long flags;
+
 	if (IS_SW_RESV_ADDR(fcport->d_id))
 		return;
 
@@ -5615,7 +5657,11 @@ qla2x00_update_fcport(scsi_qla_host_t *vha, fc_port_t *fcport)
 	qla2x00_set_fcport_disc_state(fcport, DSC_UPD_FCPORT);
 	fcport->login_retry = vha->hw->login_retry_count;
 	fcport->flags &= ~(FCF_LOGIN_NEEDED | FCF_ASYNC_SENT);
+
+	spin_lock_irqsave(&vha->work_lock, flags);
 	fcport->deleted = 0;
+	spin_unlock_irqrestore(&vha->work_lock, flags);
+
 	if (vha->hw->current_topology == ISP_CFG_NL)
 		fcport->logout_on_delete = 0;
 	else
@@ -5649,7 +5695,6 @@ qla2x00_update_fcport(scsi_qla_host_t *vha, fc_port_t *fcport)
 		qla2x00_reg_remote_port(vha, fcport);
 		break;
 	case MODE_TARGET:
-		qla2x00_set_fcport_state(fcport, FCS_ONLINE);
 		if (!vha->vha_tgt.qla_tgt->tgt_stop &&
 			!vha->vha_tgt.qla_tgt->tgt_stopped)
 			qlt_fc_port_added(vha, fcport);
@@ -5663,6 +5708,8 @@ qla2x00_update_fcport(scsi_qla_host_t *vha, fc_port_t *fcport)
 	default:
 		break;
 	}
+
+	qla2x00_set_fcport_state(fcport, FCS_ONLINE);
 
 	if (IS_IIDMA_CAPABLE(vha->hw) && vha->hw->flags.gpsc_supported) {
 		if (fcport->id_changed) {
@@ -6879,14 +6926,15 @@ qla2x00_abort_isp_cleanup(scsi_qla_host_t *vha)
 	}
 
 	/* purge MBox commands */
-	if (atomic_read(&ha->num_pend_mbx_stage3)) {
+	spin_lock_irqsave(&ha->hardware_lock, flags);
+	if (test_bit(MBX_INTR_WAIT, &ha->mbx_cmd_flags)) {
 		clear_bit(MBX_INTR_WAIT, &ha->mbx_cmd_flags);
 		complete(&ha->mbx_intr_comp);
 	}
+	spin_unlock_irqrestore(&ha->hardware_lock, flags);
 
 	i = 0;
-	while (atomic_read(&ha->num_pend_mbx_stage3) ||
-	    atomic_read(&ha->num_pend_mbx_stage2) ||
+	while (atomic_read(&ha->num_pend_mbx_stage2) ||
 	    atomic_read(&ha->num_pend_mbx_stage1)) {
 		msleep(20);
 		i++;
@@ -6935,22 +6983,18 @@ qla2x00_abort_isp_cleanup(scsi_qla_host_t *vha)
 	}
 	spin_unlock_irqrestore(&ha->vport_slock, flags);
 
-	if (!ha->flags.eeh_busy) {
-		/* Make sure for ISP 82XX IO DMA is complete */
-		if (IS_P3P_TYPE(ha)) {
-			qla82xx_chip_reset_cleanup(vha);
-			ql_log(ql_log_info, vha, 0x00b4,
-			    "Done chip reset cleanup.\n");
+	/* Make sure for ISP 82XX IO DMA is complete */
+	if (IS_P3P_TYPE(ha)) {
+		qla82xx_chip_reset_cleanup(vha);
+		ql_log(ql_log_info, vha, 0x00b4,
+		       "Done chip reset cleanup.\n");
 
-			/* Done waiting for pending commands.
-			 * Reset the online flag.
-			 */
-			vha->flags.online = 0;
-		}
-
-		/* Requeue all commands in outstanding command list. */
-		qla2x00_abort_all_cmds(vha, DID_RESET << 16);
+		/* Done waiting for pending commands. Reset online flag */
+		vha->flags.online = 0;
 	}
+
+	/* Requeue all commands in outstanding command list. */
+	qla2x00_abort_all_cmds(vha, DID_RESET << 16);
 	/* memory barrier */
 	wmb();
 }
@@ -6977,6 +7021,12 @@ qla2x00_abort_isp(scsi_qla_host_t *vha)
 
 	if (vha->flags.online) {
 		qla2x00_abort_isp_cleanup(vha);
+
+		if (qla2x00_isp_reg_stat(ha)) {
+			ql_log(ql_log_info, vha, 0x803f,
+			       "ISP Abort - ISP reg disconnect, exiting.\n");
+			return status;
+		}
 
 		if (test_and_clear_bit(ISP_ABORT_TO_ROM, &vha->dpc_flags)) {
 			ha->flags.chip_reset_done = 1;
@@ -7018,8 +7068,18 @@ qla2x00_abort_isp(scsi_qla_host_t *vha)
 
 		ha->isp_ops->get_flash_version(vha, req->ring);
 
+		if (qla2x00_isp_reg_stat(ha)) {
+			ql_log(ql_log_info, vha, 0x803f,
+			       "ISP Abort - ISP reg disconnect pre nvram config, exiting.\n");
+			return status;
+		}
 		ha->isp_ops->nvram_config(vha);
 
+		if (qla2x00_isp_reg_stat(ha)) {
+			ql_log(ql_log_info, vha, 0x803f,
+			       "ISP Abort - ISP reg disconnect post nvmram config, exiting.\n");
+			return status;
+		}
 		if (!qla2x00_restart_isp(vha)) {
 			clear_bit(RESET_MARKER_NEEDED, &vha->dpc_flags);
 

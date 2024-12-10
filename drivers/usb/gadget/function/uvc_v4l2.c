@@ -58,6 +58,7 @@ struct uvc_format {
 
 static struct uvc_format uvc_formats[] = {
 	{ 16, V4L2_PIX_FMT_YUYV  },
+	{ 12, V4L2_PIX_FMT_NV12  },
 	{ 0,  V4L2_PIX_FMT_MJPEG },
 	{ 0,  V4L2_PIX_FMT_H264  },
 	{ 0,  V4L2_PIX_FMT_H265  },
@@ -173,7 +174,7 @@ uvc_v4l2_qbuf(struct file *file, void *fh, struct v4l2_buffer *b)
 		return ret;
 
 	if (uvc->state == UVC_STATE_STREAMING)
-		schedule_work(&video->pump);
+		queue_work(video->async_wq, &video->pump);
 
 	return ret;
 }
@@ -199,7 +200,7 @@ uvc_v4l2_streamon(struct file *file, void *fh, enum v4l2_buf_type type)
 	if (type != video->queue.queue.type)
 		return -EINVAL;
 
-	if (uvc->state != UVC_STATE_CONNECTED)
+	if (uvc->state == UVC_STATE_DISCONNECTED)
 		return -ENODEV;
 
 	/* Enable UVC video. */
@@ -213,16 +214,15 @@ uvc_v4l2_streamon(struct file *file, void *fh, enum v4l2_buf_type type)
 	 * settings for zero-bandwidth and full-bandwidth
 	 * cases, but the same is not true for BULK endpoints,
 	 * as they have a single alt-setting.
+	 *
+	 * For ISOC endpoints, Complete the alternate setting
+	 * selection setup phase now that userspace is ready
+	 * to provide video frames.
 	 */
-	if (!usb_endpoint_xfer_bulk(video->ep->desc)) {
-		/*
-		 * Complete the alternate setting selection
-		 * setup phase now that userspace is ready
-		 * to provide video frames.
-		 */
+	if (!usb_endpoint_xfer_bulk(video->ep->desc))
 		uvc_function_setup_continue(uvc);
-		uvc->state = UVC_STATE_STREAMING;
-	}
+
+	uvc->state = UVC_STATE_STREAMING;
 
 	return 0;
 }

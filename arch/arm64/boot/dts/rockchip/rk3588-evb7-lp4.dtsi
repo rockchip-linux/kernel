@@ -76,24 +76,16 @@
 		>;
 	};
 
-	hdmiin_dc: hdmiin-dc {
-		compatible = "rockchip,dummy-codec";
-		#sound-dai-cells = <0>;
-	};
-
 	hdmiin-sound {
-		compatible = "simple-audio-card";
-		simple-audio-card,format = "i2s";
-		simple-audio-card,name = "rockchip,hdmiin";
-		simple-audio-card,bitclock-master = <&dailink0_master>;
-		simple-audio-card,frame-master = <&dailink0_master>;
-		status = "okay";
-		simple-audio-card,cpu {
-			sound-dai = <&i2s7_8ch>;
-		};
-		dailink0_master: simple-audio-card,codec {
-			sound-dai = <&hdmiin_dc>;
-		};
+		compatible = "rockchip,hdmi";
+		rockchip,mclk-fs = <128>;
+		rockchip,format = "i2s";
+		rockchip,bitclock-master = <&hdmirx_ctrler>;
+		rockchip,frame-master = <&hdmirx_ctrler>;
+		rockchip,card-name = "rockchip,hdmiin";
+		rockchip,cpu = <&i2s7_8ch>;
+		rockchip,codec = <&hdmirx_ctrler 0>;
+		rockchip,jack-det;
 	};
 
 	pcie20_avdd0v85: pcie20-avdd0v85 {
@@ -412,6 +404,7 @@
 &hdmirx_ctrler {
 	status = "okay";
 
+	#sound-dai-cells = <1>;
 	/* Effective level used to trigger HPD: 0-low, 1-high */
 	hpd-trigger-level = <1>;
 	hdmirx-det-gpios = <&gpio1 RK_PD5 GPIO_ACTIVE_LOW>;
@@ -522,22 +515,24 @@
 		poll_delay_ms = <100>;
 	};
 
-	mpu6500_acc: mpu_acc@68 {
-		compatible = "mpu6500_acc";
+	icm42607_acc: icm_acc@68 {
+		status = "okay";
+		compatible = "icm42607_acc";
 		reg = <0x68>;
 		irq-gpio = <&gpio4 RK_PC2 IRQ_TYPE_EDGE_RISING>;
 		irq_enable = <0>;
 		poll_delay_ms = <30>;
 		type = <SENSOR_TYPE_ACCEL>;
-		layout = <5>;
+		layout = <0>;
 	};
 
-	mpu6500_gyro: mpu_gyro@68 {
-		compatible = "mpu6500_gyro";
+	icm42607_gyro: icm_gyro@68 {
+		status = "okay";
+		compatible = "icm42607_gyro";
 		reg = <0x68>;
 		poll_delay_ms = <30>;
 		type = <SENSOR_TYPE_GYROSCOPE>;
-		layout = <5>;
+		layout = <0>;
 	};
 };
 
@@ -578,13 +573,18 @@
 		#sound-dai-cells = <0>;
 		compatible = "everest,es8388", "everest,es8323";
 		reg = <0x11>;
-		clocks = <&cru I2S0_8CH_MCLKOUT>;
+		clocks = <&mclkout_i2s0>;
 		clock-names = "mclk";
-		assigned-clocks = <&cru I2S0_8CH_MCLKOUT>;
+		assigned-clocks = <&mclkout_i2s0>;
 		assigned-clock-rates = <12288000>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&i2s0_mclk>;
 	};
+};
+
+&i2s2_2ch {
+	pinctrl-0 = <&i2s2m0_sclk &i2s2m0_lrck &i2s2m0_sdi &i2s2m0_sdo>;
+	status = "disabled";
 };
 
 &i2s5_8ch {
@@ -627,6 +627,8 @@
 &pcie3x4 {
 	reset-gpios = <&gpio4 RK_PB3 GPIO_ACTIVE_HIGH>;
 	vpcie3v3-supply = <&vcc3v3_pcie30>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pcie30x4_clkreqn_m1>;
 	status = "okay";
 };
 
@@ -676,6 +678,12 @@
 	lcd {
 		lcd_rst_gpio: lcd-rst-gpio {
 			rockchip,pins = <0 RK_PD3 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	pcie30x4 {
+		pcie30x4_clkreqn_m1: pcie30x4-clkreqn-m1 {
+			rockchip,pins = <4 RK_PB4 RK_FUNC_GPIO &pcfg_pull_down>;
 		};
 	};
 

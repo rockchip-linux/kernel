@@ -526,9 +526,7 @@ static int ov02b10_g_frame_interval(struct v4l2_subdev *sd,
 	struct ov02b10 *ov02b10 = to_ov02b10(sd);
 	const struct ov02b10_mode *mode = ov02b10->cur_mode;
 
-	mutex_lock(&ov02b10->mutex);
 	fi->interval = mode->max_fps;
-	mutex_unlock(&ov02b10->mutex);
 
 	return 0;
 }
@@ -923,7 +921,7 @@ static void __ov02b10_power_off(struct ov02b10 *ov02b10)
 	regulator_bulk_disable(OV02B10_NUM_SUPPLIES, ov02b10->supplies);
 }
 
-static int ov02b10_runtime_resume(struct device *dev)
+static int __maybe_unused ov02b10_runtime_resume(struct device *dev)
 {
 	struct i2c_client *client = to_i2c_client(dev);
 	struct v4l2_subdev *sd = i2c_get_clientdata(client);
@@ -932,7 +930,7 @@ static int ov02b10_runtime_resume(struct device *dev)
 	return __ov02b10_power_on(ov02b10);
 }
 
-static int ov02b10_runtime_suspend(struct device *dev)
+static int __maybe_unused ov02b10_runtime_suspend(struct device *dev)
 {
 	struct i2c_client *client = to_i2c_client(dev);
 	struct v4l2_subdev *sd = i2c_get_clientdata(client);

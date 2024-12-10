@@ -1396,8 +1396,8 @@ static void sc500ai_modify_fps_info(struct sc500ai *sc500ai)
 {
 	const struct sc500ai_mode *mode = sc500ai->cur_mode;
 
-	sc500ai->cur_fps.denominator = mode->max_fps.denominator * sc500ai->cur_vts /
-				       mode->vts_def;
+	sc500ai->cur_fps.denominator = mode->max_fps.denominator * mode->vts_def /
+				       sc500ai->cur_vts;
 }
 
 static int sc500ai_set_ctrl(struct v4l2_ctrl *ctrl)
@@ -1433,7 +1433,7 @@ static int sc500ai_set_ctrl(struct v4l2_ctrl *ctrl)
 	switch (ctrl->id) {
 	case V4L2_CID_EXPOSURE:
 		if (sc500ai->cur_mode->hdr_mode != NO_HDR)
-			return ret;
+			goto ctrl_end;
 		val = ctrl->val << 1;
 		ret = sc500ai_write_reg(sc500ai->client,
 					SC500AI_REG_EXPOSURE_H,
@@ -1452,7 +1452,7 @@ static int sc500ai_set_ctrl(struct v4l2_ctrl *ctrl)
 		break;
 	case V4L2_CID_ANALOGUE_GAIN:
 		if (sc500ai->cur_mode->hdr_mode != NO_HDR)
-			return ret;
+			goto ctrl_end;
 
 		sc500ai_get_gain_reg(ctrl->val, &again, &again_fine, &dgain, &dgain_fine);
 		ret = sc500ai_write_reg(sc500ai->client,
@@ -1489,8 +1489,7 @@ static int sc500ai_set_ctrl(struct v4l2_ctrl *ctrl)
 					 vts & 0xff);
 		if (!ret)
 			sc500ai->cur_vts = vts;
-		if (sc500ai->cur_vts != sc500ai->cur_mode->vts_def)
-			sc500ai_modify_fps_info(sc500ai);
+		sc500ai_modify_fps_info(sc500ai);
 		break;
 	case V4L2_CID_HFLIP:
 		ret = sc500ai_read_reg(sc500ai->client, SC500AI_FLIP_MIRROR_REG,
@@ -1557,6 +1556,7 @@ static int sc500ai_set_ctrl(struct v4l2_ctrl *ctrl)
 		break;
 	}
 
+ctrl_end:
 	pm_runtime_put(&client->dev);
 
 	return ret;

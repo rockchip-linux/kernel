@@ -8,6 +8,7 @@
 #include <dt-bindings/display/drm_mipi_dsi.h>
 #include <dt-bindings/sensor-dev.h>
 #include <dt-bindings/pwm/pwm.h>
+#include "dt-bindings/usb/pd.h"
 #include "rk3399pro.dtsi"
 #include "rk3399-linux.dtsi"
 #include "rk3399-opp.dtsi"
@@ -135,6 +136,8 @@
 		prepare-delay-ms = <20>;
 		enable-delay-ms = <20>;
 		reset-delay-ms = <20>;
+		width-mm = <120>;
+		height-mm = <160>;
 
 		display-timings {
 			native-mode = <&timing0>;
@@ -208,6 +211,16 @@
 		regulator-boot-on;
 	};
 
+	vbus_typec: vbus-typec-regulator {
+		compatible = "regulator-fixed";
+		enable-active-high;
+		gpio = <&gpio1 18 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&vcc5v0_typec0_en>;
+		regulator-name = "vbus_typec";
+		vin-supply = <&vcc5v0_sys>;
+	};
+
 	vcc5v0_sys: vccsys {
 		compatible = "regulator-fixed";
 		regulator-name = "vcc5v0_sys";
@@ -243,7 +256,6 @@
 
 &cdn_dp {
 	status = "okay";
-	extcon = <&fusb0>;
 	phys = <&tcphy0_dp>;
 };
 
@@ -703,8 +715,8 @@
 		};
 	};
 
-	vdd_cpu_b: tcs452x@1c {
-		compatible = "tcs,tcs452x";
+	vdd_cpu_b: tcs4525@1c {
+		compatible = "tcs,tcs4525";
 		reg = <0x1c>;
 		vin-supply = <&vcc5v0_sys>;
 		regulator-compatible = "fan53555-reg";
@@ -723,8 +735,8 @@
 		};
 	};
 
-	vdd_gpu: tcs452x@10 {
-		compatible = "tcs,tcs452x";
+	vdd_gpu: tcs4526@10 {
+		compatible = "tcs,tcs4526";
 		reg = <0x10>;
 		vin-supply = <&vcc5v0_sys>;
 		regulator-compatible = "fan53555-reg";
@@ -746,7 +758,6 @@
 	bq25700: bq25700@6b {
 		compatible = "ti,bq25703";
 		reg = <0x6b>;
-		extcon = <&fusb0>;
 		interrupt-parent = <&gpio1>;
 		interrupts = <RK_PA1 IRQ_TYPE_LEVEL_LOW>;
 		pinctrl-names = "default";
@@ -1072,8 +1083,16 @@
 };
 
 &tcphy0 {
-	extcon = <&fusb0>;
 	status = "okay";
+	orientation-switch;
+	port {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		tcphy0_orientation_switch: endpoint@0 {
+			reg = <0>;
+			remote-endpoint = <&usbc0_orien_sw>;
+		};
+	};
 };
 
 &tcphy1 {
@@ -1144,7 +1163,15 @@
 
 &usbdrd_dwc3_0 {
 	status = "okay";
-	extcon = <&fusb0>;
+	usb-role-switch;
+	port {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		dwc3_0_role_switch: endpoint@0 {
+			reg = <0>;
+			remote-endpoint = <&usbc0_role_sw>;
+		};
+	};
 };
 
 &usbdrd_dwc3_1 {
@@ -1175,13 +1202,6 @@
 		charger_ok_int: charger-ok-int {
 			rockchip,pins =
 				<1 RK_PA1 RK_FUNC_GPIO &pcfg_pull_up>;
-			};
-	};
-
-	fusb30x {
-		fusb0_int: fusb0-int {
-			rockchip,pins =
-				<1 RK_PA2 RK_FUNC_GPIO &pcfg_pull_up>;
 			};
 	};
 
@@ -1272,6 +1292,16 @@
 		tp_irq_gpio: tp-irq-gpio {
 			rockchip,pins =
 				<3 RK_PB0 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+	};
+
+	usb-typec {
+		usbc0_int: usbc0-int {
+			rockchip,pins = <1 RK_PA2 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+
+	vcc5v0_typec0_en: vcc5v0-typec0-en {
+		rockchip,pins = <1 RK_PC2 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
 

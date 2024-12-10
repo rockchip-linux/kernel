@@ -87,7 +87,7 @@
 	dp0_sound: dp0-sound {
 		status = "disabled";
 		compatible = "rockchip,hdmi";
-		rockchip,card-name= "rockchip,dp0";
+		rockchip,card-name= "rockchip-dp0";
 		rockchip,mclk-fs = <512>;
 		rockchip,cpu = <&spdif_tx2>;
 		rockchip,codec = <&dp0 1>;
@@ -96,17 +96,12 @@
 
 	hdmi0_sound: hdmi0-sound {
 		status = "disabled";
-		compatible = "simple-audio-card";
-		simple-audio-card,format = "i2s";
-		simple-audio-card,mclk-fs = <128>;
-		simple-audio-card,name = "rockchip,hdmi0";
-
-		simple-audio-card,cpu {
-			sound-dai = <&i2s5_8ch>;
-		};
-		simple-audio-card,codec {
-			sound-dai = <&hdmi0>;
-		};
+		compatible = "rockchip,hdmi";
+		rockchip,mclk-fs = <128>;
+		rockchip,card-name = "rockchip-hdmi0";
+		rockchip,cpu = <&i2s5_8ch>;
+		rockchip,codec = <&hdmi0>;
+		rockchip,jack-det;
 	};
 
 	spdif_tx1_dc: spdif-tx1-dc {
@@ -119,6 +114,7 @@
 		status = "disabled";
 		compatible = "simple-audio-card";
 		simple-audio-card,name = "rockchip,spdif-tx1";
+		simple-audio-card,mclk-fs = <128>;
 		simple-audio-card,cpu {
 			sound-dai = <&spdif_tx1>;
 		};
@@ -987,6 +983,8 @@
 };
 
 &rkvenc0 {
+	venc-supply = <&vdd_vdenc_s0>;
+	mem-supply = <&vdd_vdenc_mem_s0>;
 	status = "okay";
 };
 
@@ -995,6 +993,8 @@
 };
 
 &rkvenc1 {
+	venc-supply = <&vdd_vdenc_s0>;
+	mem-supply = <&vdd_vdenc_mem_s0>;
 	status = "okay";
 };
 
@@ -1020,6 +1020,7 @@
 	max-frequency = <200000000>;
 	mmc-hs400-1_8v;
 	mmc-hs400-enhanced-strobe;
+	full-pwr-cycle-in-suspend;
 	status = "okay";
 };
 

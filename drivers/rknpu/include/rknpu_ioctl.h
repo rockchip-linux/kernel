@@ -25,7 +25,6 @@
 #define RKNPU_OFFSET_PC_DATA_AMOUNT 0x14
 #define RKNPU_OFFSET_PC_TASK_CONTROL 0x30
 #define RKNPU_OFFSET_PC_DMA_BASE_ADDR 0x34
-#define RKNPU_OFFSET_PC_TASK_STATUS 0x3c
 
 #define RKNPU_OFFSET_INT_MASK 0x20
 #define RKNPU_OFFSET_INT_CLEAR 0x24
@@ -74,15 +73,17 @@ enum e_rknpu_mem_type {
 	RKNPU_MEM_ZEROING = 1 << 5,
 	/* allocate secure buffer */
 	RKNPU_MEM_SECURE = 1 << 6,
-	/* allocate from non-dma32 zone */
-	RKNPU_MEM_NON_DMA32 = 1 << 7,
+	/* allocate from dma32 zone */
+	RKNPU_MEM_DMA32 = 1 << 7,
 	/* request SRAM */
 	RKNPU_MEM_TRY_ALLOC_SRAM = 1 << 8,
+	/* request NBUF */
+	RKNPU_MEM_TRY_ALLOC_NBUF = 1 << 9,
 	RKNPU_MEM_MASK = RKNPU_MEM_NON_CONTIGUOUS | RKNPU_MEM_CACHEABLE |
 			 RKNPU_MEM_WRITE_COMBINE | RKNPU_MEM_KERNEL_MAPPING |
 			 RKNPU_MEM_IOMMU | RKNPU_MEM_ZEROING |
-			 RKNPU_MEM_SECURE | RKNPU_MEM_NON_DMA32 |
-			 RKNPU_MEM_TRY_ALLOC_SRAM
+			 RKNPU_MEM_SECURE | RKNPU_MEM_DMA32 |
+			 RKNPU_MEM_TRY_ALLOC_SRAM | RKNPU_MEM_TRY_ALLOC_NBUF
 };
 
 /* sync mode definitions. */
@@ -250,7 +251,7 @@ struct rknpu_subcore_task {
  * @task_obj_addr: address of task object
  * @regcfg_obj_addr: address of register config object
  * @task_base_addr: task base address
- * @user_data: (optional) user data
+ * @hw_elapse_time: hardware elapse time
  * @core_mask: core mask of rknpu
  * @fence_fd: dma fence fd
  * @subcore_task: subcore task
@@ -266,7 +267,7 @@ struct rknpu_submit {
 	__u64 task_obj_addr;
 	__u64 regcfg_obj_addr;
 	__u64 task_base_addr;
-	__u64 user_data;
+	__s64 hw_elapse_time;
 	__u32 core_mask;
 	__s32 fence_fd;
 	struct rknpu_subcore_task subcore_task[5];

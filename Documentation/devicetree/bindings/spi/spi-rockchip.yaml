@@ -69,6 +69,17 @@ properties:
       (may need to be fine tuned for high capacitance lines).
       If not specified 0 will be used.
 
+  csm:
+    default: 0
+    description:
+      ss_n be high for half or one sclk_out cycle after every frame data
+      is transferred.
+      If not specified 0 will be used.
+    enum:
+      - 0 # keep low
+      - 1 # half sclk_out
+      - 2 # one sclk_out
+
   pinctrl-names:
     minItems: 1
     items:
@@ -78,6 +89,23 @@ properties:
       Names for the pin configuration(s); may be "default" or "sleep",
       where the "sleep" configuration may describe the state
       the pins should be in during system suspend.
+
+  rockchip,poll-only:
+    description: Add this property to set the transmission method as CPU polling.
+    type: boolean
+
+  rockchip,cs-inactive-disable:
+    description: Add this property to disable the cs inactive interrupt for spi
+      slave.
+    type: boolean
+
+  ready-gpios:
+    description: GPIO spec for the spi slave ready signal.
+    maxItems: 1
+
+  rockchip,autosuspend-delay-ms:
+    default: 0
+    description: Set pm runtime autosuspend value in milliseconds.
 
 required:
   - compatible

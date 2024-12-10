@@ -273,6 +273,13 @@ extern "C" {
  */
 #define DRM_FORMAT_P016		fourcc_code('P', '0', '1', '6') /* 2x2 subsampled Cr:Cb plane 16 bits per channel */
 
+/* 2 plane YCbCr420.
+ * 3 10 bit components and 2 padding bits packed into 4 bytes.
+ * index 0 = Y plane, [31:0] x:Y2:Y1:Y0 2:10:10:10 little endian
+ * index 1 = Cr:Cb plane, [63:0] x:Cr2:Cb2:Cr1:x:Cb1:Cr0:Cb0 [2:10:10:10:2:10:10:10] little endian
+ */
+#define DRM_FORMAT_P030		fourcc_code('P', '0', '3', '0') /* 2x2 subsampled Cr:Cb plane 10 bits per channel packed */
+
 /* 3 plane non-subsampled (444) YCbCr
  * 16 bits per component, but only 10 bits are used and 6 bits are padded
  * index 0: Y plane, [15:0] Y:x [10:6] little endian
@@ -334,6 +341,7 @@ extern "C" {
 #define DRM_FORMAT_MOD_VENDOR_ARM     0x08
 #define DRM_FORMAT_MOD_VENDOR_ALLWINNER 0x09
 #define DRM_FORMAT_MOD_VENDOR_AMLOGIC 0x0a
+#define DRM_FORMAT_MOD_VENDOR_ROCKCHIP 0x0b
 
 /* add more to the end as needed */
 
@@ -779,6 +787,10 @@ drm_fourcc_canonicalize_nvidia_format_mod(__u64 modifier)
  * and UV.  Some SAND-using hardware stores UV in a separate tiled
  * image from Y to reduce the column height, which is not supported
  * with these modifiers.
+ *
+ * The DRM_FORMAT_MOD_BROADCOM_SAND128_COL_HEIGHT modifier is also
+ * supported for DRM_FORMAT_P030 where the columns remain as 128 bytes
+ * wide, but as this is a 10 bpp format that translates to 96 pixels.
  */
 
 #define DRM_FORMAT_MOD_BROADCOM_SAND32_COL_HEIGHT(v) \
@@ -1057,6 +1069,44 @@ drm_fourcc_canonicalize_nvidia_format_mod(__u64 modifier)
  * the scatter layout.
  */
 #define AMLOGIC_FBC_OPTION_MEM_SAVING		(1ULL << 0)
+
+/*
+ * Rockchip modifier format
+ * tiled modifier format, block size: 8x8,4x4_m0 and 4x4_m1,
+ * rfbc modifier format, block size: 64x4
+ *
+ * bit[55,52] for Rockchip drm modifier type
+ */
+#define DRM_FORMAT_MOD_ROCKCHIP_TYPE_SHIFT	52
+#define DRM_FORMAT_MOD_ROCKCHIP_TYPE_MASK	0xf
+#define DRM_FORMAT_MOD_ROCKCHIP_TYPE_TILED	0x0
+#define DRM_FORMAT_MOD_ROCKCHIP_TYPE_RFBC	0x1
+
+/* bit[3,0] for Rockchip drm modifier block size */
+#define ROCKCHIP_TILED_BLOCK_SIZE_MASK		0xf
+#define ROCKCHIP_TILED_BLOCK_SIZE_8x8		(1ULL)
+#define ROCKCHIP_TILED_BLOCK_SIZE_4x4_MODE0	(2ULL)
+#define ROCKCHIP_TILED_BLOCK_SIZE_4x4_MODE1	(3ULL)
+
+#define ROCKCHIP_RFBC_BLOCK_SIZE_64x4		(1ULL)
+
+#define DRM_FORMAT_MOD_ROCKCHIP_CODE(__type, __val) \
+	fourcc_mod_code(ROCKCHIP, ((__u64)(__type) << DRM_FORMAT_MOD_ROCKCHIP_TYPE_SHIFT) | \
+			((__val) & 0x000fffffffffffffULL))
+
+/* Rockchip tiled modifier format */
+#define DRM_FORMAT_MOD_ROCKCHIP_TILED(mode) \
+	DRM_FORMAT_MOD_ROCKCHIP_CODE(DRM_FORMAT_MOD_ROCKCHIP_TYPE_TILED, mode)
+#define IS_ROCKCHIP_TILED_MOD(val) \
+	(((val) >> 56) == DRM_FORMAT_MOD_VENDOR_ROCKCHIP && \
+	 ((val >> DRM_FORMAT_MOD_ROCKCHIP_TYPE_SHIFT) & DRM_FORMAT_MOD_ROCKCHIP_TYPE_MASK) == DRM_FORMAT_MOD_ROCKCHIP_TYPE_TILED)
+
+/* Rockchip rfbc modifier format */
+#define DRM_FORMAT_MOD_ROCKCHIP_RFBC(mode) \
+	DRM_FORMAT_MOD_ROCKCHIP_CODE(DRM_FORMAT_MOD_ROCKCHIP_TYPE_RFBC, mode)
+#define IS_ROCKCHIP_RFBC_MOD(val) \
+	(((val) >> 56) == DRM_FORMAT_MOD_VENDOR_ROCKCHIP && \
+	 ((val >> DRM_FORMAT_MOD_ROCKCHIP_TYPE_SHIFT) & DRM_FORMAT_MOD_ROCKCHIP_TYPE_MASK) == DRM_FORMAT_MOD_ROCKCHIP_TYPE_RFBC)
 
 #if defined(__cplusplus)
 }

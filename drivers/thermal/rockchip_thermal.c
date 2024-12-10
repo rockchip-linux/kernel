@@ -91,6 +91,7 @@ struct chip_tsadc_table {
  * @chn_id: array of sensor ids of chip corresponding to the channel
  * @chn_num: the channel number of tsadc chip
  * @conversion_time: the conversion time of tsadc
+ * @trim_slope: use to conversion trim code to trim temp
  * @tshut_temp: the hardware-controlled shutdown temperature value
  * @tshut_mode: the hardware-controlled shutdown mode (0:CRU 1:GPIO)
  * @tshut_polarity: the hardware-controlled active polarity (0:LOW 1:HIGH)
@@ -102,7 +103,6 @@ struct chip_tsadc_table {
  * @set_tshut_temp: set the hardware-controlled shutdown temperature
  * @set_tshut_mode: set the hardware-controlled shutdown mode
  * @get_trim_code: get the trim code by otp value
- * @trim_temp: get trim temp by trim code
  * @set_clk_rate: set clock rate
  * @table: the chip-specific conversion table
  */
@@ -113,6 +113,9 @@ struct rockchip_tsadc_chip {
 
 	/* The sensor electrical characteristics */
 	int conversion_time;
+
+	/* Use to conversion trim code to trim temp */
+	int trim_slope;
 
 	/* The hardware-controlled tshut property */
 	int tshut_temp;
@@ -134,9 +137,8 @@ struct rockchip_tsadc_chip {
 			      int chn, void __iomem *reg, int temp);
 	void (*set_tshut_mode)(struct regmap *grf, int chn,
 			       void __iomem *reg, enum tshut_mode m);
-	int (*get_trim_code)(struct platform_device *pdev,
-			     int code, int trim_base);
-	int (*trim_temp)(struct platform_device *pdev);
+	int (*get_trim_code)(const struct chip_tsadc_table *table,
+			     int code, int trim_base, int trim_base_frac);
 	int (*set_clk_rate)(struct platform_device *pdev);
 
 	/* Per-table methods */
@@ -148,11 +150,15 @@ struct rockchip_tsadc_chip {
  * @thermal:  pointer to the platform/configuration data
  * @tzd: pointer to a thermal zone
  * @id: identifier of the thermal sensor
+ * @trim_temp: the trim temp of the thermal sensor
+ * @tshut_temp: the hardware-controlled shutdown temperature value
  */
 struct rockchip_thermal_sensor {
 	struct rockchip_thermal_data *thermal;
 	struct thermal_zone_device *tzd;
 	int id;
+	int trim_temp;
+	int tshut_temp;
 };
 
 /**
@@ -165,8 +171,6 @@ struct rockchip_thermal_sensor {
  * @num_clks: the number of tsadc clks
  * @grf: the general register file will be used to do static set by software
  * @regs: the base address of tsadc controller
- * @tshut_temp: the hardware-controlled shutdown temperature value
- * @trim: trimmed value
  * @tshut_mode: the hardware-controlled shutdown mode (0:CRU 1:GPIO)
  * @tshut_polarity: the hardware-controlled active polarity (0:LOW 1:HIGH)
  * @pinctrl: the pinctrl of tsadc
@@ -187,8 +191,6 @@ struct rockchip_thermal_data {
 	struct regmap *grf;
 	void __iomem *regs;
 
-	int tshut_temp;
-	int trim;
 	enum tshut_mode tshut_mode;
 	enum tshut_polarity tshut_polarity;
 	struct pinctrl *pinctrl;
@@ -241,6 +243,7 @@ struct rockchip_thermal_data {
 #define TSADCV2_AUTO_TSHUT_POLARITY_MASK	BIT(24)
 
 #define TSADCV3_AUTO_Q_SEL_EN			BIT(1)
+#define TSADCV3_AUTO_Q_SEL_EN_MASK		BIT(17)
 
 #define TSADCV2_INT_SRC_EN(chn)			BIT(chn)
 #define TSADCV2_INT_SRC_EN_MASK(chn)		BIT(16 + (chn))
@@ -254,6 +257,7 @@ struct rockchip_thermal_data {
 #define TSADCV2_DATA_MASK			0xfff
 #define TSADCV3_DATA_MASK			0x3ff
 #define TSADCV4_DATA_MASK			0x1ff
+#define TSADCV5_DATA_MASK			0x7ff
 
 #define TSADCV2_HIGHT_INT_DEBOUNCE_COUNT	4
 #define TSADCV2_HIGHT_TSHUT_DEBOUNCE_COUNT	4
@@ -265,6 +269,12 @@ struct rockchip_thermal_data {
 #define TSADCV5_AUTO_PERIOD_HT_TIME		1622 /* 2.5ms */
 #define TSADCV6_AUTO_PERIOD_TIME		5000 /* 2.5ms */
 #define TSADCV6_AUTO_PERIOD_HT_TIME		5000 /* 2.5ms */
+#define TSADCV7_AUTO_PERIOD_TIME		3000 /* 2.5ms */
+#define TSADCV7_AUTO_PERIOD_HT_TIME		3000 /* 2.5ms */
+#define TSADCV12_AUTO_PERIOD_TIME		3000 /* 2.5ms */
+#define TSADCV12_AUTO_PERIOD_HT_TIME		3000 /* 2.5ms */
+#define TSADCV3_Q_MAX_VAL			0x7ff /* 11bit 2047 */
+#define TSADCV12_Q_MAX_VAL			0xfff /* 12bit 4095 */
 
 #define TSADCV2_USER_INTER_PD_SOC		0x340 /* 13 clocks */
 #define TSADCV5_USER_INTER_PD_SOC		0xfc0 /* 97us, at least 90us */
@@ -281,6 +291,10 @@ struct rockchip_thermal_data {
 #define PX30_GRF_SOC_CON2			0x0408
 
 #define RK1808_BUS_GRF_SOC_CON0			0x0400
+
+#define RK3528_GRF_TSADC_CON			0x40030
+
+#define RK3562_GRF_TSADC_CON			0x0580
 
 #define RK3568_GRF_TSADC_CON			0x0600
 #define RK3568_GRF_TSADC_ANA_REG0		(0x10001 << 0)
@@ -308,10 +322,10 @@ struct rockchip_thermal_data {
 #define PX30S_TSADC_TDC_MODE			(0x10001 << 4)
 #define PX30S_TSADC_TRIM			(0xf0007 << 0)
 
-#define MIN_TEMP				(-40000)
-#define LOWEST_TEMP				(-273000)
-#define MAX_TEMP				(125000)
-#define MAX_ENV_TEMP				(85000)
+
+/* -40 to 125 is reliable, outside the range existed unreliability */
+#define MIN_TEMP				(-60000)
+#define MAX_TEMP				(180000)
 
 /**
  * struct tsadc_table - code to temperature conversion table
@@ -329,16 +343,19 @@ struct tsadc_table {
 };
 
 static const struct tsadc_table rv1106_code_table[] = {
-	{0, -40000},
+	{0, MIN_TEMP},
+	{363, MIN_TEMP},
 	{396, -40000},
 	{504, 25000},
 	{605, 85000},
 	{673, 125000},
-	{TSADCV2_DATA_MASK, 125000},
+	{758, MAX_TEMP},
+	{TSADCV2_DATA_MASK, MAX_TEMP},
 };
 
 static const struct tsadc_table rv1108_table[] = {
-	{0, -40000},
+	{0, MIN_TEMP},
+	{342, MIN_TEMP},
 	{374, -40000},
 	{382, -35000},
 	{389, -30000},
@@ -373,11 +390,13 @@ static const struct tsadc_table rv1108_table[] = {
 	{618, 115000},
 	{626, 120000},
 	{634, 125000},
-	{TSADCV2_DATA_MASK, 125000},
+	{722, MAX_TEMP},
+	{TSADCV2_DATA_MASK, MAX_TEMP},
 };
 
 static const struct tsadc_table rk1808_code_table[] = {
-	{0, -40000},
+	{0, MIN_TEMP},
+	{3423, MIN_TEMP},
 	{3455, -40000},
 	{3463, -35000},
 	{3471, -30000},
@@ -412,11 +431,13 @@ static const struct tsadc_table rk1808_code_table[] = {
 	{3709, 115000},
 	{3718, 120000},
 	{3726, 125000},
-	{TSADCV2_DATA_MASK, 125000},
+	{3820, MAX_TEMP},
+	{TSADCV2_DATA_MASK, MAX_TEMP},
 };
 
 static const struct tsadc_table rk3228_code_table[] = {
-	{0, -40000},
+	{0, MIN_TEMP},
+	{568, MIN_TEMP},
 	{588, -40000},
 	{593, -35000},
 	{598, -30000},
@@ -451,11 +472,13 @@ static const struct tsadc_table rk3228_code_table[] = {
 	{749, 115000},
 	{754, 120000},
 	{760, 125000},
-	{TSADCV2_DATA_MASK, 125000},
+	{821, MAX_TEMP},
+	{TSADCV2_DATA_MASK, MAX_TEMP},
 };
 
 static const struct tsadc_table rk3288_code_table[] = {
-	{TSADCV2_DATA_MASK, -40000},
+	{TSADCV2_DATA_MASK, MIN_TEMP},
+	{3833, MIN_TEMP},
 	{3800, -40000},
 	{3792, -35000},
 	{3783, -30000},
@@ -490,11 +513,15 @@ static const struct tsadc_table rk3288_code_table[] = {
 	{3452, 115000},
 	{3437, 120000},
 	{3421, 125000},
-	{0, 125000},
+	{3350, 145000},
+	{3270, 165000},
+	{3195, MAX_TEMP},
+	{0, MAX_TEMP},
 };
 
 static const struct tsadc_table rk3328_code_table[] = {
-	{0, -40000},
+	{0, MIN_TEMP},
+	{261, MIN_TEMP},
 	{296, -40000},
 	{304, -35000},
 	{313, -30000},
@@ -528,11 +555,15 @@ static const struct tsadc_table rk3328_code_table[] = {
 	{644, 115000},
 	{659, 120000},
 	{675, 125000},
-	{TSADCV2_DATA_MASK, 125000},
+	{745, 145000},
+	{825, 165000},
+	{900, MAX_TEMP},
+	{TSADCV2_DATA_MASK, MAX_TEMP},
 };
 
 static const struct tsadc_table rk3368_code_table[] = {
-	{0, -40000},
+	{0, MIN_TEMP},
+	{98, MIN_TEMP},
 	{106, -40000},
 	{108, -35000},
 	{110, -30000},
@@ -567,11 +598,13 @@ static const struct tsadc_table rk3368_code_table[] = {
 	{167, 115000},
 	{169, 120000},
 	{171, 125000},
-	{TSADCV3_DATA_MASK, 125000},
+	{193, MAX_TEMP},
+	{TSADCV3_DATA_MASK, MAX_TEMP},
 };
 
 static const struct tsadc_table rk3399_code_table[] = {
-	{0, -40000},
+	{0, MIN_TEMP},
+	{368, MIN_TEMP},
 	{402, -40000},
 	{410, -35000},
 	{419, -30000},
@@ -606,11 +639,95 @@ static const struct tsadc_table rk3399_code_table[] = {
 	{668, 115000},
 	{677, 120000},
 	{685, 125000},
-	{TSADCV3_DATA_MASK, 125000},
+	{782, MAX_TEMP},
+	{TSADCV3_DATA_MASK, MAX_TEMP},
+};
+
+static const struct tsadc_table rk3528_code_table[] = {
+	{0, MIN_TEMP},
+	{1386, MIN_TEMP},
+	{1410, -40000},
+	{1419, -35000},
+	{1428, -30000},
+	{1436, -25000},
+	{1445, -20000},
+	{1454, -15000},
+	{1463, -10000},
+	{1471, -5000},
+	{1480, 0},
+	{1489, 5000},
+	{1498, 10000},
+	{1506, 15000},
+	{1515, 20000},
+	{1524, 25000},
+	{1533, 30000},
+	{1541, 35000},
+	{1550, 40000},
+	{1558, 45000},
+	{1567, 50000},
+	{1575, 55000},
+	{1584, 60000},
+	{1593, 65000},
+	{1602, 70000},
+	{1610, 75000},
+	{1619, 80000},
+	{1628, 85000},
+	{1637, 90000},
+	{1646, 95000},
+	{1654, 100000},
+	{1663, 105000},
+	{1672, 110000},
+	{1680, 115000},
+	{1689, 120000},
+	{1697, 125000},
+	{1790, MAX_TEMP},
+	{TSADCV5_DATA_MASK, MAX_TEMP},
+};
+
+static const struct tsadc_table rk3562_code_table[] = {
+	{0, MIN_TEMP},
+	{1385, MIN_TEMP},
+	{1419, -40000},
+	{1428, -35000},
+	{1436, -30000},
+	{1445, -25000},
+	{1453, -20000},
+	{1462, -15000},
+	{1470, -10000},
+	{1479, -5000},
+	{1487, 0},
+	{1496, 5000},
+	{1504, 10000},
+	{1512, 15000},
+	{1521, 20000},
+	{1529, 25000},
+	{1538, 30000},
+	{1546, 35000},
+	{1555, 40000},
+	{1563, 45000},
+	{1572, 50000},
+	{1580, 55000},
+	{1589, 60000},
+	{1598, 65000},
+	{1606, 70000},
+	{1615, 75000},
+	{1623, 80000},
+	{1632, 85000},
+	{1640, 90000},
+	{1648, 95000},
+	{1657, 100000},
+	{1666, 105000},
+	{1674, 110000},
+	{1682, 115000},
+	{1691, 120000},
+	{1699, 125000},
+	{1793, MAX_TEMP},
+	{TSADCV2_DATA_MASK, MAX_TEMP},
 };
 
 static const struct tsadc_table rk3568_code_table[] = {
-	{0, -40000},
+	{0, MIN_TEMP},
+	{1448, MIN_TEMP},
 	{1584, -40000},
 	{1620, -35000},
 	{1652, -30000},
@@ -645,16 +762,19 @@ static const struct tsadc_table rk3568_code_table[] = {
 	{2636, 115000},
 	{2672, 120000},
 	{2704, 125000},
-	{TSADCV2_DATA_MASK, 125000},
+	{3076, MAX_TEMP},
+	{TSADCV2_DATA_MASK, MAX_TEMP},
 };
 
 static const struct tsadc_table rk3588_code_table[] = {
-	{0, -40000},
+	{0, MIN_TEMP},
+	{194, MIN_TEMP},
 	{215, -40000},
 	{285, 25000},
 	{350, 85000},
 	{395, 125000},
-	{TSADCV4_DATA_MASK, 125000},
+	{455, MAX_TEMP},
+	{TSADCV4_DATA_MASK, MAX_TEMP},
 };
 
 static u32 rk_tsadcv2_temp_to_code(const struct chip_tsadc_table *table,
@@ -948,12 +1068,26 @@ static void rk_tsadcv7_initialize(struct regmap *grf, void __iomem *regs,
 		writel_relaxed(0U & ~TSADCV2_AUTO_TSHUT_POLARITY_HIGH,
 			       regs + TSADCV2_AUTO_CON);
 
+	/*
+	 * The general register file will is optional
+	 * and might not be available.
+	 */
 	if (!IS_ERR(grf)) {
 		regmap_write(grf, RK3568_GRF_TSADC_CON, RK3568_GRF_TSADC_TSEN);
+		/*
+		 * RK3568 TRM, section 18.5. requires a delay no less
+		 * than 10us between the rising edge of tsadc_tsen_en
+		 * and the rising edge of tsadc_ana_reg_0/1/2.
+		 */
 		udelay(15);
 		regmap_write(grf, RK3568_GRF_TSADC_CON, RK3568_GRF_TSADC_ANA_REG0);
 		regmap_write(grf, RK3568_GRF_TSADC_CON, RK3568_GRF_TSADC_ANA_REG1);
 		regmap_write(grf, RK3568_GRF_TSADC_CON, RK3568_GRF_TSADC_ANA_REG2);
+
+		/*
+		 * RK3568 TRM, section 18.5. requires a delay no less
+		 * than 90us after the rising edge of tsadc_ana_reg_0/1/2.
+		 */
 		usleep_range(100, 200);
 	}
 }
@@ -1013,6 +1147,68 @@ static void rk_tsadcv10_initialize(struct regmap *grf, void __iomem *regs,
 	if (!IS_ERR(grf)) {
 		regmap_write(grf, PX30_GRF_SOC_CON0, PX30S_TSADC_TDC_MODE);
 		regmap_write(grf, PX30_GRF_SOC_CON0, PX30S_TSADC_TRIM);
+	}
+}
+
+static void rk_tsadcv11_initialize(struct regmap *grf, void __iomem *regs,
+				  enum tshut_polarity tshut_polarity)
+{
+	writel_relaxed(TSADCV7_AUTO_PERIOD_TIME, regs + TSADCV3_AUTO_PERIOD);
+	writel_relaxed(TSADCV7_AUTO_PERIOD_HT_TIME,
+		       regs + TSADCV3_AUTO_PERIOD_HT);
+	writel_relaxed(TSADCV2_HIGHT_INT_DEBOUNCE_COUNT,
+		       regs + TSADCV3_HIGHT_INT_DEBOUNCE);
+	writel_relaxed(TSADCV2_HIGHT_TSHUT_DEBOUNCE_COUNT,
+		       regs + TSADCV3_HIGHT_TSHUT_DEBOUNCE);
+	writel_relaxed(TSADCV3_Q_MAX_VAL, regs + TSADCV9_Q_MAX);
+	writel_relaxed(TSADCV3_AUTO_Q_SEL_EN | TSADCV3_AUTO_Q_SEL_EN_MASK,
+		       regs + TSADCV2_AUTO_CON);
+	if (tshut_polarity == TSHUT_HIGH_ACTIVE)
+		writel_relaxed(TSADCV2_AUTO_TSHUT_POLARITY_HIGH |
+			       TSADCV2_AUTO_TSHUT_POLARITY_MASK,
+			       regs + TSADCV2_AUTO_CON);
+	else
+		writel_relaxed(TSADCV2_AUTO_TSHUT_POLARITY_MASK,
+			       regs + TSADCV2_AUTO_CON);
+
+	if (!IS_ERR(grf)) {
+		regmap_write(grf, RK3528_GRF_TSADC_CON, RK3568_GRF_TSADC_TSEN);
+		udelay(15);
+		regmap_write(grf, RK3528_GRF_TSADC_CON, RK3568_GRF_TSADC_ANA_REG0);
+		regmap_write(grf, RK3528_GRF_TSADC_CON, RK3568_GRF_TSADC_ANA_REG1);
+		regmap_write(grf, RK3528_GRF_TSADC_CON, RK3568_GRF_TSADC_ANA_REG2);
+		usleep_range(100, 200);
+	}
+}
+
+static void rk_tsadcv12_initialize(struct regmap *grf, void __iomem *regs,
+				   enum tshut_polarity tshut_polarity)
+{
+	writel_relaxed(TSADCV12_AUTO_PERIOD_TIME, regs + TSADCV3_AUTO_PERIOD);
+	writel_relaxed(TSADCV12_AUTO_PERIOD_HT_TIME,
+		       regs + TSADCV3_AUTO_PERIOD_HT);
+	writel_relaxed(TSADCV2_HIGHT_INT_DEBOUNCE_COUNT,
+		       regs + TSADCV3_HIGHT_INT_DEBOUNCE);
+	writel_relaxed(TSADCV2_HIGHT_TSHUT_DEBOUNCE_COUNT,
+		       regs + TSADCV3_HIGHT_TSHUT_DEBOUNCE);
+	writel_relaxed(TSADCV12_Q_MAX_VAL, regs + TSADCV9_Q_MAX);
+	writel_relaxed(TSADCV3_AUTO_Q_SEL_EN | TSADCV3_AUTO_Q_SEL_EN_MASK,
+		       regs + TSADCV2_AUTO_CON);
+	if (tshut_polarity == TSHUT_HIGH_ACTIVE)
+		writel_relaxed(TSADCV2_AUTO_TSHUT_POLARITY_HIGH |
+			       TSADCV2_AUTO_TSHUT_POLARITY_MASK,
+			       regs + TSADCV2_AUTO_CON);
+	else
+		writel_relaxed(TSADCV2_AUTO_TSHUT_POLARITY_MASK,
+			       regs + TSADCV2_AUTO_CON);
+
+	if (!IS_ERR(grf)) {
+		regmap_write(grf, RK3562_GRF_TSADC_CON, RK3568_GRF_TSADC_TSEN);
+		udelay(15);
+		regmap_write(grf, RK3562_GRF_TSADC_CON, RK3568_GRF_TSADC_ANA_REG0);
+		regmap_write(grf, RK3562_GRF_TSADC_CON, RK3568_GRF_TSADC_ANA_REG1);
+		regmap_write(grf, RK3562_GRF_TSADC_CON, RK3568_GRF_TSADC_ANA_REG2);
+		usleep_range(100, 200);
 	}
 }
 
@@ -1268,25 +1464,31 @@ static void rk_tsadcv4_tshut_mode(struct regmap *grf, int chn,
 	writel_relaxed(val_cru, regs + TSADCV3_HSHUT_CRU_INT_EN);
 }
 
-static int rk_tsadcv1_get_trim_code(struct platform_device *pdev,
-				    int code, int trim_base)
+static int rk_tsadcv1_get_trim_code(const struct chip_tsadc_table *table,
+				    int code, int trim_base, int trim_base_frac)
 {
-	struct rockchip_thermal_data *thermal = platform_get_drvdata(pdev);
-	const struct chip_tsadc_table *table = &thermal->chip->table;
-	u32 base_code;
-	int trim_code;
+	u32 base_code = (trim_base * table->kNum +
+			 trim_base_frac * table->kNum / 10) / 1000 + table->bNum;
 
-	base_code = trim_base * table->kNum / 1000 + table->bNum;
-	trim_code = code - base_code - 10;
-
-	return trim_code;
+	return code - base_code;
 }
 
-static int rk_tsadcv1_trim_temp(struct platform_device *pdev)
+static int rk_tsadcv2_get_trim_code(const struct chip_tsadc_table *table,
+				    int code, int trim_base, int trim_base_frac)
 {
-	struct rockchip_thermal_data *thermal = platform_get_drvdata(pdev);
+	int temp = trim_base * 1000 + trim_base_frac * 100;
+	u32 base_code = rk_tsadcv2_temp_to_code(table, temp);
 
-	return thermal->trim * 500;
+	return code - base_code;
+}
+
+static int rk_tsadcv3_get_trim_code(const struct chip_tsadc_table *table,
+				    int code, int trim_base, int trim_base_frac)
+{
+	int temp = trim_base * 1000 + trim_base_frac * 100;
+	u32 base_code = rk_tsadcv2_temp_to_code(table, temp);
+
+	return (TSADCV3_Q_MAX_VAL - code) - base_code;
 }
 
 static int rk_tsadcv1_set_clk_rate(struct platform_device *pdev)
@@ -1421,7 +1623,7 @@ static const struct rockchip_tsadc_chip rv1126_tsadc_data = {
 	.set_tshut_temp = rk_tsadcv2_tshut_temp,
 	.set_tshut_mode = rk_tsadcv3_tshut_mode,
 	.get_trim_code = rk_tsadcv1_get_trim_code,
-	.trim_temp = rk_tsadcv1_trim_temp,
+	.trim_slope = 500,
 
 	.table = {
 		.kNum = 2263,
@@ -1652,6 +1854,58 @@ static const struct rockchip_tsadc_chip rk3399_tsadc_data = {
 	},
 };
 
+static const struct rockchip_tsadc_chip rk3528_tsadc_data = {
+	.chn_id[SENSOR_CPU] = 0, /* cpu sensor is channel 0 */
+	.chn_num = 1, /* one channels for tsadc */
+
+	.tshut_mode = TSHUT_MODE_OTP, /* default TSHUT via GPIO give PMIC */
+	.tshut_polarity = TSHUT_LOW_ACTIVE, /* default TSHUT LOW ACTIVE */
+	.tshut_temp = 95000,
+
+	.initialize = rk_tsadcv11_initialize,
+	.irq_ack = rk_tsadcv4_irq_ack,
+	.control = rk_tsadcv4_control,
+	.get_temp = rk_tsadcv4_get_temp,
+	.set_alarm_temp = rk_tsadcv3_alarm_temp,
+	.set_tshut_temp = rk_tsadcv3_tshut_temp,
+	.set_tshut_mode = rk_tsadcv4_tshut_mode,
+	.get_trim_code = rk_tsadcv3_get_trim_code,
+	.trim_slope = 574,
+
+	.table = {
+		.id = rk3528_code_table,
+		.length = ARRAY_SIZE(rk3528_code_table),
+		.data_mask = TSADCV2_DATA_MASK,
+		.mode = ADC_INCREMENT,
+	},
+};
+
+static const struct rockchip_tsadc_chip rk3562_tsadc_data = {
+	.chn_id[SENSOR_CPU] = 0, /* cpu sensor is channel 0 */
+	.chn_num = 1, /* one channels for tsadc */
+
+	.tshut_mode = TSHUT_MODE_OTP, /* default TSHUT via GPIO give PMIC */
+	.tshut_polarity = TSHUT_LOW_ACTIVE, /* default TSHUT LOW ACTIVE */
+	.tshut_temp = 95000,
+
+	.initialize = rk_tsadcv12_initialize,
+	.irq_ack = rk_tsadcv4_irq_ack,
+	.control = rk_tsadcv4_control,
+	.get_temp = rk_tsadcv4_get_temp,
+	.set_alarm_temp = rk_tsadcv3_alarm_temp,
+	.set_tshut_temp = rk_tsadcv3_tshut_temp,
+	.set_tshut_mode = rk_tsadcv4_tshut_mode,
+	.get_trim_code = rk_tsadcv3_get_trim_code,
+	.trim_slope = 588,
+
+	.table = {
+		.id = rk3562_code_table,
+		.length = ARRAY_SIZE(rk3562_code_table),
+		.data_mask = TSADCV2_DATA_MASK,
+		.mode = ADC_INCREMENT,
+	},
+};
+
 static const struct rockchip_tsadc_chip rk3568_tsadc_data = {
 	.chn_id[SENSOR_CPU] = 0, /* cpu sensor is channel 0 */
 	.chn_id[SENSOR_GPU] = 1, /* gpu sensor is channel 1 */
@@ -1668,6 +1922,8 @@ static const struct rockchip_tsadc_chip rk3568_tsadc_data = {
 	.set_alarm_temp = rk_tsadcv2_alarm_temp,
 	.set_tshut_temp = rk_tsadcv2_tshut_temp,
 	.set_tshut_mode = rk_tsadcv2_tshut_mode,
+	.get_trim_code = rk_tsadcv2_get_trim_code,
+	.trim_slope = 147,
 
 	.table = {
 		.id = rk3568_code_table,
@@ -1778,6 +2034,18 @@ static const struct of_device_id of_rockchip_thermal_match[] = {
 		.data = (void *)&rk3399_tsadc_data,
 	},
 #endif
+#ifdef CONFIG_CPU_RK3528
+	{
+		.compatible = "rockchip,rk3528-tsadc",
+		.data = (void *)&rk3528_tsadc_data,
+	},
+#endif
+#ifdef CONFIG_CPU_RK3562
+	{
+		.compatible = "rockchip,rk3562-tsadc",
+		.data = (void *)&rk3562_tsadc_data,
+	},
+#endif
 #ifdef CONFIG_CPU_RK3568
 	{
 		.compatible = "rockchip,rk3568-tsadc",
@@ -1830,8 +2098,7 @@ static int rockchip_thermal_set_trips(void *_sensor, int low, int high)
 	dev_dbg(&thermal->pdev->dev, "%s: sensor %d: low: %d, high %d\n",
 		__func__, sensor->id, low, high);
 
-	if (tsadc->trim_temp)
-		high += tsadc->trim_temp(thermal->pdev);
+	high += sensor->trim_temp;
 
 	return tsadc->set_alarm_temp(&tsadc->table,
 				     sensor->id, thermal->regs, high);
@@ -1846,8 +2113,7 @@ static int rockchip_thermal_get_temp(void *_sensor, int *out_temp)
 
 	retval = tsadc->get_temp(&tsadc->table,
 				 sensor->id, thermal->regs, out_temp);
-	if (tsadc->trim_temp)
-		*out_temp -= tsadc->trim_temp(thermal->pdev);
+	*out_temp -= sensor->trim_temp;
 	dev_dbg(&thermal->pdev->dev, "sensor %d - temp: %d, retval: %d\n",
 		sensor->id, *out_temp, retval);
 
@@ -1898,27 +2164,100 @@ static int rockchip_get_efuse_value(struct device_node *np, char *porp_name,
 	return 0;
 }
 
+static int rockchip_get_trim_configure(struct device *dev,
+				       struct device_node *np,
+				       struct rockchip_thermal_data *thermal)
+{
+	const struct rockchip_tsadc_chip *tsadc = thermal->chip;
+	struct device_node *node;
+	int trim_base = 0, trim_base_frac = 0, trim_l = 0, trim_h = 0;
+	int trim_temp, trim_code;
+	int i, id;
+
+	if (!tsadc->get_trim_code)
+		return 0;
+	/*
+	 * The tsadc won't to handle the error in here
+	 * since some SoCs didn't need this property.
+	 */
+	rockchip_get_efuse_value(np, "trim_base", &trim_base);
+	if (!trim_base)
+		trim_base = 30;
+	rockchip_get_efuse_value(np, "trim_base_frac", &trim_base_frac);
+	/*
+	 * If the tsadc node contains trim_h and trim_l property,
+	 * all channels use the common trim configure, otherwise,
+	 * get trim configure from child nodes.
+	 */
+	if (!rockchip_get_efuse_value(np, "trim_l", &trim_l) &&
+	    !rockchip_get_efuse_value(np, "trim_h", &trim_h)) {
+		if (!trim_l && !trim_h)
+			return 0;
+		trim_code = tsadc->get_trim_code(&tsadc->table,
+						 (trim_h << 8) | trim_l,
+						 trim_base, trim_base_frac);
+		trim_temp = thermal->chip->trim_slope * trim_code;
+		for (i = 0; i < thermal->chip->chn_num; i++) {
+			thermal->sensors[i].trim_temp = trim_temp;
+			thermal->sensors[i].tshut_temp += trim_temp;
+			if (thermal->sensors[i].tshut_temp > MAX_TEMP)
+				thermal->sensors[i].tshut_temp = MAX_TEMP;
+		}
+	} else {
+		for_each_available_child_of_node(np, node) {
+			if (of_property_read_u32(node, "reg", &id)) {
+				dev_info(dev, "Missing tsadc id property\n");
+				continue;
+			}
+			if (id >= SOC_MAX_SENSORS)
+				continue;
+			if (rockchip_get_efuse_value(node, "trim_l", &trim_l)) {
+				dev_info(dev, "ch%d Missing trim_l property\n",
+					 id);
+				continue;
+			}
+			if (rockchip_get_efuse_value(node, "trim_h", &trim_h)) {
+				dev_info(dev, "ch%d Missing trim_h property\n",
+					 id);
+				continue;
+			}
+			if (!trim_l && !trim_h)
+				continue;
+			trim_code = tsadc->get_trim_code(&tsadc->table,
+							 (trim_h << 8) | trim_l,
+							 trim_base,
+							 trim_base_frac);
+			trim_temp = thermal->chip->trim_slope * trim_code;
+			thermal->sensors[id].trim_temp = trim_temp;
+			thermal->sensors[id].tshut_temp += trim_temp;
+			if (thermal->sensors[id].tshut_temp > MAX_TEMP)
+				thermal->sensors[id].tshut_temp = MAX_TEMP;
+		}
+	}
+
+	return 0;
+}
+
 static int rockchip_configure_from_dt(struct device *dev,
 				      struct device_node *np,
 				      struct rockchip_thermal_data *thermal)
 {
-	const struct rockchip_tsadc_chip *tsadc = thermal->chip;
 	u32 shut_temp, tshut_mode, tshut_polarity;
-	int trim_l = 0, trim_h = 0, trim_bsae = 0;
+	int i;
 
 	if (of_property_read_u32(np, "rockchip,hw-tshut-temp", &shut_temp)) {
 		dev_warn(dev,
 			 "Missing tshut temp property, using default %d\n",
 			 thermal->chip->tshut_temp);
-		thermal->tshut_temp = thermal->chip->tshut_temp;
-	} else {
-		if (shut_temp > INT_MAX) {
-			dev_err(dev, "Invalid tshut temperature specified: %d\n",
-				shut_temp);
-			return -ERANGE;
-		}
-		thermal->tshut_temp = shut_temp;
+		shut_temp = thermal->chip->tshut_temp;
 	}
+	if (shut_temp > INT_MAX) {
+		dev_err(dev, "Invalid tshut temperature specified: %d\n",
+			shut_temp);
+		return -ERANGE;
+	}
+	for (i = 0; i < thermal->chip->chn_num; i++)
+		thermal->sensors[i].tshut_temp = shut_temp;
 
 	if (of_property_read_u32(np, "rockchip,hw-tshut-mode", &tshut_mode)) {
 		dev_warn(dev,
@@ -1960,28 +2299,7 @@ static int rockchip_configure_from_dt(struct device *dev,
 	if (IS_ERR(thermal->grf))
 		dev_warn(dev, "Missing rockchip,grf property\n");
 
-	if (tsadc->trim_temp && tsadc->get_trim_code) {
-		/* The tsadc won't to handle the error in here
-		 * since some SoCs didn't need this property.
-		 * rv1126 need trim tsadc.
-		 */
-		if (rockchip_get_efuse_value(np, "trim_l", &trim_l))
-			dev_warn(dev, "Missing trim_l property\n");
-		if (rockchip_get_efuse_value(np, "trim_h", &trim_h))
-			dev_warn(dev, "Missing trim_h property\n");
-		if (rockchip_get_efuse_value(np, "trim_base", &trim_bsae))
-			dev_warn(dev, "Missing trim_base property\n");
-
-		if (trim_l && trim_h && trim_bsae) {
-			thermal->trim = tsadc->get_trim_code(thermal->pdev,
-							     (trim_h << 8) |
-							     trim_l,
-							     trim_bsae);
-			dev_info(dev, "tsadc trimmed value = %d\n",
-				 thermal->trim);
-			thermal->tshut_temp += tsadc->trim_temp(thermal->pdev);
-		}
-	}
+	rockchip_get_trim_configure(dev, np, thermal);
 
 	return 0;
 }
@@ -1999,10 +2317,10 @@ rockchip_thermal_register_sensor(struct platform_device *pdev,
 			      thermal->tshut_mode);
 
 	error = tsadc->set_tshut_temp(&tsadc->table, id, thermal->regs,
-			      thermal->tshut_temp);
+				      sensor->tshut_temp);
 	if (error)
 		dev_err(&pdev->dev, "%s: invalid tshut=%d, error=%d\n",
-			__func__, thermal->tshut_temp, error);
+			__func__, sensor->tshut_temp, error);
 
 	sensor->thermal = thermal;
 	sensor->id = id;
@@ -2283,16 +2601,17 @@ static int __maybe_unused rockchip_thermal_resume(struct device *dev)
 
 	for (i = 0; i < thermal->chip->chn_num; i++) {
 		int id = thermal->sensors[i].id;
+		int tshut_temp = thermal->sensors[i].tshut_temp;
 
 		thermal->chip->set_tshut_mode(thermal->grf, id, thermal->regs,
 					      thermal->tshut_mode);
 
 		error = thermal->chip->set_tshut_temp(&thermal->chip->table,
-					      id, thermal->regs,
-					      thermal->tshut_temp);
+						      id, thermal->regs,
+						      tshut_temp);
 		if (error)
 			dev_err(dev, "%s: invalid tshut=%d, error=%d\n",
-				__func__, thermal->tshut_temp, error);
+				__func__, tshut_temp, error);
 	}
 
 	thermal->chip->control(thermal->regs, true);
@@ -2323,7 +2642,17 @@ static struct platform_driver rockchip_thermal_driver = {
 	.shutdown = rockchip_thermal_shutdown,
 };
 
-module_platform_driver(rockchip_thermal_driver);
+static int __init rockchip_thermal_driver_init(void)
+{
+	return platform_driver_register(&rockchip_thermal_driver);
+}
+rootfs_initcall(rockchip_thermal_driver_init);
+
+static void __exit rockchip_thermal_driver_exit(void)
+{
+	platform_driver_unregister(&rockchip_thermal_driver);
+}
+module_exit(rockchip_thermal_driver_exit);
 
 MODULE_DESCRIPTION("ROCKCHIP THERMAL Driver");
 MODULE_AUTHOR("Rockchip, Inc.");

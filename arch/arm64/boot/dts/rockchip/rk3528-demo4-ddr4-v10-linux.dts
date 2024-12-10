@@ -1,0 +1,18 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright (c) 2022 Rockchip Electronics Co., Ltd.
+ *
+ */
+
+#include "rk3528-demo4-ddr4-v10.dtsi"
+#include "rk3528-linux.dtsi"
+
+/ {
+	chosen: chosen {
+		bootargs = "earlycon=uart8250,mmio32,0xff9f0000 console=ttyFIQ0 root=PARTUUID=614e0000-0000 rw rootwait";
+	};
+};
+
+&sdmmc {
+	status = "okay";
+};

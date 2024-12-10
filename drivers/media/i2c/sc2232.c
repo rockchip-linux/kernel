@@ -1161,8 +1161,8 @@ static void sc2232_modify_fps_info(struct sc2232 *sc2232)
 {
 	const struct sc2232_mode *mode = sc2232->cur_mode;
 
-	sc2232->cur_fps.denominator = mode->max_fps.denominator * sc2232->cur_vts /
-				       mode->vts_def;
+	sc2232->cur_fps.denominator = mode->max_fps.denominator * mode->vts_def /
+				      sc2232->cur_vts;
 }
 
 static int sc2232_set_ctrl(struct v4l2_ctrl *ctrl)
@@ -1192,7 +1192,7 @@ static int sc2232_set_ctrl(struct v4l2_ctrl *ctrl)
 	switch (ctrl->id) {
 	case V4L2_CID_EXPOSURE:
 		if (sc2232->cur_mode->hdr_mode != NO_HDR)
-			return ret;
+			goto ctrl_end;
 		val = ctrl->val << 1;
 		ret = sc2232_write_reg(sc2232->client,
 					SC2232_REG_EXP_LONG_L,
@@ -1210,7 +1210,7 @@ static int sc2232_set_ctrl(struct v4l2_ctrl *ctrl)
 		break;
 	case V4L2_CID_ANALOGUE_GAIN:
 		if (sc2232->cur_mode->hdr_mode != NO_HDR)
-			return ret;
+			goto ctrl_end;
 		ret = sc2232_set_gain(sc2232, ctrl->val);
 		break;
 	case V4L2_CID_VBLANK:
@@ -1219,8 +1219,7 @@ static int sc2232_set_ctrl(struct v4l2_ctrl *ctrl)
 					ctrl->val + sc2232->cur_mode->height);
 		if (!ret)
 			sc2232->cur_vts = ctrl->val + sc2232->cur_mode->height;
-		if (sc2232->cur_vts != sc2232->cur_mode->vts_def)
-			sc2232_modify_fps_info(sc2232);
+		sc2232_modify_fps_info(sc2232);
 		dev_dbg(&client->dev, "set vblank 0x%x\n",
 			ctrl->val);
 		break;
@@ -1256,6 +1255,7 @@ static int sc2232_set_ctrl(struct v4l2_ctrl *ctrl)
 		break;
 	}
 
+ctrl_end:
 	pm_runtime_put(&client->dev);
 	return ret;
 }

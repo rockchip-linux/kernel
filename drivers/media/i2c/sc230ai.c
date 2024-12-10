@@ -61,9 +61,6 @@
 #define SC230AI_REG_SEXPOSURE_L		0x3e05
 #define	SC230AI_EXPOSURE_MIN		1
 #define	SC230AI_EXPOSURE_STEP		1
-#define	SC230AI_EXPOSURE_LIN_MAX	(2 * 0x465 - 9)
-#define	SC230AI_EXPOSURE_HDR_MAX_S	(2 * 0x465 - 9)
-#define	SC230AI_EXPOSURE_HDR_MAX_L	(2 * 0x465 - 9)
 #define SC230AI_VTS_MAX			0x7fff
 
 #define SC230AI_REG_DIG_GAIN		0x3e06
@@ -74,7 +71,7 @@
 #define SC230AI_REG_SANA_GAIN		0x3e12
 #define SC230AI_REG_SANA_FINE_GAIN	0x3e13
 #define SC230AI_GAIN_MIN		1000
-#define SC230AI_GAIN_MAX		1722628       //108.512*15.875*1000
+#define SC230AI_GAIN_MAX		1574800       // 99.2*15.875*1000
 #define SC230AI_GAIN_STEP		1
 #define SC230AI_GAIN_DEFAULT		1000
 #define SC230AI_LGAIN			0
@@ -176,6 +173,7 @@ struct sc230ai {
 	const char		*module_facing;
 	const char		*module_name;
 	const char		*len_name;
+	enum rkmodule_sync_mode	sync_mode;
 	u32			cur_vts;
 	bool			has_init_exp;
 	bool			is_thunderboot;
@@ -537,6 +535,28 @@ static const struct regval sc230ai_linear_10_1920x1080_regs[] = {
 	{REG_NULL, 0x00},
 };
 
+static __maybe_unused const struct regval sc230ai_interal_sync_master_start_regs[] = {
+	{0x300a, 0x24}, //sync as output PAD
+	{0x3032, 0xa0},
+	{0x3222, 0x00}, //master mode
+	{REG_NULL, 0x00},
+};
+
+static __maybe_unused const struct regval sc230ai_interal_sync_master_stop_regs[] = {
+	{REG_NULL, 0x00},
+};
+
+static __maybe_unused const struct regval sc230ai_interal_sync_slaver_start_regs[] = {
+	{0x300a, 0x20}, //sync as input PAD
+	{0x3222, 0x01}, //slave mode
+	{0x3224, 0x92}, //fsync trigger
+	{0x3614, 0x01},
+	{REG_NULL, 0x00},
+};
+
+static __maybe_unused const struct regval sc230ai_interal_sync_slaver_stop_regs[] = {
+	{REG_NULL, 0x00},
+};
 
 static const struct sc230ai_mode supported_modes[] = {
 	{
@@ -678,46 +698,46 @@ static int sc230ai_get_gain_reg(struct sc230ai *sc230ai, u32 *again, u32 *dgain,
 		*again = 0x00;
 		*dgain = 0x00;
 		*dgain_fine = total_gain * 128 / 1000;
-	} else if (total_gain < 3391) {	/* 2 ~ 3.391 gain*/
+	} else if (total_gain < 3100) {	/* 2 ~ 3.1 gain*/
 		*again = 0x01;
 		*dgain = 0x00;
 		*dgain_fine = total_gain * 128 / 1000 / 2;
-	} else if (total_gain < 3391 * 2) {	/* 3.391 ~ 6.782 gain*/
+	} else if (total_gain < 3100 * 2) {	/* 3.100 ~ 6.200 gain*/
 		*again = 0x40;
 		*dgain = 0x00;
-		*dgain_fine = total_gain * 128 / 3391;
-	} else if (total_gain < 3391 * 4) {	/* 6.782 ~ 13.564 gain*/
+		*dgain_fine = total_gain * 128 / 3100;
+	} else if (total_gain < 3100 * 4) {	/* 6.200 ~ 12.400 gain*/
 		*again = 0x48;
 		*dgain = 0x00;
-		*dgain_fine = total_gain * 128 / 3391 / 2;
-	} else if (total_gain < 3391 * 8) {	/* 13.564 ~ 27.128 gain*/
+		*dgain_fine = total_gain * 128 / 3100 / 2;
+	} else if (total_gain < 3100 * 8) {	/* 12.400 ~ 24.800 gain*/
 		*again = 0x49;
 		*dgain = 0x00;
-		*dgain_fine = total_gain * 128 / 3391 / 4;
-	} else if (total_gain < 3391 * 16) {	/* 27.128 ~ 54.256 gain*/
+		*dgain_fine = total_gain * 128 / 3100 / 4;
+	} else if (total_gain < 3100 * 16) {	/* 24.800 ~ 49.600 gain*/
 		*again = 0x4b;
 		*dgain = 0x00;
-		*dgain_fine = total_gain * 128 / 3391 / 8;
-	} else if (total_gain < 3391 * 32) {	/* 54.256 ~ 108.512 gain*/
+		*dgain_fine = total_gain * 128 / 3100 / 8;
+	} else if (total_gain < 3100 * 32) {	/* 49.600 ~ 99.200 gain*/
 		*again = 0x4f;
 		*dgain = 0x00;
-		*dgain_fine = total_gain * 128 / 3391 / 16;
-	} else if (total_gain < 3391 * 64) {	/* 108.512 ~ 217.024 gain*/
+		*dgain_fine = total_gain * 128 / 3100 / 16;
+	} else if (total_gain < 3100 * 64) {	/* 99.200 ~ 198.400 gain*/
 		*again = 0x5f;
 		*dgain = 0x00;
-		*dgain_fine = total_gain * 128 / 3391 / 32;
-	} else if (total_gain < 3391 * 128) {	/* 217.024 ~ 434.048 gain*/
+		*dgain_fine = total_gain * 128 / 3100 / 32;
+	} else if (total_gain < 3100 * 128) {	/* 198.400 ~ 396.800 gain*/
 		*again = 0x5f;
 		*dgain = 0x01;
-		*dgain_fine = total_gain * 128 / 3391 / 64;
-	} else if (total_gain < 3391 * 256) {	/* 434.048 ~ 868.096 gain*/
+		*dgain_fine = total_gain * 128 / 3100 / 64;
+	} else if (total_gain < 3100 * 256) {	/* 396.800 ~ 793.600 gain*/
 		*again = 0x5f;
 		*dgain = 0x03;
-		*dgain_fine = total_gain * 128 / 3391 / 128;
-	} else if (total_gain < 3391 * 512) {	/* 868.096 ~ 1736.192 gain*/
+		*dgain_fine = total_gain * 128 / 3100 / 128;
+	} else {				/* 793.600 ~ 1587.200 gain*/
 		*again = 0x5f;
 		*dgain = 0x07;
-		*dgain_fine = total_gain * 128 / 3391 / 128;
+		*dgain_fine = total_gain * 128 / 3100 / 128;
 	}
 
 	return ret;
@@ -933,6 +953,7 @@ static long sc230ai_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 	u32 i, h, w;
 	long ret = 0;
 	u32 stream = 0;
+	u32 *sync_mode = NULL;
 
 	switch (cmd) {
 	case RKMODULE_GET_MODULE_INFO:
@@ -983,6 +1004,14 @@ static long sc230ai_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 			ret = sc230ai_write_reg(sc230ai->client, SC230AI_REG_CTRL_MODE,
 				 SC230AI_REG_VALUE_08BIT, SC230AI_MODE_SW_STANDBY);
 		break;
+	case RKMODULE_GET_SYNC_MODE:
+		sync_mode = (u32 *)arg;
+		*sync_mode = sc230ai->sync_mode;
+		break;
+	case RKMODULE_SET_SYNC_MODE:
+		sync_mode = (u32 *)arg;
+		sc230ai->sync_mode = *sync_mode;
+		break;
 	default:
 		ret = -ENOIOCTLCMD;
 		break;
@@ -1001,6 +1030,7 @@ static long sc230ai_compat_ioctl32(struct v4l2_subdev *sd,
 	struct preisp_hdrae_exp_s *hdrae;
 	long ret;
 	u32 stream = 0;
+	u32 sync_mode;
 
 	switch (cmd) {
 	case RKMODULE_GET_MODULE_INFO:
@@ -1069,6 +1099,21 @@ static long sc230ai_compat_ioctl32(struct v4l2_subdev *sd,
 
 		ret = sc230ai_ioctl(sd, cmd, &stream);
 		break;
+	case RKMODULE_GET_SYNC_MODE:
+		ret = sc230ai_ioctl(sd, cmd, &sync_mode);
+		if (!ret) {
+			ret = copy_to_user(up, &sync_mode, sizeof(u32));
+			if (ret)
+				ret = -EFAULT;
+		}
+		break;
+	case RKMODULE_SET_SYNC_MODE:
+		ret = copy_from_user(&sync_mode, up, sizeof(u32));
+		if (!ret)
+			ret = sc230ai_ioctl(sd, cmd, &sync_mode);
+		else
+			ret = -EFAULT;
+		break;
 	default:
 		ret = -ENOIOCTLCMD;
 		break;
@@ -1080,7 +1125,7 @@ static long sc230ai_compat_ioctl32(struct v4l2_subdev *sd,
 
 static int __sc230ai_start_stream(struct sc230ai *sc230ai)
 {
-	int ret;
+	int ret = 0;
 
 	if (!sc230ai->is_thunderboot) {
 		ret = sc230ai_write_array(sc230ai->client, sc230ai->cur_mode->reg_list);
@@ -1099,18 +1144,36 @@ static int __sc230ai_start_stream(struct sc230ai *sc230ai)
 				return ret;
 			}
 		}
+		if (sc230ai->sync_mode == INTERNAL_MASTER_MODE)
+			ret |= sc230ai_write_array(sc230ai->client,
+				sc230ai_interal_sync_master_start_regs);
+		else if (sc230ai->sync_mode == SLAVE_MODE)
+			ret |= sc230ai_write_array(sc230ai->client,
+				sc230ai_interal_sync_slaver_start_regs);
 	}
-	return sc230ai_write_reg(sc230ai->client, SC230AI_REG_CTRL_MODE,
+	ret |= sc230ai_write_reg(sc230ai->client, SC230AI_REG_CTRL_MODE,
 				 SC230AI_REG_VALUE_08BIT, SC230AI_MODE_STREAMING);
+	return ret;
 }
 
 static int __sc230ai_stop_stream(struct sc230ai *sc230ai)
 {
+	int ret = 0;
 	sc230ai->has_init_exp = false;
-	if (sc230ai->is_thunderboot)
+	if (sc230ai->is_thunderboot) {
 		sc230ai->is_first_streamoff = true;
-	return sc230ai_write_reg(sc230ai->client, SC230AI_REG_CTRL_MODE,
+		pm_runtime_put(&sc230ai->client->dev);
+	} else {
+		if (sc230ai->sync_mode == INTERNAL_MASTER_MODE)
+			ret |= sc230ai_write_array(sc230ai->client,
+				sc230ai_interal_sync_master_stop_regs);
+		else if (sc230ai->sync_mode == SLAVE_MODE)
+			ret |= sc230ai_write_array(sc230ai->client,
+				sc230ai_interal_sync_slaver_stop_regs);
+	}
+	ret |= sc230ai_write_reg(sc230ai->client, SC230AI_REG_CTRL_MODE,
 				 SC230AI_REG_VALUE_08BIT, SC230AI_MODE_SW_STANDBY);
+	return ret;
 }
 
 static int __sc230ai_power_on(struct sc230ai *sc230ai);
@@ -1385,8 +1448,8 @@ static void sc230ai_modify_fps_info(struct sc230ai *sc230ai)
 {
 	const struct sc230ai_mode *mode = sc230ai->cur_mode;
 
-	sc230ai->cur_fps.denominator = mode->max_fps.denominator * sc230ai->cur_vts /
-				       mode->vts_def;
+	sc230ai->cur_fps.denominator = mode->max_fps.denominator * mode->vts_def /
+				       sc230ai->cur_vts;
 }
 
 static int sc230ai_set_ctrl(struct v4l2_ctrl *ctrl)
@@ -1404,7 +1467,7 @@ static int sc230ai_set_ctrl(struct v4l2_ctrl *ctrl)
 	switch (ctrl->id) {
 	case V4L2_CID_VBLANK:
 		/* Update max exposure while meeting expected vblanking */
-		max = sc230ai->cur_mode->height + ctrl->val - 4;
+		max = sc230ai->cur_mode->height + ctrl->val - 5;
 		__v4l2_ctrl_modify_range(sc230ai->exposure,
 					 sc230ai->exposure->minimum, max,
 					 sc230ai->exposure->step,
@@ -1467,8 +1530,7 @@ static int sc230ai_set_ctrl(struct v4l2_ctrl *ctrl)
 					 (ctrl->val + sc230ai->cur_mode->height)
 					 & 0xff);
 		sc230ai->cur_vts = ctrl->val + sc230ai->cur_mode->height;
-		if (sc230ai->cur_vts != sc230ai->cur_mode->vts_def)
-			sc230ai_modify_fps_info(sc230ai);
+		sc230ai_modify_fps_info(sc230ai);
 		break;
 	case V4L2_CID_TEST_PATTERN:
 		ret = sc230ai_enable_test_pattern(sc230ai, ctrl->val);
@@ -1544,7 +1606,7 @@ static int sc230ai_initialize_controls(struct sc230ai *sc230ai)
 					    V4L2_CID_VBLANK, vblank_def,
 					    SC230AI_VTS_MAX - mode->height,
 					    1, vblank_def);
-	exposure_max = SC230AI_EXPOSURE_LIN_MAX;
+	exposure_max = mode->vts_def - 5;
 	sc230ai->exposure = v4l2_ctrl_new_std(handler, &sc230ai_ctrl_ops,
 					      V4L2_CID_EXPOSURE, SC230AI_EXPOSURE_MIN,
 					      exposure_max, SC230AI_EXPOSURE_STEP,
@@ -1627,6 +1689,7 @@ static int sc230ai_probe(struct i2c_client *client,
 	char facing[2];
 	int ret;
 	u32 i, hdr_mode = 0;
+	const char *sync_mode_name = NULL;
 
 	dev_info(dev, "driver version: %02x.%02x.%02x",
 		 DRIVER_VERSION >> 16,
@@ -1650,6 +1713,25 @@ static int sc230ai_probe(struct i2c_client *client,
 		dev_err(dev, "could not get module information!\n");
 		return -EINVAL;
 	}
+
+	ret = of_property_read_string(node, RKMODULE_CAMERA_SYNC_MODE,
+				      &sync_mode_name);
+	if (ret) {
+		sc230ai->sync_mode = NO_SYNC_MODE;
+		dev_err(dev, "could not get sync mode!\n");
+	} else {
+		if (strcmp(sync_mode_name, RKMODULE_EXTERNAL_MASTER_MODE) == 0) {
+			sc230ai->sync_mode = EXTERNAL_MASTER_MODE;
+			dev_info(dev, "external master mode\n");
+		} else if (strcmp(sync_mode_name, RKMODULE_INTERNAL_MASTER_MODE) == 0) {
+			sc230ai->sync_mode = INTERNAL_MASTER_MODE;
+			dev_info(dev, "internal master mode\n");
+		} else if (strcmp(sync_mode_name, RKMODULE_SLAVE_MODE) == 0) {
+			sc230ai->sync_mode = SLAVE_MODE;
+			dev_info(dev, "slave mode\n");
+		}
+	}
+
 	sc230ai->is_thunderboot = IS_ENABLED(CONFIG_VIDEO_ROCKCHIP_THUNDER_BOOT_ISP);
 	sc230ai->client = client;
 	for (i = 0; i < ARRAY_SIZE(supported_modes); i++) {
@@ -1744,7 +1826,10 @@ static int sc230ai_probe(struct i2c_client *client,
 
 	pm_runtime_set_active(dev);
 	pm_runtime_enable(dev);
-	pm_runtime_idle(dev);
+	if (sc230ai->is_thunderboot)
+		pm_runtime_get_sync(dev);
+	else
+		pm_runtime_idle(dev);
 
 	return 0;
 

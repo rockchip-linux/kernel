@@ -24,6 +24,10 @@
 #include <linux/rational.h>
 #include "clk.h"
 
+#ifdef MODULE
+static HLIST_HEAD(clk_ctx_list);
+#endif
+
 /**
  * Register a clock branch.
  * Most clock branches have a form like
@@ -185,6 +189,14 @@ static void rockchip_fractional_approximation(struct clk_hw *hw,
 	struct clk_hw *p_parent;
 	unsigned long scale;
 
+	if (rate == 0) {
+		pr_warn("%s p_rate(%ld), rate(%ld), maybe invalid frequency setting!\n",
+			clk_hw_get_name(hw), *parent_rate, rate);
+		*m = 0;
+		*n = 1;
+		return;
+	}
+
 	p_rate = clk_hw_get_rate(clk_hw_get_parent(hw));
 	if ((rate * 20 > p_rate) && (p_rate % rate != 0)) {
 		p_parent = clk_hw_get_parent(clk_hw_get_parent(hw));
@@ -221,6 +233,13 @@ static void rockchip_fractional_approximation(struct clk_hw *hw,
 	 * for m and n. In the result it will be the nearest rate left shifted
 	 * by (scale - fd->nwidth) bits.
 	 */
+	if (*parent_rate == 0) {
+		pr_warn("%s p_rate(%ld), rate(%ld), maybe invalid frequency setting!\n",
+			clk_hw_get_name(hw), *parent_rate, rate);
+		*m = 0;
+		*n = 1;
+		return;
+	}
 	scale = fls_long(*parent_rate / rate - 1);
 	if (scale > fd->nwidth)
 		rate <<= scale - fd->nwidth;
@@ -418,6 +437,10 @@ struct rockchip_clk_provider *rockchip_clk_init(struct device_node *np,
 	ctx->pmugrf = syscon_regmap_lookup_by_phandle(ctx->cru_node,
 						   "rockchip,pmugrf");
 
+#ifdef MODULE
+	hlist_add_head(&ctx->list_node, &clk_ctx_list);
+#endif
+
 	return ctx;
 
 err_free:
@@ -557,6 +580,14 @@ void rockchip_clk_register_branches(struct rockchip_clk_provider *ctx,
 				ctx->reg_base + list->gate_offset,
 				list->gate_shift, list->gate_flags, &ctx->lock);
 			break;
+		case branch_gate_no_set_rate:
+			flags &= ~CLK_SET_RATE_PARENT;
+
+			clk = clk_register_gate(NULL, list->name,
+				list->parent_names[0], flags,
+				ctx->reg_base + list->gate_offset,
+				list->gate_shift, list->gate_flags, &ctx->lock);
+			break;
 		case branch_composite:
 			clk = rockchip_clk_register_branch(list->name,
 				list->parent_names, list->num_parents,
@@ -648,6 +679,30 @@ void rockchip_clk_register_armclk(struct rockchip_clk_provider *ctx,
 }
 EXPORT_SYMBOL_GPL(rockchip_clk_register_armclk);
 
+void rockchip_clk_register_armclk_v2(struct rockchip_clk_provider *ctx,
+				     struct rockchip_clk_branch *list,
+				     const struct rockchip_cpuclk_rate_table *rates,
+				     int nrates)
+{
+	struct clk *clk;
+
+	clk = rockchip_clk_register_cpuclk_v2(list->name, list->parent_names,
+					      list->num_parents, ctx->reg_base,
+					      list->muxdiv_offset, list->mux_shift,
+					      list->mux_width, list->mux_flags,
+					      list->div_offset, list->div_shift,
+					      list->div_width, list->div_flags,
+					      list->flags, &ctx->lock, rates, nrates);
+	if (IS_ERR(clk)) {
+		pr_err("%s: failed to register clock %s: %ld\n",
+		       __func__, list->name, PTR_ERR(clk));
+		return;
+	}
+
+	rockchip_clk_add_lookup(ctx, clk, list->id);
+}
+EXPORT_SYMBOL_GPL(rockchip_clk_register_armclk_v2);
+
 void (*rk_dump_cru)(void);
 EXPORT_SYMBOL(rk_dump_cru);
 
@@ -699,3 +754,82 @@ rockchip_register_restart_notifier(struct rockchip_clk_provider *ctx,
 				       &rk_clk_panic_block);
 }
 EXPORT_SYMBOL_GPL(rockchip_register_restart_notifier);
+
+#ifdef MODULE
+static struct clk **protect_clocks;
+static unsigned int protect_nclocks;
+
+int rockchip_clk_protect(struct rockchip_clk_provider *ctx,
+			 unsigned int *clocks, unsigned int nclocks)
+{
+	struct clk *clk = NULL;
+	int i = 0;
+
+	if (protect_clocks || !ctx || !clocks || !ctx->clk_data.clks)
+		return 0;
+
+	protect_clocks = kcalloc(nclocks, sizeof(void *), GFP_KERNEL);
+	if (!protect_clocks)
+		return -ENOMEM;
+
+	for (i = 0; i < nclocks; i++) {
+		if (clocks[i] >= ctx->clk_data.clk_num) {
+			pr_err("%s: invalid clock id %u\n", __func__, clocks[i]);
+			continue;
+		}
+		clk = ctx->clk_data.clks[clocks[i]];
+		if (clk) {
+			clk_prepare_enable(clk);
+			protect_clocks[i] = clk;
+		}
+	}
+	protect_nclocks = nclocks;
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(rockchip_clk_protect);
+
+void rockchip_clk_unprotect(void)
+{
+	int i = 0;
+
+	if (!protect_clocks || !protect_nclocks)
+		return;
+
+	for (i = 0; i < protect_nclocks; i++) {
+		if (protect_clocks[i])
+			clk_disable_unprepare(protect_clocks[i]);
+	}
+	protect_nclocks = 0;
+	kfree(protect_clocks);
+	protect_clocks = NULL;
+
+}
+EXPORT_SYMBOL_GPL(rockchip_clk_unprotect);
+
+void rockchip_clk_disable_unused(void)
+{
+	struct rockchip_clk_provider *ctx;
+	struct clk *clk;
+	struct clk_hw *hw;
+	int i = 0, flag = 0;
+
+	hlist_for_each_entry(ctx, &clk_ctx_list, list_node) {
+		for (i = 0; i < ctx->clk_data.clk_num; i++) {
+			clk = ctx->clk_data.clks[i];
+			if (clk && !IS_ERR(clk)) {
+				hw = __clk_get_hw(clk);
+				if (hw)
+					flag = clk_hw_get_flags(hw);
+				if (flag & CLK_IGNORE_UNUSED)
+					continue;
+				if (flag & CLK_IS_CRITICAL)
+					continue;
+				clk_prepare_enable(clk);
+				clk_disable_unprepare(clk);
+			}
+		}
+	}
+}
+EXPORT_SYMBOL_GPL(rockchip_clk_disable_unused);
+#endif /* MODULE */

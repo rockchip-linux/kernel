@@ -56,6 +56,18 @@ static const char *phy_state_to_str(enum phy_state st)
 	return NULL;
 }
 
+static void phy_process_state_change(struct phy_device *phydev,
+				     enum phy_state old_state)
+{
+	if (old_state != phydev->state) {
+		phydev_dbg(phydev, "PHY state change %s -> %s\n",
+			   phy_state_to_str(old_state),
+			   phy_state_to_str(phydev->state));
+		if (phydev->drv && phydev->drv->link_change_notify)
+			phydev->drv->link_change_notify(phydev);
+	}
+}
+
 static void phy_link_up(struct phy_device *phydev)
 {
 	phydev->phy_link_change(phydev, true);
@@ -124,10 +136,15 @@ EXPORT_SYMBOL(phy_print_status);
  */
 static int phy_clear_interrupt(struct phy_device *phydev)
 {
-	if (phydev->drv->ack_interrupt)
-		return phydev->drv->ack_interrupt(phydev);
+	int ret = 0;
 
-	return 0;
+	if (phydev->drv->ack_interrupt) {
+		mutex_lock(&phydev->lock);
+		ret = phydev->drv->ack_interrupt(phydev);
+		mutex_unlock(&phydev->lock);
+	}
+
+	return ret;
 }
 
 /**
@@ -982,6 +999,36 @@ int phy_disable_interrupts(struct phy_device *phydev)
 }
 
 /**
+ * phy_did_interrupt - Checks if the PHY generated an interrupt
+ * @phydev: target phy_device struct
+ */
+static int phy_did_interrupt(struct phy_device *phydev)
+{
+	int ret;
+
+	mutex_lock(&phydev->lock);
+	ret = phydev->drv->did_interrupt(phydev);
+	mutex_unlock(&phydev->lock);
+
+	return ret;
+}
+
+/**
+ * phy_handle_interrupt - Handle PHY interrupt
+ * @phydev: target phy_device struct
+ */
+static irqreturn_t phy_handle_interrupt(struct phy_device *phydev)
+{
+	irqreturn_t ret;
+
+	mutex_lock(&phydev->lock);
+	ret = phydev->drv->handle_interrupt(phydev);
+	mutex_unlock(&phydev->lock);
+
+	return ret;
+}
+
+/**
  * phy_interrupt - PHY interrupt handler
  * @irq: interrupt line
  * @phy_dat: phy_device pointer
@@ -994,9 +1041,9 @@ static irqreturn_t phy_interrupt(int irq, void *phy_dat)
 	struct phy_driver *drv = phydev->drv;
 
 	if (drv->handle_interrupt)
-		return drv->handle_interrupt(phydev);
+		return phy_handle_interrupt(phydev);
 
-	if (drv->did_interrupt && !drv->did_interrupt(phydev))
+	if (drv->did_interrupt && !phy_did_interrupt(phydev))
 		return IRQ_NONE;
 
 	/* reschedule state queue work to run as soon as possible */
@@ -1075,6 +1122,7 @@ EXPORT_SYMBOL(phy_free_interrupt);
 void phy_stop(struct phy_device *phydev)
 {
 	struct net_device *dev = phydev->attached_dev;
+	enum phy_state old_state;
 
 	if (!phy_is_started(phydev) && phydev->state != PHY_DOWN) {
 		WARN(1, "called from state %s\n",
@@ -1083,6 +1131,7 @@ void phy_stop(struct phy_device *phydev)
 	}
 
 	mutex_lock(&phydev->lock);
+	old_state = phydev->state;
 
 	if (phydev->state == PHY_CABLETEST) {
 		phy_abort_cable_test(phydev);
@@ -1093,6 +1142,7 @@ void phy_stop(struct phy_device *phydev)
 		sfp_upstream_stop(phydev->sfp_bus);
 
 	phydev->state = PHY_HALTED;
+	phy_process_state_change(phydev, old_state);
 
 	mutex_unlock(&phydev->lock);
 
@@ -1207,13 +1257,7 @@ void phy_state_machine(struct work_struct *work)
 	if (err < 0)
 		phy_error(phydev);
 
-	if (old_state != phydev->state) {
-		phydev_dbg(phydev, "PHY state change %s -> %s\n",
-			   phy_state_to_str(old_state),
-			   phy_state_to_str(phydev->state));
-		if (phydev->drv && phydev->drv->link_change_notify)
-			phydev->drv->link_change_notify(phydev);
-	}
+	phy_process_state_change(phydev, old_state);
 
 	/* Only re-schedule a PHY state machine change if we are polling the
 	 * PHY, if PHY_IGNORE_INTERRUPT is set, then we will be moving

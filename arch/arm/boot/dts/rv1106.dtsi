@@ -9,6 +9,7 @@
 #include <dt-bindings/pinctrl/rockchip.h>
 #include <dt-bindings/soc/rockchip,boot-mode.h>
 #include <dt-bindings/soc/rockchip-system-status.h>
+#include <dt-bindings/suspend/rockchip-rv1106.h>
 #include <dt-bindings/thermal/thermal.h>
 
 / {
@@ -112,55 +113,61 @@
 		compatible = "operating-points-v2";
 		opp-shared;
 
+		nvmem-cells = <&cpu_leakage>;
+		nvmem-cell-names = "leakage";
+
 		rockchip,pvtpll-avg-offset = <0x4001c>;
 		rockchip,pvtpll-min-rate = <1104000>;
 		rockchip,pvtpll-volt-step = <12500>;
 		rockchip,grf = <&grf>;
+		rockchip,temp-hysteresis = <5000>;
+		rockchip,low-temp = <10000>;
+		rockchip,low-temp-min-volt = <900000>;
 
 		opp-408000000 {
 			opp-hz = /bits/ 64 <408000000>;
-			opp-microvolt = <850000 850000 1050000>;
+			opp-microvolt = <850000 850000 1000000>;
 			clock-latency-ns = <40000>;
 		};
 		opp-600000000 {
 			opp-hz = /bits/ 64 <600000000>;
-			opp-microvolt = <850000 850000 1050000>;
+			opp-microvolt = <850000 850000 1000000>;
 			clock-latency-ns = <40000>;
 		};
 		opp-816000000 {
 			opp-hz = /bits/ 64 <816000000>;
-			opp-microvolt = <850000 850000 1050000>;
+			opp-microvolt = <850000 850000 1000000>;
 			clock-latency-ns = <40000>;
 			opp-suspend;
 		};
 		opp-1104000000 {
 			opp-hz = /bits/ 64 <1104000000>;
-			opp-microvolt = <850000 850000 1050000>;
+			opp-microvolt = <850000 850000 1000000>;
 			clock-latency-ns = <40000>;
 		};
 		opp-1200000000 {
 			opp-hz = /bits/ 64 <1200000000>;
-			opp-microvolt = <850000 850000 1050000>;
+			opp-microvolt = <850000 850000 1000000>;
 			clock-latency-ns = <40000>;
 		};
 		opp-1296000000 {
 			opp-hz = /bits/ 64 <1296000000>;
-			opp-microvolt = <875000 850000 1050000>;
+			opp-microvolt = <875000 850000 1000000>;
 			clock-latency-ns = <40000>;
 		};
 		opp-1416000000 {
 			opp-hz = /bits/ 64 <1416000000>;
-			opp-microvolt = <925000 850000 1050000>;
+			opp-microvolt = <925000 850000 1000000>;
 			clock-latency-ns = <40000>;
 		};
 		opp-1512000000 {
 			opp-hz = /bits/ 64 <1512000000>;
-			opp-microvolt = <975000 850000 1050000>;
+			opp-microvolt = <975000 850000 1000000>;
 			clock-latency-ns = <40000>;
 		};
 		opp-1608000000 {
 			opp-hz = /bits/ 64 <1608000000>;
-			opp-microvolt = <1012500 850000 1050000>;
+			opp-microvolt = <1000000 850000 1000000>;
 			clock-latency-ns = <40000>;
 		};
 	};
@@ -225,6 +232,26 @@
 		status = "disabled";
 	};
 
+	firmware {
+		optee: optee {
+			compatible = "linaro,optee-tz";
+			method = "smc";
+			status = "disabled";
+		};
+	};
+
+	mipi0_csi2: mipi0-csi2 {
+		compatible = "rockchip,rv1106-mipi-csi2";
+		rockchip,hw = <&mipi0_csi2_hw>, <&mipi1_csi2_hw>;
+		status = "disabled";
+	};
+
+	mipi1_csi2: mipi1-csi2 {
+		compatible = "rockchip,rv1106-mipi-csi2";
+		rockchip,hw = <&mipi0_csi2_hw>, <&mipi1_csi2_hw>;
+		status = "disabled";
+	};
+
 	mpp_srv: mpp-srv {
 		compatible = "rockchip,mpp-service";
 		rockchip,taskqueue-count = <2>;
@@ -234,6 +261,11 @@
 	mpp_vcodec: mpp-vcodec {
 		compatible = "rockchip,vcodec";
 		status = "disabled";
+	};
+
+	psci {
+		compatible = "arm,psci-1.0";
+		method = "smc";
 	};
 
 	rkcif_dvp: rkcif-dvp {
@@ -297,6 +329,55 @@
 		status = "disabled";
 	};
 
+	rockchip_suspend: rockchip-suspend {
+		compatible = "rockchip,pm-config";
+		status = "okay";
+		rockchip,sleep-io-config = <
+			(0
+			| RKPM_IO_CFG_IOMUX_GPIO
+			| RKPM_IO_CFG_GPIO_DIR_INPUT
+			| RKPM_IO_CFG_PULL_DOWN
+			| RKPM_IO_CFG_ID(0)
+			)
+			(0
+			| RKPM_IO_CFG_IOMUX_GPIO
+			| RKPM_IO_CFG_GPIO_DIR_INPUT
+			| RKPM_IO_CFG_PULL_DOWN
+			| RKPM_IO_CFG_ID(1)
+			)
+			(0
+			| RKPM_IO_CFG_IOMUX_GPIO
+			| RKPM_IO_CFG_GPIO_DIR_INPUT
+			| RKPM_IO_CFG_PULL_DOWN
+			| RKPM_IO_CFG_ID(2)
+			)
+			(0
+			| RKPM_IO_CFG_IOMUX_GPIO
+			| RKPM_IO_CFG_GPIO_DIR_INPUT
+			| RKPM_IO_CFG_PULL_UP
+			| RKPM_IO_CFG_ID(3)
+			)
+			(0
+			| RKPM_IO_CFG_IOMUX_GPIO
+			| RKPM_IO_CFG_GPIO_DIR_INPUT
+			| RKPM_IO_CFG_PULL_UP
+			| RKPM_IO_CFG_ID(4)
+			)
+			(0
+			| RKPM_IO_CFG_IOMUX_GPIO
+			| RKPM_IO_CFG_GPIO_DIR_INPUT
+			| RKPM_IO_CFG_PULL_NONE
+			| RKPM_IO_CFG_ID(5)
+			)
+			(0
+			| RKPM_IO_CFG_IOMUX_GPIO
+			| RKPM_IO_CFG_GPIO_DIR_INPUT
+			| RKPM_IO_CFG_PULL_NONE
+			| RKPM_IO_CFG_ID(6)
+			)
+		>;
+	};
+
 	rockchip_system_monitor: rockchip-system-monitor {
 		compatible = "rockchip,system-monitor";
 
@@ -334,7 +415,8 @@
 
 	timer {
 		compatible = "arm,armv7-timer";
-		interrupts = <GIC_PPI 13 (GIC_CPU_MASK_SIMPLE(1) | IRQ_TYPE_LEVEL_HIGH)>;
+		interrupts = <GIC_PPI 13 (GIC_CPU_MASK_SIMPLE(1) | IRQ_TYPE_LEVEL_HIGH)>,
+			     <GIC_PPI 14 (GIC_CPU_MASK_SIMPLE(1) | IRQ_TYPE_LEVEL_HIGH)>;
 		clock-frequency = <24000000>;
 	};
 
@@ -434,6 +516,11 @@
 		};
 	};
 
+	pmu: power-management@ff300000 {
+		compatible = "rockchip,rv1106-pmu", "syscon";
+		reg = <0xff300000 0x1000>;
+	};
+
 	i2c0: i2c@ff310000 {
 		compatible = "rockchip,rv1106-i2c", "rockchip,rk3399-i2c";
 		reg = <0xff310000 0x1000>;
@@ -478,6 +565,7 @@
 	pwm0: pwm@ff350000 {
 		compatible = "rockchip,rv1106-pwm", "rockchip,rk3328-pwm";
 		reg = <0xff350000 0x10>;
+		interrupts = <GIC_SPI 31 IRQ_TYPE_LEVEL_HIGH>;
 		#pwm-cells = <3>;
 		pinctrl-names = "active";
 		pinctrl-0 = <&pwm0m0_pins>;
@@ -489,6 +577,7 @@
 	pwm1: pwm@ff350010 {
 		compatible = "rockchip,rv1106-pwm", "rockchip,rk3328-pwm";
 		reg = <0xff350010 0x10>;
+		interrupts = <GIC_SPI 31 IRQ_TYPE_LEVEL_HIGH>;
 		#pwm-cells = <3>;
 		pinctrl-names = "active";
 		pinctrl-0 = <&pwm1m0_pins>;
@@ -500,6 +589,7 @@
 	pwm2: pwm@ff350020 {
 		compatible = "rockchip,rv1106-pwm", "rockchip,rk3328-pwm";
 		reg = <0xff350020 0x10>;
+		interrupts = <GIC_SPI 31 IRQ_TYPE_LEVEL_HIGH>;
 		#pwm-cells = <3>;
 		pinctrl-names = "active";
 		pinctrl-0 = <&pwm2m0_pins>;
@@ -524,6 +614,7 @@
 	pwm4: pwm@ff360000 {
 		compatible = "rockchip,rv1106-pwm", "rockchip,rk3328-pwm";
 		reg = <0xff360000 0x10>;
+		interrupts = <GIC_SPI 33 IRQ_TYPE_LEVEL_HIGH>;
 		#pwm-cells = <3>;
 		pinctrl-names = "active";
 		pinctrl-0 = <&pwm4m0_pins>;
@@ -535,6 +626,7 @@
 	pwm5: pwm@ff360010 {
 		compatible = "rockchip,rv1106-pwm", "rockchip,rk3328-pwm";
 		reg = <0xff360010 0x10>;
+		interrupts = <GIC_SPI 33 IRQ_TYPE_LEVEL_HIGH>;
 		#pwm-cells = <3>;
 		pinctrl-names = "active";
 		pinctrl-0 = <&pwm5m0_pins>;
@@ -546,6 +638,7 @@
 	pwm6: pwm@ff360020 {
 		compatible = "rockchip,rv1106-pwm", "rockchip,rk3328-pwm";
 		reg = <0xff360020 0x10>;
+		interrupts = <GIC_SPI 33 IRQ_TYPE_LEVEL_HIGH>;
 		#pwm-cells = <3>;
 		pinctrl-names = "active";
 		pinctrl-0 = <&pwm6m0_pins>;
@@ -817,12 +910,14 @@
 		resets = <&cru SRST_P_ACODEC>;
 		reset-names = "acodec-reset";
 		acodec,micbias;
+		init-mic-gain = <0x22>; /* Left:20dB Right:20dB */
 		status = "disabled";
 	};
 
 	pwm8: pwm@ff490000 {
 		compatible = "rockchip,rv1106-pwm", "rockchip,rk3328-pwm";
 		reg = <0xff490000 0x10>;
+		interrupts = <GIC_SPI 35 IRQ_TYPE_LEVEL_HIGH>;
 		#pwm-cells = <3>;
 		pinctrl-names = "active";
 		pinctrl-0 = <&pwm8m0_pins>;
@@ -834,6 +929,7 @@
 	pwm9: pwm@ff490010 {
 		compatible = "rockchip,rv1106-pwm", "rockchip,rk3328-pwm";
 		reg = <0xff490010 0x10>;
+		interrupts = <GIC_SPI 35 IRQ_TYPE_LEVEL_HIGH>;
 		#pwm-cells = <3>;
 		pinctrl-names = "active";
 		pinctrl-0 = <&pwm9m0_pins>;
@@ -845,6 +941,7 @@
 	pwm10: pwm@ff490020 {
 		compatible = "rockchip,rv1106-pwm", "rockchip,rk3328-pwm";
 		reg = <0xff490020 0x10>;
+		interrupts = <GIC_SPI 35 IRQ_TYPE_LEVEL_HIGH>;
 		#pwm-cells = <3>;
 		pinctrl-names = "active";
 		pinctrl-0 = <&pwm10m0_pins>;
@@ -979,6 +1076,8 @@
 		#size-cells = <0>;
 		clocks = <&cru CLK_SPI1>, <&cru PCLK_SPI1>;
 		clock-names = "spiclk", "apb_pclk";
+		assigned-clocks = <&cru CLK_SPI1>;
+		assigned-clock-rates = <200000000>;
 		dmas = <&dmac 3>, <&dmac 2>;
 		dma-names = "tx", "rx";
 		pinctrl-names = "default";
@@ -1138,8 +1237,8 @@
 		status = "disabled";
 	};
 
-	mipi0_csi2: mipi-csi2@ffa20000 {
-		compatible = "rockchip,rk3588-mipi-csi2";
+	mipi0_csi2_hw: mipi-csi2-hw@ffa20000 {
+		compatible = "rockchip,rv1106-mipi-csi2-hw";
 		reg = <0xffa20000 0x10000>;
 		reg-names = "csihost_regs";
 		interrupts = <GIC_SPI 99 IRQ_TYPE_LEVEL_HIGH>,
@@ -1149,11 +1248,11 @@
 		clock-names = "pclk_csi2host", "clk_rxbyte_hs";
 		resets = <&cru SRST_P_CSIHOST0>;
 		reset-names = "srst_csihost_p";
-		status = "disabled";
+		status = "okay";
 	};
 
-	mipi1_csi2: mipi-csi2@ffa30000 {
-		compatible = "rockchip,rk3588-mipi-csi2";
+	mipi1_csi2_hw: mipi-csi2-hw@ffa30000 {
+		compatible = "rockchip,rv1106-mipi-csi2-hw";
 		reg = <0xffa30000 0x10000>;
 		reg-names = "csihost_regs";
 		interrupts = <GIC_SPI 101 IRQ_TYPE_LEVEL_HIGH>,
@@ -1163,7 +1262,7 @@
 		clock-names = "pclk_csi2host", "clk_rxbyte_hs";
 		resets = <&cru SRST_P_CSIHOST1>;
 		reset-names = "srst_csihost_p";
-		status = "disabled";
+		status = "okay";
 	};
 
 	rkvenc: rkvenc@ffa50000 {
@@ -1230,7 +1329,7 @@
 		snps,tso;
 
 		tx-dma-size = <256>;
-		rx-dma-size = <16>;
+		rx-dma-size = <128>;
 
 		snps,axi-config = <&stmmac_axi_setup>;
 		snps,mtl-rx-config = <&mtl_rx_setup>;
@@ -1239,6 +1338,9 @@
 		phy-mode = "rmii";
 		clock_in_out = "input";
 		phy-handle = <&rmii_phy>;
+
+		/* FLOW_OFF: 0, FLOW_RX: 1, FLOW_TX: 2, FLOW_AUTO: 3 */
+		snps,flow-ctrl = <0>;
 
 		nvmem-cells = <&macphy_bgs>;
 		nvmem-cell-names = "bgs";
@@ -1256,6 +1358,7 @@
 				phy-is-integrated;
 				nvmem-cells = <&macphy_txlevel>;
 				nvmem-cell-names = "txlevel";
+				bgs,increment = <2>;
 			};
 		};
 
@@ -1370,6 +1473,7 @@
 			snps,dis-tx-ipgap-linecheck-quirk;
 			snps,usb2-gadget-lpm-disable;
 			snps,usb2-lpm-disable;
+			snps,parkmode-disable-hs-quirk;
 			status = "disabled";
 		};
 	};

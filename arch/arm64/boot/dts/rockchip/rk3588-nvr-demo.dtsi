@@ -181,6 +181,10 @@
 	status = "okay";
 };
 
+&dp1_sound {
+	status = "okay";
+};
+
 &gmac0 {
 	/* Use rgmii-rxid mode to disable rx delay inside Soc */
 	phy-mode = "rgmii-rxid";
@@ -351,9 +355,9 @@
 		adc-volume = <0xbf>;    /* 0dB */
 		dac-volume = <0xbf>;    /* 0dB */
 		aec-mode = "adc left, adc right";
-		clocks = <&cru I2S0_8CH_MCLKOUT>;
+		clocks = <&mclkout_i2s0>;
 		clock-names = "mclk";
-		assigned-clocks = <&cru I2S0_8CH_MCLKOUT>;
+		assigned-clocks = <&mclkout_i2s0>;
 		assigned-clock-rates = <12288000>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&i2s0_mclk>;
@@ -422,6 +426,8 @@
 &pcie3x4 {
 	reset-gpios = <&gpio4 RK_PB6 GPIO_ACTIVE_HIGH>;
 	vpcie3v3-supply = <&vcc3v3_pcie30>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pcie30x4_clkreqn_m1>;
 	status = "okay";
 };
 
@@ -678,6 +684,10 @@
 	status = "okay";
 };
 
+&spdif_tx5 {
+	status = "okay";
+};
+
 &pinctrl {
 	dp {
 		dp1_hdmi_ctl: dp-hdmi-ctl {
@@ -685,6 +695,13 @@
 					<3 RK_PB2 RK_FUNC_GPIO &pcfg_pull_up>;
 		};
 	};
+
+	pcie30x4 {
+		pcie30x4_clkreqn_m1: pcie30x4-clkreqn-m1 {
+			rockchip,pins = <4 RK_PB4 RK_FUNC_GPIO &pcfg_pull_down>;
+		};
+	};
+
 
 	rtc {
 		rtc_int: rtc-int {

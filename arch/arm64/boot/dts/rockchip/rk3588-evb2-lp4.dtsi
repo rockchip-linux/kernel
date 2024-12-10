@@ -336,9 +336,9 @@
 		#sound-dai-cells = <0>;
 		compatible = "everest,es8388", "everest,es8323";
 		reg = <0x11>;
-		clocks = <&cru I2S0_8CH_MCLKOUT>;
+		clocks = <&mclkout_i2s0>;
 		clock-names = "mclk";
-		assigned-clocks = <&cru I2S0_8CH_MCLKOUT>;
+		assigned-clocks = <&mclkout_i2s0>;
 		assigned-clock-rates = <12288000>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&i2s0_mclk>;
@@ -351,6 +351,11 @@
 		power-supply = <&vcc_1v8_s0>;	/* only 1v8 or 3v3, default is 3v3 */
 		reg = <0x32>;
 	};
+};
+
+&i2s2_2ch {
+	pinctrl-0 = <&i2s2m0_sclk &i2s2m0_lrck &i2s2m0_sdi &i2s2m0_sdo>;
+	status = "disabled";
 };
 
 &i2s5_8ch {
@@ -380,6 +385,8 @@
 &pcie3x4 {
 	reset-gpios = <&gpio4 RK_PB6 GPIO_ACTIVE_HIGH>;
 	vpcie3v3-supply = <&vcc3v3_pcie30>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pcie30x4_clkreqn_m1>;
 	status = "okay";
 };
 
@@ -406,6 +413,12 @@
 	lcd {
 		lcd_rst_gpio: lcd-rst-gpio {
 			rockchip,pins = <4 RK_PA0 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	pcie30x4 {
+		pcie30x4_clkreqn_m1: pcie30x4-clkreqn-m1 {
+			rockchip,pins = <4 RK_PB4 RK_FUNC_GPIO &pcfg_pull_down>;
 		};
 	};
 

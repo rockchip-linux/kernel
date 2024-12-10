@@ -644,18 +644,22 @@ struct mlx5_pps {
 	u8                         enabled;
 };
 
-struct mlx5_clock {
-	struct mlx5_nb             pps_nb;
-	seqlock_t                  lock;
+struct mlx5_timer {
 	struct cyclecounter        cycles;
 	struct timecounter         tc;
-	struct hwtstamp_config     hwtstamp_config;
 	u32                        nominal_c_mult;
 	unsigned long              overflow_period;
 	struct delayed_work        overflow_work;
+};
+
+struct mlx5_clock {
+	struct mlx5_nb             pps_nb;
+	seqlock_t                  lock;
+	struct hwtstamp_config     hwtstamp_config;
 	struct ptp_clock          *ptp;
 	struct ptp_clock_info      ptp_info;
 	struct mlx5_pps            pps_info;
+	struct mlx5_timer          timer;
 };
 
 struct mlx5_dm;
@@ -899,7 +903,7 @@ void mlx5_cmd_allowed_opcode(struct mlx5_core_dev *dev, u16 opcode);
 struct mlx5_async_ctx {
 	struct mlx5_core_dev *dev;
 	atomic_t num_inflight;
-	struct wait_queue_head wait;
+	struct completion inflight_done;
 };
 
 struct mlx5_async_work;

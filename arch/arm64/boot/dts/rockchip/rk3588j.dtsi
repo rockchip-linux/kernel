@@ -1,0 +1,66 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright (c) 2022 Rockchip Electronics Co., Ltd.
+ *
+ */
+
+#include "rk3588.dtsi"
+
+&cluster0_opp_table {
+	/*
+	 * The Max frequency is 1296MHz in default normal mode.
+	 * The Max frequency is 1704MHz in overdrive mode,
+	 * but under the overdrive mode for a long time,
+	 * the chipset may shorten the lifetime,
+	 * especially in high temperature condition.
+	 */
+	/delete-node/ opp-j-m-1416000000;
+	/delete-node/ opp-j-m-1608000000;
+	/delete-node/ opp-j-m-1704000000;
+};
+
+&cluster1_opp_table {
+	/*
+	 * The Max frequency is 1608MHz in default normal mode.
+	 * The Max frequency is 2016MHz in overdrive mode,
+	 * but under the overdrive mode for a long time,
+	 * the chipset may shorten the lifetime,
+	 * especially in high temperature condition.
+	 */
+	/delete-node/ opp-j-m-1800000000;
+	/delete-node/ opp-j-m-2016000000;
+};
+
+&cluster2_opp_table {
+	/*
+	 * The Max frequency is 1608MHz in default normal mode.
+	 * The Max frequency is 2016MHz in overdrive mode,
+	 * but under the overdrive mode for a long time,
+	 * the chipset may shorten the lifetime,
+	 * especially in high temperature condition.
+	 */
+	/delete-node/ opp-j-m-1800000000;
+	/delete-node/ opp-j-m-2016000000;
+};
+
+&gpu_opp_table {
+	/*
+	 * The Max frequency is 700MHz in default normal mode.
+	 * The Max frequency is 850MHz in overdrive mode,
+	 * but under the overdrive mode for a long time,
+	 * the chipset may shorten the lifetime,
+	 * especially in high temperature condition.
+	 */
+	/delete-node/ opp-j-850000000;
+};
+
+&npu_opp_table {
+	/*
+	 * The Max frequency is 800MHz in default normal mode.
+	 * The Max frequency is 950MHz in overdrive mode,
+	 * but under the overdrive mode for a long time,
+	 * the chipset may shorten the lifetime,
+	 * especially in high temperature condition.
+	 */
+	/delete-node/ opp-j-m-950000000;
+};

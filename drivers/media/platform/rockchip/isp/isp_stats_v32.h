@@ -4,7 +4,7 @@
 #ifndef _RKISP_ISP_STATS_V32_H
 #define _RKISP_ISP_STATS_V32_H
 
-#include <linux/rkisp1-config.h>
+#include <linux/rk-isp1-config.h>
 #include <linux/interrupt.h>
 #include <linux/kfifo.h>
 #include "common.h"
@@ -33,10 +33,8 @@ struct rkisp_stats_ops_v32 {
 				struct rkisp32_isp_stat_buffer *pbuf);
 	int (*get_rawhst3_meas)(struct rkisp_isp_stats_vdev *stats_vdev,
 				struct rkisp32_isp_stat_buffer *pbuf);
-	int (*get_bls_stats)(struct rkisp_isp_stats_vdev *stats_vdev,
-			     struct rkisp32_isp_stat_buffer *pbuf);
-	int (*get_dhaz_stats)(struct rkisp_isp_stats_vdev *stats_vdev,
-			      struct rkisp32_isp_stat_buffer *pbuf);
+	int (*get_bls_stats)(struct rkisp_isp_stats_vdev *stats_vdev, void *pbuf);
+	int (*get_dhaz_stats)(struct rkisp_isp_stats_vdev *stats_vdev, void *pbuf);
 	int (*get_vsm_stats)(struct rkisp_isp_stats_vdev *stats_vdev,
 			     struct rkisp32_isp_stat_buffer *pbuf);
 };

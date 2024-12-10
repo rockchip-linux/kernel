@@ -34,6 +34,8 @@
 #include "mali_kbase_ipa_simple.h"
 #include "mali_kbase_ipa_debugfs.h"
 
+#if MALI_USE_CSF
+
 /* This is used if the dynamic power for top-level is estimated separately
  * through the counter model. To roughly match the contribution of top-level
  * power in the total dynamic power, when calculated through counter model,
@@ -43,6 +45,8 @@
  * core power and then averaging it across all samples.
  */
 #define TOP_LEVEL_DYN_COEFF_SCALER (3)
+
+#endif /* MALI_USE_CSF */
 
 #if MALI_UNIT_TEST
 
@@ -232,14 +236,12 @@ static int add_params(struct kbase_ipa_model *model)
 			(struct kbase_ipa_model_simple_data *)model->model_data;
 
 	err = kbase_ipa_model_add_param_s32(model, "static-coefficient",
-					    &model_data->static_coefficient,
-					    1, true);
+					    (s32 *)&model_data->static_coefficient, 1, true);
 	if (err)
 		goto end;
 
 	err = kbase_ipa_model_add_param_s32(model, "dynamic-coefficient",
-					    &model_data->dynamic_coefficient,
-					    1, true);
+					    (s32 *)&model_data->dynamic_coefficient, 1, true);
 	if (err)
 		goto end;
 

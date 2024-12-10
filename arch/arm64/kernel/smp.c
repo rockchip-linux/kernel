@@ -56,6 +56,10 @@
 #undef CREATE_TRACE_POINTS
 #include <trace/hooks/debug.h>
 
+#if IS_ENABLED(CONFIG_ROCKCHIP_MINIDUMP)
+#include <soc/rockchip/rk_minidump.h>
+#endif
+
 DEFINE_PER_CPU_READ_MOSTLY(int, cpu_number);
 EXPORT_PER_CPU_SYMBOL(cpu_number);
 EXPORT_TRACEPOINT_SYMBOL_GPL(ipi_raise);
@@ -916,6 +920,9 @@ static void do_handle_IPI(int ipinr)
 
 	case IPI_CPU_STOP:
 		trace_android_vh_ipi_stop_rcuidle(get_irq_regs());
+#if IS_ENABLED(CONFIG_ROCKCHIP_MINIDUMP)
+		rk_minidump_update_cpu_regs(get_irq_regs());
+#endif
 		local_cpu_stop();
 		break;
 
@@ -1090,10 +1097,8 @@ void crash_smp_send_stop(void)
 	 * If this cpu is the only one alive at this point in time, online or
 	 * not, there are no stop messages to be sent around, so just back out.
 	 */
-	if (num_other_online_cpus() == 0) {
-		sdei_mask_local_cpu();
-		return;
-	}
+	if (num_other_online_cpus() == 0)
+		goto skip_ipi;
 
 	cpumask_copy(&mask, cpu_online_mask);
 	cpumask_clear_cpu(smp_processor_id(), &mask);
@@ -1112,7 +1117,9 @@ void crash_smp_send_stop(void)
 		pr_warn("SMP: failed to stop secondary CPUs %*pbl\n",
 			cpumask_pr_args(&mask));
 
+skip_ipi:
 	sdei_mask_local_cpu();
+	sdei_handler_abort();
 }
 
 bool smp_crash_stop_failed(void)

@@ -1138,8 +1138,8 @@ static void sc430cs_modify_fps_info(struct sc430cs *sc430cs)
 {
 	const struct sc430cs_mode *mode = sc430cs->cur_mode;
 
-	sc430cs->cur_fps.denominator = mode->max_fps.denominator * sc430cs->cur_vts /
-				       mode->vts_def;
+	sc430cs->cur_fps.denominator = mode->max_fps.denominator * mode->vts_def /
+				       sc430cs->cur_vts;
 }
 
 static int sc430cs_set_ctrl(struct v4l2_ctrl *ctrl)
@@ -1202,8 +1202,7 @@ static int sc430cs_set_ctrl(struct v4l2_ctrl *ctrl)
 					 & 0xff);
 		if (!ret)
 			sc430cs->cur_vts = ctrl->val + sc430cs->cur_mode->height;
-		if (sc430cs->cur_vts != sc430cs->cur_mode->vts_def)
-			sc430cs_modify_fps_info(sc430cs);
+		sc430cs_modify_fps_info(sc430cs);
 		break;
 	case V4L2_CID_TEST_PATTERN:
 		ret = sc430cs_enable_test_pattern(sc430cs, ctrl->val);

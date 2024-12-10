@@ -75,15 +75,17 @@ int drm_atomic_set_mode_for_crtc(struct drm_crtc_state *state,
 	state->mode_blob = NULL;
 
 	if (mode) {
+		struct drm_property_blob *blob;
+
 		drm_mode_convert_to_umode(&umode, mode);
-		state->mode_blob =
-			drm_property_create_blob(state->crtc->dev,
-		                                 sizeof(umode),
-		                                 &umode);
-		if (IS_ERR(state->mode_blob))
-			return PTR_ERR(state->mode_blob);
+		blob = drm_property_create_blob(crtc->dev,
+						sizeof(umode), &umode);
+		if (IS_ERR(blob))
+			return PTR_ERR(blob);
 
 		drm_mode_copy(&state->mode, mode);
+
+		state->mode_blob = blob;
 		state->enable = true;
 		DRM_DEBUG_ATOMIC("Set [MODE:%s] for [CRTC:%d:%s] state %p\n",
 				 mode->name, crtc->base.id, crtc->name, state);
@@ -459,16 +461,6 @@ static int drm_atomic_crtc_set_property(struct drm_crtc *crtc,
 					&replaced);
 		state->color_mgmt_changed |= replaced;
 		return ret;
-#if defined(CONFIG_ROCKCHIP_DRM_CUBIC_LUT)
-	} else if (property == config->cubic_lut_property) {
-		ret = drm_atomic_replace_property_blob_from_id(dev,
-					&state->cubic_lut,
-					val,
-					-1, sizeof(struct drm_color_lut),
-					&replaced);
-		state->color_mgmt_changed |= replaced;
-		return ret;
-#endif
 	} else if (property == config->prop_out_fence_ptr) {
 		s32 __user *fence_ptr = u64_to_user_ptr(val);
 
@@ -511,10 +503,6 @@ drm_atomic_crtc_get_property(struct drm_crtc *crtc,
 		*val = (state->ctm) ? state->ctm->base.id : 0;
 	else if (property == config->gamma_lut_property)
 		*val = (state->gamma_lut) ? state->gamma_lut->base.id : 0;
-#if defined(CONFIG_ROCKCHIP_DRM_CUBIC_LUT)
-	else if (property == config->cubic_lut_property)
-		*val = (state->cubic_lut) ? state->cubic_lut->base.id : 0;
-#endif
 	else if (property == config->prop_out_fence_ptr)
 		*val = 0;
 	else if (crtc->funcs->atomic_get_property)

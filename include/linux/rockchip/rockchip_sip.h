@@ -55,6 +55,9 @@
 #define RK_SIP_FIQ_CTRL			0x82000024
 #define SIP_HDCP_CONFIG			0x82000025
 #define SIP_WDT_CFG			0x82000026
+#define SIP_HDMIRX_CFG			0x82000027
+#define SIP_MCU_CFG			0x82000028
+#define SIP_PVTPLL_CFG			0x82000029
 
 #define TRUSTED_OS_HDCPKEY_INIT		0xB7000003
 
@@ -106,6 +109,7 @@
 #define SUSPEND_WFI_TIME_MS		0x08
 #define LINUX_PM_STATE			0x09
 #define SUSPEND_IO_RET_CONFIG		0x0a
+#define SLEEP_PIN_CONFIG		0x0b
 
 /* SIP_REMOTECTL_CFG call types */
 #define	REMOTECTL_SET_IRQ		0xf0
@@ -115,6 +119,28 @@
 #define REMOTECTL_ENABLE		0xf4
 /* wakeup state */
 #define REMOTECTL_PWRKEY_WAKEUP		0xdeadbeaf
+
+/* SIP_MCU_CFG child configs, MCU ID */
+enum {
+	RK_BUS_MCU,
+	RK_PMU_MCU,
+	RK_DDR_MCU,
+	RK_NPU_MCU,
+};
+
+#define RK_SIP_MCU_ID(type, id)		((type) << 8 | id)
+
+#define RK_SIP_CFG_BUSMCU_0_ID		RK_SIP_MCU_ID(RK_BUS_MCU, 0)
+#define RK_SIP_CFG_BUSMCU_1_ID		RK_SIP_MCU_ID(RK_BUS_MCU, 1)
+#define RK_SIP_CFG_PMUMCU_0_ID		RK_SIP_MCU_ID(RK_PMU_MCU, 0)
+#define RK_SIP_CFG_DDRMCU_0_ID		RK_SIP_MCU_ID(RK_DDR_MCU, 0)
+#define RK_SIP_CFG_NPUMCU_0_ID		RK_SIP_MCU_ID(RK_NPU_MCU, 0)
+
+/* SIP_MCU_CFG child configs */
+#define CONFIG_MCU_CODE_START_ADDR	0x01
+#define CONFIG_MCU_EXPERI_START_ADDR	0x02
+#define CONFIG_MCU_SRAM_START_ADDR	0x03
+#define CONFIG_MCU_EXSRAM_START_ADDR	0x04
 
 struct dram_addrmap_info {
 	u64 ch_mask[2];
@@ -157,6 +183,7 @@ typedef enum {
 	SHARE_PAGE_TYPE_DDR_ADDRMAP,
 	SHARE_PAGE_TYPE_LAST_LOG,
 	SHARE_PAGE_TYPE_HDCP,
+	SHARE_PAGE_TYPE_SLEEP,
 	SHARE_PAGE_TYPE_MAX,
 } share_page_type_t;
 
@@ -193,13 +220,30 @@ enum {
 	WDT_PING = 2,
 };
 
+/* SIP_HDMIRX_CONFIG child configs */
+enum {
+	HDMIRX_AUTO_TOUCH_EN = 0,
+	HDMIRX_REG_PRE_FETCH = 1,
+	HDMIRX_INFO_NOTIFY = 2,
+};
+
+/* SIP_PVTPLL_CFG child configs */
+enum {
+	PVTPLL_GET_INFO = 0,
+	PVTPLL_ADJUST_TABLE = 1,
+	PVTPLL_LOW_TEMP = 2,
+};
+
+struct pt_regs;
+typedef void (*sip_fiq_debugger_uart_irq_tf_cb_t)(struct pt_regs *_pt_regs, unsigned long cpu);
+
 /*
  * Rules: struct arm_smccc_res contains result and data, details:
  *
  * a0: error code(0: success, !0: error);
  * a1~a3: data
  */
-#if IS_ENABLED(CONFIG_ROCKCHIP_SIP)
+#if IS_REACHABLE(CONFIG_ROCKCHIP_SIP)
 struct arm_smccc_res sip_smc_get_atf_version(void);
 struct arm_smccc_res sip_smc_get_sip_version(void);
 struct arm_smccc_res sip_smc_dram(u32 arg0, u32 arg1, u32 arg2);
@@ -220,13 +264,17 @@ struct arm_smccc_res sip_smc_bus_config(u32 arg0, u32 arg1, u32 arg2);
 struct dram_addrmap_info *sip_smc_get_dram_map(void);
 int sip_smc_amp_config(u32 sub_func_id, u32 arg1, u32 arg2, u32 arg3);
 struct arm_smccc_res sip_smc_get_amp_info(u32 sub_func_id, u32 arg1);
+struct arm_smccc_res sip_smc_get_pvtpll_info(u32 sub_func_id, u32 arg1);
+struct arm_smccc_res sip_smc_pvtpll_config(u32 sub_func_id, u32 arg1, u32 arg2,
+					   u32 arg3, u32 arg4, u32 arg5, u32 arg6);
 
 void __iomem *sip_hdcp_request_share_memory(int id);
 struct arm_smccc_res sip_hdcp_config(u32 arg0, u32 arg1, u32 arg2);
+ulong sip_cpu_logical_map_mpidr(u32 cpu);
 /***************************fiq debugger **************************************/
 void sip_fiq_debugger_enable_fiq(bool enable, uint32_t tgt_cpu);
 void sip_fiq_debugger_enable_debug(bool enable);
-int sip_fiq_debugger_uart_irq_tf_init(u32 irq_id, void *callback_fn);
+int sip_fiq_debugger_uart_irq_tf_init(u32 irq_id, sip_fiq_debugger_uart_irq_tf_cb_t callback_fn);
 int sip_fiq_debugger_set_print_port(u32 port_phyaddr, u32 baudrate);
 int sip_fiq_debugger_request_share_memory(void);
 int sip_fiq_debugger_get_target_cpu(void);
@@ -236,50 +284,58 @@ int sip_fiq_debugger_is_enabled(void);
 int sip_fiq_debugger_sdei_get_event_id(u32 *fiq, u32 *sw_cpu, u32 *flag);
 int sip_fiq_control(u32 sub_func, u32 irq, unsigned long data);
 int sip_wdt_config(u32 sub_func, u32 arg1, u32 arg2, u32 arg3);
+int sip_hdmirx_config(u32 sub_func, u32 arg1, u32 arg2, u32 arg3);
 int sip_hdcpkey_init(u32 hdcp_id);
+int sip_smc_mcu_config(unsigned long mcu_id, unsigned long func, unsigned long arg2);
 #else
 static inline struct arm_smccc_res sip_smc_get_atf_version(void)
 {
-	struct arm_smccc_res tmp = {0};
+	struct arm_smccc_res tmp = { .a0 = SIP_RET_NOT_SUPPORTED };
 	return tmp;
 }
 
 static inline struct arm_smccc_res sip_smc_get_sip_version(void)
 {
-	struct arm_smccc_res tmp = {0};
+	struct arm_smccc_res tmp = { .a0 = SIP_RET_NOT_SUPPORTED };
 	return tmp;
 }
 
 static inline struct arm_smccc_res sip_smc_dram(u32 arg0, u32 arg1, u32 arg2)
 {
-	struct arm_smccc_res tmp = {0};
+	struct arm_smccc_res tmp = { .a0 = SIP_RET_NOT_SUPPORTED };
 	return tmp;
 }
 
 static inline struct arm_smccc_res sip_smc_request_share_mem
 			(u32 page_num, share_page_type_t page_type)
 {
-	struct arm_smccc_res tmp = {0};
+	struct arm_smccc_res tmp = { .a0 = SIP_RET_NOT_SUPPORTED };
 	return tmp;
 }
 
 static inline struct arm_smccc_res sip_smc_mcu_el3fiq
 			(u32 arg0, u32 arg1, u32 arg2)
 {
-	struct arm_smccc_res tmp = {0};
+	struct arm_smccc_res tmp = { .a0 = SIP_RET_NOT_SUPPORTED };
 	return tmp;
 }
 
 static inline struct arm_smccc_res
 sip_smc_vpu_reset(u32 arg0, u32 arg1, u32 arg2)
 {
-	struct arm_smccc_res tmp = {0};
+	struct arm_smccc_res tmp = { .a0 = SIP_RET_NOT_SUPPORTED };
+	return tmp;
+}
+
+static inline struct arm_smccc_res sip_smc_get_suspend_info(u32 info)
+{
+	struct arm_smccc_res tmp = { .a0 = SIP_RET_NOT_SUPPORTED };
 	return tmp;
 }
 
 static inline struct arm_smccc_res sip_smc_lastlog_request(void)
 {
-	struct arm_smccc_res tmp = {0};
+	struct arm_smccc_res tmp = { .a0 = SIP_RET_NOT_SUPPORTED };
 	return tmp;
 }
 
@@ -288,34 +344,20 @@ static inline int sip_smc_set_suspend_mode(u32 ctrl, u32 config1, u32 config2)
 	return 0;
 }
 
-static inline int sip_smc_get_suspend_info(u32 info)
-{
-	return 0;
-}
-
 static inline int sip_smc_virtual_poweroff(void) { return 0; }
 static inline int sip_smc_remotectl_config(u32 func, u32 data) { return 0; }
-static inline u32 sip_smc_secure_reg_read(u32 addr_phy) { return 0; }
 static inline int sip_smc_secure_reg_write(u32 addr_phy, u32 val) { return 0; }
-static inline int sip_smc_soc_bus_div(u32 arg0, u32 arg1, u32 arg2)
+static inline u32 sip_smc_secure_reg_read(u32 addr_phy) { return 0; }
+
+static inline struct arm_smccc_res sip_smc_bus_config(u32 arg0, u32 arg1, u32 arg2)
 {
-	return 0;
+	struct arm_smccc_res tmp = { .a0 = SIP_RET_NOT_SUPPORTED };
+	return tmp;
 }
+
 static inline struct dram_addrmap_info *sip_smc_get_dram_map(void)
 {
 	return NULL;
-}
-
-static inline void __iomem *sip_hdcp_request_share_memory(int id)
-{
-	return NULL;
-}
-
-static inline struct arm_smccc_res sip_hdcp_config(u32 arg0, u32 arg1, u32 arg2)
-{
-	struct arm_smccc_res tmp = {0};
-
-	return tmp;
 }
 
 static inline int sip_smc_amp_config(u32 sub_func_id,
@@ -334,13 +376,45 @@ static inline struct arm_smccc_res sip_smc_get_amp_info(u32 sub_func_id,
 	return tmp;
 }
 
+static inline struct arm_smccc_res sip_smc_get_pvtpll_info(u32 sub_func_id,
+							   u32 arg1)
+{
+	struct arm_smccc_res tmp = { .a0 = SIP_RET_NOT_SUPPORTED, };
+
+	return tmp;
+}
+
+static inline struct arm_smccc_res sip_smc_pvtpll_config(u32 sub_func_id,
+							 u32 arg1, u32 arg2,
+							 u32 arg3, u32 arg4,
+							 u32 arg5, u32 arg6)
+{
+	struct arm_smccc_res tmp = { .a0 = SIP_RET_NOT_SUPPORTED, };
+
+	return tmp;
+}
+
+static inline void __iomem *sip_hdcp_request_share_memory(int id)
+{
+	return NULL;
+}
+
+static inline struct arm_smccc_res sip_hdcp_config(u32 arg0, u32 arg1, u32 arg2)
+{
+	struct arm_smccc_res tmp = { .a0 = SIP_RET_NOT_SUPPORTED };
+
+	return tmp;
+}
+
+static inline ulong sip_cpu_logical_map_mpidr(u32 cpu) { return 0; }
+
 /***************************fiq debugger **************************************/
 static inline void sip_fiq_debugger_enable_fiq
 			(bool enable, uint32_t tgt_cpu) { return; }
 
 static inline void sip_fiq_debugger_enable_debug(bool enable) { return; }
 static inline int sip_fiq_debugger_uart_irq_tf_init(u32 irq_id,
-						    void *callback_fn)
+						    sip_fiq_debugger_uart_irq_tf_cb_t callback_fn)
 {
 	return 0;
 }
@@ -357,6 +431,11 @@ static inline int sip_fiq_debugger_switch_cpu(u32 cpu) { return 0; }
 static inline int sip_fiq_debugger_sdei_switch_cpu(u32 cur_cpu, u32 target_cpu,
 						   u32 flag) { return 0; }
 static inline int sip_fiq_debugger_is_enabled(void) { return 0; }
+static inline int sip_fiq_debugger_sdei_get_event_id(u32 *fiq, u32 *sw_cpu, u32 *flag)
+{
+	return SIP_RET_NOT_SUPPORTED;
+}
+
 static inline int sip_fiq_control(u32 sub_func, u32 irq, unsigned long data)
 {
 	return 0;
@@ -370,9 +449,24 @@ static inline int sip_wdt_config(u32 sub_func,
 	return 0;
 }
 
+static inline int sip_hdmirx_config(u32 sub_func,
+				    u32 arg1,
+				    u32 arg2,
+				    u32 arg3)
+{
+	return SIP_RET_NOT_SUPPORTED;
+}
+
 static inline int sip_hdcpkey_init(u32 hdcp_id)
 {
 	return 0;
+}
+
+static inline int sip_smc_mcu_config(unsigned long mcu_id,
+				     unsigned long func,
+				     unsigned long arg2)
+{
+	return SIP_RET_NOT_SUPPORTED;
 }
 #endif
 

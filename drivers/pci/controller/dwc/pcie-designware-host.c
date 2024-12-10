@@ -61,7 +61,7 @@ irqreturn_t dw_handle_msi_irq(struct pcie_port *pp)
 	irqreturn_t ret = IRQ_NONE;
 	struct dw_pcie *pci = to_dw_pcie_from_pp(pp);
 
-	num_ctrls = pp->num_vectors / MAX_MSI_IRQS_PER_CTRL;
+	num_ctrls = DIV_ROUND_UP(pp->num_vectors, MAX_MSI_IRQS_PER_CTRL);
 
 	for (i = 0; i < num_ctrls; i++) {
 		status = dw_pcie_readl_dbi(pci, PCIE_MSI_INTR0_STATUS +
@@ -393,7 +393,8 @@ int dw_pcie_host_init(struct pcie_port *pp)
 						      sizeof(pp->msi_msg),
 						      DMA_FROM_DEVICE,
 						      DMA_ATTR_SKIP_CPU_SYNC);
-			if (dma_mapping_error(pci->dev, pp->msi_data)) {
+			ret = dma_mapping_error(pci->dev, pp->msi_data);
+			if (ret) {
 				dev_err(pci->dev, "Failed to map MSI data\n");
 				pp->msi_data = 0;
 				goto err_free_msi;
@@ -479,7 +480,7 @@ static int dw_pcie_rd_other_conf(struct pci_bus *bus, unsigned int devfn,
 
 	ret = pci_generic_config_read(bus, devfn, where, size, val);
 
-	if (!ret && pci->io_cfg_atu_shared)
+	if (!ret && (pci->iatu_unroll_enabled & DWC_IATU_IOCFG_SHARED))
 		dw_pcie_prog_outbound_atu(pci, 0, PCIE_ATU_TYPE_IO, pp->io_base,
 					  pp->io_bus_addr, pp->io_size);
 
@@ -495,7 +496,7 @@ static int dw_pcie_wr_other_conf(struct pci_bus *bus, unsigned int devfn,
 
 	ret = pci_generic_config_write(bus, devfn, where, size, val);
 
-	if (!ret && pci->io_cfg_atu_shared)
+	if (!ret && (pci->iatu_unroll_enabled & DWC_IATU_IOCFG_SHARED))
 		dw_pcie_prog_outbound_atu(pci, 0, PCIE_ATU_TYPE_IO, pp->io_base,
 					  pp->io_bus_addr, pp->io_size);
 
@@ -540,7 +541,7 @@ void dw_pcie_setup_rc(struct pcie_port *pp)
 	dw_pcie_setup(pci);
 
 	if (pci_msi_enabled() && !pp->ops->msi_host_init) {
-		num_ctrls = pp->num_vectors / MAX_MSI_IRQS_PER_CTRL;
+		num_ctrls = DIV_ROUND_UP(pp->num_vectors, MAX_MSI_IRQS_PER_CTRL);
 
 		/* Initialize IRQ Status array */
 		for (ctrl = 0; ctrl < num_ctrls; ctrl++) {
@@ -606,7 +607,7 @@ void dw_pcie_setup_rc(struct pcie_port *pp)
 							  PCIE_ATU_TYPE_IO, pp->io_base,
 							  pp->io_bus_addr, pp->io_size);
 			else
-				pci->io_cfg_atu_shared = true;
+				pci->iatu_unroll_enabled |= DWC_IATU_IOCFG_SHARED;
 		}
 
 		if (pci->num_viewport <= atu_idx)

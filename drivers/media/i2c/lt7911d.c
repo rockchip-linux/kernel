@@ -49,6 +49,12 @@ MODULE_PARM_DESC(debug, "debug level (0-3)");
 #define LT7911D_LINK_FREQ	400000000
 #define LT7911D_PIXEL_RATE	400000000
 
+#ifdef LT7911D_OUT_RGB
+#define LT7911D_MEDIA_BUS_FMT		MEDIA_BUS_FMT_BGR888_1X24
+#else
+#define LT7911D_MEDIA_BUS_FMT		MEDIA_BUS_FMT_UYVY8_2X8
+#endif
+
 #define LT7911D_NAME			"LT7911D"
 
 static const s64 link_freq_menu_items[] = {
@@ -756,7 +762,7 @@ static int lt7911d_enum_mbus_code(struct v4l2_subdev *sd,
 {
 	switch (code->index) {
 	case 0:
-		code->code = MEDIA_BUS_FMT_UYVY8_2X8;
+		code->code = LT7911D_MEDIA_BUS_FMT;
 		break;
 
 	default:
@@ -773,7 +779,7 @@ static int lt7911d_enum_frame_sizes(struct v4l2_subdev *sd,
 	if (fse->index >= ARRAY_SIZE(supported_modes))
 		return -EINVAL;
 
-	if (fse->code != MEDIA_BUS_FMT_UYVY8_2X8)
+	if (fse->code != LT7911D_MEDIA_BUS_FMT)
 		return -EINVAL;
 
 	fse->min_width  = supported_modes[fse->index].width;
@@ -814,8 +820,7 @@ static int lt7911d_enum_frame_interval(struct v4l2_subdev *sd,
 	if (fie->index >= ARRAY_SIZE(supported_modes))
 		return -EINVAL;
 
-	if (fie->code != MEDIA_BUS_FMT_UYVY8_2X8)
-		return -EINVAL;
+	fie->code = LT7911D_MEDIA_BUS_FMT;
 
 	fie->width = supported_modes[fie->index].width;
 	fie->height = supported_modes[fie->index].height;
@@ -868,7 +873,7 @@ static int lt7911d_set_fmt(struct v4l2_subdev *sd,
 		return ret;
 
 	switch (code) {
-	case MEDIA_BUS_FMT_UYVY8_2X8:
+	case LT7911D_MEDIA_BUS_FMT:
 		break;
 
 	default:
@@ -1035,16 +1040,6 @@ static const struct v4l2_ctrl_config lt7911d_ctrl_audio_present = {
 	.flags = V4L2_CTRL_FLAG_READ_ONLY,
 };
 
-static void lt7911d_reset(struct lt7911d_state *lt7911d)
-{
-	gpiod_set_value(lt7911d->reset_gpio, 0);
-	usleep_range(2000, 2100);
-	gpiod_set_value(lt7911d->reset_gpio, 1);
-	usleep_range(120*1000, 121*1000);
-	gpiod_set_value(lt7911d->reset_gpio, 0);
-	usleep_range(300*1000, 310*1000);
-}
-
 static int lt7911d_init_v4l2_ctrls(struct lt7911d_state *lt7911d)
 {
 	struct v4l2_subdev *sd;
@@ -1175,7 +1170,8 @@ static int lt7911d_probe_of(struct lt7911d_state *lt7911d)
 	lt7911d->enable_hdcp = false;
 
 	gpiod_set_value(lt7911d->power_gpio, 1);
-	lt7911d_reset(lt7911d);
+	usleep_range(2000, 3000);
+	gpiod_set_value(lt7911d->reset_gpio, 0);
 
 	ret = 0;
 
@@ -1236,7 +1232,7 @@ static int lt7911d_probe(struct i2c_client *client,
 	sd = &lt7911d->sd;
 	lt7911d->i2c_client = client;
 	lt7911d->cur_mode = &supported_modes[0];
-	lt7911d->mbus_fmt_code = MEDIA_BUS_FMT_UYVY8_2X8;
+	lt7911d->mbus_fmt_code = LT7911D_MEDIA_BUS_FMT;
 
 	err = lt7911d_probe_of(lt7911d);
 	if (err) {
@@ -1247,8 +1243,6 @@ static int lt7911d_probe(struct i2c_client *client,
 	err = lt7911d_check_chip_id(lt7911d);
 	if (err < 0)
 		return err;
-
-	lt7911d_reset(lt7911d);
 
 	mutex_init(&lt7911d->confctl_mutex);
 	err = lt7911d_init_v4l2_ctrls(lt7911d);

@@ -31,6 +31,7 @@ CONFIG_MACH_PLATFORM := y
 
 DHDCFLAGS = -Wall -Wstrict-prototypes -Wno-date-time                      \
 	-Wno-implicit-fallthrough -Wno-declaration-after-statement            \
+	-Wno-vla -Wno-vla-extension                                           \
 	-Dlinux -DLINUX -DBCMDRIVER                                           \
 	-DBCMDONGLEHOST -DBCMDMA32 -DBCMFILEIMAGE                             \
 	-DDHDTHREAD -DDHD_DEBUG -DSHOW_EVENTS -DGET_OTP_MAC_ENABLE            \
@@ -41,8 +42,9 @@ DHDCFLAGS = -Wall -Wstrict-prototypes -Wno-date-time                      \
 	-DPOWERUP_MAX_RETRY=0 -DIFACE_HANG_FORCE_DEV_CLOSE -DWAIT_DEQUEUE     \
 	-DUSE_NEW_RSPEC_DEFS -DBCM_USE_PLATFORM_STRLCPY                       \
 	-DWL_EXT_IAPSTA -DWL_ESCAN -DCCODE_LIST -DSUSPEND_EVENT               \
-	-DEAPOL_RESEND -DEAPOL_DYNAMATIC_RESEND                               \
-	-DENABLE_INSMOD_NO_FW_LOAD -Wframe-larger-than=2048
+	-DEAPOL_RESEND -DEAPOL_DYNAMATIC_RESEND -DWL_SCHED_SCAN               \
+	-DENABLE_INSMOD_NO_FW_LOAD -Wframe-larger-than=2048                   \
+	-DSCHED_SCAN_DELAYED_WORK -DDHD_PNO_FLAG
 
 DHDOFILES = aiutils.o siutils.o sbutils.o bcmutils.o bcmwifi_channels.o   \
 	dhd_linux.o dhd_linux_platdev.o dhd_linux_sched.o dhd_pno.o           \
@@ -112,7 +114,7 @@ BUS_TYPE := "pcie"
 DHDCFLAGS += -DPCIE_FULL_DONGLE -DBCMPCIE -DCUSTOM_DPC_PRIO_SETTING=-1    \
 	-DDONGLE_ENABLE_ISOLATION
 DHDCFLAGS += -DDHD_LB -DDHD_LB_RXP -DDHD_LB_STATS -DDHD_LB_TXP
-DHDCFLAGS += -DDHD_PKTID_AUDIT_ENABLED
+#DHDCFLAGS += -DDHD_PKTID_AUDIT_ENABLED
 DHDCFLAGS += -DINSMOD_FW_LOAD
 DHDCFLAGS += -DCHIP_INTR_CONTROL
 #DHDCFLAGS += -DDHD_PCIE_RUNTIMEPM -DMAX_IDLE_COUNT=11 -DCUSTOM_DHD_RUNTIME_MS=100
@@ -189,6 +191,7 @@ ifneq ($(CONFIG_CFG80211),)
 	DHDCFLAGS += -DDEBUGABILITY -DDBG_PKT_MON
 #	DHDCFLAGS += -DDHD_LOG_DUMP
 	DHDCFLAGS += -DDHD_FW_COREDUMP
+	DHDCFLAGS += -DWL_P2P_RAND
 	DHDCFLAGS += -DAPF -DNDO_CONFIG_SUPPORT -DRSSI_MONITOR_SUPPORT
 	DHDCFLAGS += -DDHD_WAKE_STATUS -DWL_LATENCY_MODE
 	DHDOFILES += dhd_rtt.o bcm_app_utils.o
@@ -360,7 +363,7 @@ BCMDHD_ROOT = $(src)
 #$(warning "BCMDHD_ROOT=$(BCMDHD_ROOT)")
 EXTRA_CFLAGS = $(DHDCFLAGS)
 EXTRA_CFLAGS += -DDHD_COMPILED=\"$(BCMDHD_ROOT)\"
-EXTRA_CFLAGS += -I$(BCMDHD_ROOT)/include/ -I$(BCMDHD_ROOT)/
+EXTRA_CFLAGS += -I$(srctree)/$(BCMDHD_ROOT)/include/ -I$(srctree)/$(BCMDHD_ROOT)/
 EXTRA_CFLAGS += $(call cc-disable-warning, unused-but-set-variable)
 ifeq ($(CONFIG_AP6XXX),m)
 EXTRA_LDFLAGS += --strip-debug

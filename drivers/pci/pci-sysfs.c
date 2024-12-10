@@ -1141,11 +1141,9 @@ static int pci_create_attr(struct pci_dev *pdev, int num, int write_combine)
 
 	sysfs_bin_attr_init(res_attr);
 	if (write_combine) {
-		pdev->res_attr_wc[num] = res_attr;
 		sprintf(res_attr_name, "resource%d_wc", num);
 		res_attr->mmap = pci_mmap_resource_wc;
 	} else {
-		pdev->res_attr[num] = res_attr;
 		sprintf(res_attr_name, "resource%d", num);
 		if (pci_resource_flags(pdev, num) & IORESOURCE_IO) {
 			res_attr->read = pci_read_resource_io;
@@ -1161,10 +1159,17 @@ static int pci_create_attr(struct pci_dev *pdev, int num, int write_combine)
 	res_attr->size = pci_resource_len(pdev, num);
 	res_attr->private = (void *)(unsigned long)num;
 	retval = sysfs_create_bin_file(&pdev->dev.kobj, res_attr);
-	if (retval)
+	if (retval) {
 		kfree(res_attr);
+		return retval;
+	}
 
-	return retval;
+	if (write_combine)
+		pdev->res_attr_wc[num] = res_attr;
+	else
+		pdev->res_attr[num] = res_attr;
+
+	return 0;
 }
 
 /**
@@ -1338,6 +1343,11 @@ int __must_check pci_create_sysfs_dev_files(struct pci_dev *pdev)
 	if (!sysfs_initialized)
 		return -EACCES;
 
+#ifdef CONFIG_NO_GKI
+	if (atomic_cmpxchg(&pdev->sysfs_init_cnt, 0, 1) == 1)
+		return 0; /* already added */
+#endif
+
 	if (pdev->cfg_size > PCI_CFG_SPACE_SIZE)
 		retval = sysfs_create_bin_file(&pdev->dev.kobj, &pcie_config_attr);
 	else
@@ -1416,6 +1426,11 @@ void pci_remove_sysfs_dev_files(struct pci_dev *pdev)
 {
 	if (!sysfs_initialized)
 		return;
+
+#ifdef CONFIG_NO_GKI
+	if (atomic_cmpxchg(&pdev->sysfs_init_cnt, 1, 0) == 0)
+		return;	/* already removed */
+#endif
 
 	pci_remove_capabilities_sysfs(pdev);
 

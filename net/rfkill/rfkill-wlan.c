@@ -319,6 +319,11 @@ int rockchip_wifi_power(int on)
 			}
 
 			wifi_power_state = 0;
+
+			if (!rfkill_get_bt_power_state(&bt_power, &toggle)) {
+				LOG("%s: toggle = %s\n", __func__, toggle ? "true" : "false");
+			}
+
 			if (toggle) {
 				if (!bt_power) {
 					LOG("%s: wifi will set vbat to low\n", __func__);
@@ -436,7 +441,7 @@ static int get_wifi_addr_vendor(unsigned char *addr)
 		    addr[5]);
 		ret = rk_vendor_write(WIFI_MAC_ID, addr, 6);
 		if (ret != 0) {
-			LOG("%s: rk_vendor_write failed %d\n"
+			LOG("%s: rk_vendor_write failed %d\n",
 			    __func__, ret);
 			memset(addr, 0, 6);
 			return -1;

@@ -974,8 +974,8 @@ cifs_free_hash(struct crypto_shash **shash, struct sdesc **sdesc)
  * Input: rqst - a smb_rqst, page - a page index for rqst
  * Output: *len - the length for this page, *offset - the offset for this page
  */
-void rqst_page_get_length(struct smb_rqst *rqst, unsigned int page,
-				unsigned int *len, unsigned int *offset)
+void rqst_page_get_length(const struct smb_rqst *rqst, unsigned int page,
+			  unsigned int *len, unsigned int *offset)
 {
 	*len = rqst->rq_pagesz;
 	*offset = (page == 0) ? rqst->rq_offset : 0;
@@ -1053,18 +1053,23 @@ static struct super_block *__cifs_get_super(void (*f)(struct super_block *, void
 		.data = data,
 		.sb = NULL,
 	};
+	struct file_system_type **fs_type = (struct file_system_type *[]) {
+		&cifs_fs_type, &smb3_fs_type, NULL,
+	};
 
-	iterate_supers_type(&cifs_fs_type, f, &sd);
-
-	if (!sd.sb)
-		return ERR_PTR(-EINVAL);
-	/*
-	 * Grab an active reference in order to prevent automounts (DFS links)
-	 * of expiring and then freeing up our cifs superblock pointer while
-	 * we're doing failover.
-	 */
-	cifs_sb_active(sd.sb);
-	return sd.sb;
+	for (; *fs_type; fs_type++) {
+		iterate_supers_type(*fs_type, f, &sd);
+		if (sd.sb) {
+			/*
+			 * Grab an active reference in order to prevent automounts (DFS links)
+			 * of expiring and then freeing up our cifs superblock pointer while
+			 * we're doing failover.
+			 */
+			cifs_sb_active(sd.sb);
+			return sd.sb;
+		}
+	}
+	return ERR_PTR(-EINVAL);
 }
 
 static void __cifs_put_super(struct super_block *sb)

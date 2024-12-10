@@ -1,0 +1,2143 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * max96712 GMSL2/GMSL1 to CSI-2 Deserializer driver
+ *
+ * Copyright (C) 2023 Rockchip Electronics Co., Ltd.
+ *
+ * V1.0.00 first version.
+ * V1.1.00 support Frame synchronization, stream on speed optimization.
+ * V1.2.00 enable lock gpio for hotplug irq.
+ *         add i2c regmap for debug.
+ *         support modes enable select.
+ *         auto initial deskew enable configure.
+ *         frame sync period enable configure.
+ * V1.3.00 t_lpx timing adjust from 53.4ns to 106.7ns.
+ *         mipi dpll predef rate set api.
+ * V1.4.00 i2c read/write api update.
+ *         support for GMSL1 Link.
+ * V1.5.00 only check max96712 chipid when probe.
+ *         enable stream out if not all link are locked.
+ * V1.6.00 serdes read /write api depend on i2c id index.
+ *
+ */
+
+#include <linux/clk.h>
+#include <linux/device.h>
+#include <linux/delay.h>
+#include <linux/iopoll.h>
+#include <linux/gpio/consumer.h>
+#include <linux/pinctrl/consumer.h>
+#include <linux/i2c.h>
+#include <linux/regmap.h>
+#include <linux/module.h>
+#include <linux/pm_runtime.h>
+#include <linux/regulator/consumer.h>
+#include <linux/sysfs.h>
+#include <linux/slab.h>
+#include <linux/version.h>
+#include <linux/compat.h>
+#include <linux/rk-camera-module.h>
+#include <linux/of_graph.h>
+#include <media/media-entity.h>
+#include <media/v4l2-async.h>
+#include <media/v4l2-ctrls.h>
+#include <media/v4l2-subdev.h>
+#include <media/v4l2-ctrls.h>
+#include <media/v4l2-fwnode.h>
+#include <media/v4l2-subdev.h>
+
+#define DRIVER_VERSION			KERNEL_VERSION(1, 0x06, 0x00)
+
+#ifndef V4L2_CID_DIGITAL_GAIN
+#define V4L2_CID_DIGITAL_GAIN		V4L2_CID_GAIN
+#endif
+
+#define MAX96712_LINK_FREQ_MHZ(x)	((x) * 1000000UL)
+#define MAX96712_XVCLK_FREQ		25000000
+
+#define MAX96712_CHIP_ID		0xA0
+#define MAX96712_REG_CHIP_ID		0x0D
+
+#define MAX96715_CHIP_ID		0x45
+#define MAX96715_REG_CHIP_ID		0x1E
+
+#define MAX96717_CHIP_ID		0xBF
+#define MAX96717_REG_CHIP_ID		0x0D
+
+/* max96712->link mask: link type = bit[7:4], link mask = bit[3:0] */
+#define MAXIM_GMSL_TYPE_LINK_A		BIT(4)
+#define MAXIM_GMSL_TYPE_LINK_B		BIT(5)
+#define MAXIM_GMSL_TYPE_LINK_C		BIT(6)
+#define MAXIM_GMSL_TYPE_LINK_D		BIT(7)
+#define MAXIM_GMSL_TYPE_MASK		0xF0 /* bit[7:4], GMSL link type: 0 = GMSL1, 1 = GMSL2 */
+
+#define MAXIM_GMSL_LOCK_LINK_A		BIT(0)
+#define MAXIM_GMSL_LOCK_LINK_B		BIT(1)
+#define MAXIM_GMSL_LOCK_LINK_C		BIT(2)
+#define MAXIM_GMSL_LOCK_LINK_D		BIT(3)
+#define MAXIM_GMSL_LOCK_MASK		0x0F /* bit[3:0], GMSL link mask: 1 = disable, 1 = enable */
+
+#define MAXIM_FORCE_ALL_CLOCK_EN	1 /* 1: enable, 0: disable */
+
+#define OF_CAMERA_PINCTRL_STATE_DEFAULT	"rockchip,camera_default"
+#define OF_CAMERA_PINCTRL_STATE_SLEEP	"rockchip,camera_sleep"
+
+#define MAX96712_NAME			"max96712"
+
+#define REG_NULL			0xFFFF
+
+/* register length: 8bit or 16bit */
+#define DEV_REG_LENGTH_08BITS		1
+#define DEV_REG_LENGTH_16BITS		2
+
+/* register value: 8bit or 16bit or 24bit */
+#define DEV_REG_VALUE_08BITS		1
+#define DEV_REG_VALUE_16BITS		2
+#define DEV_REG_VALUE_24BITS		3
+
+/* i2c device default address */
+#define SER_I2C_ADDR			(0x40)
+#define CAM_I2C_ADDR			(0x30)
+
+/* Maxim Serdes I2C Device ID */
+enum {
+	I2C_DEV_DES = 0,
+	I2C_DEV_SER,
+	I2C_DEV_CAM,
+	I2C_DEV_MAX
+};
+
+enum max96712_rx_rate {
+	MAX96712_RX_RATE_3GBPS = 0,
+	MAX96712_RX_RATE_6GBPS,
+};
+
+static const char *const max96712_supply_names[] = {
+	"avdd", /* Analog power */
+	"dovdd", /* Digital I/O power */
+	"dvdd", /* Digital core power */
+};
+
+#define MAX96712_NUM_SUPPLIES		ARRAY_SIZE(max96712_supply_names)
+
+struct regval {
+	u16 i2c_id;
+	u16 reg_len;
+	u16 reg;
+	u8 val;
+	u8 mask;
+	u16 delay;
+};
+
+struct max96712_mode {
+	u32 width;
+	u32 height;
+	struct v4l2_fract max_fps;
+	u32 hts_def;
+	u32 vts_def;
+	u32 exp_def;
+	u32 link_freq_idx;
+	u32 bus_fmt;
+	u32 bpp;
+	const struct regval *reg_list;
+	u32 vc[PAD_MAX];
+};
+
+struct max96712 {
+	struct i2c_client *client;
+	u16 i2c_addr[I2C_DEV_MAX];
+	struct clk *xvclk;
+	struct gpio_desc *power_gpio;
+	struct gpio_desc *reset_gpio;
+	struct gpio_desc *pwdn_gpio;
+	struct gpio_desc *pocen_gpio;
+	struct gpio_desc *lock_gpio;
+	struct regulator_bulk_data supplies[MAX96712_NUM_SUPPLIES];
+
+	struct pinctrl *pinctrl;
+	struct pinctrl_state *pins_default;
+	struct pinctrl_state *pins_sleep;
+
+	struct v4l2_subdev subdev;
+	struct media_pad pad;
+	struct v4l2_ctrl_handler ctrl_handler;
+	struct v4l2_ctrl *exposure;
+	struct v4l2_ctrl *anal_gain;
+	struct v4l2_ctrl *digi_gain;
+	struct v4l2_ctrl *hblank;
+	struct v4l2_ctrl *vblank;
+	struct v4l2_ctrl *pixel_rate;
+	struct v4l2_ctrl *link_freq;
+	struct v4l2_ctrl *test_pattern;
+	struct v4l2_fwnode_endpoint bus_cfg;
+
+	struct mutex mutex;
+	bool streaming;
+	bool power_on;
+	bool hot_plug;
+	u8 is_reset;
+	int hot_plug_irq;
+	enum max96712_rx_rate rx_rate;
+	u32 link_mask;
+	const struct max96712_mode *supported_modes;
+	const struct max96712_mode *cur_mode;
+	u32 cfg_modes_num;
+	u32 module_index;
+	u32 auto_init_deskew_mask;
+	u32 frame_sync_period;
+	const char *module_facing;
+	const char *module_name;
+	const char *len_name;
+	struct regmap *regmap;
+};
+
+static const struct regmap_config max96712_regmap_config = {
+	.reg_bits = 16,
+	.val_bits = 8,
+	.max_register = 0x1F17,
+};
+
+static struct rkmodule_csi_dphy_param rk3588_dcphy_param = {
+	.vendor = PHY_VENDOR_SAMSUNG,
+	.lp_vol_ref = 3,
+	.lp_hys_sw = {3, 0, 0, 0},
+	.lp_escclk_pol_sel = {1, 0, 0, 0},
+	.skew_data_cal_clk = {0, 0, 0, 0},
+	.clk_hs_term_sel = 2,
+	.data_hs_term_sel = {2, 2, 2, 2},
+	.reserved = {0},
+};
+
+/* max96717 */
+static const struct regval max96712_mipi_4lane_1920x1440_30fps[] = {
+	// Link A/B/C/D all use GMSL2, and disabled
+	{ I2C_DEV_DES, 2, 0x0006, 0xf0, 0x00, 0x00 }, // Link A/B/C/D: select GMSL2, Disabled
+	// Disable MIPI CSI output
+	{ I2C_DEV_DES, 2, 0x040B, 0x00, 0x00, 0x00 }, // CSI_OUT_EN=0, CSI output disabled
+	// Increase CMU voltage
+	{ I2C_DEV_DES, 2, 0x06C2, 0x10, 0x00, 0x0a }, // Increase CMU voltage to for wide temperature range
+	// VGAHiGain
+	{ I2C_DEV_DES, 2, 0x14D1, 0x03, 0x00, 0x00 }, // VGAHiGain
+	{ I2C_DEV_DES, 2, 0x15D1, 0x03, 0x00, 0x00 }, // VGAHiGain
+	{ I2C_DEV_DES, 2, 0x16D1, 0x03, 0x00, 0x00 }, // VGAHiGain
+	{ I2C_DEV_DES, 2, 0x17D1, 0x03, 0x00, 0x0a }, // VGAHiGain
+	// SSC Configuration
+	{ I2C_DEV_DES, 2, 0x1445, 0x00, 0x00, 0x00 }, // Disable SSC
+	{ I2C_DEV_DES, 2, 0x1545, 0x00, 0x00, 0x00 }, // Disable SSC
+	{ I2C_DEV_DES, 2, 0x1645, 0x00, 0x00, 0x00 }, // Disable SSC
+	{ I2C_DEV_DES, 2, 0x1745, 0x00, 0x00, 0x0a }, // Disable SSC
+	// GMSL2 Link Video Pipe Selection
+	{ I2C_DEV_DES, 2, 0x00F0, 0x62, 0x00, 0x00 }, // Phy A -> Pipe Z -> Pipe 0; Phy B -> Pipe Z -> Pipe 1
+	{ I2C_DEV_DES, 2, 0x00F1, 0xea, 0x00, 0x00 }, // Phy C -> Pipe Z -> Pipe 2; Phy D -> Pipe Z -> Pipe 3
+	{ I2C_DEV_DES, 2, 0x00F4, 0x0f, 0x00, 0x00 }, // Enable all 4 Pipes
+	// Send YUV422, FS, and FE from Video Pipe 0 to Controller 1
+	{ I2C_DEV_DES, 2, 0x090B, 0x07, 0x00, 0x00 }, // Enable 0/1/2 SRC/DST Mappings
+	{ I2C_DEV_DES, 2, 0x092D, 0x15, 0x00, 0x00 }, // SRC/DST 0/1/2 -> CSI2 Controller 1;
+	// For the following MSB 2 bits = VC, LSB 6 bits = DT
+	{ I2C_DEV_DES, 2, 0x090D, 0x1e, 0x00, 0x00 }, // SRC0 VC = 0, DT = YUV422 8bit
+	{ I2C_DEV_DES, 2, 0x090E, 0x1e, 0x00, 0x00 }, // DST0 VC = 0, DT = YUV422 8bit
+	{ I2C_DEV_DES, 2, 0x090F, 0x00, 0x00, 0x00 }, // SRC1 VC = 0, DT = Frame Start
+	{ I2C_DEV_DES, 2, 0x0910, 0x00, 0x00, 0x00 }, // DST1 VC = 0, DT = Frame Start
+	{ I2C_DEV_DES, 2, 0x0911, 0x01, 0x00, 0x00 }, // SRC2 VC = 0, DT = Frame End
+	{ I2C_DEV_DES, 2, 0x0912, 0x01, 0x00, 0x00 }, // DST2 VC = 0, DT = Frame End
+	// Send YUV422, FS, and FE from Video Pipe 1 to Controller 1
+	{ I2C_DEV_DES, 2, 0x094B, 0x07, 0x00, 0x00 }, // Enable 0/1/2 SRC/DST Mappings
+	{ I2C_DEV_DES, 2, 0x096D, 0x15, 0x00, 0x00 }, // SRC/DST 0/1/2 -> CSI2 Controller 1;
+	// For the following MSB 2 bits = VC, LSB 6 bits = DT
+	{ I2C_DEV_DES, 2, 0x094D, 0x1e, 0x00, 0x00 }, // SRC0 VC = 0, DT = YUV422 8bit
+	{ I2C_DEV_DES, 2, 0x094E, 0x5e, 0x00, 0x00 }, // DST0 VC = 1, DT = YUV422 8bit
+	{ I2C_DEV_DES, 2, 0x094F, 0x00, 0x00, 0x00 }, // SRC1 VC = 0, DT = Frame Start
+	{ I2C_DEV_DES, 2, 0x0950, 0x40, 0x00, 0x00 }, // DST1 VC = 1, DT = Frame Start
+	{ I2C_DEV_DES, 2, 0x0951, 0x01, 0x00, 0x00 }, // SRC2 VC = 0, DT = Frame End
+	{ I2C_DEV_DES, 2, 0x0952, 0x41, 0x00, 0x00 }, // DST2 VC = 1, DT = Frame End
+	// Send YUV422, FS, and FE from Video Pipe 2 to Controller 1
+	{ I2C_DEV_DES, 2, 0x098B, 0x07, 0x00, 0x00 }, // Enable 0/1/2 SRC/DST Mappings
+	{ I2C_DEV_DES, 2, 0x09AD, 0x15, 0x00, 0x00 }, // SRC/DST 0/1/2 -> CSI2 Controller 1;
+	// For the following MSB 2 bits = VC, LSB 6 bits = DT
+	{ I2C_DEV_DES, 2, 0x098D, 0x1e, 0x00, 0x00 }, // SRC0 VC = 0, DT = YUV422 8bit
+	{ I2C_DEV_DES, 2, 0x098E, 0x9e, 0x00, 0x00 }, // DST0 VC = 2, DT = YUV422 8bit
+	{ I2C_DEV_DES, 2, 0x098F, 0x00, 0x00, 0x00 }, // SRC1 VC = 0, DT = Frame Start
+	{ I2C_DEV_DES, 2, 0x0990, 0x80, 0x00, 0x00 }, // DST1 VC = 2, DT = Frame Start
+	{ I2C_DEV_DES, 2, 0x0991, 0x01, 0x00, 0x00 }, // SRC2 VC = 0, DT = Frame End
+	{ I2C_DEV_DES, 2, 0x0992, 0x81, 0x00, 0x00 }, // DST2 VC = 2, DT = Frame End
+	// Send YUV422, FS, and FE from Video Pipe 3 to Controller 1
+	{ I2C_DEV_DES, 2, 0x09CB, 0x07, 0x00, 0x00 }, // Enable 0/1/2 SRC/DST Mappings
+	{ I2C_DEV_DES, 2, 0x09ED, 0x15, 0x00, 0x00 }, // SRC/DST 0/1/2 -> CSI2 Controller 1;
+	// For the following MSB 2 bits = VC, LSB 6 bits = DT
+	{ I2C_DEV_DES, 2, 0x09CD, 0x1e, 0x00, 0x00 }, // SRC0 VC = 0, DT = YUV422 8bit
+	{ I2C_DEV_DES, 2, 0x09CE, 0xde, 0x00, 0x00 }, // DST0 VC = 3, DT = YUV422 8bit
+	{ I2C_DEV_DES, 2, 0x09CF, 0x00, 0x00, 0x00 }, // SRC1 VC = 0, DT = Frame Start
+	{ I2C_DEV_DES, 2, 0x09D0, 0xc0, 0x00, 0x00 }, // DST1 VC = 3, DT = Frame Start
+	{ I2C_DEV_DES, 2, 0x09D1, 0x01, 0x00, 0x00 }, // SRC2 VC = 0, DT = Frame End
+	{ I2C_DEV_DES, 2, 0x09D2, 0xc1, 0x00, 0x00 }, // DST2 VC = 3, DT = Frame End
+	// MIPI PHY Setting
+	{ I2C_DEV_DES, 2, 0x08A0, 0x24, 0x00, 0x00 }, // DPHY0 enabled as clock, MIPI PHY Mode: 2x4 mode
+	// Set Lane Mapping for 4-lane port A
+	{ I2C_DEV_DES, 2, 0x08A3, 0xe4, 0x00, 0x00 }, // PHY1 D1->D3, D0->D2; PHY0 D1->D1, D0->D0
+	// Set 4 lane D-PHY, 2bit VC
+	{ I2C_DEV_DES, 2, 0x090A, 0xc0, 0x00, 0x00 }, // MIPI PHY 0: 4 lanes, DPHY, 2bit VC
+	{ I2C_DEV_DES, 2, 0x094A, 0xc0, 0x00, 0x00 }, // MIPI PHY 1: 4 lanes, DPHY, 2bit VC
+	// Turn on MIPI PHYs
+	{ I2C_DEV_DES, 2, 0x08A2, 0x34, 0x00, 0x00 }, // Enable MIPI PHY 0/1, t_lpx = 106.7ns
+	// YUV422 8bit software override for all pipes since connected GMSL1 is under parallel mode
+	{ I2C_DEV_DES, 2, 0x040B, 0x80, 0x00, 0x00 }, // pipe 0 bpp=0x10: Datatypes = 0x22, 0x1E, 0x2E
+	{ I2C_DEV_DES, 2, 0x040E, 0x5e, 0x00, 0x00 }, // pipe 0 DT=0x1E: YUV422 8-bit
+	{ I2C_DEV_DES, 2, 0x040F, 0x7e, 0x00, 0x00 }, // pipe 1 DT=0x1E: YUV422 8-bit
+	{ I2C_DEV_DES, 2, 0x0410, 0x7a, 0x00, 0x00 }, // pipe 2 DT=0x1E, pipe 3 DT=0x1E: YUV422 8-bit
+	{ I2C_DEV_DES, 2, 0x0411, 0x90, 0x00, 0x00 }, // pipe 1 bpp=0x10: Datatypes = 0x22, 0x1E, 0x2E
+	{ I2C_DEV_DES, 2, 0x0412, 0x40, 0x00, 0x00 }, // pipe 2 bpp=0x10, pipe 3 bpp=0x10: Datatypes = 0x22, 0x1E, 0x2E
+	// Enable all links and pipes
+	{ I2C_DEV_DES, 2, 0x0003, 0xaa, 0x00, 0x00 }, // Enable Remote Control Channel Link A/B/C/D for Port 0
+	{ I2C_DEV_DES, 2, 0x0006, 0xff, 0x00, 0x64 }, // Enable all links and pipes
+	// Serializer Setting
+	{ I2C_DEV_SER, 2, 0x0302, 0x10, 0x00, 0x00 }, // improve CMU voltage performance to improve link robustness
+	{ I2C_DEV_SER, 2, 0x1417, 0x00, 0x00, 0x00 }, // Errata
+	{ I2C_DEV_SER, 2, 0x1432, 0x7f, 0x00, 0x00 },
+	// End register setting
+	{ I2C_DEV_DES, 2, REG_NULL, 0x00, 0x00, 0x00 },
+};
+
+static const struct max96712_mode supported_modes_4lane[] = {
+	{
+		.width = 1920,
+		.height = 1440,
+		.max_fps = {
+			.numerator = 10000,
+			.denominator = 300000,
+		},
+		.reg_list = max96712_mipi_4lane_1920x1440_30fps,
+		.link_freq_idx = 20,
+		.bus_fmt = MEDIA_BUS_FMT_UYVY8_2X8,
+		.bpp = 16,
+		.vc[PAD0] = V4L2_MBUS_CSI2_CHANNEL_0,
+		.vc[PAD1] = V4L2_MBUS_CSI2_CHANNEL_1,
+		.vc[PAD2] = V4L2_MBUS_CSI2_CHANNEL_2,
+		.vc[PAD3] = V4L2_MBUS_CSI2_CHANNEL_3,
+	},
+};
+
+/* link freq = index * MAX96712_LINK_FREQ_MHZ(50) */
+static const s64 link_freq_items[] = {
+	MAX96712_LINK_FREQ_MHZ(0),
+	MAX96712_LINK_FREQ_MHZ(50),
+	MAX96712_LINK_FREQ_MHZ(100),
+	MAX96712_LINK_FREQ_MHZ(150),
+	MAX96712_LINK_FREQ_MHZ(200),
+	MAX96712_LINK_FREQ_MHZ(250),
+	MAX96712_LINK_FREQ_MHZ(300),
+	MAX96712_LINK_FREQ_MHZ(350),
+	MAX96712_LINK_FREQ_MHZ(400),
+	MAX96712_LINK_FREQ_MHZ(450),
+	MAX96712_LINK_FREQ_MHZ(500),
+	MAX96712_LINK_FREQ_MHZ(550),
+	MAX96712_LINK_FREQ_MHZ(600),
+	MAX96712_LINK_FREQ_MHZ(650),
+	MAX96712_LINK_FREQ_MHZ(700),
+	MAX96712_LINK_FREQ_MHZ(750),
+	MAX96712_LINK_FREQ_MHZ(800),
+	MAX96712_LINK_FREQ_MHZ(850),
+	MAX96712_LINK_FREQ_MHZ(900),
+	MAX96712_LINK_FREQ_MHZ(950),
+	MAX96712_LINK_FREQ_MHZ(1000),
+	MAX96712_LINK_FREQ_MHZ(1050),
+	MAX96712_LINK_FREQ_MHZ(1100),
+	MAX96712_LINK_FREQ_MHZ(1150),
+	MAX96712_LINK_FREQ_MHZ(1200),
+	MAX96712_LINK_FREQ_MHZ(1250),
+};
+
+static int max96712_write_reg(struct max96712 *max96712, u8 i2c_id,
+			u16 reg, u16 reg_len, u16 val_len, u32 val)
+{
+	struct i2c_client *client = max96712->client;
+	u16 client_addr = max96712->i2c_addr[i2c_id];
+	u32 buf_i, val_i;
+	u8 buf[6];
+	u8 *val_p;
+	__be32 val_be;
+
+	dev_info(&client->dev, "addr(0x%02x) write reg(0x%04x, %d, 0x%02x)\n",
+		client_addr, reg, reg_len, val);
+
+	if (val_len > 4)
+		return -EINVAL;
+
+	if (reg_len == 2) {
+		buf[0] = reg >> 8;
+		buf[1] = reg & 0xff;
+
+		buf_i = 2;
+	} else {
+		buf[0] = reg & 0xff;
+
+		buf_i = 1;
+	}
+
+	val_be = cpu_to_be32(val);
+	val_p = (u8 *)&val_be;
+	val_i = 4 - val_len;
+
+	while (val_i < 4)
+		buf[buf_i++] = val_p[val_i++];
+
+	client->addr = client_addr;
+
+	if (i2c_master_send(client, buf, (val_len + reg_len)) != (val_len + reg_len)) {
+		dev_err(&client->dev,
+			"%s: writing register 0x%04x from 0x%02x failed\n",
+			__func__, reg, client->addr);
+		return -EIO;
+	}
+
+	return 0;
+}
+
+static int max96712_read_reg(struct max96712 *max96712, u8 i2c_id,
+			u16 reg, u16 reg_len, u16 val_len, u8 *val)
+{
+	struct i2c_client *client = max96712->client;
+	u16 client_addr = max96712->i2c_addr[i2c_id];
+	struct i2c_msg msgs[2];
+	u8 *data_be_p;
+	__be32 data_be = 0;
+	__be16 reg_addr_be = cpu_to_be16(reg);
+	u8 *reg_be_p;
+	int ret;
+
+	if (val_len > 4 || !val_len)
+		return -EINVAL;
+
+	client->addr = client_addr;
+	data_be_p = (u8 *)&data_be;
+	reg_be_p = (u8 *)&reg_addr_be;
+
+	/* Write register address */
+	msgs[0].addr = client->addr;
+	msgs[0].flags = 0;
+	msgs[0].len = reg_len;
+	msgs[0].buf = &reg_be_p[2 - reg_len];
+
+	/* Read data from register */
+	msgs[1].addr = client->addr;
+	msgs[1].flags = I2C_M_RD;
+	msgs[1].len = val_len;
+	msgs[1].buf = &data_be_p[4 - val_len];
+
+	ret = i2c_transfer(client->adapter, msgs, ARRAY_SIZE(msgs));
+	if (ret != ARRAY_SIZE(msgs)) {
+		dev_err(&client->dev,
+			"%s: reading register 0x%x from 0x%x failed\n",
+			__func__, reg, client->addr);
+		return -EIO;
+	}
+
+	*val = be32_to_cpu(data_be);
+
+#if 0
+	dev_info(&client->dev, "addr(0x%02x) read reg(0x%04x, %d, 0x%02x)\n",
+		client_addr, reg, reg_len, *val);
+#endif
+
+	return 0;
+}
+
+static int max96712_update_reg_bits(struct max96712 *max96712, u8 i2c_id,
+				u16 reg, u16 reg_len, u8 mask, u8 val)
+{
+	u8 value;
+	u32 val_len = DEV_REG_VALUE_08BITS;
+	int ret;
+
+	ret = max96712_read_reg(max96712, i2c_id, reg, reg_len, val_len, &value);
+	if (ret)
+		return ret;
+
+	value &= ~mask;
+	value |= (val & mask);
+	ret = max96712_write_reg(max96712, i2c_id, reg, reg_len, val_len, value);
+	if (ret)
+		return ret;
+
+	return 0;
+}
+
+static int max96712_write_array(struct max96712 *max96712,
+				const struct regval *regs)
+{
+	u32 i;
+	int ret = 0;
+
+	for (i = 0; ret == 0 && regs[i].reg != REG_NULL; i++) {
+		if (regs[i].mask != 0)
+			ret = max96712_update_reg_bits(max96712, regs[i].i2c_id,
+					regs[i].reg, regs[i].reg_len,
+					regs[i].mask, regs[i].val);
+		else
+			ret = max96712_write_reg(max96712, regs[i].i2c_id,
+						regs[i].reg, regs[i].reg_len,
+						DEV_REG_VALUE_08BITS, regs[i].val);
+
+		if (regs[i].delay != 0)
+			msleep(regs[i].delay);
+	}
+
+	return ret;
+}
+
+static int max96712_check_local_chipid(struct max96712 *max96712)
+{
+	struct device *dev = &max96712->client->dev;
+	int ret;
+	u8 id = 0;
+
+	ret = max96712_read_reg(max96712, I2C_DEV_DES,
+			MAX96712_REG_CHIP_ID, DEV_REG_LENGTH_16BITS,
+			DEV_REG_VALUE_08BITS, &id);
+	if ((ret != 0) || (id != MAX96712_CHIP_ID)) {
+		dev_err(dev, "Unexpected MAX96712 chip id(%02x), ret(%d)\n", id, ret);
+		return -ENODEV;
+	}
+
+	dev_info(dev, "Detected MAX96712 chipid: %02x\n", id);
+
+	return 0;
+}
+
+static int __maybe_unused max96712_check_remote_chipid(struct max96712 *max96712)
+{
+	struct device *dev = &max96712->client->dev;
+	int ret = 0;
+	u8 id;
+
+	dev_info(dev, "Check remote chipid\n");
+
+	id = 0;
+#if 0
+	// max96717
+	ret = max96712_read_reg(max96712, I2C_DEV_SER,
+			MAX96717_REG_CHIP_ID, DEV_REG_LENGTH_16BITS,
+			DEV_REG_VALUE_08BITS, &id);
+	if ((ret != 0) || (id != MAX96717_CHIP_ID)) {
+		dev_err(dev, "Unexpected MAX96717 chip id(%02x), ret(%d)\n", id, ret);
+		return -ENODEV;
+	}
+	dev_info(dev, "Detected MAX96717 chipid: 0x%02x\n", id);
+#endif
+
+#if 0
+	// max96715
+	ret = max96712_read_reg(max96712, I2C_DEV_SER,
+			MAX96715_REG_CHIP_ID, DEV_REG_LENGTH_08BITS,
+			DEV_REG_VALUE_08BITS, &id);
+	if ((ret != 0) || (id != MAX96715_CHIP_ID)) {
+		dev_err(dev, "Unexpected MAX96715 chip id(%02x), ret(%d)\n", id, ret);
+		return -ENODEV;
+	}
+	dev_info(dev, "Detected MAX96715 chipid: 0x%02x\n", id);
+#endif
+
+	return ret;
+}
+
+static u8 max96712_get_link_lock_state(struct max96712 *max96712, u8 link_mask)
+{
+	struct device *dev = &max96712->client->dev;
+	u8 lock = 0, lock_state = 0;
+	u8 link_type = 0;
+
+	link_type = max96712->link_mask & MAXIM_GMSL_TYPE_MASK;
+
+	if (link_mask & MAXIM_GMSL_LOCK_LINK_A) {
+		if (link_type & MAXIM_GMSL_TYPE_LINK_A) {
+			// GMSL2 LinkA
+			max96712_read_reg(max96712, I2C_DEV_DES,
+				0x001a, DEV_REG_LENGTH_16BITS,
+				DEV_REG_VALUE_08BITS, &lock);
+			if (lock & BIT(3)) {
+				lock_state |= MAXIM_GMSL_LOCK_LINK_A;
+				dev_info(dev, "GMSL2 LinkA locked\n");
+			}
+		} else {
+			// GMSL1 LinkA
+			max96712_read_reg(max96712, I2C_DEV_DES,
+				0x0bcb, DEV_REG_LENGTH_16BITS,
+				DEV_REG_VALUE_08BITS, &lock);
+			if (lock & BIT(0)) {
+				lock_state |= MAXIM_GMSL_LOCK_LINK_A;
+				dev_info(dev, "GMSL1 LinkA locked\n");
+			}
+		}
+	}
+
+	if (link_mask & MAXIM_GMSL_LOCK_LINK_B) {
+		if (link_type & MAXIM_GMSL_TYPE_LINK_B) {
+			// GMSL2 LinkB
+			max96712_read_reg(max96712, I2C_DEV_DES,
+				0x000a, DEV_REG_LENGTH_16BITS,
+				DEV_REG_VALUE_08BITS, &lock);
+			if (lock & BIT(3)) {
+				lock_state |= MAXIM_GMSL_LOCK_LINK_B;
+				dev_info(dev, "GMSL2 LinkB locked\n");
+			}
+		} else {
+			// GMSL1 LinkB
+			max96712_read_reg(max96712, I2C_DEV_DES,
+				0x0ccb, DEV_REG_LENGTH_16BITS,
+				DEV_REG_VALUE_08BITS, &lock);
+			if (lock & BIT(0)) {
+				lock_state |= MAXIM_GMSL_LOCK_LINK_B;
+				dev_info(dev, "GMSL1 LinkB locked\n");
+			}
+		}
+	}
+
+	if (link_mask & MAXIM_GMSL_LOCK_LINK_C) {
+		if (link_type & MAXIM_GMSL_TYPE_LINK_C) {
+			// GMSL2 LinkC
+			max96712_read_reg(max96712, I2C_DEV_DES,
+				0x000b, DEV_REG_LENGTH_16BITS,
+				DEV_REG_VALUE_08BITS, &lock);
+			if (lock & BIT(3)) {
+				lock_state |= MAXIM_GMSL_LOCK_LINK_C;
+				dev_info(dev, "GMSL2 LinkC locked\n");
+			}
+		} else {
+			// GMSL1 LinkC
+			max96712_read_reg(max96712, I2C_DEV_DES,
+				0x0dcb, DEV_REG_LENGTH_16BITS,
+				DEV_REG_VALUE_08BITS, &lock);
+			if (lock & BIT(0)) {
+				lock_state |= MAXIM_GMSL_LOCK_LINK_C;
+				dev_info(dev, "GMSL1 LinkC locked\n");
+			}
+		}
+	}
+
+	if (link_mask & MAXIM_GMSL_LOCK_LINK_D) {
+		if (link_type & MAXIM_GMSL_TYPE_LINK_D) {
+			// GMSL2 LinkD
+			max96712_read_reg(max96712, I2C_DEV_DES,
+				0x000c, DEV_REG_LENGTH_16BITS,
+				DEV_REG_VALUE_08BITS, &lock);
+			if (lock & BIT(3)) {
+				lock_state |= MAXIM_GMSL_LOCK_LINK_D;
+				dev_info(dev, "GMSL2 LinkD locked\n");
+			}
+		} else {
+			// GMSL1 LinkD
+			max96712_read_reg(max96712, I2C_DEV_DES,
+				0x0ecb, DEV_REG_LENGTH_16BITS,
+				DEV_REG_VALUE_08BITS, &lock);
+			if (lock & BIT(0)) {
+				lock_state |= MAXIM_GMSL_LOCK_LINK_D;
+				dev_info(dev, "GMSL1 LinkD locked\n");
+			}
+		}
+	}
+
+	return lock_state;
+}
+
+static int max96712_check_link_lock_state(struct max96712 *max96712)
+{
+	struct device *dev = &max96712->client->dev;
+	u8 lock_state = 0, link_mask = 0, link_type = 0;
+	int ret, i, time_ms;
+
+	ret = max96712_check_local_chipid(max96712);
+	if (ret)
+		return ret;
+
+	/* IF VDD = 1.2V: Enable REG_ENABLE and REG_MNL
+	 *	CTRL0: Enable REG_ENABLE
+	 *	CTRL2: Enable REG_MNL
+	 */
+	max96712_update_reg_bits(max96712, I2C_DEV_DES,
+			0x0017, DEV_REG_LENGTH_16BITS, BIT(2), BIT(2));
+	max96712_update_reg_bits(max96712, I2C_DEV_DES,
+			0x0019, DEV_REG_LENGTH_16BITS, BIT(4), BIT(4));
+
+	// CSI output disabled
+	max96712_write_reg(max96712, I2C_DEV_DES,
+			0x040B, DEV_REG_LENGTH_16BITS,
+			DEV_REG_VALUE_08BITS, 0x00);
+
+	// All links select mode by link_type and disable at beginning.
+	link_type = max96712->link_mask & MAXIM_GMSL_TYPE_MASK;
+	max96712_write_reg(max96712, I2C_DEV_DES,
+			0x0006, DEV_REG_LENGTH_16BITS,
+			DEV_REG_VALUE_08BITS, link_type);
+
+	// Link Rate
+	if (max96712->rx_rate == MAX96712_RX_RATE_3GBPS) {
+		// Link A ~ Link D Transmitter Rate: 187.5Mbps, Receiver Rate: 3Gbps
+		max96712_write_reg(max96712, I2C_DEV_DES,
+				0x0010, DEV_REG_LENGTH_16BITS,
+				DEV_REG_VALUE_08BITS, 0x11);
+		max96712_write_reg(max96712, I2C_DEV_DES,
+				0x0011, DEV_REG_LENGTH_16BITS,
+				DEV_REG_VALUE_08BITS, 0x11);
+	} else {
+		// Link A ~ Link D Transmitter Rate: 187.5Mbps, Receiver Rate: 6Gbps
+		max96712_write_reg(max96712, I2C_DEV_DES,
+				0x0010, DEV_REG_LENGTH_16BITS,
+				DEV_REG_VALUE_08BITS, 0x22);
+		max96712_write_reg(max96712, I2C_DEV_DES,
+				0x0011, DEV_REG_LENGTH_16BITS,
+				DEV_REG_VALUE_08BITS, 0x22);
+	}
+
+	// GMSL1: Enable HIM on deserializer on Link A/B/C/D
+	if ((link_type & MAXIM_GMSL_TYPE_LINK_A) == 0) {
+		max96712_write_reg(max96712, I2C_DEV_DES,
+				0x0B06, DEV_REG_LENGTH_16BITS,
+				DEV_REG_VALUE_08BITS, 0xEF);
+	}
+	if ((link_type & MAXIM_GMSL_TYPE_LINK_B) == 0) {
+		max96712_write_reg(max96712, I2C_DEV_DES,
+				0x0C06, DEV_REG_LENGTH_16BITS,
+				DEV_REG_VALUE_08BITS, 0xEF);
+	}
+	if ((link_type & MAXIM_GMSL_TYPE_LINK_C) == 0) {
+		max96712_write_reg(max96712, I2C_DEV_DES,
+				0x0D06, DEV_REG_LENGTH_16BITS,
+				DEV_REG_VALUE_08BITS, 0xEF);
+	}
+	if ((link_type & MAXIM_GMSL_TYPE_LINK_D) == 0) {
+		max96712_write_reg(max96712, I2C_DEV_DES,
+				0x0E06, DEV_REG_LENGTH_16BITS,
+				DEV_REG_VALUE_08BITS, 0xEF);
+	}
+
+	// Link A ~ Link D One-Shot Reset depend on link_mask
+	link_mask = max96712->link_mask & MAXIM_GMSL_LOCK_MASK;
+	max96712_write_reg(max96712, I2C_DEV_DES,
+			0x0018, DEV_REG_LENGTH_16BITS,
+			DEV_REG_VALUE_08BITS, link_mask);
+
+	// Link A ~ Link D enable depend on link_type and link_mask
+	max96712_write_reg(max96712, I2C_DEV_DES,
+			0x0006, DEV_REG_LENGTH_16BITS,
+			DEV_REG_VALUE_08BITS, link_type | link_mask);
+
+	time_ms = 50;
+	msleep(time_ms);
+
+	for (i = 0; i < 20; i++) {
+		if ((lock_state & MAXIM_GMSL_LOCK_LINK_A) == 0)
+			if (max96712_get_link_lock_state(max96712, MAXIM_GMSL_LOCK_LINK_A)) {
+				lock_state |= MAXIM_GMSL_LOCK_LINK_A;
+				dev_info(dev, "LinkA locked time: %d ms\n", time_ms);
+			}
+
+		if ((lock_state & MAXIM_GMSL_LOCK_LINK_B) == 0)
+			if (max96712_get_link_lock_state(max96712, MAXIM_GMSL_LOCK_LINK_B)) {
+				lock_state |= MAXIM_GMSL_LOCK_LINK_B;
+				dev_info(dev, "LinkB locked time: %d ms\n", time_ms);
+			}
+
+		if ((lock_state & MAXIM_GMSL_LOCK_LINK_C) == 0)
+			if (max96712_get_link_lock_state(max96712, MAXIM_GMSL_LOCK_LINK_C)) {
+				lock_state |= MAXIM_GMSL_LOCK_LINK_C;
+				dev_info(dev, "LinkC locked time: %d ms\n", time_ms);
+			}
+
+		if ((lock_state & MAXIM_GMSL_LOCK_LINK_D) == 0)
+			if (max96712_get_link_lock_state(max96712, MAXIM_GMSL_LOCK_LINK_D)) {
+				lock_state |= MAXIM_GMSL_LOCK_LINK_D;
+				dev_info(dev, "LinkD locked time: %d ms\n", time_ms);
+			}
+
+		if ((lock_state & link_mask) == link_mask) {
+			dev_info(dev, "All Links are locked: 0x%x, time_ms = %d\n", lock_state, time_ms);
+#if 0
+			max96712_check_remote_chipid(max96712);
+#endif
+			return 0;
+		}
+
+		msleep(10);
+		time_ms += 10;
+	}
+
+	if ((lock_state & link_mask) != 0) {
+		dev_info(dev, "Partial links are locked: 0x%x, time_ms = %d\n", lock_state, time_ms);
+		return 0;
+	} else {
+		dev_err(dev, "Failed to detect camera link, time_ms = %d!\n", time_ms);
+		return -ENODEV;
+	}
+}
+
+static irqreturn_t max96712_hot_plug_detect_irq_handler(int irq, void *dev_id)
+{
+	struct max96712 *max96712 = dev_id;
+	struct device *dev = &max96712->client->dev;
+	u8 lock_state = 0, link_mask = 0;
+
+	link_mask = max96712->link_mask & MAXIM_GMSL_LOCK_MASK;
+	if (max96712->streaming) {
+		lock_state = max96712_get_link_lock_state(max96712, link_mask);
+		if (lock_state == link_mask) {
+			dev_info(dev, "serializer plug in, lock_state = 0x%02x\n", lock_state);
+		} else {
+			dev_info(dev, "serializer plug out, lock_state = 0x%02x\n", lock_state);
+		}
+	}
+
+	return IRQ_HANDLED;
+}
+
+static int max96712_dphy_dpll_predef_set(struct max96712 *max96712, u32 link_freq_mhz)
+{
+	struct device *dev = &max96712->client->dev;
+	int ret = 0;
+	u8 dpll_val = 0, dpll_lock = 0;
+	u8 mipi_tx_phy_enable = 0;
+
+	ret = max96712_read_reg(max96712, I2C_DEV_DES,
+			0x08A2, DEV_REG_LENGTH_16BITS,
+			DEV_REG_VALUE_08BITS, &mipi_tx_phy_enable);
+	if (ret)
+		return ret;
+	mipi_tx_phy_enable = (mipi_tx_phy_enable & 0xF0) >> 4;
+
+	dev_info(dev, "DPLL predef set: mipi_tx_phy_enable = 0x%02x, link_freq_mhz = %d\n",
+			mipi_tx_phy_enable, link_freq_mhz);
+
+	// dphy max data rate is 2500MHz
+	if (link_freq_mhz > (2500 >> 1))
+		link_freq_mhz = (2500 >> 1);
+
+	dpll_val = DIV_ROUND_UP(link_freq_mhz * 2, 100) & 0x1F;
+	// Disable software override for frequency fine tuning
+	dpll_val |= BIT(5);
+
+	// MIPI PHY0
+	if (mipi_tx_phy_enable & BIT(0)) {
+		// Hold DPLL in reset (config_soft_rst_n = 0) before changing the rate
+		ret |= max96712_write_reg(max96712, I2C_DEV_DES,
+				0x1C00, DEV_REG_LENGTH_16BITS,
+				DEV_REG_VALUE_08BITS, 0xf4);
+		// Set data rate and enable software override
+		ret |= max96712_update_reg_bits(max96712, I2C_DEV_DES,
+				0x0415, DEV_REG_LENGTH_16BITS, 0x3F, dpll_val);
+		// Release reset to DPLL (config_soft_rst_n = 1)
+		ret |= max96712_write_reg(max96712, I2C_DEV_DES,
+				0x1C00, DEV_REG_LENGTH_16BITS,
+				DEV_REG_VALUE_08BITS, 0xf5);
+	}
+
+	// MIPI PHY1
+	if (mipi_tx_phy_enable & BIT(1)) {
+		// Hold DPLL in reset (config_soft_rst_n = 0) before changing the rate
+		ret |= max96712_write_reg(max96712, I2C_DEV_DES,
+				0x1D00, DEV_REG_LENGTH_16BITS,
+				DEV_REG_VALUE_08BITS, 0xf4);
+		// Set data rate and enable software override
+		ret |= max96712_update_reg_bits(max96712, I2C_DEV_DES,
+				0x0418, DEV_REG_LENGTH_16BITS, 0x3F, dpll_val);
+		// Release reset to DPLL (config_soft_rst_n = 1)
+		ret |= max96712_write_reg(max96712, I2C_DEV_DES,
+				0x1D00, DEV_REG_LENGTH_16BITS,
+				DEV_REG_VALUE_08BITS, 0xf5);
+	}
+
+	// MIPI PHY2
+	if (mipi_tx_phy_enable & BIT(2)) {
+		// Hold DPLL in reset (config_soft_rst_n = 0) before changing the rate
+		ret |= max96712_write_reg(max96712, I2C_DEV_DES,
+				0x1E00, DEV_REG_LENGTH_16BITS,
+				DEV_REG_VALUE_08BITS, 0xf4);
+		// Set data rate and enable software override
+		ret |= max96712_update_reg_bits(max96712, I2C_DEV_DES,
+				0x041B, DEV_REG_LENGTH_16BITS, 0x3F, dpll_val);
+		// Release reset to DPLL (config_soft_rst_n = 1)
+		ret |= max96712_write_reg(max96712, I2C_DEV_DES,
+				0x1E00, DEV_REG_LENGTH_16BITS,
+				DEV_REG_VALUE_08BITS, 0xf5);
+	}
+
+	// MIPI PHY3
+	if (mipi_tx_phy_enable & BIT(3)) {
+		// Hold DPLL in reset (config_soft_rst_n = 0) before changing the rate
+		ret |= max96712_write_reg(max96712, I2C_DEV_DES,
+				0x1F00, DEV_REG_LENGTH_16BITS,
+				DEV_REG_VALUE_08BITS, 0xf4);
+		// Set data rate and enable software override
+		ret |= max96712_update_reg_bits(max96712, I2C_DEV_DES,
+				0x041E, DEV_REG_LENGTH_16BITS, 0x3F, dpll_val);
+		// Release reset to DPLL (config_soft_rst_n = 1)
+		ret |= max96712_write_reg(max96712, I2C_DEV_DES,
+				0x1F00, DEV_REG_LENGTH_16BITS,
+				DEV_REG_VALUE_08BITS, 0xf5);
+	}
+
+	if (ret) {
+		dev_err(dev, "DPLL predef set error!\n");
+		return ret;
+	}
+
+	ret = read_poll_timeout(max96712_read_reg, ret,
+				!(ret < 0) && (dpll_lock & 0xF0),
+				1000, 10000, false,
+				max96712, I2C_DEV_DES,
+				0x0400, DEV_REG_LENGTH_16BITS,
+				DEV_REG_VALUE_08BITS, &dpll_lock);
+	if (ret < 0) {
+		dev_err(dev, "DPLL is not locked, dpll_lock = 0x%02x\n", dpll_lock);
+		return ret;
+	} else {
+		dev_err(dev, "DPLL is locked, dpll_lock = 0x%02x\n", dpll_lock);
+		return 0;
+	}
+}
+
+static int max96712_auto_init_deskew(struct max96712 *max96712, u32 deskew_mask)
+{
+	struct device *dev = &max96712->client->dev;
+	int ret = 0;
+
+	dev_info(dev, "Auto initial deskew: deskew_mask = 0x%02x\n", deskew_mask);
+
+	// D-PHY Deskew Initial Calibration Control
+	if (deskew_mask & BIT(0)) // MIPI PHY0
+		ret |= max96712_write_reg(max96712, I2C_DEV_DES,
+				0x0903, DEV_REG_LENGTH_16BITS,
+				DEV_REG_VALUE_08BITS, 0x80);
+
+	if (deskew_mask & BIT(1)) // MIPI PHY1
+		ret |= max96712_write_reg(max96712, I2C_DEV_DES,
+				0x0943, DEV_REG_LENGTH_16BITS,
+				DEV_REG_VALUE_08BITS, 0x80);
+
+	if (deskew_mask & BIT(2)) // MIPI PHY2
+		ret |= max96712_write_reg(max96712, I2C_DEV_DES,
+				0x0983, DEV_REG_LENGTH_16BITS,
+				DEV_REG_VALUE_08BITS, 0x80);
+
+	if (deskew_mask & BIT(3)) // MIPI PHY3
+		ret |= max96712_write_reg(max96712, I2C_DEV_DES,
+				0x09C3, DEV_REG_LENGTH_16BITS,
+				DEV_REG_VALUE_08BITS, 0x80);
+
+	return ret;
+}
+
+static int max96712_frame_sync_period(struct max96712 *max96712, u32 period)
+{
+	struct device *dev = &max96712->client->dev;
+	u32 pclk, fsync_peroid;
+	u8 fsync_peroid_h, fsync_peroid_m, fsync_peroid_l;
+	int ret = 0;
+
+	if (period == 0)
+		return 0;
+
+	dev_info(dev, "Frame sync period = %d\n", period);
+
+#if 1 // TODO: Sensor slave mode
+	// SC320AT slave mode enable
+	ret |= max96712_write_reg(max96712, I2C_DEV_CAM,
+			0x3222, DEV_REG_LENGTH_16BITS,
+			DEV_REG_VALUE_08BITS, 0x01);
+	// Increase the allowable error range of the trigger signal
+	ret |= max96712_write_reg(max96712, I2C_DEV_CAM,
+			0x32e2, DEV_REG_LENGTH_16BITS,
+			DEV_REG_VALUE_08BITS, 0x19);
+#endif
+
+	// Master link Video 0 for frame sync generation
+	ret |= max96712_write_reg(max96712, I2C_DEV_DES,
+			0x04A2, DEV_REG_LENGTH_16BITS,
+			DEV_REG_VALUE_08BITS, 0x00);
+	// Disable Vsync-Fsync overlap window
+	ret |= max96712_write_reg(max96712, I2C_DEV_DES,
+			0x04AA, DEV_REG_LENGTH_16BITS,
+			DEV_REG_VALUE_08BITS, 0x00);
+	ret |= max96712_write_reg(max96712, I2C_DEV_DES,
+			0x04AB, DEV_REG_LENGTH_16BITS,
+			DEV_REG_VALUE_08BITS, 0x00);
+
+	// Set FSYNC period to 25M/30 clock cycles. PCLK = 25MHz. Sync freq = 30Hz
+	pclk = 25 * 1000 * 1000;
+	fsync_peroid = DIV_ROUND_UP(pclk, period) - 1;
+	fsync_peroid_l = (fsync_peroid >> 0) & 0xFF;
+	fsync_peroid_m = (fsync_peroid >> 8) & 0xFF;
+	fsync_peroid_h = (fsync_peroid >> 16) & 0xFF;
+	dev_info(dev, "Frame sync period: H = 0x%02x, M = 0x%02x, L = 0x%02x\n",
+			fsync_peroid_h, fsync_peroid_m, fsync_peroid_l);
+	// FSYNC_PERIOD_H
+	ret |= max96712_write_reg(max96712, I2C_DEV_DES,
+			0x04A7, DEV_REG_LENGTH_16BITS,
+			DEV_REG_VALUE_08BITS, fsync_peroid_h);
+	// FSYNC_PERIOD_M
+	ret |= max96712_write_reg(max96712, I2C_DEV_DES,
+			0x04A6, DEV_REG_LENGTH_16BITS,
+			DEV_REG_VALUE_08BITS, fsync_peroid_m);
+	// FSYNC_PERIOD_L
+	ret |= max96712_write_reg(max96712, I2C_DEV_DES,
+			0x04A5, DEV_REG_LENGTH_16BITS,
+			DEV_REG_VALUE_08BITS, fsync_peroid_l);
+
+	// FSYNC is GMSL2 type, use osc for fsync, include all links/pipes in fsync gen
+	ret |= max96712_write_reg(max96712, I2C_DEV_DES,
+			0x04AF, DEV_REG_LENGTH_16BITS,
+			DEV_REG_VALUE_08BITS, 0xcf);
+
+#if 1 // TODO: Desrializer MFP
+	// FSYNC_TX_ID: set 4 to match MFP4 on serializer side
+	ret |= max96712_write_reg(max96712, I2C_DEV_DES,
+			0x04B1, DEV_REG_LENGTH_16BITS,
+			DEV_REG_VALUE_08BITS, 0x20);
+#endif
+
+#if 1 // TODO: Serializer MFP
+	// Enable GPIO_RX_EN on serializer MFP4
+	ret |= max96712_write_reg(max96712, I2C_DEV_SER,
+			0x02CA, DEV_REG_LENGTH_16BITS,
+			DEV_REG_VALUE_08BITS, 0x84);
+#endif
+
+	// MFP2, VS not gen internally, GPIO not used to gen fsync, manual mode
+	ret |= max96712_write_reg(max96712, I2C_DEV_DES,
+			0x04A0, DEV_REG_LENGTH_16BITS,
+			DEV_REG_VALUE_08BITS, 0x04);
+
+	return ret;
+}
+
+static int max96712_mipi_enable(struct max96712 *max96712, bool enable)
+{
+	int ret = 0;
+
+	if (enable) {
+#if MAXIM_FORCE_ALL_CLOCK_EN
+		// Force all MIPI clocks running
+		ret |= max96712_update_reg_bits(max96712, I2C_DEV_DES,
+				0x08A0, DEV_REG_LENGTH_16BITS, BIT(7), BIT(7));
+#endif
+		// CSI output enabled
+		ret |= max96712_update_reg_bits(max96712, I2C_DEV_DES,
+				0x040B, DEV_REG_LENGTH_16BITS, BIT(1), BIT(1));
+	} else {
+#if MAXIM_FORCE_ALL_CLOCK_EN
+		// Normal mode
+		ret |= max96712_update_reg_bits(max96712, I2C_DEV_DES,
+				0x08A0, DEV_REG_LENGTH_16BITS, BIT(7), 0x00);
+#endif
+		// CSI output disabled
+		ret |= max96712_update_reg_bits(max96712, I2C_DEV_DES,
+				0x040B, DEV_REG_LENGTH_16BITS, BIT(1), 0x00);
+	}
+
+	return ret;
+}
+
+static int max96712_get_reso_dist(const struct max96712_mode *mode,
+				  struct v4l2_mbus_framefmt *framefmt)
+{
+	return abs(mode->width - framefmt->width) +
+	       abs(mode->height - framefmt->height);
+}
+
+static const struct max96712_mode *
+max96712_find_best_fit(struct max96712 *max96712, struct v4l2_subdev_format *fmt)
+{
+	struct v4l2_mbus_framefmt *framefmt = &fmt->format;
+	int dist;
+	int cur_best_fit = 0;
+	int cur_best_fit_dist = -1;
+	unsigned int i;
+
+	for (i = 0; i < max96712->cfg_modes_num; i++) {
+		dist = max96712_get_reso_dist(&max96712->supported_modes[i], framefmt);
+		if ((cur_best_fit_dist == -1 || dist < cur_best_fit_dist)
+				&& (max96712->supported_modes[i].bus_fmt == framefmt->code)) {
+			cur_best_fit_dist = dist;
+			cur_best_fit = i;
+		}
+	}
+
+	return &max96712->supported_modes[cur_best_fit];
+}
+
+static int max96712_set_fmt(struct v4l2_subdev *sd,
+			    struct v4l2_subdev_pad_config *cfg,
+			    struct v4l2_subdev_format *fmt)
+{
+	struct max96712 *max96712 = v4l2_get_subdevdata(sd);
+	const struct max96712_mode *mode;
+	u64 pixel_rate = 0;
+	u8 data_lanes;
+
+	mutex_lock(&max96712->mutex);
+
+	mode = max96712_find_best_fit(max96712, fmt);
+
+	fmt->format.code = mode->bus_fmt;
+	fmt->format.width = mode->width;
+	fmt->format.height = mode->height;
+	fmt->format.field = V4L2_FIELD_NONE;
+	if (fmt->which == V4L2_SUBDEV_FORMAT_TRY) {
+#ifdef CONFIG_VIDEO_V4L2_SUBDEV_API
+		*v4l2_subdev_get_try_format(sd, cfg, fmt->pad) = fmt->format;
+#else
+		mutex_unlock(&max96712->mutex);
+		return -ENOTTY;
+#endif
+	} else {
+		if (max96712->streaming) {
+			mutex_unlock(&max96712->mutex);
+			return -EBUSY;
+		}
+
+		max96712->cur_mode = mode;
+
+		__v4l2_ctrl_s_ctrl(max96712->link_freq, mode->link_freq_idx);
+		/* pixel rate = link frequency * 2 * lanes / BITS_PER_SAMPLE */
+		data_lanes = max96712->bus_cfg.bus.mipi_csi2.num_data_lanes;
+		pixel_rate = (u32)link_freq_items[mode->link_freq_idx] / mode->bpp * 2 * data_lanes;
+		__v4l2_ctrl_s_ctrl_int64(max96712->pixel_rate, pixel_rate);
+
+		dev_info(&max96712->client->dev, "mipi_freq_idx = %d, mipi_link_freq = %lld\n",
+				mode->link_freq_idx, link_freq_items[mode->link_freq_idx]);
+		dev_info(&max96712->client->dev, "pixel_rate = %lld, bpp = %d\n",
+				pixel_rate, mode->bpp);
+	}
+
+	mutex_unlock(&max96712->mutex);
+
+	return 0;
+}
+
+static int max96712_get_fmt(struct v4l2_subdev *sd,
+			    struct v4l2_subdev_pad_config *cfg,
+			    struct v4l2_subdev_format *fmt)
+{
+	struct max96712 *max96712 = v4l2_get_subdevdata(sd);
+	const struct max96712_mode *mode = max96712->cur_mode;
+
+	mutex_lock(&max96712->mutex);
+	if (fmt->which == V4L2_SUBDEV_FORMAT_TRY) {
+#ifdef CONFIG_VIDEO_V4L2_SUBDEV_API
+		fmt->format = *v4l2_subdev_get_try_format(sd, cfg, fmt->pad);
+#else
+		mutex_unlock(&max96712->mutex);
+		return -ENOTTY;
+#endif
+	} else {
+		fmt->format.width = mode->width;
+		fmt->format.height = mode->height;
+		fmt->format.code = mode->bus_fmt;
+		fmt->format.field = V4L2_FIELD_NONE;
+		if (fmt->pad < PAD_MAX && fmt->pad >= PAD0)
+			fmt->reserved[0] = mode->vc[fmt->pad];
+		else
+			fmt->reserved[0] = mode->vc[PAD0];
+	}
+	mutex_unlock(&max96712->mutex);
+
+	return 0;
+}
+
+static int max96712_enum_mbus_code(struct v4l2_subdev *sd,
+				   struct v4l2_subdev_pad_config *cfg,
+				   struct v4l2_subdev_mbus_code_enum *code)
+{
+	struct max96712 *max96712 = v4l2_get_subdevdata(sd);
+	const struct max96712_mode *mode = max96712->cur_mode;
+
+	if (code->index != 0)
+		return -EINVAL;
+	code->code = mode->bus_fmt;
+
+	return 0;
+}
+
+static int max96712_enum_frame_sizes(struct v4l2_subdev *sd,
+				     struct v4l2_subdev_pad_config *cfg,
+				     struct v4l2_subdev_frame_size_enum *fse)
+{
+	struct max96712 *max96712 = v4l2_get_subdevdata(sd);
+
+	if (fse->index >= max96712->cfg_modes_num)
+		return -EINVAL;
+
+	if (fse->code != max96712->supported_modes[fse->index].bus_fmt)
+		return -EINVAL;
+
+	fse->min_width  = max96712->supported_modes[fse->index].width;
+	fse->max_width  = max96712->supported_modes[fse->index].width;
+	fse->max_height = max96712->supported_modes[fse->index].height;
+	fse->min_height = max96712->supported_modes[fse->index].height;
+
+	return 0;
+}
+
+static int max96712_g_frame_interval(struct v4l2_subdev *sd,
+				     struct v4l2_subdev_frame_interval *fi)
+{
+	struct max96712 *max96712 = v4l2_get_subdevdata(sd);
+	const struct max96712_mode *mode = max96712->cur_mode;
+
+	mutex_lock(&max96712->mutex);
+	fi->interval = mode->max_fps;
+	mutex_unlock(&max96712->mutex);
+
+	return 0;
+}
+
+static void max96712_get_module_inf(struct max96712 *max96712,
+				    struct rkmodule_inf *inf)
+{
+	memset(inf, 0, sizeof(*inf));
+	strscpy(inf->base.sensor, MAX96712_NAME, sizeof(inf->base.sensor));
+	strscpy(inf->base.module, max96712->module_name,
+		sizeof(inf->base.module));
+	strscpy(inf->base.lens, max96712->len_name, sizeof(inf->base.lens));
+}
+
+static void
+max96712_get_vicap_rst_inf(struct max96712 *max96712,
+			   struct rkmodule_vicap_reset_info *rst_info)
+{
+	struct i2c_client *client = max96712->client;
+
+	rst_info->is_reset = max96712->hot_plug;
+	max96712->hot_plug = false;
+	rst_info->src = RKCIF_RESET_SRC_ERR_HOTPLUG;
+	dev_info(&client->dev, "%s: rst_info->is_reset:%d.\n", __func__,
+		 rst_info->is_reset);
+}
+
+static void
+max96712_set_vicap_rst_inf(struct max96712 *max96712,
+			   struct rkmodule_vicap_reset_info rst_info)
+{
+	max96712->is_reset = rst_info.is_reset;
+}
+
+static long max96712_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
+{
+	struct max96712 *max96712 = v4l2_get_subdevdata(sd);
+	struct rkmodule_csi_dphy_param *dphy_param;
+	long ret = 0;
+	u32 stream = 0;
+
+	switch (cmd) {
+	case RKMODULE_GET_MODULE_INFO:
+		max96712_get_module_inf(max96712, (struct rkmodule_inf *)arg);
+		break;
+	case RKMODULE_SET_QUICK_STREAM:
+		stream = *((u32 *)arg);
+
+		if (stream)
+			ret = max96712_mipi_enable(max96712, true);
+		else
+			ret = max96712_mipi_enable(max96712, false);
+		break;
+	case RKMODULE_GET_VICAP_RST_INFO:
+		max96712_get_vicap_rst_inf(
+			max96712, (struct rkmodule_vicap_reset_info *)arg);
+		break;
+	case RKMODULE_SET_VICAP_RST_INFO:
+		max96712_set_vicap_rst_inf(
+			max96712, *(struct rkmodule_vicap_reset_info *)arg);
+		break;
+	case RKMODULE_GET_START_STREAM_SEQ:
+		break;
+	case RKMODULE_SET_CSI_DPHY_PARAM:
+		dphy_param = (struct rkmodule_csi_dphy_param *)arg;
+		if (dphy_param->vendor == rk3588_dcphy_param.vendor)
+			rk3588_dcphy_param = *dphy_param;
+		dev_dbg(&max96712->client->dev, "sensor set dphy param\n");
+		break;
+	case RKMODULE_GET_CSI_DPHY_PARAM:
+		dphy_param = (struct rkmodule_csi_dphy_param *)arg;
+		if (dphy_param->vendor == rk3588_dcphy_param.vendor)
+			*dphy_param = rk3588_dcphy_param;
+		dev_dbg(&max96712->client->dev, "sensor get dphy param\n");
+		break;
+	default:
+		ret = -ENOIOCTLCMD;
+		break;
+	}
+
+	return ret;
+}
+
+#ifdef CONFIG_COMPAT
+static long max96712_compat_ioctl32(struct v4l2_subdev *sd, unsigned int cmd,
+				    unsigned long arg)
+{
+	void __user *up = compat_ptr(arg);
+	struct rkmodule_inf *inf;
+	struct rkmodule_awb_cfg *cfg;
+	struct rkmodule_vicap_reset_info *vicap_rst_inf;
+	struct rkmodule_csi_dphy_param *dphy_param;
+	long ret = 0;
+	int *seq;
+	u32 stream = 0;
+
+	switch (cmd) {
+	case RKMODULE_GET_MODULE_INFO:
+		inf = kzalloc(sizeof(*inf), GFP_KERNEL);
+		if (!inf) {
+			ret = -ENOMEM;
+			return ret;
+		}
+
+		ret = max96712_ioctl(sd, cmd, inf);
+		if (!ret) {
+			ret = copy_to_user(up, inf, sizeof(*inf));
+			if (ret)
+				ret = -EFAULT;
+		}
+		kfree(inf);
+		break;
+	case RKMODULE_AWB_CFG:
+		cfg = kzalloc(sizeof(*cfg), GFP_KERNEL);
+		if (!cfg) {
+			ret = -ENOMEM;
+			return ret;
+		}
+
+		ret = copy_from_user(cfg, up, sizeof(*cfg));
+		if (!ret)
+			ret = max96712_ioctl(sd, cmd, cfg);
+		else
+			ret = -EFAULT;
+		kfree(cfg);
+		break;
+	case RKMODULE_GET_VICAP_RST_INFO:
+		vicap_rst_inf = kzalloc(sizeof(*vicap_rst_inf), GFP_KERNEL);
+		if (!vicap_rst_inf) {
+			ret = -ENOMEM;
+			return ret;
+		}
+
+		ret = max96712_ioctl(sd, cmd, vicap_rst_inf);
+		if (!ret) {
+			ret = copy_to_user(up, vicap_rst_inf,
+					   sizeof(*vicap_rst_inf));
+			if (ret)
+				ret = -EFAULT;
+		}
+		kfree(vicap_rst_inf);
+		break;
+	case RKMODULE_SET_VICAP_RST_INFO:
+		vicap_rst_inf = kzalloc(sizeof(*vicap_rst_inf), GFP_KERNEL);
+		if (!vicap_rst_inf) {
+			ret = -ENOMEM;
+			return ret;
+		}
+
+		ret = copy_from_user(vicap_rst_inf, up, sizeof(*vicap_rst_inf));
+		if (!ret)
+			ret = max96712_ioctl(sd, cmd, vicap_rst_inf);
+		else
+			ret = -EFAULT;
+		kfree(vicap_rst_inf);
+		break;
+	case RKMODULE_GET_START_STREAM_SEQ:
+		seq = kzalloc(sizeof(*seq), GFP_KERNEL);
+		if (!seq) {
+			ret = -ENOMEM;
+			return ret;
+		}
+
+		ret = max96712_ioctl(sd, cmd, seq);
+		if (!ret) {
+			ret = copy_to_user(up, seq, sizeof(*seq));
+			if (ret)
+				ret = -EFAULT;
+		}
+		kfree(seq);
+		break;
+	case RKMODULE_SET_QUICK_STREAM:
+		ret = copy_from_user(&stream, up, sizeof(u32));
+		if (!ret)
+			ret = max96712_ioctl(sd, cmd, &stream);
+		else
+			ret = -EFAULT;
+		break;
+	case RKMODULE_SET_CSI_DPHY_PARAM:
+		dphy_param = kzalloc(sizeof(*dphy_param), GFP_KERNEL);
+		if (!dphy_param) {
+			ret = -ENOMEM;
+			return ret;
+		}
+
+		ret = copy_from_user(dphy_param, up, sizeof(*dphy_param));
+		if (!ret)
+			ret = max96712_ioctl(sd, cmd, dphy_param);
+		else
+			ret = -EFAULT;
+		kfree(dphy_param);
+		break;
+	case RKMODULE_GET_CSI_DPHY_PARAM:
+		dphy_param = kzalloc(sizeof(*dphy_param), GFP_KERNEL);
+		if (!dphy_param) {
+			ret = -ENOMEM;
+			return ret;
+		}
+
+		ret = max96712_ioctl(sd, cmd, dphy_param);
+		if (!ret) {
+			ret = copy_to_user(up, dphy_param, sizeof(*dphy_param));
+			if (ret)
+				ret = -EFAULT;
+		}
+		kfree(dphy_param);
+		break;
+	default:
+		ret = -ENOIOCTLCMD;
+		break;
+	}
+
+	return ret;
+}
+#endif
+
+static int __max96712_start_stream(struct max96712 *max96712)
+{
+	int ret;
+	u32 link_freq_mhz, link_freq_idx;
+
+	ret = max96712_check_link_lock_state(max96712);
+	if (ret)
+		return ret;
+
+	if (max96712->hot_plug_irq > 0)
+		enable_irq(max96712->hot_plug_irq);
+
+	ret = max96712_write_array(max96712,
+				   max96712->cur_mode->reg_list);
+	if (ret)
+		return ret;
+
+	link_freq_idx = max96712->cur_mode->link_freq_idx;
+	link_freq_mhz = (u32)div_s64(link_freq_items[link_freq_idx], 1000000L);
+	ret = max96712_dphy_dpll_predef_set(max96712, link_freq_mhz);
+	if (ret)
+		return ret;
+
+	if (max96712->auto_init_deskew_mask != 0) {
+		ret = max96712_auto_init_deskew(max96712,
+					max96712->auto_init_deskew_mask);
+		if (ret)
+			return ret;
+	}
+
+	if (max96712->frame_sync_period != 0) {
+		ret = max96712_frame_sync_period(max96712,
+					max96712->frame_sync_period);
+		if (ret)
+			return ret;
+	}
+
+	/* In case these controls are set before streaming */
+	mutex_unlock(&max96712->mutex);
+	ret = v4l2_ctrl_handler_setup(&max96712->ctrl_handler);
+	mutex_lock(&max96712->mutex);
+	if (ret)
+		return ret;
+
+	return max96712_mipi_enable(max96712, true);
+
+}
+
+static int __max96712_stop_stream(struct max96712 *max96712)
+{
+	if (max96712->hot_plug_irq > 0)
+		disable_irq(max96712->hot_plug_irq);
+
+	return max96712_mipi_enable(max96712, false);
+}
+
+static int max96712_s_stream(struct v4l2_subdev *sd, int on)
+{
+	struct max96712 *max96712 = v4l2_get_subdevdata(sd);
+	struct i2c_client *client = max96712->client;
+	int ret = 0;
+
+	dev_info(&client->dev, "%s: on: %d, %dx%d@%d\n", __func__, on,
+		max96712->cur_mode->width, max96712->cur_mode->height,
+		DIV_ROUND_CLOSEST(max96712->cur_mode->max_fps.denominator,
+				  max96712->cur_mode->max_fps.numerator));
+
+	mutex_lock(&max96712->mutex);
+	on = !!on;
+	if (on == max96712->streaming)
+		goto unlock_and_return;
+
+	if (on) {
+		ret = pm_runtime_get_sync(&client->dev);
+		if (ret < 0) {
+			pm_runtime_put_noidle(&client->dev);
+			goto unlock_and_return;
+		}
+
+		ret = __max96712_start_stream(max96712);
+		if (ret) {
+			v4l2_err(sd, "start stream failed while write regs\n");
+			pm_runtime_put(&client->dev);
+			goto unlock_and_return;
+		}
+	} else {
+		__max96712_stop_stream(max96712);
+		pm_runtime_put(&client->dev);
+	}
+
+	max96712->streaming = on;
+
+unlock_and_return:
+	mutex_unlock(&max96712->mutex);
+
+	return ret;
+}
+
+static int max96712_s_power(struct v4l2_subdev *sd, int on)
+{
+	struct max96712 *max96712 = v4l2_get_subdevdata(sd);
+	struct i2c_client *client = max96712->client;
+	int ret = 0;
+
+	mutex_lock(&max96712->mutex);
+
+	/* If the power state is not modified - no work to do. */
+	if (max96712->power_on == !!on)
+		goto unlock_and_return;
+
+	if (on) {
+		ret = pm_runtime_get_sync(&client->dev);
+		if (ret < 0) {
+			pm_runtime_put_noidle(&client->dev);
+			goto unlock_and_return;
+		}
+
+		max96712->power_on = true;
+	} else {
+		pm_runtime_put(&client->dev);
+		max96712->power_on = false;
+	}
+
+unlock_and_return:
+	mutex_unlock(&max96712->mutex);
+
+	return ret;
+}
+
+/* Calculate the delay in us by clock rate and clock cycles */
+static inline u32 max96712_cal_delay(u32 cycles)
+{
+	return DIV_ROUND_UP(cycles, MAX96712_XVCLK_FREQ / 1000 / 1000);
+}
+
+static int __max96712_power_on(struct max96712 *max96712)
+{
+	int ret;
+	u32 delay_us;
+	struct device *dev = &max96712->client->dev;
+
+	if (!IS_ERR(max96712->power_gpio)) {
+		gpiod_set_value_cansleep(max96712->power_gpio, 1);
+		usleep_range(5000, 10000);
+	}
+
+	if (!IS_ERR(max96712->pocen_gpio)) {
+		gpiod_set_value_cansleep(max96712->pocen_gpio, 1);
+		usleep_range(5000, 10000);
+	}
+
+	if (!IS_ERR_OR_NULL(max96712->pins_default)) {
+		ret = pinctrl_select_state(max96712->pinctrl,
+					   max96712->pins_default);
+		if (ret < 0)
+			dev_err(dev, "could not set pins\n");
+	}
+
+	if (!IS_ERR(max96712->reset_gpio))
+		gpiod_set_value_cansleep(max96712->reset_gpio, 0);
+
+	ret = regulator_bulk_enable(MAX96712_NUM_SUPPLIES, max96712->supplies);
+	if (ret < 0) {
+		dev_err(dev, "Failed to enable regulators\n");
+		goto disable_clk;
+	}
+	if (!IS_ERR(max96712->reset_gpio)) {
+		gpiod_set_value_cansleep(max96712->reset_gpio, 1);
+		usleep_range(500, 1000);
+	}
+
+	if (!IS_ERR(max96712->pwdn_gpio))
+		gpiod_set_value_cansleep(max96712->pwdn_gpio, 1);
+
+	/* 8192 cycles prior to first SCCB transaction */
+	delay_us = max96712_cal_delay(8192);
+	usleep_range(delay_us, delay_us * 2);
+
+	return 0;
+
+disable_clk:
+	clk_disable_unprepare(max96712->xvclk);
+
+	return ret;
+}
+
+static void __max96712_power_off(struct max96712 *max96712)
+{
+	int ret;
+	struct device *dev = &max96712->client->dev;
+
+	if (!IS_ERR(max96712->pwdn_gpio))
+		gpiod_set_value_cansleep(max96712->pwdn_gpio, 0);
+	clk_disable_unprepare(max96712->xvclk);
+
+	if (!IS_ERR(max96712->reset_gpio))
+		gpiod_set_value_cansleep(max96712->reset_gpio, 0);
+
+	if (!IS_ERR_OR_NULL(max96712->pins_sleep)) {
+		ret = pinctrl_select_state(max96712->pinctrl,
+					   max96712->pins_sleep);
+		if (ret < 0)
+			dev_dbg(dev, "could not set pins\n");
+	}
+
+	regulator_bulk_disable(MAX96712_NUM_SUPPLIES, max96712->supplies);
+
+	if (!IS_ERR(max96712->pocen_gpio))
+		gpiod_set_value_cansleep(max96712->pocen_gpio, 0);
+
+	if (!IS_ERR(max96712->power_gpio))
+		gpiod_set_value_cansleep(max96712->power_gpio, 0);
+}
+
+static int max96712_runtime_resume(struct device *dev)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	struct v4l2_subdev *sd = i2c_get_clientdata(client);
+	struct max96712 *max96712 = v4l2_get_subdevdata(sd);
+
+	return __max96712_power_on(max96712);
+}
+
+static int max96712_runtime_suspend(struct device *dev)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	struct v4l2_subdev *sd = i2c_get_clientdata(client);
+	struct max96712 *max96712 = v4l2_get_subdevdata(sd);
+
+	__max96712_power_off(max96712);
+
+	return 0;
+}
+
+#ifdef CONFIG_VIDEO_V4L2_SUBDEV_API
+static int max96712_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
+{
+	struct max96712 *max96712 = v4l2_get_subdevdata(sd);
+	struct v4l2_mbus_framefmt *try_fmt =
+		v4l2_subdev_get_try_format(sd, fh->pad, 0);
+	const struct max96712_mode *def_mode = &max96712->supported_modes[0];
+
+	mutex_lock(&max96712->mutex);
+	/* Initialize try_fmt */
+	try_fmt->width = def_mode->width;
+	try_fmt->height = def_mode->height;
+	try_fmt->code = def_mode->bus_fmt;
+	try_fmt->field = V4L2_FIELD_NONE;
+
+	mutex_unlock(&max96712->mutex);
+	/* No crop or compose */
+
+	return 0;
+}
+#endif
+
+static int
+max96712_enum_frame_interval(struct v4l2_subdev *sd,
+			     struct v4l2_subdev_pad_config *cfg,
+			     struct v4l2_subdev_frame_interval_enum *fie)
+{
+	struct max96712 *max96712 = v4l2_get_subdevdata(sd);
+
+	if (fie->index >= max96712->cfg_modes_num)
+		return -EINVAL;
+
+	fie->code = max96712->supported_modes[fie->index].bus_fmt;
+	fie->width = max96712->supported_modes[fie->index].width;
+	fie->height = max96712->supported_modes[fie->index].height;
+	fie->interval = max96712->supported_modes[fie->index].max_fps;
+
+	return 0;
+}
+
+static int max96712_g_mbus_config(struct v4l2_subdev *sd, unsigned int pad,
+				  struct v4l2_mbus_config *config)
+{
+	struct max96712 *max96712 = v4l2_get_subdevdata(sd);
+	u32 val = 0;
+	u8 data_lanes = max96712->bus_cfg.bus.mipi_csi2.num_data_lanes;
+
+	val |= V4L2_MBUS_CSI2_CONTINUOUS_CLOCK;
+	val |= (1 << (data_lanes - 1));
+	switch (data_lanes) {
+	case 4:
+		val |= V4L2_MBUS_CSI2_CHANNEL_3;
+		fallthrough;
+	case 3:
+		val |= V4L2_MBUS_CSI2_CHANNEL_2;
+		fallthrough;
+	case 2:
+		val |= V4L2_MBUS_CSI2_CHANNEL_1;
+		fallthrough;
+	case 1:
+	default:
+		val |= V4L2_MBUS_CSI2_CHANNEL_0;
+		break;
+	}
+
+	config->type = V4L2_MBUS_CSI2_DPHY;
+	config->flags = val;
+
+	return 0;
+}
+
+static int max96712_get_selection(struct v4l2_subdev *sd,
+				  struct v4l2_subdev_pad_config *cfg,
+				  struct v4l2_subdev_selection *sel)
+{
+	struct max96712 *max96712 = v4l2_get_subdevdata(sd);
+
+	if (sel->target == V4L2_SEL_TGT_CROP_BOUNDS) {
+		sel->r.left = 0;
+		sel->r.width = max96712->cur_mode->width;
+		sel->r.top = 0;
+		sel->r.height = max96712->cur_mode->height;
+		return 0;
+	}
+
+	return -EINVAL;
+}
+
+static const struct dev_pm_ops max96712_pm_ops = { SET_RUNTIME_PM_OPS(
+	max96712_runtime_suspend, max96712_runtime_resume, NULL) };
+
+#ifdef CONFIG_VIDEO_V4L2_SUBDEV_API
+static const struct v4l2_subdev_internal_ops max96712_internal_ops = {
+	.open = max96712_open,
+};
+#endif
+
+static const struct v4l2_subdev_core_ops max96712_core_ops = {
+	.s_power = max96712_s_power,
+	.ioctl = max96712_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl32 = max96712_compat_ioctl32,
+#endif
+};
+
+static const struct v4l2_subdev_video_ops max96712_video_ops = {
+	.s_stream = max96712_s_stream,
+	.g_frame_interval = max96712_g_frame_interval,
+};
+
+static const struct v4l2_subdev_pad_ops max96712_pad_ops = {
+	.enum_mbus_code = max96712_enum_mbus_code,
+	.enum_frame_size = max96712_enum_frame_sizes,
+	.enum_frame_interval = max96712_enum_frame_interval,
+	.get_fmt = max96712_get_fmt,
+	.set_fmt = max96712_set_fmt,
+	.get_selection = max96712_get_selection,
+	.get_mbus_config = max96712_g_mbus_config,
+};
+
+static const struct v4l2_subdev_ops max96712_subdev_ops = {
+	.core = &max96712_core_ops,
+	.video = &max96712_video_ops,
+	.pad = &max96712_pad_ops,
+};
+
+static int max96712_initialize_controls(struct max96712 *max96712)
+{
+	const struct max96712_mode *mode;
+	struct v4l2_ctrl_handler *handler;
+	u64 pixel_rate;
+	u8 data_lanes;
+	int ret;
+
+	handler = &max96712->ctrl_handler;
+
+	mode = max96712->cur_mode;
+	ret = v4l2_ctrl_handler_init(handler, 2);
+	if (ret)
+		return ret;
+	handler->lock = &max96712->mutex;
+
+	max96712->link_freq = v4l2_ctrl_new_int_menu(handler, NULL,
+				V4L2_CID_LINK_FREQ,
+				ARRAY_SIZE(link_freq_items) - 1, 0,
+				link_freq_items);
+	__v4l2_ctrl_s_ctrl(max96712->link_freq, mode->link_freq_idx);
+	dev_info(&max96712->client->dev, "mipi_freq_idx = %d, mipi_link_freq = %lld\n",
+			mode->link_freq_idx, link_freq_items[mode->link_freq_idx]);
+
+	/* pixel rate = link frequency * 2 * lanes / BITS_PER_SAMPLE */
+	data_lanes = max96712->bus_cfg.bus.mipi_csi2.num_data_lanes;
+	pixel_rate = (u32)link_freq_items[mode->link_freq_idx] / mode->bpp * 2 * data_lanes;
+	max96712->pixel_rate =
+		v4l2_ctrl_new_std(handler, NULL, V4L2_CID_PIXEL_RATE, 0,
+				  pixel_rate, 1, pixel_rate);
+	dev_info(&max96712->client->dev, "pixel_rate = %lld, bpp = %d\n",
+			pixel_rate, mode->bpp);
+
+	if (handler->error) {
+		ret = handler->error;
+		dev_err(&max96712->client->dev, "Failed to init controls(%d)\n",
+			ret);
+		goto err_free_handler;
+	}
+
+	max96712->subdev.ctrl_handler = handler;
+
+	return 0;
+
+err_free_handler:
+	v4l2_ctrl_handler_free(handler);
+
+	return ret;
+}
+
+static int max96712_configure_regulators(struct max96712 *max96712)
+{
+	unsigned int i;
+
+	for (i = 0; i < MAX96712_NUM_SUPPLIES; i++)
+		max96712->supplies[i].supply = max96712_supply_names[i];
+
+	return devm_regulator_bulk_get(&max96712->client->dev,
+				       MAX96712_NUM_SUPPLIES,
+				       max96712->supplies);
+}
+
+static int max96712_parse_dt(struct max96712 *max96712)
+{
+	struct device *dev = &max96712->client->dev;
+	struct device_node *node = dev->of_node;
+	u8 mipi_data_lanes = max96712->bus_cfg.bus.mipi_csi2.num_data_lanes;
+	u32 value = 0;
+	int ret = 0;
+
+	/* serializer i2c address */
+	ret = of_property_read_u32(node, "ser-i2c-addr", &value);
+	if (ret) {
+		max96712->i2c_addr[I2C_DEV_SER] = SER_I2C_ADDR;
+	} else {
+		dev_info(dev, "ser-i2c-addr property: %d\n", value);
+		max96712->i2c_addr[I2C_DEV_SER] = value;
+	}
+	dev_info(dev, "serializer i2c address: 0x%02x\n", max96712->i2c_addr[I2C_DEV_SER]);
+
+	/* max96712 link Receiver Rate: 3G or 6G */
+	ret = of_property_read_u32(node, "link-rx-rate",
+				   &max96712->rx_rate);
+	if (ret)
+		max96712->rx_rate = MAX96712_RX_RATE_6GBPS;
+	else
+		dev_info(dev, "link-rx-rate property: %d\n", max96712->rx_rate);
+	dev_info(dev, "serdes link receiver rate: %d\n", max96712->rx_rate);
+
+	/* max96712 link mask:
+	 *     bit[3:0] = link enable mask: 0 = disable, 1 = enable:
+	 *         bit0 - LinkA, bit1 - LinkB, bit2 - LinkC, bit3 - LinkD
+	 *     bit[7:4] = link type, 0 = GMSL1, 1 = GMSL2:
+	 *         bit4 - LinkA, bit5 - LinkB, bit6 - LinkC, bit7 = LinkD
+	 */
+	ret = of_property_read_u32(node, "link-mask",
+				   &max96712->link_mask);
+	if (ret) {
+		/* default link mask */
+		if (mipi_data_lanes == 4)
+			max96712->link_mask = 0xFF; /* Link A/B/C/D: GMSL2 and enable */
+		else
+			max96712->link_mask = 0x33; /* Link A/B: GMSL2 and enable */
+	} else {
+		dev_info(dev, "link-mask property: 0x%08x\n", max96712->link_mask);
+	}
+	dev_info(dev, "serdes link mask: 0x%02x\n", max96712->link_mask);
+
+	/* auto initial deskew mask */
+	ret = of_property_read_u32(node, "auto-init-deskew-mask",
+				&max96712->auto_init_deskew_mask);
+	if (ret)
+		max96712->auto_init_deskew_mask = 0x0F; // 0x0F: default enable all
+	dev_info(dev, "auto init deskew mask: 0x%02x\n", max96712->auto_init_deskew_mask);
+
+	/* FSYNC period config */
+	ret = of_property_read_u32(node, "frame-sync-period",
+				&max96712->frame_sync_period);
+	if (ret)
+		max96712->frame_sync_period = 0; // 0: disable (default)
+	dev_info(dev, "frame sync period: %d\n", max96712->frame_sync_period);
+
+	return 0;
+}
+
+static int max96712_probe(struct i2c_client *client,
+			  const struct i2c_device_id *id)
+{
+	struct device *dev = &client->dev;
+	struct device_node *node = dev->of_node;
+	struct max96712 *max96712;
+	struct v4l2_subdev *sd;
+	struct device_node *endpoint;
+	char facing[2];
+	u8 mipi_data_lanes;
+	int ret;
+
+	dev_info(dev, "driver version: %02x.%02x.%02x", DRIVER_VERSION >> 16,
+		 (DRIVER_VERSION & 0xff00) >> 8, DRIVER_VERSION & 0x00ff);
+
+	max96712 = devm_kzalloc(dev, sizeof(*max96712), GFP_KERNEL);
+	if (!max96712)
+		return -ENOMEM;
+
+	ret = of_property_read_u32(node, RKMODULE_CAMERA_MODULE_INDEX,
+				   &max96712->module_index);
+	ret |= of_property_read_string(node, RKMODULE_CAMERA_MODULE_FACING,
+				       &max96712->module_facing);
+	ret |= of_property_read_string(node, RKMODULE_CAMERA_MODULE_NAME,
+				       &max96712->module_name);
+	ret |= of_property_read_string(node, RKMODULE_CAMERA_LENS_NAME,
+				       &max96712->len_name);
+	if (ret) {
+		dev_err(dev, "could not get module information!\n");
+		return -EINVAL;
+	}
+
+	max96712->regmap = devm_regmap_init_i2c(client, &max96712_regmap_config);
+	if (IS_ERR(max96712->regmap)) {
+		dev_err(dev, "Failed to regmap initialize I2C\n");
+		return PTR_ERR(max96712->regmap);
+	}
+
+	max96712->client = client;
+	i2c_set_clientdata(client, max96712);
+
+	/* i2c default address init */
+	max96712->i2c_addr[I2C_DEV_DES] = client->addr;
+	max96712->i2c_addr[I2C_DEV_SER] = SER_I2C_ADDR;
+	max96712->i2c_addr[I2C_DEV_CAM] = CAM_I2C_ADDR;
+
+	endpoint = of_graph_get_next_endpoint(dev->of_node, NULL);
+	if (!endpoint) {
+		dev_err(dev, "Failed to get endpoint\n");
+		return -EINVAL;
+	}
+
+	ret = v4l2_fwnode_endpoint_parse(of_fwnode_handle(endpoint),
+		&max96712->bus_cfg);
+	if (ret) {
+		dev_err(dev, "Failed to get bus config\n");
+		return -EINVAL;
+	}
+	mipi_data_lanes = max96712->bus_cfg.bus.mipi_csi2.num_data_lanes;
+	dev_info(dev, "mipi csi2 phy data lanes %d\n", mipi_data_lanes);
+
+	if (mipi_data_lanes == 4) {
+		max96712->supported_modes = supported_modes_4lane;
+		max96712->cfg_modes_num = ARRAY_SIZE(supported_modes_4lane);
+	} else {
+		dev_err(dev, "Not support mipi data lane: %d\n", mipi_data_lanes);
+		return -EINVAL;
+	}
+	max96712->cur_mode = &max96712->supported_modes[0];
+
+	max96712->power_gpio = devm_gpiod_get(dev, "power", GPIOD_OUT_LOW);
+	if (IS_ERR(max96712->power_gpio))
+		dev_warn(dev, "Failed to get power-gpios, maybe no use\n");
+
+	max96712->reset_gpio = devm_gpiod_get(dev, "reset", GPIOD_OUT_LOW);
+	if (IS_ERR(max96712->reset_gpio))
+		dev_warn(dev, "Failed to get reset-gpios\n");
+
+	max96712->pwdn_gpio = devm_gpiod_get(dev, "pwdn", GPIOD_OUT_LOW);
+	if (IS_ERR(max96712->pwdn_gpio))
+		dev_warn(dev, "Failed to get pwdn-gpios\n");
+
+	max96712->pocen_gpio = devm_gpiod_get(dev, "pocen", GPIOD_OUT_LOW);
+	if (IS_ERR(max96712->pocen_gpio))
+		dev_warn(dev, "Failed to get pocen-gpios\n");
+
+	max96712->lock_gpio = devm_gpiod_get(dev, "lock", GPIOD_IN);
+	if (IS_ERR(max96712->lock_gpio))
+		dev_warn(dev, "Failed to get lock-gpios\n");
+
+	ret = max96712_configure_regulators(max96712);
+	if (ret) {
+		dev_err(dev, "Failed to get power regulators\n");
+		return ret;
+	}
+
+	max96712->pinctrl = devm_pinctrl_get(dev);
+	if (!IS_ERR(max96712->pinctrl)) {
+		max96712->pins_default = pinctrl_lookup_state(
+			max96712->pinctrl, OF_CAMERA_PINCTRL_STATE_DEFAULT);
+		if (IS_ERR(max96712->pins_default))
+			dev_err(dev, "could not get default pinstate\n");
+
+		max96712->pins_sleep = pinctrl_lookup_state(
+			max96712->pinctrl, OF_CAMERA_PINCTRL_STATE_SLEEP);
+		if (IS_ERR(max96712->pins_sleep))
+			dev_err(dev, "could not get sleep pinstate\n");
+	}
+
+	max96712_parse_dt(max96712);
+
+	mutex_init(&max96712->mutex);
+
+	sd = &max96712->subdev;
+	v4l2_i2c_subdev_init(sd, client, &max96712_subdev_ops);
+	ret = max96712_initialize_controls(max96712);
+	if (ret)
+		goto err_destroy_mutex;
+
+	ret = __max96712_power_on(max96712);
+	if (ret)
+		goto err_free_handler;
+
+	ret = max96712_check_local_chipid(max96712);
+	if (ret)
+		goto err_power_off;
+
+#ifdef CONFIG_VIDEO_V4L2_SUBDEV_API
+	sd->internal_ops = &max96712_internal_ops;
+	sd->flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
+#endif
+#if defined(CONFIG_MEDIA_CONTROLLER)
+	max96712->pad.flags = MEDIA_PAD_FL_SOURCE;
+	sd->entity.function = MEDIA_ENT_F_CAM_SENSOR;
+	ret = media_entity_pads_init(&sd->entity, 1, &max96712->pad);
+	if (ret < 0)
+		goto err_power_off;
+#endif
+
+	memset(facing, 0, sizeof(facing));
+	if (strcmp(max96712->module_facing, "back") == 0)
+		facing[0] = 'b';
+	else
+		facing[0] = 'f';
+
+	v4l2_set_subdevdata(sd, max96712);
+
+	snprintf(sd->name, sizeof(sd->name), "m%02d_%s_%s %s",
+		 max96712->module_index, facing, MAX96712_NAME,
+		 dev_name(sd->dev));
+	ret = v4l2_async_register_subdev_sensor_common(sd);
+	if (ret) {
+		dev_err(dev, "v4l2 async register subdev failed\n");
+		goto err_clean_entity;
+	}
+
+	if (!IS_ERR(max96712->lock_gpio)) {
+		max96712->hot_plug_irq = gpiod_to_irq(max96712->lock_gpio);
+		if (max96712->hot_plug_irq < 0) {
+			dev_err(dev, "failed to get hot plug irq\n");
+		} else {
+			ret = devm_request_threaded_irq(dev,
+					max96712->hot_plug_irq,
+					NULL,
+					max96712_hot_plug_detect_irq_handler,
+					IRQF_TRIGGER_FALLING | IRQF_TRIGGER_RISING | IRQF_ONESHOT,
+					"max96712_hot_plug",
+					max96712);
+			if (ret) {
+				dev_err(dev, "failed to request hot plug irq (%d)\n", ret);
+				max96712->hot_plug_irq = -1;
+			} else {
+				disable_irq(max96712->hot_plug_irq);
+			}
+		}
+	}
+
+	pm_runtime_set_active(dev);
+	pm_runtime_enable(dev);
+	pm_runtime_idle(dev);
+
+	return 0;
+
+err_clean_entity:
+#if defined(CONFIG_MEDIA_CONTROLLER)
+	media_entity_cleanup(&sd->entity);
+#endif
+err_power_off:
+	__max96712_power_off(max96712);
+err_free_handler:
+	v4l2_ctrl_handler_free(&max96712->ctrl_handler);
+err_destroy_mutex:
+	mutex_destroy(&max96712->mutex);
+
+	return ret;
+}
+
+static int max96712_remove(struct i2c_client *client)
+{
+	struct v4l2_subdev *sd = i2c_get_clientdata(client);
+	struct max96712 *max96712 = v4l2_get_subdevdata(sd);
+
+	v4l2_async_unregister_subdev(sd);
+#if defined(CONFIG_MEDIA_CONTROLLER)
+	media_entity_cleanup(&sd->entity);
+#endif
+	v4l2_ctrl_handler_free(&max96712->ctrl_handler);
+	mutex_destroy(&max96712->mutex);
+
+	pm_runtime_disable(&client->dev);
+	if (!pm_runtime_status_suspended(&client->dev))
+		__max96712_power_off(max96712);
+	pm_runtime_set_suspended(&client->dev);
+
+	return 0;
+}
+
+#if IS_ENABLED(CONFIG_OF)
+static const struct of_device_id max96712_of_match[] = {
+	{ .compatible = "maxim,max96712" },
+	{},
+};
+MODULE_DEVICE_TABLE(of, max96712_of_match);
+#endif
+
+static const struct i2c_device_id max96712_match_id[] = {
+	{ "maxim,max96712", 0 },
+	{},
+};
+
+static struct i2c_driver max96712_i2c_driver = {
+	.driver = {
+		.name = MAX96712_NAME,
+		.pm = &max96712_pm_ops,
+		.of_match_table = of_match_ptr(max96712_of_match),
+	},
+	.probe		= &max96712_probe,
+	.remove		= &max96712_remove,
+	.id_table	= max96712_match_id,
+};
+
+static int __init sensor_mod_init(void)
+{
+	return i2c_add_driver(&max96712_i2c_driver);
+}
+
+static void __exit sensor_mod_exit(void)
+{
+	i2c_del_driver(&max96712_i2c_driver);
+}
+
+module_init(sensor_mod_init);
+module_exit(sensor_mod_exit);
+
+MODULE_DESCRIPTION("Maxim max96712 deserializer driver");
+MODULE_LICENSE("GPL");

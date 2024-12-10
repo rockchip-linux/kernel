@@ -684,9 +684,7 @@ static int os08a20_g_frame_interval(struct v4l2_subdev *sd,
 	struct os08a20 *os08a20 = to_os08a20(sd);
 	const struct os08a20_mode *mode = os08a20->cur_mode;
 
-	mutex_lock(&os08a20->mutex);
 	fi->interval = mode->max_fps;
-	mutex_unlock(&os08a20->mutex);
 
 	return 0;
 }
@@ -1107,9 +1105,7 @@ static int os08a20_enum_frame_interval(struct v4l2_subdev *sd,
 	if (fie->index >= os08a20->cfg_num)
 		return -EINVAL;
 
-	if (fie->code != OS08A20_MEDIA_BUS_FMT)
-		return -EINVAL;
-
+	fie->code = OS08A20_MEDIA_BUS_FMT;
 	fie->width = supported_modes[fie->index].width;
 	fie->height = supported_modes[fie->index].height;
 	fie->interval = supported_modes[fie->index].max_fps;

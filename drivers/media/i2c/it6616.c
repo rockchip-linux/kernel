@@ -20,6 +20,7 @@
 #include <linux/module.h>
 #include <linux/of_graph.h>
 #include <linux/rk-camera-module.h>
+#include <linux/rk_hdmirx_class.h>
 #include <linux/slab.h>
 #include <linux/timer.h>
 #include <linux/v4l2-dv-timings.h>
@@ -471,7 +472,6 @@ struct it6616 {
 	struct regmap *mipi_regmap;
 	struct regmap *edid_regmap;
 	u8 attr_hdmi_reg_bank;
-	struct class *hdmirx_class;
 	struct device *dev;
 	struct device *classdev;
 	struct v4l2_fwnode_bus_mipi_csi2 bus;
@@ -3519,6 +3519,16 @@ static int it6616_isr(struct v4l2_subdev *sd, u32 status, bool *handled)
 	return 0;
 }
 
+static void it6616_detect_hot_plug(struct v4l2_subdev *sd)
+{
+	struct it6616 *it6616 = to_it6616(sd);
+
+	if (it6616->mipi_tx_video_stable && it6616_hdmi_is_5v_on(it6616))
+		v4l2_ctrl_s_ctrl(it6616->detect_tx_5v_ctrl, 1);
+	else
+		v4l2_ctrl_s_ctrl(it6616->detect_tx_5v_ctrl, 0);
+}
+
 static void it6616_work_i2c_poll(struct work_struct *work)
 {
 	struct delayed_work *dwork = to_delayed_work(work);
@@ -3526,8 +3536,8 @@ static void it6616_work_i2c_poll(struct work_struct *work)
 			struct it6616, work_i2c_poll);
 	bool handled;
 
-	it6616_s_ctrl_detect_tx_5v(&it6616->sd);
 	it6616_isr(&it6616->sd, 0, &handled);
+	it6616_detect_hot_plug(&it6616->sd);
 	schedule_delayed_work(&it6616->work_i2c_poll,
 			msecs_to_jiffies(POLL_INTERVAL_MS));
 }
@@ -3776,8 +3786,7 @@ static int it6616_enum_frame_interval(struct v4l2_subdev *sd,
 	if (fie->index >= ARRAY_SIZE(supported_modes))
 		return -EINVAL;
 
-	if (fie->code != IT6616_MEDIA_BUS_FMT)
-		return -EINVAL;
+	fie->code = IT6616_MEDIA_BUS_FMT;
 
 	fie->width = supported_modes[fie->index].width;
 	fie->height = supported_modes[fie->index].height;
@@ -4213,54 +4222,29 @@ static ssize_t audio_rate_show(struct device *dev,
 static DEVICE_ATTR_RO(audio_present);
 static DEVICE_ATTR_RO(audio_rate);
 
+static struct attribute *it6616_audio_attrs[] = {
+	&dev_attr_audio_rate.attr,
+	&dev_attr_audio_present.attr,
+	NULL
+};
+ATTRIBUTE_GROUPS(it6616_audio);
+
 static int it6616_create_class_attr(struct it6616 *it6616)
 {
-	int ret = 0;
-
-	it6616->hdmirx_class = class_create(THIS_MODULE, "hdmirx_it6616");
-	if (IS_ERR(it6616->hdmirx_class)) {
-		ret = -ENOMEM;
-		dev_err(it6616->dev, "failed to create hdmirx_it6616 class!\n");
-		return ret;
-	}
-
-	it6616->classdev = device_create(it6616->hdmirx_class, NULL,
-					MKDEV(0, 0), NULL, "hdmirx_it6616");
-	if (IS_ERR(it6616->classdev)) {
-		ret = PTR_ERR(it6616->classdev);
-		dev_err(it6616->dev, "Failed to create device\n");
-		goto err1;
-	}
-
-	ret = device_create_file(it6616->classdev,
-				&dev_attr_audio_present);
-	if (ret) {
-		dev_err(it6616->dev, "failed to create attr audio_present!\n");
-		goto err1;
-	}
-
-	ret = device_create_file(it6616->classdev,
-				&dev_attr_audio_rate);
-	if (ret) {
-		dev_err(it6616->dev,
-			"failed to create attr audio_rate!\n");
-		goto err;
-	}
-
-	return ret;
-
-err:
-	device_remove_file(it6616->classdev, &dev_attr_audio_present);
-err1:
-	class_destroy(it6616->hdmirx_class);
-	return ret;
+	it6616->classdev = device_create_with_groups(rk_hdmirx_class(),
+						     it6616->dev, MKDEV(0, 0),
+						     it6616,
+						     it6616_audio_groups,
+						     "it6616");
+	if (IS_ERR(it6616->classdev))
+		return IS_ERR(it6616->classdev);
+	return 0;
 }
 
 static void it6616_remove_class_attr(struct it6616 *it6616)
 {
 	device_remove_file(it6616->classdev, &dev_attr_audio_rate);
 	device_remove_file(it6616->classdev, &dev_attr_audio_present);
-	class_destroy(it6616->hdmirx_class);
 }
 
 static int it6616_probe(struct i2c_client *client,

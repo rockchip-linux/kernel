@@ -1399,9 +1399,7 @@ static int gc2155_g_frame_interval(struct v4l2_subdev *sd,
 {
 	struct gc2155 *gc2155 = to_gc2155(sd);
 
-	mutex_lock(&gc2155->mutex);
 	fi->interval = gc2155->cur_mode->max_fps;
-	mutex_unlock(&gc2155->mutex);
 
 	return 0;
 }
@@ -1487,9 +1485,7 @@ static int gc2155_enum_frame_interval(struct v4l2_subdev *sd,
 	if (fie->index >= ARRAY_SIZE(supported_modes))
 		return -EINVAL;
 
-	if (fie->code != MEDIA_BUS_FMT_UYVY8_2X8)
-		return -EINVAL;
-
+	fie->code = MEDIA_BUS_FMT_UYVY8_2X8;
 	fie->width = supported_modes[fie->index].width;
 	fie->height = supported_modes[fie->index].height;
 	fie->interval = supported_modes[fie->index].max_fps;

@@ -558,9 +558,7 @@ static int imx323_g_frame_interval(struct v4l2_subdev *sd,
 	struct imx323 *imx323 = to_imx323(sd);
 	const struct imx323_mode *mode = imx323->cur_mode;
 
-	mutex_lock(&imx323->mutex);
 	fi->interval = mode->max_fps;
-	mutex_unlock(&imx323->mutex);
 
 	return 0;
 }
@@ -723,9 +721,7 @@ static int imx323_enum_frame_interval(struct v4l2_subdev *sd,
 	if (fie->index >= ARRAY_SIZE(supported_modes))
 		return -EINVAL;
 
-	if (fie->code != PIX_FORMAT)
-		return -EINVAL;
-
+	fie->code = PIX_FORMAT;
 	fie->width = supported_modes[fie->index].width;
 	fie->height = supported_modes[fie->index].height;
 	fie->interval = supported_modes[fie->index].max_fps;

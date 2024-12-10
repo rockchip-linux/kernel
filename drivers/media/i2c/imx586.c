@@ -1133,9 +1133,7 @@ static int imx586_g_frame_interval(struct v4l2_subdev *sd,
 	struct imx586 *imx586 = to_imx586(sd);
 	const struct imx586_mode *mode = imx586->cur_mode;
 
-	mutex_lock(&imx586->mutex);
 	fi->interval = mode->max_fps;
-	mutex_unlock(&imx586->mutex);
 
 	return 0;
 }
@@ -1208,6 +1206,7 @@ static void imx586_get_otp(struct otp_info *otp,
 		inf->pdaf.flag = 1;
 		inf->pdaf.gainmap_width = otp->pdaf_data.gainmap_width;
 		inf->pdaf.gainmap_height = otp->pdaf_data.gainmap_height;
+		inf->pdaf.pd_offset = otp->pdaf_data.pd_offset;
 		inf->pdaf.dcc_mode = otp->pdaf_data.dcc_mode;
 		inf->pdaf.dcc_dir = otp->pdaf_data.dcc_dir;
 		inf->pdaf.dccmap_width = otp->pdaf_data.dccmap_width;

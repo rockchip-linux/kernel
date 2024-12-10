@@ -23,9 +23,18 @@
 #define DAIS_DRV_NAME		"rockchip-mdais"
 #define RK3308_GRF_SOC_CON2	0x308
 
+#define SOUND_NAME_PREFIX	"sound-name-prefix"
+
 static inline struct rk_mdais_dev *to_info(struct snd_soc_dai *dai)
 {
 	return snd_soc_dai_get_drvdata(dai);
+}
+
+static inline unsigned int *mdais_channel_maps(struct rk_mdais_dev *mdais,
+					       struct snd_pcm_substream *substream)
+{
+	return substream->stream ? mdais->capture_channel_maps :
+				   mdais->playback_channel_maps;
 }
 
 static void hw_refine_channels(struct snd_pcm_hw_params *params,
@@ -52,26 +61,51 @@ static int rockchip_mdais_hw_params(struct snd_pcm_substream *substream,
 	if (IS_ERR(cparams))
 		return PTR_ERR(cparams);
 
-	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
-		channel_maps = mdais->playback_channel_maps;
-	else
-		channel_maps = mdais->capture_channel_maps;
+	channel_maps = mdais_channel_maps(mdais, substream);
 
 	for (i = 0; i < mdais->num_dais; i++) {
 		child = mdais->dais[i].dai;
-		if (channel_maps[i])
-			hw_refine_channels(cparams, channel_maps[i]);
+		if (!channel_maps[i])
+			continue;
+
+		hw_refine_channels(cparams, channel_maps[i]);
 		if (child->driver->ops && child->driver->ops->hw_params) {
 			ret = child->driver->ops->hw_params(substream, cparams, child);
 			if (ret < 0) {
-				dev_err(dai->dev, "ASoC: can't set %s hw params: %d\n",
+				dev_err(dai->dev, "Failed to set %s hw params: %d\n",
 					dai->name, ret);
-				return ret;
+				break;
 			}
 		}
 	}
 
 	kfree(cparams);
+
+	return ret;
+}
+
+static int rockchip_mdais_hw_free(struct snd_pcm_substream *substream,
+				  struct snd_soc_dai *dai)
+{
+	struct rk_mdais_dev *mdais = to_info(dai);
+	struct snd_soc_dai *child;
+	unsigned int *channel_maps;
+	int ret = 0, i = 0;
+
+	channel_maps = mdais_channel_maps(mdais, substream);
+
+	for (i = 0; i < mdais->num_dais; i++) {
+		child = mdais->dais[i].dai;
+		if (!channel_maps[i])
+			continue;
+
+		if (child->driver->ops && child->driver->ops->hw_free) {
+			ret = child->driver->ops->hw_free(substream, child);
+			if (ret < 0)
+				return ret;
+		}
+	}
+
 	return 0;
 }
 
@@ -80,9 +114,16 @@ static int rockchip_mdais_trigger(struct snd_pcm_substream *substream,
 {
 	struct rk_mdais_dev *mdais = to_info(dai);
 	struct snd_soc_dai *child;
+	unsigned int *channel_maps;
 	int ret = 0, i = 0;
 
+	channel_maps = mdais_channel_maps(mdais, substream);
+
 	for (i = 0; i < mdais->num_dais; i++) {
+		/* skip DAIs which have no channel mapping */
+		if (!channel_maps[i])
+			continue;
+
 		child = mdais->dais[i].dai;
 		if (child->driver->ops && child->driver->ops->trigger) {
 			ret = child->driver->ops->trigger(substream,
@@ -100,9 +141,15 @@ static int rockchip_mdais_startup(struct snd_pcm_substream *substream,
 {
 	struct rk_mdais_dev *mdais = to_info(dai);
 	struct snd_soc_dai *child;
+	unsigned int *channel_maps;
 	int ret = 0, i = 0;
 
+	channel_maps = mdais_channel_maps(mdais, substream);
+
 	for (i = 0; i < mdais->num_dais; i++) {
+		if (!channel_maps[i])
+			continue;
+
 		child = mdais->dais[i].dai;
 		if (child->driver->ops && child->driver->ops->startup) {
 			ret = child->driver->ops->startup(substream, child);
@@ -119,9 +166,15 @@ static void rockchip_mdais_shutdown(struct snd_pcm_substream *substream,
 {
 	struct rk_mdais_dev *mdais = to_info(dai);
 	struct snd_soc_dai *child;
+	unsigned int *channel_maps;
 	int i = 0;
 
+	channel_maps = mdais_channel_maps(mdais, substream);
+
 	for (i = 0; i < mdais->num_dais; i++) {
+		if (!channel_maps[i])
+			continue;
+
 		child = mdais->dais[i].dai;
 		if (child->driver->ops && child->driver->ops->shutdown) {
 			child->driver->ops->shutdown(substream, child);
@@ -134,9 +187,15 @@ static int rockchip_mdais_prepare(struct snd_pcm_substream *substream,
 {
 	struct rk_mdais_dev *mdais = to_info(dai);
 	struct snd_soc_dai *child;
+	unsigned int *channel_maps;
 	int ret = 0, i = 0;
 
+	channel_maps = mdais_channel_maps(mdais, substream);
+
 	for (i = 0; i < mdais->num_dais; i++) {
+		if (!channel_maps[i])
+			continue;
+
 		child = mdais->dais[i].dai;
 		if (child->driver->ops && child->driver->ops->prepare) {
 			ret = child->driver->ops->prepare(substream, child);
@@ -210,20 +269,38 @@ static int rockchip_mdais_tdm_slot(struct snd_soc_dai *dai,
 static int rockchip_mdais_dai_probe(struct snd_soc_dai *dai)
 {
 	struct rk_mdais_dev *mdais = to_info(dai);
+	struct snd_soc_component *comp;
 	struct snd_soc_dai *child;
+	const char *str;
 	int ret, i = 0;
 
 	for (i = 0; i < mdais->num_dais; i++) {
 		child = mdais->dais[i].dai;
+		comp = child->component;
 		if (!child->probed && child->driver->probe) {
-			child->component->card = dai->component->card;
+			if (!comp->name_prefix) {
+				ret = device_property_read_string(child->dev,
+								  SOUND_NAME_PREFIX, &str);
+				if (!ret)
+					comp->name_prefix = str;
+			}
+
+			comp->card = dai->component->card;
 			ret = child->driver->probe(child);
 			if (ret < 0) {
 				dev_err(child->dev,
-					"ASoC: failed to probe DAI %s: %d\n",
+					"Failed to probe DAI %s: %d\n",
 					child->name, ret);
 				return ret;
 			}
+
+			ret = snd_soc_add_component_controls(comp,
+							     comp->driver->controls,
+							     comp->driver->num_controls);
+			if (ret)
+				dev_err(dai->dev, "%s: Failed to add controls, should add '%s' in DT\n",
+					dev_name(child->dev), SOUND_NAME_PREFIX);
+
 			dai->probed = 1;
 		}
 	}
@@ -233,6 +310,7 @@ static int rockchip_mdais_dai_probe(struct snd_soc_dai *dai)
 
 static const struct snd_soc_dai_ops rockchip_mdais_dai_ops = {
 	.hw_params = rockchip_mdais_hw_params,
+	.hw_free = rockchip_mdais_hw_free,
 	.set_sysclk = rockchip_mdais_set_sysclk,
 	.set_fmt = rockchip_mdais_set_fmt,
 	.set_tdm_slot = rockchip_mdais_tdm_slot,
@@ -258,7 +336,7 @@ static struct snd_soc_dai *rockchip_mdais_find_dai(struct device_node *np)
 
 	dai_component.of_node = np;
 
-	return snd_soc_find_dai(&dai_component);
+	return snd_soc_find_dai_with_mutex(&dai_component);
 }
 
 static int mdais_runtime_suspend(struct device *dev)
@@ -373,9 +451,9 @@ static int rockchip_mdais_dai_prepare(struct platform_device *pdev,
 		.probe = rockchip_mdais_dai_probe,
 		.playback = {
 			.stream_name = "Playback",
-			.channels_min = 2,
-			.channels_max = 32,
-			.rates = SNDRV_PCM_RATE_8000_192000,
+			.channels_min = 1,
+			.channels_max = 512,
+			.rates = SNDRV_PCM_RATE_8000_384000,
 			.formats = (SNDRV_PCM_FMTBIT_S8 |
 				    SNDRV_PCM_FMTBIT_S16_LE |
 				    SNDRV_PCM_FMTBIT_S20_3LE |
@@ -384,9 +462,9 @@ static int rockchip_mdais_dai_prepare(struct platform_device *pdev,
 		},
 		.capture = {
 			.stream_name = "Capture",
-			.channels_min = 2,
-			.channels_max = 32,
-			.rates = SNDRV_PCM_RATE_8000_192000,
+			.channels_min = 1,
+			.channels_max = 512,
+			.rates = SNDRV_PCM_RATE_8000_384000,
 			.formats = (SNDRV_PCM_FMTBIT_S8 |
 				    SNDRV_PCM_FMTBIT_S16_LE |
 				    SNDRV_PCM_FMTBIT_S20_3LE |

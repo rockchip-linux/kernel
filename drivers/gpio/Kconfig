@@ -99,7 +99,7 @@ config GPIO_GENERIC
 	tristate
 
 config GPIO_REGMAP
-	depends on REGMAP
+	select REGMAP
 	tristate
 
 # put drivers in the right section, in alphabetical order
@@ -984,6 +984,14 @@ config GPIO_MC9S08DZ60
 	help
 	  Select this to enable the MC9S08DZ60 GPIO driver
 
+config GPIO_NCA9539
+	tristate "NCA9539 I2C GPIO expander"
+	depends on I2C || COMPILE_TEST
+	select REGMAP_I2C
+	help
+	  Say yes here to support the NCA9539 series of I2C Expanders.
+	  GPIO expanders used for additional digital outputs or inputs.
+
 config GPIO_PCA953X
 	tristate "PCA95[357]x, PCA9698, TCA64xx, and MAX7310 I/O ports"
 	select REGMAP_I2C
@@ -1249,13 +1257,6 @@ config GPIO_MAX77650
 	help
 	  GPIO driver for MAX77650/77651 PMIC from Maxim Semiconductor.
 	  These chips have a single pin that can be configured as GPIO.
-
-config GPIO_MAX96752F
-	tristate "MAX96752F GPIO"
-	depends on MFD_MAX96752F
-	help
-	  Select this option to enable GPIO driver for the MAX96752F
-	  chip.
 
 config GPIO_MSIC
 	bool "Intel MSIC mixed signal gpio support"

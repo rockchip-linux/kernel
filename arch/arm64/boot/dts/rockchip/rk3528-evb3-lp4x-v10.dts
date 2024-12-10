@@ -1,0 +1,27 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright (c) 2022 Rockchip Electronics Co., Ltd.
+ *
+ */
+
+#include "rk3528-evb3-lp4x-v10.dtsi"
+#include "rk3528-android.dtsi"
+
+&pdm {
+	status = "okay";
+	pinctrl-0 = <&pdm_clk1
+		     &pdm_sdi0
+		     &pdm_sdi2>;
+};
+
+&pdmics {
+	status = "okay";
+};
+
+&pdm_mic_array {
+	status = "okay";
+};
+
+&sdmmc {
+	status = "okay";
+};

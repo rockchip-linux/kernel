@@ -39,6 +39,7 @@
 #define HAS_RKVDEC2	IS_ENABLED(CONFIG_ROCKCHIP_MPP_RKVDEC2)
 #define HAS_RKVENC2	IS_ENABLED(CONFIG_ROCKCHIP_MPP_RKVENC2)
 #define HAS_AV1DEC	IS_ENABLED(CONFIG_ROCKCHIP_MPP_AV1DEC)
+#define HAS_VDPP	IS_ENABLED(CONFIG_ROCKCHIP_MPP_VDPP)
 
 #define MPP_REGISTER_DRIVER(srv, flag, X, x) {\
 	if (flag)\
@@ -98,7 +99,7 @@ static int mpp_add_driver(struct mpp_service *srv,
 		     &srv->grf_infos[type],
 		     grf_name);
 
-	if (type == MPP_DRIVER_AV1DEC)
+	if (IS_ENABLED(CONFIG_ROCKCHIP_MPP_AV1DEC) && type == MPP_DRIVER_AV1DEC)
 		ret = av1dec_driver_register(driver);
 	else
 		ret = platform_driver_register(driver);
@@ -116,11 +117,9 @@ static int mpp_remove_driver(struct mpp_service *srv, int i)
 		if (i != MPP_DRIVER_AV1DEC) {
 			mpp_set_grf(&srv->grf_infos[i]);
 			platform_driver_unregister(srv->sub_drivers[i]);
-		}
-#if IS_ENABLED(CONFIG_ROCKCHIP_MPP_AV1DEC)
-		else
+		} else if (IS_ENABLED(CONFIG_ROCKCHIP_MPP_AV1DEC)) {
 			av1dec_driver_unregister(srv->sub_drivers[i]);
-#endif
+		}
 		srv->sub_drivers[i] = NULL;
 	}
 
@@ -435,6 +434,7 @@ static int mpp_service_probe(struct platform_device *pdev)
 	MPP_REGISTER_DRIVER(srv, HAS_RKVDEC2, RKVDEC2, rkvdec2);
 	MPP_REGISTER_DRIVER(srv, HAS_RKVENC2, RKVENC2, rkvenc2);
 	MPP_REGISTER_DRIVER(srv, HAS_AV1DEC, AV1DEC, av1dec);
+	MPP_REGISTER_DRIVER(srv, HAS_VDPP, VDPP, vdpp);
 
 	dev_info(dev, "probe success\n");
 

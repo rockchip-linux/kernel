@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2010-2022 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2010-2023 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -35,6 +35,7 @@
 #include <mali_kbase.h>
 #include <mali_kbase_defs.h>
 #include <mali_kbase_hwaccess_instr.h>
+#include <mali_kbase_hwaccess_time.h>
 #include <mali_kbase_hw.h>
 #include <mali_kbase_config_defaults.h>
 #include <linux/priority_control_manager.h>
@@ -42,8 +43,8 @@
 #include <tl/mali_kbase_timeline.h>
 #include "mali_kbase_kinstr_prfcnt.h"
 #include "mali_kbase_vinstr.h"
-#include "mali_kbase_hwcnt_context.h"
-#include "mali_kbase_hwcnt_virtualizer.h"
+#include "hwcnt/mali_kbase_hwcnt_context.h"
+#include "hwcnt/mali_kbase_hwcnt_virtualizer.h"
 
 #include "mali_kbase_device.h"
 #include "mali_kbase_device_internal.h"
@@ -56,16 +57,14 @@
 #include "arbiter/mali_kbase_arbiter_pm.h"
 #endif /* CONFIG_MALI_ARBITER_SUPPORT */
 
-/* NOTE: Magic - 0x45435254 (TRCE in ASCII).
- * Supports tracing feature provided in the base module.
- * Please keep it in sync with the value of base module.
- */
-#define TRACE_BUFFER_HEADER_SPECIAL 0x45435254
+#if defined(CONFIG_DEBUG_FS) && !IS_ENABLED(CONFIG_MALI_BIFROST_NO_MALI)
 
 /* Number of register accesses for the buffer that we allocate during
  * initialization time. The buffer size can be changed later via debugfs.
  */
 #define KBASEP_DEFAULT_REGISTER_HISTORY_SIZE ((u16)512)
+
+#endif /* defined(CONFIG_DEBUG_FS) && !IS_ENABLED(CONFIG_MALI_BIFROST_NO_MALI) */
 
 static DEFINE_MUTEX(kbase_dev_list_lock);
 static LIST_HEAD(kbase_dev_list);
@@ -195,16 +194,22 @@ static int mali_oom_notifier_handler(struct notifier_block *nb,
 	list_for_each_entry(kctx, &kbdev->kctx_list, kctx_list_link) {
 		struct pid *pid_struct;
 		struct task_struct *task;
+		struct pid *tgid_struct;
+		struct task_struct *tgid_task;
+
 		unsigned long task_alloc_total =
 			KBASE_PAGES_TO_KIB(atomic_read(&(kctx->used_pages)));
 
 		rcu_read_lock();
 		pid_struct = find_get_pid(kctx->pid);
 		task = pid_task(pid_struct, PIDTYPE_PID);
+		tgid_struct = find_get_pid(kctx->tgid);
+		tgid_task = pid_task(tgid_struct, PIDTYPE_PID);
 
 		dev_err(kbdev->dev,
-			"OOM notifier: tsk %s  tgid (%u)  pid (%u) %lu kB\n",
-			task ? task->comm : "[null task]", kctx->tgid,
+			"OOM notifier: tsk %s:%s  tgid (%u)  pid (%u) %lu kB\n",
+			tgid_task ? tgid_task->comm : "[null task]",
+			task ? task->comm : "[null comm]", kctx->tgid,
 			kctx->pid, task_alloc_total);
 
 		put_pid(pid_struct);
@@ -310,7 +315,8 @@ int kbase_device_misc_init(struct kbase_device * const kbdev)
 #endif /* MALI_USE_CSF */
 
 	kbdev->mmu_mode = kbase_mmu_mode_get_aarch64();
-
+	kbdev->mmu_as_inactive_wait_time_ms =
+		kbase_get_timeout_ms(kbdev, MMU_AS_INACTIVE_WAIT_TIMEOUT);
 	mutex_init(&kbdev->kctx_list_lock);
 	INIT_LIST_HEAD(&kbdev->kctx_list);
 
@@ -330,6 +336,9 @@ int kbase_device_misc_init(struct kbase_device * const kbdev)
 	kbdev->num_of_atoms_hw_completed = 0;
 #endif
 
+#if MALI_USE_CSF && IS_ENABLED(CONFIG_SYNC_FILE)
+	atomic_set(&kbdev->live_fence_metadata, 0);
+#endif
 	return 0;
 
 term_as:
@@ -353,6 +362,11 @@ void kbase_device_misc_term(struct kbase_device *kbdev)
 
 	if (kbdev->oom_notifier_block.notifier_call)
 		unregister_oom_notifier(&kbdev->oom_notifier_block);
+
+#if MALI_USE_CSF && IS_ENABLED(CONFIG_SYNC_FILE)
+	if (atomic_read(&kbdev->live_fence_metadata) > 0)
+		dev_warn(kbdev->dev, "Terminating Kbase device with live fence metadata!");
+#endif
 }
 
 #if !MALI_USE_CSF
@@ -443,7 +457,6 @@ void kbase_device_vinstr_term(struct kbase_device *kbdev)
 	kbase_vinstr_term(kbdev->vinstr_ctx);
 }
 
-#if defined(CONFIG_DEBUG_FS) && !IS_ENABLED(CONFIG_MALI_BIFROST_NO_MALI)
 int kbase_device_kinstr_prfcnt_init(struct kbase_device *kbdev)
 {
 	return kbase_kinstr_prfcnt_init(kbdev->hwcnt_gpu_virt,
@@ -465,7 +478,6 @@ void kbase_device_io_history_term(struct kbase_device *kbdev)
 {
 	kbase_io_history_term(&kbdev->io_history);
 }
-#endif
 
 int kbase_device_misc_register(struct kbase_device *kbdev)
 {

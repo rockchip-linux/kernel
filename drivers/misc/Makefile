@@ -3,7 +3,10 @@
 # Makefile for misc devices that really don't fit anywhere else.
 #
 
+obj-y				+= rk628/
 obj-$(CONFIG_RK803)		+= rk803.o
+obj-y				+= rockchip/
+obj-$(CONFIG_LT7911D_FB_NOTIFIER) += lt7911d-fb-notifier.o
 obj-$(CONFIG_IBM_ASM)		+= ibmasm/
 obj-$(CONFIG_IBMVMC)		+= ibmvmc.o
 obj-$(CONFIG_AD525X_DPOT)	+= ad525x_dpot.o

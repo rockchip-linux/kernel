@@ -384,6 +384,8 @@ static int fp5510_set_pos(struct fp5510_device *dev_vcm,
 	if (position > FP5510_MAX_REG)
 		position = FP5510_MAX_REG;
 
+	dev_info(&client->dev, "%s: set dest_pos %d, position %d\n", __func__, dest_pos, position);
+
 	dev_vcm->current_lens_pos = position;
 	dev_vcm->current_related_pos = dest_pos;
 	msb = (0x00U | ((dev_vcm->current_lens_pos & 0x3F0U) >> 4U));
@@ -504,7 +506,7 @@ static void fp5510_update_vcm_cfg(struct fp5510_device *dev_vcm)
 				 VCMDRV_MAX_LOG * dev_vcm->step;
 	dev_vcm->step_mode = dev_vcm->vcm_cfg.step_mode;
 
-	dev_dbg(&client->dev,
+	dev_info(&client->dev,
 		"vcm_cfg: %d, %d, %d, max_ma %d\n",
 		dev_vcm->vcm_cfg.start_ma,
 		dev_vcm->vcm_cfg.rated_ma,
@@ -561,13 +563,15 @@ static long fp5510_compat_ioctl32(struct v4l2_subdev *sd,
 	unsigned int cmd, unsigned long arg)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
-	struct rk_cam_compat_vcm_tim __user *p32 = compat_ptr(arg);
+	void __user *up = compat_ptr(arg);
 	struct rk_cam_compat_vcm_tim compat_vcm_tim;
 	struct rk_cam_vcm_tim vcm_tim;
 	struct rk_cam_vcm_cfg vcm_cfg;
 	long ret;
 
 	if (cmd == RK_VIDIOC_COMPAT_VCM_TIMEINFO) {
+		struct rk_cam_compat_vcm_tim __user *p32 = up;
+
 		ret = fp5510_ioctl(sd, RK_VIDIOC_VCM_TIMEINFO, &vcm_tim);
 		compat_vcm_tim.vcm_start_t.tv_sec = vcm_tim.vcm_start_t.tv_sec;
 		compat_vcm_tim.vcm_start_t.tv_usec =
@@ -814,7 +818,7 @@ static int fp5510_remove(struct i2c_client *client)
 	return 0;
 }
 
-static int fp5510_vcm_resume(struct device *dev)
+static int __maybe_unused fp5510_vcm_resume(struct device *dev)
 {
 	struct i2c_client *client = to_i2c_client(dev);
 	struct v4l2_subdev *sd = i2c_get_clientdata(client);
@@ -826,7 +830,7 @@ static int fp5510_vcm_resume(struct device *dev)
 	return 0;
 }
 
-static int fp5510_vcm_suspend(struct device *dev)
+static int __maybe_unused fp5510_vcm_suspend(struct device *dev)
 {
 	struct i2c_client *client = to_i2c_client(dev);
 	struct v4l2_subdev *sd = i2c_get_clientdata(client);

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2017-2022 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2017-2023 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -69,6 +69,12 @@ void kbase_ctx_sched_term(struct kbase_device *kbdev)
 	}
 }
 
+void kbase_ctx_sched_init_ctx(struct kbase_context *kctx)
+{
+	kctx->as_nr = KBASEP_AS_NR_INVALID;
+	atomic_set(&kctx->refcount, 0);
+}
+
 /* kbasep_ctx_sched_find_as_for_ctx - Find a free address space
  *
  * @kbdev: The context for which to find a free address space
@@ -113,7 +119,7 @@ int kbase_ctx_sched_retain_ctx(struct kbase_context *kctx)
 	if (atomic_inc_return(&kctx->refcount) == 1) {
 		int const free_as = kbasep_ctx_sched_find_as_for_ctx(kctx);
 
-		if (free_as != KBASEP_AS_NR_INVALID) {
+		if (free_as >= 0) {
 			kbdev->as_free &= ~(1u << free_as);
 			/* Only program the MMU if the context has not been
 			 * assigned the same address space before.
@@ -167,8 +173,10 @@ void kbase_ctx_sched_retain_ctx_refcount(struct kbase_context *kctx)
          */
 	WARN_ON(!atomic_read(&kctx->refcount));
 #endif
-	WARN_ON(kctx->as_nr == KBASEP_AS_NR_INVALID);
-	WARN_ON(kbdev->as_to_kctx[kctx->as_nr] != kctx);
+	if (likely((kctx->as_nr >= 0) && (kctx->as_nr < BASE_MAX_NR_AS)))
+		WARN_ON(kbdev->as_to_kctx[kctx->as_nr] != kctx);
+	else
+		WARN(true, "Invalid as_nr(%d)", kctx->as_nr);
 
 	atomic_inc(&kctx->refcount);
 }
@@ -182,16 +190,17 @@ void kbase_ctx_sched_release_ctx(struct kbase_context *kctx)
 
 	new_ref_count = atomic_dec_return(&kctx->refcount);
 	if (new_ref_count == 0) {
-		kbdev->as_free |= (1u << kctx->as_nr);
-		if (kbase_ctx_flag(kctx, KCTX_AS_DISABLED_ON_FAULT)) {
-			KBASE_TLSTREAM_TL_KBASE_CTX_UNASSIGN_AS(
-				kbdev, kctx->id);
-			kbdev->as_to_kctx[kctx->as_nr] = NULL;
-			kctx->as_nr = KBASEP_AS_NR_INVALID;
-			kbase_ctx_flag_clear(kctx, KCTX_AS_DISABLED_ON_FAULT);
+		if (likely((kctx->as_nr >= 0) && (kctx->as_nr < BASE_MAX_NR_AS))) {
+			kbdev->as_free |= (1u << kctx->as_nr);
+			if (kbase_ctx_flag(kctx, KCTX_AS_DISABLED_ON_FAULT)) {
+				KBASE_TLSTREAM_TL_KBASE_CTX_UNASSIGN_AS(kbdev, kctx->id);
+				kbdev->as_to_kctx[kctx->as_nr] = NULL;
+				kctx->as_nr = KBASEP_AS_NR_INVALID;
+				kbase_ctx_flag_clear(kctx, KCTX_AS_DISABLED_ON_FAULT);
 #if !MALI_USE_CSF
-			kbase_backend_slot_kctx_purge_locked(kbdev, kctx);
+				kbase_backend_slot_kctx_purge_locked(kbdev, kctx);
 #endif
+			}
 		}
 	}
 
@@ -201,13 +210,14 @@ void kbase_ctx_sched_release_ctx(struct kbase_context *kctx)
 void kbase_ctx_sched_remove_ctx(struct kbase_context *kctx)
 {
 	struct kbase_device *const kbdev = kctx->kbdev;
+	unsigned long flags;
 
-	lockdep_assert_held(&kbdev->mmu_hw_mutex);
-	lockdep_assert_held(&kbdev->hwaccess_lock);
+	mutex_lock(&kbdev->mmu_hw_mutex);
+	spin_lock_irqsave(&kbdev->hwaccess_lock, flags);
 
 	WARN_ON(atomic_read(&kctx->refcount) != 0);
 
-	if (kctx->as_nr != KBASEP_AS_NR_INVALID) {
+	if ((kctx->as_nr >= 0) && (kctx->as_nr < BASE_MAX_NR_AS)) {
 		if (kbdev->pm.backend.gpu_powered)
 			kbase_mmu_disable(kctx);
 
@@ -215,6 +225,9 @@ void kbase_ctx_sched_remove_ctx(struct kbase_context *kctx)
 		kbdev->as_to_kctx[kctx->as_nr] = NULL;
 		kctx->as_nr = KBASEP_AS_NR_INVALID;
 	}
+
+	spin_unlock_irqrestore(&kbdev->hwaccess_lock, flags);
+	mutex_unlock(&kbdev->mmu_hw_mutex);
 }
 
 void kbase_ctx_sched_restore_all_as(struct kbase_device *kbdev)
@@ -229,6 +242,7 @@ void kbase_ctx_sched_restore_all_as(struct kbase_device *kbdev)
 	for (i = 0; i != kbdev->nr_hw_address_spaces; ++i) {
 		struct kbase_context *kctx;
 
+		kbdev->as[i].is_unresponsive = false;
 #if MALI_USE_CSF
 		if ((i == MCU_AS_NR) && kbdev->csf.firmware_inited) {
 			kbase_mmu_update(kbdev, &kbdev->csf.mcu_mmu,
@@ -327,16 +341,14 @@ struct kbase_context *kbase_ctx_sched_as_to_ctx_nolock(
 bool kbase_ctx_sched_inc_refcount_nolock(struct kbase_context *kctx)
 {
 	bool result = false;
-	int as_nr;
 
 	if (WARN_ON(kctx == NULL))
 		return result;
 
 	lockdep_assert_held(&kctx->kbdev->hwaccess_lock);
 
-	as_nr = kctx->as_nr;
 	if (atomic_read(&kctx->refcount) > 0) {
-		KBASE_DEBUG_ASSERT(as_nr >= 0);
+		KBASE_DEBUG_ASSERT(kctx->as_nr >= 0);
 
 		kbase_ctx_sched_retain_ctx_refcount(kctx);
 		KBASE_KTRACE_ADD(kctx->kbdev, SCHED_RETAIN_CTX_NOLOCK, kctx,

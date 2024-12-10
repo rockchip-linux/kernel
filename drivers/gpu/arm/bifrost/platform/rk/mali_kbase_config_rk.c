@@ -57,6 +57,13 @@
  */
 
 /*---------------------------------------------------------------------------*/
+#ifndef CONFIG_MALI_BIFROST_DEVFREQ
+static inline void kbase_pm_get_dvfs_metrics(struct kbase_device *kbdev,
+					     struct kbasep_pm_metrics *last,
+					     struct kbasep_pm_metrics *diff)
+{
+}
+#endif
 
 #ifdef CONFIG_REGULATOR
 static int rk_pm_enable_regulator(struct kbase_device *kbdev);
@@ -452,7 +459,7 @@ static ssize_t utilisation_show(struct device *dev,
 	unsigned long period_in_us = platform->utilisation_period * 1000;
 	u32 utilisation;
 	struct kbasep_pm_metrics metrics_when_start;
-	struct kbasep_pm_metrics metrics_diff; /* between start and end. */
+	struct kbasep_pm_metrics metrics_diff = {}; /* between start and end. */
 	u32 total_time = 0;
 	u32 busy_time = 0;
 
@@ -506,6 +513,66 @@ static void kbase_platform_rk_remove_sysfs_files(struct device *dev)
 	device_remove_file(dev, &dev_attr_utilisation);
 }
 
+static int rk3588_gpu_get_soc_info(struct device *dev, struct device_node *np,
+			       int *bin, int *process)
+{
+	int ret = 0;
+	u8 value = 0;
+
+	if (!bin)
+		return 0;
+
+	if (of_property_match_string(np, "nvmem-cell-names",
+				     "specification_serial_number") >= 0) {
+		ret = rockchip_nvmem_cell_read_u8(np,
+						  "specification_serial_number",
+						  &value);
+		if (ret) {
+			dev_err(dev,
+				"Failed to get specification_serial_number\n");
+			return ret;
+		}
+		/* RK3588M */
+		if (value == 0xd)
+			*bin = 1;
+		/* RK3588J */
+		else if (value == 0xa)
+			*bin = 2;
+	}
+	if (*bin < 0)
+		*bin = 0;
+	dev_info(dev, "bin=%d\n", *bin);
+
+	return ret;
+}
+
+static int rk3588_gpu_set_soc_info(struct device *dev, struct device_node *np,
+			       int bin, int process, int volt_sel)
+{
+	struct opp_table *opp_table;
+	u32 supported_hw[2];
+
+	if (volt_sel < 0)
+		return 0;
+	if (bin < 0)
+		bin = 0;
+
+	if (!of_property_read_bool(np, "rockchip,supported-hw"))
+		return 0;
+
+	/* SoC Version */
+	supported_hw[0] = BIT(bin);
+	/* Speed Grade */
+	supported_hw[1] = BIT(volt_sel);
+	opp_table = dev_pm_opp_set_supported_hw(dev, supported_hw, 2);
+	if (IS_ERR(opp_table)) {
+		dev_err(dev, "failed to set supported opp\n");
+		return PTR_ERR(opp_table);
+	}
+
+	return 0;
+}
+
 static int rk3588_gpu_set_read_margin(struct device *dev,
 				      struct rockchip_opp_info *opp_info,
 				      u32 rm)
@@ -542,6 +609,8 @@ static int rk3588_gpu_set_read_margin(struct device *dev,
 }
 
 static const struct rockchip_opp_data rk3588_gpu_opp_data = {
+	.get_soc_info = rk3588_gpu_get_soc_info,
+	.set_soc_info = rk3588_gpu_set_soc_info,
 	.set_read_margin = rk3588_gpu_set_read_margin,
 };
 

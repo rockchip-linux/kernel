@@ -759,7 +759,7 @@ static int rk806_regulator_is_enabled_regmap(struct regulator_dev *rdev)
 	struct rk806 *rk806 = pdata->rk806;
 	int rid = rdev_get_id(rdev);
 	int gpio_level, pid;
-	unsigned int val;
+	int ret, val;
 	int mode;
 
 	mode = get_dvs_mode(rdev);
@@ -770,7 +770,12 @@ static int rk806_regulator_is_enabled_regmap(struct regulator_dev *rdev)
 			return rk806_field_read(rk806, pdata->dvs_field[rid].sleep_en);
 	}
 
-	val = rk806_field_read(rk806, pdata->dvs_field[rid].en_reg);
+	ret = rk806_field_read(rk806, pdata->dvs_field[rid].en_reg);
+	if (ret < 0)
+		return ret;
+
+	val = ret;
+
 	return (val & rdev->desc->enable_val) != 0;
 }
 
@@ -942,6 +947,20 @@ static const struct regulator_ops rk806_ops_ldo = {
 	.set_suspend_disable	= rk806_set_suspend_disable,
 };
 
+static const struct regulator_ops rk806_ops_ldo6 = {
+	.list_voltage		= regulator_list_voltage_linear_range,
+	.map_voltage		= regulator_map_voltage_linear_range,
+
+	.get_voltage_sel	= rk806_get_voltage_sel_regmap,
+	.set_voltage		= rk806_set_voltage,
+	.set_voltage_time_sel	= regulator_set_voltage_time_sel,
+
+	.set_ramp_delay		= rk806_set_ramp_delay,
+
+	.set_suspend_voltage	= rk806_set_suspend_voltage_range,
+	.resume			= rk806_regulator_resume,
+};
+
 #define RK806_REGULATOR(_name, _supply_name, _id, _ops,\
 			_n_voltages, _vr, _er, _lr, ctrl_bit)\
 [_id] = {\
@@ -1033,7 +1052,7 @@ static const struct regulator_desc rk806_regulators[] = {
 			RK806_LDO_SEL_CNT, RK806_PLDO5_ON_VSEL,
 			RK806_POWER_EN5, rk806_ldo_voltage_ranges, 1),
 
-	RK806_REGULATOR("PLDO_REG6", "vcca", RK806_ID_PLDO6, rk806_ops_ldo,
+	RK806_REGULATOR("PLDO_REG6", "vcca", RK806_ID_PLDO6, rk806_ops_ldo6,
 			RK806_LDO_SEL_CNT, RK806_PLDO6_ON_VSEL,
 			RK806_POWER_EN4, rk806_ldo_voltage_ranges, 0),
 };

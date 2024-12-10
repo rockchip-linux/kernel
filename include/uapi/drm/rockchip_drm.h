@@ -15,8 +15,13 @@
 #ifndef _UAPI_ROCKCHIP_DRM_H
 #define _UAPI_ROCKCHIP_DRM_H
 
+#ifdef __KERNEL__
+#include <linux/types.h>
+#else
+#include <stdint.h>
+#endif
+
 #include <drm/drm.h>
-#include <drm/drm_file.h>
 
 /*
  * Send vcnt event instead of blocking,
@@ -86,6 +91,7 @@ enum rockchip_crtc_feture {
 	ROCKCHIP_DRM_CRTC_FEATURE_ALPHA_SCALE,
 	ROCKCHIP_DRM_CRTC_FEATURE_HDR10,
 	ROCKCHIP_DRM_CRTC_FEATURE_NEXT_HDR,
+	ROCKCHIP_DRM_CRTC_FEATURE_VIVID_HDR,
 };
 
 enum rockchip_plane_feture {
@@ -103,10 +109,6 @@ enum rockchip_cabc_mode {
 	ROCKCHIP_DRM_CABC_MODE_NORMAL,
 	ROCKCHIP_DRM_CABC_MODE_LOWPOWER,
 	ROCKCHIP_DRM_CABC_MODE_USERSPACE,
-};
-
-struct drm_rockchip_vcnt_event {
-	struct drm_pending_event	base;
 };
 
 #define DRM_ROCKCHIP_GEM_CREATE		0x00

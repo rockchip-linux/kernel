@@ -96,6 +96,13 @@ struct vfio_dma {
 	struct task_struct	*task;
 	struct rb_root		pfn_list;	/* Ex-user pinned pfn list */
 	unsigned long		*bitmap;
+	struct mm_struct	*mm;
+};
+
+struct vfio_batch {
+	struct page		**pages;	/* for pin_user_pages_remote */
+	struct page		*fallback_page; /* if pages alloc fails */
+	int			capacity;	/* length of pages array */
 };
 
 struct vfio_group {
@@ -385,8 +392,8 @@ static int vfio_lock_acct(struct vfio_dma *dma, long npage, bool async)
 	if (!npage)
 		return 0;
 
-	mm = async ? get_task_mm(dma->task) : dma->task->mm;
-	if (!mm)
+	mm = dma->mm;
+	if (async && !mmget_not_zero(mm))
 		return -ESRCH; /* process exited */
 
 	ret = mmap_write_lock_killable(mm);
@@ -428,6 +435,31 @@ static int put_pfn(unsigned long pfn, int prot)
 	return 0;
 }
 
+#define VFIO_BATCH_MAX_CAPACITY (PAGE_SIZE / sizeof(struct page *))
+
+static void vfio_batch_init(struct vfio_batch *batch)
+{
+	if (unlikely(disable_hugepages))
+		goto fallback;
+
+	batch->pages = (struct page **) __get_free_page(GFP_KERNEL);
+	if (!batch->pages)
+		goto fallback;
+
+	batch->capacity = VFIO_BATCH_MAX_CAPACITY;
+	return;
+
+fallback:
+	batch->pages = &batch->fallback_page;
+	batch->capacity = 1;
+}
+
+static void vfio_batch_fini(struct vfio_batch *batch)
+{
+	if (batch->capacity == VFIO_BATCH_MAX_CAPACITY)
+		free_page((unsigned long)batch->pages);
+}
+
 static int follow_fault_pfn(struct vm_area_struct *vma, struct mm_struct *mm,
 			    unsigned long vaddr, unsigned long *pfn,
 			    bool write_fault)
@@ -464,10 +496,14 @@ static int follow_fault_pfn(struct vm_area_struct *vma, struct mm_struct *mm,
 	return ret;
 }
 
-static int vaddr_get_pfn(struct mm_struct *mm, unsigned long vaddr,
-			 int prot, unsigned long *pfn)
+/*
+ * Returns the positive number of pfns successfully obtained or a negative
+ * error code.
+ */
+static int vaddr_get_pfns(struct mm_struct *mm, unsigned long vaddr,
+			  long npages, int prot, unsigned long *pfn,
+			  struct page **pages)
 {
-	struct page *page[1];
 	struct vm_area_struct *vma;
 	unsigned int flags = 0;
 	int ret;
@@ -476,11 +512,22 @@ static int vaddr_get_pfn(struct mm_struct *mm, unsigned long vaddr,
 		flags |= FOLL_WRITE;
 
 	mmap_read_lock(mm);
-	ret = pin_user_pages_remote(mm, vaddr, 1, flags | FOLL_LONGTERM,
-				    page, NULL, NULL);
-	if (ret == 1) {
-		*pfn = page_to_pfn(page[0]);
-		ret = 0;
+	ret = pin_user_pages_remote(mm, vaddr, npages, flags | FOLL_LONGTERM,
+				    pages, NULL, NULL);
+	if (ret > 0) {
+		int i;
+
+		/*
+		 * The zero page is always resident, we don't need to pin it
+		 * and it falls into our invalid/reserved test so we don't
+		 * unpin in put_pfn().  Unpin all zero pages in the batch here.
+		 */
+		for (i = 0 ; i < ret; i++) {
+			if (unlikely(is_zero_pfn(page_to_pfn(pages[i]))))
+				unpin_user_page(pages[i]);
+		}
+
+		*pfn = page_to_pfn(pages[0]);
 		goto done;
 	}
 
@@ -494,8 +541,12 @@ retry:
 		if (ret == -EAGAIN)
 			goto retry;
 
-		if (!ret && !is_invalid_reserved_pfn(*pfn))
-			ret = -EFAULT;
+		if (!ret) {
+			if (is_invalid_reserved_pfn(*pfn))
+				ret = 1;
+			else
+				ret = -EFAULT;
+		}
 	}
 done:
 	mmap_read_unlock(mm);
@@ -509,7 +560,7 @@ done:
  */
 static long vfio_pin_pages_remote(struct vfio_dma *dma, unsigned long vaddr,
 				  long npage, unsigned long *pfn_base,
-				  unsigned long limit)
+				  unsigned long limit, struct vfio_batch *batch)
 {
 	unsigned long pfn = 0;
 	long ret, pinned = 0, lock_acct = 0;
@@ -520,8 +571,9 @@ static long vfio_pin_pages_remote(struct vfio_dma *dma, unsigned long vaddr,
 	if (!current->mm)
 		return -ENODEV;
 
-	ret = vaddr_get_pfn(current->mm, vaddr, dma->prot, pfn_base);
-	if (ret)
+	ret = vaddr_get_pfns(current->mm, vaddr, 1, dma->prot, pfn_base,
+			     batch->pages);
+	if (ret < 0)
 		return ret;
 
 	pinned++;
@@ -547,8 +599,9 @@ static long vfio_pin_pages_remote(struct vfio_dma *dma, unsigned long vaddr,
 	/* Lock all the consecutive pages from pfn_base */
 	for (vaddr += PAGE_SIZE, iova += PAGE_SIZE; pinned < npage;
 	     pinned++, vaddr += PAGE_SIZE, iova += PAGE_SIZE) {
-		ret = vaddr_get_pfn(current->mm, vaddr, dma->prot, &pfn);
-		if (ret)
+		ret = vaddr_get_pfns(current->mm, vaddr, 1, dma->prot, &pfn,
+				     batch->pages);
+		if (ret < 0)
 			break;
 
 		if (pfn != *pfn_base + pinned ||
@@ -574,7 +627,7 @@ out:
 	ret = vfio_lock_acct(dma, lock_acct, false);
 
 unpin_out:
-	if (ret) {
+	if (ret < 0) {
 		if (!rsvd) {
 			for (pfn = *pfn_base ; pinned ; pfn++, pinned--)
 				put_pfn(pfn, dma->prot);
@@ -610,16 +663,22 @@ static long vfio_unpin_pages_remote(struct vfio_dma *dma, dma_addr_t iova,
 static int vfio_pin_page_external(struct vfio_dma *dma, unsigned long vaddr,
 				  unsigned long *pfn_base, bool do_accounting)
 {
+	struct page *pages[1];
 	struct mm_struct *mm;
 	int ret;
 
-	mm = get_task_mm(dma->task);
-	if (!mm)
+	mm = dma->mm;
+	if (!mmget_not_zero(mm))
 		return -ENODEV;
 
-	ret = vaddr_get_pfn(mm, vaddr, dma->prot, pfn_base);
-	if (!ret && do_accounting && !is_invalid_reserved_pfn(*pfn_base)) {
-		ret = vfio_lock_acct(dma, 1, true);
+	ret = vaddr_get_pfns(mm, vaddr, 1, dma->prot, pfn_base, pages);
+	if (ret != 1)
+		goto out;
+
+	ret = 0;
+
+	if (do_accounting && !is_invalid_reserved_pfn(*pfn_base)) {
+		ret = vfio_lock_acct(dma, 1, false);
 		if (ret) {
 			put_pfn(*pfn_base, dma->prot);
 			if (ret == -ENOMEM)
@@ -630,6 +689,7 @@ static int vfio_pin_page_external(struct vfio_dma *dma, unsigned long vaddr,
 		}
 	}
 
+out:
 	mmput(mm);
 	return ret;
 }
@@ -972,6 +1032,7 @@ static void vfio_remove_dma(struct vfio_iommu *iommu, struct vfio_dma *dma)
 	vfio_unmap_unpin(iommu, dma, true);
 	vfio_unlink_dma(iommu, dma);
 	put_task_struct(dma->task);
+	mmdrop(dma->mm);
 	vfio_dma_bitmap_free(dma);
 	kfree(dma);
 	iommu->dma_avail++;
@@ -1263,15 +1324,19 @@ static int vfio_pin_map_dma(struct vfio_iommu *iommu, struct vfio_dma *dma,
 {
 	dma_addr_t iova = dma->iova;
 	unsigned long vaddr = dma->vaddr;
+	struct vfio_batch batch;
 	size_t size = map_size;
 	long npage;
 	unsigned long pfn, limit = rlimit(RLIMIT_MEMLOCK) >> PAGE_SHIFT;
 	int ret = 0;
 
+	vfio_batch_init(&batch);
+
 	while (size) {
 		/* Pin a contiguous chunk of memory */
 		npage = vfio_pin_pages_remote(dma, vaddr + dma->size,
-					      size >> PAGE_SHIFT, &pfn, limit);
+					      size >> PAGE_SHIFT, &pfn, limit,
+					      &batch);
 		if (npage <= 0) {
 			WARN_ON(!npage);
 			ret = (int)npage;
@@ -1291,6 +1356,7 @@ static int vfio_pin_map_dma(struct vfio_iommu *iommu, struct vfio_dma *dma,
 		dma->size += npage << PAGE_SHIFT;
 	}
 
+	vfio_batch_fini(&batch);
 	dma->iommu_mapped = true;
 
 	if (ret)
@@ -1388,29 +1454,15 @@ static int vfio_dma_do_map(struct vfio_iommu *iommu,
 	 * against the locked memory limit and we need to be able to do both
 	 * outside of this call path as pinning can be asynchronous via the
 	 * external interfaces for mdev devices.  RLIMIT_MEMLOCK requires a
-	 * task_struct and VM locked pages requires an mm_struct, however
-	 * holding an indefinite mm reference is not recommended, therefore we
-	 * only hold a reference to a task.  We could hold a reference to
-	 * current, however QEMU uses this call path through vCPU threads,
-	 * which can be killed resulting in a NULL mm and failure in the unmap
-	 * path when called via a different thread.  Avoid this problem by
-	 * using the group_leader as threads within the same group require
-	 * both CLONE_THREAD and CLONE_VM and will therefore use the same
-	 * mm_struct.
-	 *
-	 * Previously we also used the task for testing CAP_IPC_LOCK at the
-	 * time of pinning and accounting, however has_capability() makes use
-	 * of real_cred, a copy-on-write field, so we can't guarantee that it
-	 * matches group_leader, or in fact that it might not change by the
-	 * time it's evaluated.  If a process were to call MAP_DMA with
-	 * CAP_IPC_LOCK but later drop it, it doesn't make sense that they
-	 * possibly see different results for an iommu_mapped vfio_dma vs
-	 * externally mapped.  Therefore track CAP_IPC_LOCK in vfio_dma at the
-	 * time of calling MAP_DMA.
+	 * task_struct. Save the group_leader so that all DMA tracking uses
+	 * the same task, to make debugging easier.  VM locked pages requires
+	 * an mm_struct, so grab the mm in case the task dies.
 	 */
 	get_task_struct(current->group_leader);
 	dma->task = current->group_leader;
 	dma->lock_cap = capable(CAP_IPC_LOCK);
+	dma->mm = current->mm;
+	mmgrab(dma->mm);
 
 	dma->pfn_list = RB_ROOT;
 
@@ -1449,6 +1501,7 @@ static int vfio_bus_type(struct device *dev, void *data)
 static int vfio_iommu_replay(struct vfio_iommu *iommu,
 			     struct vfio_domain *domain)
 {
+	struct vfio_batch batch;
 	struct vfio_domain *d = NULL;
 	struct rb_node *n;
 	unsigned long limit = rlimit(RLIMIT_MEMLOCK) >> PAGE_SHIFT;
@@ -1458,6 +1511,8 @@ static int vfio_iommu_replay(struct vfio_iommu *iommu,
 	if (!list_empty(&iommu->domain_list))
 		d = list_first_entry(&iommu->domain_list,
 				     struct vfio_domain, next);
+
+	vfio_batch_init(&batch);
 
 	n = rb_first(&iommu->dma_list);
 
@@ -1506,7 +1561,8 @@ static int vfio_iommu_replay(struct vfio_iommu *iommu,
 
 				npage = vfio_pin_pages_remote(dma, vaddr,
 							      n >> PAGE_SHIFT,
-							      &pfn, limit);
+							      &pfn, limit,
+							      &batch);
 				if (npage <= 0) {
 					WARN_ON(!npage);
 					ret = (int)npage;
@@ -1539,6 +1595,7 @@ static int vfio_iommu_replay(struct vfio_iommu *iommu,
 		dma->iommu_mapped = true;
 	}
 
+	vfio_batch_fini(&batch);
 	return 0;
 
 unwind:
@@ -1579,6 +1636,7 @@ unwind:
 		}
 	}
 
+	vfio_batch_fini(&batch);
 	return ret;
 }
 
@@ -2601,7 +2659,7 @@ static int vfio_iommu_iova_build_caps(struct vfio_iommu *iommu,
 static int vfio_iommu_migration_build_caps(struct vfio_iommu *iommu,
 					   struct vfio_info_cap *caps)
 {
-	struct vfio_iommu_type1_info_cap_migration cap_mig;
+	struct vfio_iommu_type1_info_cap_migration cap_mig = {};
 
 	cap_mig.header.id = VFIO_IOMMU_TYPE1_INFO_CAP_MIGRATION;
 	cap_mig.header.version = 1;
@@ -2928,9 +2986,8 @@ static int vfio_iommu_type1_dma_rw_chunk(struct vfio_iommu *iommu,
 			!(dma->prot & IOMMU_READ))
 		return -EPERM;
 
-	mm = get_task_mm(dma->task);
-
-	if (!mm)
+	mm = dma->mm;
+	if (!mmget_not_zero(mm))
 		return -EPERM;
 
 	if (kthread)

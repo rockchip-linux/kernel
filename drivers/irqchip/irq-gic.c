@@ -47,6 +47,10 @@
 
 #include "irq-gic-common.h"
 
+#ifdef CONFIG_ROCKCHIP_AMP
+#include <soc/rockchip/rockchip_amp.h>
+#endif
+
 #ifdef CONFIG_ARM64
 #include <asm/cpufeature.h>
 
@@ -194,11 +198,19 @@ static int gic_peek_irq(struct irq_data *d, u32 offset)
 
 static void gic_mask_irq(struct irq_data *d)
 {
+#ifdef CONFIG_ROCKCHIP_AMP
+	if (rockchip_amp_check_amp_irq(gic_irq(d)))
+		return;
+#endif
 	gic_poke_irq(d, GIC_DIST_ENABLE_CLEAR);
 }
 
 static void gic_eoimode1_mask_irq(struct irq_data *d)
 {
+#ifdef CONFIG_ROCKCHIP_AMP
+	if (rockchip_amp_check_amp_irq(gic_irq(d)))
+		return;
+#endif
 	gic_mask_irq(d);
 	/*
 	 * When masking a forwarded interrupt, make sure it is
@@ -214,6 +226,10 @@ static void gic_eoimode1_mask_irq(struct irq_data *d)
 
 static void gic_unmask_irq(struct irq_data *d)
 {
+#ifdef CONFIG_ROCKCHIP_AMP
+	if (rockchip_amp_check_amp_irq(gic_irq(d)))
+		return;
+#endif
 	gic_poke_irq(d, GIC_DIST_ENABLE_SET);
 }
 
@@ -221,6 +237,10 @@ static void gic_eoi_irq(struct irq_data *d)
 {
 	u32 hwirq = gic_irq(d);
 
+#ifdef CONFIG_ROCKCHIP_AMP
+	if (rockchip_amp_check_amp_irq(hwirq))
+		return;
+#endif
 	if (hwirq < 16)
 		hwirq = this_cpu_read(sgi_intid);
 
@@ -231,6 +251,10 @@ static void gic_eoimode1_eoi_irq(struct irq_data *d)
 {
 	u32 hwirq = gic_irq(d);
 
+#ifdef CONFIG_ROCKCHIP_AMP
+	if (rockchip_amp_check_amp_irq(gic_irq(d)))
+		return;
+#endif
 	/* Do not deactivate an IRQ forwarded to a vcpu. */
 	if (irqd_is_forwarded_to_vcpu(d))
 		return;
@@ -246,6 +270,11 @@ static int gic_irq_set_irqchip_state(struct irq_data *d,
 {
 	u32 reg;
 
+#ifdef CONFIG_ROCKCHIP_AMP
+	if (which != IRQCHIP_STATE_PENDING &&
+	    rockchip_amp_check_amp_irq(gic_irq(d)))
+		return -EINVAL;
+#endif
 	switch (which) {
 	case IRQCHIP_STATE_PENDING:
 		reg = val ? GIC_DIST_PENDING_SET : GIC_DIST_PENDING_CLEAR;
@@ -295,6 +324,11 @@ static int gic_set_type(struct irq_data *d, unsigned int type)
 	void __iomem *base = gic_dist_base(d);
 	unsigned int gicirq = gic_irq(d);
 	int ret;
+
+#ifdef CONFIG_ROCKCHIP_AMP
+	if (rockchip_amp_check_amp_irq(gic_irq(d)))
+		return -EINVAL;
+#endif
 
 	/* Interrupt configuration for SGIs can't be changed */
 	if (gicirq < 16)
@@ -492,10 +526,29 @@ static void gic_dist_init(struct gic_chip_data *gic)
 	 * Set all global interrupts to this CPU only.
 	 */
 	cpumask = gic_get_cpumask(gic);
+
+#ifdef CONFIG_ROCKCHIP_AMP
+	for (i = 32; i < gic_irqs; i += 4) {
+		u32 maskval;
+		unsigned int j;
+
+		maskval = 0;
+		for (j = 0; j < 4; j++) {
+			if (rockchip_amp_need_init_amp_irq(i + j)) {
+				maskval |= rockchip_amp_get_irq_cpumask(i + j) <<
+					   (j * 8);
+			} else {
+				maskval |= cpumask << (j * 8);
+			}
+		}
+		writel_relaxed(maskval, base + GIC_DIST_TARGET + i * 4 / 4);
+	}
+#else
 	cpumask |= cpumask << 8;
 	cpumask |= cpumask << 16;
 	for (i = 32; i < gic_irqs; i += 4)
 		writel_relaxed(cpumask, base + GIC_DIST_TARGET + i * 4 / 4);
+#endif
 
 	gic_dist_config(base, gic_irqs, NULL);
 
@@ -847,6 +900,11 @@ static int gic_set_affinity(struct irq_data *d, const struct cpumask *mask_val,
 	void __iomem *reg = gic_dist_base(d) + GIC_DIST_TARGET + gic_irq(d);
 	unsigned int cpu;
 
+#ifdef CONFIG_ROCKCHIP_AMP
+	if (rockchip_amp_check_amp_irq(gic_irq(d)))
+		return -EINVAL;
+#endif
+
 	if (!force)
 		cpu = cpumask_any_and(mask_val, cpu_online_mask);
 	else
@@ -1147,6 +1205,12 @@ static int gic_irq_domain_translate(struct irq_domain *d,
 		if(fwspec->param_count != 2)
 			return -EINVAL;
 
+		if (fwspec->param[0] < 16) {
+			pr_err(FW_BUG "Illegal GSI%d translation request\n",
+			       fwspec->param[0]);
+			return -EINVAL;
+		}
+
 		*hwirq = fwspec->param[0];
 		*type = fwspec->param[1];
 
@@ -1285,6 +1349,9 @@ static int gic_init_bases(struct gic_chip_data *gic,
 		goto error;
 	}
 
+#ifdef CONFIG_ROCKCHIP_AMP
+	rockchip_amp_get_gic_info(gic->gic_irqs, GIC_V2);
+#endif
 	gic_dist_init(gic);
 	ret = gic_cpu_init(gic);
 	if (ret)

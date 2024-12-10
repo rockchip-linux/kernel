@@ -808,9 +808,7 @@ static int imx335_g_frame_interval(struct v4l2_subdev *sd,
 	struct imx335 *imx335 = to_imx335(sd);
 	const struct imx335_mode *mode = imx335->cur_mode;
 
-	mutex_lock(&imx335->mutex);
 	fi->interval = mode->max_fps;
-	mutex_unlock(&imx335->mutex);
 
 	return 0;
 }
@@ -1734,7 +1732,7 @@ static int imx335_set_ctrl(struct v4l2_ctrl *ctrl)
 	switch (ctrl->id) {
 	case V4L2_CID_EXPOSURE:
 		if (imx335->cur_mode->hdr_mode != NO_HDR)
-			return ret;
+			goto ctrl_end;
 		shr0 = imx335->cur_vts - ctrl->val;
 		ret = imx335_write_reg(imx335->client, IMX335_LF_EXPO_REG_L,
 				       IMX335_REG_VALUE_08BIT,
@@ -1750,7 +1748,7 @@ static int imx335_set_ctrl(struct v4l2_ctrl *ctrl)
 		break;
 	case V4L2_CID_ANALOGUE_GAIN:
 		if (imx335->cur_mode->hdr_mode != NO_HDR)
-			return ret;
+			goto ctrl_end;
 		ret = imx335_write_reg(imx335->client, IMX335_LF_GAIN_REG_H,
 				       IMX335_REG_VALUE_08BIT,
 				       IMX335_FETCH_GAIN_H(ctrl->val));
@@ -1830,6 +1828,7 @@ static int imx335_set_ctrl(struct v4l2_ctrl *ctrl)
 		break;
 	}
 
+ctrl_end:
 	pm_runtime_put(&client->dev);
 
 	return ret;

@@ -287,6 +287,7 @@
 		       <&pcie_phy 2>, <&pcie_phy 3>;
 		phy-names = "pcie-phy-0", "pcie-phy-1",
 			    "pcie-phy-2", "pcie-phy-3";
+		power-domains = <&power RK3399_PD_PERIHP>;
 		ranges = <0x83000000 0x0 0xfa000000 0x0 0xfa000000 0x0 0x1e00000
 			  0x81000000 0x0 0xfbe00000 0x0 0xfbe00000 0x0 0x100000>;
 		resets = <&cru SRST_PCIE_CORE>, <&cru SRST_PCIE_MGMT>,
@@ -455,6 +456,8 @@
 			snps,dis_u2_susphy_quirk;
 			snps,dis-del-phy-power-chg-quirk;
 			snps,dis-tx-ipgap-linecheck-quirk;
+			snps,parkmode-disable-hs-quirk;
+			snps,parkmode-disable-ss-quirk;
 			power-domains = <&power RK3399_PD_USB3>;
 			status = "disabled";
 		};
@@ -491,6 +494,8 @@
 			snps,dis_u2_susphy_quirk;
 			snps,dis-del-phy-power-chg-quirk;
 			snps,dis-tx-ipgap-linecheck-quirk;
+			snps,parkmode-disable-hs-quirk;
+			snps,parkmode-disable-ss-quirk;
 			power-domains = <&power RK3399_PD_USB3>;
 			status = "disabled";
 		};
@@ -1630,6 +1635,7 @@
 			reg = <0xf780 0x24>;
 			clocks = <&sdhci>;
 			clock-names = "emmcclk";
+			drive-impedance-ohm = <50>;
 			#phy-cells = <0>;
 			status = "disabled";
 		};
@@ -1640,7 +1646,6 @@
 			clock-names = "refclk";
 			#phy-cells = <1>;
 			resets = <&cru SRST_PCIEPHY>;
-			drive-impedance-ohm = <50>;
 			reset-names = "phy";
 			status = "disabled";
 		};
@@ -2386,6 +2391,11 @@
 			bias-disable;
 		};
 
+		pcfg_pull_none_10ma: pcfg-pull-none-10ma {
+			bias-disable;
+			drive-strength = <10>;
+		};
+
 		pcfg_pull_none_12ma: pcfg-pull-none-12ma {
 			bias-disable;
 			drive-strength = <12>;
@@ -2414,6 +2424,11 @@
 		pcfg_pull_up_8ma: pcfg-pull-up-8ma {
 			bias-pull-up;
 			drive-strength = <8>;
+		};
+
+		pcfg_pull_up_10ma: pcfg-pull-up-10ma {
+			bias-pull-up;
+			drive-strength = <10>;
 		};
 
 		pcfg_pull_up_18ma: pcfg-pull-up-18ma {

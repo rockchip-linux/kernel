@@ -93,17 +93,6 @@ config DRM_MAXIM_MAX96745
 	help
 	  Driver for Maxim MAX96745 GMSL2 Serializer with eDP1.4a/DP1.4 Input.
 
-config DRM_MAXIM_MAX96752F
-	tristate "Maxim max96752F GMSL2 Deserializer"
-	depends on OF
-	select MFD_MAX96752F
-	select PINCTRL_MAX96752F
-	select GPIO_MAX96752F
-	select DRM_KMS_HELPER
-	select DRM_PANEL
-	help
-	  Driver for Maxim MAX96752F GMSL2 Deserializer with Dual LVDS Output.
-
 config DRM_MAXIM_MAX96755F
 	tristate "Maxim max96755 GMSL2 Serializer"
 	depends on OF
@@ -113,15 +102,6 @@ config DRM_MAXIM_MAX96755F
 	select DRM_PANEL
 	help
 	  Driver for Maxim MAX96755F GMSL2 Serializer with MIPI-DSI Input.
-
-config DRM_MAXIM_MAX96776
-	tristate "Maxim max96776 GMSL2 Deserializer"
-	depends on OF
-	select MFD_MAX96776
-	select DRM_KMS_HELPER
-	select DRM_PANEL
-	help
-	  Driver for Maxim MAX96776 GMSL2 Deserializer with eDP Output.
 
 config DRM_MEGACHIPS_STDPXXXX_GE_B850V3_FW
 	tristate "MegaChips stdp4028-ge-b850v3-fw and stdp2690-ge-b850v3-fw"
@@ -221,6 +201,7 @@ config DRM_SII902X
 	select REGMAP_I2C
 	select I2C_MUX
 	select SND_SOC_HDMI_CODEC if (SND_SOC && !ROCKCHIP_MINI_KERNEL)
+	select VIDEOMODE_HELPERS
 	help
 	  Silicon Image sii902x bridge chip driver.
 

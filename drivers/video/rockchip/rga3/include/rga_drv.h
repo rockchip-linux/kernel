@@ -16,6 +16,7 @@
 #include <linux/dma-mapping.h>
 #include <linux/err.h>
 #include <linux/fb.h>
+#include <linux/fdtable.h>
 #include <linux/fs.h>
 #include <linux/init.h>
 #include <linux/interrupt.h>
@@ -48,7 +49,6 @@
 
 #include <linux/iommu.h>
 #include <linux/iova.h>
-#include <linux/dma-iommu.h>
 #include <linux/pagemap.h>
 
 #ifdef CONFIG_DMABUF_CACHE
@@ -86,8 +86,8 @@
 #define STR(x) STR_HELPER(x)
 
 #define DRIVER_MAJOR_VERISON		1
-#define DRIVER_MINOR_VERSION		2
-#define DRIVER_REVISION_VERSION		20
+#define DRIVER_MINOR_VERSION		3
+#define DRIVER_REVISION_VERSION		1
 #define DRIVER_PATCH_VERSION
 
 #define DRIVER_VERSION (STR(DRIVER_MAJOR_VERISON) "." STR(DRIVER_MINOR_VERSION) \
@@ -97,7 +97,7 @@
 #define RGA_JOB_TIMEOUT_DELAY		HZ
 #define RGA_RESET_TIMEOUT			1000
 
-#define RGA_MAX_SCHEDULER	3
+#define RGA_MAX_SCHEDULER	RGA_HW_SIZE
 #define RGA_MAX_BUS_CLK		10
 
 #define RGA_BUFFER_POOL_MAX_SIZE	64
@@ -135,6 +135,17 @@ enum rga_scheduler_status {
 	RGA_SCHEDULER_IDLE = 0,
 	RGA_SCHEDULER_WORKING,
 	RGA_SCHEDULER_ABORT,
+};
+
+enum rga_job_state {
+	RGA_JOB_STATE_PENDING = 0,
+	RGA_JOB_STATE_PREPARE,
+	RGA_JOB_STATE_RUNNING,
+	RGA_JOB_STATE_FINISH,
+	RGA_JOB_STATE_DONE,
+	RGA_JOB_STATE_INTR_ERR,
+	RGA_JOB_STATE_HW_TIMEOUT,
+	RGA_JOB_STATE_ABORT,
 };
 
 struct rga_iommu_dma_cookie {
@@ -261,6 +272,7 @@ struct rga_job {
 	struct rga_req rga_command_base;
 	uint32_t cmd_reg[32 * 8];
 	struct rga_full_csc full_csc;
+	struct rga_csc_clip full_csc_clip;
 	struct rga_pre_intr_info pre_intr_info;
 
 	struct rga_job_buffer src_buffer;
@@ -285,6 +297,12 @@ struct rga_job {
 	int ret;
 	pid_t pid;
 	bool use_batch_mode;
+
+	struct kref refcount;
+	unsigned long state;
+	uint32_t intr_status;
+	uint32_t hw_status;
+	uint32_t cmd_status;
 };
 
 struct rga_backend_ops {
@@ -292,6 +310,9 @@ struct rga_backend_ops {
 	int (*set_reg)(struct rga_job *job, struct rga_scheduler_t *scheduler);
 	int (*init_reg)(struct rga_job *job);
 	void (*soft_reset)(struct rga_scheduler_t *scheduler);
+	int (*read_back_reg)(struct rga_job *job, struct rga_scheduler_t *scheduler);
+	int (*irq)(struct rga_scheduler_t *scheduler);
+	int (*isr_thread)(struct rga_job *job, struct rga_scheduler_t *scheduler);
 };
 
 struct rga_timer {
@@ -359,6 +380,7 @@ struct rga_request {
 	 */
 	struct mm_struct *current_mm;
 
+	struct rga_feature feature;
 	/* TODO: add some common work */
 };
 
@@ -421,8 +443,6 @@ struct rga_irqs_data_t {
 struct rga_match_data_t {
 	const char * const *clks;
 	int num_clks;
-	const struct rga_irqs_data_t *irqs;
-	int num_irqs;
 };
 
 static inline int rga_read(int offset, struct rga_scheduler_t *scheduler)

@@ -72,7 +72,7 @@ int smc_cdc_get_free_slot(struct smc_connection *conn,
 		/* abnormal termination */
 		if (!rc)
 			smc_wr_tx_put_slot(link,
-					   (struct smc_wr_tx_pend_priv *)pend);
+					   (struct smc_wr_tx_pend_priv *)(*pend));
 		rc = -EPIPE;
 	}
 	return rc;
@@ -103,6 +103,9 @@ int smc_cdc_msg_send(struct smc_connection *conn,
 	struct smc_link *link = conn->lnk;
 	union smc_host_cursor cfed;
 	int rc;
+
+	if (unlikely(!READ_ONCE(conn->sndbuf_desc)))
+		return -ENOBUFS;
 
 	smc_cdc_add_pending_send(conn, pend);
 

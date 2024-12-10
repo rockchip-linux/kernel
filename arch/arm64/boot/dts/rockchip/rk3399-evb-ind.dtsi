@@ -138,6 +138,7 @@
 		status = "okay";
 		compatible = "simple-audio-card";
 		simple-audio-card,name = "ROCKCHIP,SPDIF";
+		simple-audio-card,mclk-fs = <128>;
 		simple-audio-card,cpu {
 			sound-dai = <&spdif>;
 		};
@@ -174,6 +175,7 @@
 		wifi_chip_type = "ap6354";
 		sdio_vref = <1800>;
 		WIFI,host_wake_irq = <&gpio0 3 GPIO_ACTIVE_HIGH>; /* GPIO0_a3 */
+		WIFI,poweren_gpio = <&gpio0 10 GPIO_ACTIVE_HIGH>;
 		status = "okay";
 	};
 
@@ -444,8 +446,8 @@
 	i2c-scl-falling-time-ns = <4>;
 	clock-frequency = <400000>;
 
-	vdd_cpu_b: tcs452x@1c {
-		compatible = "tcs,tcs452x";
+	vdd_cpu_b: tcs4525@1c {
+		compatible = "tcs,tcs4525";
 		reg = <0x1c>;
 		vin-supply = <&vcc5v0_sys>;
 		regulator-compatible = "fan53555-reg";
@@ -464,8 +466,8 @@
 		};
 	};
 
-	vdd_gpu: tcs452x@10 {
-		compatible = "tcs,tcs452x";
+	vdd_gpu: tcs4526@10 {
+		compatible = "tcs,tcs4526";
 		reg = <0x10>;
 		vin-supply = <&vcc5v0_sys>;
 		regulator-compatible = "fan53555-reg";
@@ -874,6 +876,19 @@
 			source-pdos =
 				<PDO_FIXED(5000, 1500, PDO_FIXED_USB_COMM)>;
 
+			displayport = <&cdn_dp>;
+
+			altmodes {
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				altmode@0 {
+					reg = <0>;
+					svid = <0xff01>;
+					vdo = <0xffffffff>;
+				};
+			};
+
 			ports {
 				#address-cells = <1>;
 				#size-cells = <0>;
@@ -882,6 +897,12 @@
 					reg = <0>;
 					usbc0_orien_sw: endpoint {
 						remote-endpoint = <&tcphy0_orientation_switch>;
+					};
+				};
+				port@1 {
+					reg = <1>;
+					dp_mode_sw: endpoint {
+						remote-endpoint = <&tcphy_dp_altmode_switch>;
 					};
 				};
 			};
@@ -1209,6 +1230,7 @@
 &tcphy0 {
 	status = "okay";
 
+	svid = <0xff01>;
 	orientation-switch;
 	port {
 		#address-cells = <1>;
@@ -1216,6 +1238,10 @@
 		tcphy0_orientation_switch: endpoint@0 {
 			reg = <0>;
 			remote-endpoint = <&usbc0_orien_sw>;
+		};
+		tcphy_dp_altmode_switch: endpoint@1 {
+			reg = <1>;
+			remote-endpoint = <&dp_mode_sw>;
 		};
 	};
 };

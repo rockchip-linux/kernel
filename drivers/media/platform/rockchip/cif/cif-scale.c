@@ -112,7 +112,7 @@ static u32 rkcif_scale_align_bits_per_pixel(struct rkcif_device *cif_dev,
 
 
 static const struct
-cif_output_fmt *find_output_fmt(u32 pixelfmt)
+cif_output_fmt *rkcif_scale_find_output_fmt(u32 pixelfmt)
 {
 	const struct cif_output_fmt *fmt;
 	u32 i;
@@ -169,7 +169,7 @@ static int rkcif_scale_set_fmt(struct rkcif_scale_vdev *scale_vdev,
 		scale_vdev->src_res.width = fmt_src.format.width;
 		scale_vdev->src_res.height = fmt_src.format.height;
 	}
-	fmt = find_output_fmt(pixm->pixelformat);
+	fmt = rkcif_scale_find_output_fmt(pixm->pixelformat);
 	if (fmt == NULL) {
 		v4l2_err(&scale_vdev->cifdev->v4l2_dev,
 			"format of source channel are not bayer raw, not support scale\n");
@@ -191,6 +191,7 @@ static int rkcif_scale_set_fmt(struct rkcif_scale_vdev *scale_vdev,
 		scale_times = 32;
 	}
 	//source resolution align (scale_times * 2)
+	width = ALIGN(width, scale_times * 2);
 	pixm->width = width  / (scale_times * 2) * 2;
 	pixm->height = height / (scale_times * 2) * 2;
 	pixm->num_planes = fmt->mplanes;
@@ -199,10 +200,11 @@ static int rkcif_scale_set_fmt(struct rkcif_scale_vdev *scale_vdev,
 
 	bpp = rkcif_scale_align_bits_per_pixel(cif_dev, fmt, 0);
 	bpl = pixm->width * bpp / CIF_RAW_STORED_BIT_WIDTH_RV1126;
+	bpl = ALIGN(bpl, 8);
 	size = bpl * pixm->height;
 	imagesize += size;
 
-	v4l2_dbg(3, rkcif_debug, &stream->cifdev->v4l2_dev,
+	v4l2_dbg(1, rkcif_debug, &stream->cifdev->v4l2_dev,
 		 "%s C-Plane %i size: %d, Total imagesize: %d\n",
 		 __func__, 0, size, imagesize);
 
@@ -215,10 +217,10 @@ static int rkcif_scale_set_fmt(struct rkcif_scale_vdev *scale_vdev,
 		scale_vdev->scale_out_fmt = fmt;
 		scale_vdev->pixm = *pixm;
 
-		v4l2_dbg(3, rkcif_debug, &stream->cifdev->v4l2_dev,
-			 "%s: req(%d, %d) src out(%d, %d)\n", __func__,
-			 pixm->width, pixm->height,
-			 scale_vdev->src_res.width, scale_vdev->src_res.height);
+		v4l2_info(&stream->cifdev->v4l2_dev,
+			  "%s: req(%d, %d) src out(%d, %d)\n", __func__,
+			  pixm->width, pixm->height,
+			  scale_vdev->src_res.width, scale_vdev->src_res.height);
 	}
 	return 0;
 }
@@ -263,13 +265,13 @@ static long rkcif_scale_ioctl_default(struct file *file, void *fh,
 	case RKCIF_CMD_GET_SCALE_BLC:
 		pblc = (struct bayer_blc *)arg;
 		*pblc = scale_vdev->blc;
-		v4l2_dbg(3, rkcif_debug, &dev->v4l2_dev, "get scale blc %d %d %d %d\n",
+		v4l2_dbg(1, rkcif_debug, &dev->v4l2_dev, "get scale blc %d %d %d %d\n",
 			 pblc->pattern00, pblc->pattern01, pblc->pattern02, pblc->pattern03);
 		break;
 	case RKCIF_CMD_SET_SCALE_BLC:
 		pblc = (struct bayer_blc *)arg;
 		scale_vdev->blc = *pblc;
-		v4l2_dbg(3, rkcif_debug, &dev->v4l2_dev, "set scale blc %d %d %d %d\n",
+		v4l2_dbg(1, rkcif_debug, &dev->v4l2_dev, "set scale blc %d %d %d %d\n",
 			 pblc->pattern00, pblc->pattern01, pblc->pattern02, pblc->pattern03);
 		break;
 	default:
@@ -355,15 +357,15 @@ static int rkcif_scale_enum_framesizes(struct file *file, void *prov,
 	if (fsize->index >= RKCIF_SCALE_ENUM_SIZE_MAX)
 		return -EINVAL;
 
-	if (!find_output_fmt(fsize->pixel_format))
+	if (!rkcif_scale_find_output_fmt(fsize->pixel_format))
 		return -EINVAL;
 
 	input_rect.width = RKCIF_DEFAULT_WIDTH;
 	input_rect.height = RKCIF_DEFAULT_HEIGHT;
 
 	if (terminal_sensor && terminal_sensor->sd)
-		get_input_fmt(terminal_sensor->sd,
-			      &input_rect, 0, &csi_info);
+		rkcif_get_input_fmt(dev,
+				    &input_rect, 0, &csi_info);
 
 	switch (fsize->index) {
 	case SCALE_8TIMES:
@@ -520,7 +522,7 @@ static void rkcif_scale_vb2_buf_queue(struct vb2_buffer *vb)
 		}
 		if (rkcif_debug && addr && !hw_dev->iommu_en) {
 			memset(addr, 0, pixm->plane_fmt[i].sizeimage);
-			v4l2_dbg(1, rkcif_debug, &scale_vdev->cifdev->v4l2_dev,
+			v4l2_dbg(3, rkcif_debug, &scale_vdev->cifdev->v4l2_dev,
 				 "Clear buffer, size: 0x%08x\n",
 				 pixm->plane_fmt[i].sizeimage);
 		}
@@ -553,7 +555,6 @@ static int rkcif_scale_stop(struct rkcif_scale_vdev *scale_vdev)
 static void rkcif_scale_vb2_stop_streaming(struct vb2_queue *vq)
 {
 	struct rkcif_scale_vdev *scale_vdev = vq->drv_priv;
-	struct rkcif_stream *stream = scale_vdev->stream;
 	struct rkcif_device *dev = scale_vdev->cifdev;
 	struct rkcif_buffer *buf = NULL;
 	int ret = 0;
@@ -584,7 +585,6 @@ static void rkcif_scale_vb2_stop_streaming(struct vb2_queue *vq)
 		vb2_buffer_done(&buf->vb.vb2_buf, VB2_BUF_STATE_ERROR);
 	}
 	mutex_unlock(&dev->scale_lock);
-	rkcif_do_stop_stream(stream, RKCIF_STREAM_MODE_TOSCALE);
 }
 
 static int rkcif_scale_channel_init(struct rkcif_scale_vdev *scale_vdev)
@@ -885,7 +885,6 @@ rkcif_scale_vb2_start_streaming(struct vb2_queue *queue,
 			return ret;
 	}
 
-	rkcif_do_start_stream(stream, RKCIF_STREAM_MODE_TOSCALE);
 	return 0;
 }
 
@@ -969,7 +968,7 @@ static void rkcif_scale_vb_done_oneframe(struct rkcif_scale_vdev *scale_vdev,
 				      scale_vdev->pixm.plane_fmt[i].sizeimage);
 	}
 
-	vb_done->vb2_buf.timestamp = ktime_get_ns();
+	vb_done->vb2_buf.timestamp = rkcif_time_get_ns(scale_vdev->cifdev);
 
 	vb2_buffer_done(&vb_done->vb2_buf, VB2_BUF_STATE_DONE);
 }
@@ -992,13 +991,13 @@ static void rkcif_scale_update_stream(struct rkcif_scale_vdev *scale_vdev, int c
 					 RKCIF_YUV_ADDR_STATE_UPDATE,
 					 ch);
 
+	scale_vdev->frame_idx = scale_vdev->stream->frame_idx;
 	if (active_buf && (!ret)) {
 		vb_done = &active_buf->vb;
 		vb_done->vb2_buf.timestamp = ktime_get_ns();
 		vb_done->sequence = scale_vdev->frame_idx;
 		rkcif_scale_vb_done_oneframe(scale_vdev, vb_done);
 	}
-	scale_vdev->frame_idx++;
 }
 
 void rkcif_irq_handle_scale(struct rkcif_device *cif_dev, unsigned int intstat_glb)

@@ -9,18 +9,11 @@
 #include <linux/init.h>
 #include <linux/i2c.h>
 #include <linux/i2c-mux.h>
+#include <linux/extcon-provider.h>
 #include <linux/gpio/consumer.h>
 #include <linux/regmap.h>
 #include <linux/mfd/core.h>
 #include <linux/mfd/max96745.h>
-
-struct max96745 {
-	struct device *dev;
-	struct regmap *regmap;
-	struct i2c_mux_core *muxc;
-	struct gpio_desc *enable_gpio;
-	struct gpio_desc *lock_gpio;
-};
 
 static const struct mfd_cell max96745_devs[] = {
 	{
@@ -32,11 +25,27 @@ static const struct mfd_cell max96745_devs[] = {
 	},
 };
 
+static const unsigned int max96745_cable[] = {
+	EXTCON_JACK_VIDEO_OUT,
+	EXTCON_NONE,
+};
+
+static bool max96745_vid_tx_active(struct max96745 *max96745)
+{
+	u32 val;
+
+	if (regmap_read(max96745->regmap, 0x0107, &val))
+		return false;
+
+	if (!FIELD_GET(VID_TX_ACTIVE_A | VID_TX_ACTIVE_B, val))
+		return false;
+
+	return true;
+}
+
 static bool max96745_volatile_reg(struct device *dev, unsigned int reg)
 {
 	switch (reg) {
-	case 0x0028 ... 0x0029:
-	case 0x0032 ... 0x0033:
 	case 0x0076:
 	case 0x0086:
 	case 0x0100:
@@ -63,6 +72,9 @@ static int max96745_select(struct i2c_mux_core *muxc, u32 chan)
 {
 	struct max96745 *max96745 = dev_get_drvdata(muxc->dev);
 
+	if (!max96745->idle_disc)
+		return 0;
+
 	if (chan == 1)
 		regmap_update_bits(max96745->regmap, 0x0086, DIS_REM_CC,
 				   FIELD_PREP(DIS_REM_CC, 0));
@@ -76,6 +88,9 @@ static int max96745_select(struct i2c_mux_core *muxc, u32 chan)
 static int max96745_deselect(struct i2c_mux_core *muxc, u32 chan)
 {
 	struct max96745 *max96745 = dev_get_drvdata(muxc->dev);
+
+	if (!max96745->idle_disc)
+		return 0;
 
 	if (chan == 1)
 		regmap_update_bits(max96745->regmap, 0x0086, DIS_REM_CC,
@@ -91,28 +106,39 @@ static void max96745_power_off(void *data)
 {
 	struct max96745 *max96745 = data;
 
+	if (max96745->pwdnb_gpio)
+		gpiod_direction_output(max96745->pwdnb_gpio, 1);
+
 	if (max96745->enable_gpio)
 		gpiod_direction_output(max96745->enable_gpio, 0);
 }
 
 static void max96745_power_on(struct max96745 *max96745)
 {
-	u32 val;
-	int ret;
-
-	ret = regmap_read(max96745->regmap, 0x0107, &val);
-	if (!ret && FIELD_GET(VID_TX_ACTIVE_A | VID_TX_ACTIVE_B, val))
+	if (max96745_vid_tx_active(max96745)) {
+		extcon_set_state(max96745->extcon, EXTCON_JACK_VIDEO_OUT, true);
 		return;
+	}
 
 	if (max96745->enable_gpio) {
 		gpiod_direction_output(max96745->enable_gpio, 1);
 		msleep(200);
 	}
 
-	regmap_update_bits(max96745->regmap, 0x0076, DIS_REM_CC,
-			   FIELD_PREP(DIS_REM_CC, 1));
-	regmap_update_bits(max96745->regmap, 0x0086, DIS_REM_CC,
-			   FIELD_PREP(DIS_REM_CC, 1));
+	if (max96745->pwdnb_gpio) {
+		gpiod_direction_output(max96745->pwdnb_gpio, 0);
+		msleep(30);
+	}
+
+	/* Set for I2C Fast-mode speed */
+	regmap_write(max96745->regmap, 0x0070, 0x16);
+
+	if (max96745->idle_disc) {
+		regmap_update_bits(max96745->regmap, 0x0076, DIS_REM_CC,
+				   FIELD_PREP(DIS_REM_CC, 1));
+		regmap_update_bits(max96745->regmap, 0x0086, DIS_REM_CC,
+				   FIELD_PREP(DIS_REM_CC, 1));
+	}
 }
 
 static ssize_t line_fault_monitor_show(struct device *device,
@@ -198,7 +224,6 @@ static int max96745_i2c_probe(struct i2c_client *client)
 	struct device_node *child;
 	struct max96745 *max96745;
 	unsigned int nr = 0;
-	bool idle_disc;
 	int ret;
 
 	for_each_available_child_of_node(dev->of_node, child) {
@@ -212,11 +237,11 @@ static int max96745_i2c_probe(struct i2c_client *client)
 	if (!max96745)
 		return -ENOMEM;
 
-	idle_disc = device_property_read_bool(dev, "i2c-mux-idle-disconnect");
+	max96745->idle_disc = device_property_read_bool(dev, "i2c-mux-idle-disconnect");
 
 	max96745->muxc = i2c_mux_alloc(client->adapter, dev, nr,
 				       0, I2C_MUX_LOCKED, max96745_select,
-				       idle_disc ? max96745_deselect : NULL);
+				       max96745_deselect);
 	if (!max96745->muxc)
 		return -ENOMEM;
 
@@ -234,10 +259,21 @@ static int max96745_i2c_probe(struct i2c_client *client)
 		return dev_err_probe(dev, PTR_ERR(max96745->enable_gpio),
 				     "failed to get enable GPIO\n");
 
-	max96745->lock_gpio = devm_gpiod_get_optional(dev, "lock", GPIOD_IN);
-	if (IS_ERR(max96745->lock_gpio))
-		return dev_err_probe(dev, PTR_ERR(max96745->lock_gpio),
-				     "failed to get lock GPIO\n");
+	max96745->pwdnb_gpio = devm_gpiod_get_optional(dev, "pwdnb",
+						       GPIOD_ASIS);
+	if (IS_ERR(max96745->pwdnb_gpio))
+		return dev_err_probe(dev, PTR_ERR(max96745->pwdnb_gpio),
+				     "failed to get pwdnb GPIO\n");
+
+	max96745->extcon = devm_extcon_dev_allocate(dev, max96745_cable);
+	if (IS_ERR(max96745->extcon))
+		return dev_err_probe(dev, PTR_ERR(max96745->extcon),
+				     "failed to allocate extcon device\n");
+
+	ret = devm_extcon_dev_register(dev, max96745->extcon);
+	if (ret)
+		return dev_err_probe(dev, ret,
+				     "failed to register extcon device\n");
 
 	max96745_power_on(max96745);
 

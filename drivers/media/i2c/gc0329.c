@@ -858,9 +858,7 @@ static int gc0329_g_frame_interval(struct v4l2_subdev *sd,
 {
 	struct gc0329 *gc0329 = to_gc0329(sd);
 
-	mutex_lock(&gc0329->lock);
 	fi->interval = gc0329->frame_size->max_fps;
-	mutex_unlock(&gc0329->lock);
 
 	return 0;
 }
@@ -903,9 +901,7 @@ static int gc0329_enum_frame_interval(struct v4l2_subdev *sd,
 	if (fie->index >= ARRAY_SIZE(gc0329_framesizes))
 		return -EINVAL;
 
-	if (fie->code != MEDIA_BUS_FMT_YUYV8_2X8)
-		return -EINVAL;
-
+	fie->code = MEDIA_BUS_FMT_YUYV8_2X8;
 	fie->width = gc0329_framesizes[fie->index].width;
 	fie->height = gc0329_framesizes[fie->index].height;
 	fie->interval = gc0329_framesizes[fie->index].max_fps;

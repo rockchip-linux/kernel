@@ -872,9 +872,7 @@ static int imx214_g_frame_interval(struct v4l2_subdev *sd,
 	struct imx214 *imx214 = to_imx214(sd);
 	const struct imx214_mode *mode = imx214->cur_mode;
 
-	mutex_lock(&imx214->mutex);
 	fi->interval = mode->max_fps;
-	mutex_unlock(&imx214->mutex);
 
 	return 0;
 }
@@ -1445,9 +1443,7 @@ static int imx214_enum_frame_interval(struct v4l2_subdev *sd,
 	if (fie->index >= imx214->cfg_num)
 		return -EINVAL;
 
-	if (fie->code != IMX214_MEDIA_BUS_FMT)
-		return -EINVAL;
-
+	fie->code = IMX214_MEDIA_BUS_FMT;
 	fie->width = imx214->support_modes[fie->index].width;
 	fie->height = imx214->support_modes[fie->index].height;
 	fie->interval = imx214->support_modes[fie->index].max_fps;

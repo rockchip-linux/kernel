@@ -26,6 +26,10 @@
 	status = "okay";
 };
 
+&dp0_sound {
+	status = "okay";
+};
+
 &dp1 {
 	pinctrl-0 = <&dp1m2_pins &dp1_hdmi_reset>;
 	pinctrl-names = "default";
@@ -159,7 +163,6 @@
 
 &usbdp_phy0 {
 	status = "okay";
-	rockchip,dp-lane-mux = < 0 1 2 3 >;
 	orientation-switch;
 	svid = <0xff01>;
 	sbu1-dc-gpios = <&gpio0 RK_PC6 GPIO_ACTIVE_HIGH>;
@@ -191,6 +194,10 @@
 			remote-endpoint = <&usbc0_role_sw>;
 		};
 	};
+};
+
+&spdif_tx2 {
+	status = "okay";
 };
 
 &pinctrl {

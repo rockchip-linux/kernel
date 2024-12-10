@@ -167,7 +167,8 @@ qla2x00_mailbox_command(scsi_qla_host_t *vha, mbx_cmd_t *mcp)
 	/* check if ISP abort is active and return cmd with timeout */
 	if ((test_bit(ABORT_ISP_ACTIVE, &base_vha->dpc_flags) ||
 	    test_bit(ISP_ABORT_RETRY, &base_vha->dpc_flags) ||
-	    test_bit(ISP_ABORT_NEEDED, &base_vha->dpc_flags)) &&
+	    test_bit(ISP_ABORT_NEEDED, &base_vha->dpc_flags) ||
+	    ha->flags.eeh_busy) &&
 	    !is_rom_cmd(mcp->mb[0])) {
 		ql_log(ql_log_info, vha, 0x1005,
 		    "Cmd 0x%x aborted with timeout since ISP Abort is pending\n",
@@ -233,6 +234,8 @@ qla2x00_mailbox_command(scsi_qla_host_t *vha, mbx_cmd_t *mcp)
 			ql_dbg(ql_dbg_mbx, vha, 0x1112,
 			    "mbox[%d]<-0x%04x\n", cnt, *iptr);
 			wrt_reg_word(optr, *iptr);
+		} else {
+			wrt_reg_word(optr, 0);
 		}
 
 		mboxes >>= 1;
@@ -266,36 +269,32 @@ qla2x00_mailbox_command(scsi_qla_host_t *vha, mbx_cmd_t *mcp)
 		spin_unlock_irqrestore(&ha->hardware_lock, flags);
 
 		wait_time = jiffies;
-		atomic_inc(&ha->num_pend_mbx_stage3);
 		if (!wait_for_completion_timeout(&ha->mbx_intr_comp,
 		    mcp->tov * HZ)) {
-			if (chip_reset != ha->chip_reset) {
-				spin_lock_irqsave(&ha->hardware_lock, flags);
-				ha->flags.mbox_busy = 0;
-				spin_unlock_irqrestore(&ha->hardware_lock,
-				    flags);
-				atomic_dec(&ha->num_pend_mbx_stage2);
-				atomic_dec(&ha->num_pend_mbx_stage3);
-				rval = QLA_ABORTED;
-				goto premature_exit;
-			}
 			ql_dbg(ql_dbg_mbx, vha, 0x117a,
 			    "cmd=%x Timeout.\n", command);
 			spin_lock_irqsave(&ha->hardware_lock, flags);
 			clear_bit(MBX_INTR_WAIT, &ha->mbx_cmd_flags);
 			spin_unlock_irqrestore(&ha->hardware_lock, flags);
 
+			if (chip_reset != ha->chip_reset) {
+				spin_lock_irqsave(&ha->hardware_lock, flags);
+				ha->flags.mbox_busy = 0;
+				spin_unlock_irqrestore(&ha->hardware_lock,
+				    flags);
+				atomic_dec(&ha->num_pend_mbx_stage2);
+				rval = QLA_ABORTED;
+				goto premature_exit;
+			}
 		} else if (ha->flags.purge_mbox ||
 		    chip_reset != ha->chip_reset) {
 			spin_lock_irqsave(&ha->hardware_lock, flags);
 			ha->flags.mbox_busy = 0;
 			spin_unlock_irqrestore(&ha->hardware_lock, flags);
 			atomic_dec(&ha->num_pend_mbx_stage2);
-			atomic_dec(&ha->num_pend_mbx_stage3);
 			rval = QLA_ABORTED;
 			goto premature_exit;
 		}
-		atomic_dec(&ha->num_pend_mbx_stage3);
 
 		if (time_after(jiffies, wait_time + 5 * HZ))
 			ql_log(ql_log_warn, vha, 0x1015, "cmd=0x%x, waited %d msecs\n",
@@ -3015,7 +3014,8 @@ qla2x00_get_resource_cnts(scsi_qla_host_t *vha)
  *	Kernel context.
  */
 int
-qla2x00_get_fcal_position_map(scsi_qla_host_t *vha, char *pos_map)
+qla2x00_get_fcal_position_map(scsi_qla_host_t *vha, char *pos_map,
+		u8 *num_entries)
 {
 	int rval;
 	mbx_cmd_t mc;
@@ -3055,6 +3055,8 @@ qla2x00_get_fcal_position_map(scsi_qla_host_t *vha, char *pos_map)
 
 		if (pos_map)
 			memcpy(pos_map, pmap, FCAL_MAP_SIZE);
+		if (num_entries)
+			*num_entries = pmap[0];
 	}
 	dma_pool_free(ha->s_dma_pool, pmap, pmap_dma);
 

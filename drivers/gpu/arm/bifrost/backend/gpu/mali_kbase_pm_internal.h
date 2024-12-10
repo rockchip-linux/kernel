@@ -269,6 +269,37 @@ int kbase_pm_wait_for_desired_state(struct kbase_device *kbdev);
  */
 int kbase_pm_wait_for_l2_powered(struct kbase_device *kbdev);
 
+#if MALI_USE_CSF
+/**
+ * kbase_pm_wait_for_cores_down_scale - Wait for the downscaling of shader cores
+ *
+ * @kbdev: The kbase device structure for the device (must be a valid pointer)
+ *
+ * This function can be called to ensure that the downscaling of cores is
+ * effectively complete and it would be safe to lower the voltage.
+ * The function assumes that caller had exercised the MCU state machine for the
+ * downscale request through the kbase_pm_update_state() function.
+ *
+ * This function needs to be used by the caller to safely wait for the completion
+ * of downscale request, instead of kbase_pm_wait_for_desired_state().
+ * The downscale request would trigger a state change in MCU state machine
+ * and so when MCU reaches the stable ON state, it can be inferred that
+ * downscaling is complete. But it has been observed that the wake up of the
+ * waiting thread can get delayed by few milli seconds and by the time the
+ * thread wakes up the power down transition could have started (after the
+ * completion of downscale request).
+ * On the completion of power down transition another wake up signal would be
+ * sent, but again by the time thread wakes up the power up transition can begin.
+ * And the power up transition could then get blocked inside the platform specific
+ * callback_power_on() function due to the thread that called into Kbase (from the
+ * platform specific code) to perform the downscaling and then ended up waiting
+ * for the completion of downscale request.
+ *
+ * Return: 0 on success, error code on error or remaining jiffies on timeout.
+ */
+int kbase_pm_wait_for_cores_down_scale(struct kbase_device *kbdev);
+#endif
+
 /**
  * kbase_pm_update_dynamic_cores_onoff - Update the L2 and shader power state
  *                                       machines after changing shader core
@@ -963,5 +994,28 @@ static inline void kbase_pm_disable_db_mirror_interrupt(struct kbase_device *kbd
 	}
 }
 #endif
+
+/**
+ * kbase_pm_l2_allow_mmu_page_migration - L2 state allows MMU page migration or not
+ *
+ * @kbdev: The kbase device structure for the device (must be a valid pointer)
+ *
+ * Check whether the L2 state is in power transition phase or not. If it is, the MMU
+ * page migration should be deferred. The caller must hold hwaccess_lock, and, if MMU
+ * page migration is intended, immediately start the MMU migration action without
+ * dropping the lock. When page migration begins, a flag is set in kbdev that would
+ * prevent the L2 state machine traversing into power transition phases, until
+ * the MMU migration action ends.
+ *
+ * Return: true if MMU page migration is allowed
+ */
+static inline bool kbase_pm_l2_allow_mmu_page_migration(struct kbase_device *kbdev)
+{
+	struct kbase_pm_backend_data *backend = &kbdev->pm.backend;
+
+	lockdep_assert_held(&kbdev->hwaccess_lock);
+
+	return (backend->l2_state != KBASE_L2_PEND_ON && backend->l2_state != KBASE_L2_PEND_OFF);
+}
 
 #endif /* _KBASE_BACKEND_PM_INTERNAL_H_ */

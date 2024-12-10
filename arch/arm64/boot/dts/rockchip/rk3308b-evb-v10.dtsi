@@ -125,7 +125,7 @@
 		compatible = "simple-audio-card";
 		simple-audio-card,name = "rockchip,spdif-tx-sound";
 		status = "disabled";
-
+		simple-audio-card,mclk-fs = <128>;
 		simple-audio-card,cpu {
 			sound-dai = <&spdif_tx>;
 		};
@@ -317,9 +317,9 @@
 	clock-frequency = <400000>;
 	status = "okay";
 
-	is31fl3236: led-controller@3c {
+	is31fl3236: led-controller@3f {
 		compatible = "issi,is31fl3236";
-		reg = <0x3c>;
+		reg = <0x3f>;
 		#address-cells = <1>;
 		#size-cells = <0>;
 		reset-gpios = <&gpio0 RK_PB0 GPIO_ACTIVE_HIGH>;
@@ -698,6 +698,12 @@
 	sdio-pwrseq {
 		wifi_enable_h: wifi-enable-h {
 			rockchip,pins = <4 RK_PD6 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	wireless-bluetooth {
+		uart0_gpios: uart0-gpios {
+			rockchip,pins = <2 RK_PA3 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
 

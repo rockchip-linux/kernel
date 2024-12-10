@@ -561,6 +561,7 @@ struct mt76_phy {
 	struct mt76_channel_state *chan_state;
 	ktime_t survey_time;
 
+	struct mt76_hw_cap cap;
 	struct mt76_sband sband_2g;
 	struct mt76_sband sband_5g;
 
@@ -630,7 +631,6 @@ struct mt76_dev {
 
 	struct debugfs_blob_wrapper eeprom;
 	struct debugfs_blob_wrapper otp;
-	struct mt76_hw_cap cap;
 
 	struct mt76_rate_power rate_power;
 
@@ -884,8 +884,9 @@ static inline bool mt76_is_skb_pktid(u8 pktid)
 static inline u8 mt76_tx_power_nss_delta(u8 nss)
 {
 	static const u8 nss_delta[4] = { 0, 6, 9, 12 };
+	u8 idx = nss - 1;
 
-	return nss_delta[nss - 1];
+	return (idx < ARRAY_SIZE(nss_delta)) ? nss_delta[idx] : 0;
 }
 
 static inline bool mt76_testmode_enabled(struct mt76_dev *dev)

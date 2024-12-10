@@ -1,0 +1,16 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright (c) 2022 Rockchip Electronics Co., Ltd.
+ *
+ */
+
+/dts-v1/;
+
+#include "rk3528.dtsi"
+#include "rk3528-android.dtsi"
+
+/ {
+	model = "Rockchip rk3528 iotest board";
+	compatible = "rockchip,rk3528-iotest-lp3-v10", "rockchip,rk3528";
+};
+

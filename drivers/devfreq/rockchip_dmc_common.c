@@ -87,9 +87,12 @@ void rockchip_dmcfreq_vop_bandwidth_update(struct dmcfreq_vop_info *vop_info)
 	unsigned int readlatency = 0;
 	int i;
 
-	dev_dbg(common_info->dev, "line bw=%u, frame bw=%u, pn=%u\n",
+	if (!common_info)
+		return;
+
+	dev_dbg(common_info->dev, "line bw=%u, frame bw=%u, pn=%u, pn_4k=%u\n",
 		vop_info->line_bw_mbyte, vop_info->frame_bw_mbyte,
-		vop_info->plane_num);
+		vop_info->plane_num, vop_info->plane_num_4k);
 
 	if (!common_info->vop_pn_rl_tbl || !common_info->set_msch_readlatency)
 		goto vop_bw_tbl;
@@ -131,6 +134,9 @@ vop_frame_bw_tbl:
 	}
 
 next:
+	if (vop_info->plane_num_4k && target < common_info->vop_4k_rate)
+		target = common_info->vop_4k_rate;
+
 	vop_last_rate = common_info->vop_req_rate;
 	common_info->vop_req_rate = target;
 
@@ -164,6 +170,15 @@ int rockchip_dmcfreq_vop_bandwidth_request(struct dmcfreq_vop_info *vop_info)
 	return 0;
 }
 EXPORT_SYMBOL(rockchip_dmcfreq_vop_bandwidth_request);
+
+unsigned int rockchip_dmcfreq_get_stall_time_ns(void)
+{
+	if (!common_info)
+		return 0;
+
+	return common_info->stall_time_ns;
+}
+EXPORT_SYMBOL(rockchip_dmcfreq_get_stall_time_ns);
 
 MODULE_AUTHOR("Finley Xiao <finley.xiao@rock-chips.com>");
 MODULE_DESCRIPTION("rockchip dmcfreq driver with devfreq framework");

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: (GPL-2.0+ OR MIT)
 /*
- * Copyright (c) 2022 Rockchip Electronics Co., Ltd.
+ * Copyright (c) 2023 Rockchip Electronics Co., Ltd.
  *
  */
 
@@ -23,7 +23,7 @@
 			csi_dphy_input0: endpoint@0 {
 				reg = <0>;
 				remote-endpoint = <&sc530ai_out>;
-				data-lanes = <1 2 3 4>;
+				data-lanes = <1 2>;
 			};
 			csi_dphy_input1: endpoint@1 {
 				reg = <1>;
@@ -43,6 +43,31 @@
 			csi_dphy_input4: endpoint@4 {
 				reg = <4>;
 				remote-endpoint = <&jx_k17_out>;
+				data-lanes = <1 2>;
+			};
+			csi_dphy_input5: endpoint@5 {
+				reg = <5>;
+				remote-endpoint = <&sc3338_out>;
+				data-lanes = <1 2>;
+			};
+			csi_dphy_input6: endpoint@6 {
+				reg = <6>;
+				remote-endpoint = <&imx415_out>;
+				data-lanes = <1 2>;
+			};
+			csi_dphy_input7: endpoint@7 {
+				reg = <7>;
+				remote-endpoint = <&sc450ai_out>;
+				data-lanes = <1 2>;
+			};
+			csi_dphy_input8: endpoint@8 {
+				reg = <8>;
+				remote-endpoint = <&sc401ai_out>;
+				data-lanes = <1 2>;
+			};
+			csi_dphy_input9: endpoint@9 {
+				reg = <9>;
+				remote-endpoint = <&sc200ai_out>;
 				data-lanes = <1 2>;
 			};
 		};
@@ -83,7 +108,7 @@
 		port {
 			sc530ai_out: endpoint {
 				remote-endpoint = <&csi_dphy_input0>;
-				data-lanes = <1 2 3 4>;
+				data-lanes = <1 2>;
 			};
 		};
 	};
@@ -105,6 +130,28 @@
 		port {
 			sc3336_out: endpoint {
 				remote-endpoint = <&csi_dphy_input1>;
+				data-lanes = <1 2>;
+			};
+		};
+	};
+
+	sc3338: sc3338@30 {
+		compatible = "smartsens,sc3338";
+		status = "okay";
+		reg = <0x30>;
+		clocks = <&cru MCLK_REF_MIPI0>;
+		clock-names = "xvclk";
+		reset-gpios = <&gpio3 RK_PC5 GPIO_ACTIVE_HIGH>;
+		pwdn-gpios = <&gpio3 RK_PD2 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&mipi_refclk_out0>;
+		rockchip,camera-module-index = <0>;
+		rockchip,camera-module-facing = "back";
+		rockchip,camera-module-name = "FKO1";
+		rockchip,camera-module-lens-name = "30IRC-F16";
+		port {
+			sc3338_out: endpoint {
+				remote-endpoint = <&csi_dphy_input5>;
 				data-lanes = <1 2>;
 			};
 		};
@@ -144,8 +191,8 @@
 		pinctrl-0 = <&mipi_refclk_out0>;
 		rockchip,camera-module-index = <0>;
 		rockchip,camera-module-facing = "back";
-		rockchip,camera-module-name = "408b170b9d8a";
-		rockchip,camera-module-lens-name = "40IRC-F10";
+		rockchip,camera-module-name = "CMK-OT1607-PV1";
+		rockchip,camera-module-lens-name = "50IRC-F16";
 		port {
 			os04a10_out: endpoint {
 				remote-endpoint = <&csi_dphy_input3>;
@@ -171,6 +218,94 @@
 		port {
 			jx_k17_out: endpoint {
 				remote-endpoint = <&csi_dphy_input4>;
+				data-lanes = <1 2>;
+			};
+		};
+	};
+
+	imx415: imx415@1a {
+		compatible = "sony,imx415";
+		status = "okay";
+		reg = <0x1a>;
+		clocks = <&cru MCLK_REF_MIPI0>;
+		clock-names = "xvclk";
+		reset-gpios = <&gpio3 RK_PC5 GPIO_ACTIVE_LOW>;
+		pwdn-gpios = <&gpio3 RK_PD2 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&mipi_refclk_out0>;
+		rockchip,camera-module-index = <0>;
+		rockchip,camera-module-facing = "back";
+		rockchip,camera-module-name = "CMK-OT2022-PX1";
+		rockchip,camera-module-lens-name = "IR0147-36IRC-8M-F20";
+		port {
+			imx415_out: endpoint {
+				remote-endpoint = <&csi_dphy_input6>;
+				data-lanes = <1 2>;
+			};
+		};
+	};
+
+	sc450ai: sc450ai@30 {
+		compatible = "smartsens,sc450ai";
+		status = "okay";
+		reg = <0x30>;
+		clocks = <&cru MCLK_REF_MIPI0>;
+		clock-names = "xvclk";
+		reset-gpios = <&gpio3 RK_PC5 GPIO_ACTIVE_HIGH>;
+		pwdn-gpios = <&gpio3 RK_PC6 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&mipi_refclk_out0>;
+		rockchip,camera-module-index = <0>;
+		rockchip,camera-module-facing = "back";
+		rockchip,camera-module-name = "CMK-OT2119-PC1";
+		rockchip,camera-module-lens-name = "30IRC-F16";
+		port {
+			sc450ai_out: endpoint {
+				remote-endpoint = <&csi_dphy_input7>;
+				data-lanes = <1 2>;
+			};
+		};
+	};
+
+	sc401ai: sc401ai@30 {
+		compatible = "smartsens,sc401ai";
+		status = "okay";
+		reg = <0x30>;
+		clocks = <&cru MCLK_REF_MIPI0>;
+		clock-names = "xvclk";
+		reset-gpios = <&gpio3 RK_PC5 GPIO_ACTIVE_HIGH>;
+		pwdn-gpios = <&gpio3 RK_PD2 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&mipi_refclk_out0>;
+		rockchip,camera-module-index = <0>;
+		rockchip,camera-module-facing = "back";
+		rockchip,camera-module-name = "CMK-OT2115-PC1";
+		rockchip,camera-module-lens-name = "30IRC-F16";
+		port {
+			sc401ai_out: endpoint {
+				remote-endpoint = <&csi_dphy_input8>;
+				data-lanes = <1 2>;
+			};
+		};
+	};
+
+	sc200ai: sc200ai@30 {
+		compatible = "smartsens,sc200ai";
+		status = "okay";
+		reg = <0x30>;
+		clocks = <&cru MCLK_REF_MIPI0>;
+		clock-names = "xvclk";
+		reset-gpios = <&gpio3 RK_PC5 GPIO_ACTIVE_HIGH>;
+		pwdn-gpios = <&gpio3 RK_PD2 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&mipi_refclk_out0>;
+		rockchip,camera-module-index = <0>;
+		rockchip,camera-module-facing = "back";
+		rockchip,camera-module-name = "CMK-OT2115-PC1";
+		rockchip,camera-module-lens-name = "30IRC-F16";
+		port {
+			sc200ai_out: endpoint {
+				remote-endpoint = <&csi_dphy_input9>;
 				data-lanes = <1 2>;
 			};
 		};

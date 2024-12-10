@@ -46,7 +46,7 @@
 static struct devfreq_simple_ondemand_data ondemand_data;
 
 static struct monitor_dev_profile mali_mdevp = {
-	.type = MONITOR_TPYE_DEV,
+	.type = MONITOR_TYPE_DEV,
 	.low_temp_adjust = rockchip_monitor_dev_low_temp_adjust,
 	.high_temp_adjust = rockchip_monitor_dev_high_temp_adjust,
 	.update_volt = rockchip_monitor_check_rate_volt,
@@ -300,7 +300,8 @@ kbase_devfreq_status(struct device *dev, struct devfreq_dev_status *stat)
 	stat->private_data = NULL;
 
 #if MALI_USE_CSF && defined CONFIG_DEVFREQ_THERMAL
-	kbase_ipa_reset_data(kbdev);
+	if (!kbdev->dfc_power.dyn_power_coeff)
+		kbase_ipa_reset_data(kbdev);
 #endif
 
 	return 0;
@@ -725,15 +726,6 @@ int kbase_devfreq_init(struct kbase_device *kbdev)
 		kbdev->gpu_props.props.core_props.gpu_freq_khz_max =
 			dp->freq_table[0] / 1000;
 	};
-
-#if IS_ENABLED(CONFIG_DEVFREQ_THERMAL)
-	err = kbase_ipa_init(kbdev);
-	if (err) {
-		dev_err(kbdev->dev, "IPA initialization failed");
-		goto ipa_init_failed;
-	}
-#endif
-
 	err = kbase_devfreq_init_core_mask_table(kbdev);
 	if (err)
 		goto init_core_mask_table_failed;
@@ -820,6 +812,12 @@ int kbase_devfreq_init(struct kbase_device *kbdev)
 			goto ipa_init_failed;
 		}
 	} else {
+		err = kbase_ipa_init(kbdev);
+		if (err) {
+			dev_err(kbdev->dev, "IPA initialization failed\n");
+			goto ipa_init_failed;
+		}
+
 		kbdev->devfreq_cooling = of_devfreq_cooling_register_power(
 				kbdev->dev->of_node,
 				kbdev->devfreq,
@@ -838,6 +836,8 @@ int kbase_devfreq_init(struct kbase_device *kbdev)
 
 #if IS_ENABLED(CONFIG_DEVFREQ_THERMAL)
 cooling_reg_failed:
+	kbase_ipa_term(kbdev);
+ipa_init_failed:
 	devfreq_unregister_opp_notifier(kbdev->dev, kbdev->devfreq);
 #endif /* CONFIG_DEVFREQ_THERMAL */
 
@@ -854,10 +854,6 @@ devfreq_add_dev_failed:
 	kbase_devfreq_term_core_mask_table(kbdev);
 
 init_core_mask_table_failed:
-#if IS_ENABLED(CONFIG_DEVFREQ_THERMAL)
-	kbase_ipa_term(kbdev);
-ipa_init_failed:
-#endif
 	if (free_devfreq_freq_table)
 		kbase_devfreq_term_freq_table(kbdev);
 

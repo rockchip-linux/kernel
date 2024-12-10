@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2019-2022 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2019-2023 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -22,6 +22,12 @@
 /*
  * Base kernel context APIs
  */
+#include <linux/version.h>
+#if KERNEL_VERSION(4, 11, 0) <= LINUX_VERSION_CODE
+#include <linux/sched/task.h>
+#else
+#include <linux/sched.h>
+#endif
 
 #include <mali_kbase.h>
 #include <gpu/mali_kbase_gpu_regmap.h>
@@ -129,16 +135,50 @@ int kbase_context_common_init(struct kbase_context *kctx)
 	/* creating a context is considered a disjoint event */
 	kbase_disjoint_event(kctx->kbdev);
 
-	kctx->as_nr = KBASEP_AS_NR_INVALID;
-
-	atomic_set(&kctx->refcount, 0);
-
-	spin_lock_init(&kctx->mm_update_lock);
 	kctx->process_mm = NULL;
+	kctx->task = NULL;
 	atomic_set(&kctx->nonmapped_pages, 0);
 	atomic_set(&kctx->permanent_mapped_pages, 0);
-	kctx->tgid = current->tgid;
-	kctx->pid = current->pid;
+	kctx->tgid = task_tgid_vnr(current);
+	kctx->pid = task_pid_vnr(current);
+
+	/* Check if this is a Userspace created context */
+	if (likely(kctx->filp)) {
+		struct pid *pid_struct;
+
+		rcu_read_lock();
+		pid_struct = find_get_pid(kctx->tgid);
+		if (likely(pid_struct)) {
+			struct task_struct *task = pid_task(pid_struct, PIDTYPE_PID);
+
+			if (likely(task)) {
+				/* Take a reference on the task to avoid slow lookup
+				 * later on from the page allocation loop.
+				 */
+				get_task_struct(task);
+				kctx->task = task;
+			} else {
+				dev_err(kctx->kbdev->dev,
+					"Failed to get task pointer for %s/%d",
+					current->comm, kctx->pid);
+				err = -ESRCH;
+			}
+
+			put_pid(pid_struct);
+		} else {
+			dev_err(kctx->kbdev->dev,
+				"Failed to get pid pointer for %s/%d",
+				current->comm, kctx->pid);
+			err = -ESRCH;
+		}
+		rcu_read_unlock();
+
+		if (unlikely(err))
+			return err;
+
+		kbase_mem_mmgrab();
+		kctx->process_mm = current->mm;
+	}
 
 	atomic_set(&kctx->used_pages, 0);
 
@@ -165,18 +205,23 @@ int kbase_context_common_init(struct kbase_context *kctx)
 	atomic64_set(&kctx->num_fixed_allocs, 0);
 #endif
 
+	kbase_gpu_vm_lock(kctx);
 	bitmap_copy(kctx->cookies, &cookies_mask, BITS_PER_LONG);
+	kbase_gpu_vm_unlock(kctx);
 
 	kctx->id = atomic_add_return(1, &(kctx->kbdev->ctx_num)) - 1;
 
 	mutex_lock(&kctx->kbdev->kctx_list_lock);
-
 	err = kbase_insert_kctx_to_process(kctx);
-	if (err)
-		dev_err(kctx->kbdev->dev,
-		"(err:%d) failed to insert kctx to kbase_process\n", err);
-
 	mutex_unlock(&kctx->kbdev->kctx_list_lock);
+	if (err) {
+		dev_err(kctx->kbdev->dev,
+			"(err:%d) failed to insert kctx to kbase_process", err);
+		if (likely(kctx->filp)) {
+			mmdrop(kctx->process_mm);
+			put_task_struct(kctx->task);
+		}
+	}
 
 	return err;
 }
@@ -249,14 +294,7 @@ static void kbase_remove_kctx_from_process(struct kbase_context *kctx)
 
 void kbase_context_common_term(struct kbase_context *kctx)
 {
-	unsigned long flags;
 	int pages;
-
-	mutex_lock(&kctx->kbdev->mmu_hw_mutex);
-	spin_lock_irqsave(&kctx->kbdev->hwaccess_lock, flags);
-	kbase_ctx_sched_remove_ctx(kctx);
-	spin_unlock_irqrestore(&kctx->kbdev->hwaccess_lock, flags);
-	mutex_unlock(&kctx->kbdev->mmu_hw_mutex);
 
 	pages = atomic_read(&kctx->used_pages);
 	if (pages != 0)
@@ -269,15 +307,18 @@ void kbase_context_common_term(struct kbase_context *kctx)
 	kbase_remove_kctx_from_process(kctx);
 	mutex_unlock(&kctx->kbdev->kctx_list_lock);
 
+	if (likely(kctx->filp)) {
+		mmdrop(kctx->process_mm);
+		put_task_struct(kctx->task);
+	}
+
 	KBASE_KTRACE_ADD(kctx->kbdev, CORE_CTX_DESTROY, kctx, 0u);
 }
 
 int kbase_context_mem_pool_group_init(struct kbase_context *kctx)
 {
-	return kbase_mem_pool_group_init(&kctx->mem_pools,
-		kctx->kbdev,
-		&kctx->kbdev->mem_pool_defaults,
-		&kctx->kbdev->mem_pools);
+	return kbase_mem_pool_group_init(&kctx->mem_pools, kctx->kbdev,
+					 &kctx->kbdev->mem_pool_defaults, &kctx->kbdev->mem_pools);
 }
 
 void kbase_context_mem_pool_group_term(struct kbase_context *kctx)

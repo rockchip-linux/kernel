@@ -224,7 +224,7 @@ static int iptunnel_pmtud_build_icmp(struct sk_buff *skb, int mtu)
 		.un.frag.__unused	= 0,
 		.un.frag.mtu		= ntohs(mtu),
 	};
-	icmph->checksum = ip_compute_csum(icmph, len);
+	icmph->checksum = csum_fold(skb_checksum(skb, 0, len, 0));
 	skb_reset_transport_header(skb);
 
 	niph = skb_push(skb, sizeof(*niph));
@@ -410,7 +410,7 @@ int skb_tunnel_check_pmtu(struct sk_buff *skb, struct dst_entry *encap_dst,
 	u32 mtu = dst_mtu(encap_dst) - headroom;
 
 	if ((skb_is_gso(skb) && skb_gso_validate_network_len(skb, mtu)) ||
-	    (!skb_is_gso(skb) && (skb->len - skb_mac_header_len(skb)) <= mtu))
+	    (!skb_is_gso(skb) && (skb->len - skb_network_offset(skb)) <= mtu))
 		return 0;
 
 	skb_dst_update_pmtu_no_confirm(skb, mtu);

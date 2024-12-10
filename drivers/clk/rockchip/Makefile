@@ -18,6 +18,7 @@ clk-rockchip-$(CONFIG_ROCKCHIP_CLK_PVTM) += clk-pvtm.o
 clk-rockchip-$(CONFIG_RESET_CONTROLLER) += softrst.o
 
 obj-$(CONFIG_ROCKCHIP_CLK_LINK)	+= clk-link.o
+obj-$(CONFIG_ROCKCHIP_CLK_OUT)  += clk-out.o
 
 obj-$(CONFIG_CLK_PX30)          += clk-px30.o
 obj-$(CONFIG_CLK_RV1106)        += clk-rv1106.o
@@ -33,5 +34,7 @@ obj-$(CONFIG_CLK_RK3308)        += clk-rk3308.o
 obj-$(CONFIG_CLK_RK3328)        += clk-rk3328.o
 obj-$(CONFIG_CLK_RK3368)        += clk-rk3368.o
 obj-$(CONFIG_CLK_RK3399)        += clk-rk3399.o
+obj-$(CONFIG_CLK_RK3528)        += clk-rk3528.o
+obj-$(CONFIG_CLK_RK3562)        += clk-rk3562.o
 obj-$(CONFIG_CLK_RK3568)        += clk-rk3568.o
 obj-$(CONFIG_CLK_RK3588)	+= clk-rk3588.o

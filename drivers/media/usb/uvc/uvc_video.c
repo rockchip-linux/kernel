@@ -20,6 +20,7 @@
 #include <media/v4l2-common.h>
 
 #include "uvcvideo.h"
+#include <soc/rockchip/rockchip-system-status.h>
 
 /* ------------------------------------------------------------------------
  * UVC Controls
@@ -1308,7 +1309,9 @@ static void uvc_video_decode_meta(struct uvc_streaming *stream,
 	if (has_scr)
 		memcpy(stream->clock.last_scr, scr, 6);
 
-	memcpy(&meta->length, mem, length);
+	meta->length = mem[0];
+	meta->flags  = mem[1];
+	memcpy(meta->buf, &mem[2], length - 2);
 	meta_buf->bytesused += length + sizeof(meta->ns) + sizeof(meta->sof);
 
 	uvc_trace(UVC_TRACE_FRAME,
@@ -1903,6 +1906,17 @@ static int uvc_video_start_transfer(struct uvc_streaming *stream,
 		uvc_trace(UVC_TRACE_VIDEO, "Selecting alternate setting %u "
 			"(%u B/frame bandwidth).\n", altsetting, best_psize);
 
+		/*
+		 * Some devices, namely the Logitech C910 and B910, are unable
+		 * to recover from a USB autosuspend, unless the alternate
+		 * setting of the streaming interface is toggled.
+		 */
+		if (stream->dev->quirks & UVC_QUIRK_WAKE_AUTOSUSPEND) {
+			usb_set_interface(stream->dev->udev, intfnum,
+					  altsetting);
+			usb_set_interface(stream->dev->udev, intfnum, 0);
+		}
+
 		ret = usb_set_interface(stream->dev->udev, intfnum, altsetting);
 		if (ret < 0)
 			return ret;
@@ -2126,6 +2140,8 @@ int uvc_video_start_streaming(struct uvc_streaming *stream)
 	if (ret < 0)
 		goto error_commit;
 
+	rockchip_set_system_status(SYS_STATUS_PERFORMANCE);
+
 	ret = uvc_video_start_transfer(stream, GFP_KERNEL);
 	if (ret < 0)
 		goto error_video;
@@ -2133,6 +2149,7 @@ int uvc_video_start_streaming(struct uvc_streaming *stream)
 	return 0;
 
 error_video:
+	rockchip_clear_system_status(SYS_STATUS_PERFORMANCE);
 	usb_set_interface(stream->dev->udev, stream->intfnum, 0);
 error_commit:
 	uvc_video_clock_cleanup(stream);
@@ -2163,4 +2180,5 @@ void uvc_video_stop_streaming(struct uvc_streaming *stream)
 	}
 
 	uvc_video_clock_cleanup(stream);
+	rockchip_clear_system_status(SYS_STATUS_PERFORMANCE);
 }

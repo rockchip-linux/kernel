@@ -1574,8 +1574,8 @@ static void sc2310_modify_fps_info(struct sc2310 *sc2310)
 {
 	const struct sc2310_mode *mode = sc2310->cur_mode;
 
-	sc2310->cur_fps.denominator = mode->max_fps.denominator * sc2310->cur_vts /
-				       mode->vts_def;
+	sc2310->cur_fps.denominator = mode->max_fps.denominator * mode->vts_def /
+				      sc2310->cur_vts;
 }
 
 static int sc2310_set_ctrl(struct v4l2_ctrl *ctrl)
@@ -1653,8 +1653,7 @@ static int sc2310_set_ctrl(struct v4l2_ctrl *ctrl)
 					ctrl->val + sc2310->cur_mode->height);
 		if (!ret)
 			sc2310->cur_vts = ctrl->val + sc2310->cur_mode->height;
-		if (sc2310->cur_vts != sc2310->cur_mode->vts_def)
-			sc2310_modify_fps_info(sc2310);
+		sc2310_modify_fps_info(sc2310);
 		dev_dbg(&client->dev, "set vblank 0x%x\n",
 			ctrl->val);
 		break;

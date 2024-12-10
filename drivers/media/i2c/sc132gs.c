@@ -1098,8 +1098,8 @@ static void sc132gs_modify_fps_info(struct sc132gs *sc132gs)
 {
 	const struct sc132gs_mode *mode = sc132gs->cur_mode;
 
-	sc132gs->cur_fps.denominator = mode->max_fps.denominator * sc132gs->cur_vts /
-				       mode->vts_def;
+	sc132gs->cur_fps.denominator = mode->max_fps.denominator * mode->vts_def /
+				       sc132gs->cur_vts;
 }
 
 static int sc132gs_set_ctrl(struct v4l2_ctrl *ctrl)
@@ -1140,8 +1140,7 @@ static int sc132gs_set_ctrl(struct v4l2_ctrl *ctrl)
 					ctrl->val + sc132gs->cur_mode->height);
 		if (!ret)
 			sc132gs->cur_vts = ctrl->val + sc132gs->cur_mode->height;
-		if (sc132gs->cur_vts != sc132gs->cur_mode->vts_def)
-			sc132gs_modify_fps_info(sc132gs);
+		sc132gs_modify_fps_info(sc132gs);
 		break;
 		break;
 	case V4L2_CID_TEST_PATTERN:

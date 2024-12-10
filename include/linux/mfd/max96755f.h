@@ -10,6 +10,19 @@
 
 #include <linux/bitfield.h>
 
+struct max96755f {
+	struct device *dev;
+	struct regmap *regmap;
+	struct i2c_mux_core *muxc;
+	struct gpio_desc *enable_gpio;
+	struct gpio_desc *reset_gpio;
+	struct regulator *supply;
+	struct gpio_desc *pwdnb_gpio;
+	struct gpio_desc *lock_gpio;
+	struct extcon_dev *extcon;
+	bool split_mode;
+};
+
 #define GPIO_A_REG(gpio)	(0x02be + ((gpio) * 3))
 #define GPIO_B_REG(gpio)	(0x02bf + ((gpio) * 3))
 #define GPIO_C_REG(gpio)	(0x02c0 + ((gpio) * 3))
@@ -78,6 +91,9 @@
 
 /* 0170h */
 #define SPI_EN			BIT(0)
+
+/* 01e5h */
+#define PATGEN_MODE		GENMASK(1, 0)
 
 /* 02beh */
 #define RES_CFG			BIT(7)
@@ -168,6 +184,10 @@
 
 /* 03aeh */
 #define DPI_HACT_H		GENMASK(4, 0)
+
+/* 055dh */
+#define VS_DET			BIT(5)
+#define HS_DET			BIT(4)
 
 enum link_mode {
 	DUAL_LINK,

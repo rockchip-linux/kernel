@@ -141,7 +141,8 @@ static int nf_reject6_fill_skb_dst(struct sk_buff *skb_in)
 	return 0;
 }
 
-void nf_send_reset6(struct net *net, struct sk_buff *oldskb, int hook)
+void nf_send_reset6(struct net *net, struct sock *sk, struct sk_buff *oldskb,
+		    int hook)
 {
 	struct net_device *br_indev __maybe_unused;
 	struct sk_buff *nskb;
@@ -179,7 +180,7 @@ void nf_send_reset6(struct net *net, struct sk_buff *oldskb, int hook)
 
 	fl6.flowi6_oif = l3mdev_master_ifindex(skb_dst(oldskb)->dev);
 	fl6.flowi6_mark = IP6_REPLY_MARK(net, oldskb->mark);
-	security_skb_classify_flow(oldskb, flowi6_to_flowi(&fl6));
+	security_skb_classify_flow(oldskb, flowi6_to_flowi_common(&fl6));
 	dst = ip6_route_output(net, NULL, &fl6);
 	if (dst->error) {
 		dst_release(dst);
@@ -233,7 +234,7 @@ void nf_send_reset6(struct net *net, struct sk_buff *oldskb, int hook)
 		dev_queue_xmit(nskb);
 	} else
 #endif
-		ip6_local_out(net, nskb->sk, nskb);
+		ip6_local_out(net, sk, nskb);
 }
 EXPORT_SYMBOL_GPL(nf_send_reset6);
 

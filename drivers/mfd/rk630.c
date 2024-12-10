@@ -13,7 +13,7 @@
 #include <linux/gpio/consumer.h>
 #include <linux/mfd/rk630.h>
 
-static int rk630_macphy_enable(struct rk630 *rk630)
+static int rk630_macphy_enable(struct rk630 *rk630, unsigned long rate)
 {
 	u32 val;
 	int ret;
@@ -68,8 +68,23 @@ static int rk630_macphy_enable(struct rk630 *rk630)
 		return ret;
 	}
 
-	/* mode sel: RMII && clock sel: 24M && BGS value: OTP && id */
-	val = (2 << 14) | (0 << 12) | (0x1 << 8) | (6 << 5) | 1;
+	/* mode sel: RMII && BGS value: OTP && id */
+	val = (2 << 14) | (0 << 12) | (0x1 << 8) | 1;
+	switch (rate) {
+	case 24000000:
+		val |= 0x6 << 5;
+		break;
+	case 25000000:
+		val |= 0x4 << 5;
+		break;
+	case 27000000:
+		val |= 0x5 << 5;
+		break;
+	default:
+		dev_err(rk630->dev, "Unsupported clock rate: %ld\n", rate);
+		return -EINVAL;
+	}
+
 	ret = regmap_write(rk630->grf, GRF_REG(0x404), val | 0xffff0000);
 	if (ret != 0) {
 		dev_err(rk630->dev, "Could not write to GRF: %d\n", ret);
@@ -100,6 +115,10 @@ static const struct mfd_cell rk630_devs[] = {
 	{
 		.name = "rk630-tve",
 		.of_compatible = "rockchip,rk630-tve",
+	},
+	{
+		.name = "rk630-rtc",
+		.of_compatible = "rockchip,rk630-rtc",
 	},
 	{
 		.name = "rk630-macphy",
@@ -164,11 +183,57 @@ const struct regmap_config rk630_cru_regmap_config = {
 };
 EXPORT_SYMBOL_GPL(rk630_cru_regmap_config);
 
+static const struct regmap_range rk630_rtc_readable_ranges[] = {
+	regmap_reg_range(RTC_SET_SECONDS, RTC_CNT_3),
+};
+
+static const struct regmap_access_table rk630_rtc_readable_table = {
+	.yes_ranges = rk630_rtc_readable_ranges,
+	.n_yes_ranges = ARRAY_SIZE(rk630_rtc_readable_ranges),
+};
+
+const struct regmap_config rk630_rtc_regmap_config = {
+	.name = "rtc",
+	.reg_bits = 32,
+	.val_bits = 32,
+	.reg_stride = 4,
+	.max_register = RTC_MAX_REGISTER,
+	.reg_format_endian = REGMAP_ENDIAN_NATIVE,
+	.val_format_endian = REGMAP_ENDIAN_NATIVE,
+	.rd_table = &rk630_rtc_readable_table,
+};
+EXPORT_SYMBOL_GPL(rk630_rtc_regmap_config);
+
 int rk630_core_probe(struct rk630 *rk630)
 {
 	bool macphy_enabled = false;
+	struct clk *ref_clk;
 	struct device_node *np;
+	unsigned long rate;
 	int ret;
+
+	if (!rk630->irq) {
+		dev_err(rk630->dev, "No interrupt support, no core IRQ\n");
+		return -EINVAL;
+	}
+
+	ref_clk = devm_clk_get(rk630->dev, "ref");
+	if (IS_ERR(ref_clk)) {
+		dev_err(rk630->dev, "failed to get ref clk source\n");
+		return PTR_ERR(ref_clk);
+	}
+
+	ret = clk_prepare_enable(ref_clk);
+	if (ret < 0) {
+		dev_err(rk630->dev, "failed to enable ref clk - %d\n", ret);
+		return ret;
+	}
+	rate = clk_get_rate(ref_clk);
+
+	ret = devm_add_action_or_reset(rk630->dev, (void (*) (void *))clk_disable_unprepare,
+				       ref_clk);
+	if (ret)
+		return ret;
 
 	rk630->reset_gpio = devm_gpiod_get(rk630->dev, "reset", 0);
 	if (IS_ERR(rk630->reset_gpio)) {
@@ -182,6 +247,16 @@ int rk630_core_probe(struct rk630 *rk630)
 	gpiod_direction_output(rk630->reset_gpio, 1);
 	usleep_range(50000, 60000);
 	gpiod_direction_output(rk630->reset_gpio, 0);
+
+	/**
+	 * If rtc output clamp is enabled, rtc regs can't be accessed,
+	 * RK630 irq add will failed.
+	 */
+	regmap_update_bits(rk630->grf, PLUMAGE_GRF_SOC_CON0,
+			   RTC_CLAMP_EN_MASK, RTC_CLAMP_EN(1));
+
+	/* disable ext_off\vbat_det\msec\sys_int\periodic interrupt by default */
+	regmap_write(rk630->rtc, RTC_INT1_EN, 0);
 
 	ret = devm_mfd_add_devices(rk630->dev, PLATFORM_DEVID_NONE,
 				   rk630_devs, ARRAY_SIZE(rk630_devs),
@@ -204,7 +279,7 @@ int rk630_core_probe(struct rk630 *rk630)
 	}
 
 	if (macphy_enabled)
-		rk630_macphy_enable(rk630);
+		rk630_macphy_enable(rk630, rate);
 	else
 		rk630_macphy_disable(rk630);
 

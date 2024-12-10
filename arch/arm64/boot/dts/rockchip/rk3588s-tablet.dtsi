@@ -82,6 +82,27 @@
 		charge-full-design-microamp-hours = <4500000>;
 	};
 
+	bt_sco: bt-sco {
+		status = "disabled";
+		compatible = "delta,dfbmcs320";
+		#sound-dai-cells = <1>;
+	};
+
+	bt_sound: bt-sound {
+		status = "disabled";
+		compatible = "simple-audio-card";
+		simple-audio-card,format = "dsp_a";
+		simple-audio-card,bitclock-inversion;
+		simple-audio-card,mclk-fs = <256>;
+		simple-audio-card,name = "rockchip,bt";
+		simple-audio-card,cpu {
+			sound-dai = <&i2s2_2ch>;
+		};
+		simple-audio-card,codec {
+			sound-dai = <&bt_sco 1>;
+		};
+	};
+
 	charge-animation {
 		compatible = "rockchip,uboot-charge";
 		rockchip,uboot-charge-on = <1>;
@@ -114,7 +135,7 @@
 	dp0_sound: dp0-sound {
 		status = "okay";
 		compatible = "rockchip,hdmi";
-		rockchip,card-name= "rockchip,dp0";
+		rockchip,card-name= "rockchip-dp0";
 		rockchip,mclk-fs = <512>;
 		rockchip,cpu = <&spdif_tx2>;
 		rockchip,codec = <&dp0 1>;
@@ -213,7 +234,7 @@
 
 		port {
 			panel_in_edp: endpoint {
-				remote-endpoint = <&edp_out_panel>;
+				remote-endpoint = <&edp0_out>;
 			};
 		};
 	};
@@ -328,6 +349,10 @@
 	status = "okay";
 };
 
+&dp0_out {
+	link-frequencies = /bits/ 64 <5400000000>;
+};
+
 &dp0_in_vp1 {
 	status = "okay";
 };
@@ -336,20 +361,14 @@
 	support-psr;
 	force-hpd;
 	status = "okay";
-
-	ports {
-		port@1 {
-			reg = <1>;
-
-			edp_out_panel: endpoint {
-				remote-endpoint = <&panel_in_edp>;
-			};
-		};
-	};
 };
 
 &edp0_in_vp2 {
 	status = "okay";
+};
+
+&edp0_out {
+	remote-endpoint = <&panel_in_edp>;
 };
 
 &fiq_debugger {
@@ -460,9 +479,9 @@
 		#sound-dai-cells = <0>;
 		compatible = "everest,es8388", "everest,es8323";
 		reg = <0x11>;
-		clocks = <&cru I2S0_8CH_MCLKOUT>;
+		clocks = <&mclkout_i2s0>;
 		clock-names = "mclk";
-		assigned-clocks = <&cru I2S0_8CH_MCLKOUT>;
+		assigned-clocks = <&mclkout_i2s0>;
 		assigned-clock-rates = <12288000>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&i2s0_mclk>;
@@ -812,6 +831,12 @@
 		     &i2s0_sdo0>;
 };
 
+&i2s2_2ch {
+	pinctrl-0 = <&i2s2m1_lrck &i2s2m1_sclk &i2s2m1_sdi &i2s2m1_sdo>;
+	rockchip,bclk-fs = <32>;
+	status = "disabled";
+};
+
 &iep {
 	status = "okay";
 };
@@ -1104,6 +1129,8 @@
 };
 
 &rkvenc0 {
+	venc-supply = <&vdd_vdenc_s0>;
+	mem-supply = <&vdd_vdenc_mem_s0>;
 	status = "okay";
 };
 
@@ -1112,6 +1139,8 @@
 };
 
 &rkvenc1 {
+	venc-supply = <&vdd_vdenc_s0>;
+	mem-supply = <&vdd_vdenc_mem_s0>;
 	status = "okay";
 };
 
@@ -1224,7 +1253,6 @@
 };
 
 &usbdp_phy0_dp {
-	max-link-rate = <5400>;	/* Maximum link rate supported by PHY (in Mbps) */
 	status = "okay";
 };
 

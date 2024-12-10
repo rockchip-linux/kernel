@@ -364,22 +364,6 @@ static int drm_mode_create_standard_properties(struct drm_device *dev)
 		return -ENOMEM;
 	dev->mode_config.gamma_lut_size_property = prop;
 
-#if defined(CONFIG_ROCKCHIP_DRM_CUBIC_LUT)
-	prop = drm_property_create(dev,
-			DRM_MODE_PROP_BLOB,
-			"CUBIC_LUT", 0);
-	if (!prop)
-		return -ENOMEM;
-	dev->mode_config.cubic_lut_property = prop;
-
-	prop = drm_property_create_range(dev,
-			DRM_MODE_PROP_IMMUTABLE,
-			"CUBIC_LUT_SIZE", 0, UINT_MAX);
-	if (!prop)
-		return -ENOMEM;
-	dev->mode_config.cubic_lut_size_property = prop;
-#endif
-
 	prop = drm_property_create(dev,
 				   DRM_MODE_PROP_IMMUTABLE | DRM_MODE_PROP_BLOB,
 				   "IN_FORMATS", 0);
@@ -414,6 +398,8 @@ static void drm_mode_config_init_release(struct drm_device *dev, void *ptr)
  */
 int drmm_mode_config_init(struct drm_device *dev)
 {
+	int ret;
+
 	mutex_init(&dev->mode_config.mutex);
 	drm_modeset_lock_init(&dev->mode_config.connection_mutex);
 	mutex_init(&dev->mode_config.idr_mutex);
@@ -435,7 +421,11 @@ int drmm_mode_config_init(struct drm_device *dev)
 	init_llist_head(&dev->mode_config.connector_free_list);
 	INIT_WORK(&dev->mode_config.connector_free_work, drm_connector_free_work_fn);
 
-	drm_mode_create_standard_properties(dev);
+	ret = drm_mode_create_standard_properties(dev);
+	if (ret) {
+		drm_mode_config_cleanup(dev);
+		return ret;
+	}
 
 	/* Just to be sure */
 	dev->mode_config.num_fb = 0;

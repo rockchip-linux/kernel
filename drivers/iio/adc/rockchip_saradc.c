@@ -5,6 +5,7 @@
  */
 
 #include <linux/module.h>
+#include <linux/mutex.h>
 #include <linux/platform_device.h>
 #include <linux/interrupt.h>
 #include <linux/io.h>
@@ -68,11 +69,14 @@ struct rockchip_saradc {
 	struct clk		*clk;
 	struct completion	completion;
 	struct regulator	*vref;
+	/* lock to protect against multiple access to the device */
+	struct mutex		lock;
 	int			uv_vref;
 	struct reset_control	*reset;
 	const struct rockchip_saradc_data *data;
 	u16			last_val;
 	const struct iio_chan_spec *last_chan;
+	struct notifier_block nb;
 	bool			suspended;
 #ifdef CONFIG_ROCKCHIP_SARADC_TEST_CHN
 	bool			test;
@@ -188,22 +192,22 @@ static int rockchip_saradc_read_raw(struct iio_dev *indio_dev,
 #endif
 	switch (mask) {
 	case IIO_CHAN_INFO_RAW:
-		mutex_lock(&indio_dev->mlock);
+		mutex_lock(&info->lock);
 
 		if (info->suspended) {
-			mutex_unlock(&indio_dev->mlock);
+			mutex_unlock(&info->lock);
 			return -EBUSY;
 		}
 
 		ret = rockchip_saradc_conversion(info, chan);
 		if (ret) {
 			rockchip_saradc_power_down(info);
-			mutex_unlock(&indio_dev->mlock);
+			mutex_unlock(&info->lock);
 			return ret;
 		}
 
 		*val = info->last_val;
-		mutex_unlock(&indio_dev->mlock);
+		mutex_unlock(&info->lock);
 		return IIO_VAL_INT;
 	case IIO_CHAN_INFO_SCALE:
 		/* It is a dummy regulator */
@@ -312,6 +316,40 @@ static const struct rockchip_saradc_data rk3399_saradc_data = {
 	.power_down = rockchip_saradc_power_down_v1,
 };
 
+static const struct iio_chan_spec rockchip_rk3528_saradc_iio_channels[] = {
+	SARADC_CHANNEL(0, "adc0", 10),
+	SARADC_CHANNEL(1, "adc1", 10),
+	SARADC_CHANNEL(2, "adc2", 10),
+	SARADC_CHANNEL(3, "adc3", 10),
+};
+
+static const struct rockchip_saradc_data rk3528_saradc_data = {
+	.channels = rockchip_rk3528_saradc_iio_channels,
+	.num_channels = ARRAY_SIZE(rockchip_rk3528_saradc_iio_channels),
+	.clk_rate = 1000000,
+	.start = rockchip_saradc_start_v2,
+	.read = rockchip_saradc_read_v2,
+};
+
+static const struct iio_chan_spec rockchip_rk3562_saradc_iio_channels[] = {
+	SARADC_CHANNEL(0, "adc0", 10),
+	SARADC_CHANNEL(1, "adc1", 10),
+	SARADC_CHANNEL(2, "adc2", 10),
+	SARADC_CHANNEL(3, "adc3", 10),
+	SARADC_CHANNEL(4, "adc4", 10),
+	SARADC_CHANNEL(5, "adc5", 10),
+	SARADC_CHANNEL(6, "adc6", 10),
+	SARADC_CHANNEL(7, "adc7", 10),
+};
+
+static const struct rockchip_saradc_data rk3562_saradc_data = {
+	.channels = rockchip_rk3562_saradc_iio_channels,
+	.num_channels = ARRAY_SIZE(rockchip_rk3562_saradc_iio_channels),
+	.clk_rate = 1000000,
+	.start = rockchip_saradc_start_v2,
+	.read = rockchip_saradc_read_v2,
+};
+
 static const struct iio_chan_spec rockchip_rk3568_saradc_iio_channels[] = {
 	SARADC_CHANNEL(0, "adc0", 10),
 	SARADC_CHANNEL(1, "adc1", 10),
@@ -375,6 +413,12 @@ static const struct of_device_id rockchip_saradc_match[] = {
 		.compatible = "rockchip,rk3399-saradc",
 		.data = &rk3399_saradc_data,
 	}, {
+		.compatible = "rockchip,rk3528-saradc",
+		.data = &rk3528_saradc_data,
+	}, {
+		.compatible = "rockchip,rk3562-saradc",
+		.data = &rk3562_saradc_data,
+	}, {
 		.compatible = "rockchip,rk3568-saradc",
 		.data = &rk3568_saradc_data,
 	}, {
@@ -435,7 +479,7 @@ static irqreturn_t rockchip_saradc_trigger_handler(int irq, void *p)
 	int ret;
 	int i, j = 0;
 
-	mutex_lock(&i_dev->mlock);
+	mutex_lock(&info->lock);
 
 	for_each_set_bit(i, i_dev->active_scan_mask, i_dev->masklength) {
 		const struct iio_chan_spec *chan = &i_dev->channels[i];
@@ -452,11 +496,31 @@ static irqreturn_t rockchip_saradc_trigger_handler(int irq, void *p)
 
 	iio_push_to_buffers_with_timestamp(i_dev, &data, iio_get_time_ns(i_dev));
 out:
-	mutex_unlock(&i_dev->mlock);
+	mutex_unlock(&info->lock);
 
 	iio_trigger_notify_done(i_dev->trig);
 
 	return IRQ_HANDLED;
+}
+
+static int rockchip_saradc_volt_notify(struct notifier_block *nb,
+						   unsigned long event,
+						   void *data)
+{
+	struct rockchip_saradc *info =
+			container_of(nb, struct rockchip_saradc, nb);
+
+	if (event & REGULATOR_EVENT_VOLTAGE_CHANGE)
+		info->uv_vref = (unsigned long)data;
+
+	return NOTIFY_OK;
+}
+
+static void rockchip_saradc_regulator_unreg_notifier(void *data)
+{
+	struct rockchip_saradc *info = data;
+
+	regulator_unregister_notifier(info->vref, &info->nb);
 }
 
 #ifdef CONFIG_ROCKCHIP_SARADC_TEST_CHN
@@ -483,7 +547,7 @@ static ssize_t saradc_test_chn_store(struct device *dev,
 		return size;
 	}
 
-	if (!info->test && val < SARADC_CTRL_CHN_MASK) {
+	if (!info->test && val <= SARADC_CTRL_CHN_MASK) {
 		info->test = true;
 		info->chn = val;
 		mod_delayed_work(info->wq, &info->work, msecs_to_jiffies(100));
@@ -640,12 +704,13 @@ static int rockchip_saradc_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	info->uv_vref = regulator_get_voltage(info->vref);
-	if (info->uv_vref < 0) {
+	ret = regulator_get_voltage(info->vref);
+	if (ret < 0) {
 		dev_err(&pdev->dev, "failed to get voltage\n");
-		ret = info->uv_vref;
 		return ret;
 	}
+
+	info->uv_vref = ret;
 
 	ret = clk_prepare_enable(info->pclk);
 	if (ret < 0) {
@@ -687,6 +752,17 @@ static int rockchip_saradc_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
+	info->nb.notifier_call = rockchip_saradc_volt_notify;
+	ret = regulator_register_notifier(info->vref, &info->nb);
+	if (ret)
+		return ret;
+
+	ret = devm_add_action_or_reset(&pdev->dev,
+				       rockchip_saradc_regulator_unreg_notifier,
+				       info);
+	if (ret)
+		return ret;
+
 #ifdef CONFIG_ROCKCHIP_SARADC_TEST_CHN
 	info->wq = create_singlethread_workqueue("adc_wq");
 	INIT_DELAYED_WORK(&info->work, rockchip_saradc_test_work);
@@ -711,6 +787,8 @@ static int rockchip_saradc_probe(struct platform_device *pdev)
 		return ret;
 	}
 #endif
+	mutex_init(&info->lock);
+
 	return devm_iio_device_register(&pdev->dev, indio_dev);
 }
 
@@ -721,14 +799,14 @@ static int rockchip_saradc_suspend(struct device *dev)
 	struct rockchip_saradc *info = iio_priv(indio_dev);
 
 	/* Avoid reading saradc when suspending */
-	mutex_lock(&indio_dev->mlock);
+	mutex_lock(&info->lock);
 
 	clk_disable_unprepare(info->clk);
 	clk_disable_unprepare(info->pclk);
 	regulator_disable(info->vref);
 
 	info->suspended = true;
-	mutex_unlock(&indio_dev->mlock);
+	mutex_unlock(&info->lock);
 
 	return 0;
 }

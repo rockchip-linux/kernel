@@ -736,9 +736,7 @@ static int ov5648_g_frame_interval(struct v4l2_subdev *sd,
 	struct ov5648 *ov5648 = to_ov5648(sd);
 	const struct ov5648_mode *mode = ov5648->cur_mode;
 
-	mutex_lock(&ov5648->mutex);
 	fi->interval = mode->max_fps;
-	mutex_unlock(&ov5648->mutex);
 
 	return 0;
 }
@@ -1082,9 +1080,7 @@ static int ov5648_enum_frame_interval(struct v4l2_subdev *sd,
 	if (fie->index >= ov5648->cfg_num)
 		return -EINVAL;
 
-	if (fie->code != MEDIA_BUS_FMT_SBGGR10_1X10)
-		return -EINVAL;
-
+	fie->code = MEDIA_BUS_FMT_SBGGR10_1X10;
 	fie->width = supported_modes[fie->index].width;
 	fie->height = supported_modes[fie->index].height;
 	fie->interval = supported_modes[fie->index].max_fps;

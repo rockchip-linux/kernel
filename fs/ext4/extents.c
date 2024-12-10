@@ -371,7 +371,7 @@ static int ext4_valid_extent_entries(struct inode *inode,
 {
 	unsigned short entries;
 	ext4_lblk_t lblock = 0;
-	ext4_lblk_t prev = 0;
+	ext4_lblk_t cur = 0;
 
 	if (eh->eh_entries == 0)
 		return 1;
@@ -395,11 +395,11 @@ static int ext4_valid_extent_entries(struct inode *inode,
 
 			/* Check for overlapping extents */
 			lblock = le32_to_cpu(ext->ee_block);
-			if ((lblock <= prev) && prev) {
+			if (lblock < cur) {
 				*pblk = ext4_ext_pblock(ext);
 				return 0;
 			}
-			prev = lblock + ext4_ext_get_actual_len(ext) - 1;
+			cur = lblock + ext4_ext_get_actual_len(ext);
 			ext++;
 			entries--;
 		}
@@ -419,13 +419,13 @@ static int ext4_valid_extent_entries(struct inode *inode,
 
 			/* Check for overlapping index extents */
 			lblock = le32_to_cpu(ext_idx->ei_block);
-			if ((lblock <= prev) && prev) {
+			if (lblock < cur) {
 				*pblk = ext4_idx_pblock(ext_idx);
 				return 0;
 			}
 			ext_idx++;
 			entries--;
-			prev = lblock;
+			cur = lblock + 1;
 		}
 	}
 	return 1;
@@ -457,6 +457,10 @@ static int __ext4_ext_check(const char *function, unsigned int line,
 	}
 	if (unlikely(le16_to_cpu(eh->eh_entries) > le16_to_cpu(eh->eh_max))) {
 		error_msg = "invalid eh_entries";
+		goto corrupted;
+	}
+	if (unlikely((eh->eh_entries == 0) && (depth > 0))) {
+		error_msg = "eh_entries is 0 but eh_depth is > 0";
 		goto corrupted;
 	}
 	if (!ext4_valid_extent_entries(inode, eh, lblk, &pblk, depth)) {
@@ -4498,9 +4502,9 @@ retry:
 	return ret > 0 ? ret2 : ret;
 }
 
-static int ext4_collapse_range(struct inode *inode, loff_t offset, loff_t len);
+static int ext4_collapse_range(struct file *file, loff_t offset, loff_t len);
 
-static int ext4_insert_range(struct inode *inode, loff_t offset, loff_t len);
+static int ext4_insert_range(struct file *file, loff_t offset, loff_t len);
 
 static long ext4_zero_range(struct file *file, loff_t offset,
 			    loff_t len, int mode)
@@ -4570,6 +4574,10 @@ static long ext4_zero_range(struct file *file, loff_t offset,
 
 	/* Wait all existing dio workers, newcomers will block on i_mutex */
 	inode_dio_wait(inode);
+
+	ret = file_modified(file);
+	if (ret)
+		goto out_mutex;
 
 	/* Preallocate the range including the unaligned edges */
 	if (partial_begin || partial_end) {
@@ -4686,24 +4694,24 @@ long ext4_fallocate(struct file *file, int mode, loff_t offset, loff_t len)
 		     FALLOC_FL_INSERT_RANGE))
 		return -EOPNOTSUPP;
 
-	ext4_fc_start_update(inode);
-
-	if (mode & FALLOC_FL_PUNCH_HOLE) {
-		ret = ext4_punch_hole(inode, offset, len);
-		goto exit;
-	}
-
+	inode_lock(inode);
 	ret = ext4_convert_inline_data(inode);
+	inode_unlock(inode);
 	if (ret)
 		goto exit;
 
+	if (mode & FALLOC_FL_PUNCH_HOLE) {
+		ret = ext4_punch_hole(file, offset, len);
+		goto exit;
+	}
+
 	if (mode & FALLOC_FL_COLLAPSE_RANGE) {
-		ret = ext4_collapse_range(inode, offset, len);
+		ret = ext4_collapse_range(file, offset, len);
 		goto exit;
 	}
 
 	if (mode & FALLOC_FL_INSERT_RANGE) {
-		ret = ext4_insert_range(inode, offset, len);
+		ret = ext4_insert_range(file, offset, len);
 		goto exit;
 	}
 
@@ -4739,6 +4747,10 @@ long ext4_fallocate(struct file *file, int mode, loff_t offset, loff_t len)
 	/* Wait all existing dio workers, newcomers will block on i_mutex */
 	inode_dio_wait(inode);
 
+	ret = file_modified(file);
+	if (ret)
+		goto out;
+
 	ret = ext4_alloc_file_blocks(file, lblk, max_blocks, new_size, flags);
 	if (ret)
 		goto out;
@@ -4751,7 +4763,6 @@ out:
 	inode_unlock(inode);
 	trace_ext4_fallocate_exit(inode, offset, max_blocks, ret);
 exit:
-	ext4_fc_stop_update(inode);
 	return ret;
 }
 
@@ -5169,6 +5180,7 @@ ext4_ext_shift_extents(struct inode *inode, handle_t *handle,
 	 * and it is decreased till we reach start.
 	 */
 again:
+	ret = 0;
 	if (SHIFT == SHIFT_LEFT)
 		iterator = &start;
 	else
@@ -5212,14 +5224,21 @@ again:
 					ext4_ext_get_actual_len(extent);
 		} else {
 			extent = EXT_FIRST_EXTENT(path[depth].p_hdr);
-			if (le32_to_cpu(extent->ee_block) > 0)
+			if (le32_to_cpu(extent->ee_block) > start)
 				*iterator = le32_to_cpu(extent->ee_block) - 1;
-			else
-				/* Beginning is reached, end of the loop */
+			else if (le32_to_cpu(extent->ee_block) == start)
 				iterator = NULL;
-			/* Update path extent in case we need to stop */
-			while (le32_to_cpu(extent->ee_block) < start)
+			else {
+				extent = EXT_LAST_EXTENT(path[depth].p_hdr);
+				while (le32_to_cpu(extent->ee_block) >= start)
+					extent--;
+
+				if (extent == EXT_LAST_EXTENT(path[depth].p_hdr))
+					break;
+
 				extent++;
+				iterator = NULL;
+			}
 			path[depth].p_ext = extent;
 		}
 		ret = ext4_ext_shift_path_extents(path, shift, inode,
@@ -5241,8 +5260,9 @@ out:
  * This implements the fallocate's collapse range functionality for ext4
  * Returns: 0 and non-zero on error.
  */
-static int ext4_collapse_range(struct inode *inode, loff_t offset, loff_t len)
+static int ext4_collapse_range(struct file *file, loff_t offset, loff_t len)
 {
+	struct inode *inode = file_inode(file);
 	struct super_block *sb = inode->i_sb;
 	ext4_lblk_t punch_start, punch_stop;
 	handle_t *handle;
@@ -5292,6 +5312,10 @@ static int ext4_collapse_range(struct inode *inode, loff_t offset, loff_t len)
 
 	/* Wait for existing dio to complete */
 	inode_dio_wait(inode);
+
+	ret = file_modified(file);
+	if (ret)
+		goto out_mutex;
 
 	/*
 	 * Prevent page faults from reinstantiating pages we have released from
@@ -5387,8 +5411,9 @@ out_mutex:
  * by len bytes.
  * Returns 0 on success, error otherwise.
  */
-static int ext4_insert_range(struct inode *inode, loff_t offset, loff_t len)
+static int ext4_insert_range(struct file *file, loff_t offset, loff_t len)
 {
+	struct inode *inode = file_inode(file);
 	struct super_block *sb = inode->i_sb;
 	handle_t *handle;
 	struct ext4_ext_path *path;
@@ -5443,6 +5468,10 @@ static int ext4_insert_range(struct inode *inode, loff_t offset, loff_t len)
 
 	/* Wait for existing dio to complete */
 	inode_dio_wait(inode);
+
+	ret = file_modified(file);
+	if (ret)
+		goto out_mutex;
 
 	/*
 	 * Prevent page faults from reinstantiating pages we have released from
@@ -5770,6 +5799,15 @@ int ext4_clu_mapped(struct inode *inode, ext4_lblk_t lclu)
 	int depth, mapped = 0, err = 0;
 	struct ext4_extent *extent;
 	ext4_lblk_t first_lblk, first_lclu, last_lclu;
+
+	/*
+	 * if data can be stored inline, the logical cluster isn't
+	 * mapped - no physical clusters have been allocated, and the
+	 * file has no extents
+	 */
+	if (ext4_test_inode_state(inode, EXT4_STATE_MAY_INLINE_DATA) ||
+	    ext4_has_inline_data(inode))
+		return 0;
 
 	/* search for the extent closest to the first block in the cluster */
 	path = ext4_find_extent(inode, EXT4_C2B(sbi, lclu), NULL, 0);

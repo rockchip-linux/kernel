@@ -1256,6 +1256,8 @@ static int rkisp1_isp_sd_set_fmt(struct v4l2_subdev *sd,
 		const struct ispsd_in_fmt *in_fmt;
 
 		in_fmt = find_in_fmt(mf->code);
+		if (!in_fmt)
+			goto err;
 		isp_sd->in_fmt = *in_fmt;
 		isp_sd->in_frm = *mf;
 	} else if (fmt->pad == RKISP1_ISP_PAD_SOURCE_PATH) {
@@ -1263,6 +1265,8 @@ static int rkisp1_isp_sd_set_fmt(struct v4l2_subdev *sd,
 
 		/* Ignore width/height */
 		out_fmt = find_out_fmt(mf->code);
+		if (!out_fmt)
+			goto err;
 		isp_sd->out_fmt = *out_fmt;
 		/*
 		 * It is quantization for output,
@@ -1482,7 +1486,7 @@ static int rkisp1_isp_sd_s_power(struct v4l2_subdev *sd, int on)
 		}
 	} else {
 		rkisp1_config_clk(isp_dev, on);
-		ret = pm_runtime_put(isp_dev->dev);
+		ret = pm_runtime_put_sync(isp_dev->dev);
 		if (ret < 0)
 			return ret;
 	}

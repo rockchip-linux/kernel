@@ -22,6 +22,16 @@
 		nvmem-cell-names = "id";
 	};
 
+	debug: debug {
+		compatible = "rockchip,debug";
+		reg = <0x0 0xfe430000 0x0 0x1000>,
+		      <0x0 0xfe432000 0x0 0x1000>,
+		      <0x0 0xfe434000 0x0 0x1000>,
+		      <0x0 0xfe436000 0x0 0x1000>,
+		      <0x0 0xfe610000 0x0 0x1000>,
+		      <0x0 0xfe710000 0x0 0x1000>;
+	};
+
 	fiq_debugger: fiq-debugger {
 		compatible = "rockchip,fiq-debugger";
 		rockchip,serial-id = <2>;
@@ -40,6 +50,11 @@
 
 		drm_logo: drm-logo@00000000 {
 			compatible = "rockchip,drm-logo";
+			reg = <0x0 0x0 0x0 0x0>;
+		};
+
+		vendor_storage_rm: vendor-storage-rm@00000000 {
+			compatible = "rockchip,vendor-storage-rm";
 			reg = <0x0 0x0 0x0 0x0>;
 		};
 
@@ -77,6 +92,12 @@
 			linux,code = <KEY_POWER>;
 			wakeup-source;
 		};
+	};
+
+	vendor_storage: vendor-storage {
+		compatible = "rockchip,ram-vendor-storage";
+		memory-region = <&vendor_storage_rm>;
+		status = "okay";
 	};
 
 	rga: rga@ff680000 {

@@ -48,6 +48,11 @@
 #include <linux/version_compat_defs.h>
 #include <linux/wait.h>
 
+/* Explicitly include epoll header for old kernels. Not required from 4.16. */
+#if KERNEL_VERSION(4, 16, 0) > LINUX_VERSION_CODE
+#include <uapi/linux/eventpoll.h>
+#endif
+
 /* Define static_assert().
  *
  * The macro was introduced in kernel 5.1. But older vendor kernels may define
@@ -59,10 +64,6 @@
 // Stringify the expression if no message is given.
 #define static_assert(e, ...)  __static_assert(e, #__VA_ARGS__, #e)
 #define __static_assert(e, msg, ...) _Static_assert(e, msg)
-#endif
-
-#ifndef ENOTSUP
-#define ENOTSUP EOPNOTSUPP
 #endif
 
 /* The module printing prefix */
@@ -224,11 +225,8 @@ static inline bool reader_changes_is_valid_size(const size_t size)
  *
  * Return:
  * (0, U16_MAX] - the number of data elements allocated
- * -EINVAL - a pointer was invalid
- * -ENOTSUP - we do not support allocation of the context
  * -ERANGE - the requested memory size was invalid
  * -ENOMEM - could not allocate the memory
- * -EADDRINUSE - the buffer memory was already allocated
  */
 static int reader_changes_init(struct reader_changes *const changes,
 			       const size_t size)
@@ -623,31 +621,34 @@ exit:
  *
  * Return:
  * * 0 - no data ready
- * * POLLIN - state changes have been buffered
- * * -EBADF - the file descriptor did not have an attached reader
- * * -EINVAL - the IO control arguments were invalid
+ * * EPOLLIN | EPOLLRDNORM - state changes have been buffered
+ * * EPOLLHUP | EPOLLERR - IO control arguments were invalid or the file
+ *                         descriptor did not have an attached reader.
  */
 static __poll_t reader_poll(struct file *const file,
 			    struct poll_table_struct *const wait)
 {
 	struct reader *reader;
 	struct reader_changes *changes;
+	__poll_t mask = 0;
 
 	if (unlikely(!file || !wait))
-		return (__poll_t)-EINVAL;
+		return EPOLLHUP | EPOLLERR;
 
 	reader = file->private_data;
 	if (unlikely(!reader))
-		return (__poll_t)-EBADF;
+		return EPOLLHUP | EPOLLERR;
 
 	changes = &reader->changes;
-
 	if (reader_changes_count(changes) >= changes->threshold)
-		return POLLIN;
+		return EPOLLIN | EPOLLRDNORM;
 
 	poll_wait(file, &reader->wait_queue, wait);
 
-	return (reader_changes_count(changes) > 0) ? POLLIN : 0;
+	if (reader_changes_count(changes) > 0)
+		mask |= EPOLLIN | EPOLLRDNORM;
+
+	return mask;
 }
 
 /* The file operations virtual function table */

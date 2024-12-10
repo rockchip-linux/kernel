@@ -4,10 +4,10 @@
 #ifndef _RKISP_ISP_PARAM_H
 #define _RKISP_ISP_PARAM_H
 
-#include <linux/rkisp1-config.h>
-#include <linux/rkisp2-config.h>
-#include <linux/rkisp3-config.h>
-#include <linux/rkisp32-config.h>
+#include <linux/rk-isp1-config.h>
+#include <linux/rk-isp2-config.h>
+#include <linux/rk-isp3-config.h>
+#include <linux/rk-isp32-config.h>
 #include <linux/rk-preisp.h>
 #include "common.h"
 
@@ -35,16 +35,13 @@ struct rkisp_isp_params_ops {
 	void (*param_cfg)(struct rkisp_isp_params_vdev *params_vdev, u32 frame_id,
 			  enum rkisp_params_type type);
 	void (*param_cfgsram)(struct rkisp_isp_params_vdev *params_vdev);
-	void (*get_meshbuf_inf)(struct rkisp_isp_params_vdev *params_vdev,
-				void *meshbuf);
-	void (*set_meshbuf_size)(struct rkisp_isp_params_vdev *params_vdev,
-				 void *meshsize);
+	void (*get_meshbuf_inf)(struct rkisp_isp_params_vdev *params_vdev, void *meshbuf);
+	int (*set_meshbuf_size)(struct rkisp_isp_params_vdev *params_vdev, void *meshsize);
 	void (*free_meshbuf)(struct rkisp_isp_params_vdev *params_vdev, u64 id);
 	void (*stream_stop)(struct rkisp_isp_params_vdev *params_vdev);
 	void (*fop_release)(struct rkisp_isp_params_vdev *params_vdev);
 	bool (*check_bigmode)(struct rkisp_isp_params_vdev *params_vdev);
-	int (*info2ddr_cfg)(struct rkisp_isp_params_vdev *params_vdev,
-			    void *arg);
+	int (*info2ddr_cfg)(struct rkisp_isp_params_vdev *params_vdev, void *arg);
 };
 
 /*
@@ -76,7 +73,7 @@ struct rkisp_isp_params_vdev {
 	enum v4l2_quantization quantization;
 	enum rkisp_fmt_raw_pat_type raw_type;
 	u32 in_mbus_code;
-
+	u32 cur_frame_id;
 	struct preisp_hdrae_para_s hdrae_para;
 
 	struct rkisp_isp_params_ops *ops;
@@ -143,11 +140,9 @@ void rkisp_params_isr(struct rkisp_isp_params_vdev *params_vdev, u32 isp_mis);
 
 void rkisp_params_cfg(struct rkisp_isp_params_vdev *params_vdev, u32 frame_id);
 
-void rkisp_params_cfgsram(struct rkisp_isp_params_vdev *params_vdev);
-void rkisp_params_get_meshbuf_inf(struct rkisp_isp_params_vdev *params_vdev,
-				  void *meshbuf);
-void rkisp_params_set_meshbuf_size(struct rkisp_isp_params_vdev *params_vdev,
-				   void *meshsize);
+void rkisp_params_cfgsram(struct rkisp_isp_params_vdev *params_vdev, bool is_check);
+void rkisp_params_get_meshbuf_inf(struct rkisp_isp_params_vdev *params_vdev, void *meshbuf);
+int rkisp_params_set_meshbuf_size(struct rkisp_isp_params_vdev *params_vdev, void *meshsize);
 void rkisp_params_meshbuf_free(struct rkisp_isp_params_vdev *params_vdev, u64 id);
 void rkisp_params_stream_stop(struct rkisp_isp_params_vdev *params_vdev);
 bool rkisp_params_check_bigmode(struct rkisp_isp_params_vdev *params_vdev);

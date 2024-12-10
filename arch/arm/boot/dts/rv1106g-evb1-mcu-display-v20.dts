@@ -1,0 +1,14 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright (c) 2023 Rockchip Electronics Co., Ltd.
+ */
+
+/dts-v1/;
+
+#include "rv1106g-evb1-v11.dts"
+#include "rv1106-evb-ext-mcu-v10.dtsi"
+
+/ {
+	model = "Rockchip RV1106G EVB1 V11 Board + RK EVB MCU 8BIT Display V20 Ext Board";
+	compatible = "rockchip,rv1106g-evb1-mcu-display-v20", "rockchip,rv1106";
+};

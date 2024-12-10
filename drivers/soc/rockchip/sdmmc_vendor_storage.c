@@ -23,42 +23,16 @@
 #include <linux/soc/rockchip/rk_vendor_storage.h>
 #include <linux/kthread.h>
 #include <linux/delay.h>
+#include <misc/rkflash_vendor_storage.h>
 #include "../../mmc/host/rk_sdmmc_ops.h"
 
 #define EMMC_IDB_PART_OFFSET		64
 #define EMMC_SYS_PART_OFFSET		8064
 #define EMMC_BOOT_PART_SIZE		1024
 #define EMMC_VENDOR_PART_START		(1024 * 7)
-#define EMMC_VENDOR_PART_SIZE		128
+#define EMMC_VENDOR_PART_SIZE		VENDOR_PART_SIZE
 #define EMMC_VENDOR_PART_NUM		4
-#define EMMC_VENDOR_TAG			0x524B5644
-
-struct rk_vendor_req {
-	u32 tag;
-	u16 id;
-	u16 len;
-	u8 data[1024];
-};
-
-struct vendor_item {
-	u16  id;
-	u16  offset;
-	u16  size;
-	u16  flag;
-};
-
-struct vendor_info {
-	u32	tag;
-	u32	version;
-	u16	next_index;
-	u16	item_num;
-	u16	free_offset;
-	u16	free_size;
-	struct	vendor_item item[126]; /* 126 * 8*/
-	u8	data[EMMC_VENDOR_PART_SIZE * 512 - 1024 - 8];
-	u32	hash;
-	u32	version2;
-};
+#define EMMC_VENDOR_TAG			VENDOR_HEAD_TAG
 
 #ifdef CONFIG_ROCKCHIP_VENDOR_STORAGE_UPDATE_LOADER
 #define READ_SECTOR_IO		_IOW('r', 0x04, unsigned int)
@@ -69,22 +43,13 @@ struct vendor_info {
 #define GET_LOCK_FLAG_IO	_IOW('r', 0x53, unsigned int)
 #endif
 
-#define VENDOR_REQ_TAG		0x56524551
-#define VENDOR_READ_IO		_IOW('v', 0x01, unsigned int)
-#define VENDOR_WRITE_IO		_IOW('v', 0x02, unsigned int)
-
 static u8 *g_idb_buffer;
 static struct vendor_info *g_vendor;
 static DEFINE_MUTEX(vendor_ops_mutex);
 
 static int emmc_vendor_ops(u8 *buffer, u32 addr, u32 n_sec, int write)
 {
-	u32 i, ret = 0;
-
-	for (i = 0; i < n_sec; i++)
-		ret = rk_emmc_transfer(buffer + i * 512, addr + i, 512, write);
-
-	return ret;
+	return rk_emmc_transfer(buffer, addr, n_sec << 9, write);
 }
 
 static int emmc_vendor_storage_init(void)
@@ -240,34 +205,20 @@ static int emmc_vendor_write(u32 id, void *pbuf, u32 size)
 #ifdef CONFIG_ROCKCHIP_VENDOR_STORAGE_UPDATE_LOADER
 static int id_blk_read_data(u32 index, u32 n_sec, u8 *buf)
 {
-	u32 i;
-	u32 ret = 0;
-
 	if (index + n_sec >= 1024 * 5)
 		return 0;
 	index = index + EMMC_IDB_PART_OFFSET;
-	for (i = 0; i < n_sec; i++) {
-		ret = rk_emmc_transfer(buf + i * 512, index + i, 512, 0);
-		if (ret)
-			return ret;
-	}
-	return ret;
+
+	return rk_emmc_transfer(buf, index, n_sec << 9, 0);
 }
 
 static int id_blk_write_data(u32 index, u32 n_sec, u8 *buf)
 {
-	u32 i;
-	u32 ret = 0;
-
 	if (index + n_sec >= 1024 * 5)
 		return 0;
 	index = index + EMMC_IDB_PART_OFFSET;
-	for (i = 0; i < n_sec; i++) {
-		ret = rk_emmc_transfer(buf + i * 512, index + i, 512, 1);
-		if (ret)
-			return ret;
-	}
-	return ret;
+
+	return rk_emmc_transfer(buf, index, n_sec << 9, 1);
 }
 
 static int emmc_write_idblock(u32 size, u8 *buf, u32 *id_blk_tbl)
@@ -405,7 +356,7 @@ static long vendor_storage_ioctl(struct file *file, unsigned int cmd,
 {
 	long ret = -1;
 	int size;
-	struct rk_vendor_req *v_req;
+	struct RK_VENDOR_REQ *v_req;
 	u32 *page_buf;
 
 	page_buf = kmalloc(4096, GFP_KERNEL);
@@ -414,7 +365,7 @@ static long vendor_storage_ioctl(struct file *file, unsigned int cmd,
 
 	mutex_lock(&vendor_ops_mutex);
 
-	v_req = (struct rk_vendor_req *)page_buf;
+	v_req = (struct RK_VENDOR_REQ *)page_buf;
 
 	switch (cmd) {
 	case VENDOR_READ_IO:
@@ -573,7 +524,7 @@ exit:
 	return ret;
 }
 
-const struct file_operations vendor_storage_fops = {
+static const struct file_operations vendor_storage_fops = {
 	.open = vendor_storage_open,
 	.compat_ioctl	= vendor_storage_ioctl,
 	.unlocked_ioctl = vendor_storage_ioctl,

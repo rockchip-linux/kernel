@@ -87,6 +87,15 @@
 #ifdef FORCE_TPOWERON
 extern uint32 tpoweron_scale;
 #endif /* FORCE_TPOWERON */
+
+#if defined(CONFIG_ARCH_MSM)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
+#ifndef MSM_PCIE_CONFIG_NO_CFG_RESTORE
+#define MSM_PCIE_CONFIG_NO_CFG_RESTORE	0
+#endif /* MSM_PCIE_CONFIG_NO_CFG_RESTORE */
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0) */
+#endif /* CONFIG_ARCH_MSM */
+
 /* user defined data structures  */
 
 typedef bool (*dhdpcie_cb_fn_t)(void *);
@@ -997,9 +1006,6 @@ static int dhdpcie_suspend_dev(struct pci_dev *dev)
 		DHD_ERROR(("%s: pci_set_power_state error %d\n",
 			__FUNCTION__, ret));
 	}
-#ifdef OEM_ANDROID
-	dev->state_saved = FALSE;
-#endif /* OEM_ANDROID */
 	dhdpcie_suspend_dump_cfgregs(bus, "AFTER_EP_SUSPEND");
 	return ret;
 }
@@ -1037,9 +1043,6 @@ static int dhdpcie_resume_dev(struct pci_dev *dev)
 	pci_load_and_free_saved_state(dev, &pch->state);
 #endif /* OEM_ANDROID && LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0) */
 	DHD_ERROR(("%s: Enter\n", __FUNCTION__));
-#ifdef OEM_ANDROID
-	dev->state_saved = TRUE;
-#endif /* OEM_ANDROID */
 	pci_restore_state(dev);
 #ifdef FORCE_TPOWERON
 	if (dhdpcie_chip_req_forced_tpoweron(pch->bus)) {
@@ -1756,8 +1759,10 @@ int dhdpcie_get_resource(dhdpcie_info_t *dhdpcie_info)
 		goto err;
 	}
 	DHD_ERROR(("PCIe:%s:enabled link\n", __FUNCTION__));
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
 	/* recover the config space of both RC and Endpoint */
 	msm_pcie_recover_config(pdev);
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0) */
 #endif /* CONFIG_ARCH_MSM && !ENABLE_INSMOD_NO_FW_LOAD */
 #ifdef EXYNOS_PCIE_MODULE_PATCH
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0))
@@ -2329,7 +2334,9 @@ dhdpcie_start_host_pcieclock(dhd_bus_t *bus)
 	ret = msm_pcie_pm_control(MSM_PCIE_RESUME, bus->dev->bus->number,
 		bus->dev, NULL, options);
 	if (bus->no_cfg_restore && !ret) {
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
 		msm_pcie_recover_config(bus->dev);
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0) */
 		bus->no_cfg_restore = 0;
 	}
 #else
@@ -2788,7 +2795,7 @@ int dhdpcie_oob_intr_register(dhd_bus_t *bus)
 	}
 
 	if (dhdpcie_osinfo->oob_irq_num > 0) {
-		DHD_INFO_HW4(("%s OOB irq=%d flags=%X \n", __FUNCTION__,
+		DHD_ERROR(("%s OOB irq=%d flags=%X \n", __FUNCTION__,
 			(int)dhdpcie_osinfo->oob_irq_num,
 			(int)dhdpcie_osinfo->oob_irq_flags));
 		err = request_irq(dhdpcie_osinfo->oob_irq_num, wlan_oob_irq,

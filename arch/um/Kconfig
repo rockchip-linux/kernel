@@ -5,6 +5,7 @@ menu "UML-specific options"
 config UML
 	bool
 	default y
+	select ARCH_HAS_CPU_FINALIZE_INIT
 	select ARCH_HAS_KCOV
 	select ARCH_NO_PREEMPT
 	select HAVE_ARCH_AUDITSYSCALL
@@ -192,3 +193,8 @@ config UML_TIME_TRAVEL_SUPPORT
 endmenu
 
 source "arch/um/drivers/Kconfig"
+
+config ARCH_SUSPEND_POSSIBLE
+	def_bool y
+
+source "kernel/power/Kconfig"

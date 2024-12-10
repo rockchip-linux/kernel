@@ -412,19 +412,19 @@ struct fuse_iqueue_ops {
 	/**
 	 * Signal that a forget has been queued
 	 */
-	void (*wake_forget_and_unlock)(struct fuse_iqueue *fiq)
+	void (*wake_forget_and_unlock)(struct fuse_iqueue *fiq, bool sync)
 		__releases(fiq->lock);
 
 	/**
 	 * Signal that an INTERRUPT request has been queued
 	 */
-	void (*wake_interrupt_and_unlock)(struct fuse_iqueue *fiq)
+	void (*wake_interrupt_and_unlock)(struct fuse_iqueue *fiq, bool sync)
 		__releases(fiq->lock);
 
 	/**
 	 * Signal that a request has been queued
 	 */
-	void (*wake_pending_and_unlock)(struct fuse_iqueue *fiq)
+	void (*wake_pending_and_unlock)(struct fuse_iqueue *fiq, bool sync)
 		__releases(fiq->lock);
 
 	/**
@@ -570,6 +570,9 @@ struct fuse_conn {
 
 	/** Maxmum number of pages that can be used in a single request */
 	unsigned int max_pages;
+
+	/** Constrain ->max_pages to this value during feature negotiation */
+	unsigned int max_pages_limit;
 
 	/** Input queue */
 	struct fuse_iqueue iq;

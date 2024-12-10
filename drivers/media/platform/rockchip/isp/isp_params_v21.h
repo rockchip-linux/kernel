@@ -4,7 +4,7 @@
 #ifndef _RKISP_ISP_PARAM_V21_H
 #define _RKISP_ISP_PARAM_V21_H
 
-#include <linux/rkisp1-config.h>
+#include <linux/rk-isp1-config.h>
 #include <linux/rk-preisp.h>
 #include "common.h"
 #include "isp_params.h"
@@ -153,11 +153,6 @@ struct rkisp_isp_params_val_v21 {
 	u32 buf_lsclut_idx;
 
 	struct rkisp_dummy_buffer buf_3dnr;
-
-	struct isp2x_hdrmge_cfg last_hdrmge;
-	struct isp21_drc_cfg last_hdrdrc;
-	struct isp2x_hdrmge_cfg cur_hdrmge;
-	struct isp21_drc_cfg cur_hdrdrc;
 
 	u8 dhaz_en;
 	u8 wdr_en;

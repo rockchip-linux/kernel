@@ -1776,6 +1776,7 @@ void typec_set_pwr_opmode(struct typec_port *port,
 			partner->usb_pd = 1;
 			sysfs_notify(&partner_dev->kobj, NULL,
 				     "supports_usb_power_delivery");
+			kobject_uevent(&partner_dev->kobj, KOBJ_CHANGE);
 		}
 		put_device(partner_dev);
 	}
@@ -1983,7 +1984,6 @@ typec_port_register_altmode(struct typec_port *port,
 }
 EXPORT_SYMBOL_GPL(typec_port_register_altmode);
 
-#ifdef CONFIG_NO_GKI
 void typec_port_register_altmodes(struct typec_port *port,
 	const struct typec_altmode_ops *ops, void *drvdata,
 	struct typec_altmode **altmodes, size_t n)
@@ -2037,7 +2037,6 @@ void typec_port_register_altmodes(struct typec_port *port,
 	}
 }
 EXPORT_SYMBOL_GPL(typec_port_register_altmodes);
-#endif /* CONFIG_NO_GKI */
 
 /**
  * typec_register_port - Register a USB Type-C Port

@@ -304,9 +304,9 @@ vcodec_control_v3(struct venus_core *core, u32 session_type, bool enable)
 	void __iomem *ctrl;
 
 	if (session_type == VIDC_SESSION_TYPE_DEC)
-		ctrl = core->base + WRAPPER_VDEC_VCODEC_POWER_CONTROL;
+		ctrl = core->wrapper_base + WRAPPER_VDEC_VCODEC_POWER_CONTROL;
 	else
-		ctrl = core->base + WRAPPER_VENC_VCODEC_POWER_CONTROL;
+		ctrl = core->wrapper_base + WRAPPER_VENC_VCODEC_POWER_CONTROL;
 
 	if (enable)
 		writel(0, ctrl);
@@ -381,11 +381,11 @@ static int vcodec_control_v4(struct venus_core *core, u32 coreid, bool enable)
 	int ret;
 
 	if (coreid == VIDC_CORE_ID_1) {
-		ctrl = core->base + WRAPPER_VCODEC0_MMCC_POWER_CONTROL;
-		stat = core->base + WRAPPER_VCODEC0_MMCC_POWER_STATUS;
+		ctrl = core->wrapper_base + WRAPPER_VCODEC0_MMCC_POWER_CONTROL;
+		stat = core->wrapper_base + WRAPPER_VCODEC0_MMCC_POWER_STATUS;
 	} else {
-		ctrl = core->base + WRAPPER_VCODEC1_MMCC_POWER_CONTROL;
-		stat = core->base + WRAPPER_VCODEC1_MMCC_POWER_STATUS;
+		ctrl = core->wrapper_base + WRAPPER_VCODEC1_MMCC_POWER_CONTROL;
+		stat = core->wrapper_base + WRAPPER_VCODEC1_MMCC_POWER_STATUS;
 	}
 
 	if (enable) {
@@ -764,8 +764,8 @@ static int vcodec_domains_get(struct venus_core *core)
 	for (i = 0; i < res->vcodec_pmdomains_num; i++) {
 		pd = dev_pm_domain_attach_by_name(dev,
 						  res->vcodec_pmdomains[i]);
-		if (IS_ERR(pd))
-			return PTR_ERR(pd);
+		if (IS_ERR_OR_NULL(pd))
+			return PTR_ERR(pd) ? : -ENODATA;
 		core->pmdomains[i] = pd;
 	}
 

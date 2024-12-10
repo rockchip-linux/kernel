@@ -5,6 +5,8 @@
  * Copyright (C) 2022 Fuzhou Rockchip Electronics Co., Ltd.
  *
  * V0.0X01.0X00 init version.
+ * V0.0X01.0X01 fix power off torch not off issue.
+ * V0.0X01.0X02 fix get wrong time info issue.
  */
 
 #include <linux/delay.h>
@@ -21,7 +23,7 @@
 #include <media/v4l2-device.h>
 #include <linux/compat.h>
 
-#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x0)
+#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x02)
 #define AW36518_NAME			"aw36518"
 
 #define AW36518_REG_ID			0x00
@@ -32,6 +34,8 @@
 #define AW36518_REG_LED0_TORCH_CUR	0x05
 #define AW36518_REG_LED1_FLASH_CUR	0x03
 #define AW36518_REG_LED1_TORCH_CUR	0x05
+#define AW36518_HW_TORCH		BIT(4)
+#define AW36518_HW_STROBE		BIT(5)
 
 #define AW36518_REG_FAULT		0x0A
 #define AW36518_REG_FL_SC		0x70
@@ -294,11 +298,25 @@ static int aw36518_set_mode(struct aw36518_flash *flash,
 		ret = aw36518_i2c_write(flash, 0x01, 0x0C);
 		ret |= aw36518_flash_brt(flash, LED0);
 	} else if (mode == V4L2_FLASH_LED_MODE_TORCH) {
-		ret = aw36518_i2c_write(flash, 0x01, 0x08);
+		//ret = aw36518_i2c_write(flash, 0x01, 0x08);
+		/* hw torch/strobe io trigger torch */
+		ret = aw36518_i2c_write(flash, 0x01, AW36518_HW_TORCH);
 		ret |= aw36518_torch_brt(flash, LED0);
 		ret |= aw36518_led_on(flash, true);
+		if (flash->torch_gpio) {
+			v4l2_dbg(1, debug, &flash->leds[id].sd,
+				 "%s:set torch gpio high.\n", __func__);
+			gpiod_set_value_cansleep(flash->torch_gpio, 1);
+		}
+
 	} else {
 		ret = aw36518_i2c_write(flash, 0x01, 0x00);
+		if (flash->torch_gpio) {
+			v4l2_dbg(1, debug, &flash->leds[id].sd,
+				 "%s:set torch gpio low.\n", __func__);
+			gpiod_set_value_cansleep(flash->torch_gpio, 0);
+		}
+
 	}
 
 	return ret;
@@ -509,14 +527,16 @@ static int aw36518_init_controls(struct aw36518_flash *flash,
 }
 
 static void aw36518_get_time_info(struct v4l2_subdev *sd,
-				  struct old_timeval32 *compat_ti)
+				  struct __kernel_old_timeval *ti)
 {
 	struct aw36518_led *led =
 		container_of(sd, struct aw36518_led, sd);
 
-	memset(compat_ti, 0, sizeof(*compat_ti));
-	compat_ti->tv_sec = led->timestamp.tv_sec;
-	compat_ti->tv_usec = led->timestamp.tv_usec;
+	memset(ti, 0, sizeof(*ti));
+	ti->tv_sec = led->timestamp.tv_sec;
+	ti->tv_usec = led->timestamp.tv_usec;
+	v4l2_dbg(1, debug, sd,
+		 "%s: tv_sec:%ld, tv_usec:%ld\n", __func__, ti->tv_sec, ti->tv_usec);
 }
 
 static long aw36518_ioctl(struct v4l2_subdev *sd,
@@ -526,7 +546,7 @@ static long aw36518_ioctl(struct v4l2_subdev *sd,
 
 	switch (cmd) {
 	case RK_VIDIOC_FLASH_TIMEINFO:
-		aw36518_get_time_info(sd, (struct old_timeval32 *)arg);
+		aw36518_get_time_info(sd, (struct __kernel_old_timeval *)arg);
 		break;
 
 	default:
@@ -547,6 +567,7 @@ static long aw36518_compat_ioctl32(struct v4l2_subdev *sd,
 	void __user *up = compat_ptr(arg);
 	struct old_timeval32 *compat_t;
 	long ret;
+	struct __kernel_old_timeval t;
 
 	switch (cmd) {
 	case RK_VIDIOC_COMPAT_FLASH_TIMEINFO:
@@ -555,8 +576,10 @@ static long aw36518_compat_ioctl32(struct v4l2_subdev *sd,
 			ret = -ENOMEM;
 			return ret;
 		}
-		ret = aw36518_ioctl(sd, RK_VIDIOC_FLASH_TIMEINFO, compat_t);
+		ret = aw36518_ioctl(sd, RK_VIDIOC_FLASH_TIMEINFO, &t);
 		if (!ret) {
+			compat_t->tv_sec = t.tv_sec;
+			compat_t->tv_usec = t.tv_usec;
 			ret = copy_to_user(up, compat_t, sizeof(*compat_t));
 			if (ret)
 				ret = -EFAULT;
@@ -696,8 +719,9 @@ static int aw36518_of_init(struct i2c_client *client,
 	flash->en_gpio = devm_gpiod_get(&client->dev,
 					"enable", GPIOD_OUT_LOW);
 	if (IS_ERR(flash->en_gpio)) {
-		dev_err(&client->dev, "get enable-gpio failed\n");
-		goto err;
+		flash->en_gpio = NULL;
+		dev_warn(&client->dev,
+			 "get enable-gpio failed, using assist light mode\n");
 	}
 
 	flash->torch_gpio = devm_gpiod_get(&client->dev,
@@ -718,7 +742,7 @@ static int aw36518_of_init(struct i2c_client *client,
 	}
 	flash->tx_gpio = devm_gpiod_get(&client->dev,
 					    "tx", GPIOD_OUT_LOW);
-	if (IS_ERR(flash->strobe_gpio)) {
+	if (IS_ERR(flash->tx_gpio)) {
 		flash->tx_gpio = NULL;
 		dev_warn(&client->dev,
 			 "get tx-gpio failed, using assist light mode\n");
@@ -790,6 +814,10 @@ static int aw36518_init_device(struct aw36518_flash *flash)
 	/* tx input default low */
 	if (flash->tx_gpio)
 		gpiod_direction_output(flash->tx_gpio, 0);
+	/* STROBE/Torch input default low */
+	if (flash->torch_gpio)
+		gpiod_set_value_cansleep(flash->torch_gpio, 0);
+
 	return ret;
 }
 

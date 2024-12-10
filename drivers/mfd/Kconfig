@@ -930,15 +930,6 @@ config MFD_MAX96745
 	help
 	  Say yes here to add support for Maxim Semiconductor MAX96745.
 
-config MFD_MAX96752F
-	tristate "Maxim Semiconductor MAX96752F GMSL2 Deserializer Support"
-	depends on I2C
-	select MFD_CORE
-	select REGMAP_I2C
-	select I2C_MUX
-	help
-	  Say yes here to add support for Maxim Semiconductor MAX96752F.
-
 config MFD_MAX96755F
 	tristate "Maxim Semiconductor MAX96755 GMSL2 Serializer Support"
 	depends on I2C
@@ -946,15 +937,6 @@ config MFD_MAX96755F
 	select REGMAP_I2C
 	help
 	  Say yes here to add support for Maxim Semiconductor MAX96755.
-
-config MFD_MAX96776
-	tristate "Maxim Semiconductor MAX96776 GMSL2 Deserializer Support"
-	depends on I2C
-	select MFD_CORE
-	select REGMAP_I2C
-	select I2C_MUX
-	help
-	  Say yes here to add support for Maxim Semiconductor MAX96776.
 
 config MFD_MT6360
 	tristate "Mediatek MT6360 SubPMIC"
@@ -1206,6 +1188,14 @@ config MFD_RK806
 	  through SPI interface. The device supports multiple sub-devices
 	  including interrupts, LDO & DCDC regulators, and onkey.
 
+config MFD_RK806_I2C
+	tristate "RK806 Power Management chip with I2C"
+	select MFD_RK806
+	select REGMAP_I2C
+	select REGMAP_IRQ
+	help
+	  If you say yes here you get support for the RK806 PM chips with I2c interface.
+
 config MFD_RK806_SPI
 	tristate "RK806 Power Management chip with SPI"
 	select MFD_RK806
@@ -1235,6 +1225,9 @@ config MFD_RK1000
 	help
 	  if you say yes here you get support for the RK1000, with func as
 	  TVEncoder or CODEC.
+
+source "drivers/mfd/display-serdes/Kconfig"
+source "drivers/mfd/rkx110_x120/Kconfig"
 
 config MFD_RN5T618
 	tristate "Ricoh RN5T567/618 PMIC"

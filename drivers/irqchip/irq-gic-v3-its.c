@@ -268,13 +268,23 @@ static void vpe_to_cpuid_unlock(struct its_vpe *vpe, unsigned long flags)
 	raw_spin_unlock_irqrestore(&vpe->vpe_lock, flags);
 }
 
+static struct irq_chip its_vpe_irq_chip;
+
 static int irq_to_cpuid_lock(struct irq_data *d, unsigned long *flags)
 {
-	struct its_vlpi_map *map = get_vlpi_map(d);
+	struct its_vpe *vpe = NULL;
 	int cpu;
 
-	if (map) {
-		cpu = vpe_to_cpuid_lock(map->vpe, flags);
+	if (d->chip == &its_vpe_irq_chip) {
+		vpe = irq_data_get_irq_chip_data(d);
+	} else {
+		struct its_vlpi_map *map = get_vlpi_map(d);
+		if (map)
+			vpe = map->vpe;
+	}
+
+	if (vpe) {
+		cpu = vpe_to_cpuid_lock(vpe, flags);
 	} else {
 		/* Physical LPIs are already locked via the irq_desc lock */
 		struct its_device *its_dev = irq_data_get_irq_chip_data(d);
@@ -288,10 +298,18 @@ static int irq_to_cpuid_lock(struct irq_data *d, unsigned long *flags)
 
 static void irq_to_cpuid_unlock(struct irq_data *d, unsigned long flags)
 {
-	struct its_vlpi_map *map = get_vlpi_map(d);
+	struct its_vpe *vpe = NULL;
 
-	if (map)
-		vpe_to_cpuid_unlock(map->vpe, flags);
+	if (d->chip == &its_vpe_irq_chip) {
+		vpe = irq_data_get_irq_chip_data(d);
+	} else {
+		struct its_vlpi_map *map = get_vlpi_map(d);
+		if (map)
+			vpe = map->vpe;
+	}
+
+	if (vpe)
+		vpe_to_cpuid_unlock(vpe, flags);
 }
 
 static struct its_collection *valid_col(struct its_collection *col)
@@ -1423,13 +1441,28 @@ static void wait_for_syncr(void __iomem *rdbase)
 		cpu_relax();
 }
 
+static void __direct_lpi_inv(struct irq_data *d, u64 val)
+{
+	void __iomem *rdbase;
+	unsigned long flags;
+	int cpu;
+
+	/* Target the redistributor this LPI is currently routed to */
+	cpu = irq_to_cpuid_lock(d, &flags);
+	raw_spin_lock(&gic_data_rdist_cpu(cpu)->rd_lock);
+
+	rdbase = per_cpu_ptr(gic_rdists->rdist, cpu)->rd_base;
+	gic_write_lpir(val, rdbase + GICR_INVLPIR);
+	wait_for_syncr(rdbase);
+
+	raw_spin_unlock(&gic_data_rdist_cpu(cpu)->rd_lock);
+	irq_to_cpuid_unlock(d, flags);
+}
+
 static void direct_lpi_inv(struct irq_data *d)
 {
 	struct its_vlpi_map *map = get_vlpi_map(d);
-	void __iomem *rdbase;
-	unsigned long flags;
 	u64 val;
-	int cpu;
 
 	if (map) {
 		struct its_device *its_dev = irq_data_get_irq_chip_data(d);
@@ -1443,15 +1476,7 @@ static void direct_lpi_inv(struct irq_data *d)
 		val = d->hwirq;
 	}
 
-	/* Target the redistributor this LPI is currently routed to */
-	cpu = irq_to_cpuid_lock(d, &flags);
-	raw_spin_lock(&gic_data_rdist_cpu(cpu)->rd_lock);
-	rdbase = per_cpu_ptr(gic_rdists->rdist, cpu)->rd_base;
-	gic_write_lpir(val, rdbase + GICR_INVLPIR);
-
-	wait_for_syncr(rdbase);
-	raw_spin_unlock(&gic_data_rdist_cpu(cpu)->rd_lock);
-	irq_to_cpuid_unlock(d, flags);
+	__direct_lpi_inv(d, val);
 }
 
 static void lpi_update_config(struct irq_data *d, u8 clr, u8 set)
@@ -1493,7 +1518,7 @@ static void its_vlpi_set_doorbell(struct irq_data *d, bool enable)
 	 *
 	 * Ideally, we'd issue a VMAPTI to set the doorbell to its LPI
 	 * value or to 1023, depending on the enable bit. But that
-	 * would be issueing a mapping for an /existing/ DevID+EventID
+	 * would be issuing a mapping for an /existing/ DevID+EventID
 	 * pair, which is UNPREDICTABLE. Instead, let's issue a VMOVI
 	 * to the /same/ vPE, using this opportunity to adjust the
 	 * doorbell. Mouahahahaha. We loves it, Precious.
@@ -1616,7 +1641,7 @@ static int its_select_cpu(struct irq_data *d,
 
 		cpu = cpumask_pick_least_loaded(d, tmpmask);
 	} else {
-		cpumask_and(tmpmask, irq_data_get_affinity_mask(d), cpu_online_mask);
+		cpumask_copy(tmpmask, aff_mask);
 
 		/* If we cannot cross sockets, limit the search to that node */
 		if ((its_dev->its->flags & ITS_FLAGS_WORKAROUND_CAVIUM_23144) &&
@@ -2168,7 +2193,9 @@ static struct page *its_allocate_prop_table(gfp_t gfp_flags)
 {
 	struct page *prop_page;
 
-	if (of_machine_is_compatible("rockchip,rk3568") || of_machine_is_compatible("rockchip,rk3566"))
+	if (of_machine_is_compatible("rockchip,rk3568") ||
+	    of_machine_is_compatible("rockchip,rk3567") ||
+	    of_machine_is_compatible("rockchip,rk3566"))
 		gfp_flags |= GFP_DMA32;
 	prop_page = alloc_pages(gfp_flags, get_order(LPI_PROPBASE_SZ));
 	if (!prop_page)
@@ -2306,7 +2333,9 @@ static int its_setup_baser(struct its_node *its, struct its_baser *baser,
 	}
 
 	gfp_flags = GFP_KERNEL | __GFP_ZERO;
-	if (of_machine_is_compatible("rockchip,rk3568") || of_machine_is_compatible("rockchip,rk3566"))
+	if (of_machine_is_compatible("rockchip,rk3568") ||
+	    of_machine_is_compatible("rockchip,rk3567") ||
+	    of_machine_is_compatible("rockchip,rk3566"))
 		gfp_flags |= GFP_DMA32;
 	page = alloc_pages_node(its->numa_node, gfp_flags, order);
 	if (!page)
@@ -2357,6 +2386,7 @@ retry_baser:
 
 	if (IS_ENABLED(CONFIG_NO_GKI) &&
 	    (of_machine_is_compatible("rockchip,rk3568") ||
+	     of_machine_is_compatible("rockchip,rk3567") ||
 	     of_machine_is_compatible("rockchip,rk3566") ||
 	     of_machine_is_compatible("rockchip,rk3588"))) {
 		if (tmp & GITS_BASER_SHAREABILITY_MASK)
@@ -2947,7 +2977,9 @@ static struct page *its_allocate_pending_table(gfp_t gfp_flags)
 {
 	struct page *pend_page;
 
-	if (of_machine_is_compatible("rockchip,rk3568") || of_machine_is_compatible("rockchip,rk3566"))
+	if (of_machine_is_compatible("rockchip,rk3568") ||
+	    of_machine_is_compatible("rockchip,rk3567") ||
+	    of_machine_is_compatible("rockchip,rk3566"))
 		gfp_flags |= GFP_DMA32;
 	pend_page = alloc_pages(gfp_flags | __GFP_ZERO,
 				get_order(LPI_PENDBASE_SZ));
@@ -3021,17 +3053,11 @@ static int __init allocate_lpi_tables(void)
 	return 0;
 }
 
-static u64 its_clear_vpend_valid(void __iomem *vlpi_base, u64 clr, u64 set)
+static u64 read_vpend_dirty_clear(void __iomem *vlpi_base)
 {
 	u32 count = 1000000;	/* 1s! */
 	bool clean;
 	u64 val;
-
-	val = gicr_read_vpendbaser(vlpi_base + GICR_VPENDBASER);
-	val &= ~GICR_VPENDBASER_Valid;
-	val &= ~clr;
-	val |= set;
-	gicr_write_vpendbaser(val, vlpi_base + GICR_VPENDBASER);
 
 	do {
 		val = gicr_read_vpendbaser(vlpi_base + GICR_VPENDBASER);
@@ -3043,10 +3069,26 @@ static u64 its_clear_vpend_valid(void __iomem *vlpi_base, u64 clr, u64 set)
 		}
 	} while (!clean && count);
 
-	if (unlikely(val & GICR_VPENDBASER_Dirty)) {
+	if (unlikely(!clean))
 		pr_err_ratelimited("ITS virtual pending table not cleaning\n");
+
+	return val;
+}
+
+static u64 its_clear_vpend_valid(void __iomem *vlpi_base, u64 clr, u64 set)
+{
+	u64 val;
+
+	/* Make sure we wait until the RD is done with the initial scan */
+	val = read_vpend_dirty_clear(vlpi_base);
+	val &= ~GICR_VPENDBASER_Valid;
+	val &= ~clr;
+	val |= set;
+	gicr_write_vpendbaser(val, vlpi_base + GICR_VPENDBASER);
+
+	val = read_vpend_dirty_clear(vlpi_base);
+	if (unlikely(val & GICR_VPENDBASER_Dirty))
 		val |= GICR_VPENDBASER_PendingLast;
-	}
 
 	return val;
 }
@@ -3098,6 +3140,7 @@ static void its_cpu_init_lpis(void)
 
 	if (IS_ENABLED(CONFIG_NO_GKI) &&
 	    (of_machine_is_compatible("rockchip,rk3568") ||
+	     of_machine_is_compatible("rockchip,rk3567") ||
 	     of_machine_is_compatible("rockchip,rk3566") ||
 	     of_machine_is_compatible("rockchip,rk3588")))
 		tmp &= ~GICR_PROPBASER_SHAREABILITY_MASK;
@@ -3128,6 +3171,7 @@ static void its_cpu_init_lpis(void)
 
 	if (IS_ENABLED(CONFIG_NO_GKI) &&
 	    (of_machine_is_compatible("rockchip,rk3568") ||
+	     of_machine_is_compatible("rockchip,rk3567") ||
 	     of_machine_is_compatible("rockchip,rk3566") ||
 	     of_machine_is_compatible("rockchip,rk3588")))
 		tmp &= ~GICR_PENDBASER_SHAREABILITY_MASK;
@@ -3153,7 +3197,7 @@ static void its_cpu_init_lpis(void)
 
 		/*
 		 * It's possible for CPU to receive VLPIs before it is
-		 * sheduled as a vPE, especially for the first CPU, and the
+		 * scheduled as a vPE, especially for the first CPU, and the
 		 * VLPI with INTID larger than 2^(IDbits+1) will be considered
 		 * as out of range and dropped by GIC.
 		 * So we initialize IDbits to known value to avoid VLPI drop.
@@ -3296,7 +3340,9 @@ static bool its_alloc_table_entry(struct its_node *its,
 	if (!table[idx]) {
 		gfp_t gfp_flags = GFP_KERNEL | __GFP_ZERO;
 
-		if (of_machine_is_compatible("rockchip,rk3568") || of_machine_is_compatible("rockchip,rk3566"))
+		if (of_machine_is_compatible("rockchip,rk3568") ||
+		    of_machine_is_compatible("rockchip,rk3567") ||
+		    of_machine_is_compatible("rockchip,rk3566"))
 			gfp_flags |= GFP_DMA32;
 		page = alloc_pages_node(its->numa_node, gfp_flags,
 					get_order(baser->psz));
@@ -3404,9 +3450,15 @@ static struct its_device *its_create_device(struct its_node *its, u32 dev_id,
 	sz = nr_ites * (FIELD_GET(GITS_TYPER_ITT_ENTRY_SIZE, its->typer) + 1);
 	sz = max(sz, ITS_ITT_ALIGN) + ITS_ITT_ALIGN - 1;
 	gfp_flags = GFP_KERNEL;
-	if (of_machine_is_compatible("rockchip,rk3568") || of_machine_is_compatible("rockchip,rk3566"))
+	if (of_machine_is_compatible("rockchip,rk3568") ||
+	    of_machine_is_compatible("rockchip,rk3567") ||
+	    of_machine_is_compatible("rockchip,rk3566")) {
 		gfp_flags |= GFP_DMA32;
-	itt = (void *)__get_free_pages(gfp_flags, get_order(sz));
+		itt = (void *)__get_free_pages(gfp_flags, get_order(sz));
+	} else {
+		itt = kzalloc_node(sz, gfp_flags, its->numa_node);
+	}
+
 	if (alloc_lpis) {
 		lpi_map = its_lpi_alloc(nvecs, &lpi_base, &nr_lpis);
 		if (lpi_map)
@@ -3420,7 +3472,14 @@ static struct its_device *its_create_device(struct its_node *its, u32 dev_id,
 
 	if (!dev || !itt ||  !col_map || (!lpi_map && alloc_lpis)) {
 		kfree(dev);
-		free_pages((unsigned long)itt, get_order(sz));
+
+		if (of_machine_is_compatible("rockchip,rk3568") ||
+		    of_machine_is_compatible("rockchip,rk3567") ||
+		    of_machine_is_compatible("rockchip,rk3566"))
+			free_pages((unsigned long)itt, get_order(sz));
+		else
+			kfree(itt);
+
 		kfree(lpi_map);
 		kfree(col_map);
 		return NULL;
@@ -3458,7 +3517,14 @@ static void its_free_device(struct its_device *its_dev)
 	list_del(&its_dev->entry);
 	raw_spin_unlock_irqrestore(&its_dev->its->lock, flags);
 	kfree(its_dev->event_map.col_map);
-	free_pages((unsigned long)its_dev->itt, get_order(its_dev->itt_sz));
+
+	if (of_machine_is_compatible("rockchip,rk3568") ||
+	    of_machine_is_compatible("rockchip,rk3567") ||
+	    of_machine_is_compatible("rockchip,rk3566"))
+		free_pages((unsigned long)its_dev->itt, get_order(its_dev->itt_sz));
+	else
+		kfree(its_dev->itt);
+
 	kfree(its_dev);
 }
 
@@ -3653,7 +3719,7 @@ static void its_irq_domain_free(struct irq_domain *domain, unsigned int virq,
 
 	/*
 	 * If all interrupts have been freed, start mopping the
-	 * floor. This is conditionned on the device not being shared.
+	 * floor. This is conditioned on the device not being shared.
 	 */
 	if (!its_dev->shared &&
 	    bitmap_empty(its_dev->event_map.lpi_map,
@@ -3958,18 +4024,10 @@ static void its_vpe_send_inv(struct irq_data *d)
 {
 	struct its_vpe *vpe = irq_data_get_irq_chip_data(d);
 
-	if (gic_rdists->has_direct_lpi) {
-		void __iomem *rdbase;
-
-		/* Target the redistributor this VPE is currently known on */
-		raw_spin_lock(&gic_data_rdist_cpu(vpe->col_idx)->rd_lock);
-		rdbase = per_cpu_ptr(gic_rdists->rdist, vpe->col_idx)->rd_base;
-		gic_write_lpir(d->parent_data->hwirq, rdbase + GICR_INVLPIR);
-		wait_for_syncr(rdbase);
-		raw_spin_unlock(&gic_data_rdist_cpu(vpe->col_idx)->rd_lock);
-	} else {
+	if (gic_rdists->has_direct_lpi)
+		__direct_lpi_inv(d, d->parent_data->hwirq);
+	else
 		its_vpe_send_cmd(vpe, its_send_inv);
-	}
 }
 
 static void its_vpe_mask_irq(struct irq_data *d)
@@ -4231,7 +4289,7 @@ static int its_sgi_set_affinity(struct irq_data *d,
 {
 	/*
 	 * There is no notion of affinity for virtual SGIs, at least
-	 * not on the host (since they can only be targetting a vPE).
+	 * not on the host (since they can only be targeting a vPE).
 	 * Tell the kernel we've done whatever it asked for.
 	 */
 	irq_data_update_effective_affinity(d, mask_val);
@@ -4276,7 +4334,7 @@ static int its_sgi_get_irqchip_state(struct irq_data *d,
 	/*
 	 * Locking galore! We can race against two different events:
 	 *
-	 * - Concurent vPE affinity change: we must make sure it cannot
+	 * - Concurrent vPE affinity change: we must make sure it cannot
 	 *   happen, or we'll talk to the wrong redistributor. This is
 	 *   identical to what happens with vLPIs.
 	 *
@@ -5059,7 +5117,9 @@ static int __init its_probe_one(struct resource *res,
 	its->numa_node = numa_node;
 
 	gfp_flags = GFP_KERNEL | __GFP_ZERO;
-	if (of_machine_is_compatible("rockchip,rk3568") || of_machine_is_compatible("rockchip,rk3566"))
+	if (of_machine_is_compatible("rockchip,rk3568") ||
+	    of_machine_is_compatible("rockchip,rk3567") ||
+	    of_machine_is_compatible("rockchip,rk3566"))
 		gfp_flags |= GFP_DMA32;
 	page = alloc_pages_node(its->numa_node, gfp_flags,
 				get_order(ITS_CMD_QUEUE_SZ));
@@ -5094,6 +5154,7 @@ static int __init its_probe_one(struct resource *res,
 
 	if (IS_ENABLED(CONFIG_NO_GKI) &&
 	    (of_machine_is_compatible("rockchip,rk3568") ||
+	     of_machine_is_compatible("rockchip,rk3567") ||
 	     of_machine_is_compatible("rockchip,rk3566") ||
 	     of_machine_is_compatible("rockchip,rk3588")))
 		tmp &= ~GITS_CBASER_SHAREABILITY_MASK;

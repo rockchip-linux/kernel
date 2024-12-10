@@ -118,9 +118,21 @@
 
 #define BASE_QUEUE_MAX_PRIORITY (15U)
 
-/* CQS Sync object is an array of __u32 event_mem[2], error field index is 1 */
-#define BASEP_EVENT_VAL_INDEX (0U)
-#define BASEP_EVENT_ERR_INDEX (1U)
+/* Sync32 object fields definition */
+#define BASEP_EVENT32_VAL_OFFSET (0U)
+#define BASEP_EVENT32_ERR_OFFSET (4U)
+#define BASEP_EVENT32_SIZE_BYTES (8U)
+
+/* Sync64 object fields definition */
+#define BASEP_EVENT64_VAL_OFFSET (0U)
+#define BASEP_EVENT64_ERR_OFFSET (8U)
+#define BASEP_EVENT64_SIZE_BYTES (16U)
+
+/* Sync32 object alignment, equal to its size */
+#define BASEP_EVENT32_ALIGN_BYTES (8U)
+
+/* Sync64 object alignment, equal to its size */
+#define BASEP_EVENT64_ALIGN_BYTES (16U)
 
 /* The upper limit for number of objects that could be waited/set per command.
  * This limit is now enforced as internally the error inherit inputs are
@@ -132,6 +144,9 @@
 /* CSF CSI EXCEPTION_HANDLER_FLAGS */
 #define BASE_CSF_TILER_OOM_EXCEPTION_FLAG (1u << 0)
 #define BASE_CSF_EXCEPTION_HANDLER_FLAGS_MASK (BASE_CSF_TILER_OOM_EXCEPTION_FLAG)
+
+/* Initial value for LATEST_FLUSH register */
+#define POWER_DOWN_LATEST_FLUSH_VALUE ((uint32_t)1)
 
 /**
  * enum base_kcpu_command_type - Kernel CPU queue command type.
@@ -573,6 +588,7 @@ struct base_csf_notification {
  *   is a bitpattern where a set bit indicates that the format is supported.
  *   Before using a texture format, it is recommended that the corresponding
  *   bit be checked.
+ * @paddings: Padding bytes.
  * @gpu_available_memory_size: Theoretical maximum memory available to the GPU.
  *   It is unlikely that a client will be able to allocate all of this memory
  *   for their own purposes, but this at least provides an upper bound on the
@@ -590,6 +606,7 @@ struct mali_base_gpu_core_props {
 	__u32 gpu_freq_khz_max;
 	__u32 log2_program_counter_size;
 	__u32 texture_features[BASE_GPU_NUM_TEXTURE_FEATURES_REGISTERS];
+	__u8 paddings[4];
 	__u64 gpu_available_memory_size;
 };
 

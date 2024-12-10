@@ -7,7 +7,6 @@
  */
 
 #include <dt-bindings/clock/rockchip-ddr.h>
-#include <dt-bindings/soc/rockchip-system-status.h>
 #include <drm/drm_modeset_lock.h>
 #include <linux/arm-smccc.h>
 #include <linux/clk.h>
@@ -43,7 +42,6 @@
 #include <soc/rockchip/rockchip_system_monitor.h>
 #include <soc/rockchip/rockchip-system-status.h>
 #include <soc/rockchip/rockchip_opp_select.h>
-#include <soc/rockchip/scpi.h>
 #include <uapi/drm/drm_mode.h>
 
 #include "governor.h"
@@ -62,16 +60,13 @@
 					     input_handler)
 
 #define VIDEO_1080P_SIZE	(1920 * 1080)
-#define FIQ_INIT_HANDLER	(0x1)
-#define FIQ_CPU_TGT_BOOT	(0x0) /* to booting cpu */
-#define FIQ_NUM_FOR_DCF		(143) /* NA irq map to fiq for dcf */
 #define DTS_PAR_OFFSET		(4096)
 
 #define FALLBACK_STATIC_TEMPERATURE 55000
 
 struct dmc_freq_table {
 	unsigned long freq;
-	unsigned long volt;
+	struct dev_pm_opp_supply supplies[2];
 };
 
 struct share_params {
@@ -97,7 +92,9 @@ struct share_params {
 
 	u32 freq_count;
 	u32 freq_info_mhz[6];
-	 /* if need, add parameter after */
+	u32 wait_mode;
+	u32 vop_scan_line_time_ns;
+	/* if need, add parameter after */
 };
 
 static struct share_params *ddr_psci_param;
@@ -118,6 +115,7 @@ struct rockchip_dmcfreq {
 	struct regulator *vdd_center;
 	struct regulator *mem_reg;
 	struct notifier_block status_nb;
+	struct notifier_block panic_nb;
 	struct list_head video_info_list;
 	struct freq_map_table *cpu_bw_tbl;
 	struct work_struct boost_work;
@@ -135,12 +133,14 @@ struct rockchip_dmcfreq {
 	unsigned long video_1080p_rate;
 	unsigned long video_4k_rate;
 	unsigned long video_4k_10b_rate;
+	unsigned long video_4k_60p_rate;
 	unsigned long video_svep_rate;
 	unsigned long performance_rate;
 	unsigned long hdmi_rate;
 	unsigned long hdmirx_rate;
 	unsigned long idle_rate;
 	unsigned long suspend_rate;
+	unsigned long deep_suspend_rate;
 	unsigned long reboot_rate;
 	unsigned long boost_rate;
 	unsigned long fixed_rate;
@@ -180,7 +180,7 @@ static struct pm_qos_request pm_qos;
 static int rockchip_dmcfreq_opp_helper(struct dev_pm_set_opp_data *data);
 
 static struct monitor_dev_profile dmc_mdevp = {
-	.type = MONITOR_TPYE_DEV,
+	.type = MONITOR_TYPE_DEV,
 	.low_temp_adjust = rockchip_monitor_dev_low_temp_adjust,
 	.high_temp_adjust = rockchip_monitor_dev_high_temp_adjust,
 	.update_volt = rockchip_monitor_check_rate_volt,
@@ -349,6 +349,7 @@ static int rockchip_ddr_set_rate(unsigned long target_rate)
 
 	ddr_psci_param->hz = target_rate;
 	ddr_psci_param->lcdc_type = rk_drm_get_lcdc_type();
+	ddr_psci_param->vop_scan_line_time_ns = rockchip_drm_get_scan_line_time_ns();
 	ddr_psci_param->wait_flag1 = 1;
 	ddr_psci_param->wait_flag0 = 1;
 
@@ -593,12 +594,17 @@ static int rockchip_dmcfreq_get_dev_status(struct device *dev,
 	if (!dmcfreq->info.auto_freq_en)
 		return -EINVAL;
 
+	/*
+	 * RK3588 platform may crash if the CPU and MCU access the DFI/DMC
+	 * registers at same time.
+	 */
+	rockchip_monitor_volt_adjust_lock(dmcfreq->mdev_info);
 	for (i = 0; i < dmcfreq->edev_count; i++) {
 		ret = devfreq_event_get_event(dmcfreq->edev[i], &edata);
 		if (ret < 0) {
 			dev_err(dev, "failed to get event %s\n",
 				dmcfreq->edev[i]->desc->name);
-			return ret;
+			goto out;
 		}
 		if (i == dmcfreq->dfi_id) {
 			stat->busy_time = edata.load_count;
@@ -608,7 +614,10 @@ static int rockchip_dmcfreq_get_dev_status(struct device *dev,
 		}
 	}
 
-	return 0;
+out:
+	rockchip_monitor_volt_adjust_unlock(dmcfreq->mdev_info);
+
+	return ret;
 }
 
 static int rockchip_dmcfreq_get_cur_freq(struct device *dev,
@@ -979,70 +988,6 @@ end:
 	of_node_put(np_tim);
 }
 
-static struct rk3368_dram_timing *of_get_rk3368_timings(struct device *dev,
-							struct device_node *np)
-{
-	struct rk3368_dram_timing *timing = NULL;
-	struct device_node *np_tim;
-	int ret = 0;
-
-	np_tim = of_parse_phandle(np, "ddr_timing", 0);
-	if (np_tim) {
-		timing = devm_kzalloc(dev, sizeof(*timing), GFP_KERNEL);
-		if (!timing)
-			goto err;
-
-		ret |= of_property_read_u32(np_tim, "dram_spd_bin",
-					    &timing->dram_spd_bin);
-		ret |= of_property_read_u32(np_tim, "sr_idle",
-					    &timing->sr_idle);
-		ret |= of_property_read_u32(np_tim, "pd_idle",
-					    &timing->pd_idle);
-		ret |= of_property_read_u32(np_tim, "dram_dll_disb_freq",
-					    &timing->dram_dll_dis_freq);
-		ret |= of_property_read_u32(np_tim, "phy_dll_disb_freq",
-					    &timing->phy_dll_dis_freq);
-		ret |= of_property_read_u32(np_tim, "dram_odt_disb_freq",
-					    &timing->dram_odt_dis_freq);
-		ret |= of_property_read_u32(np_tim, "phy_odt_disb_freq",
-					    &timing->phy_odt_dis_freq);
-		ret |= of_property_read_u32(np_tim, "ddr3_drv",
-					    &timing->ddr3_drv);
-		ret |= of_property_read_u32(np_tim, "ddr3_odt",
-					    &timing->ddr3_odt);
-		ret |= of_property_read_u32(np_tim, "lpddr3_drv",
-					    &timing->lpddr3_drv);
-		ret |= of_property_read_u32(np_tim, "lpddr3_odt",
-					    &timing->lpddr3_odt);
-		ret |= of_property_read_u32(np_tim, "lpddr2_drv",
-					    &timing->lpddr2_drv);
-		ret |= of_property_read_u32(np_tim, "phy_clk_drv",
-					    &timing->phy_clk_drv);
-		ret |= of_property_read_u32(np_tim, "phy_cmd_drv",
-					    &timing->phy_cmd_drv);
-		ret |= of_property_read_u32(np_tim, "phy_dqs_drv",
-					    &timing->phy_dqs_drv);
-		ret |= of_property_read_u32(np_tim, "phy_odt",
-					    &timing->phy_odt);
-		ret |= of_property_read_u32(np_tim, "ddr_2t",
-					    &timing->ddr_2t);
-		if (ret) {
-			devm_kfree(dev, timing);
-			goto err;
-		}
-		of_node_put(np_tim);
-		return timing;
-	}
-
-err:
-	if (timing) {
-		devm_kfree(dev, timing);
-		timing = NULL;
-	}
-	of_node_put(np_tim);
-	return timing;
-}
-
 static struct rk3399_dram_timing *of_get_rk3399_timings(struct device *dev,
 							struct device_node *np)
 {
@@ -1257,7 +1202,7 @@ static __maybe_unused int rockchip_get_freq_info(struct rockchip_dmcfreq *dmcfre
 		return ret;
 	}
 
-	freq_table = kmalloc(sizeof(struct dmc_freq_table) * count, GFP_KERNEL);
+	freq_table = kzalloc(sizeof(*freq_table) * count, GFP_KERNEL);
 	for (i = 0, rate = 0; i < count; i++, rate++) {
 		/* find next rate */
 		opp = dev_pm_opp_find_freq_ceil(dmcfreq->dev, &rate);
@@ -1267,7 +1212,7 @@ static __maybe_unused int rockchip_get_freq_info(struct rockchip_dmcfreq *dmcfre
 			goto out;
 		}
 		freq_table[i].freq = rate;
-		freq_table[i].volt = dev_pm_opp_get_voltage(opp);
+		freq_table[i].supplies[0].u_volt = dev_pm_opp_get_voltage(opp);
 		dev_pm_opp_put(opp);
 
 		for (j = 0; j < dmcfreq->freq_count; j++) {
@@ -1284,7 +1229,7 @@ static __maybe_unused int rockchip_get_freq_info(struct rockchip_dmcfreq *dmcfre
 				break;
 			} else if (dmcfreq->freq_info_rate[i] < freq_table[j].freq) {
 				dev_pm_opp_add(dmcfreq->dev, dmcfreq->freq_info_rate[i],
-					       freq_table[j].volt);
+					       freq_table[j].supplies[0].u_volt);
 				break;
 			}
 		}
@@ -1311,8 +1256,8 @@ rockchip_dmcfreq_adjust_opp_table(struct rockchip_dmcfreq *dmcfreq)
 	struct arm_smccc_res res;
 	struct dev_pm_opp *opp;
 	struct opp_table *opp_table;
-	unsigned long target_rate = 0, last_rate = 0;
-	int i, count = 0;
+	struct dmc_freq_table *freq_table;
+	int i, j, count = 0, ret = 0;
 
 	res = sip_smc_dram(SHARE_PAGE_TYPE_DDR, 0,
 			   ROCKCHIP_SIP_CONFIG_DRAM_GET_FREQ_INFO);
@@ -1331,42 +1276,74 @@ rockchip_dmcfreq_adjust_opp_table(struct rockchip_dmcfreq *dmcfreq)
 		dmcfreq->freq_info_rate[i] = ddr_psci_param->freq_info_mhz[i] * 1000000;
 	dmcfreq->freq_count = ddr_psci_param->freq_count;
 
+	count = dev_pm_opp_get_opp_count(dev);
+	if (count <= 0) {
+		dev_err(dev, "there is no available opp\n");
+		ret = count ? count : -ENODATA;
+		return ret;
+	}
+
+	freq_table = kzalloc(sizeof(*freq_table) * count, GFP_KERNEL);
 	opp_table = dev_pm_opp_get_opp_table(dev);
-	if (!opp_table)
-		return -ENOMEM;
+	if (!opp_table) {
+		ret = -ENOMEM;
+		goto out;
+	}
 
 	mutex_lock(&opp_table->lock);
+	i = 0;
 	list_for_each_entry(opp, &opp_table->opp_list, node) {
 		if (!opp->available)
 			continue;
-		/* Search for a rounded floor frequency */
-		target_rate = 0;
-		for (i = 0; i < dmcfreq->freq_count; i++) {
-			if (dmcfreq->freq_info_rate[i] <= opp->rate)
-				target_rate = dmcfreq->freq_info_rate[i];
-		}
-		/* If not find, disable the opp */
-		if (!target_rate) {
-			opp->available = false;
-		} else {
-			/* If the opp rate is equal to last opp rate, disable it */
-			if (target_rate == last_rate) {
-				opp->available = false;
-			} else {
-				opp->rate = target_rate;
-				last_rate = opp->rate;
-				count++;
-			}
-		}
-	}
-	mutex_unlock(&opp_table->lock);
-	dev_pm_opp_put_opp_table(opp_table);
-	if (!count) {
-		dev_err(dev, "there is no available opp\n");
-		return -EINVAL;
+
+		freq_table[i].freq = opp->rate;
+		freq_table[i].supplies[0] = opp->supplies[0];
+		if (dmcfreq->regulator_count > 1)
+			freq_table[i].supplies[1] = opp->supplies[1];
+
+		i++;
 	}
 
-	return 0;
+	i = 0;
+	list_for_each_entry(opp, &opp_table->opp_list, node) {
+		if (!opp->available)
+			continue;
+
+		if (i >= dmcfreq->freq_count) {
+			opp->available = false;
+			continue;
+		}
+
+		for (j = 0; j < count; j++) {
+			if (dmcfreq->freq_info_rate[i] <= freq_table[j].freq) {
+				opp->rate = dmcfreq->freq_info_rate[i];
+				opp->supplies[0] = freq_table[j].supplies[0];
+				if (dmcfreq->regulator_count > 1)
+					opp->supplies[1] = freq_table[j].supplies[1];
+
+				break;
+			}
+		}
+		if (j == count) {
+			dev_err(dmcfreq->dev, "failed to match dmc_opp_table for %ld\n",
+				dmcfreq->freq_info_rate[i]);
+			if (i == 0) {
+				ret = -EPERM;
+				goto out;
+			} else {
+				opp->available = false;
+				dmcfreq->freq_count = i;
+			}
+		}
+		i++;
+	}
+
+	mutex_unlock(&opp_table->lock);
+	dev_pm_opp_put_opp_table(opp_table);
+
+out:
+	kfree(freq_table);
+	return ret;
 }
 
 static __maybe_unused int px30_dmc_init(struct platform_device *pdev,
@@ -1737,86 +1714,6 @@ static __maybe_unused int rk3328_dmc_init(struct platform_device *pdev,
 	return 0;
 }
 
-static __maybe_unused int rk3368_dmc_init(struct platform_device *pdev,
-					  struct rockchip_dmcfreq *dmcfreq)
-{
-	struct device *dev = &pdev->dev;
-	struct device_node *np = pdev->dev.of_node;
-	struct arm_smccc_res res;
-	struct rk3368_dram_timing *dram_timing;
-	struct clk *pclk_phy, *pclk_upctl;
-	int ret;
-	u32 dram_spd_bin;
-	u32 addr_mcu_el3;
-	u32 dclk_mode;
-	u32 lcdc_type;
-
-	pclk_phy = devm_clk_get(dev, "pclk_phy");
-	if (IS_ERR(pclk_phy)) {
-		dev_err(dev, "Cannot get the clk pclk_phy\n");
-		return PTR_ERR(pclk_phy);
-	}
-	ret = clk_prepare_enable(pclk_phy);
-	if (ret < 0) {
-		dev_err(dev, "failed to prepare/enable pclk_phy\n");
-		return ret;
-	}
-	pclk_upctl = devm_clk_get(dev, "pclk_upctl");
-	if (IS_ERR(pclk_upctl)) {
-		dev_err(dev, "Cannot get the clk pclk_upctl\n");
-		return PTR_ERR(pclk_upctl);
-	}
-	ret = clk_prepare_enable(pclk_upctl);
-	if (ret < 0) {
-		dev_err(dev, "failed to prepare/enable pclk_upctl\n");
-		return ret;
-	}
-
-	/*
-	 * Get dram timing and pass it to arm trust firmware,
-	 * the dram drvier in arm trust firmware will get these
-	 * timing and to do dram initial.
-	 */
-	dram_timing = of_get_rk3368_timings(dev, np);
-	if (dram_timing) {
-		dram_spd_bin = dram_timing->dram_spd_bin;
-		if (scpi_ddr_send_timing((u32 *)dram_timing,
-					 sizeof(struct rk3368_dram_timing)))
-			dev_err(dev, "send ddr timing timeout\n");
-	} else {
-		dev_err(dev, "get ddr timing from dts error\n");
-		dram_spd_bin = DDR3_DEFAULT;
-	}
-
-	res = sip_smc_mcu_el3fiq(FIQ_INIT_HANDLER,
-				 FIQ_NUM_FOR_DCF,
-				 FIQ_CPU_TGT_BOOT);
-	if ((res.a0) || (res.a1 == 0) || (res.a1 > 0x80000))
-		dev_err(dev, "Trust version error, pls check trust version\n");
-	addr_mcu_el3 = res.a1;
-
-	if (of_property_read_u32(np, "vop-dclk-mode", &dclk_mode) == 0)
-		scpi_ddr_dclk_mode(dclk_mode);
-
-	dmcfreq->set_rate_params =
-		devm_kzalloc(dev, sizeof(struct share_params), GFP_KERNEL);
-	if (!dmcfreq->set_rate_params)
-		return -ENOMEM;
-	rockchip_set_ddrclk_params(dmcfreq->set_rate_params);
-
-	lcdc_type = rk_drm_get_lcdc_type();
-
-	if (scpi_ddr_init(dram_spd_bin, 0, lcdc_type,
-			  addr_mcu_el3))
-		dev_err(dev, "ddr init error\n");
-	else
-		dev_dbg(dev, ("%s out\n"), __func__);
-
-	dmcfreq->set_auto_self_refresh = scpi_ddr_set_auto_self_refresh;
-
-	return 0;
-}
-
 static int rk3399_set_msch_readlatency(unsigned int readlatency)
 {
 	struct arm_smccc_res res;
@@ -1870,6 +1767,79 @@ static __maybe_unused int rk3399_dmc_init(struct platform_device *pdev,
 		      0, 0, 0, 0, &res);
 
 	dmcfreq->info.set_msch_readlatency = rk3399_set_msch_readlatency;
+
+	return 0;
+}
+
+static __maybe_unused int rk3528_dmc_init(struct platform_device *pdev,
+					  struct rockchip_dmcfreq *dmcfreq)
+{
+	struct arm_smccc_res res;
+	int ret;
+	int complt_irq;
+	u32 complt_hwirq;
+	struct irq_data *complt_irq_data;
+
+	res = sip_smc_dram(0, 0, ROCKCHIP_SIP_CONFIG_DRAM_GET_VERSION);
+	dev_notice(&pdev->dev, "current ATF version 0x%lx\n", res.a1);
+	if (res.a0 || res.a1 < 0x100) {
+		dev_err(&pdev->dev, "trusted firmware need update to V1.00 and above.\n");
+		return -ENXIO;
+	}
+
+	/*
+	 * first 4KB is used for interface parameters
+	 * after 4KB is dts parameters
+	 * request share memory size 4KB * 2
+	 */
+	res = sip_smc_request_share_mem(2, SHARE_PAGE_TYPE_DDR);
+	if (res.a0 != 0) {
+		dev_err(&pdev->dev, "no ATF memory for init\n");
+		return -ENOMEM;
+	}
+	ddr_psci_param = (struct share_params *)res.a1;
+	/* Clear ddr_psci_param, size is 4KB * 2 */
+	memset_io(ddr_psci_param, 0x0, 4096 * 2);
+
+	wait_ctrl.dcf_en = 0;
+
+	init_waitqueue_head(&wait_ctrl.wait_wq);
+	wait_ctrl.wait_en = 1;
+	wait_ctrl.wait_time_out_ms = 17 * 5;
+
+	complt_irq = platform_get_irq_byname(pdev, "complete");
+	if (complt_irq < 0) {
+		dev_err(&pdev->dev, "no IRQ for complt_irq: %d\n", complt_irq);
+		return complt_irq;
+	}
+	wait_ctrl.complt_irq = complt_irq;
+
+	ret = devm_request_irq(&pdev->dev, complt_irq, wait_dcf_complete_irq,
+			       0, dev_name(&pdev->dev), &wait_ctrl);
+	if (ret < 0) {
+		dev_err(&pdev->dev, "cannot request complt_irq\n");
+		return ret;
+	}
+	disable_irq(complt_irq);
+
+	complt_irq_data = irq_get_irq_data(complt_irq);
+	complt_hwirq = irqd_to_hwirq(complt_irq_data);
+	ddr_psci_param->complt_hwirq = complt_hwirq;
+
+	res = sip_smc_dram(SHARE_PAGE_TYPE_DDR, 0, ROCKCHIP_SIP_CONFIG_DRAM_INIT);
+	if (res.a0) {
+		dev_err(&pdev->dev, "rockchip_sip_config_dram_init error:%lx\n", res.a0);
+		return -ENOMEM;
+	}
+
+	ret = rockchip_get_freq_info(dmcfreq);
+	if (ret < 0) {
+		dev_err(&pdev->dev, "cannot get frequency info\n");
+		return ret;
+	}
+	dmcfreq->is_set_rate_direct = true;
+
+	dmcfreq->set_auto_self_refresh = rockchip_ddr_set_auto_self_refresh;
 
 	return 0;
 }
@@ -2023,6 +1993,15 @@ static __maybe_unused int rk3588_dmc_init(struct platform_device *pdev,
 		dmcfreq->sleep_mem_volt = opp->supplies[1].u_volt;
 	dev_pm_opp_put(opp);
 
+	if (of_property_read_u32(pdev->dev.of_node, "wait-mode", &ddr_psci_param->wait_mode))
+		ddr_psci_param->wait_mode = 0;
+
+	res = sip_smc_dram(SHARE_PAGE_TYPE_DDR, 0, ROCKCHIP_SIP_CONFIG_DRAM_GET_STALL_TIME);
+	if (res.a0)
+		dev_err(dmcfreq->dev, "Current ATF unsupported get_stall_time\n");
+	else
+		dmcfreq->info.stall_time_ns = (unsigned int)res.a1;
+
 	dmcfreq->set_auto_self_refresh = rockchip_ddr_set_auto_self_refresh;
 
 	return 0;
@@ -2135,11 +2114,14 @@ static const struct of_device_id rockchip_dmcfreq_of_match[] = {
 #if IS_ENABLED(CONFIG_CPU_RK3328)
 	{ .compatible = "rockchip,rk3328-dmc", .data = rk3328_dmc_init },
 #endif
-#if IS_ENABLED(CONFIG_CPU_RK3368)
-	{ .compatible = "rockchip,rk3368-dmc", .data = rk3368_dmc_init },
-#endif
 #if IS_ENABLED(CONFIG_CPU_RK3399)
 	{ .compatible = "rockchip,rk3399-dmc", .data = rk3399_dmc_init },
+#endif
+#if IS_ENABLED(CONFIG_CPU_RK3528)
+	{ .compatible = "rockchip,rk3528-dmc", .data = rk3528_dmc_init },
+#endif
+#if IS_ENABLED(CONFIG_CPU_RK3562)
+	{ .compatible = "rockchip,rk3562-dmc", .data = rk3568_dmc_init },
 #endif
 #if IS_ENABLED(CONFIG_CPU_RK3568)
 	{ .compatible = "rockchip,rk3568-dmc", .data = rk3568_dmc_init },
@@ -2271,6 +2253,9 @@ static int rockchip_get_system_status_rate(struct device_node *np,
 			break;
 		case SYS_STATUS_SUSPEND:
 			dmcfreq->suspend_rate = freq * 1000;
+			break;
+		case SYS_STATUS_DEEP_SUSPEND:
+			dmcfreq->deep_suspend_rate = freq * 1000;
 			break;
 		case SYS_STATUS_VIDEO_1080P:
 			dmcfreq->video_1080p_rate = freq * 1000;
@@ -2414,6 +2399,11 @@ static int rockchip_get_system_status_level(struct device_node *np,
 			dmcfreq->suspend_rate = rockchip_freq_level_2_rate(dmcfreq, level);
 			dev_info(dmcfreq->dev, "suspend_rate = %ld\n", dmcfreq->suspend_rate);
 			break;
+		case SYS_STATUS_DEEP_SUSPEND:
+			dmcfreq->deep_suspend_rate = rockchip_freq_level_2_rate(dmcfreq, level);
+			dev_info(dmcfreq->dev, "deep_suspend_rate = %ld\n",
+				 dmcfreq->deep_suspend_rate);
+			break;
 		case SYS_STATUS_VIDEO_1080P:
 			dmcfreq->video_1080p_rate = rockchip_freq_level_2_rate(dmcfreq, level);
 			dev_info(dmcfreq->dev, "video_1080p_rate = %ld\n",
@@ -2427,6 +2417,11 @@ static int rockchip_get_system_status_level(struct device_node *np,
 			dmcfreq->video_4k_10b_rate = rockchip_freq_level_2_rate(dmcfreq, level);
 			dev_info(dmcfreq->dev, "video_4k_10b_rate = %ld\n",
 				 dmcfreq->video_4k_10b_rate);
+			break;
+		case SYS_STATUS_VIDEO_4K_60P:
+			dmcfreq->video_4k_60p_rate = rockchip_freq_level_2_rate(dmcfreq, level);
+			dev_info(dmcfreq->dev, "video_4k_60p_rate = %ld\n",
+				 dmcfreq->video_4k_60p_rate);
 			break;
 		case SYS_STATUS_VIDEO_SVEP:
 			dmcfreq->video_svep_rate = rockchip_freq_level_2_rate(dmcfreq, level);
@@ -2551,6 +2546,11 @@ static int rockchip_dmcfreq_system_status_notifier(struct notifier_block *nb,
 			target_rate = dmcfreq->video_4k_10b_rate;
 	}
 
+	if (dmcfreq->video_4k_60p_rate && (status & SYS_STATUS_VIDEO_4K_60P)) {
+		if (dmcfreq->video_4k_60p_rate > target_rate)
+			target_rate = dmcfreq->video_4k_60p_rate;
+	}
+
 	if (dmcfreq->video_1080p_rate && (status & SYS_STATUS_VIDEO_1080P)) {
 		if (dmcfreq->video_1080p_rate > target_rate)
 			target_rate = dmcfreq->video_1080p_rate;
@@ -2574,6 +2574,23 @@ next:
 	rockchip_dmcfreq_update_target(dmcfreq);
 
 	return NOTIFY_OK;
+}
+
+static int rockchip_dmcfreq_panic_notifier(struct notifier_block *nb,
+					   unsigned long v, void *p)
+{
+	struct rockchip_dmcfreq *dmcfreq =
+		container_of(nb, struct rockchip_dmcfreq, panic_nb);
+	struct device *dev = dmcfreq->dev;
+
+	if (dmcfreq->regulator_count == 1)
+		dev_info(dev, "cur_freq: %lu Hz, volt: %lu uV\n",
+			 dmcfreq->rate, dmcfreq->volt);
+	else
+		dev_info(dev, "cur_freq: %lu Hz, volt_vdd: %lu uV, volt_mem: %lu uV\n",
+			 dmcfreq->rate, dmcfreq->volt, dmcfreq->mem_volt);
+
+	return 0;
 }
 
 static ssize_t rockchip_dmcfreq_status_show(struct device *dev,
@@ -3049,6 +3066,10 @@ static void rockchip_dmcfreq_parse_dt(struct rockchip_dmcfreq *dmcfreq)
 	if (rockchip_get_rl_map_talbe(np, "vop-pn-msch-readlatency",
 				      &dmcfreq->info.vop_pn_rl_tbl))
 		dev_err(dev, "failed to get vop pn to msch rl\n");
+	if (dmcfreq->video_4k_rate)
+		dmcfreq->info.vop_4k_rate = dmcfreq->video_4k_rate;
+	else if (dmcfreq->video_4k_10b_rate)
+		dmcfreq->info.vop_4k_rate = dmcfreq->video_4k_10b_rate;
 
 	of_property_read_u32(np, "touchboost_duration",
 			     (u32 *)&dmcfreq->touchboostpulse_duration_val);
@@ -3056,30 +3077,6 @@ static void rockchip_dmcfreq_parse_dt(struct rockchip_dmcfreq *dmcfreq)
 		dmcfreq->touchboostpulse_duration_val *= USEC_PER_MSEC;
 	else
 		dmcfreq->touchboostpulse_duration_val = 500 * USEC_PER_MSEC;
-}
-
-static int rockchip_dmcfreq_set_volt_only(struct rockchip_dmcfreq *dmcfreq)
-{
-	struct device *dev = dmcfreq->dev;
-	struct dev_pm_opp *opp;
-	unsigned long opp_volt, opp_rate = dmcfreq->rate;
-	int ret;
-
-	opp = devfreq_recommended_opp(dev, &opp_rate, 0);
-	if (IS_ERR(opp)) {
-		dev_err(dev, "Failed to find opp for %lu Hz\n", opp_rate);
-		return PTR_ERR(opp);
-	}
-	opp_volt = dev_pm_opp_get_voltage(opp);
-	dev_pm_opp_put(opp);
-
-	ret = regulator_set_voltage(dmcfreq->vdd_center, opp_volt, INT_MAX);
-	if (ret) {
-		dev_err(dev, "Cannot set voltage %lu uV\n", opp_volt);
-		return ret;
-	}
-
-	return 0;
 }
 
 static int rockchip_dmcfreq_add_devfreq(struct rockchip_dmcfreq *dmcfreq)
@@ -3108,6 +3105,7 @@ static int rockchip_dmcfreq_add_devfreq(struct rockchip_dmcfreq *dmcfreq)
 	devm_devfreq_register_opp_notifier(dev, devfreq);
 
 	devfreq->last_status.current_frequency = opp_rate;
+	devfreq->suspend_freq = dmcfreq->deep_suspend_rate;
 
 	reset_last_status(devfreq);
 
@@ -3120,14 +3118,22 @@ static void rockchip_dmcfreq_register_notifier(struct rockchip_dmcfreq *dmcfreq)
 {
 	int ret;
 
-	if (vop_register_dmc())
-		dev_err(dmcfreq->dev, "fail to register notify to vop.\n");
+	if (dmcfreq->system_status_en || dmcfreq->info.auto_freq_en) {
+		if (vop_register_dmc())
+			dev_err(dmcfreq->dev, "fail to register notify to vop.\n");
 
-	dmcfreq->status_nb.notifier_call =
-		rockchip_dmcfreq_system_status_notifier;
-	ret = rockchip_register_system_status_notifier(&dmcfreq->status_nb);
+		dmcfreq->status_nb.notifier_call =
+			rockchip_dmcfreq_system_status_notifier;
+		ret = rockchip_register_system_status_notifier(&dmcfreq->status_nb);
+		if (ret)
+			dev_err(dmcfreq->dev, "failed to register system_status nb\n");
+	}
+
+	dmcfreq->panic_nb.notifier_call = rockchip_dmcfreq_panic_notifier;
+	ret = atomic_notifier_chain_register(&panic_notifier_list,
+					     &dmcfreq->panic_nb);
 	if (ret)
-		dev_err(dmcfreq->dev, "failed to register system_status nb\n");
+		dev_err(dmcfreq->dev, "failed to register panic nb\n");
 
 	dmc_mdevp.data = dmcfreq->info.devfreq;
 	dmcfreq->mdev_info = rockchip_system_monitor_register(dmcfreq->dev,
@@ -3413,13 +3419,16 @@ static int rockchip_dmcfreq_probe(struct platform_device *pdev)
 		return ret;
 
 	rockchip_dmcfreq_parse_dt(data);
+
+	platform_set_drvdata(pdev, data);
+
 	if (!data->system_status_en && !data->info.auto_freq_en) {
 		dev_info(dev, "don't add devfreq feature\n");
-		return rockchip_dmcfreq_set_volt_only(data);
+		rockchip_dmcfreq_register_notifier(data);
+		return 0;
 	}
 
 	cpu_latency_qos_add_request(&pm_qos, PM_QOS_DEFAULT_VALUE);
-	platform_set_drvdata(pdev, data);
 
 	ret = devfreq_add_governor(&devfreq_dmc_ondemand);
 	if (ret)
@@ -3456,10 +3465,12 @@ static __maybe_unused int rockchip_dmcfreq_suspend(struct device *dev)
 	if (ret)
 		return ret;
 
-	ret = devfreq_suspend_device(dmcfreq->info.devfreq);
-	if (ret < 0) {
-		dev_err(dev, "failed to suspend the devfreq devices\n");
-		return ret;
+	if (dmcfreq->info.devfreq) {
+		ret = devfreq_suspend_device(dmcfreq->info.devfreq);
+		if (ret < 0) {
+			dev_err(dev, "failed to suspend the devfreq devices\n");
+			return ret;
+		}
 	}
 
 	/* set voltage to sleep_volt if need */
@@ -3519,11 +3530,14 @@ static __maybe_unused int rockchip_dmcfreq_resume(struct device *dev)
 	if (ret)
 		return ret;
 
-	ret = devfreq_resume_device(dmcfreq->info.devfreq);
-	if (ret < 0) {
-		dev_err(dev, "failed to resume the devfreq devices\n");
-		return ret;
+	if (dmcfreq->info.devfreq) {
+		ret = devfreq_resume_device(dmcfreq->info.devfreq);
+		if (ret < 0) {
+			dev_err(dev, "failed to resume the devfreq devices\n");
+			return ret;
+		}
 	}
+
 	return ret;
 }
 

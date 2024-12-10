@@ -1686,9 +1686,7 @@ static int IMX464_g_frame_interval(struct v4l2_subdev *sd,
 	struct IMX464 *IMX464 = to_IMX464(sd);
 	const struct IMX464_mode *mode = IMX464->cur_mode;
 
-	mutex_lock(&IMX464->mutex);
 	fi->interval = mode->max_fps;
-	mutex_unlock(&IMX464->mutex);
 
 	return 0;
 }
@@ -1856,7 +1854,7 @@ static int IMX464_set_hdrae(struct IMX464 *IMX464,
 		__LINE__, rhs1, s_exp_time, rhs1_old,
 		(rhs1_old + 2 * BRL - fsc + 2));
 
-	rhs1 = (rhs1 >> 2) * 4 + 1;
+	rhs1 = ((rhs1 + 3) >> 2) * 4 + 1;
 	rhs1_old = rhs1;
 
 	if (rhs1 - s_exp_time <= SHR1_MIN) {

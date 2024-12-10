@@ -18,8 +18,9 @@
 #define I2S_TXCR_RCNT_SHIFT	17
 #define I2S_TXCR_RCNT_MASK	(0x3f << I2S_TXCR_RCNT_SHIFT)
 #define I2S_TXCR_CSR_SHIFT	15
-#define I2S_TXCR_CSR(x)		(x << I2S_TXCR_CSR_SHIFT)
 #define I2S_TXCR_CSR_MASK	(3 << I2S_TXCR_CSR_SHIFT)
+#define I2S_TXCR_CSR(x)		(x << I2S_TXCR_CSR_SHIFT)
+#define I2S_TXCR_CSR_V(v)	((((v) & I2S_TXCR_CSR_MASK) >> 15) + 1)
 #define I2S_TXCR_HWT		BIT(14)
 #define I2S_TXCR_SJM_SHIFT	12
 #define I2S_TXCR_SJM_R		(0 << I2S_TXCR_SJM_SHIFT)
@@ -48,8 +49,9 @@
  * receive operation control register
 */
 #define I2S_RXCR_CSR_SHIFT	15
-#define I2S_RXCR_CSR(x)		(x << I2S_RXCR_CSR_SHIFT)
 #define I2S_RXCR_CSR_MASK	(3 << I2S_RXCR_CSR_SHIFT)
+#define I2S_RXCR_CSR(x)		(x << I2S_RXCR_CSR_SHIFT)
+#define I2S_RXCR_CSR_V(v)	((((v) & I2S_RXCR_CSR_MASK) >> 15) + 1)
 #define I2S_RXCR_HWT		BIT(14)
 #define I2S_RXCR_SJM_SHIFT	12
 #define I2S_RXCR_SJM_R		(0 << I2S_RXCR_SJM_SHIFT)
@@ -132,14 +134,16 @@
 #define I2S_DMACR_RDE_DISABLE	(0 << I2S_DMACR_RDE_SHIFT)
 #define I2S_DMACR_RDE_ENABLE	(1 << I2S_DMACR_RDE_SHIFT)
 #define I2S_DMACR_RDL_SHIFT	16
-#define I2S_DMACR_RDL(x)	((x - 1) << I2S_DMACR_RDL_SHIFT)
 #define I2S_DMACR_RDL_MASK	(0x1f << I2S_DMACR_RDL_SHIFT)
+#define I2S_DMACR_RDL(x)	((x - 1) << I2S_DMACR_RDL_SHIFT)
+#define I2S_DMACR_RDL_V(v)	((((v) & I2S_DMACR_RDL_MASK) >> 16) + 1)
 #define I2S_DMACR_TDE_SHIFT	8
 #define I2S_DMACR_TDE_DISABLE	(0 << I2S_DMACR_TDE_SHIFT)
 #define I2S_DMACR_TDE_ENABLE	(1 << I2S_DMACR_TDE_SHIFT)
 #define I2S_DMACR_TDL_SHIFT	0
-#define I2S_DMACR_TDL(x)	((x) << I2S_DMACR_TDL_SHIFT)
 #define I2S_DMACR_TDL_MASK	(0x1f << I2S_DMACR_TDL_SHIFT)
+#define I2S_DMACR_TDL(x)	((x) << I2S_DMACR_TDL_SHIFT)
+#define I2S_DMACR_TDL_V(v)	(((v) & I2S_DMACR_TDL_MASK) >> 0)
 
 /*
  * INTCR
@@ -229,7 +233,7 @@ enum {
 #define I2S_TXCR	(0x0000)
 #define I2S_RXCR	(0x0004)
 #define I2S_CKR		(0x0008)
-#define I2S_FIFOLR	(0x000c)
+#define I2S_TXFIFOLR	(0x000c)
 #define I2S_DMACR	(0x0010)
 #define I2S_INTCR	(0x0014)
 #define I2S_INTSR	(0x0018)
@@ -237,6 +241,7 @@ enum {
 #define I2S_CLR		(0x0020)
 #define I2S_TXDR	(0x0024)
 #define I2S_RXDR	(0x0028)
+#define I2S_RXFIFOLR	(0x002c)
 
 /* io direction cfg register */
 #define I2S_IO_DIRECTION_MASK	(7)
@@ -244,5 +249,12 @@ enum {
 #define I2S_IO_6CH_OUT_4CH_IN	(4)
 #define I2S_IO_4CH_OUT_6CH_IN	(6)
 #define I2S_IO_2CH_OUT_8CH_IN	(7)
+
+/* XFL4 is compatible for old version */
+#define I2S_FIFOLR_XFL4(v)	(((v) & GENMASK(29, 24)) >> 24)
+#define I2S_FIFOLR_XFL3(v)	(((v) & GENMASK(23, 18)) >> 18)
+#define I2S_FIFOLR_XFL2(v)	(((v) & GENMASK(17, 12)) >> 12)
+#define I2S_FIFOLR_XFL1(v)	(((v) & GENMASK(11, 6)) >> 6)
+#define I2S_FIFOLR_XFL0(v)	(((v) & GENMASK(5, 0)) >> 0)
 
 #endif /* _ROCKCHIP_IIS_H */

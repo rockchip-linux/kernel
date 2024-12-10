@@ -57,8 +57,12 @@
 #define CIF_ISP_INPUT_H_MAX_V30_UNITE	6144
 #define CIF_ISP_INPUT_W_MAX_V32		3072
 #define CIF_ISP_INPUT_H_MAX_V32		1728
-#define CIF_ISP_INPUT_W_MIN		208
-#define CIF_ISP_INPUT_H_MIN		128
+#define CIF_ISP_INPUT_W_MAX_V32_UNITE	3840
+#define CIF_ISP_INPUT_H_MAX_V32_UNITE	2160
+#define CIF_ISP_INPUT_W_MAX_V32_L	4224
+#define CIF_ISP_INPUT_H_MAX_V32_L	3136
+#define CIF_ISP_INPUT_W_MIN		272
+#define CIF_ISP_INPUT_H_MIN		256
 #define CIF_ISP_OUTPUT_W_MAX		CIF_ISP_INPUT_W_MAX
 #define CIF_ISP_OUTPUT_H_MAX		CIF_ISP_INPUT_H_MAX
 #define CIF_ISP_OUTPUT_W_MIN		CIF_ISP_INPUT_W_MIN
@@ -148,6 +152,8 @@ void rkisp_chk_tb_over(struct rkisp_device *isp_dev);
 #else
 static inline void rkisp_chk_tb_over(struct rkisp_device *isp_dev) {}
 #endif
+
+void rkisp_save_tb_info(struct rkisp_device *isp_dev);
 
 void rkisp_mipi_isr(unsigned int mipi_mis, struct rkisp_device *dev);
 

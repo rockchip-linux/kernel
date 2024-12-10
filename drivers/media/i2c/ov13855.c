@@ -1212,9 +1212,7 @@ static int ov13855_g_frame_interval(struct v4l2_subdev *sd,
 	struct ov13855 *ov13855 = to_ov13855(sd);
 	const struct ov13855_mode *mode = ov13855->cur_mode;
 
-	mutex_lock(&ov13855->mutex);
 	fi->interval = mode->max_fps;
-	mutex_unlock(&ov13855->mutex);
 
 	return 0;
 }
@@ -1512,7 +1510,7 @@ static void __ov13855_power_off(struct ov13855 *ov13855)
 	regulator_bulk_disable(OV13855_NUM_SUPPLIES, ov13855->supplies);
 }
 
-static int ov13855_runtime_resume(struct device *dev)
+static int __maybe_unused ov13855_runtime_resume(struct device *dev)
 {
 	struct i2c_client *client = to_i2c_client(dev);
 	struct v4l2_subdev *sd = i2c_get_clientdata(client);
@@ -1521,7 +1519,7 @@ static int ov13855_runtime_resume(struct device *dev)
 	return __ov13855_power_on(ov13855);
 }
 
-static int ov13855_runtime_suspend(struct device *dev)
+static int __maybe_unused ov13855_runtime_suspend(struct device *dev)
 {
 	struct i2c_client *client = to_i2c_client(dev);
 	struct v4l2_subdev *sd = i2c_get_clientdata(client);
@@ -1561,9 +1559,7 @@ static int ov13855_enum_frame_interval(struct v4l2_subdev *sd,
 	if (fie->index >= ARRAY_SIZE(supported_modes))
 		return -EINVAL;
 
-	if (fie->code != OV13855_MEDIA_BUS_FMT)
-		return -EINVAL;
-
+	fie->code = OV13855_MEDIA_BUS_FMT;
 	fie->width = supported_modes[fie->index].width;
 	fie->height = supported_modes[fie->index].height;
 	fie->interval = supported_modes[fie->index].max_fps;

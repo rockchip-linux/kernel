@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2019-2021 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2019-2022 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -54,18 +54,8 @@ void kbase_device_hwcnt_virtualizer_term(struct kbase_device *kbdev);
 int kbase_device_list_init(struct kbase_device *kbdev);
 void kbase_device_list_term(struct kbase_device *kbdev);
 
-#if defined(CONFIG_DEBUG_FS) && !IS_ENABLED(CONFIG_MALI_BIFROST_NO_MALI)
 int kbase_device_io_history_init(struct kbase_device *kbdev);
 void kbase_device_io_history_term(struct kbase_device *kbdev);
-#else
-static inline int kbase_device_io_history_init(struct kbase_device *kbdev)
-{
-	return 0;
-}
-static inline void kbase_device_io_history_term(struct kbase_device *kbdev)
-{
-}
-#endif
 
 int kbase_device_misc_register(struct kbase_device *kbdev);
 void kbase_device_misc_deregister(struct kbase_device *kbdev);
@@ -99,3 +89,13 @@ int kbase_device_late_init(struct kbase_device *kbdev);
  * @kbdev:	Device pointer
  */
 void kbase_device_late_term(struct kbase_device *kbdev);
+
+#if MALI_USE_CSF && !IS_ENABLED(CONFIG_MALI_BIFROST_NO_MALI)
+/**
+ * kbase_is_register_accessible - Checks if register is accessible
+ * @offset: Register offset
+ *
+ * Return: true if the register is accessible, false otherwise.
+ */
+bool kbase_is_register_accessible(u32 offset);
+#endif /* MALI_USE_CSF && !IS_ENABLED(CONFIG_MALI_BIFROST_NO_MALI) */

@@ -8,6 +8,8 @@
 #define pr_fmt(fmt) "rga3_reg: " fmt
 
 #include "rga3_reg_info.h"
+#include "rga_dma_buf.h"
+#include "rga_iommu.h"
 #include "rga_common.h"
 #include "rga_debugger.h"
 #include "rga_hw_config.h"
@@ -91,14 +93,12 @@ static void RGA3_set_reg_win0_info(u8 *base, struct rga3_req *msg)
 	dw = msg->win0.dst_act_w;
 	dh = msg->win0.dst_act_h;
 
-	if (msg->win0.rotate_mode != 0) {
-		if (rotate_mode) {
-			sh = msg->win0.src_act_w;
-			sw = msg->win0.src_act_h;
-		} else {
-			sw = msg->win0.src_act_w;
-			sh = msg->win0.src_act_h;
-		}
+	if (rotate_mode) {
+		sh = msg->win0.src_act_w;
+		sw = msg->win0.src_act_h;
+	} else {
+		sw = msg->win0.src_act_w;
+		sh = msg->win0.src_act_h;
 	}
 
 	if (sw > dw) {
@@ -289,7 +289,7 @@ static void RGA3_set_reg_win0_info(u8 *base, struct rga3_req *msg)
 	}
 
 	/* rotate & mirror */
-	if (msg->win1.yrgb_addr == 0) {
+	if (msg->win0.rotate_mode == 1) {
 		reg =
 			((reg & (~m_RGA3_WIN0_RD_CTRL_SW_WIN0_ROT)) |
 			 (s_RGA3_WIN0_RD_CTRL_SW_WIN0_ROT(rotate_mode)));
@@ -299,36 +299,23 @@ static void RGA3_set_reg_win0_info(u8 *base, struct rga3_req *msg)
 		reg =
 			((reg & (~m_RGA3_WIN0_RD_CTRL_SW_WIN0_YMIRROR)) |
 			 (s_RGA3_WIN0_RD_CTRL_SW_WIN0_YMIRROR(ymirror)));
-
-		/* scale */
-		*bRGA3_WIN0_SCL_FAC = param_x | param_y << 16;
-
-		reg =
-			((reg & (~m_RGA3_WIN0_RD_CTRL_SW_WIN0_HOR_BY)) |
-			 (s_RGA3_WIN0_RD_CTRL_SW_WIN0_HOR_BY(x_by)));
-		reg =
-			((reg & (~m_RGA3_WIN0_RD_CTRL_SW_WIN0_HOR_UP)) |
-			 (s_RGA3_WIN0_RD_CTRL_SW_WIN0_HOR_UP(x_up)));
-		reg =
-			((reg & (~m_RGA3_WIN0_RD_CTRL_SW_WIN0_VER_BY)) |
-			 (s_RGA3_WIN0_RD_CTRL_SW_WIN0_VER_BY(y_by)));
-		reg =
-			((reg & (~m_RGA3_WIN0_RD_CTRL_SW_WIN0_VER_UP)) |
-			 (s_RGA3_WIN0_RD_CTRL_SW_WIN0_VER_UP(y_up)));
-	} else {
-		reg =
-			((reg & (~m_RGA3_WIN0_RD_CTRL_SW_WIN0_HOR_BY)) |
-			 (s_RGA3_WIN0_RD_CTRL_SW_WIN0_HOR_BY(1)));
-		reg =
-			((reg & (~m_RGA3_WIN0_RD_CTRL_SW_WIN0_HOR_UP)) |
-			 (s_RGA3_WIN0_RD_CTRL_SW_WIN0_HOR_UP(0)));
-		reg =
-			((reg & (~m_RGA3_WIN0_RD_CTRL_SW_WIN0_VER_BY)) |
-			 (s_RGA3_WIN0_RD_CTRL_SW_WIN0_VER_BY(1)));
-		reg =
-			((reg & (~m_RGA3_WIN0_RD_CTRL_SW_WIN0_VER_UP)) |
-			 (s_RGA3_WIN0_RD_CTRL_SW_WIN0_VER_UP(0)));
 	}
+
+	/* scale */
+	*bRGA3_WIN0_SCL_FAC = param_x | param_y << 16;
+
+	reg =
+		((reg & (~m_RGA3_WIN0_RD_CTRL_SW_WIN0_HOR_BY)) |
+			(s_RGA3_WIN0_RD_CTRL_SW_WIN0_HOR_BY(x_by)));
+	reg =
+		((reg & (~m_RGA3_WIN0_RD_CTRL_SW_WIN0_HOR_UP)) |
+			(s_RGA3_WIN0_RD_CTRL_SW_WIN0_HOR_UP(x_up)));
+	reg =
+		((reg & (~m_RGA3_WIN0_RD_CTRL_SW_WIN0_VER_BY)) |
+			(s_RGA3_WIN0_RD_CTRL_SW_WIN0_VER_BY(y_by)));
+	reg =
+		((reg & (~m_RGA3_WIN0_RD_CTRL_SW_WIN0_VER_UP)) |
+			(s_RGA3_WIN0_RD_CTRL_SW_WIN0_VER_UP(y_up)));
 
 	/* rd_mode */
 	reg =
@@ -357,19 +344,36 @@ static void RGA3_set_reg_win0_info(u8 *base, struct rga3_req *msg)
 
 	*bRGA3_WIN0_RD_CTRL = reg;
 
-	/* stride need align to 16 */
-	if (msg->win0.rd_mode != 1)
+	switch (msg->win0.rd_mode) {
+	case 0: /* raster */
 		stride = (((msg->win0.vir_w * pixel_width) + 15) & ~15) >> 2;
-	else
-		stride = ((msg->win0.vir_w + 15) & ~15) >> 2;
+		if (rga_is_yuv420_semi_planar_format(msg->win0.format))
+			uv_stride = ((msg->win0.vir_w + 15) & ~15) >> 2;
+		else
+			uv_stride = stride;
+		break;
 
-	if (msg->win0.format == RGA_FORMAT_YCbCr_420_SP
-		|| msg->win0.format == RGA_FORMAT_YCrCb_420_SP
-		|| msg->win0.format == RGA_FORMAT_YCbCr_420_SP_10B
-		|| msg->win0.format == RGA_FORMAT_YCrCb_420_SP_10B)
-		uv_stride = ((msg->win0.vir_w + 15) & ~15) >> 2;
-	else
-		uv_stride = stride;
+	case 1: /* fbc */
+		stride = ((msg->win0.vir_w + 15) & ~15) >> 2;
+		if (rga_is_yuv420_semi_planar_format(msg->win0.format))
+			uv_stride = ((msg->win0.vir_w + 15) & ~15) >> 2;
+		else
+			uv_stride = stride;
+		break;
+
+	case 2: /* tile 8*8 */
+		/*
+		 * tile 8*8 mode 8 lines of data are read/written at one time,
+		 * so stride needs * 8. YUV420 only has 4 lines of UV data, so
+		 * it needs to >>1.
+		 */
+		stride = (((msg->win0.vir_w * pixel_width * 8) + 15) & ~15) >> 2;
+		if (rga_is_yuv420_semi_planar_format(msg->win0.format))
+			uv_stride = ((((msg->win0.vir_w * 8) + 15) & ~15) >> 1) >> 2;
+		else
+			uv_stride = stride;
+		break;
+	}
 
 	*bRGA3_WIN0_Y_BASE = (u32) msg->win0.yrgb_addr;
 	*bRGA3_WIN0_U_BASE = (u32) msg->win0.uv_addr;
@@ -386,9 +390,9 @@ static void RGA3_set_reg_win0_info(u8 *base, struct rga3_req *msg)
 	 */
 
 	/* do not use win0 src size except fbcd */
-	*bRGA3_WIN0_SRC_SIZE = (msg->win0.src_act_w +
-		msg->win0.x_offset) | ((msg->win0.y_offset +
-		msg->win0.src_act_h) << 16);
+	/* in FBCD, src_width needs to be aligned at 16 */
+	*bRGA3_WIN0_SRC_SIZE = ALIGN(msg->win0.src_act_w + msg->win0.x_offset, 16) |
+			       (ALIGN(msg->win0.y_offset + msg->win0.src_act_h, 16) << 16);
 	*bRGA3_WIN0_ACT_SIZE =
 		msg->win0.src_act_w | (msg->win0.src_act_h << 16);
 	*bRGA3_WIN0_DST_SIZE =
@@ -721,19 +725,31 @@ static void RGA3_set_reg_win1_info(u8 *base, struct rga3_req *msg)
 
 	*bRGA3_WIN1_RD_CTRL = reg;
 
-	/* stride need align to 16 */
-	if (msg->win1.rd_mode != 1)
+	switch (msg->win1.rd_mode) {
+	case 0: /* raster */
 		stride = (((msg->win1.vir_w * pixel_width) + 15) & ~15) >> 2;
-	else
-		stride = ((msg->win1.vir_w + 15) & ~15) >> 2;
+		if (rga_is_yuv420_semi_planar_format(msg->win1.format))
+			uv_stride = ((msg->win1.vir_w + 15) & ~15) >> 2;
+		else
+			uv_stride = stride;
+		break;
 
-	if (msg->win1.format == RGA_FORMAT_YCbCr_420_SP
-		|| msg->win1.format == RGA_FORMAT_YCrCb_420_SP
-		|| msg->win1.format == RGA_FORMAT_YCbCr_420_SP_10B
-		|| msg->win1.format == RGA_FORMAT_YCrCb_420_SP_10B)
-		uv_stride = ((msg->win1.vir_w + 15) & ~15) >> 2;
-	else
-		uv_stride = stride;
+	case 1: /* fbc */
+		stride = ((msg->win1.vir_w + 15) & ~15) >> 2;
+		if (rga_is_yuv420_semi_planar_format(msg->win1.format))
+			uv_stride = ((msg->win1.vir_w + 15) & ~15) >> 2;
+		else
+			uv_stride = stride;
+		break;
+
+	case 2: /* tile 8*8 */
+		stride = (((msg->win1.vir_w * pixel_width * 8) + 15) & ~15) >> 2;
+		if (rga_is_yuv420_semi_planar_format(msg->win1.format))
+			uv_stride = ((((msg->win1.vir_w * 8) + 15) & ~15) >> 1) >> 2;
+		else
+			uv_stride = stride;
+		break;
+	}
 
 	*bRGA3_WIN1_Y_BASE = (u32) msg->win1.yrgb_addr;
 	*bRGA3_WIN1_U_BASE = (u32) msg->win1.uv_addr;
@@ -947,16 +963,20 @@ static void RGA3_set_reg_wr_info(u8 *base, struct rga3_req *msg)
 	*bRGA3_WR_RD_CTRL = reg;
 	*bRGA3_WR_FBCD_CTRL = fbcd_reg;
 
-	/* stride need align to 16 */
-	if (msg->wr.rd_mode != 1) {
+	switch (msg->wr.rd_mode) {
+	case 0: /* raster */
 		stride = (((msg->wr.vir_w * pixel_width) + 15) & ~15) >> 2;
-		*bRGA3_WR_U_BASE = (u32) msg->wr.uv_addr;
 		uv_stride = ((msg->wr.vir_w + 15) & ~15) >> 2;
-	} else {
+
+		*bRGA3_WR_U_BASE = (u32) msg->wr.uv_addr;
+
+		break;
+
+	case 1: /* fbc */
 		stride = ((msg->wr.vir_w + 15) & ~15) >> 2;
 		/* need to calculate fbcd header size */
 		vir_h = ((msg->wr.vir_h + 15) & ~15);
-		*bRGA3_WR_U_BASE = (u32) (msg->wr.uv_addr + ((stride * vir_h)>>2));
+
 		/* RGBA8888 */
 		if (wr_format == 0x6)
 			uv_stride = ((msg->wr.vir_w + 15) & ~15);
@@ -972,6 +992,20 @@ static void RGA3_set_reg_wr_info(u8 *base, struct rga3_req *msg)
 		/* yuv422 10bit */
 		else if (wr_format == 0x3)
 			uv_stride = (((msg->wr.vir_w + 15) & ~15) >> 3) * 5;
+
+		*bRGA3_WR_U_BASE = (u32) (msg->wr.uv_addr + ((stride * vir_h)>>2));
+
+		break;
+
+	case 2: /* tile 8*8 */
+		stride = (((msg->wr.vir_w * pixel_width * 8) + 15) & ~15) >> 2;
+		if (rga_is_yuv420_semi_planar_format(msg->win0.format))
+			uv_stride = ((((msg->wr.vir_w * 8) + 15) & ~15) >> 1) >> 2;
+		else
+			uv_stride = stride;
+
+		*bRGA3_WR_U_BASE = (u32) msg->wr.uv_addr;
+		break;
 	}
 
 	*bRGA3_WR_Y_BASE = (u32) msg->wr.yrgb_addr;
@@ -994,6 +1028,9 @@ static void RGA3_set_reg_overlap_info(u8 *base, struct rga3_req *msg)
 	u32 *bRGA3_OVLP_OFF;
 
 	u32 reg;
+	union rga3_color_ctrl top_color_ctrl, bottom_color_ctrl;
+	union rga3_alpha_ctrl top_alpha_ctrl, bottom_alpha_ctrl;
+	struct rga_alpha_config *config;
 
 	bRGA_OVERLAP_TOP_CTRL = (u32 *) (base + RGA3_OVLP_TOP_CTRL_OFFSET);
 	bRGA_OVERLAP_BOT_CTRL = (u32 *) (base + RGA3_OVLP_BOT_CTRL_OFFSET);
@@ -1005,98 +1042,249 @@ static void RGA3_set_reg_overlap_info(u8 *base, struct rga3_req *msg)
 
 	/* Alpha blend */
 	/*bot -> win0(dst), top -> win1(src). */
-	reg = 0;
-	reg =
-		((reg & (~m_RGA3_OVLP_TOP_CTRL_SW_TOP_COLOR_M0)) |
-		 (s_RGA3_OVLP_TOP_CTRL_SW_TOP_COLOR_M0
-		 (msg->alpha_mode_0 >> 7)));
-	reg =
-		((reg & (~m_RGA3_OVLP_TOP_CTRL_SW_TOP_ALPHA_M0)) |
-		 (s_RGA3_OVLP_TOP_CTRL_SW_TOP_ALPHA_M0
-		 (msg->alpha_mode_0 >> 0)));
-	reg =
-		((reg & (~m_RGA3_OVLP_TOP_CTRL_SW_TOP_BLEND_M0)) |
-		 (s_RGA3_OVLP_TOP_CTRL_SW_TOP_BLEND_M0
-		 (msg->alpha_mode_0 >> 1)));
-	reg =
-		((reg & (~m_RGA3_OVLP_TOP_CTRL_SW_TOP_ALPHA_CAL_M0)) |
-		 (s_RGA3_OVLP_TOP_CTRL_SW_TOP_ALPHA_CAL_M0
-		 (msg->alpha_mode_0 >> 3)));
-	reg =
-		((reg & (~m_RGA3_OVLP_TOP_CTRL_SW_TOP_FACTOR_M0)) |
-		 (s_RGA3_OVLP_TOP_CTRL_SW_TOP_FACTOR_M0
-		 (msg->alpha_mode_0 >> 4)));
-	reg =
-		((reg & (~m_RGA3_OVLP_TOP_CTRL_SW_TOP_GLOBAL_ALPHA)) |
-		 (s_RGA3_OVLP_TOP_CTRL_SW_TOP_GLOBAL_ALPHA
-		 (msg->win1_a_global_val)));
-	*bRGA_OVERLAP_TOP_CTRL = reg;
+	top_color_ctrl.value = 0;
+	bottom_color_ctrl.value = 0;
+	top_alpha_ctrl.value = 0;
+	bottom_alpha_ctrl.value = 0;
+	config = &msg->alpha_config;
 
-	reg = 0;
-	reg =
-		((reg & (~m_RGA3_OVLP_BOT_CTRL_SW_BOT_COLOR_M0)) |
-		 (s_RGA3_OVLP_BOT_CTRL_SW_BOT_COLOR_M0
-		 (msg->alpha_mode_0 >> 15)));
-	reg =
-		((reg & (~m_RGA3_OVLP_BOT_CTRL_SW_BOT_ALPHA_M0)) |
-		 (s_RGA3_OVLP_BOT_CTRL_SW_BOT_ALPHA_M0
-		 (msg->alpha_mode_0 >> 8)));
-	reg =
-		((reg & (~m_RGA3_OVLP_BOT_CTRL_SW_BOT_BLEND_M0)) |
-		 (s_RGA3_OVLP_BOT_CTRL_SW_BOT_BLEND_M0
-		 (msg->alpha_mode_0 >> 9)));
-	reg =
-		((reg & (~m_RGA3_OVLP_BOT_CTRL_SW_BOT_ALPHA_CAL_M0)) |
-		 (s_RGA3_OVLP_BOT_CTRL_SW_BOT_ALPHA_CAL_M0
-		 (msg->alpha_mode_0 >> 11)));
-	reg =
-		((reg & (~m_RGA3_OVLP_BOT_CTRL_SW_BOT_FACTOR_M0)) |
-		 (s_RGA3_OVLP_BOT_CTRL_SW_BOT_FACTOR_M0
-		 (msg->alpha_mode_0 >> 12)));
-	reg =
-		((reg & (~m_RGA3_OVLP_BOT_CTRL_SW_BOT_GLOBAL_ALPHA)) |
-		 (s_RGA3_OVLP_BOT_CTRL_SW_BOT_GLOBAL_ALPHA
-		 (msg->win0_a_global_val)));
-	*bRGA_OVERLAP_BOT_CTRL = reg;
+	if (config->fg_pixel_alpha_en)
+		top_color_ctrl.bits.blend_mode =
+			config->fg_global_alpha_en ? RGA_ALPHA_PER_PIXEL_GLOBAL :
+			RGA_ALPHA_PER_PIXEL;
+	else
+		top_color_ctrl.bits.blend_mode = RGA_ALPHA_GLOBAL;
 
-	reg = 0;
-	reg =
-		((reg & (~m_RGA3_OVLP_TOP_ALPHA_SW_TOP_ALPHA_M1)) |
-		 (s_RGA3_OVLP_TOP_ALPHA_SW_TOP_ALPHA_M1
-		 (msg->alpha_mode_1 >> 0)));
-	reg =
-		((reg & (~m_RGA3_OVLP_TOP_ALPHA_SW_TOP_BLEND_M1)) |
-		 (s_RGA3_OVLP_TOP_ALPHA_SW_TOP_BLEND_M1
-		 (msg->alpha_mode_1 >> 1)));
-	reg =
-		((reg & (~m_RGA3_OVLP_TOP_ALPHA_SW_TOP_ALPHA_CAL_M1)) |
-		 (s_RGA3_OVLP_TOP_ALPHA_SW_TOP_ALPHA_CAL_M1
-		 (msg->alpha_mode_1 >> 3)));
-	reg =
-		((reg & (~m_RGA3_OVLP_TOP_ALPHA_SW_TOP_FACTOR_M1)) |
-		 (s_RGA3_OVLP_TOP_ALPHA_SW_TOP_FACTOR_M1
-		 (msg->alpha_mode_1 >> 4)));
-	*bRGA_OVERLAP_TOP_ALPHA = reg;
+	if (config->bg_pixel_alpha_en)
+		bottom_color_ctrl.bits.blend_mode =
+			config->bg_global_alpha_en ? RGA_ALPHA_PER_PIXEL_GLOBAL :
+			RGA_ALPHA_PER_PIXEL;
+	else
+		bottom_color_ctrl.bits.blend_mode = RGA_ALPHA_GLOBAL;
 
-	reg = 0;
-	reg =
-		((reg & (~m_RGA3_OVLP_BOT_ALPHA_SW_BOT_ALPHA_M1)) |
-		 (s_RGA3_OVLP_BOT_ALPHA_SW_BOT_ALPHA_M1
-		 (msg->alpha_mode_1 >> 8)));
-	reg =
-		((reg & (~m_RGA3_OVLP_BOT_ALPHA_SW_BOT_BLEND_M1)) |
-		 (s_RGA3_OVLP_BOT_ALPHA_SW_BOT_BLEND_M1
-		 (msg->alpha_mode_1 >> 9)));
-	reg =
-		((reg & (~m_RGA3_OVLP_BOT_ALPHA_SW_BOT_ALPHA_CAL_M1)) |
-		 (s_RGA3_OVLP_BOT_ALPHA_SW_BOT_ALPHA_CAL_M1
-		 (msg->alpha_mode_1 >> 11)));
-	reg =
-		((reg & (~m_RGA3_OVLP_BOT_ALPHA_SW_BOT_FACTOR_M1)) |
-		 (s_RGA3_OVLP_BOT_ALPHA_SW_BOT_FACTOR_M1
-		 (msg->alpha_mode_1 >> 12)));
+	/*
+	 * Since the hardware uses 256 as 1, the original alpha value needs to
+	 * be + (alpha >> 7).
+	 */
+	top_color_ctrl.bits.alpha_cal_mode = RGA_ALPHA_SATURATION;
+	bottom_color_ctrl.bits.alpha_cal_mode = RGA_ALPHA_SATURATION;
 
-	*bRGA_OVERLAP_BOT_ALPHA = reg;
+	top_color_ctrl.bits.global_alpha = config->fg_global_alpha_value;
+	bottom_color_ctrl.bits.global_alpha = config->bg_global_alpha_value;
+
+	/* porter duff alpha enable */
+	switch (config->mode) {
+	case RGA_ALPHA_BLEND_SRC:
+		/*
+		 * SRC mode:
+		 *	Sf = 1, Df = 0；
+		 *	[Rc,Ra] = [Sc,Sa]；
+		 */
+		top_color_ctrl.bits.alpha_mode = RGA_ALPHA_STRAIGHT;
+		top_color_ctrl.bits.factor_mode = RGA_ALPHA_ONE;
+
+		bottom_color_ctrl.bits.alpha_mode = RGA_ALPHA_STRAIGHT;
+		bottom_color_ctrl.bits.factor_mode = RGA_ALPHA_ZERO;
+
+		break;
+
+	case RGA_ALPHA_BLEND_DST:
+		/*
+		 * SRC mode:
+		 *	Sf = 0, Df = 1；
+		 *	[Rc,Ra] = [Dc,Da]；
+		 */
+		top_color_ctrl.bits.alpha_mode = RGA_ALPHA_STRAIGHT;
+		top_color_ctrl.bits.factor_mode = RGA_ALPHA_ZERO;
+
+		bottom_color_ctrl.bits.alpha_mode = RGA_ALPHA_STRAIGHT;
+		bottom_color_ctrl.bits.factor_mode = RGA_ALPHA_ONE;
+
+		break;
+
+	case RGA_ALPHA_BLEND_SRC_OVER:
+		/*
+		 * SRC-OVER mode:
+		 *	Sf = 1, Df = (1 - Sa)
+		 *	[Rc,Ra] = [ Sc + (1 - Sa) * Dc, Sa + (1 - Sa) * Da ]
+		 */
+		top_color_ctrl.bits.alpha_mode = RGA_ALPHA_STRAIGHT;
+		top_color_ctrl.bits.factor_mode = RGA_ALPHA_ONE;
+
+		bottom_color_ctrl.bits.alpha_mode = RGA_ALPHA_STRAIGHT;
+		bottom_color_ctrl.bits.factor_mode = RGA_ALPHA_OPPOSITE_INVERSE;
+
+		break;
+
+	case RGA_ALPHA_BLEND_DST_OVER:
+		/*
+		 * DST-OVER mode:
+		 *	Sf = (1 - Da) , Df = 1
+		 *	[Rc,Ra] = [ Sc * (1 - Da) + Dc, Sa * (1 - Da) + Da ]
+		 */
+		top_color_ctrl.bits.alpha_mode = RGA_ALPHA_STRAIGHT;
+		top_color_ctrl.bits.factor_mode = RGA_ALPHA_OPPOSITE_INVERSE;
+
+		bottom_color_ctrl.bits.alpha_mode = RGA_ALPHA_STRAIGHT;
+		bottom_color_ctrl.bits.factor_mode = RGA_ALPHA_ONE;
+
+		break;
+
+	case RGA_ALPHA_BLEND_SRC_IN:
+		/*
+		 * SRC-IN mode:
+		 *	Sf = Da , Df = 0
+		 *	[Rc,Ra] = [ Sc * Da, Sa * Da ]
+		 */
+		top_color_ctrl.bits.alpha_mode = RGA_ALPHA_STRAIGHT;
+		top_color_ctrl.bits.factor_mode = RGA_ALPHA_OPPOSITE;
+
+		bottom_color_ctrl.bits.alpha_mode = RGA_ALPHA_STRAIGHT;
+		bottom_color_ctrl.bits.factor_mode = RGA_ALPHA_ZERO;
+
+		break;
+
+	case RGA_ALPHA_BLEND_DST_IN:
+		/*
+		 * DST-IN mode:
+		 *	Sf = 0 , Df = Sa
+		 *	[Rc,Ra] = [ Dc * Sa, Da * Sa ]
+		 */
+		top_color_ctrl.bits.alpha_mode = RGA_ALPHA_STRAIGHT;
+		top_color_ctrl.bits.factor_mode = RGA_ALPHA_ZERO;
+
+		bottom_color_ctrl.bits.alpha_mode = RGA_ALPHA_STRAIGHT;
+		bottom_color_ctrl.bits.factor_mode = RGA_ALPHA_OPPOSITE;
+
+		break;
+
+	case RGA_ALPHA_BLEND_SRC_OUT:
+		/*
+		 * SRC-OUT mode:
+		 *	Sf = (1 - Da) , Df = 0
+		 *	[Rc,Ra] = [ Sc * (1 - Da), Sa * (1 - Da) ]
+		 */
+		top_color_ctrl.bits.alpha_mode = RGA_ALPHA_STRAIGHT;
+		top_color_ctrl.bits.factor_mode = RGA_ALPHA_OPPOSITE_INVERSE;
+
+		bottom_color_ctrl.bits.alpha_mode = RGA_ALPHA_STRAIGHT;
+		bottom_color_ctrl.bits.factor_mode = RGA_ALPHA_ZERO;
+
+		break;
+
+	case RGA_ALPHA_BLEND_DST_OUT:
+		/*
+		 * DST-OUT mode:
+		 *	Sf = 0 , Df = (1 - Sa)
+		 *	[Rc,Ra] = [ Dc * (1 - Sa), Da * (1 - Sa) ]
+		 */
+		top_color_ctrl.bits.alpha_mode = RGA_ALPHA_STRAIGHT;
+		top_color_ctrl.bits.factor_mode = RGA_ALPHA_ZERO;
+
+		bottom_color_ctrl.bits.alpha_mode = RGA_ALPHA_STRAIGHT;
+		bottom_color_ctrl.bits.factor_mode = RGA_ALPHA_OPPOSITE_INVERSE;
+
+		break;
+
+	case RGA_ALPHA_BLEND_SRC_ATOP:
+		/*
+		 * SRC-ATOP mode:
+		 *	Sf = Da , Df = (1 - Sa)
+		 *	[Rc,Ra] = [ Sc * Da + Dc * (1 - Sa), Sa * Da + Da * (1 - Sa) ]
+		 */
+		top_color_ctrl.bits.alpha_mode = RGA_ALPHA_STRAIGHT;
+		top_color_ctrl.bits.factor_mode = RGA_ALPHA_OPPOSITE;
+
+		bottom_color_ctrl.bits.alpha_mode = RGA_ALPHA_STRAIGHT;
+		bottom_color_ctrl.bits.factor_mode = RGA_ALPHA_OPPOSITE_INVERSE;
+
+		break;
+
+	case RGA_ALPHA_BLEND_DST_ATOP:
+		/*
+		 * DST-ATOP mode:
+		 *	Sf = (1 - Da) , Df = Sa
+		 *	[Rc,Ra] = [ Sc * (1 - Da) + Dc * Sa, Sa * (1 - Da) + Da * Sa ]
+		 */
+		top_color_ctrl.bits.alpha_mode = RGA_ALPHA_STRAIGHT;
+		top_color_ctrl.bits.factor_mode = RGA_ALPHA_OPPOSITE_INVERSE;
+
+		bottom_color_ctrl.bits.alpha_mode = RGA_ALPHA_STRAIGHT;
+		bottom_color_ctrl.bits.factor_mode = RGA_ALPHA_OPPOSITE;
+
+		break;
+
+	case RGA_ALPHA_BLEND_XOR:
+		/*
+		 * DST-XOR mode:
+		 *	Sf = (1 - Da) , Df = (1 - Sa)
+		 *	[Rc,Ra] = [ Sc * (1 - Da) + Dc * (1 - Sa), Sa * (1 - Da) + Da * (1 - Sa) ]
+		 */
+		top_color_ctrl.bits.alpha_mode = RGA_ALPHA_STRAIGHT;
+		top_color_ctrl.bits.factor_mode = RGA_ALPHA_OPPOSITE_INVERSE;
+
+		bottom_color_ctrl.bits.alpha_mode = RGA_ALPHA_STRAIGHT;
+		bottom_color_ctrl.bits.factor_mode = RGA_ALPHA_OPPOSITE_INVERSE;
+
+		break;
+
+	case RGA_ALPHA_BLEND_CLEAR:
+		/*
+		 * DST-CLEAR mode:
+		 *	Sf = 0 , Df = 0
+		 *	[Rc,Ra] = [ 0, 0 ]
+		 */
+		top_color_ctrl.bits.alpha_mode = RGA_ALPHA_STRAIGHT;
+		top_color_ctrl.bits.factor_mode = RGA_ALPHA_ZERO;
+
+		bottom_color_ctrl.bits.alpha_mode = RGA_ALPHA_STRAIGHT;
+		bottom_color_ctrl.bits.factor_mode = RGA_ALPHA_ZERO;
+
+		break;
+
+	default:
+		break;
+	}
+
+	if (!config->enable && msg->abb_alpha_pass) {
+		/*
+		 * enabled by default bot_blend_m1 && bot_alpha_cal_m1 for src channel(win0)
+		 * In ABB mode, the number will be fetched according to 16*16, so it needs to
+		 * be enabled top_blend_m1 && top_alpha_cal_m1 for dst channel(wr).
+		 */
+		top_color_ctrl.bits.color_mode = RGA_ALPHA_PRE_MULTIPLIED;
+
+		top_alpha_ctrl.bits.blend_mode = RGA_ALPHA_PER_PIXEL;
+		top_alpha_ctrl.bits.alpha_cal_mode = RGA_ALPHA_NO_SATURATION;
+
+		bottom_color_ctrl.bits.color_mode = RGA_ALPHA_PRE_MULTIPLIED;
+
+		bottom_alpha_ctrl.bits.blend_mode = RGA_ALPHA_PER_PIXEL;
+		bottom_alpha_ctrl.bits.alpha_cal_mode = RGA_ALPHA_NO_SATURATION;
+	} else {
+		top_color_ctrl.bits.color_mode =
+			config->fg_pre_multiplied ?
+				RGA_ALPHA_PRE_MULTIPLIED : RGA_ALPHA_NO_PRE_MULTIPLIED;
+
+		top_alpha_ctrl.bits.blend_mode = top_color_ctrl.bits.blend_mode;
+		top_alpha_ctrl.bits.alpha_cal_mode = top_color_ctrl.bits.alpha_cal_mode;
+		top_alpha_ctrl.bits.alpha_mode = top_color_ctrl.bits.alpha_mode;
+		top_alpha_ctrl.bits.factor_mode = top_color_ctrl.bits.factor_mode;
+
+		bottom_color_ctrl.bits.color_mode =
+			config->bg_pre_multiplied ?
+				RGA_ALPHA_PRE_MULTIPLIED : RGA_ALPHA_NO_PRE_MULTIPLIED;
+
+		bottom_alpha_ctrl.bits.blend_mode = bottom_color_ctrl.bits.blend_mode;
+		bottom_alpha_ctrl.bits.alpha_cal_mode = bottom_color_ctrl.bits.alpha_cal_mode;
+		bottom_alpha_ctrl.bits.alpha_mode = bottom_color_ctrl.bits.alpha_mode;
+		bottom_alpha_ctrl.bits.factor_mode = bottom_color_ctrl.bits.factor_mode;
+	}
+
+	*bRGA_OVERLAP_TOP_CTRL = top_color_ctrl.value;
+	*bRGA_OVERLAP_BOT_CTRL = bottom_color_ctrl.value;
+	*bRGA_OVERLAP_TOP_ALPHA = top_alpha_ctrl.value;
+	*bRGA_OVERLAP_BOT_ALPHA = bottom_alpha_ctrl.value;
 
 	/* set RGA_OVERLAP_CTRL */
 	reg = 0;
@@ -1132,16 +1320,15 @@ static void RGA3_set_reg_overlap_info(u8 *base, struct rga3_req *msg)
 	 * warning: if m1 & m0 need config split，need to redesign
 	 * this judge, which consider RGBA8888 format
 	 */
-	if (msg->alpha_mode_1 > 0 && msg->alpha_mode_0 > 0)
-		reg = ((reg & (~m_RGA3_OVLP_CTRL_SW_TOP_ALPHA_EN)) |
-			 (s_RGA3_OVLP_CTRL_SW_TOP_ALPHA_EN(1)));
+	reg = ((reg & (~m_RGA3_OVLP_CTRL_SW_TOP_ALPHA_EN)) |
+	       (s_RGA3_OVLP_CTRL_SW_TOP_ALPHA_EN(config->enable)));
 
 	*bRGA_OVERLAP_CTRL = reg;
 
 	*bRGA3_OVLP_OFF = msg->wr.x_offset | (msg->wr.y_offset << 16);
 }
 
-int rga3_gen_reg_info(u8 *base, struct rga3_req *msg)
+static int rga3_gen_reg_info(u8 *base, struct rga3_req *msg)
 {
 	switch (msg->render_mode) {
 	case BITBLT_MODE:
@@ -1225,9 +1412,8 @@ static void set_wr_info(struct rga_req *req_rga, struct rga3_req *req)
 }
 
 /* TODO: common part */
-void rga_cmd_to_rga3_cmd(struct rga_req *req_rga, struct rga3_req *req)
+static void rga_cmd_to_rga3_cmd(struct rga_req *req_rga, struct rga3_req *req)
 {
-	u16 alpha_mode_0, alpha_mode_1;
 	struct rga_img_info_t tmp;
 
 	req->render_mode = BITBLT_MODE;
@@ -1290,8 +1476,8 @@ void rga_cmd_to_rga3_cmd(struct rga_req *req_rga, struct rga3_req *req)
 	if (!(req_rga->alpha_rop_flag & 1)) {
 		if (!rga_is_alpha_format(req_rga->src.format) &&
 		    rga_is_alpha_format(req_rga->dst.format)) {
-			req->win0_a_global_val = 0xff;
-			req->win1_a_global_val = 0xff;
+			req->alpha_config.fg_global_alpha_value = 0xff;
+			req->alpha_config.bg_global_alpha_value = 0xff;
 		}
 	}
 
@@ -1311,7 +1497,7 @@ void rga_cmd_to_rga3_cmd(struct rga_req *req_rga, struct rga3_req *req)
 		 * be enabled top_blend_m1 && top_alpha_cal_m1 for dst channel(wr).
 		 */
 		if (rga_is_alpha_format(req_rga->src.format))
-			req->alpha_mode_1 = 0x0a0a;
+			req->abb_alpha_pass = true;
 
 		set_win_info(&req->win0, &req_rga->src);
 
@@ -1341,7 +1527,7 @@ void rga_cmd_to_rga3_cmd(struct rga_req *req_rga, struct rga3_req *req)
 		 * be enabled bot_blend_m1 && bot_alpha_cal_m1 for src1/dst channel(win0).
 		 */
 		if (rga_is_alpha_format(req_rga->src.format))
-			req->alpha_mode_1 = 0x0a0a;
+			req->abb_alpha_pass = true;
 
 		if (req_rga->pat.yrgb_addr != 0) {
 			if (req_rga->src.yrgb_addr == req_rga->dst.yrgb_addr) {
@@ -1385,18 +1571,18 @@ void rga_cmd_to_rga3_cmd(struct rga_req *req_rga, struct rga3_req *req)
 			if (req->win0.x_offset || req->win0.y_offset) {
 				req->win0.src_act_w = req->win0.src_act_w + req->win0.x_offset;
 				req->win0.src_act_h = req->win0.src_act_h + req->win0.y_offset;
-				req->win0.dst_act_w = req_rga->pat.act_w + req->win0.x_offset;
-				req->win0.dst_act_h = req_rga->pat.act_h + req->win0.y_offset;
+				req->win0.dst_act_w = req_rga->dst.act_w + req->win0.x_offset;
+				req->win0.dst_act_h = req_rga->dst.act_h + req->win0.y_offset;
 
 				req->win0.x_offset = 0;
 				req->win0.y_offset = 0;
 			} else {
-				req->win0.dst_act_w = req_rga->pat.act_w;
-				req->win0.dst_act_h = req_rga->pat.act_h;
+				req->win0.dst_act_w = req_rga->dst.act_w;
+				req->win0.dst_act_h = req_rga->dst.act_h;
 			}
 			/* set win1 dst size */
-			req->win1.dst_act_w = req_rga->pat.act_w;
-			req->win1.dst_act_h = req_rga->pat.act_h;
+			req->win1.dst_act_w = req_rga->dst.act_w;
+			req->win1.dst_act_h = req_rga->dst.act_h;
 		} else {
 			/* A+B->B mode */
 			set_win_info(&req->win0, &req_rga->dst);
@@ -1444,103 +1630,43 @@ void rga_cmd_to_rga3_cmd(struct rga_req *req_rga, struct rga3_req *req)
 	/* Alpha blend mode */
 	if (((req_rga->alpha_rop_flag) & 1)) {
 		if ((req_rga->alpha_rop_flag >> 3) & 1) {
-			/* porter duff alpha enable */
-			switch (req_rga->PD_mode) {
-			/* dst = 0 */
-			case 0:
-				break;
-			/* dst = src */
-			case 1:
-				req->alpha_mode_0 = 0x0212;
-				req->alpha_mode_1 = 0x0212;
-				break;
-			/* dst = dst */
-			case 2:
-				req->alpha_mode_0 = 0x1202;
-				req->alpha_mode_1 = 0x1202;
-				break;
-			/* dst = (256*sc + (256 - sa)*dc) >> 8 */
-			case 3:
-				if ((req_rga->alpha_rop_mode & 3) == 0) {
-					/* both use globalAlpha. */
-					alpha_mode_0 = 0x3010;
-					alpha_mode_1 = 0x3010;
-				} else if ((req_rga->alpha_rop_mode & 3) == 1) {
-					/* Do not use globalAlpha. */
-					alpha_mode_0 = 0x3212;
-					alpha_mode_1 = 0x3212;
-				} else if ((req_rga->alpha_rop_mode & 3) == 2) {
-					/*
-					 * dst use globalAlpha,
-					 * and dst has pixelAlpha.
-					 */
-					alpha_mode_0 = 0x3014;
-					alpha_mode_1 = 0x3014;
-				} else {
-					/*
-					 * dst use globalAlpha,
-					 * and dst does not have pixelAlpha.
-					 */
-					alpha_mode_0 = 0x3012;
-					alpha_mode_1 = 0x3012;
-				}
-				req->alpha_mode_0 = alpha_mode_0;
-				req->alpha_mode_1 = alpha_mode_1;
-				break;
-			/* dst = (sc*(256-da) + 256*dc) >> 8 */
-			case 4:
-				/* Do not use globalAlpha. */
-				req->alpha_mode_0 = 0x1232;
-				req->alpha_mode_1 = 0x1232;
-				break;
-			/* dst = (da*sc) >> 8 */
-			case 5:
-				break;
-			/* dst = (sa*dc) >> 8 */
-			case 6:
-				break;
-			/* dst = ((256-da)*sc) >> 8 */
-			case 7:
-				break;
-			/* dst = ((256-sa)*dc) >> 8 */
-			case 8:
-				break;
-			/* dst = (da*sc + (256-sa)*dc) >> 8 */
-			case 9:
-				req->alpha_mode_0 = 0x3040;
-				req->alpha_mode_1 = 0x3040;
-				break;
-			/* dst = ((256-da)*sc + (sa*dc)) >> 8 */
-			case 10:
-				break;
-			/* dst = ((256-da)*sc + (256-sa)*dc) >> 8 */
-			case 11:
-				break;
-			case 12:
-				req->alpha_mode_0 = 0x0010;
-				req->alpha_mode_1 = 0x0820;
-				break;
-			default:
-				break;
-			}
-			/* Real color mode */
+			req->alpha_config.enable = true;
+
 			if ((req_rga->alpha_rop_flag >> 9) & 1) {
-				if (req->alpha_mode_0 & (0x01 << 1))
-					req->alpha_mode_0 |= (1 << 7);
-				if (req->alpha_mode_0 & (0x01 << 9))
-					req->alpha_mode_0 |= (1 << 15);
+				req->alpha_config.fg_pre_multiplied = false;
+				req->alpha_config.bg_pre_multiplied = false;
+			} else {
+				req->alpha_config.fg_pre_multiplied = true;
+				req->alpha_config.bg_pre_multiplied = true;
 			}
-		} else {
-			if ((req_rga->alpha_rop_mode & 3) == 0) {
-				req->alpha_mode_0 = 0x3040;
-				req->alpha_mode_1 = 0x3040;
-			} else if ((req_rga->alpha_rop_mode & 3) == 1) {
-				req->alpha_mode_0 = 0x3042;
-				req->alpha_mode_1 = 0x3242;
-			} else if ((req_rga->alpha_rop_mode & 3) == 2) {
-				req->alpha_mode_0 = 0x3044;
-				req->alpha_mode_1 = 0x3044;
+
+			req->alpha_config.fg_pixel_alpha_en = rga_is_alpha_format(req->win1.format);
+			req->alpha_config.bg_pixel_alpha_en = rga_is_alpha_format(req->win0.format);
+
+			if (req_rga->feature.global_alpha_en) {
+				if (req_rga->fg_global_alpha < 0xff) {
+					req->alpha_config.fg_global_alpha_en = true;
+					req->alpha_config.fg_global_alpha_value =
+						req_rga->fg_global_alpha;
+				} else if (!req->alpha_config.fg_pixel_alpha_en) {
+					req->alpha_config.fg_global_alpha_en = true;
+					req->alpha_config.fg_global_alpha_value = 0xff;
+				}
+
+				if (req_rga->bg_global_alpha < 0xff) {
+					req->alpha_config.bg_global_alpha_en = true;
+					req->alpha_config.bg_global_alpha_value =
+						req_rga->bg_global_alpha;
+				} else if (!req->alpha_config.bg_pixel_alpha_en) {
+					req->alpha_config.bg_global_alpha_en = true;
+					req->alpha_config.bg_global_alpha_value = 0xff;
+				}
+			} else {
+				req->alpha_config.bg_global_alpha_value = 0xff;
+				req->alpha_config.bg_global_alpha_value = 0xff;
 			}
+
+			req->alpha_config.mode = req_rga->PD_mode;
 		}
 	}
 
@@ -1589,54 +1715,39 @@ void rga_cmd_to_rga3_cmd(struct rga_req *req_rga, struct rga3_req *req)
 	}
 }
 
-void rga3_soft_reset(struct rga_scheduler_t *scheduler)
+static void rga3_soft_reset(struct rga_scheduler_t *scheduler)
 {
 	u32 i;
-	u32 reg;
-	u32 mmu_addr;
+	u32 iommu_dte_addr = 0;
 
-	mmu_addr = rga_read(0xf00, scheduler);
+	if (scheduler->data->mmu == RGA_IOMMU)
+		iommu_dte_addr = rga_read(RGA_IOMMU_DTE_ADDR, scheduler);
 
-	rga_write((1 << 3) | (1 << 4), RGA3_SYS_CTRL, scheduler);
-
-	pr_err("soft reset sys_ctrl = %x, ro_rest = %x",
-		rga_read(RGA3_SYS_CTRL, scheduler),
-		rga_read(RGA3_RO_SRST, scheduler));
-
-	mdelay(20);
-
-	pr_err("soft reset sys_ctrl = %x, ro_rest = %x",
-		rga_read(RGA3_SYS_CTRL, scheduler),
-		rga_read(RGA3_RO_SRST, scheduler));
-
-	rga_write((0 << 3) | (0 << 4), RGA3_SYS_CTRL, scheduler);
-
-	pr_err("soft after reset sys_ctrl = %x, ro_rest = %x",
-		rga_read(RGA3_SYS_CTRL, scheduler),
-		rga_read(RGA3_RO_SRST, scheduler));
-
-	rga_write(1, RGA3_INT_CLR, scheduler);
-
-	rga_write(mmu_addr, 0xf00, scheduler);
-	rga_write(0, 0xf08, scheduler);
-
-	if (DEBUGGER_EN(INT_FLAG))
-		pr_info("irq INT[%x], STATS0[%x], STATS1[%x]\n",
-			rga_read(RGA3_INT_RAW, scheduler),
-			rga_read(RGA3_STATUS0, scheduler),
-			rga_read(RGA3_STATUS1, scheduler));
+	rga_write(s_RGA3_SYS_CTRL_CCLK_SRESET(1) | s_RGA3_SYS_CTRL_ACLK_SRESET(1),
+		  RGA3_SYS_CTRL, scheduler);
 
 	for (i = 0; i < RGA_RESET_TIMEOUT; i++) {
-		reg = rga_read(RGA3_SYS_CTRL, scheduler) & 1;
-
-		if (reg == 0)
+		if (rga_read(RGA3_RO_SRST, scheduler) & m_RGA3_RO_SRST_RO_RST_DONE)
 			break;
 
 		udelay(1);
 	}
 
+	rga_write(s_RGA3_SYS_CTRL_CCLK_SRESET(0) | s_RGA3_SYS_CTRL_ACLK_SRESET(0),
+		  RGA3_SYS_CTRL, scheduler);
+
+	if (scheduler->data->mmu == RGA_IOMMU) {
+		rga_write(iommu_dte_addr, RGA_IOMMU_DTE_ADDR, scheduler);
+		/* enable iommu */
+		rga_write(RGA_IOMMU_CMD_ENABLE_PAGING, RGA_IOMMU_COMMAND, scheduler);
+	}
+
 	if (i == RGA_RESET_TIMEOUT)
-		pr_err("soft reset timeout.\n");
+		pr_err("RGA3 core[%d] soft reset timeout. SYS_CTRL[0x%x], RO_SRST[0x%x]\n",
+		       scheduler->core, rga_read(RGA3_SYS_CTRL, scheduler),
+		       rga_read(RGA3_RO_SRST, scheduler));
+	else
+		pr_info("RGA3 core[%d] soft reset complete.\n", scheduler->core);
 }
 
 static int rga3_scale_check(const struct rga3_req *req)
@@ -1803,11 +1914,14 @@ static void print_debug_info(struct rga3_req *req)
 	pr_info("mmu: win0 = %.2x win1 = %.2x wr = %.2x\n",
 		req->mmu_info.src0_mmu_flag, req->mmu_info.src1_mmu_flag,
 		req->mmu_info.dst_mmu_flag);
-	pr_info("alpha: flag %x mode0=%x mode1=%x\n", req->alpha_rop_flag,
-		req->alpha_mode_0, req->alpha_mode_1);
-	pr_info("blend mode is %s\n",
-		rga_get_blend_mode_str(req->alpha_rop_flag, req->alpha_mode_0,
-					req->alpha_mode_1));
+	pr_info("alpha: flag %x mode=%s\n",
+		req->alpha_rop_flag, rga_get_blend_mode_str(req->alpha_config.mode));
+	pr_info("alpha: pre_multi=[%d,%d] pixl=[%d,%d] glb=[%d,%d]\n",
+		req->alpha_config.fg_pre_multiplied, req->alpha_config.bg_pre_multiplied,
+		req->alpha_config.fg_pixel_alpha_en, req->alpha_config.bg_pixel_alpha_en,
+		req->alpha_config.fg_global_alpha_en, req->alpha_config.bg_global_alpha_en);
+	pr_info("alpha: fg_global_alpha=%x bg_global_alpha=%x\n",
+		req->alpha_config.fg_global_alpha_value, req->alpha_config.bg_global_alpha_value);
 	pr_info("yuv2rgb mode is %x\n", req->yuv2rgb_mode);
 }
 
@@ -1836,11 +1950,12 @@ static int rga3_align_check(struct rga3_req *req)
 	return 0;
 }
 
-int rga3_init_reg(struct rga_job *job)
+static int rga3_init_reg(struct rga_job *job)
 {
 	struct rga3_req req;
 	int ret = 0;
 	struct rga_scheduler_t *scheduler = NULL;
+	ktime_t timestamp = ktime_get();
 
 	scheduler = job->scheduler;
 	if (unlikely(scheduler == NULL)) {
@@ -1870,6 +1985,10 @@ int rga3_init_reg(struct rga_job *job)
 		return -EINVAL;
 	}
 
+	if (DEBUGGER_EN(TIME))
+		pr_info("request[%d], generate register cost time %lld us\n",
+			job->request_id, ktime_us_delta(ktime_get(), timestamp));
+
 	return ret;
 }
 
@@ -1893,29 +2012,24 @@ static void rga3_dump_read_back_reg(struct rga_scheduler_t *scheduler)
 			cmd_reg[2 + i * 4], cmd_reg[3 + i * 4]);
 }
 
-int rga3_set_reg(struct rga_job *job, struct rga_scheduler_t *scheduler)
+static int rga3_set_reg(struct rga_job *job, struct rga_scheduler_t *scheduler)
 {
+	int i;
+	bool master_mode_en;
+	uint32_t sys_ctrl;
 	ktime_t now = ktime_get();
 
-	//rga_dma_flush_range(&job->cmd_reg[0], &job->cmd_reg[50], scheduler);
-
-	rga_write(0x0, RGA3_SYS_CTRL, scheduler);
-
-#if 0
-	/* CMD buff */
-	rga_write(virt_to_phys(job->cmd_reg), RGA3_CMD_ADDR, scheduler);
-#else
-	{
-		int32_t m, *cmd;
-
-		cmd = job->cmd_reg;
-		for (m = 0; m <= 50; m++)
-			rga_write(cmd[m], 0x100 + m * 4, scheduler);
-	}
-#endif
+	/*
+	 * Currently there is no iova allocated for storing cmd for the IOMMU device,
+	 * so the iommu device needs to use the slave mode.
+	 */
+	if (scheduler->data->mmu != RGA_IOMMU)
+		master_mode_en = true;
+	else
+		master_mode_en = false;
 
 	if (DEBUGGER_EN(REG)) {
-		int32_t i, *p;
+		uint32_t *p;
 
 		p = job->cmd_reg;
 		pr_info("CMD_REG\n");
@@ -1925,36 +2039,47 @@ int rga3_set_reg(struct rga_job *job, struct rga_scheduler_t *scheduler)
 				p[2 + i * 4], p[3 + i * 4]);
 	}
 
-#if 0
-	/* master mode */
-	rga_write((0x1 << 1) | (0x1 << 2) | (0x1 << 5) | (0x1 << 6),
-		 RGA3_SYS_CTRL, scheduler);
-#else
-	/* slave mode */
-	//rga_write(1, 0xf08, scheduler);
-#endif
-
 	/* All CMD finish int */
-	rga_write(1, RGA3_INT_EN, scheduler);
+	rga_write(m_RGA3_INT_FRM_DONE | m_RGA3_INT_CMD_LINE_FINISH | m_RGA3_INT_ERROR_MASK,
+		  RGA3_INT_EN, scheduler);
 
-	if (DEBUGGER_EN(MSG)) {
-		pr_info("sys_ctrl = %x, int_en = %x, int_raw = %x\n",
+	if (master_mode_en) {
+		/* master mode */
+		sys_ctrl = s_RGA3_SYS_CTRL_CMD_MODE(1);
+
+		/* cmd buffer flush cache to ddr */
+		rga_dma_sync_flush_range(&job->cmd_reg[0], &job->cmd_reg[50], scheduler);
+
+		rga_write(virt_to_phys(job->cmd_reg), RGA3_CMD_ADDR, scheduler);
+		rga_write(sys_ctrl, RGA3_SYS_CTRL, scheduler);
+		rga_write(m_RGA3_CMD_CTRL_CMD_LINE_ST_P, RGA3_CMD_CTRL, scheduler);
+	} else {
+		/* slave mode */
+		sys_ctrl = s_RGA3_SYS_CTRL_CMD_MODE(0) | m_RGA3_SYS_CTRL_RGA_SART;
+
+		for (i = 0; i <= 50; i++)
+			rga_write(job->cmd_reg[i], 0x100 + i * 4, scheduler);
+
+		rga_write(sys_ctrl, RGA3_SYS_CTRL, scheduler);
+	}
+
+	if (DEBUGGER_EN(REG)) {
+		pr_info("sys_ctrl = 0x%x, int_en = 0x%x, int_raw = 0x%x\n",
 			rga_read(RGA3_SYS_CTRL, scheduler),
 			rga_read(RGA3_INT_EN, scheduler),
 			rga_read(RGA3_INT_RAW, scheduler));
 
-		pr_info("status0 = %x, status1 = %x\n",
+		pr_info("hw_status = 0x%x, cmd_status = 0x%x\n",
 			rga_read(RGA3_STATUS0, scheduler),
-			rga_read(RGA3_STATUS1, scheduler));
+			rga_read(RGA3_CMD_STATE, scheduler));
 	}
 
 	if (DEBUGGER_EN(TIME))
-		pr_info("set cmd use time = %lld\n", ktime_us_delta(now, job->timestamp));
+		pr_info("request[%d], set register cost time %lld us\n",
+			job->request_id, ktime_us_delta(now, job->timestamp));
 
 	job->hw_running_time = now;
 	job->hw_recoder_time = now;
-
-	rga_write(1, RGA3_SYS_CTRL, scheduler);
 
 	if (DEBUGGER_EN(REG))
 		rga3_dump_read_back_reg(scheduler);
@@ -1962,7 +2087,7 @@ int rga3_set_reg(struct rga_job *job, struct rga_scheduler_t *scheduler)
 	return 0;
 }
 
-int rga3_get_version(struct rga_scheduler_t *scheduler)
+static int rga3_get_version(struct rga_scheduler_t *scheduler)
 {
 	u32 major_version, minor_version, svn_version;
 	u32 reg_version;
@@ -1987,3 +2112,80 @@ int rga3_get_version(struct rga_scheduler_t *scheduler)
 
 	return 0;
 }
+
+static int rga3_irq(struct rga_scheduler_t *scheduler)
+{
+	struct rga_job *job = scheduler->running_job;
+
+	if (job == NULL)
+		return IRQ_HANDLED;
+
+	if (test_bit(RGA_JOB_STATE_INTR_ERR, &job->state))
+		return IRQ_WAKE_THREAD;
+
+	job->intr_status = rga_read(RGA3_INT_RAW, scheduler);
+	job->hw_status = rga_read(RGA3_STATUS0, scheduler);
+	job->cmd_status = rga_read(RGA3_CMD_STATE, scheduler);
+
+	if (DEBUGGER_EN(INT_FLAG))
+		pr_info("irq handler, INTR[0x%x], HW_STATUS[0x%x], CMD_STATUS[0x%x]\n",
+			job->intr_status, job->hw_status, job->cmd_status);
+
+	if (job->intr_status & (m_RGA3_INT_FRM_DONE | m_RGA3_INT_CMD_LINE_FINISH)) {
+		set_bit(RGA_JOB_STATE_FINISH, &job->state);
+	} else if (job->intr_status & m_RGA3_INT_ERROR_MASK) {
+		set_bit(RGA_JOB_STATE_INTR_ERR, &job->state);
+
+		pr_err("irq handler err! INTR[0x%x], HW_STATUS[0x%x], CMD_STATUS[0x%x]\n",
+		       job->intr_status, job->hw_status, job->cmd_status);
+		scheduler->ops->soft_reset(scheduler);
+	}
+
+	/*clear INTR */
+	rga_write(m_RGA3_INT_FRM_DONE | m_RGA3_INT_CMD_LINE_FINISH | m_RGA3_INT_ERROR_MASK,
+		  RGA3_INT_CLR, scheduler);
+
+	return IRQ_WAKE_THREAD;
+}
+
+static int rga3_isr_thread(struct rga_job *job, struct rga_scheduler_t *scheduler)
+{
+	if (DEBUGGER_EN(INT_FLAG))
+		pr_info("isr thread, INTR[0x%x], HW_STATUS[0x%x], CMD_STATUS[0x%x]\n",
+			rga_read(RGA3_INT_RAW, scheduler),
+			rga_read(RGA3_STATUS0, scheduler),
+			rga_read(RGA3_CMD_STATE, scheduler));
+
+	if (test_bit(RGA_JOB_STATE_INTR_ERR, &job->state)) {
+		if (job->intr_status & m_RGA3_INT_RAG_MI_RD_BUS_ERR) {
+			pr_err("DMA read bus error, please check size of the input_buffer or whether the buffer has been freed.\n");
+			job->ret = -EFAULT;
+		} else if (job->intr_status & m_RGA3_INT_WIN0_FBCD_DEC_ERR) {
+			pr_err("win0 FBC decoder error, please check the fbc image of the source.\n");
+			job->ret = -EFAULT;
+		} else if (job->intr_status & m_RGA3_INT_WIN1_FBCD_DEC_ERR) {
+			pr_err("win1 FBC decoder error, please check the fbc image of the source.\n");
+			job->ret = -EFAULT;
+		} else if (job->intr_status & m_RGA3_INT_RGA_MI_WR_BUS_ERR) {
+			pr_err("wr buss error, please check size of the output_buffer or whether the buffer has been freed.\n");
+			job->ret = -EFAULT;
+		}
+
+		if (job->ret == 0) {
+			pr_err("rga intr error[0x%x]!\n", job->intr_status);
+			job->ret = -EFAULT;
+		}
+	}
+
+	return IRQ_HANDLED;
+}
+
+const struct rga_backend_ops rga3_ops = {
+	.get_version = rga3_get_version,
+	.set_reg = rga3_set_reg,
+	.init_reg = rga3_init_reg,
+	.soft_reset = rga3_soft_reset,
+	.read_back_reg = NULL,
+	.irq = rga3_irq,
+	.isr_thread = rga3_isr_thread,
+};

@@ -1508,6 +1508,7 @@ void snd_usb_set_format_quirk(struct snd_usb_substream *subs,
 	case USB_ID(0x2b73, 0x0017): /* Pioneer DJ DJM-250MK2 */
 		pioneer_djm_set_format_quirk(subs);
 		break;
+	case USB_ID(0x534d, 0x0021): /* MacroSilicon MS2100/MS2106 */
 	case USB_ID(0x534d, 0x2109): /* MacroSilicon MS2109 */
 		subs->stream_offset_adj = 2;
 		break;
@@ -1523,9 +1524,6 @@ bool snd_usb_get_sample_rate_quirk(struct snd_usb_audio *chip)
 	case USB_ID(0x0556, 0x0014): /* Phoenix Audio TMX320VC */
 	case USB_ID(0x05a3, 0x9420): /* ELP HD USB Camera */
 	case USB_ID(0x05a7, 0x1020): /* Bose Companion 5 */
-#ifdef CONFIG_HID_RKVR
-	case USB_ID(0x071B, 0x3205): /* RockChip NanoC VR */
-#endif
 	case USB_ID(0x074d, 0x3553): /* Outlaw RR2150 (Micronas UAC3553B) */
 	case USB_ID(0x1395, 0x740a): /* Sennheiser DECT */
 	case USB_ID(0x1901, 0x0191): /* GE B850V3 CP2114 audio interface */
@@ -1746,6 +1744,7 @@ u64 snd_usb_interface_dsd_format_quirks(struct snd_usb_audio *chip,
 	/* XMOS based USB DACs */
 	switch (chip->usb_id) {
 	case USB_ID(0x1511, 0x0037): /* AURALiC VEGA */
+	case USB_ID(0x21ed, 0xd75a): /* Accuphase DAC-60 option card */
 	case USB_ID(0x2522, 0x0012): /* LH Labs VI DAC Infinity */
 	case USB_ID(0x2772, 0x0230): /* Pro-Ject Pre Box S2 Digital */
 		if (fp->altsetting == 2)
@@ -1841,9 +1840,6 @@ void snd_usb_audioformat_attributes_quirk(struct snd_usb_audio *chip,
 					  int stream)
 {
 	switch (chip->usb_id) {
-#ifdef CONFIG_HID_RKVR
-	case USB_ID(0x071B, 0x3205): /* RockChip NanoC VR */
-#endif
 	case USB_ID(0x0a92, 0x0053): /* AudioTrak Optoplay */
 		/* Optoplay sets the sample rate attribute although
 		 * it seems not supporting it in fact.
@@ -1917,7 +1913,7 @@ bool snd_usb_registration_quirk(struct snd_usb_audio *chip, int iface)
 
 	for (q = registration_quirks; q->usb_id; q++)
 		if (chip->usb_id == q->usb_id)
-			return iface != q->interface;
+			return iface < q->interface;
 
 	/* Register as normal */
 	return false;

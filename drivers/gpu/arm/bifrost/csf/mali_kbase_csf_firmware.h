@@ -246,7 +246,6 @@ void kbase_csf_firmware_csg_input_mask(
 u32 kbase_csf_firmware_csg_output(
 	const struct kbase_csf_cmd_stream_group_info *info, u32 offset);
 
-
 /**
  * struct kbase_csf_global_iface - Global CSF interface
  *                                 provided by the firmware.
@@ -364,7 +363,45 @@ void kbase_csf_update_firmware_memory(struct kbase_device *kbdev,
 	u32 gpu_addr, u32 value);
 
 /**
- * kbase_csf_firmware_early_init() - Early initializatin for the firmware.
+ * kbase_csf_read_firmware_memory_exe - Read a value in a GPU address in the
+ *                                      region of its final execution location.
+ *
+ * @kbdev:     Device pointer
+ * @gpu_addr:  GPU address to read
+ * @value:     Output pointer to which the read value will be written
+ *
+ * This function read a value in a GPU address that belongs to a private loaded
+ * firmware memory region based on its final execution location. The function
+ * assumes that the location is not permanently mapped on the CPU address space,
+ * therefore it maps it and then unmaps it to access it independently. This function
+ * needs to be used when accessing firmware memory regions which will be moved to
+ * their final execution location during firmware boot using an address based on the
+ * final execution location.
+ */
+void kbase_csf_read_firmware_memory_exe(struct kbase_device *kbdev,
+	u32 gpu_addr, u32 *value);
+
+/**
+ * kbase_csf_update_firmware_memory_exe - Write a value in a GPU address in the
+ *                                        region of its final execution location.
+ *
+ * @kbdev:     Device pointer
+ * @gpu_addr:  GPU address to write
+ * @value:     Value to write
+ *
+ * This function writes a value in a GPU address that belongs to a private loaded
+ * firmware memory region based on its final execution location. The function
+ * assumes that the location is not permanently mapped on the CPU address space,
+ * therefore it maps it and then unmaps it to access it independently. This function
+ * needs to be used when accessing firmware memory regions which will be moved to
+ * their final execution location during firmware boot using an address based on the
+ * final execution location.
+ */
+void kbase_csf_update_firmware_memory_exe(struct kbase_device *kbdev,
+	u32 gpu_addr, u32 value);
+
+/**
+ * kbase_csf_firmware_early_init() - Early initialization for the firmware.
  * @kbdev: Kbase device
  *
  * Initialize resources related to the firmware. Must be called at kbase probe.
@@ -374,22 +411,87 @@ void kbase_csf_update_firmware_memory(struct kbase_device *kbdev,
 int kbase_csf_firmware_early_init(struct kbase_device *kbdev);
 
 /**
- * kbase_csf_firmware_init() - Load the firmware for the CSF MCU
+ * kbase_csf_firmware_early_term() - Terminate resources related to the firmware
+ *                                   after the firmware unload has been done.
+ *
+ * @kbdev: Device pointer
+ *
+ * This should be called only when kbase probe fails or gets rmmoded.
+ */
+void kbase_csf_firmware_early_term(struct kbase_device *kbdev);
+
+/**
+ * kbase_csf_firmware_late_init() - Late initialization for the firmware.
+ * @kbdev: Kbase device
+ *
+ * Initialize resources related to the firmware. But must be called after
+ * backend late init is done. Must be used at probe time only.
+ *
+ * Return: 0 if successful, negative error code on failure
+ */
+int kbase_csf_firmware_late_init(struct kbase_device *kbdev);
+
+/**
+ * kbase_csf_firmware_load_init() - Load the firmware for the CSF MCU
  * @kbdev: Kbase device
  *
  * Request the firmware from user space and load it into memory.
  *
  * Return: 0 if successful, negative error code on failure
  */
-int kbase_csf_firmware_init(struct kbase_device *kbdev);
+int kbase_csf_firmware_load_init(struct kbase_device *kbdev);
 
 /**
- * kbase_csf_firmware_term() - Unload the firmware
+ * kbase_csf_firmware_unload_term() - Unload the firmware
  * @kbdev: Kbase device
  *
- * Frees the memory allocated by kbase_csf_firmware_init()
+ * Frees the memory allocated by kbase_csf_firmware_load_init()
  */
-void kbase_csf_firmware_term(struct kbase_device *kbdev);
+void kbase_csf_firmware_unload_term(struct kbase_device *kbdev);
+
+#if IS_ENABLED(CONFIG_MALI_CORESIGHT)
+/**
+ * kbase_csf_firmware_mcu_register_write - Write to MCU register
+ *
+ * @kbdev:    Instance of a gpu platform device that implements a csf interface.
+ * @reg_addr: Register address to write into
+ * @reg_val:  Value to be written
+ *
+ * Write a desired value to a register in MCU address space.
+ *
+ * return: 0 on success, or negative on failure.
+ */
+int kbase_csf_firmware_mcu_register_write(struct kbase_device *const kbdev, u32 const reg_addr,
+					  u32 const reg_val);
+/**
+ * kbase_csf_firmware_mcu_register_read - Read from MCU register
+ *
+ * @kbdev:    Instance of a gpu platform device that implements a csf interface.
+ * @reg_addr: Register address to read from
+ * @reg_val:  Value as present in reg_addr register
+ *
+ * Read a value from MCU address space.
+ *
+ * return: 0 on success, or negative on failure.
+ */
+int kbase_csf_firmware_mcu_register_read(struct kbase_device *const kbdev, u32 const reg_addr,
+					 u32 *reg_val);
+
+/**
+ * kbase_csf_firmware_mcu_register_poll - Poll MCU register
+ *
+ * @kbdev:    Instance of a gpu platform device that implements a csf interface.
+ * @reg_addr: Register address to read from
+ * @val_mask: Value to mask the read value for comparison
+ * @reg_val:  Value to be compared against
+ *
+ * Continue to read a value from MCU address space until it matches given mask and value.
+ *
+ * return: 0 on success, or negative on failure.
+ */
+int kbase_csf_firmware_mcu_register_poll(struct kbase_device *const kbdev, u32 const reg_addr,
+					 u32 const val_mask, u32 const reg_val);
+#endif /* IS_ENABLED(CONFIG_MALI_CORESIGHT) */
 
 /**
  * kbase_csf_firmware_ping - Send the ping request to firmware.
@@ -404,13 +506,14 @@ void kbase_csf_firmware_ping(struct kbase_device *kbdev);
  * kbase_csf_firmware_ping_wait - Send the ping request to firmware and waits.
  *
  * @kbdev: Instance of a GPU platform device that implements a CSF interface.
+ * @wait_timeout_ms: Timeout to get the acknowledgment for PING request from FW.
  *
  * The function sends the ping request to firmware and waits to confirm it is
  * alive.
  *
  * Return: 0 on success, or negative on failure.
  */
-int kbase_csf_firmware_ping_wait(struct kbase_device *kbdev);
+int kbase_csf_firmware_ping_wait(struct kbase_device *kbdev, unsigned int wait_timeout_ms);
 
 /**
  * kbase_csf_firmware_set_timeout - Set a hardware endpoint progress timeout.
@@ -447,8 +550,10 @@ void kbase_csf_enter_protected_mode(struct kbase_device *kbdev);
  * This function needs to be called after kbase_csf_enter_protected_mode() to
  * wait for the GPU to actually enter protected mode. GPU reset is triggered if
  * the wait is unsuccessful.
+ *
+ * Return: 0 on success, or negative on failure.
  */
-void kbase_csf_wait_protected_mode_enter(struct kbase_device *kbdev);
+int kbase_csf_wait_protected_mode_enter(struct kbase_device *kbdev);
 
 static inline bool kbase_csf_firmware_mcu_halted(struct kbase_device *kbdev)
 {
@@ -796,5 +901,16 @@ static inline u32 kbase_csf_interface_version(u32 major, u32 minor, u32 patch)
  */
 int kbase_csf_trigger_firmware_config_update(struct kbase_device *kbdev);
 
+/**
+ * kbase_csf_firmware_req_core_dump - Request a firmware core dump
+ *
+ * @kbdev: Instance of a GPU platform device that implements a CSF interface.
+ *
+ * Request a firmware core dump and wait for for firmware to acknowledge.
+ * Firmware will enter infinite loop after the firmware core dump is created.
+ *
+ * Return: 0 if success, or negative error code on failure.
+ */
+int kbase_csf_firmware_req_core_dump(struct kbase_device *const kbdev);
 
 #endif

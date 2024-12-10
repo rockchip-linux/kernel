@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0
+// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * ALSA SoC Audio Layer - Rockchip Multi-DAIS-PCM driver
  *
@@ -16,19 +16,44 @@
 #include <sound/soc.h>
 
 #include "rockchip_multi_dais.h"
+#include "rockchip_dlp.h"
 
-#define MAX_FIFO_SIZE	32 /* max fifo size in frames */
-#define SND_DMAENGINE_MPCM_DRV_NAME "snd_dmaengine_mpcm"
+#define I2S_TXFIFOLR			0xc
+#define I2S_RXFIFOLR			0x2c
+#define SAI_TXFIFOLR			0x1c
+#define SAI_RXFIFOLR			0x20
+
+/* XFL4 is compatible for old version */
+#define I2S_FIFOLR_XFL4(v)		(((v) & GENMASK(29, 24)) >> 24)
+#define I2S_FIFOLR_XFL3(v)		(((v) & GENMASK(23, 18)) >> 18)
+#define I2S_FIFOLR_XFL2(v)		(((v) & GENMASK(17, 12)) >> 12)
+#define I2S_FIFOLR_XFL1(v)		(((v) & GENMASK(11, 6)) >> 6)
+#define I2S_FIFOLR_XFL0(v)		(((v) & GENMASK(5, 0)) >> 0)
+
+/* XFIFOLR: Transfer / Receive FIFO Level Register */
+#define SAI_FIFOLR_XFL3(v)		(((v) & GENMASK(23, 18)) >> 18)
+#define SAI_FIFOLR_XFL2(v)		(((v) & GENMASK(17, 12)) >> 12)
+#define SAI_FIFOLR_XFL1(v)		(((v) & GENMASK(11, 6)) >> 6)
+#define SAI_FIFOLR_XFL0(v)		(((v) & GENMASK(5, 0)) >> 0)
+
+#define MAX_FIFO_SIZE			32 /* max fifo size in frames */
+#define SND_DMAENGINE_MPCM_DRV_NAME	"snd_dmaengine_mpcm"
+
+static unsigned int prealloc_buffer_size_kbytes = 512;
+module_param(prealloc_buffer_size_kbytes, uint, 0444);
+MODULE_PARM_DESC(prealloc_buffer_size_kbytes, "Preallocate DMA buffer size (KB).");
 
 struct dmaengine_mpcm {
+	struct dlp dlp;
 	struct rk_mdais_dev *mdais;
 	struct dma_chan *tx_chans[MAX_DAIS];
 	struct dma_chan *rx_chans[MAX_DAIS];
-	struct snd_soc_component component;
 };
 
 struct dmaengine_mpcm_runtime_data {
+	struct dlp_runtime_data drd;
 	struct dma_chan *chans[MAX_DAIS];
+	struct dma_interleaved_template *xt;
 	dma_cookie_t cookies[MAX_DAIS];
 	unsigned int *channel_maps;
 	int num_chans;
@@ -44,12 +69,17 @@ struct dmaengine_mpcm_runtime_data {
 static inline struct dmaengine_mpcm_runtime_data *substream_to_prtd(
 	const struct snd_pcm_substream *substream)
 {
-	return substream->runtime->private_data;
+	struct dlp_runtime_data *drd = substream_to_drd(substream);
+
+	if (!drd)
+		return NULL;
+
+	return container_of(drd, struct dmaengine_mpcm_runtime_data, drd);
 }
 
 static struct dmaengine_mpcm *soc_component_to_mpcm(struct snd_soc_component *p)
 {
-	return container_of(p, struct dmaengine_mpcm, component);
+	return container_of(soc_component_to_dlp(p), struct dmaengine_mpcm, dlp);
 }
 
 static struct dma_chan *to_chan(struct dmaengine_mpcm *pcm,
@@ -101,7 +131,20 @@ static void dmaengine_mpcm_dma_complete(void *arg)
 {
 	struct snd_pcm_substream *substream = arg;
 #ifdef CONFIG_SND_SOC_ROCKCHIP_VAD
-	struct dmaengine_mpcm_runtime_data *prtd = substream_to_prtd(substream);
+	struct dmaengine_mpcm_runtime_data *prtd;
+#endif
+	struct dlp_runtime_data *drd;
+	struct dlp *dlp;
+
+	snd_pcm_stream_lock_irq(substream);
+	if (!substream->runtime) {
+		snd_pcm_stream_unlock_irq(substream);
+		return;
+	}
+#ifdef CONFIG_SND_SOC_ROCKCHIP_VAD
+	prtd = substream_to_prtd(substream);
+	if (unlikely(!prtd))
+		return;
 
 	if (snd_pcm_vad_attached(substream) &&
 	    substream->stream == SNDRV_PCM_STREAM_CAPTURE) {
@@ -116,12 +159,21 @@ static void dmaengine_mpcm_dma_complete(void *arg)
 		prtd->pos = 0;
 
 #endif
+	drd = substream_to_drd(substream);
+	dlp = drd->parent;
+
+	dlp_dma_complete(dlp, drd);
+	snd_pcm_stream_unlock_irq(substream);
+
 	snd_pcm_period_elapsed(substream);
 }
 
 static void dmaengine_mpcm_get_master_chan(struct dmaengine_mpcm_runtime_data *prtd)
 {
 	int i;
+
+	if (unlikely(!prtd))
+		return;
 
 	for (i = prtd->num_chans; i > 0; i--) {
 		if (prtd->chans[i - 1]) {
@@ -131,33 +183,76 @@ static void dmaengine_mpcm_get_master_chan(struct dmaengine_mpcm_runtime_data *p
 	}
 }
 
+static int dmaengine_config_interleaved(struct snd_pcm_substream *substream,
+					struct dma_interleaved_template *xt,
+					int offset, int sample_bytes, int nump, int numf)
+{
+	struct snd_pcm_runtime *runtime = substream->runtime;
+	int frame_bytes;
+
+	frame_bytes = frames_to_bytes(runtime, 1);
+
+	xt->frame_size = 1;
+	xt->sgl[0].size = sample_bytes;
+	xt->sgl[0].icg = frame_bytes - sample_bytes;
+
+#ifdef CONFIG_NO_GKI
+	xt->nump = nump;
+#endif
+	xt->numf = numf;
+
+	xt->dir = snd_pcm_substream_to_dma_direction(substream);
+
+	if (xt->dir == DMA_MEM_TO_DEV) {
+		xt->src_start = runtime->dma_addr + offset;
+		xt->src_inc = true;
+		xt->src_sgl = true;
+		xt->dst_inc = false;
+		xt->dst_sgl = false;
+	} else {
+		xt->dst_start = runtime->dma_addr + offset;
+		xt->src_inc = false;
+		xt->src_sgl = false;
+		xt->dst_inc = true;
+		xt->dst_sgl = true;
+	}
+
+	return 0;
+}
+
 static int dmaengine_mpcm_prepare_and_submit(struct snd_pcm_substream *substream)
 {
 	struct dmaengine_mpcm_runtime_data *prtd = substream_to_prtd(substream);
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct dma_async_tx_descriptor *desc = NULL;
-	enum dma_transfer_direction direction;
+	struct dma_interleaved_template *xt;
 	unsigned long flags = DMA_CTRL_ACK;
-	unsigned int *maps = prtd->channel_maps;
-	int offset, buffer_bytes, period_bytes;
+	unsigned int *maps;
+	int offset;
 	int i;
 
-	direction = snd_pcm_substream_to_dma_direction(substream);
+	if (unlikely(!prtd || !runtime))
+		return -EINVAL;
 
 	if (!substream->runtime->no_period_wakeup)
 		flags |= DMA_PREP_INTERRUPT;
 
 	prtd->pos = 0;
 	offset = 0;
-	period_bytes = snd_pcm_lib_period_bytes(substream);
-	buffer_bytes = snd_pcm_lib_buffer_bytes(substream);
+
+	xt = prtd->xt;
+	maps = prtd->channel_maps;
 	for (i = 0; i < prtd->num_chans; i++) {
 		if (!prtd->chans[i])
 			continue;
-		desc = dmaengine_prep_dma_cyclic(prtd->chans[i],
-						 runtime->dma_addr + offset,
-						 buffer_bytes, period_bytes,
-						 direction, flags);
+
+		dmaengine_config_interleaved(substream, xt, offset,
+					     samples_to_bytes(runtime, maps[i]),
+					     runtime->period_size,
+					     runtime->buffer_size);
+
+		desc = dmaengine_prep_interleaved_dma(prtd->chans[i], xt,
+						      flags | DMA_PREP_REPEAT);
 
 		if (!desc)
 			return -ENOMEM;
@@ -181,6 +276,9 @@ static void mpcm_dma_async_issue_pending(struct dmaengine_mpcm_runtime_data *prt
 {
 	int i;
 
+	if (unlikely(!prtd))
+		return;
+
 	for (i = 0; i < prtd->num_chans; i++) {
 		if (prtd->chans[i])
 			dma_async_issue_pending(prtd->chans[i]);
@@ -190,6 +288,9 @@ static void mpcm_dma_async_issue_pending(struct dmaengine_mpcm_runtime_data *prt
 static void mpcm_dmaengine_resume(struct dmaengine_mpcm_runtime_data *prtd)
 {
 	int i;
+
+	if (unlikely(!prtd))
+		return;
 
 	for (i = 0; i < prtd->num_chans; i++) {
 		if (prtd->chans[i])
@@ -201,6 +302,9 @@ static void mpcm_dmaengine_pause(struct dmaengine_mpcm_runtime_data *prtd)
 {
 	int i;
 
+	if (unlikely(!prtd))
+		return;
+
 	for (i = 0; i < prtd->num_chans; i++) {
 		if (prtd->chans[i])
 			dmaengine_pause(prtd->chans[i]);
@@ -210,6 +314,9 @@ static void mpcm_dmaengine_pause(struct dmaengine_mpcm_runtime_data *prtd)
 static void mpcm_dmaengine_terminate_all(struct dmaengine_mpcm_runtime_data *prtd)
 {
 	int i;
+
+	if (unlikely(!prtd))
+		return;
 
 	for (i = 0; i < prtd->num_chans; i++) {
 		if (prtd->chans[i])
@@ -224,6 +331,9 @@ static void dmaengine_mpcm_single_dma_complete(void *arg)
 	struct dmaengine_mpcm_runtime_data *prtd = substream_to_prtd(substream);
 	unsigned int pos, size;
 	void *buf;
+
+	if (unlikely(!prtd))
+		return;
 
 	if (snd_pcm_vad_attached(substream) &&
 	    substream->stream == SNDRV_PCM_STREAM_CAPTURE) {
@@ -245,33 +355,39 @@ static void dmaengine_mpcm_single_dma_complete(void *arg)
 }
 
 static int __mpcm_prepare_single_and_submit(struct snd_pcm_substream *substream,
-					    dma_addr_t buf_start, int size)
+					    int buf_offset, int size)
 {
 	struct dmaengine_mpcm_runtime_data *prtd = substream_to_prtd(substream);
+	struct dma_interleaved_template *xt;
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct dma_async_tx_descriptor *desc;
-	enum dma_transfer_direction direction;
 	unsigned long flags = DMA_CTRL_ACK;
-	unsigned int *maps = prtd->channel_maps;
+	unsigned int *maps;
 	int offset, i;
 	bool callback = false;
 
-	direction = snd_pcm_substream_to_dma_direction(substream);
+	if (unlikely(!prtd || !runtime))
+		return -EINVAL;
 
 	if (!substream->runtime->no_period_wakeup)
 		flags |= DMA_PREP_INTERRUPT;
 
-	offset = 0;
+	offset = buf_offset;
+	xt = prtd->xt;
+	maps = prtd->channel_maps;
 	for (i = 0; i < prtd->num_chans; i++) {
 		if (!prtd->chans[i])
 			continue;
-		desc = dmaengine_prep_slave_single(prtd->chans[i],
-						   buf_start + offset,
-						   size,
-						   direction, flags);
 
+		dmaengine_config_interleaved(substream, xt, offset,
+					     samples_to_bytes(runtime, maps[i]),
+					     0,
+					     bytes_to_frames(runtime, size));
+
+		desc = dmaengine_prep_interleaved_dma(prtd->chans[i], xt, flags);
 		if (!desc)
 			return -ENOMEM;
+
 		if (!callback) {
 			desc->callback = dmaengine_mpcm_single_dma_complete;
 			desc->callback_param = substream;
@@ -294,6 +410,9 @@ static int dmaengine_mpcm_prepare_single_and_submit(struct snd_pcm_substream *su
 	int offset, i, count, ret;
 	int buffer_bytes, period_bytes, residue_bytes;
 
+	if (unlikely(!prtd))
+		return -EINVAL;
+
 	direction = snd_pcm_substream_to_dma_direction(substream);
 
 	if (!substream->runtime->no_period_wakeup)
@@ -312,15 +431,15 @@ static int dmaengine_mpcm_prepare_single_and_submit(struct snd_pcm_substream *su
 	pr_debug("%s: offset: %d, buffer_bytes: %d\n", __func__, offset, buffer_bytes);
 	pr_debug("%s: count: %d, residue_bytes: %d\n", __func__, count, residue_bytes);
 	for (i = 0; i < count; i++) {
-		ret = __mpcm_prepare_single_and_submit(substream, buf_start,
+		ret = __mpcm_prepare_single_and_submit(substream, offset,
 						       period_bytes);
 		if (ret)
 			return ret;
-		buf_start += period_bytes;
+		offset += period_bytes;
 	}
 
 	if (residue_bytes) {
-		ret = __mpcm_prepare_single_and_submit(substream, buf_start,
+		ret = __mpcm_prepare_single_and_submit(substream, offset,
 						       residue_bytes);
 		if (ret)
 			return ret;
@@ -330,12 +449,50 @@ static int dmaengine_mpcm_prepare_single_and_submit(struct snd_pcm_substream *su
 }
 #endif
 
-static int snd_dmaengine_mpcm_trigger(struct snd_soc_component *component,
-				      struct snd_pcm_substream *substream, int cmd)
+static snd_pcm_uframes_t dmaengine_mpcm_raw_pointer(struct snd_soc_component *component,
+						    struct snd_pcm_substream *substream)
+{
+	struct dmaengine_mpcm_runtime_data *prtd = substream_to_prtd(substream);
+	struct dma_tx_state state;
+	unsigned int buf_size;
+	unsigned int pos = 0;
+	unsigned int master;
+
+	if (unlikely(!prtd))
+		return 0;
+
+	master = prtd->master_chan;
+	buf_size = snd_pcm_lib_buffer_bytes(substream);
+	dmaengine_tx_status(prtd->chans[master], prtd->cookies[master], &state);
+	if (state.residue > 0 && state.residue <= buf_size)
+		pos = buf_size - state.residue;
+
+	return bytes_to_frames(substream->runtime, pos);
+}
+
+static int dmaengine_mpcm_dlp_start(struct snd_soc_component *component,
+				    struct snd_pcm_substream *substream)
+{
+	struct dmaengine_mpcm *pcm = soc_component_to_mpcm(component);
+
+	return dlp_start(component, substream, pcm->mdais->dev, dmaengine_mpcm_raw_pointer);
+}
+
+static void dmaengine_mpcm_dlp_stop(struct snd_soc_component *component,
+				       struct snd_pcm_substream *substream)
+{
+	dlp_stop(component, substream, dmaengine_mpcm_raw_pointer);
+}
+
+static int dmaengine_mpcm_trigger(struct snd_soc_component *component,
+				  struct snd_pcm_substream *substream, int cmd)
 {
 	struct dmaengine_mpcm_runtime_data *prtd = substream_to_prtd(substream);
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	int ret;
+
+	if (unlikely(!prtd || !runtime))
+		return -EINVAL;
 
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_START:
@@ -351,16 +508,19 @@ static int snd_dmaengine_mpcm_trigger(struct snd_soc_component *component,
 		if (ret)
 			return ret;
 		mpcm_dma_async_issue_pending(prtd);
+		dmaengine_mpcm_dlp_start(component, substream);
 		break;
 	case SNDRV_PCM_TRIGGER_RESUME:
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
 		mpcm_dmaengine_resume(prtd);
 		break;
 	case SNDRV_PCM_TRIGGER_SUSPEND:
-		if (runtime->info & SNDRV_PCM_INFO_PAUSE)
+		if (runtime->info & SNDRV_PCM_INFO_PAUSE) {
 			mpcm_dmaengine_pause(prtd);
-		else
+		} else {
+			dmaengine_mpcm_dlp_stop(component, substream);
 			mpcm_dmaengine_terminate_all(prtd);
+		}
 		prtd->start_flag = false;
 		break;
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
@@ -368,6 +528,7 @@ static int snd_dmaengine_mpcm_trigger(struct snd_soc_component *component,
 		prtd->start_flag = false;
 		break;
 	case SNDRV_PCM_TRIGGER_STOP:
+		dmaengine_mpcm_dlp_stop(component, substream);
 		mpcm_dmaengine_terminate_all(prtd);
 		prtd->start_flag = false;
 		break;
@@ -419,22 +580,12 @@ static int dmaengine_mpcm_hw_params(struct snd_soc_component *component,
 		sz = snd_pcm_format_size(format, maps[i]);
 		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
 			chan = pcm->tx_chans[i];
-#ifdef CONFIG_NO_GKI
-			if (sz) {
-				slave_config.src_interlace_size = frame_bytes - sz;
-				if (slave_config.src_interlace_size)
-					slave_config.dst_maxburst = sz / slave_config.dst_addr_width;
-			}
-#endif
+			if (sz && (frame_bytes - sz) > 0)
+				slave_config.dst_maxburst = sz / slave_config.dst_addr_width;
 		} else {
 			chan = pcm->rx_chans[i];
-#ifdef CONFIG_NO_GKI
-			if (sz) {
-				slave_config.dst_interlace_size = frame_bytes - sz;
-				if (slave_config.dst_interlace_size)
-					slave_config.src_maxburst = sz / slave_config.src_addr_width;
-			}
-#endif
+			if (sz && (frame_bytes - sz) > 0)
+				slave_config.src_maxburst = sz / slave_config.src_addr_width;
 		}
 		if (!chan)
 			continue;
@@ -443,6 +594,11 @@ static int dmaengine_mpcm_hw_params(struct snd_soc_component *component,
 		if (ret)
 			return ret;
 	}
+
+	ret = dlp_hw_params(component, substream, params);
+	if (ret)
+		return ret;
+
 	return snd_pcm_lib_malloc_pages(substream, params_buffer_bytes(params));
 }
 
@@ -463,12 +619,12 @@ static int dmaengine_mpcm_set_runtime_hwparams(struct snd_pcm_substream *substre
 	int ret;
 
 	chan = to_chan(pcm, substream);
-	if (!chan)
+	if (!chan || !dma_dev)
 		return -EINVAL;
 
 	memset(&hw, 0, sizeof(hw));
 	hw.info = SNDRV_PCM_INFO_MMAP | SNDRV_PCM_INFO_MMAP_VALID |
-			SNDRV_PCM_INFO_INTERLEAVED;
+		  SNDRV_PCM_INFO_INTERLEAVED;
 	hw.periods_min = 2;
 	hw.periods_max = UINT_MAX;
 	hw.period_bytes_min = 256;
@@ -538,6 +694,13 @@ static int dmaengine_mpcm_open(struct snd_soc_component *component,
 	if (!prtd)
 		return -ENOMEM;
 
+	prtd->xt = kzalloc(sizeof(struct dma_interleaved_template) +
+			   sizeof(struct data_chunk), GFP_KERNEL);
+	if (!prtd->xt) {
+		kfree(prtd);
+		return -ENOMEM;
+	}
+
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
 		prtd->channel_maps = pcm->mdais->playback_channel_maps;
 		for (i = 0; i < pcm->mdais->num_dais; i++)
@@ -550,7 +713,8 @@ static int dmaengine_mpcm_open(struct snd_soc_component *component,
 
 	prtd->num_chans = pcm->mdais->num_dais;
 	prtd->start_flag = false;
-	substream->runtime->private_data = prtd;
+
+	dlp_open(&pcm->dlp, &prtd->drd, substream);
 
 	return 0;
 }
@@ -559,11 +723,12 @@ static int dmaengine_mpcm_new(struct snd_soc_component *component, struct snd_so
 {
 	struct dmaengine_mpcm *pcm = soc_component_to_mpcm(component);
 	struct snd_pcm_substream *substream;
+	struct device *dma_dev;
 	size_t prealloc_buffer_size;
 	size_t max_buffer_size;
 	unsigned int i;
 
-	prealloc_buffer_size = 512 * 1024;
+	prealloc_buffer_size = prealloc_buffer_size_kbytes * 1024;
 	max_buffer_size = SIZE_MAX;
 
 	for (i = SNDRV_PCM_STREAM_PLAYBACK; i <= SNDRV_PCM_STREAM_CAPTURE; i++) {
@@ -571,9 +736,15 @@ static int dmaengine_mpcm_new(struct snd_soc_component *component, struct snd_so
 		if (!substream)
 			continue;
 
+		dma_dev = dmaengine_dma_dev(pcm, substream);
+		if (!dma_dev) {
+			dev_err(component->dev, "No chan found, should assign 'rockchip,no-dmaengine' in DT\n");
+			return -EINVAL;
+		}
+
 		snd_pcm_lib_preallocate_pages(substream,
 					      SNDRV_DMA_TYPE_DEV_IRAM,
-					      dmaengine_dma_dev(pcm, substream),
+					      dma_dev,
 					      prealloc_buffer_size,
 					      max_buffer_size);
 	}
@@ -590,8 +761,12 @@ static snd_pcm_uframes_t dmaengine_mpcm_pointer(struct snd_soc_component *compon
 	snd_pcm_uframes_t frames;
 	unsigned int buf_size;
 	unsigned int pos = 0;
-	unsigned int master = prtd->master_chan;
+	unsigned int master;
 
+	if (unlikely(!prtd || !runtime))
+		return 0;
+
+	master = prtd->master_chan;
 	buf_size = snd_pcm_lib_buffer_bytes(substream);
 	dmaengine_tx_status(prtd->chans[master], prtd->cookies[master], &state);
 	if (state.residue > 0 && state.residue <= buf_size)
@@ -636,24 +811,54 @@ static int dmaengine_mpcm_hw_free(struct snd_soc_component *component,
 static int dmaengine_mpcm_close(struct snd_soc_component *component,
 				struct snd_pcm_substream *substream)
 {
+	struct dmaengine_mpcm *pcm = soc_component_to_mpcm(component);
 	struct dmaengine_mpcm_runtime_data *prtd = substream_to_prtd(substream);
 
+	if (unlikely(!prtd))
+		return -EINVAL;
+
+	dlp_close(&pcm->dlp, &prtd->drd, substream);
+
+	kfree(prtd->xt);
 	kfree(prtd);
 
 	return 0;
 }
 
+static int dmaengine_mpcm_copy_user(struct snd_soc_component *component,
+				    struct snd_pcm_substream *substream,
+				    int channel, unsigned long hwoff,
+				    void __user *buf, unsigned long bytes)
+{
+	return dlp_copy_user(component, substream, channel, hwoff, buf, bytes);
+}
+
+
+static int dmaengine_mpcm_prepare(struct snd_soc_component *component,
+				  struct snd_pcm_substream *substream)
+{
+	return dlp_prepare(component, substream);
+}
+
+static int dmaengine_mpcm_probe(struct snd_soc_component *component)
+{
+	return dlp_probe(component);
+}
+
 static const struct snd_soc_component_driver dmaengine_mpcm_platform = {
 	.name		= SND_DMAENGINE_MPCM_DRV_NAME,
 	.probe_order	= SND_SOC_COMP_ORDER_LATE,
+	.probe		= dmaengine_mpcm_probe,
 	.pcm_construct	= dmaengine_mpcm_new,
 	.open		= dmaengine_mpcm_open,
 	.close		= dmaengine_mpcm_close,
 	.ioctl		= dmaengine_mpcm_ioctl,
 	.hw_params	= dmaengine_mpcm_hw_params,
 	.hw_free	= dmaengine_mpcm_hw_free,
-	.trigger	= snd_dmaengine_mpcm_trigger,
+	.prepare	= dmaengine_mpcm_prepare,
+	.trigger	= dmaengine_mpcm_trigger,
 	.pointer	= dmaengine_mpcm_pointer,
+	.copy_user	= dmaengine_mpcm_copy_user,
 };
 
 static void dmaengine_mpcm_release_chan(struct dmaengine_mpcm *pcm)
@@ -667,6 +872,55 @@ static void dmaengine_mpcm_release_chan(struct dmaengine_mpcm *pcm)
 			dma_release_channel(pcm->rx_chans[i]);
 	}
 }
+
+static int dmaengine_mpcm_get_fifo_count(struct device *dev,
+					 struct snd_pcm_substream *substream)
+{
+	struct rk_mdais_dev *mdais = dev_get_drvdata(dev);
+	struct dmaengine_mpcm_runtime_data *prtd = substream_to_prtd(substream);
+	struct snd_soc_component *component;
+	unsigned int tx, rx, reg;
+	int val = 0;
+
+	if (unlikely(!prtd))
+		return -EINVAL;
+
+	component = mdais->dais[prtd->master_chan].dai->component;
+	if (unlikely(!component))
+		return -EINVAL;
+
+	if (strstr(dev_driver_string(component->dev), "i2s")) {
+		/* compatible for both I2S and I2STDM controller */
+		tx = snd_soc_component_read(component, I2S_TXFIFOLR);
+		rx = snd_soc_component_read(component, I2S_RXFIFOLR);
+
+		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
+			val = I2S_FIFOLR_XFL3(tx) +
+			      I2S_FIFOLR_XFL2(tx) +
+			      I2S_FIFOLR_XFL1(tx) +
+			      I2S_FIFOLR_XFL0(tx);
+		else
+			/* XFL4 is compatible for old version */
+			val = I2S_FIFOLR_XFL4(tx) +
+			      I2S_FIFOLR_XFL3(rx) +
+			      I2S_FIFOLR_XFL2(rx) +
+			      I2S_FIFOLR_XFL1(rx) +
+			      I2S_FIFOLR_XFL0(rx);
+	} else if (strstr(dev_driver_string(component->dev), "sai")) {
+		reg = substream->stream ? SAI_RXFIFOLR : SAI_TXFIFOLR;
+
+		val = SAI_FIFOLR_XFL3(reg) +
+		      SAI_FIFOLR_XFL2(reg) +
+		      SAI_FIFOLR_XFL1(reg) +
+		      SAI_FIFOLR_XFL0(reg);
+	}
+
+	return val;
+}
+
+static const struct snd_dlp_config dconfig = {
+	.get_fifo_count = dmaengine_mpcm_get_fifo_count,
+};
 
 int snd_dmaengine_mpcm_register(struct rk_mdais_dev *mdais)
 {
@@ -703,12 +957,7 @@ int snd_dmaengine_mpcm_register(struct rk_mdais_dev *mdais)
 		}
 	}
 
-	ret = snd_soc_component_initialize(&pcm->component, &dmaengine_mpcm_platform,
-					   dev);
-	if (ret)
-		goto err_free_dma;
-
-	ret = snd_soc_add_component(&pcm->component, NULL, 0);
+	ret = dlp_register(&pcm->dlp, dev, &dmaengine_mpcm_platform, &dconfig);
 	if (ret)
 		goto err_free_dma;
 

@@ -36,6 +36,7 @@
 #include "mpp_debug.h"
 #include "mpp_common.h"
 #include "mpp_iommu.h"
+#include <soc/rockchip/rockchip_iommu.h>
 
 #include "hack/mpp_hack_px30.h"
 
@@ -891,6 +892,7 @@ static int rkvdec_run(struct mpp_dev *mpp,
 	int i;
 	u32 reg_en;
 	struct rkvdec_task *task = NULL;
+	u32 timing_en = mpp->srv->timing_en;
 
 	mpp_debug_enter();
 
@@ -922,10 +924,13 @@ static int rkvdec_run(struct mpp_dev *mpp,
 		}
 		/* init current task */
 		mpp->cur_task = mpp_task;
+		mpp_task_run_begin(mpp_task, timing_en, MPP_WORK_TIMEOUT_DELAY);
 		/* Flush the register before the start the device */
 		wmb();
 		mpp_write(mpp, RKVDEC_REG_INT_EN,
 			  task->reg[reg_en] | RKVDEC_DEC_START);
+
+		mpp_task_run_end(mpp_task, timing_en);
 	} break;
 	default:
 		break;
@@ -948,11 +953,11 @@ static int rkvdec_3328_run(struct mpp_dev *mpp,
 	task = to_rkvdec_task(mpp_task);
 
 	/*
-	 * HW defeat workaround: VP9 power save optimization cause decoding
+	 * HW defeat workaround: VP9 and H.265 power save optimization cause decoding
 	 * corruption, disable optimization here.
 	 */
 	fmt = RKVDEC_GET_FORMAT(task->reg[RKVDEC_REG_SYS_CTRL_INDEX]);
-	if (fmt == RKVDEC_FMT_VP9D) {
+	if (fmt == RKVDEC_FMT_VP9D || fmt == RKVDEC_FMT_H265D) {
 		cfg = task->reg[RKVDEC_POWER_CTL_INDEX] | 0xFFFF;
 		task->reg[RKVDEC_POWER_CTL_INDEX] = cfg & (~(1 << 12));
 		mpp_write_relaxed(mpp, RKVDEC_POWER_CTL_BASE,
@@ -973,6 +978,13 @@ static int rkvdec_1126_run(struct mpp_dev *mpp, struct mpp_task *mpp_task)
 	if (task->link_mode == RKVDEC_MODE_ONEFRAME)
 		mpp_iommu_flush_tlb(mpp->iommu_info);
 
+	return rkvdec_run(mpp, mpp_task);
+}
+
+static int rkvdec_px30_run(struct mpp_dev *mpp,
+		    struct mpp_task *mpp_task)
+{
+	mpp_iommu_flush_tlb(mpp->iommu_info);
 	return rkvdec_run(mpp, mpp_task);
 }
 
@@ -1269,6 +1281,13 @@ static int rkvdec_px30_init(struct mpp_dev *mpp)
 	return px30_workaround_combo_init(mpp);
 }
 
+static int rkvdec_3036_init(struct mpp_dev *mpp)
+{
+	rkvdec_init(mpp);
+	set_bit(mpp->var->device_type, &mpp->queue->dev_active_flags);
+	return 0;
+}
+
 static int rkvdec_3328_iommu_hdl(struct iommu_domain *iommu,
 				 struct device *iommu_dev,
 				 unsigned long iova,
@@ -1410,7 +1429,7 @@ static int rkvdec_3328_init(struct mpp_dev *mpp)
 		goto done;
 	}
 	dec->aux_iova = -1;
-	mpp->iommu_info->hdl = rkvdec_3328_iommu_hdl;
+	mpp->fault_handler = rkvdec_3328_iommu_hdl;
 
 	ret = rkvdec_devfreq_init(mpp);
 done:
@@ -1518,6 +1537,52 @@ static int rkvdec_3368_set_grf(struct mpp_dev *mpp)
 
 	dec->grf_changed = mpp_grf_is_changed(mpp->grf_info);
 	mpp_set_grf(mpp->grf_info);
+
+	return 0;
+}
+
+static int rkvdec_3036_set_grf(struct mpp_dev *mpp)
+{
+	int grf_changed;
+	struct mpp_dev *loop = NULL, *n;
+	struct mpp_taskqueue *queue = mpp->queue;
+	bool pd_is_on;
+
+	grf_changed = mpp_grf_is_changed(mpp->grf_info);
+	if (grf_changed) {
+
+		/*
+		 * in this case, devices share the queue also share the same pd&clk,
+		 * so use mpp->dev's pd to control all the process is okay
+		 */
+		pd_is_on = rockchip_pmu_pd_is_on(mpp->dev);
+		if (!pd_is_on)
+			rockchip_pmu_pd_on(mpp->dev);
+		mpp->hw_ops->clk_on(mpp);
+
+		list_for_each_entry_safe(loop, n, &queue->dev_list, queue_link) {
+			if (test_bit(loop->var->device_type, &queue->dev_active_flags)) {
+				mpp_set_grf(loop->grf_info);
+				if (loop->hw_ops->clk_on)
+					loop->hw_ops->clk_on(loop);
+				if (loop->hw_ops->reset)
+					loop->hw_ops->reset(loop);
+				rockchip_iommu_disable(loop->dev);
+				if (loop->hw_ops->clk_off)
+					loop->hw_ops->clk_off(loop);
+				clear_bit(loop->var->device_type, &queue->dev_active_flags);
+			}
+		}
+
+		mpp_set_grf(mpp->grf_info);
+		rockchip_iommu_enable(mpp->dev);
+		set_bit(mpp->var->device_type, &queue->dev_active_flags);
+
+		mpp->hw_ops->clk_off(mpp);
+		if (!pd_is_on)
+			rockchip_pmu_pd_off(mpp->dev);
+	}
+
 
 	return 0;
 }
@@ -1662,18 +1727,18 @@ static int rkvdec_reset(struct mpp_dev *mpp)
 
 static int rkvdec_sip_reset(struct mpp_dev *mpp)
 {
-	struct rkvdec_dev *dec = to_rkvdec_dev(mpp);
+	if (IS_REACHABLE(CONFIG_ROCKCHIP_SIP)) {
+		/* The reset flow in arm trustzone firmware */
+		struct rkvdec_dev *dec = to_rkvdec_dev(mpp);
 
-/* The reset flow in arm trustzone firmware */
-#if IS_ENABLED(CONFIG_ROCKCHIP_SIP)
-	mutex_lock(&dec->sip_reset_lock);
-	sip_smc_vpu_reset(0, 0, 0);
-	mutex_unlock(&dec->sip_reset_lock);
+		mutex_lock(&dec->sip_reset_lock);
+		sip_smc_vpu_reset(0, 0, 0);
+		mutex_unlock(&dec->sip_reset_lock);
 
-	return 0;
-#else
-	return rkvdec_reset(mpp);
-#endif
+		return 0;
+	} else {
+		return rkvdec_reset(mpp);
+	}
 }
 
 static struct mpp_hw_ops rkvdec_v1_hw_ops = {
@@ -1695,6 +1760,17 @@ static struct mpp_hw_ops rkvdec_px30_hw_ops = {
 	.reduce_freq = rkvdec_reduce_freq,
 	.reset = rkvdec_reset,
 	.set_grf = px30_workaround_combo_switch_grf,
+};
+
+static struct mpp_hw_ops rkvdec_3036_hw_ops = {
+	.init = rkvdec_3036_init,
+	.clk_on = rkvdec_clk_on,
+	.clk_off = rkvdec_clk_off,
+	.get_freq = rkvdec_get_freq,
+	.set_freq = rkvdec_set_freq,
+	.reduce_freq = rkvdec_reduce_freq,
+	.reset = rkvdec_reset,
+	.set_grf = rkvdec_3036_set_grf,
 };
 
 static struct mpp_hw_ops rkvdec_3399_hw_ops = {
@@ -1721,6 +1797,16 @@ static struct mpp_hw_ops rkvdec_3368_hw_ops = {
 static struct mpp_dev_ops rkvdec_v1_dev_ops = {
 	.alloc_task = rkvdec_alloc_task,
 	.run = rkvdec_run,
+	.irq = rkvdec_irq,
+	.isr = rkvdec_isr,
+	.finish = rkvdec_finish,
+	.result = rkvdec_result,
+	.free_task = rkvdec_free_task,
+};
+
+static struct mpp_dev_ops rkvdec_px30_dev_ops = {
+	.alloc_task = rkvdec_alloc_task,
+	.run = rkvdec_px30_run,
 	.irq = rkvdec_irq,
 	.isr = rkvdec_isr,
 	.finish = rkvdec_finish,
@@ -1777,6 +1863,14 @@ static const struct mpp_dev_var rk_hevcdec_data = {
 	.dev_ops = &rkvdec_v1_dev_ops,
 };
 
+static const struct mpp_dev_var rk_hevcdec_3036_data = {
+	.device_type = MPP_DEVICE_HEVC_DEC,
+	.hw_info = &rk_hevcdec_hw_info,
+	.trans_info = rk_hevcdec_trans,
+	.hw_ops = &rkvdec_3036_hw_ops,
+	.dev_ops = &rkvdec_v1_dev_ops,
+};
+
 static const struct mpp_dev_var rk_hevcdec_3368_data = {
 	.device_type = MPP_DEVICE_HEVC_DEC,
 	.hw_info = &rk_hevcdec_hw_info,
@@ -1790,7 +1884,7 @@ static const struct mpp_dev_var rk_hevcdec_px30_data = {
 	.hw_info = &rk_hevcdec_hw_info,
 	.trans_info = rk_hevcdec_trans,
 	.hw_ops = &rkvdec_px30_hw_ops,
-	.dev_ops = &rkvdec_v1_dev_ops,
+	.dev_ops = &rkvdec_px30_dev_ops,
 };
 
 static const struct mpp_dev_var rkvdec_v1_data = {
@@ -1834,6 +1928,12 @@ static const struct of_device_id mpp_rkvdec_dt_match[] = {
 	{
 		.compatible = "rockchip,hevc-decoder-px30",
 		.data = &rk_hevcdec_px30_data,
+	},
+#endif
+#ifdef CONFIG_CPU_RK3036
+	{
+		.compatible = "rockchip,hevc-decoder-rk3036",
+		.data = &rk_hevcdec_3036_data,
 	},
 #endif
 #ifdef CONFIG_CPU_RK3368

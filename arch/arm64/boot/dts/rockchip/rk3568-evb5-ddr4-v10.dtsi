@@ -84,6 +84,13 @@
 	};
 };
 
+&bt_sound {
+	status = "disabled";
+	simple-audio-card,cpu {
+		sound-dai = <&i2s2_2ch>;
+	};
+};
+
 &combphy0_us {
 	status = "okay";
 };
@@ -297,6 +304,7 @@
 		clock-names = "xvclk";
 		pinctrl-names = "default";
 		pinctrl-0 = <&cif_clk>;
+		power-domains = <&power RK3568_PD_VI>;
 		reset-gpios = <&gpio3 RK_PB6 GPIO_ACTIVE_LOW>;
 		pwdn-gpios = <&gpio4 RK_PB4 GPIO_ACTIVE_LOW>;
 		rockchip,grf = <&grf>;
@@ -357,6 +365,12 @@
 };
 
 &i2c5 {
+	status = "disabled";
+};
+
+&i2s2_2ch {
+	pinctrl-0 = <&i2s2m0_sclktx &i2s2m0_lrcktx &i2s2m0_sdi &i2s2m0_sdo>;
+	rockchip,bclk-fs = <32>;
 	status = "disabled";
 };
 

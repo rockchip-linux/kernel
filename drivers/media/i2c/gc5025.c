@@ -544,9 +544,7 @@ static int gc5025_g_frame_interval(struct v4l2_subdev *sd,
 	struct gc5025 *gc5025 = to_gc5025(sd);
 	const struct gc5025_mode *mode = gc5025->cur_mode;
 
-	mutex_lock(&gc5025->mutex);
 	fi->interval = mode->max_fps;
-	mutex_unlock(&gc5025->mutex);
 
 	return 0;
 }
@@ -1502,9 +1500,7 @@ static int gc5025_enum_frame_interval(struct v4l2_subdev *sd,
 	if (fie->index >= ARRAY_SIZE(supported_modes))
 		return -EINVAL;
 
-	if (fie->code != MEDIA_BUS_FMT_SRGGB10_1X10)
-		return -EINVAL;
-
+	fie->code = MEDIA_BUS_FMT_SRGGB10_1X10;
 	fie->width = supported_modes[fie->index].width;
 	fie->height = supported_modes[fie->index].height;
 	fie->interval = supported_modes[fie->index].max_fps;

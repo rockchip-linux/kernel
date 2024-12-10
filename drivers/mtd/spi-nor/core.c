@@ -21,8 +21,16 @@
 #include <linux/sched/task_stack.h>
 #include <linux/spi/flash.h>
 #include <linux/mtd/spi-nor.h>
+#include <linux/miscdevice.h>
+
+#include <uapi/linux/spi_nor_misc.h>
 
 #include "core.h"
+
+struct spi_nor_misc_dev {
+	struct miscdevice dev;
+	struct spi_nor *nor;
+};
 
 /* Define max times to check status register before we give up. */
 
@@ -847,21 +855,22 @@ static int spi_nor_write_16bit_sr_and_check(struct spi_nor *nor, u8 sr1)
 		ret = spi_nor_read_cr(nor, &sr_cr[1]);
 		if (ret)
 			return ret;
-	} else if (nor->params->quad_enable) {
+	} else if (spi_nor_get_protocol_width(nor->read_proto) == 4 &&
+		   spi_nor_get_protocol_width(nor->write_proto) == 4 &&
+		   nor->params->quad_enable) {
 		/*
 		 * If the Status Register 2 Read command (35h) is not
 		 * supported, we should at least be sure we don't
 		 * change the value of the SR2 Quad Enable bit.
 		 *
-		 * We can safely assume that when the Quad Enable method is
-		 * set, the value of the QE bit is one, as a consequence of the
-		 * nor->params->quad_enable() call.
+		 * When the Quad Enable method is set and the buswidth is 4, we
+		 * can safely assume that the value of the QE bit is one, as a
+		 * consequence of the nor->params->quad_enable() call.
 		 *
-		 * We can safely assume that the Quad Enable bit is present in
-		 * the Status Register 2 at BIT(1). According to the JESD216
-		 * revB standard, BFPT DWORDS[15], bits 22:20, the 16-bit
-		 * Write Status (01h) command is available just for the cases
-		 * in which the QE bit is described in SR2 at BIT(1).
+		 * According to the JESD216 revB standard, BFPT DWORDS[15],
+		 * bits 22:20, the 16-bit Write Status (01h) command is
+		 * available just for the cases in which the QE bit is
+		 * described in SR2 at BIT(1).
 		 */
 		sr_cr[1] = SR2_QUAD_EN_BIT1;
 	} else {
@@ -873,6 +882,15 @@ static int spi_nor_write_16bit_sr_and_check(struct spi_nor *nor, u8 sr1)
 	ret = spi_nor_write_sr(nor, sr_cr, 2);
 	if (ret)
 		return ret;
+
+	ret = spi_nor_read_sr(nor, sr_cr);
+	if (ret)
+		return ret;
+
+	if (sr1 != sr_cr[0]) {
+		dev_dbg(nor->dev, "SR: Read back test failed\n");
+		return -EIO;
+	}
 
 	if (nor->flags & SNOR_F_NO_READ_CR)
 		return 0;
@@ -889,6 +907,45 @@ static int spi_nor_write_16bit_sr_and_check(struct spi_nor *nor, u8 sr1)
 	}
 
 	return 0;
+}
+
+/**
+ * spi_nor_write_cr() - Write the Configure Register.
+ * @nor:	pointer to 'struct spi_nor'.
+ * @sr:		pointer to DMA-able buffer to write to the Status Register.
+ * @len:	number of bytes to write to the Status Register.
+ *
+ * Return: 0 on success, -errno otherwise.
+ */
+static int spi_nor_write_8bit_cr(struct spi_nor *nor, u8 cr)
+{
+	int ret;
+	u8 *sr_cr = nor->bouncebuf;
+
+	ret = spi_nor_write_enable(nor);
+	if (ret)
+		return ret;
+
+	sr_cr[0] = cr;
+
+	if (nor->spimem) {
+		struct spi_mem_op op =
+			SPI_MEM_OP(SPI_MEM_OP_CMD(SPINOR_OP_WRCR, 1),
+				   SPI_MEM_OP_NO_ADDR,
+				   SPI_MEM_OP_NO_DUMMY,
+				   SPI_MEM_OP_DATA_OUT(1, sr_cr, 1));
+
+		ret = spi_mem_exec_op(nor->spimem, &op);
+	} else {
+		ret = nor->controller_ops->write_reg(nor, SPINOR_OP_WRCR, sr_cr, 1);
+	}
+
+	if (ret) {
+		dev_dbg(nor->dev, "error %d writing SR\n", ret);
+		return ret;
+	}
+
+	return spi_nor_wait_till_ready(nor);
 }
 
 /**
@@ -1258,6 +1315,8 @@ spi_nor_find_best_erase_type(const struct spi_nor_erase_map *map,
 			continue;
 
 		erase = &map->erase_type[i];
+		if (!erase->size)
+			continue;
 
 		/* Alignment is not mandatory for overlaid regions */
 		if (region->offset & SNOR_OVERLAID_REGION &&
@@ -2055,8 +2114,52 @@ int spi_nor_sr2_bit7_quad_enable(struct spi_nor *nor)
 	return 0;
 }
 
+/**
+ * spi_nor_sr2_bit2_quad_enable() - set QE bit in Status Register 2.
+ * @nor:	pointer to a 'struct spi_nor'
+ *
+ * Set the Quad Enable (QE) bit in the Status Register 2.
+ *
+ * Return: 0 on success, -errno otherwise.
+ */
+int spi_nor_sr2_bit2_quad_enable(struct spi_nor *nor)
+{
+	u8 *cr = nor->bouncebuf;
+	int ret;
+	u8 cr_written;
+
+	/* Check current Quad Enable bit value. */
+	ret = spi_nor_read_cr(nor, cr);
+	if (ret)
+		return ret;
+	if (*cr & SR2_QUAD_EN_BIT2)
+		return 0;
+
+	/* Update the Quad Enable bit. */
+	*cr |= SR2_QUAD_EN_BIT2;
+
+	ret = spi_nor_write_8bit_cr(nor, *cr);
+	if (ret)
+		return ret;
+
+	cr_written = *cr;
+
+	/* Read back and check it. */
+	ret = spi_nor_read_cr(nor, cr);
+	if (ret)
+		return ret;
+
+	if (*cr != cr_written) {
+		dev_dbg(nor->dev, "CR: Read back test failed\n");
+		return -EIO;
+	}
+
+	return 0;
+}
+
 static const struct spi_nor_manufacturer *manufacturers[] = {
 	&spi_nor_atmel,
+	&spi_nor_boya,
 	&spi_nor_catalyst,
 	&spi_nor_dosilicon,
 	&spi_nor_eon,
@@ -2065,6 +2168,7 @@ static const struct spi_nor_manufacturer *manufacturers[] = {
 	&spi_nor_fmsh,
 	&spi_nor_fujitsu,
 	&spi_nor_gigadevice,
+	&spi_nor_normem,
 	&spi_nor_intel,
 	&spi_nor_issi,
 	&spi_nor_macronix,
@@ -2462,6 +2566,15 @@ void spi_nor_set_erase_type(struct spi_nor_erase_type *erase, u32 size,
 	/* JEDEC JESD216B Standard imposes erase sizes to be power of 2. */
 	erase->size_shift = ffs(erase->size) - 1;
 	erase->size_mask = (1 << erase->size_shift) - 1;
+}
+
+/**
+ * spi_nor_mask_erase_type() - mask out a SPI NOR erase type
+ * @erase:	pointer to a structure that describes a SPI NOR erase type
+ */
+void spi_nor_mask_erase_type(struct spi_nor_erase_type *erase)
+{
+	erase->size = 0;
 }
 
 /**
@@ -3378,6 +3491,78 @@ static int spi_nor_create_write_dirmap(struct spi_nor *nor)
 	return PTR_ERR_OR_ZERO(nor->dirmap.wdesc);
 }
 
+static int spi_nor_misc_open(struct inode *inode, struct file *file)
+{
+	struct miscdevice *miscdev = file->private_data;
+	struct spi_nor_misc_dev *nor_dev;
+
+	nor_dev = container_of(miscdev, struct spi_nor_misc_dev, dev);
+	file->private_data = nor_dev->nor;
+
+	return 0;
+}
+
+static long spi_nor_misc_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+{
+	struct spi_nor *nor = (struct spi_nor *)file->private_data;
+	struct nor_flash_user_info info;
+	void __user *uarg = (void __user *)arg;
+	int i, ret;
+
+	switch (cmd) {
+	case NOR_GET_FLASH_INFO:
+		for (i = 0; i < SPI_NOR_MAX_ID_LEN; i++)
+			info.id[i] = nor->info->id[i];
+
+		ret = copy_to_user(uarg, &info, sizeof(info));
+		if (ret) {
+			dev_err(nor->dev, "failed to get elbi data\n");
+			return -EFAULT;
+		}
+		break;
+	default:
+		break;
+	}
+	return 0;
+}
+
+static const struct file_operations spi_nor_misc_ops = {
+	.owner = THIS_MODULE,
+	.open = spi_nor_misc_open,
+	.unlocked_ioctl = spi_nor_misc_ioctl,
+};
+
+static int spi_nor_add_misc(struct spi_nor *nor)
+{
+	int ret;
+	struct spi_nor_misc_dev *nor_dev;
+	char name[24];
+
+	nor_dev = devm_kzalloc(nor->dev, sizeof(struct spi_nor_misc_dev),
+				GFP_KERNEL);
+	if (!nor_dev)
+		return -ENOMEM;
+
+	nor_dev->dev.minor = MISC_DYNAMIC_MINOR;
+	snprintf(name, sizeof(name), "%s%s", "nor_misc_", dev_name(nor->dev));
+	nor_dev->dev.name = devm_kstrdup(nor->dev, name, GFP_KERNEL);
+	nor_dev->dev.fops = &spi_nor_misc_ops;
+	nor_dev->dev.parent = nor->dev;
+
+	ret = misc_register(&nor_dev->dev);
+	if (ret) {
+		dev_err(nor->dev, "failed to register misc device.\n");
+		return ret;
+	}
+
+	nor_dev->nor = nor;
+	nor->misc_dev = &nor_dev->dev;
+
+	dev_info(nor->dev, "register misc device\n");
+
+	return 0;
+}
+
 static int spi_nor_probe(struct spi_mem *spimem)
 {
 	struct spi_device *spi = spimem->spi;
@@ -3447,6 +3632,9 @@ static int spi_nor_probe(struct spi_mem *spimem)
 	if (ret)
 		return ret;
 
+	if (IS_ENABLED(CONFIG_MTD_SPI_NOR_MISC))
+		spi_nor_add_misc(nor);
+
 	return mtd_device_register(&nor->mtd, data ? data->parts : NULL,
 				   data ? data->nr_parts : 0);
 }
@@ -3456,6 +3644,9 @@ static int spi_nor_remove(struct spi_mem *spimem)
 	struct spi_nor *nor = spi_mem_get_drvdata(spimem);
 
 	spi_nor_restore(nor);
+
+	if (IS_ENABLED(CONFIG_MTD_SPI_NOR_MISC) && nor->misc_dev)
+		misc_deregister(nor->misc_dev);
 
 	/* Clean up MTD stuff. */
 	return mtd_device_unregister(&nor->mtd);

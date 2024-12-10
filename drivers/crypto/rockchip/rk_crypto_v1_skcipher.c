@@ -66,7 +66,7 @@ static int rk_get_bc(u32 algo, u32 mode, u32 *bc_val)
 	switch (algo) {
 	case CIPHER_ALGO_DES3_EDE:
 		*bc_val |= RK_CRYPTO_TDES_SELECT;
-		/* fall through */
+		fallthrough;
 	case CIPHER_ALGO_DES:
 		if (mode == CIPHER_MODE_ECB)
 			*bc_val = 0;
@@ -269,7 +269,6 @@ static int rk_ablk_start(struct rk_crypto_dev *rk_dev)
 	struct skcipher_request *req =
 		skcipher_request_cast(rk_dev->async_req);
 	struct rk_alg_ctx *alg_ctx = rk_alg_ctx_cast(rk_dev);
-	unsigned long flags;
 	int err = 0;
 
 	alg_ctx->left_bytes = req->cryptlen;
@@ -281,10 +280,9 @@ static int rk_ablk_start(struct rk_crypto_dev *rk_dev)
 	alg_ctx->req_dst    = req->dst;
 	alg_ctx->dst_nents  = sg_nents_for_len(req->dst, req->cryptlen);
 
-	spin_lock_irqsave(&rk_dev->lock, flags);
 	rk_ablk_hw_init(rk_dev);
 	err = rk_set_data_start(rk_dev);
-	spin_unlock_irqrestore(&rk_dev->lock, flags);
+
 	return err;
 }
 

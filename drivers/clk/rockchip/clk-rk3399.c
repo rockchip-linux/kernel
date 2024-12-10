@@ -651,9 +651,9 @@ static struct rockchip_clk_branch rk3399_clk_branches[] __initdata = {
 	MUX(SCLK_RMII_SRC, "clk_rmii_src", mux_rmii_p, CLK_SET_RATE_PARENT,
 			RK3399_CLKSEL_CON(19), 4, 1, MFLAGS),
 	GATE(SCLK_MACREF_OUT, "clk_mac_refout", "clk_rmii_src", 0,
-			RK3399_CLKGATE_CON(5), 6, GFLAGS),
-	GATE(SCLK_MACREF, "clk_mac_ref", "clk_rmii_src", 0,
 			RK3399_CLKGATE_CON(5), 7, GFLAGS),
+	GATE(SCLK_MACREF, "clk_mac_ref", "clk_rmii_src", 0,
+			RK3399_CLKGATE_CON(5), 6, GFLAGS),
 	GATE(SCLK_MAC_RX, "clk_rmii_rx", "clk_rmii_src", 0,
 			RK3399_CLKGATE_CON(5), 8, GFLAGS),
 	GATE(SCLK_MAC_TX, "clk_rmii_tx", "clk_rmii_src", 0,
@@ -1356,7 +1356,7 @@ static struct rockchip_clk_branch rk3399_clk_branches[] __initdata = {
 			RK3399_CLKSEL_CON(56), 6, 2, MFLAGS,
 			RK3399_CLKGATE_CON(10), 7, GFLAGS),
 
-	COMPOSITE_NOGATE(SCLK_CIF_OUT, "clk_cifout", mux_clk_cif_p, 0,
+	COMPOSITE_NOGATE(SCLK_CIF_OUT, "clk_cifout", mux_clk_cif_p, CLK_SET_RATE_PARENT,
 			 RK3399_CLKSEL_CON(56), 5, 1, MFLAGS, 0, 5, DFLAGS),
 
 	/* gic */
@@ -1694,6 +1694,7 @@ static void __init rk3399_pmu_clk_init(struct device_node *np)
 }
 CLK_OF_DECLARE(rk3399_cru_pmu, "rockchip,rk3399-pmucru", rk3399_pmu_clk_init);
 
+#ifdef MODULE
 struct clk_rk3399_inits {
 	void (*inits)(struct device_node *np);
 };
@@ -1718,7 +1719,7 @@ static const struct of_device_id clk_rk3399_match_table[] = {
 };
 MODULE_DEVICE_TABLE(of, clk_rk3399_match_table);
 
-static int __init clk_rk3399_probe(struct platform_device *pdev)
+static int clk_rk3399_probe(struct platform_device *pdev)
 {
 	struct device_node *np = pdev->dev.of_node;
 	const struct of_device_id *match;
@@ -1736,14 +1737,16 @@ static int __init clk_rk3399_probe(struct platform_device *pdev)
 }
 
 static struct platform_driver clk_rk3399_driver = {
+	.probe		= clk_rk3399_probe,
 	.driver		= {
 		.name	= "clk-rk3399",
 		.of_match_table = clk_rk3399_match_table,
 		.suppress_bind_attrs = true,
 	},
 };
-builtin_platform_driver_probe(clk_rk3399_driver, clk_rk3399_probe);
+module_platform_driver(clk_rk3399_driver);
 
 MODULE_DESCRIPTION("Rockchip RK3399 Clock Driver");
 MODULE_LICENSE("GPL");
 MODULE_ALIAS("platform:clk-rk3399");
+#endif /* MODULE */

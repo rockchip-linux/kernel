@@ -36,14 +36,6 @@
 #include "mpp_common.h"
 #include "mpp_iommu.h"
 
-#define MPP_WAIT_TIMEOUT_DELAY		(2000)
-
-/* Use 'v' as magic number */
-#define MPP_IOC_MAGIC		'v'
-
-#define MPP_IOC_CFG_V1	_IOW(MPP_IOC_MAGIC, 1, unsigned int)
-#define MPP_IOC_CFG_V2	_IOW(MPP_IOC_MAGIC, 2, unsigned int)
-
 /* input parmater structure for version 1 */
 struct mpp_msg_v1 {
 	__u32 cmd;
@@ -51,14 +43,6 @@ struct mpp_msg_v1 {
 	__u32 size;
 	__u32 offset;
 	__u64 data_ptr;
-};
-
-#define MPP_BAT_MSG_DONE		(0x00000001)
-
-struct mpp_bat_msg {
-	__u64 flag;
-	__u32 fd;
-	__s32 ret;
 };
 
 #ifdef CONFIG_ROCKCHIP_MPP_PROC_FS
@@ -71,12 +55,14 @@ const char *mpp_device_name[MPP_DEVICE_BUTT] = {
 	[MPP_DEVICE_HEVC_DEC]		= "HEVC_DEC",
 	[MPP_DEVICE_RKVDEC]		= "RKVDEC",
 	[MPP_DEVICE_AVSPLUS_DEC]	= "AVSPLUS_DEC",
+	[MPP_DEVICE_RKJPEGD]		= "RKJPEGD",
 	[MPP_DEVICE_RKVENC]		= "RKVENC",
 	[MPP_DEVICE_VEPU1]		= "VEPU1",
 	[MPP_DEVICE_VEPU2]		= "VEPU2",
 	[MPP_DEVICE_VEPU2_JPEG]		= "VEPU2",
 	[MPP_DEVICE_VEPU22]		= "VEPU22",
 	[MPP_DEVICE_IEP2]		= "IEP2",
+	[MPP_DEVICE_VDPP]		= "VDPP",
 };
 
 const char *enc_info_item_name[ENC_INFO_BUTT] = {
@@ -140,9 +126,7 @@ mpp_taskqueue_is_running(struct mpp_taskqueue *queue)
 	return flag;
 }
 
-static int
-mpp_taskqueue_pending_to_run(struct mpp_taskqueue *queue,
-			     struct mpp_task *task)
+int mpp_taskqueue_pending_to_run(struct mpp_taskqueue *queue, struct mpp_task *task)
 {
 	unsigned long flags;
 
@@ -355,9 +339,9 @@ void mpp_session_cleanup_detach(struct mpp_taskqueue *queue, struct kthread_work
 		mutex_unlock(&queue->session_lock);
 
 		if (task_count) {
-			mpp_dbg_session("session %d:%d task not finished %d\n",
-					session->pid, session->index,
-					atomic_read(&queue->detach_count));
+			mpp_dbg_session("session %d:%d not finished %d task cnt %d\n",
+					session->device_type, session->index,
+					atomic_read(&queue->detach_count), task_count);
 
 			mpp_session_clear_pending(session);
 		} else {
@@ -577,11 +561,18 @@ static void mpp_task_timeout_work(struct work_struct *work_s)
 
 	mpp = mpp_get_task_used_device(task, session);
 
+	/* disable core irq */
+	disable_irq(mpp->irq);
+	/* disable mmu irq */
+	if (mpp->iommu_info && mpp->iommu_info->got_irq)
+		disable_irq(mpp->iommu_info->irq);
+
 	/* hardware maybe dead, reset it */
 	mpp_reset_up_read(mpp->reset_group);
 	mpp_dev_reset(mpp);
 	mpp_power_off(mpp);
 
+	mpp_iommu_dev_deactivate(mpp->iommu_info, mpp);
 	set_bit(TASK_STATE_TIMEOUT, &task->state);
 	set_bit(TASK_STATE_DONE, &task->state);
 	/* Wake up the GET thread */
@@ -589,6 +580,14 @@ static void mpp_task_timeout_work(struct work_struct *work_s)
 
 	/* remove task from taskqueue running list */
 	mpp_taskqueue_pop_running(mpp->queue, task);
+
+	/* enable core irq */
+	enable_irq(mpp->irq);
+	/* enable mmu irq */
+	if (mpp->iommu_info && mpp->iommu_info->got_irq)
+		enable_irq(mpp->iommu_info->irq);
+
+	mpp_taskqueue_trigger_work(mpp);
 }
 
 static int mpp_process_task_default(struct mpp_session *session,
@@ -703,10 +702,6 @@ mpp_reset_control_get(struct mpp_dev *mpp, enum MPP_RESET_TYPE type, const char 
 		group->resets[type] = rst;
 		group->queue = mpp->queue;
 	}
-	/* if reset not in the same queue, it means different device
-	 * may reset in the same time, then rw_sem_on should set true.
-	 */
-	group->rw_sem_on |= (group->queue != mpp->queue) ? true : false;
 	dev_info(mpp->dev, "reset_group->rw_sem_on=%d\n", group->rw_sem_on);
 	up_write(&group->rw_sem);
 
@@ -806,6 +801,22 @@ static int mpp_task_run(struct mpp_dev *mpp,
 	} else {
 		mpp_set_grf(mpp->grf_info);
 	}
+	/*
+	 * Lock the reader locker of the device resource lock here,
+	 * release at the finish operation
+	 */
+	mpp_reset_down_read(mpp->reset_group);
+
+	/*
+	 * for iommu share hardware, should attach to ensure
+	 * working in current device
+	 */
+	ret = mpp_iommu_attach(mpp->iommu_info);
+	if (ret) {
+		dev_err(mpp->dev, "mpp_iommu_attach failed\n");
+		mpp_reset_up_read(mpp->reset_group);
+		return -ENODATA;
+	}
 
 	mpp_power_on(mpp);
 	mpp_debug_func(DEBUG_TASK_INFO, "pid %d run %s\n",
@@ -813,12 +824,8 @@ static int mpp_task_run(struct mpp_dev *mpp,
 
 	if (mpp->auto_freq_en && mpp->hw_ops->set_freq)
 		mpp->hw_ops->set_freq(mpp, task);
-	/*
-	 * TODO: Lock the reader locker of the device resource lock here,
-	 * release at the finish operation
-	 */
-	mpp_reset_down_read(mpp->reset_group);
 
+	mpp_iommu_dev_activate(mpp->iommu_info, mpp);
 	if (mpp->dev_ops->run)
 		mpp->dev_ops->run(mpp, task);
 
@@ -898,23 +905,15 @@ static int mpp_wait_result_default(struct mpp_session *session,
 	}
 	mpp = mpp_get_task_used_device(task, session);
 
-	ret = wait_event_timeout(task->wait,
-				 test_bit(TASK_STATE_DONE, &task->state),
-				 msecs_to_jiffies(MPP_WAIT_TIMEOUT_DELAY));
-	if (ret > 0) {
-		if (mpp->dev_ops->result)
-			ret = mpp->dev_ops->result(mpp, task, msgs);
-	} else {
-		atomic_inc(&task->abort_request);
-		set_bit(TASK_STATE_ABORT, &task->state);
-		mpp_err("timeout, pid %d session %d:%d count %d cur_task %p id %d\n",
-			session->pid, session->pid, session->index,
-			atomic_read(&session->task_count), task,
-			task->task_id);
-	}
+	ret = wait_event_interruptible(task->wait, test_bit(TASK_STATE_DONE, &task->state));
+	if (ret == -ERESTARTSYS)
+		mpp_err("wait task break by signal\n");
 
-	mpp_debug_func(DEBUG_TASK_INFO, "task %d kref_%d\n",
-		       task->task_id, kref_read(&task->ref));
+	if (mpp->dev_ops->result)
+		ret = mpp->dev_ops->result(mpp, task, msgs);
+	mpp_debug_func(DEBUG_TASK_INFO, "wait done session %d:%d count %d task %d state %lx\n",
+		       session->device_type, session->index, atomic_read(&session->task_count),
+		       task->task_index, task->state);
 
 	mpp_session_pop_pending(session, task);
 
@@ -989,6 +988,10 @@ static int mpp_attach_service(struct mpp_dev *mpp, struct device *dev)
 			return -ENODEV;
 		} else {
 			mpp->reset_group = mpp->srv->reset_groups[reset_group_node];
+			if (!mpp->reset_group->queue)
+				mpp->reset_group->queue = queue;
+			if (mpp->reset_group->queue != mpp->queue)
+				mpp->reset_group->rw_sem_on = true;
 		}
 	}
 
@@ -1019,6 +1022,7 @@ struct mpp_taskqueue *mpp_taskqueue_init(struct device *dev)
 	atomic_set(&queue->reset_request, 0);
 	atomic_set(&queue->detach_count, 0);
 	atomic_set(&queue->task_id, 0);
+	queue->dev_active_flags = 0;
 
 	return queue;
 }
@@ -1042,9 +1046,15 @@ static void mpp_attach_workqueue(struct mpp_dev *mpp,
 		goto done;
 	}
 
+	/*
+	 * multi devices with no multicores share one queue,
+	 * the core_id is default value 0.
+	 */
 	if (queue->cores[core_id]) {
-		dev_err(mpp->dev, "can not attach device with same id %d", core_id);
-		goto done;
+		if (queue->cores[core_id] == mpp)
+			goto done;
+
+		core_id = queue->core_count;
 	}
 
 	queue->cores[core_id] = mpp;
@@ -1990,7 +2000,7 @@ int mpp_task_dump_mem_region(struct mpp_dev *mpp,
 	if (!task)
 		return -EIO;
 
-	mpp_err("--- dump mem region ---\n");
+	mpp_err("--- dump task %d mem region ---\n", task->task_index);
 	if (!list_empty(&task->mem_region_list)) {
 		list_for_each_entry_safe(mem, n,
 					 &task->mem_region_list,
@@ -2032,35 +2042,17 @@ int mpp_task_dump_reg(struct mpp_dev *mpp,
 
 int mpp_task_dump_hw_reg(struct mpp_dev *mpp)
 {
-	if (mpp_debug_unlikely(DEBUG_DUMP_ERR_REG)) {
-		u32 i;
-		u32 s = mpp->var->hw_info->reg_start;
-		u32 e = mpp->var->hw_info->reg_end;
+	u32 i;
+	u32 s = mpp->var->hw_info->reg_start;
+	u32 e = mpp->var->hw_info->reg_end;
 
-		mpp_err("--- dump hardware register ---\n");
-		for (i = s; i <= e; i++) {
-			u32 reg = i * sizeof(u32);
+	mpp_err("--- dump hardware register ---\n");
+	for (i = s; i <= e; i++) {
+		u32 reg = i * sizeof(u32);
 
-			mpp_err("reg[%03d]: %04x: 0x%08x\n",
+		mpp_err("reg[%03d]: %04x: 0x%08x\n",
 				i, reg, readl_relaxed(mpp->reg_base + reg));
-		}
 	}
-
-	return 0;
-}
-
-static int mpp_iommu_handle(struct iommu_domain *iommu,
-			    struct device *iommu_dev,
-			    unsigned long iova,
-			    int status, void *arg)
-{
-	struct mpp_dev *mpp = (struct mpp_dev *)arg;
-
-	dev_err(mpp->dev, "fault addr 0x%08lx status %x\n", iova, status);
-	mpp_task_dump_hw_reg(mpp);
-
-	if (mpp->iommu_info->hdl)
-		mpp->iommu_info->hdl(iommu, iommu_dev, iova, status, arg);
 
 	return 0;
 }
@@ -2072,6 +2064,17 @@ void mpp_reg_show(struct mpp_dev *mpp, u32 offset)
 
 	dev_err(mpp->dev, "reg[%03d]: %04x: 0x%08x\n",
 		offset >> 2, offset, mpp_read_relaxed(mpp, offset));
+}
+
+void mpp_reg_show_range(struct mpp_dev *mpp, u32 start, u32 end)
+{
+	u32 offset;
+
+	if (!mpp)
+		return;
+
+	for (offset = start; offset < end; offset += sizeof(u32))
+		mpp_reg_show(mpp, offset);
 }
 
 /* The device will do more probing work after this */
@@ -2106,15 +2109,9 @@ int mpp_dev_probe(struct mpp_dev *mpp,
 		return -ENODEV;
 	}
 
-	if (mpp->task_capacity == 1) {
-		/* power domain autosuspend delay 2s */
-		pm_runtime_set_autosuspend_delay(dev, 2000);
-		pm_runtime_use_autosuspend(dev);
-	} else {
-		dev_info(dev, "link mode task capacity %d\n",
-			 mpp->task_capacity);
-		/* do not setup autosuspend on multi task device */
-	}
+	/* power domain autosuspend delay 2s */
+	pm_runtime_set_autosuspend_delay(dev, 2000);
+	pm_runtime_use_autosuspend(dev);
 
 	kthread_init_work(&mpp->work, mpp_task_worker_default);
 
@@ -2125,7 +2122,6 @@ int mpp_dev_probe(struct mpp_dev *mpp,
 
 	device_init_wakeup(dev, true);
 	pm_runtime_enable(dev);
-
 	mpp->irq = platform_get_irq(pdev, 0);
 	if (mpp->irq < 0) {
 		dev_err(dev, "No interrupt resource found\n");
@@ -2152,6 +2148,7 @@ int mpp_dev_probe(struct mpp_dev *mpp,
 		ret = -ENOMEM;
 		goto failed;
 	}
+	mpp->io_base = res->start;
 
 	/*
 	 * TODO: here or at the device itself, some device does not
@@ -2167,10 +2164,6 @@ int mpp_dev_probe(struct mpp_dev *mpp,
 		if (ret)
 			goto failed;
 	}
-	/* set iommu fault handler */
-	if (mpp->iommu_info)
-		iommu_set_fault_handler(mpp->iommu_info->domain,
-					mpp_iommu_handle, mpp);
 
 	/* read hardware id */
 	if (hw_info->reg_id >= 0) {
@@ -2178,7 +2171,7 @@ int mpp_dev_probe(struct mpp_dev *mpp,
 		if (mpp->hw_ops->clk_on)
 			mpp->hw_ops->clk_on(mpp);
 
-		hw_info->hw_id = mpp_read(mpp, hw_info->reg_id);
+		hw_info->hw_id = mpp_read(mpp, hw_info->reg_id * sizeof(u32));
 		if (mpp->hw_ops->clk_off)
 			mpp->hw_ops->clk_off(mpp);
 		pm_runtime_put_sync(dev);
@@ -2252,7 +2245,7 @@ irqreturn_t mpp_dev_irq(int irq, void *param)
 		irq_ret = mpp->dev_ops->irq(mpp);
 
 	if (task) {
-		if (irq_ret != IRQ_NONE) {
+		if (irq_ret == IRQ_WAKE_THREAD) {
 			/* if wait or delayed work timeout, abort request will turn on,
 			 * isr should not to response, and handle it in delayed work
 			 */
@@ -2270,6 +2263,9 @@ irqreturn_t mpp_dev_irq(int irq, void *param)
 			/* normal condition, set state and wake up isr thread */
 			set_bit(TASK_STATE_IRQ, &task->state);
 		}
+
+		if (irq_ret == IRQ_WAKE_THREAD)
+			mpp_iommu_dev_deactivate(mpp->iommu_info, mpp);
 	} else {
 		mpp_debug(DEBUG_IRQ_CHECK, "error, task is null\n");
 	}
@@ -2346,27 +2342,53 @@ int mpp_time_record(struct mpp_task *task)
 
 int mpp_time_part_diff(struct mpp_task *task)
 {
-	ktime_t end;
-	struct mpp_dev *mpp = mpp_get_task_used_device(task, task->session);
+	if (mpp_debug_unlikely(DEBUG_TIMING)) {
+		ktime_t end;
+		struct mpp_dev *mpp = mpp_get_task_used_device(task, task->session);
 
-	end = ktime_get();
-	mpp_debug(DEBUG_PART_TIMING, "%s:%d session %d:%d part time: %lld us\n",
-		  dev_name(mpp->dev), task->core_id, task->session->pid,
-		  task->session->index, ktime_us_delta(end, task->part));
-	task->part = end;
+		end = ktime_get();
+		mpp_debug(DEBUG_PART_TIMING, "%s:%d session %d:%d part time: %lld us\n",
+			dev_name(mpp->dev), task->core_id, task->session->pid,
+			task->session->index, ktime_us_delta(end, task->part));
+		task->part = end;
+	}
 
 	return 0;
 }
 
 int mpp_time_diff(struct mpp_task *task)
 {
-	ktime_t end;
-	struct mpp_dev *mpp = mpp_get_task_used_device(task, task->session);
+	if (mpp_debug_unlikely(DEBUG_TIMING)) {
+		ktime_t end;
+		struct mpp_dev *mpp = mpp_get_task_used_device(task, task->session);
 
-	end = ktime_get();
-	mpp_debug(DEBUG_TIMING, "%s:%d session %d:%d time: %lld us\n",
-		  dev_name(mpp->dev), task->core_id, task->session->pid,
-		  task->session->index, ktime_us_delta(end, task->start));
+		end = ktime_get();
+		mpp_debug(DEBUG_TIMING, "%s:%d session %d:%d time: %lld us\n",
+			dev_name(mpp->dev), task->core_id, task->session->pid,
+			task->session->index, ktime_us_delta(end, task->start));
+	}
+
+	return 0;
+}
+
+int mpp_time_diff_with_hw_time(struct mpp_task *task, u32 clk_hz)
+{
+	if (mpp_debug_unlikely(DEBUG_TIMING)) {
+		ktime_t end;
+		struct mpp_dev *mpp = mpp_get_task_used_device(task, task->session);
+
+		end = ktime_get();
+
+		if (clk_hz)
+			mpp_debug(DEBUG_TIMING, "%s:%d session %d:%d time: %lld us hw %d us\n",
+				dev_name(mpp->dev), task->core_id, task->session->pid,
+				task->session->index, ktime_us_delta(end, task->start),
+				task->hw_cycles / (clk_hz / 1000000));
+		else
+			mpp_debug(DEBUG_TIMING, "%s:%d session %d:%d time: %lld us\n",
+				dev_name(mpp->dev), task->core_id, task->session->pid,
+				task->session->index, ktime_us_delta(end, task->start));
+	}
 
 	return 0;
 }
@@ -2532,6 +2554,7 @@ int mpp_clk_set_rate(struct mpp_clk_info *clk_info,
 	if (clk_rate_hz) {
 		clk_info->used_rate_hz = clk_rate_hz;
 		clk_set_rate(clk_info->clk, clk_rate_hz);
+		clk_info->real_rate_hz = clk_get_rate(clk_info->clk);
 	}
 
 	return 0;

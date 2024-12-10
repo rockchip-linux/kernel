@@ -88,16 +88,17 @@
 		rockchip,system-suspend = <1>;
 		regulator-on-in-mem = <&vdd_log_s0>, <&vcc_2v0_pldo_s3>,
 			<&vdd2_ddr_s3>, <&vcc_1v8_s3>, <&avcc_1v8_s0>,
-			<&vdd_0v75_s3>, <&pldo6_s3>;
+			<&vcc_1v8_s0>, <&vdd_0v75_s3>, <&pldo6_s3>,
+			<&vcc_3v3_s3>;
 
 		regulator-off-in-mem = <&vdd_gpu_s0>, <&vdd_npu_s0>,
 			<&vdd_vdenc_s0>, <&vdd_gpu_mem_s0>, <&vdd_npu_mem_s0>,
-			<&vdd_vdenc_mem_s0>, <&vcc_1v8_s0>, <&vcc_3v3_s0>,
+			<&vdd_vdenc_mem_s0>, <&vcc_3v3_s0>,
 			<&vccio_sd_s0>, <&avdd_0v75_s0>, <&vdd_0v85_s0>,
 			<&vdd_cpu_big1_s0>, <&vdd_cpu_big0_s0>, <&vdd_cpu_lit_s0>,
 			<&vdd_cpu_big1_mem_s0>, <&vdd_cpu_big0_mem_s0>, <&vdd_cpu_lit_mem_s0>,
 			<&vddq_ddr_s0>, <&vdd_ddr_s0>, <&vdd_ddr_pll_s0>,
-			<&avdd_1v2_s0>, <&vdd_0v75_s0>, <&vcc_3v3_s3>;
+			<&avdd_1v2_s0>, <&vdd_0v75_s0>;
 		status = "okay";
 	};
 
@@ -527,9 +528,9 @@
 		#sound-dai-cells = <0>;
 		compatible = "everest,es8388", "everest,es8323";
 		reg = <0x11>;
-		clocks = <&cru I2S0_8CH_MCLKOUT>;
+		clocks = <&mclkout_i2s0>;
 		clock-names = "mclk";
-		assigned-clocks = <&cru I2S0_8CH_MCLKOUT>;
+		assigned-clocks = <&mclkout_i2s0>;
 		assigned-clock-rates = <12288000>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&i2s0_mclk>;
@@ -1192,6 +1193,8 @@
 };
 
 &rkvenc0 {
+	venc-supply = <&vdd_vdenc_s0>;
+	mem-supply = <&vdd_vdenc_mem_s0>;
 	status = "okay";
 };
 
@@ -1200,6 +1203,8 @@
 };
 
 &rkvenc1 {
+	venc-supply = <&vdd_vdenc_s0>;
+	mem-supply = <&vdd_vdenc_mem_s0>;
 	status = "okay";
 };
 

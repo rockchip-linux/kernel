@@ -1015,7 +1015,7 @@ static void __s5k3l6xx_power_off(struct s5k3l6xx *s5k3l6xx)
 	regulator_bulk_disable(S5K3L6XX_NUM_SUPPLIES, s5k3l6xx->supplies);
 }
 
-static int s5k3l6xx_runtime_resume(struct device *dev)
+static int __maybe_unused s5k3l6xx_runtime_resume(struct device *dev)
 {
 	struct i2c_client *client = to_i2c_client(dev);
 	struct v4l2_subdev *sd = i2c_get_clientdata(client);
@@ -1024,7 +1024,7 @@ static int s5k3l6xx_runtime_resume(struct device *dev)
 	return __s5k3l6xx_power_on(s5k3l6xx);
 }
 
-static int s5k3l6xx_runtime_suspend(struct device *dev)
+static int __maybe_unused s5k3l6xx_runtime_suspend(struct device *dev)
 {
 	struct i2c_client *client = to_i2c_client(dev);
 	struct v4l2_subdev *sd = i2c_get_clientdata(client);
@@ -1064,8 +1064,7 @@ static int s5k3l6xx_enum_frame_interval(struct v4l2_subdev *sd,
 	if (fie->index >= ARRAY_SIZE(supported_modes))
 		return -EINVAL;
 
-	if (fie->code != S5K3L6XX_MEDIA_BUS_FMT)
-		return -EINVAL;
+	fie->code = S5K3L6XX_MEDIA_BUS_FMT;
 
 	fie->width = supported_modes[fie->index].width;
 	fie->height = supported_modes[fie->index].height;

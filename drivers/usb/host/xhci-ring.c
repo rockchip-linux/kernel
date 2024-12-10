@@ -277,6 +277,26 @@ static void inc_enq(struct xhci_hcd *xhci, struct xhci_ring *ring,
 	trace_xhci_inc_enq(ring);
 }
 
+static int xhci_num_trbs_to(struct xhci_segment *start_seg, union xhci_trb *start,
+			    struct xhci_segment *end_seg, union xhci_trb *end,
+			    unsigned int num_segs)
+{
+	union xhci_trb *last_on_seg;
+	int num = 0;
+	int i = 0;
+
+	do {
+		if (start_seg == end_seg && end >= start)
+			return num + (end - start);
+		last_on_seg = &start_seg->trbs[TRBS_PER_SEGMENT - 1];
+		num += last_on_seg - start;
+		start_seg = start_seg->next;
+		start = start_seg->trbs;
+	} while (i++ <= num_segs);
+
+	return -EINVAL;
+}
+
 /*
  * Check to see if there's room to enqueue num_trbs on the ring and make sure
  * enqueue pointer will not advance into dequeue segment. See rules above.
@@ -1007,11 +1027,13 @@ static int xhci_invalidate_cancelled_tds(struct xhci_virt_ep *ep)
 						 td->urb->stream_id, td->urb,
 						 cached_td->urb->stream_id, cached_td->urb);
 				cached_td = td;
+				ring->num_trbs_free += td->num_trbs;
 				break;
 			}
 		} else {
 			td_to_noop(xhci, ring, td, false);
 			td->cancel_status = TD_CLEARED;
+			ring->num_trbs_free += td->num_trbs;
 		}
 	}
 
@@ -1180,7 +1202,10 @@ static void xhci_kill_endpoint_urbs(struct xhci_hcd *xhci,
 	struct xhci_virt_ep *ep;
 	struct xhci_ring *ring;
 
-	ep = &xhci->devs[slot_id]->eps[ep_index];
+	ep = xhci_get_virt_ep(xhci, slot_id, ep_index);
+	if (!ep)
+		return;
+
 	if ((ep->ep_state & EP_HAS_STREAMS) ||
 			(ep->ep_state & EP_GETTING_NO_STREAMS)) {
 		int stream_id;
@@ -1311,10 +1336,7 @@ static void update_ring_for_set_deq_completion(struct xhci_hcd *xhci,
 		unsigned int ep_index)
 {
 	union xhci_trb *dequeue_temp;
-	int num_trbs_free_temp;
-	bool revert = false;
 
-	num_trbs_free_temp = ep_ring->num_trbs_free;
 	dequeue_temp = ep_ring->dequeue;
 
 	/* If we get two back-to-back stalls, and the first stalled transfer
@@ -1329,8 +1351,6 @@ static void update_ring_for_set_deq_completion(struct xhci_hcd *xhci,
 	}
 
 	while (ep_ring->dequeue != dev->eps[ep_index].queued_deq_ptr) {
-		/* We have more usable TRBs */
-		ep_ring->num_trbs_free++;
 		ep_ring->dequeue++;
 		if (trb_is_link(ep_ring->dequeue)) {
 			if (ep_ring->dequeue ==
@@ -1340,14 +1360,9 @@ static void update_ring_for_set_deq_completion(struct xhci_hcd *xhci,
 			ep_ring->dequeue = ep_ring->deq_seg->trbs;
 		}
 		if (ep_ring->dequeue == dequeue_temp) {
-			revert = true;
+			xhci_dbg(xhci, "Unable to find new dequeue pointer\n");
 			break;
 		}
-	}
-
-	if (revert) {
-		xhci_dbg(xhci, "Unable to find new dequeue pointer\n");
-		ep_ring->num_trbs_free = num_trbs_free_temp;
 	}
 }
 
@@ -2206,6 +2221,7 @@ static int finish_td(struct xhci_hcd *xhci, struct xhci_virt_ep *ep,
 		     u32 trb_comp_code)
 {
 	struct xhci_ep_ctx *ep_ctx;
+	int trbs_freed;
 
 	ep_ctx = xhci_get_ep_ctx(xhci, ep->vdev->out_ctx, ep->ep_index);
 
@@ -2277,9 +2293,15 @@ static int finish_td(struct xhci_hcd *xhci, struct xhci_virt_ep *ep,
 	}
 
 	/* Update ring dequeue pointer */
+	trbs_freed = xhci_num_trbs_to(ep_ring->deq_seg, ep_ring->dequeue,
+				      td->last_trb_seg, td->last_trb,
+				      ep_ring->num_segs);
+	if (trbs_freed < 0)
+		xhci_dbg(xhci, "Failed to count freed trbs at TD finish\n");
+	else
+		ep_ring->num_trbs_free += trbs_freed;
 	ep_ring->dequeue = td->last_trb;
 	ep_ring->deq_seg = td->last_trb_seg;
-	ep_ring->num_trbs_free += td->num_trbs - 1;
 	inc_deq(xhci, ep_ring);
 
 	return xhci_td_cleanup(xhci, td, ep_ring, td->status);
@@ -3158,6 +3180,8 @@ irqreturn_t xhci_irq(struct usb_hcd *hcd)
 		if (event_loop++ < TRBS_PER_SEGMENT / 2)
 			continue;
 		xhci_update_erst_dequeue(xhci, event_ring_deq);
+		event_ring_deq = xhci->event_ring->dequeue;
+
 		event_loop = 0;
 	}
 

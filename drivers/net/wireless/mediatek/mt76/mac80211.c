@@ -107,6 +107,7 @@ static int mt76_led_init(struct mt76_dev *dev)
 		if (!of_property_read_u32(np, "led-sources", &led_pin))
 			dev->led_pin = led_pin;
 		dev->led_al = of_property_read_bool(np, "led-active-low");
+		of_node_put(np);
 	}
 
 	return led_classdev_register(dev->dev, &dev->led_cdev);
@@ -159,9 +160,9 @@ static void mt76_init_stream_cap(struct mt76_phy *phy,
 
 void mt76_set_stream_caps(struct mt76_phy *phy, bool vht)
 {
-	if (phy->dev->cap.has_2ghz)
+	if (phy->cap.has_2ghz)
 		mt76_init_stream_cap(phy, &phy->sband_2g.sband, false);
-	if (phy->dev->cap.has_5ghz)
+	if (phy->cap.has_5ghz)
 		mt76_init_stream_cap(phy, &phy->sband_5g.sband, vht);
 }
 EXPORT_SYMBOL_GPL(mt76_set_stream_caps);
@@ -462,13 +463,13 @@ int mt76_register_device(struct mt76_dev *dev, bool vht,
 	dev_set_drvdata(dev->dev, dev);
 	mt76_phy_init(dev, hw);
 
-	if (dev->cap.has_2ghz) {
+	if (phy->cap.has_2ghz) {
 		ret = mt76_init_sband_2g(dev, rates, n_rates);
 		if (ret)
 			return ret;
 	}
 
-	if (dev->cap.has_5ghz) {
+	if (phy->cap.has_5ghz) {
 		ret = mt76_init_sband_5g(dev, rates + 4, n_rates - 4, vht);
 		if (ret)
 			return ret;

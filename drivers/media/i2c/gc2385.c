@@ -443,9 +443,7 @@ static int gc2385_g_frame_interval(struct v4l2_subdev *sd,
 	struct gc2385 *gc2385 = to_gc2385(sd);
 	const struct gc2385_mode *mode = gc2385->cur_mode;
 
-	mutex_lock(&gc2385->mutex);
 	fi->interval = mode->max_fps;
-	mutex_unlock(&gc2385->mutex);
 
 	return 0;
 }
@@ -729,7 +727,7 @@ static void __gc2385_power_off(struct gc2385 *gc2385)
 	regulator_bulk_disable(GC2385_NUM_SUPPLIES, gc2385->supplies);
 }
 
-static int gc2385_runtime_resume(struct device *dev)
+static int __maybe_unused gc2385_runtime_resume(struct device *dev)
 {
 	struct i2c_client *client = to_i2c_client(dev);
 	struct v4l2_subdev *sd = i2c_get_clientdata(client);
@@ -738,7 +736,7 @@ static int gc2385_runtime_resume(struct device *dev)
 	return __gc2385_power_on(gc2385);
 }
 
-static int gc2385_runtime_suspend(struct device *dev)
+static int __maybe_unused gc2385_runtime_suspend(struct device *dev)
 {
 	struct i2c_client *client = to_i2c_client(dev);
 	struct v4l2_subdev *sd = i2c_get_clientdata(client);
@@ -778,9 +776,7 @@ static int gc2385_enum_frame_interval(struct v4l2_subdev *sd,
 	if (fie->index >= ARRAY_SIZE(supported_modes))
 		return -EINVAL;
 
-	if (fie->code != MEDIA_BUS_FMT_SBGGR10_1X10)
-		return -EINVAL;
-
+	fie->code = MEDIA_BUS_FMT_SBGGR10_1X10;
 	fie->width = supported_modes[fie->index].width;
 	fie->height = supported_modes[fie->index].height;
 	fie->interval = supported_modes[fie->index].max_fps;

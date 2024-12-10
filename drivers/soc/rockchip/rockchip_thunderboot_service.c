@@ -24,6 +24,7 @@ struct rk_tb_serv {
 	struct reset_control *rsts;
 	phys_addr_t mem_start;
 	size_t mem_size;
+	bool mem_no_free;
 };
 
 static atomic_t mcu_done = ATOMIC_INIT(0);
@@ -55,9 +56,28 @@ int rk_tb_client_register_cb(struct rk_tb_client *client)
 }
 EXPORT_SYMBOL(rk_tb_client_register_cb);
 
+int rk_tb_client_register_cb_head(struct rk_tb_client *client)
+{
+	if (!client || !client->cb)
+		return -EINVAL;
+
+	spin_lock(&lock);
+	if (rk_tb_mcu_is_done()) {
+		spin_unlock(&lock);
+		client->cb(client->data);
+		return 0;
+	}
+
+	list_add(&client->node, &clients_list);
+	spin_unlock(&lock);
+
+	return 0;
+}
+EXPORT_SYMBOL(rk_tb_client_register_cb_head);
+
 static void do_mcu_done(struct rk_tb_serv *serv)
 {
-	struct rk_tb_client *client, *client_s;
+	struct rk_tb_client *client;
 	struct rockchip_mbox_msg msg;
 
 	rockchip_mbox_read_msg(serv->mbox_rx_chan, &msg);
@@ -70,7 +90,8 @@ static void do_mcu_done(struct rk_tb_serv *serv)
 
 		start = phys_to_virt(serv->mem_start);
 		end = start + serv->mem_size;
-		free_reserved_area(start, end, -1, "rtos");
+		if (!serv->mem_no_free)
+			free_reserved_area(start, end, -1, "rtos");
 
 		spin_lock(&lock);
 		if (atomic_read(&mcu_done)) {
@@ -78,14 +99,15 @@ static void do_mcu_done(struct rk_tb_serv *serv)
 			return;
 		}
 
-		atomic_set(&mcu_done, 1);
-		list_for_each_entry_safe(client, client_s, &clients_list, node) {
+		while (!list_empty(&clients_list)) {
+			client = list_first_entry(&clients_list, struct rk_tb_client, node);
+			list_del(&client->node);
 			spin_unlock(&lock);
 			if (client->cb)
 				client->cb(client->data);
 			spin_lock(&lock);
-			list_del(&client->node);
 		}
+		atomic_set(&mcu_done, 1);
 		spin_unlock(&lock);
 	}
 }
@@ -129,6 +151,8 @@ static int rk_tb_serv_probe(struct platform_device *pdev)
 	serv->rsts = devm_reset_control_array_get_optional_exclusive(&pdev->dev);
 	if (IS_ERR(serv->rsts) && PTR_ERR(serv->rsts) == -EPROBE_DEFER)
 		return -EPROBE_DEFER;
+
+	serv->mem_no_free = device_property_read_bool(&pdev->dev, "memory-no-free");
 
 	platform_set_drvdata(pdev, serv);
 

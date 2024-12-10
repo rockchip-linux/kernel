@@ -338,18 +338,20 @@ static int rk_multicodecs_hw_params(struct snd_pcm_substream *substream,
 {
 	struct snd_soc_pcm_runtime *rtd = asoc_substream_to_rtd(substream);
 	struct snd_soc_dai *cpu_dai = asoc_rtd_to_cpu(rtd, 0);
-	struct snd_soc_dai *codec_dai = asoc_rtd_to_codec(rtd, 0);
+	struct snd_soc_dai *codec_dai;
 	struct multicodecs_data *mc_data = snd_soc_card_get_drvdata(rtd->card);
 	unsigned int mclk;
-	int ret;
+	int ret, i;
 
 	mclk = params_rate(params) * mc_data->mclk_fs;
 
-	ret = snd_soc_dai_set_sysclk(codec_dai, substream->stream, mclk,
-				     SND_SOC_CLOCK_IN);
-	if (ret && ret != -ENOTSUPP) {
-		pr_err("Set codec_dai sysclk failed: %d\n", ret);
-		goto out;
+	for_each_rtd_codec_dais(rtd, i, codec_dai) {
+		ret = snd_soc_dai_set_sysclk(codec_dai, substream->stream, mclk,
+					     SND_SOC_CLOCK_IN);
+		if (ret && ret != -ENOTSUPP) {
+			pr_err("Set codec_dai sysclk failed: %d\n", ret);
+			goto out;
+		}
 	}
 
 	ret = snd_soc_dai_set_sysclk(cpu_dai, substream->stream, mclk,
@@ -430,9 +432,16 @@ static int rk_dailink_init(struct snd_soc_pcm_runtime *rtd)
 	mc_data->jack_headset = jack_headset;
 
 	if (mc_data->codec_hp_det) {
-		struct snd_soc_component *component = asoc_rtd_to_codec(rtd, 0)->component;
+		struct snd_soc_dai *codec_dai;
+		int i;
 
-		snd_soc_component_set_jack(component, jack_headset, NULL);
+		/* set jack for the first successful one */
+		for_each_rtd_codec_dais(rtd, i, codec_dai) {
+			ret = snd_soc_component_set_jack(codec_dai->component,
+							 jack_headset, NULL);
+			if (ret >= 0)
+				break;
+		}
 	} else {
 		irq = gpiod_to_irq(mc_data->hp_det_gpio);
 		if (irq >= 0) {
@@ -447,9 +456,6 @@ static int rk_dailink_init(struct snd_soc_pcm_runtime *rtd)
 				dev_err(card->dev, "Failed to request headset detect irq");
 				return ret;
 			}
-
-			queue_delayed_work(system_power_efficient_wq,
-					   &mc_data->handler, msecs_to_jiffies(50));
 		}
 	}
 
@@ -581,7 +587,7 @@ static int rk_multicodecs_probe(struct platform_device *pdev)
 	struct device_node *node;
 	struct input_dev *input;
 	u32 val;
-	int count, value;
+	int count, value, irq;
 	int ret = 0, i = 0, idx = 0;
 	const char *prefix = "rockchip,";
 
@@ -648,6 +654,9 @@ static int rk_multicodecs_probe(struct platform_device *pdev)
 
 	codecs = devm_kcalloc(&pdev->dev, idx,
 			      sizeof(*codecs), GFP_KERNEL);
+	if (!codecs)
+		return -ENOMEM;
+
 	link->codecs = codecs;
 	link->num_codecs = idx;
 	idx = 0;
@@ -710,7 +719,7 @@ static int rk_multicodecs_probe(struct platform_device *pdev)
 
 		input = devm_input_allocate_device(&pdev->dev);
 		if (IS_ERR(input)) {
-			dev_err(&pdev->dev, "failed to allocate input device\n");
+			dev_err(&pdev->dev, "Failed to allocate input device\n");
 			return PTR_ERR(input);
 		}
 
@@ -733,7 +742,7 @@ static int rk_multicodecs_probe(struct platform_device *pdev)
 		mc_data->input = input;
 		ret = mc_keys_setup_polling(mc_data, mc_keys_poll);
 		if (ret) {
-			dev_err(&pdev->dev, "Unable to set up polling: %d\n", ret);
+			dev_err(&pdev->dev, "Failed to set up polling: %d\n", ret);
 			return ret;
 		}
 
@@ -742,7 +751,7 @@ static int rk_multicodecs_probe(struct platform_device *pdev)
 
 		ret = input_register_device(mc_data->input);
 		if (ret) {
-			dev_err(&pdev->dev, "Unable to register input device: %d\n", ret);
+			dev_err(&pdev->dev, "Failed to register input device: %d\n", ret);
 			return ret;
 		}
 	}
@@ -767,33 +776,51 @@ static int rk_multicodecs_probe(struct platform_device *pdev)
 
 	mc_data->extcon = devm_extcon_dev_allocate(&pdev->dev, headset_extcon_cable);
 	if (IS_ERR(mc_data->extcon)) {
-		dev_err(&pdev->dev, "allocate extcon failed\n");
+		dev_err(&pdev->dev, "Failed to allocate extcon\n");
 		return PTR_ERR(mc_data->extcon);
 	}
 
 	ret = devm_extcon_dev_register(&pdev->dev, mc_data->extcon);
 	if (ret) {
-		dev_err(&pdev->dev, "failed to register extcon: %d\n", ret);
+		dev_err(&pdev->dev, "Failed to register extcon: %d\n", ret);
 		return ret;
 	}
 
-	ret = snd_soc_of_parse_audio_routing(card, "rockchip,audio-routing");
-	if (ret < 0)
-		dev_warn(&pdev->dev, "Audio routing invalid/unspecified\n");
+	snd_soc_of_parse_audio_routing(card, "rockchip,audio-routing");
 
 	snd_soc_card_set_drvdata(card, mc_data);
+	platform_set_drvdata(pdev, card);
 
 	ret = devm_snd_soc_register_card(&pdev->dev, card);
-	if (ret == -EPROBE_DEFER)
-		return -EPROBE_DEFER;
 	if (ret) {
-		dev_err(&pdev->dev, "card register failed %d\n", ret);
+		dev_err(&pdev->dev, "Failed to register card: %d\n", ret);
 		return ret;
 	}
 
-	platform_set_drvdata(pdev, card);
+	irq = gpiod_to_irq(mc_data->hp_det_gpio);
+	if (irq >= 0)
+		queue_delayed_work(system_power_efficient_wq,
+				   &mc_data->handler, msecs_to_jiffies(50));
 
 	return ret;
+}
+
+static int rk_multicodec_remove(struct platform_device *pdev)
+{
+	struct snd_soc_card *card = platform_get_drvdata(pdev);
+	struct multicodecs_data *mc_data = snd_soc_card_get_drvdata(card);
+
+	cancel_delayed_work_sync(&mc_data->handler);
+
+	return 0;
+}
+
+static void rk_multicodec_shutdown(struct platform_device *pdev)
+{
+	struct snd_soc_card *card = platform_get_drvdata(pdev);
+	struct multicodecs_data *mc_data = snd_soc_card_get_drvdata(card);
+
+	cancel_delayed_work_sync(&mc_data->handler);
 }
 
 static const struct of_device_id rockchip_multicodecs_of_match[] = {
@@ -805,6 +832,8 @@ MODULE_DEVICE_TABLE(of, rockchip_multicodecs_of_match);
 
 static struct platform_driver rockchip_multicodecs_driver = {
 	.probe = rk_multicodecs_probe,
+	.remove = rk_multicodec_remove,
+	.shutdown = rk_multicodec_shutdown,
 	.driver = {
 		.name = DRV_NAME,
 		.pm = &snd_soc_pm_ops,

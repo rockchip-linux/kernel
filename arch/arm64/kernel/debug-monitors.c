@@ -283,13 +283,11 @@ void register_user_break_hook(struct break_hook *hook)
 {
 	register_debug_hook(&hook->node, &user_break_hook);
 }
-EXPORT_SYMBOL_GPL(register_user_break_hook);
 
 void unregister_user_break_hook(struct break_hook *hook)
 {
 	unregister_debug_hook(&hook->node);
 }
-EXPORT_SYMBOL_GPL(unregister_user_break_hook);
 
 void register_kernel_break_hook(struct break_hook *hook)
 {
@@ -301,7 +299,6 @@ void unregister_kernel_break_hook(struct break_hook *hook)
 {
 	unregister_debug_hook(&hook->node);
 }
-EXPORT_SYMBOL_GPL(unregister_kernel_break_hook);
 
 static int call_break_hook(struct pt_regs *regs, unsigned int esr)
 {
@@ -441,6 +438,11 @@ int kernel_active_single_step(void)
 	return mdscr_read() & DBG_MDSCR_SS;
 }
 NOKPROBE_SYMBOL(kernel_active_single_step);
+
+void kernel_rewind_single_step(struct pt_regs *regs)
+{
+	set_regs_spsr_ss(regs);
+}
 
 /* ptrace API */
 void user_enable_single_step(struct task_struct *task)

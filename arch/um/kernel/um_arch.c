@@ -3,6 +3,7 @@
  * Copyright (C) 2000 - 2007 Jeff Dike (jdike@{addtoit,linux.intel}.com)
  */
 
+#include <linux/cpu.h>
 #include <linux/delay.h>
 #include <linux/init.h>
 #include <linux/mm.h>
@@ -13,6 +14,7 @@
 #include <linux/sched.h>
 #include <linux/sched/task.h>
 #include <linux/kmsg_dump.h>
+#include <linux/suspend.h>
 
 #include <asm/processor.h>
 #include <asm/sections.h>
@@ -76,7 +78,7 @@ static int show_cpuinfo(struct seq_file *m, void *v)
 
 static void *c_start(struct seq_file *m, loff_t *pos)
 {
-	return *pos < NR_CPUS ? cpu_data + *pos : NULL;
+	return *pos < nr_cpu_ids ? cpu_data + *pos : NULL;
 }
 
 static void *c_next(struct seq_file *m, void *v, loff_t *pos)
@@ -352,10 +354,18 @@ void __init setup_arch(char **cmdline_p)
 	setup_hostinfo(host_info, sizeof host_info);
 }
 
-void __init check_bugs(void)
+void __init arch_cpu_finalize_init(void)
 {
 	arch_check_bugs();
 	os_check_bugs();
+}
+
+void apply_retpolines(s32 *start, s32 *end)
+{
+}
+
+void apply_returns(s32 *start, s32 *end)
+{
 }
 
 void apply_alternatives(struct alt_instr *start, struct alt_instr *end)
@@ -377,3 +387,27 @@ void *text_poke(void *addr, const void *opcode, size_t len)
 void text_poke_sync(void)
 {
 }
+
+void uml_pm_wake(void)
+{
+	pm_system_wakeup();
+}
+
+#ifdef CONFIG_PM_SLEEP
+static int init_pm_wake_signal(void)
+{
+	/*
+	 * In external time-travel mode we can't use signals to wake up
+	 * since that would mess with the scheduling. We'll have to do
+	 * some additional work to support wakeup on virtio devices or
+	 * similar, perhaps implementing a fake RTC controller that can
+	 * trigger wakeup (and request the appropriate scheduling from
+	 * the external scheduler when going to suspend.)
+	 */
+	if (time_travel_mode != TT_MODE_EXTERNAL)
+		register_pm_wake_signal();
+	return 0;
+}
+
+late_initcall(init_pm_wake_signal);
+#endif

@@ -8,6 +8,7 @@
 / {
 	aliases {
 		/delete-property/ ethernet0;
+		/delete-property/ lvds1;
 	};
 };
 
@@ -38,7 +39,7 @@
 };
 
 &rkisp {
-	rockchip,iq-feature = /bits/ 64 <0x3FBF7FE67FF>;
+	rockchip,iq-feature = /bits/ 64 <0x1BFBF7FE67FF>;
 };
 
 &usbdrd_dwc3 {
@@ -54,6 +55,8 @@
 /delete-node/ &gmac0_clkin;
 /delete-node/ &gmac0_xpcsclk;
 /delete-node/ &gmac0;
+/delete-node/ &gmac_uio0;
+/delete-node/ &lvds1;
 /delete-node/ &pcie30_phy_grf;
 /delete-node/ &pcie30phy;
 /delete-node/ &pcie3x1;
@@ -62,3 +65,5 @@
 /delete-node/ &qos_pcie3x2;
 /delete-node/ &qos_sata0;
 /delete-node/ &sata0;
+/delete-node/ &vp1_out_lvds1;
+/delete-node/ &vp2_out_lvds1;

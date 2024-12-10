@@ -119,13 +119,14 @@
 #define GPU_ID2_PRODUCT_TBEX              GPU_ID2_MODEL_MAKE(9, 2)
 #define GPU_ID2_PRODUCT_LBEX              GPU_ID2_MODEL_MAKE(9, 4)
 #define GPU_ID2_PRODUCT_TBAX              GPU_ID2_MODEL_MAKE(9, 5)
-#define GPU_ID2_PRODUCT_TDUX              GPU_ID2_MODEL_MAKE(10, 1)
 #define GPU_ID2_PRODUCT_TODX              GPU_ID2_MODEL_MAKE(10, 2)
 #define GPU_ID2_PRODUCT_TGRX              GPU_ID2_MODEL_MAKE(10, 3)
 #define GPU_ID2_PRODUCT_TVAX              GPU_ID2_MODEL_MAKE(10, 4)
 #define GPU_ID2_PRODUCT_LODX              GPU_ID2_MODEL_MAKE(10, 7)
 #define GPU_ID2_PRODUCT_TTUX              GPU_ID2_MODEL_MAKE(11, 2)
 #define GPU_ID2_PRODUCT_LTUX              GPU_ID2_MODEL_MAKE(11, 3)
+#define GPU_ID2_PRODUCT_TTIX              GPU_ID2_MODEL_MAKE(12, 0)
+#define GPU_ID2_PRODUCT_LTIX              GPU_ID2_MODEL_MAKE(12, 1)
 
 /**
  * GPU_ID_MAKE - Helper macro to generate GPU_ID using id, major, minor, status

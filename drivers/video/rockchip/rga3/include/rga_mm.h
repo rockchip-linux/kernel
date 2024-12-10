@@ -18,6 +18,8 @@ enum rga_mm_flag {
 	RGA_MEM_NEED_USE_IOMMU		= 1 << 1,
 	/* Flag this is a physical contiguous memory. */
 	RGA_MEM_PHYSICAL_CONTIGUOUS	= 1 << 2,
+	/* need force flush cache */
+	RGA_MEM_FORCE_FLUSH_CACHE	= 1 << 3,
 };
 
 struct rga_mm {
@@ -54,8 +56,8 @@ void rga_mm_dump_info(struct rga_mm *session);
 int rga_mm_map_job_info(struct rga_job *job);
 void rga_mm_unmap_job_info(struct rga_job *job);
 
-uint32_t rga_mm_import_buffer(struct rga_external_buffer *external_buffer,
-			      struct rga_session *session);
+int rga_mm_import_buffer(struct rga_external_buffer *external_buffer,
+			 struct rga_session *session);
 int rga_mm_release_buffer(uint32_t handle);
 int rga_mm_session_release_buffer(struct rga_session *session);
 

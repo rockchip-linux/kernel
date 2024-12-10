@@ -107,6 +107,20 @@ config CLK_RK3399
 	help
 	  Build the driver for RK3399 Clock Driver.
 
+config CLK_RK3528
+	tristate "Rockchip RK3528 clock controller support"
+	depends on CPU_RK3528 || COMPILE_TEST
+	default y
+	help
+	  Build the driver for RK3528 Clock Driver.
+
+config CLK_RK3562
+	tristate "Rockchip RK3562 clock controller support"
+	depends on CPU_RK3562 || COMPILE_TEST
+	default y
+	help
+	  Build the driver for RK3562 Clock Driver.
+
 config CLK_RK3568
 	tristate "Rockchip RK3568 clock controller support"
 	depends on CPU_RK3568 || COMPILE_TEST
@@ -128,7 +142,7 @@ config ROCKCHIP_CLK_COMPENSATION
 
 config ROCKCHIP_CLK_LINK
 	tristate "Rockchip clock link support"
-	default CLK_RK3588
+	default CLK_RK3562 || CLK_RK3588
 	help
 	  Say y here to enable clock link for Rockchip.
 
@@ -144,6 +158,12 @@ config ROCKCHIP_CLK_INV
 	help
 	  Say y here to enable clk Inverter.
 
+config ROCKCHIP_CLK_OUT
+	tristate "Rockchip Clk Out / Input Switch"
+	default y if !ROCKCHIP_MINI_KERNEL
+	help
+	  Say y here to enable clk out / input switch.
+
 config ROCKCHIP_CLK_PVTM
 	bool "Rockchip Clk Pvtm"
 	default y if !CPU_RV1126 && !CPU_RV1106
@@ -152,13 +172,6 @@ config ROCKCHIP_CLK_PVTM
 
 config ROCKCHIP_DDRCLK
 	bool
-
-config ROCKCHIP_DDRCLK_SCPI
-	bool "Rockchip DDR Clk SCPI"
-	default y if RK3368_SCPI_PROTOCOL
-	select ROCKCHIP_DDRCLK
-	help
-	  Say y here to enable ddr clk scpi.
 
 config ROCKCHIP_DDRCLK_SIP
 	bool "Rockchip DDR Clk SIP"

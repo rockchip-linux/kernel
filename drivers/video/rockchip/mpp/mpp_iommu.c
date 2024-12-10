@@ -9,8 +9,9 @@
  *
  */
 #include <linux/delay.h>
-#include <linux/dma-buf.h>
+#include <linux/dma-buf-cache.h>
 #include <linux/dma-iommu.h>
+#include <linux/dma-mapping.h>
 #include <linux/iommu.h>
 #include <linux/of.h>
 #include <linux/of_platform.h>
@@ -25,8 +26,9 @@
 
 #include "mpp_debug.h"
 #include "mpp_iommu.h"
+#include "mpp_common.h"
 
-static struct mpp_dma_buffer *
+struct mpp_dma_buffer *
 mpp_dma_find_buffer_fd(struct mpp_dma_session *dma, int fd)
 {
 	struct dma_buf *dmabuf;
@@ -97,7 +99,7 @@ mpp_dma_remove_extra_buffer(struct mpp_dma_session *dma)
 				oldest = buffer;
 			}
 		}
-		if (oldest)
+		if (oldest && kref_read(&oldest->ref) == 1)
 			kref_put(&oldest->ref, mpp_dma_release_buffer);
 		mutex_unlock(&dma->list_mutex);
 	}
@@ -189,7 +191,8 @@ struct mpp_dma_buffer *mpp_dma_import_fd(struct mpp_iommu_info *iommu_info,
 	}
 
 	/* remove the oldest before add buffer */
-	mpp_dma_remove_extra_buffer(dma);
+	if (!IS_ENABLED(CONFIG_DMABUF_CACHE))
+		mpp_dma_remove_extra_buffer(dma);
 
 	/* Check whether in dma session */
 	buffer = mpp_dma_find_buffer_fd(dma, fd);
@@ -244,8 +247,10 @@ struct mpp_dma_buffer *mpp_dma_import_fd(struct mpp_iommu_info *iommu_info,
 	buffer->dma = dma;
 
 	kref_init(&buffer->ref);
-	/* Increase the reference for used outside the buffer pool */
-	kref_get(&buffer->ref);
+
+	if (!IS_ENABLED(CONFIG_DMABUF_CACHE))
+		/* Increase the reference for used outside the buffer pool */
+		kref_get(&buffer->ref);
 
 	mutex_lock(&dma->list_mutex);
 	dma->buffer_count++;
@@ -371,6 +376,50 @@ mpp_dma_session_create(struct device *dev, u32 max_buffers)
 	return dma;
 }
 
+/*
+ * begin cpu access => for_cpu = true
+ * end cpu access => for_cpu = false
+ */
+void mpp_dma_buf_sync(struct mpp_dma_buffer *buffer, u32 offset, u32 length,
+		      enum dma_data_direction dir, bool for_cpu)
+{
+	struct device *dev = buffer->dma->dev;
+	struct sg_table *sgt = buffer->sgt;
+	struct scatterlist *sg = sgt->sgl;
+	dma_addr_t sg_dma_addr = sg_dma_address(sg);
+	unsigned int len = 0;
+	int i;
+
+	for_each_sgtable_sg(sgt, sg, i) {
+		unsigned int sg_offset, sg_left, size = 0;
+
+		len += sg->length;
+		if (len <= offset) {
+			sg_dma_addr += sg->length;
+			continue;
+		}
+
+		sg_left = len - offset;
+		sg_offset = sg->length - sg_left;
+
+		size = (length < sg_left) ? length : sg_left;
+
+		if (for_cpu)
+			dma_sync_single_range_for_cpu(dev, sg_dma_addr,
+						      sg_offset, size, dir);
+		else
+			dma_sync_single_range_for_device(dev, sg_dma_addr,
+							 sg_offset, size, dir);
+
+		offset += size;
+		length -= size;
+		sg_dma_addr += sg->length;
+
+		if (length == 0)
+			break;
+	}
+}
+
 int mpp_iommu_detach(struct mpp_iommu_info *info)
 {
 	if (!info)
@@ -385,7 +434,42 @@ int mpp_iommu_attach(struct mpp_iommu_info *info)
 	if (!info)
 		return 0;
 
+	if (info->domain == iommu_get_domain_for_dev(info->dev))
+		return 0;
+
 	return iommu_attach_group(info->domain, info->group);
+}
+
+static int mpp_iommu_handle(struct iommu_domain *iommu,
+			    struct device *iommu_dev,
+			    unsigned long iova,
+			    int status, void *arg)
+{
+	struct mpp_dev *mpp = (struct mpp_dev *)arg;
+
+	dev_err(iommu_dev, "fault addr 0x%08lx status %x arg %p\n",
+		iova, status, arg);
+
+	if (!mpp) {
+		dev_err(iommu_dev, "pagefault without device to handle\n");
+		return 0;
+	}
+
+	if (mpp->cur_task)
+		mpp_task_dump_mem_region(mpp, mpp->cur_task);
+
+	if (mpp->dev_ops && mpp->dev_ops->dump_dev)
+		mpp->dev_ops->dump_dev(mpp);
+	else
+		mpp_task_dump_hw_reg(mpp);
+
+	/*
+	 * Mask iommu irq, in order for iommu not repeatedly trigger pagefault.
+	 * Until the pagefault task finish by hw timeout.
+	 */
+	rockchip_iommu_mask_irq(mpp->dev);
+
+	return 0;
 }
 
 struct mpp_iommu_info *
@@ -446,10 +530,12 @@ mpp_iommu_probe(struct device *dev)
 	}
 
 	init_rwsem(&info->rw_sem);
+	spin_lock_init(&info->dev_lock);
 	info->dev = dev;
 	info->pdev = pdev;
 	info->group = group;
 	info->domain = domain;
+	info->dev_active = NULL;
 	info->irq = platform_get_irq(pdev, 0);
 	info->got_irq = (info->irq < 0) ? false : true;
 
@@ -504,6 +590,56 @@ int mpp_iommu_flush_tlb(struct mpp_iommu_info *info)
 
 	if (info->domain && info->domain->ops)
 		iommu_flush_iotlb_all(info->domain);
+
+	return 0;
+}
+
+int mpp_iommu_dev_activate(struct mpp_iommu_info *info, struct mpp_dev *dev)
+{
+	unsigned long flags;
+	int ret = 0;
+
+	if (!info)
+		return 0;
+
+	spin_lock_irqsave(&info->dev_lock, flags);
+
+	if (info->dev_active || !dev) {
+		dev_err(info->dev, "can not activate %s -> %s\n",
+			info->dev_active ? dev_name(info->dev_active->dev) : NULL,
+			dev ? dev_name(dev->dev) : NULL);
+		ret = -EINVAL;
+	} else {
+		info->dev_active = dev;
+		/* switch domain pagefault handler and arg depending on device */
+		iommu_set_fault_handler(info->domain, dev->fault_handler ?
+					dev->fault_handler : mpp_iommu_handle, dev);
+
+		dev_dbg(info->dev, "activate -> %p %s\n", dev, dev_name(dev->dev));
+	}
+
+	spin_unlock_irqrestore(&info->dev_lock, flags);
+
+	return ret;
+}
+
+int mpp_iommu_dev_deactivate(struct mpp_iommu_info *info, struct mpp_dev *dev)
+{
+	unsigned long flags;
+
+	if (!info)
+		return 0;
+
+	spin_lock_irqsave(&info->dev_lock, flags);
+
+	if (info->dev_active != dev)
+		dev_err(info->dev, "can not deactivate %s when %s activated\n",
+			dev_name(dev->dev),
+			info->dev_active ? dev_name(info->dev_active->dev) : NULL);
+
+	dev_dbg(info->dev, "deactivate %p\n", info->dev_active);
+	info->dev_active = NULL;
+	spin_unlock_irqrestore(&info->dev_lock, flags);
 
 	return 0;
 }

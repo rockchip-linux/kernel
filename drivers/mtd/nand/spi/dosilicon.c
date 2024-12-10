@@ -9,7 +9,7 @@
 
 #define SPINAND_MFR_DOSILICON			0xE5
 
-#define DOSICON_STATUS_ECC_MASK			GENMASK(7, 4)
+#define DOSICON_STATUS_ECC_MASK			GENMASK(6, 4)
 #define DOSICON_STATUS_ECC_NO_BITFLIPS		(0 << 4)
 #define DOSICON_STATUS_ECC_1TO3_BITFLIPS	(1 << 4)
 #define DOSICON_STATUS_ECC_4TO6_BITFLIPS	(3 << 4)
@@ -193,6 +193,35 @@ static const struct spinand_info dosilicon_spinand_table[] = {
 		     SPINAND_HAS_QE_BIT,
 		     SPINAND_ECCINFO(&ds35xxgb_ooblayout,
 				     ds35xxgb_ecc_get_status)),
+	SPINAND_INFO("DS35Q12B",
+		     SPINAND_ID(SPINAND_READID_METHOD_OPCODE_DUMMY, 0xF5),
+		     NAND_MEMORG(1, 2048, 128, 64, 512, 10, 1, 1, 1),
+		     NAND_ECCREQ(8, 512),
+		     SPINAND_INFO_OP_VARIANTS(&read_cache_variants,
+					      &write_cache_variants,
+					      &update_cache_variants),
+		     SPINAND_HAS_QE_BIT,
+		     SPINAND_ECCINFO(&ds35xxgb_ooblayout,
+				     ds35xxgb_ecc_get_status)),
+	SPINAND_INFO("DS35M12B",
+		     SPINAND_ID(SPINAND_READID_METHOD_OPCODE_DUMMY, 0xA5),
+		     NAND_MEMORG(1, 2048, 128, 64, 512, 10, 1, 1, 1),
+		     NAND_ECCREQ(8, 512),
+		     SPINAND_INFO_OP_VARIANTS(&read_cache_variants,
+					      &write_cache_variants,
+					      &update_cache_variants),
+		     SPINAND_HAS_QE_BIT,
+		     SPINAND_ECCINFO(&ds35xxgb_ooblayout,
+				     ds35xxgb_ecc_get_status)),
+	SPINAND_INFO("DS35Q1GD-IB",
+		     SPINAND_ID(SPINAND_READID_METHOD_OPCODE_DUMMY, 0x51),
+		     NAND_MEMORG(1, 2048, 128, 64, 1024, 20, 1, 1, 1),
+		     NAND_ECCREQ(8, 512),
+		     SPINAND_INFO_OP_VARIANTS(&read_cache_variants,
+					      &write_cache_variants,
+					      &update_cache_variants),
+		     SPINAND_HAS_QE_BIT,
+		     SPINAND_ECCINFO(&ds35xxgb_ooblayout, ds35xxgb_ecc_get_status)),
 };
 
 static const struct spinand_manufacturer_ops dosilicon_spinand_manuf_ops = {

@@ -73,6 +73,7 @@ struct cgroup_subsys memory_cgrp_subsys __read_mostly;
 EXPORT_SYMBOL(memory_cgrp_subsys);
 
 struct mem_cgroup *root_mem_cgroup __read_mostly;
+EXPORT_SYMBOL_GPL(root_mem_cgroup);
 
 /* Active memory cgroup to use from an interrupt context */
 DEFINE_PER_CPU(struct mem_cgroup *, int_active_memcg);
@@ -858,6 +859,7 @@ void __mod_lruvec_state(struct lruvec *lruvec, enum node_stat_item idx,
 	if (!mem_cgroup_disabled())
 		__mod_memcg_lruvec_state(lruvec, idx, val);
 }
+EXPORT_SYMBOL_GPL(__mod_lruvec_state);
 
 void __mod_lruvec_slab_state(void *p, enum node_stat_item idx, int val)
 {
@@ -1372,6 +1374,38 @@ out:
 	return lruvec;
 }
 
+struct lruvec *page_to_lruvec(struct page *page, pg_data_t *pgdat)
+{
+	struct lruvec *lruvec;
+
+	lruvec = mem_cgroup_page_lruvec(page, pgdat);
+
+	return lruvec;
+}
+EXPORT_SYMBOL_GPL(page_to_lruvec);
+
+void do_traversal_all_lruvec(void)
+{
+	pg_data_t *pgdat;
+
+	for_each_online_pgdat(pgdat) {
+		struct mem_cgroup *memcg = NULL;
+
+		spin_lock_irq(&pgdat->lru_lock);
+		memcg = mem_cgroup_iter(NULL, NULL, NULL);
+		do {
+			struct lruvec *lruvec = mem_cgroup_lruvec(memcg, pgdat);
+
+			trace_android_vh_do_traversal_lruvec(lruvec);
+
+			memcg = mem_cgroup_iter(NULL, memcg, NULL);
+		} while (memcg);
+
+		spin_unlock_irq(&pgdat->lru_lock);
+	}
+}
+EXPORT_SYMBOL_GPL(do_traversal_all_lruvec);
+
 /**
  * mem_cgroup_update_lru_size - account for adding or removing an lru page
  * @lruvec: mem_cgroup per zone lru vector
@@ -1410,6 +1444,7 @@ void mem_cgroup_update_lru_size(struct lruvec *lruvec, enum lru_list lru,
 	if (nr_pages > 0)
 		*lru_size += nr_pages;
 }
+EXPORT_SYMBOL_GPL(mem_cgroup_update_lru_size);
 
 /**
  * mem_cgroup_margin - calculate chargeable space of a memory cgroup
@@ -3931,6 +3966,10 @@ static int mem_cgroup_move_charge_write(struct cgroup_subsys_state *css,
 {
 	struct mem_cgroup *memcg = mem_cgroup_from_css(css);
 
+	pr_warn_once("Cgroup memory moving (move_charge_at_immigrate) is deprecated. "
+		     "Please report your usecase to linux-mm@kvack.org if you "
+		     "depend on this functionality.\n");
+
 	if (val & ~MOVE_MASK)
 		return -EINVAL;
 
@@ -4174,7 +4213,7 @@ static int mem_cgroup_swappiness_write(struct cgroup_subsys_state *css,
 {
 	struct mem_cgroup *memcg = mem_cgroup_from_css(css);
 
-	if (val > 100)
+	if (val > 200)
 		return -EINVAL;
 
 	if (css->parent)
@@ -4867,6 +4906,7 @@ static ssize_t memcg_write_event_control(struct kernfs_open_file *of,
 	unsigned int efd, cfd;
 	struct fd efile;
 	struct fd cfile;
+	struct dentry *cdentry;
 	const char *name;
 	char *endp;
 	int ret;
@@ -4918,6 +4958,16 @@ static ssize_t memcg_write_event_control(struct kernfs_open_file *of,
 		goto out_put_cfile;
 
 	/*
+	 * The control file must be a regular cgroup1 file. As a regular cgroup
+	 * file can't be renamed, it's safe to access its name afterwards.
+	 */
+	cdentry = cfile.file->f_path.dentry;
+	if (cdentry->d_sb->s_type != &cgroup_fs_type || !d_is_reg(cdentry)) {
+		ret = -EINVAL;
+		goto out_put_cfile;
+	}
+
+	/*
 	 * Determine the event callbacks and set them in @event.  This used
 	 * to be done via struct cftype but cgroup core no longer knows
 	 * about these events.  The following is crude but the whole thing
@@ -4925,7 +4975,7 @@ static ssize_t memcg_write_event_control(struct kernfs_open_file *of,
 	 *
 	 * DO NOT ADD NEW FILES.
 	 */
-	name = cfile.file->f_path.dentry->d_name.name;
+	name = cdentry->d_name.name;
 
 	if (!strcmp(name, "memory.usage_in_bytes")) {
 		event->register_event = mem_cgroup_usage_register_event;
@@ -4949,7 +4999,7 @@ static ssize_t memcg_write_event_control(struct kernfs_open_file *of,
 	 * automatically removed on cgroup destruction but the removal is
 	 * asynchronous, so take an extra ref on @css.
 	 */
-	cfile_css = css_tryget_online_from_dir(cfile.file->f_path.dentry->d_parent,
+	cfile_css = css_tryget_online_from_dir(cdentry->d_parent,
 					       &memory_cgrp_subsys);
 	ret = -EINVAL;
 	if (IS_ERR(cfile_css))

@@ -22,3 +22,15 @@ config ARCH_ROCKCHIP
 	help
 	  Support for Rockchip's Cortex-A9 Single-to-Quad-Core-SoCs
 	  containing the RK2928, RK30xx and RK31xx series.
+
+config RV1106_HPMCU_FAST_WAKEUP
+	bool "Rockchip RV1106 HPMCU fast wakeup configuration support"
+	depends on PM_SLEEP && CPU_RV1106
+	help
+	  This config aims to support HPMCU fast wakeup.
+
+config RV1106_PMU_WAKEUP_TIMEOUT
+	bool "Rockchip RV1106 pmu timeout wakeup support"
+	depends on PM_SLEEP && CPU_RV1106
+	help
+	  This config aims to support pmu timeout wakeup.

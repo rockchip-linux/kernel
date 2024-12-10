@@ -46,6 +46,7 @@
 
 #undef CREATE_TRACE_POINTS
 #include <trace/hooks/shmem_fs.h>
+#include <trace/hooks/mm.h>
 
 static struct vfsmount *shm_mnt;
 
@@ -1430,6 +1431,7 @@ static int shmem_writepage(struct page *page, struct writeback_control *wbc)
 		SetPageUptodate(page);
 	}
 
+	trace_android_vh_set_shmem_page_flag(page);
 	swap = get_swap_page(page);
 	if (!swap.val)
 		goto redirty;
@@ -3422,6 +3424,8 @@ static int shmem_parse_one(struct fs_context *fc, struct fs_parameter *param)
 	unsigned long long size;
 	char *rest;
 	int opt;
+	kuid_t kuid;
+	kgid_t kgid;
 
 	opt = fs_parse(fc, shmem_fs_parameters, param, &result);
 	if (opt < 0)
@@ -3457,14 +3461,32 @@ static int shmem_parse_one(struct fs_context *fc, struct fs_parameter *param)
 		ctx->mode = result.uint_32 & 07777;
 		break;
 	case Opt_uid:
-		ctx->uid = make_kuid(current_user_ns(), result.uint_32);
-		if (!uid_valid(ctx->uid))
+		kuid = make_kuid(current_user_ns(), result.uint_32);
+		if (!uid_valid(kuid))
 			goto bad_value;
+
+		/*
+		 * The requested uid must be representable in the
+		 * filesystem's idmapping.
+		 */
+		if (!kuid_has_mapping(fc->user_ns, kuid))
+			goto bad_value;
+
+		ctx->uid = kuid;
 		break;
 	case Opt_gid:
-		ctx->gid = make_kgid(current_user_ns(), result.uint_32);
-		if (!gid_valid(ctx->gid))
+		kgid = make_kgid(current_user_ns(), result.uint_32);
+		if (!gid_valid(kgid))
 			goto bad_value;
+
+		/*
+		 * The requested gid must be representable in the
+		 * filesystem's idmapping.
+		 */
+		if (!kgid_has_mapping(fc->user_ns, kgid))
+			goto bad_value;
+
+		ctx->gid = kgid;
 		break;
 	case Opt_huge:
 		ctx->huge = result.uint_32;
@@ -4098,7 +4120,7 @@ static struct file_system_type shmem_fs_type = {
 	.name		= "tmpfs",
 	.init_fs_context = ramfs_init_fs_context,
 	.parameters	= ramfs_fs_parameters,
-	.kill_sb	= kill_litter_super,
+	.kill_sb	= ramfs_kill_sb,
 	.fs_flags	= FS_USERNS_MOUNT,
 };
 
@@ -4311,7 +4333,6 @@ int reclaim_shmem_address_space(struct address_space *mapping)
 	pgoff_t start = 0;
 	struct page *page;
 	LIST_HEAD(page_list);
-	int reclaimed;
 	XA_STATE(xas, &mapping->i_pages, start);
 
 	if (!shmem_mapping(mapping))
@@ -4329,8 +4350,6 @@ int reclaim_shmem_address_space(struct address_space *mapping)
 			continue;
 
 		list_add(&page->lru, &page_list);
-		inc_node_page_state(page, NR_ISOLATED_ANON +
-				page_is_file_lru(page));
 
 		if (need_resched()) {
 			xas_pause(&xas);
@@ -4338,9 +4357,8 @@ int reclaim_shmem_address_space(struct address_space *mapping)
 		}
 	}
 	rcu_read_unlock();
-	reclaimed = reclaim_pages_from_list(&page_list);
 
-	return reclaimed;
+	return reclaim_pages(&page_list);
 #else
 	return 0;
 #endif

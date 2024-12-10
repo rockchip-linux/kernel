@@ -18,10 +18,28 @@
 	/delete-node/ usb;
 };
 
+&sfc {
+	status = "okay";
+
+	flash@0 {
+		compatible = "spi-nand";
+		reg = <0>;
+		spi-max-frequency = <75000000>;
+		spi-rx-bus-width = <4>;
+		spi-tx-bus-width = <1>;
+	};
+};
+
 &u2phy_otg {
 	/delete-property/ vbus-supply;
 };
 
 &usbdrd_dwc3 {
-	dr_mode = "peripheral";
+	dr_mode = "otg";
+};
+
+&vdd_arm {
+	regulator-min-microvolt = <800000>;
+	regulator-max-microvolt = <1000000>;
+	regulator-init-microvolt = <900000>;
 };

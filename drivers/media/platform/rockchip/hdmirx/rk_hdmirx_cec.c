@@ -68,7 +68,7 @@ static int hdmirx_cec_transmit(struct cec_adapter *adap, u8 attempts,
 	for (i = 0; i < msg_len; i++)
 		data[i / 4] |= msg->msg[i] << (i % 4) * 8;
 
-	data_len = msg_len / 4 + 1;
+	data_len = (msg_len + 3) / 4;
 	for (i = 0; i < data_len; i++)
 		hdmirx_cec_write(cec, CEC_TX_DATA3_0 + i * 4, data[i]);
 
@@ -253,7 +253,8 @@ struct hdmirx_cec *rk_hdmirx_cec_register(struct hdmirx_cec_data *data)
 		return NULL;
 	}
 
-	cec_s_phys_addr_from_edid(cec->adap, cec->edid);
+	/* The TV functionality can only map to physical address 0 */
+	cec_s_phys_addr(cec->adap, 0, false);
 
 	ret = devm_request_threaded_irq(cec->dev, cec->irq,
 					hdmirx_cec_hardirq,

@@ -20,13 +20,6 @@ config DRM_ROCKCHIP
 
 if DRM_ROCKCHIP
 
-config ROCKCHIP_DRM_CUBIC_LUT
-	bool "Support 3D cubic LUT"
-	depends on NO_GKI
-	help
-	  This add properties to support provision of a 3D cubic
-	  look up table, allowing for color specific adjustments.
-
 config ROCKCHIP_DRM_DEBUG
 	bool "Rockchip DRM debug"
 	depends on DEBUG_FS
@@ -61,11 +54,10 @@ config ROCKCHIP_VOP
 
 config ROCKCHIP_VOP2
 	bool "Rockchip VOP2 driver"
-	default y if CPU_RK3568 || CPU_RK3588
+	default y if CPU_RK3528 || CPU_RK3562 || CPU_RK3568 || CPU_RK3588
 	help
 	  This selects support for the VOP2 driver. If you want to
-	  enable VOP2 on RK3566 and RK3568 based SoC, you should
-	  select this option.
+	  enable VOP2 on Rockchip SoC, you should select this option.
 
 config ROCKCHIP_ANALOGIX_DP
 	bool "Rockchip specific extensions for Analogix DP driver"
@@ -81,6 +73,13 @@ config ROCKCHIP_CDN_DP
 	  for the cdn DP driver. If you want to enable Dp on
 	  RK3399 based SoC, you should select this
 	  option.
+
+config ROCKCHIP_DRM_TVE
+	bool "Rockchip TVE support"
+	depends on DRM_ROCKCHIP
+	help
+	  Choose this option to enable support for Rockchip TVE controllers.
+	  say Y to enable its driver.
 
 config ROCKCHIP_DW_HDMI
 	bool "Rockchip specific extensions for Synopsys DW HDMI"

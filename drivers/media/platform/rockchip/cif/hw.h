@@ -18,11 +18,14 @@
 #include <linux/rk-camera-module.h>
 #include "regs.h"
 #include "version.h"
+#include "dev.h"
 
 #define RKCIF_DEV_MAX		7
 #define RKCIF_HW_DRIVER_NAME	"rkcifhw"
 #define RKCIF_MAX_BUS_CLK	15
 #define RKCIF_MAX_RESET		15
+
+#define RKCIF_MAX_GROUP		4
 
 #define write_cif_reg(base, addr, val) \
 	writel(val, (addr) + (base))
@@ -70,6 +73,21 @@ struct rkcif_multi_sync_config {
 	bool is_attach;
 };
 
+struct rkcif_dummy_buffer {
+	struct list_head list;
+	struct dma_buf *dbuf;
+	dma_addr_t dma_addr;
+	struct page **pages;
+	void *mem_priv;
+	void *vaddr;
+	u32 size;
+	int dma_fd;
+	bool is_need_vaddr;
+	bool is_need_dbuf;
+	bool is_need_dmafd;
+	bool is_free;
+};
+
 /*
  * add new chip id in tail in time order
  * by increasing to distinguish cif version
@@ -86,6 +104,7 @@ enum rkcif_chip_id {
 	CHIP_RK3568_CIF,
 	CHIP_RK3588_CIF,
 	CHIP_RV1106_CIF,
+	CHIP_RK3562_CIF,
 };
 
 struct rkcif_hw_match_data {
@@ -116,24 +135,27 @@ struct rkcif_hw {
 	int				chip_id;
 	const struct cif_reg		*cif_regs;
 	const struct vb2_mem_ops	*mem_ops;
+	struct rkcif_device		*cif_dev[RKCIF_DEV_MAX];
+	int				dev_num;
+	atomic_t			power_cnt;
+	const struct rkcif_hw_match_data *match_data;
+	struct mutex			dev_lock;
+	struct rkcif_multi_sync_config	sync_config[RKCIF_MAX_GROUP];
+	spinlock_t			group_lock;
+	struct notifier_block		reset_notifier; /* reset for mipi csi crc err */
+	struct rkcif_dummy_buffer	dummy_buf;
 	bool				iommu_en;
 	bool				can_be_reset;
 	bool				is_dma_sg_ops;
 	bool				is_dma_contig;
-	struct rkcif_device		*cif_dev[RKCIF_DEV_MAX];
-	int				dev_num;
-
-	atomic_t			power_cnt;
-	const struct rkcif_hw_match_data *match_data;
-	struct mutex			dev_lock;
-	struct rkcif_multi_sync_config	sync_config;
-	spinlock_t			group_lock;
 	bool				adapt_to_usbcamerahal;
-	struct notifier_block		reset_notifier; /* reset for mipi csi crc err */
+	u64				irq_time;
+	bool				is_rk3588s2;
 };
 
 void rkcif_hw_soft_reset(struct rkcif_hw *cif_hw, bool is_rst_iommu);
 void rkcif_disable_sys_clk(struct rkcif_hw *cif_hw);
 int rkcif_enable_sys_clk(struct rkcif_hw *cif_hw);
+int rk_cif_plat_drv_init(void);
 
 #endif

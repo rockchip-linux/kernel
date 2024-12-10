@@ -63,7 +63,8 @@
 #define RGA_TEST_FLUSH_TIME 0
 #define RGA_INFO_BUS_ERROR 1
 
-#define PRE_SCALE_BUF_SIZE  2048*1024*4
+#define RGA_PRE_SCALE_BUF_SIZE (2048 * 2048 * 4)
+#define RGA_PRE_SCALE_PAGE_SIZE (RGA_PRE_SCALE_BUF_SIZE >> PAGE_SHIFT)
 
 #define RGA_POWER_OFF_DELAY	4*HZ /* 4s */
 #define RGA_TIMEOUT_DELAY	2*HZ /* 2s */
@@ -84,7 +85,7 @@
 ktime_t rga_start;
 ktime_t rga_end;
 
-rga_session rga_session_global;
+static rga_session rga_session_global;
 
 long (*rga_ioctl_kernel_p)(struct rga_req *);
 
@@ -97,7 +98,7 @@ unsigned char RGA_NONUSE;
 unsigned char RGA_INT_FLAG;
 #endif
 
-struct rga_drvdata *drvdata;
+struct rga_drvdata *rga_drvdata;
 rga_service_info rga_service;
 struct rga_mmu_buf_t rga_mmu_buf;
 
@@ -410,12 +411,12 @@ static int rga_memory_check(void *vaddr, u32 w, u32 h, u32 format, int fd)
 
 static inline void rga_write(u32 b, u32 r)
 {
-	__raw_writel(b, drvdata->rga_base + r);
+	__raw_writel(b, rga_drvdata->rga_base + r);
 }
 
 static inline u32 rga_read(u32 r)
 {
-	return __raw_readl(drvdata->rga_base + r);
+	return __raw_readl(rga_drvdata->rga_base + r);
 }
 
 static void rga_soft_reset(void)
@@ -509,9 +510,9 @@ static void rga_dump(void)
 static inline void rga_queue_power_off_work(void)
 {
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0))
-	queue_delayed_work(system_wq, &drvdata->power_off_work, RGA_POWER_OFF_DELAY);
+	queue_delayed_work(system_wq, &rga_drvdata->power_off_work, RGA_POWER_OFF_DELAY);
 #else
-	queue_delayed_work(system_nrt_wq, &drvdata->power_off_work, RGA_POWER_OFF_DELAY);
+	queue_delayed_work(system_nrt_wq, &rga_drvdata->power_off_work, RGA_POWER_OFF_DELAY);
 #endif
 }
 
@@ -522,7 +523,7 @@ static void rga_power_on(void)
 	ktime_t now = ktime_get();
 
 	if (ktime_to_ns(ktime_sub(now, last)) > NSEC_PER_SEC) {
-		cancel_delayed_work_sync(&drvdata->power_off_work);
+		cancel_delayed_work_sync(&rga_drvdata->power_off_work);
 		rga_queue_power_off_work();
 		last = now;
 	}
@@ -530,17 +531,17 @@ static void rga_power_on(void)
 		return;
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0))
-	clk_prepare_enable(drvdata->aclk_rga);
-	clk_prepare_enable(drvdata->hclk_rga);
-	pm_runtime_get_sync(drvdata->dev);
+	clk_prepare_enable(rga_drvdata->aclk_rga);
+	clk_prepare_enable(rga_drvdata->hclk_rga);
+	pm_runtime_get_sync(rga_drvdata->dev);
 #else
-	clk_prepare_enable(drvdata->aclk_rga);
-	clk_prepare_enable(drvdata->hclk_rga);
-	if (drvdata->pd_rga)
-		clk_prepare_enable(drvdata->pd_rga);
+	clk_prepare_enable(rga_drvdata->aclk_rga);
+	clk_prepare_enable(rga_drvdata->hclk_rga);
+	if (rga_drvdata->pd_rga)
+		clk_prepare_enable(rga_drvdata->pd_rga);
 #endif
 
-	wake_lock(&drvdata->wake_lock);
+	wake_lock(&rga_drvdata->wake_lock);
 	rga_service.enable = true;
 }
 
@@ -562,16 +563,16 @@ static void rga_power_off(void)
 	}
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0))
-	pm_runtime_put(drvdata->dev);
-	clk_disable_unprepare(drvdata->aclk_rga);
-	clk_disable_unprepare(drvdata->hclk_rga);
+	pm_runtime_put(rga_drvdata->dev);
+	clk_disable_unprepare(rga_drvdata->aclk_rga);
+	clk_disable_unprepare(rga_drvdata->hclk_rga);
 #else
-	if (drvdata->pd_rga)
-		clk_disable_unprepare(drvdata->pd_rga);
-	clk_disable_unprepare(drvdata->aclk_rga);
-	clk_disable_unprepare(drvdata->hclk_rga);
+	if (rga_drvdata->pd_rga)
+		clk_disable_unprepare(rga_drvdata->pd_rga);
+	clk_disable_unprepare(rga_drvdata->aclk_rga);
+	clk_disable_unprepare(rga_drvdata->hclk_rga);
 #endif
-	wake_unlock(&drvdata->wake_lock);
+	wake_unlock(&rga_drvdata->wake_lock);
 	rga_service.enable = false;
 }
 
@@ -628,7 +629,7 @@ static int rga_flush(rga_session *session, unsigned long arg)
 
 static int rga_get_result(rga_session *session, unsigned long arg)
 {
-	//printk("rga_get_result %d\n",drvdata->rga_result);
+	//printk("rga_get_result %d\n",rga_drvdata->rga_result);
 
     int ret = 0;
 
@@ -850,10 +851,10 @@ static void rga_try_set_reg(void)
             rga_write((0x1<<2)|(0x1<<3), RGA_SYS_CTRL);
 
             /* All CMD finish int */
-            rga_write(rga_read(RGA_INT)|(0x1<<10)|(0x1<<8), RGA_INT);
+            rga_write(rga_read(RGA_INT)|(0x1<<10)|(0x1<<9)|(0x1<<8), RGA_INT);
 
 #if RGA_DEBUGFS
-	if (RGA_TEST_REG)
+	if (RGA_TEST_TIME)
 		rga_start = ktime_get();
 #endif
 
@@ -1010,7 +1011,7 @@ static int rga_convert_dma_buf(struct rga_req *req)
 	dst_offset = req->line_draw_info.line_width;
 
 	if (req->src.yrgb_addr) {
-		hdl = ion_import_dma_buf(drvdata->ion_client, req->src.yrgb_addr);
+		hdl = ion_import_dma_buf(rga_drvdata->ion_client, req->src.yrgb_addr);
 		if (IS_ERR(hdl)) {
 		ret = PTR_ERR(hdl);
 		pr_err("RGA ERROR ion buf handle\n");
@@ -1025,26 +1026,26 @@ static int rga_convert_dma_buf(struct rga_req *req)
 
 #if RGA_DEBUGFS
 	if (RGA_CHECK_MODE) {
-		vaddr = ion_map_kernel(drvdata->ion_client, hdl);
+		vaddr = ion_map_kernel(rga_drvdata->ion_client, hdl);
 		if (vaddr)
 			rga_memory_check(vaddr, req->src.vir_h, req->src.vir_w,
 					req->src.format, req->src.yrgb_addr);
-		ion_unmap_kernel(drvdata->ion_client, hdl);
+		ion_unmap_kernel(rga_drvdata->ion_client, hdl);
 	}
 #endif
         if ((req->mmu_info.mmu_flag >> 8) & 1) {
-            req->sg_src = ion_sg_table(drvdata->ion_client, hdl);
+            req->sg_src = ion_sg_table(rga_drvdata->ion_client, hdl);
             req->src.yrgb_addr = req->src.uv_addr;
             req->src.uv_addr = req->src.yrgb_addr + (req->src.vir_w * req->src.vir_h);
             req->src.v_addr = req->src.uv_addr + (req->src.vir_w * req->src.vir_h)/4;
         }
         else {
-            ion_phys(drvdata->ion_client, hdl, &phy_addr, &len);
+            ion_phys(rga_drvdata->ion_client, hdl, &phy_addr, &len);
             req->src.yrgb_addr = phy_addr + src_offset;
             req->src.uv_addr = req->src.yrgb_addr + (req->src.vir_w * req->src.vir_h);
             req->src.v_addr = req->src.uv_addr + (req->src.vir_w * req->src.vir_h)/4;
         }
-        ion_free(drvdata->ion_client, hdl);
+        ion_free(rga_drvdata->ion_client, hdl);
     }
     else {
         req->src.yrgb_addr = req->src.uv_addr;
@@ -1053,7 +1054,7 @@ static int rga_convert_dma_buf(struct rga_req *req)
     }
 
     if(req->dst.yrgb_addr) {
-        hdl = ion_import_dma_buf(drvdata->ion_client, req->dst.yrgb_addr);
+        hdl = ion_import_dma_buf(rga_drvdata->ion_client, req->dst.yrgb_addr);
         if (IS_ERR(hdl)) {
             ret = PTR_ERR(hdl);
             printk("RGA2 ERROR ion buf handle\n");
@@ -1068,26 +1069,26 @@ static int rga_convert_dma_buf(struct rga_req *req)
 
 #if RGA_DEBUGFS
 	if (RGA_CHECK_MODE) {
-		vaddr = ion_map_kernel(drvdata->ion_client, hdl);
+		vaddr = ion_map_kernel(rga_drvdata->ion_client, hdl);
 		if (vaddr)
 			rga_memory_check(vaddr, req->src.vir_h, req->src.vir_w,
 				 req->src.format, req->src.yrgb_addr);
-		ion_unmap_kernel(drvdata->ion_client, hdl);
+		ion_unmap_kernel(rga_drvdata->ion_client, hdl);
 	}
 #endif
         if ((req->mmu_info.mmu_flag >> 10) & 1) {
-            req->sg_dst = ion_sg_table(drvdata->ion_client, hdl);
+            req->sg_dst = ion_sg_table(rga_drvdata->ion_client, hdl);
             req->dst.yrgb_addr = req->dst.uv_addr;
             req->dst.uv_addr = req->dst.yrgb_addr + (req->dst.vir_w * req->dst.vir_h);
             req->dst.v_addr = req->dst.uv_addr + (req->dst.vir_w * req->dst.vir_h)/4;
         }
         else {
-            ion_phys(drvdata->ion_client, hdl, &phy_addr, &len);
+            ion_phys(rga_drvdata->ion_client, hdl, &phy_addr, &len);
             req->dst.yrgb_addr = phy_addr + dst_offset;
             req->dst.uv_addr = req->dst.yrgb_addr + (req->dst.vir_w * req->dst.vir_h);
             req->dst.v_addr = req->dst.uv_addr + (req->dst.vir_w * req->dst.vir_h)/4;
         }
-        ion_free(drvdata->ion_client, hdl);
+        ion_free(rga_drvdata->ion_client, hdl);
     }
     else {
         req->dst.yrgb_addr = req->dst.uv_addr;
@@ -1114,7 +1115,7 @@ static int rga_get_img_info(rga_img_info_t *img,
 	int ret = 0;
 	void *vaddr = NULL;
 
-	rga_dev = drvdata->dev;
+	rga_dev = rga_drvdata->dev;
 	yrgb_addr = (int)img->yrgb_addr;
 	vir_w = img->vir_w;
 	vir_h = img->vir_h;
@@ -1566,7 +1567,7 @@ static int rga_blit_sync(rga_session *session, struct rga_req *req)
 	if (RGA_TEST_TIME) {
 		rga_end = ktime_get();
 		rga_end = ktime_sub(rga_end, rga_start);
-		DBG("sync one cmd end time %d\n", (int)ktime_to_us(rga_end));
+		DBG("sync one cmd end time %d us\n", (int)ktime_to_us(rga_end));
 	}
 #endif
 
@@ -1594,7 +1595,7 @@ static long rga_ioctl(struct file *file, uint32_t cmd, unsigned long arg)
 	memset(&req, 0x0, sizeof(req));
 #if RGA_DEBUGFS
 	if (RGA_TEST_MSG)
-		DBG("cmd is %s\n", rga_get_cmd_mode_str(cmd));
+		DBG("cmd is %s(0x%x)\n", rga_get_cmd_mode_str(cmd), cmd);
 	if (RGA_NONUSE) {
 		mutex_unlock(&rga_service.mutex);
 		return 0;
@@ -1634,24 +1635,23 @@ static long rga_ioctl(struct file *file, uint32_t cmd, unsigned long arg)
             ret = rga_get_result(session, arg);
             break;
         case RGA_GET_VERSION:
-		if (!drvdata->version) {
-			drvdata->version = kzalloc(16, GFP_KERNEL);
-			if (!drvdata->version) {
+		if (!rga_drvdata->version) {
+			rga_drvdata->version = kzalloc(16, GFP_KERNEL);
+			if (!rga_drvdata->version) {
 				ret = -ENOMEM;
 				break;
 			}
 			rga_power_on();
 			udelay(1);
 			if (rga_read(RGA_VERSION) == 0x02018632)
-				snprintf(drvdata->version, 16, "1.6");
+				snprintf(rga_drvdata->version, 16, "1.6");
 			else
-				snprintf(drvdata->version, 16, "1.003");
+				snprintf(rga_drvdata->version, 16, "1.003");
 		}
 
-			ret = copy_to_user((void *)arg, drvdata->version, 16);
+			ret = copy_to_user((void *)arg, rga_drvdata->version, 16);
             break;
 		default:
-			ERR("unknown ioctl cmd!\n");
 			ret = -EINVAL;
 			break;
 	}
@@ -1740,7 +1740,6 @@ static int rga_release(struct inode *inode, struct file *file)
     {
 		pr_err("rga_service session %d still has %d task running when closing\n", session->pid, task_running);
 		msleep(100);
-        /*Í¬²½*/
 	}
 
 	wake_up(&session->wait);
@@ -1777,12 +1776,12 @@ static irqreturn_t rga_irq(int irq,  void *dev_id)
 		DBG("irq INT[%x], STATS[%x]\n", rga_read(RGA_INT), rga_read(RGA_STATUS));
 #endif
 	/*if error interrupt then soft reset hardware*/
-	if (rga_read(RGA_INT) & 0x01) {
+	if (rga_read(RGA_INT) & 0x03) {
 		pr_err("Err irq INT[%x], STATS[%x]\n", rga_read(RGA_INT), rga_read(RGA_STATUS));
 		rga_soft_reset();
 	}
 	/*clear INT */
-	rga_write(rga_read(RGA_INT) | (0x1<<6) | (0x1<<7) | (0x1<<4), RGA_INT);
+	rga_write(rga_read(RGA_INT) | (0x1<<6) | (0x1<<7) | (0x1<<5) | (0x1<<4), RGA_INT);
 
 	return IRQ_WAKE_THREAD;
 }
@@ -1868,7 +1867,7 @@ static int rga_drv_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, data);
 	data->dev = &pdev->dev;
-	drvdata = data;
+	rga_drvdata = data;
 
     #if defined(CONFIG_ION_ROCKCHIP)
 	data->ion_client = rockchip_ion_client_create("rga");
@@ -2070,7 +2069,7 @@ void rga_slt(void)
 	unsigned int *pstd;
 	unsigned int *pnow;
 
-	data = drvdata;
+	data = rga_drvdata;
 	srcW = 1280;
 	srcH = 720;
 	dstW = 1280;
@@ -2278,109 +2277,122 @@ void rga_test_1(void);
 
 static int __init rga_init(void)
 {
-	int ret;
-    uint32_t *mmu_buf;
-    unsigned long *mmu_buf_virtual;
-    uint32_t i;
-    uint32_t *buf_p;
-    uint32_t *buf;
+	int i, ret;
+	void * pre_scale_page_buf;
+	uint32_t *pre_scale_page_table;
+	uint32_t *mmu_base;
+	struct page **pages;
 
-    /* malloc pre scale mid buf mmu table */
-    mmu_buf = kzalloc(1024*8, GFP_KERNEL);
-    mmu_buf_virtual = kzalloc(1024*2*sizeof(unsigned long), GFP_KERNEL);
-    if(mmu_buf == NULL) {
-        printk(KERN_ERR "RGA get Pre Scale buff failed. \n");
-        return -1;
-    }
-	if (mmu_buf_virtual == NULL) {
-		return -1;
+	/* malloc pre scale mid buf mmu table */
+	pre_scale_page_table = kzalloc(RGA_PRE_SCALE_PAGE_SIZE * sizeof(*pre_scale_page_table),
+				       GFP_KERNEL);
+	if(pre_scale_page_table == NULL) {
+		pr_err("RGA alloc pre-scale page table failed.\n");
+		return -ENOMEM;
 	}
 
-    /* malloc 4 M buf */
-    for(i=0; i<1024; i++) {
-        buf_p = (uint32_t *)__get_free_page(GFP_KERNEL|__GFP_ZERO);
-        if(buf_p == NULL) {
-            printk(KERN_ERR "RGA init pre scale buf falied\n");
-            return -ENOMEM;
-        }
-        mmu_buf[i] = virt_to_phys((void *)((unsigned long)buf_p));
-        mmu_buf_virtual[i] = (unsigned long)buf_p;
-    }
+	/* alloc reserved pre-scale buf */
+	for(i = 0; i < RGA_PRE_SCALE_PAGE_SIZE; i++) {
+		pre_scale_page_buf = (void *)__get_free_page(GFP_KERNEL | __GFP_ZERO);
+		if(pre_scale_page_buf == NULL) {
+			printk(KERN_ERR "RGA init pre scale page_table[%d] falied\n", i);
+			ret = -ENOMEM;
+			goto free_pre_scale_page_table;
+		}
+		pre_scale_page_table[i] = (uint32_t)virt_to_phys(pre_scale_page_buf);
+	}
 
-    rga_service.pre_scale_buf = (uint32_t *)mmu_buf;
-    rga_service.pre_scale_buf_virtual = (unsigned long *)mmu_buf_virtual;
+	mmu_base = kmalloc(1024 * 256, GFP_KERNEL);
+	if (mmu_base == NULL) {
+		pr_err("RGA alloc mmu buffer failed.\n");
+		ret = -ENOMEM;
+		goto free_pre_scale_page_table;
+	}
 
-    buf_p = kmalloc(1024*256, GFP_KERNEL);
-    rga_mmu_buf.buf_virtual = buf_p;
+	pages = kmalloc((32768)* sizeof(struct page *), GFP_KERNEL);
+	if (pages == NULL) {
+		pr_err("RGA alloc pages buffer failed.\n");
+		ret = -ENOMEM;
+		goto free_mmu_base;
+	}
+
+	ret = platform_driver_register(&rga_driver);
+	if (ret != 0) {
+		printk(KERN_ERR "Platform device register failed (%d).\n", ret);
+		goto free_pages_buf;
+	}
+
+	rga_service.pre_scale_buf = pre_scale_page_table;
+
+	rga_mmu_buf.buf_virtual = mmu_base;
 #if (defined(CONFIG_ARM) && defined(CONFIG_ARM_LPAE))
-    buf = (uint32_t *)(uint32_t)virt_to_phys((void *)((unsigned long)buf_p));
+	rga_mmu_buf.buf = (uint32_t *)(uint32_t)virt_to_phys((void *)((unsigned long)mmu_base));
 #else
-    buf = (uint32_t *)virt_to_phys((void *)((unsigned long)buf_p));
+	rga_mmu_buf.buf = (uint32_t *)virt_to_phys((void *)((unsigned long)mmu_base));
 #endif
-    rga_mmu_buf.buf = buf;
-    rga_mmu_buf.front = 0;
-    rga_mmu_buf.back = 64*1024;
-    rga_mmu_buf.size = 64*1024;
+	rga_mmu_buf.front = 0;
+	rga_mmu_buf.back = 64*1024;
+	rga_mmu_buf.size = 64*1024;
 
-    rga_mmu_buf.pages = kmalloc((32768)* sizeof(struct page *), GFP_KERNEL);
+	rga_mmu_buf.pages = pages;
 
-	if ((ret = platform_driver_register(&rga_driver)) != 0)
-	{
-        printk(KERN_ERR "Platform device register failed (%d).\n", ret);
-			return ret;
-	}
+	rga_session_global.pid = 0x0000ffff;
+	INIT_LIST_HEAD(&rga_session_global.waiting);
+	INIT_LIST_HEAD(&rga_session_global.running);
+	INIT_LIST_HEAD(&rga_session_global.list_session);
 
-    {
-        rga_session_global.pid = 0x0000ffff;
-        INIT_LIST_HEAD(&rga_session_global.waiting);
-        INIT_LIST_HEAD(&rga_session_global.running);
-        INIT_LIST_HEAD(&rga_session_global.list_session);
+	INIT_LIST_HEAD(&rga_service.waiting);
+	INIT_LIST_HEAD(&rga_service.running);
+	INIT_LIST_HEAD(&rga_service.done);
+	INIT_LIST_HEAD(&rga_service.session);
 
-        INIT_LIST_HEAD(&rga_service.waiting);
-	    INIT_LIST_HEAD(&rga_service.running);
-	    INIT_LIST_HEAD(&rga_service.done);
-	    INIT_LIST_HEAD(&rga_service.session);
+	init_waitqueue_head(&rga_session_global.wait);
+	//mutex_lock(&rga_service.lock);
+	list_add_tail(&rga_session_global.list_session, &rga_service.session);
+	//mutex_unlock(&rga_service.lock);
+	atomic_set(&rga_session_global.task_running, 0);
+	atomic_set(&rga_session_global.num_done, 0);
 
-        init_waitqueue_head(&rga_session_global.wait);
-        //mutex_lock(&rga_service.lock);
-        list_add_tail(&rga_session_global.list_session, &rga_service.session);
-        //mutex_unlock(&rga_service.lock);
-        atomic_set(&rga_session_global.task_running, 0);
-        atomic_set(&rga_session_global.num_done, 0);
-    }
-
-    #if RGA_TEST_CASE
+#if RGA_TEST_CASE
 	rga_test_0();
 #endif
 #if RGA_DEBUGFS
 	rga_debugfs_add();
 #endif
 
-	INFO("Module initialized.\n");
+	INFO("RGA Module initialized.\n");
 
 	return 0;
+
+free_pages_buf:
+	kfree(pages);
+
+free_mmu_base:
+	kfree(mmu_base);
+
+free_pre_scale_page_table:
+	for (i = 0; i < RGA_PRE_SCALE_PAGE_SIZE; i++)
+		if (pre_scale_page_table[i] != 0)
+			kfree(phys_to_virt((phys_addr_t)pre_scale_page_table[i]));
+
+	kfree(pre_scale_page_table);
+
+	return ret;
 }
 
 static void __exit rga_exit(void)
 {
-    uint32_t i;
+	phys_addr_t pre_scale_buf;
 
-    rga_power_off();
+	rga_power_off();
 
-    for(i=0; i<1024; i++)
-    {
-        if((unsigned long)rga_service.pre_scale_buf_virtual[i])
-        {
-            __free_page((void *)rga_service.pre_scale_buf_virtual[i]);
-        }
-    }
-
-    if(rga_service.pre_scale_buf != NULL) {
-        kfree((uint8_t *)rga_service.pre_scale_buf);
-    }
-
+	if (rga_service.pre_scale_buf != NULL) {
+		pre_scale_buf = (phys_addr_t)rga_service.pre_scale_buf[0];
+		if (pre_scale_buf)
+			kfree(phys_to_virt(pre_scale_buf));
+		kfree(rga_service.pre_scale_buf);
+	}
 	kfree(rga_mmu_buf.buf_virtual);
-
 	kfree(rga_mmu_buf.pages);
 
 	platform_driver_unregister(&rga_driver);

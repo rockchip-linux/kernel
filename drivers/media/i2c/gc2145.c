@@ -2483,9 +2483,7 @@ static int gc2145_g_frame_interval(struct v4l2_subdev *sd,
 {
 	struct gc2145 *gc2145 = to_gc2145(sd);
 
-	mutex_lock(&gc2145->lock);
 	fi->interval = gc2145->frame_size->max_fps;
-	mutex_unlock(&gc2145->lock);
 
 	return 0;
 }
@@ -2583,8 +2581,11 @@ static long gc2145_compat_ioctl32(struct v4l2_subdev *sd,
 		}
 
 		ret = gc2145_ioctl(sd, cmd, inf);
-		if (!ret)
+		if (!ret) {
 			ret = copy_to_user(up, inf, sizeof(*inf));
+			if (ret)
+				ret = -EFAULT;
+		}
 		kfree(inf);
 		break;
 	case RKMODULE_AWB_CFG:
@@ -2597,12 +2598,16 @@ static long gc2145_compat_ioctl32(struct v4l2_subdev *sd,
 		ret = copy_from_user(cfg, up, sizeof(*cfg));
 		if (!ret)
 			ret = gc2145_ioctl(sd, cmd, cfg);
+		else
+			ret = -EFAULT;
 		kfree(cfg);
 		break;
 	case RKMODULE_SET_QUICK_STREAM:
 		ret = copy_from_user(&stream, up, sizeof(u32));
 		if (!ret)
 			ret = gc2145_ioctl(sd, cmd, &stream);
+		else
+			ret = -EFAULT;
 		break;
 	default:
 		ret = -ENOIOCTLCMD;
@@ -2665,9 +2670,7 @@ static int gc2145_enum_frame_interval(struct v4l2_subdev *sd,
 	if (fie->index >= gc2145->cfg_num)
 		return -EINVAL;
 
-	if (fie->code != MEDIA_BUS_FMT_UYVY8_2X8)
-		return -EINVAL;
-
+	fie->code = MEDIA_BUS_FMT_UYVY8_2X8;
 	fie->width = gc2145->framesize_cfg[fie->index].width;
 	fie->height = gc2145->framesize_cfg[fie->index].height;
 	fie->interval = gc2145->framesize_cfg[fie->index].max_fps;
@@ -2871,7 +2874,7 @@ static int gc2145_parse_of(struct gc2145 *gc2145)
 	if (ret)
 		dev_info(dev, "Failed to get power regulators\n");
 
-	return __gc2145_power_on(gc2145);
+	return ret;
 }
 
 static int gc2145_probe(struct i2c_client *client,
@@ -2915,11 +2918,6 @@ static int gc2145_probe(struct i2c_client *client,
 
 	ret = gc2145_parse_of(gc2145);
 	if (ret != 0)
-		return -EINVAL;
-
-	gc2145->xvclk_frequency = clk_get_rate(gc2145->xvclk);
-	if (gc2145->xvclk_frequency < 6000000 ||
-	    gc2145->xvclk_frequency > 27000000)
 		return -EINVAL;
 
 	v4l2_ctrl_handler_init(&gc2145->ctrls, 3);
@@ -2971,6 +2969,12 @@ static int gc2145_probe(struct i2c_client *client,
 	gc2145->format.height = gc2145->framesize_cfg[0].height;
 	gc2145->fps = DIV_ROUND_CLOSEST(gc2145->framesize_cfg[0].max_fps.denominator,
 			gc2145->framesize_cfg[0].max_fps.numerator);
+
+	__gc2145_power_on(gc2145);
+	gc2145->xvclk_frequency = clk_get_rate(gc2145->xvclk);
+	if (gc2145->xvclk_frequency < 6000000 ||
+	    gc2145->xvclk_frequency > 27000000)
+		goto error;
 
 	ret = gc2145_detect(gc2145);
 	if (ret < 0) {

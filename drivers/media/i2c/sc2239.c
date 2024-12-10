@@ -875,8 +875,7 @@ static int sc2239_enum_frame_interval(struct v4l2_subdev *sd,
 	if (fie->index >= ARRAY_SIZE(supported_modes))
 		return -EINVAL;
 
-	if (fie->code != PIX_FORMAT)
-		return -EINVAL;
+	fie->code = PIX_FORMAT;
 
 	fie->width = supported_modes[fie->index].width;
 	fie->height = supported_modes[fie->index].height;
@@ -927,8 +926,8 @@ static void sc2239_modify_fps_info(struct sc2239 *sc2239)
 {
 	const struct sc2239_mode *mode = sc2239->cur_mode;
 
-	sc2239->cur_fps.denominator = mode->max_fps.denominator * sc2239->cur_vts /
-				       mode->vts_def;
+	sc2239->cur_fps.denominator = mode->max_fps.denominator * mode->vts_def /
+				      sc2239->cur_vts;
 }
 
 static int sc2239_set_ctrl(struct v4l2_ctrl *ctrl)
@@ -975,8 +974,7 @@ static int sc2239_set_ctrl(struct v4l2_ctrl *ctrl)
 				       ctrl->val + sc2239->cur_mode->height);
 		if (!ret)
 			sc2239->cur_vts = ctrl->val + sc2239->cur_mode->height;
-		if (sc2239->cur_vts != sc2239->cur_mode->vts_def)
-			sc2239_modify_fps_info(sc2239);
+		sc2239_modify_fps_info(sc2239);
 		break;
 	case V4L2_CID_TEST_PATTERN:
 		ret = sc2239_enable_test_pattern(sc2239, ctrl->val);

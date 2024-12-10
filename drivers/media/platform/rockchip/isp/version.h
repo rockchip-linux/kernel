@@ -4,7 +4,7 @@
 #ifndef _RKISP_VERSION_H
 #define _RKISP_VERSION_H
 #include <linux/version.h>
-#include <linux/rkisp21-config.h>
+#include <linux/rk-isp21-config.h>
 
 /*
  * RKISP DRIVER VERSION NOTE
@@ -357,6 +357,132 @@
  * 79.fix isp32 stream force to update enable
  * 80.fix mi no disable for multi sensor unite mode
  * 81.fix size for multi isp composite mode
+ *
+ * v2.1.0
+ * 1.fix mipi error for isp2x with multi sensor
+ * 2.default reg config after reset
+ * 3.fix isp20 mi no work
+ * 4.fix stream off just close isp
+ * 5.remove the judgment that gain turn off if ldch is enabled
+ * 6.drop first output for fast case
+ * 7.fix scl for unite mode
+ * 8.no wait if shutdown
+ * 9.fix stream no output for multi senso
+ * 10.fix hdr config for unite multi sensor
+ * 11.make sure to free buf after isp stop
+ * 12.improve thunder boot process
+ * 13.second frame first run for fast
+ * 14.multi sensor for fast case
+ * 15.fix fbc output for isp30 multi sensor
+ * 16.frame start to update buf for isp30
+ * 17.fix stream switch when readback mode
+ * 18.remove unsupported formats
+ * 19.fix stats buf update for multi sensor
+ * 20.fix self update config for isp30
+ * 21.fix dmatx loss first buf
+ * 22.fix rockit stream pause if readback mode
+ * 23.fix isp32 cmsk feature
+ * 24.online rx add memory compact or no
+ * 25.remove cif/isp/ispp hw SYSTEM_SLEEP_PM_OPS
+ * 26.api to force enum multi isp resolution
+ * 27.isp30 3a to ddr for readback mode
+ * 28.sync stop to dmarx for isp stop
+ * 29.fix mulit isp x3 mode
+ * 30.fix lsc table read by isp for multi sensor
+ * 31.merge dual dhaz config chang to user for unite mode
+ * 32.no support rgb8888 for isp30
+ * 33.fix iommu err for stream stop
+ * 34.fix 3a to ddr iommu err for isp30 two readback mode
+ * 35.400ms timeout for rtt complete
+ * 36.add mosaic block size for cmsk
+ * 37.wrap width and height config by user
+ * 38.fix ldch err
+ * 39.fix isp32 vflip config
+ * 40.dump two isp reg for unite mode
+ * 41.fix output stream sync for readback mode
+ * 42.wait isp0 end for unite mode
+ * 43.fix first frame loss
+ * 44.fix rgb range for selfpath
+ * 45.stats buf add application params frame id
+ *
+ * v2.2.0
+ * 1.add isp32 lite
+ * 2.add rk3562 config
+ * 3.add iqtool video for isp32 lite
+ * 4.fix build warn
+ * 5.dvfs for multi dev on/off
+ * 6.luma stream resolution alignment
+ * 7.fix sensor off to enable reset
+ * 8.fix isp and cif build warning
+ * 9.Return error code for ioctl set_meshbuf_size
+ * 10.fix isp32 lite mainpath switch fail
+ * 11.fix warning of vb2 cancel or done
+ * 12.fix isp no work due to irq_ends_mask error
+ * 13.thunder boot with multi sensor
+ * 14.support buf early done
+ * 15.fix read BP_WR_CTRL reg
+ *
+ * v2.2.1
+ * 1.rename isp and ispp uapi head
+ * 2.lock for rockit qbuf
+ * 3.fix open video during device register
+ * 4.sync dev register and fast_work
+ *
+ * v2.2.2 (AIQ v5.1.3)
+ * 1.fixed framerate ctl invalid issue
+ * 2.fix rockit uv offset if switch resolution
+ * 3.fix isp rockit frame rate err
+ * 4.fix error for multi sensor with scale up case
+ * 5.force offset to 0 when frame end for wrap mode
+ * 6.fix sync with 3a_server
+ * 7.fix isp32 and lite buf output err due to mi on/off
+ * 8.fix uyvy format for isp32
+ * 9.wait RISC-V with 400ms timeout
+ * 10.fix uyvy format for unite mode
+ * 11.fix ldch for multiple read back
+ * 12.sync isp stream_on end then to start working
+ * 13.no set clk if assigned-clock-rates in dts
+ * 14.distinguish buf done or subscribed event for param poll
+ * 15.fix repeated reporting statistics if stats video on/off
+ *
+ * v2.3.0 (AIQ v5.3.0)
+ * 1.fix drc and hdrmge err for multi sensor
+ * 2.fix 3dlut for multi sensor
+ * 3.fix stream init pause state
+ * 4.fix refer to sram info for multi sensor
+ * 5.add api get isp work mode for rockit
+ * 6.remove __isp_config_hdrshd
+ * 7.add lock to save tb info
+ * 8.fix list buf delete err
+ * 9.fix get tb info
+ * 10.add iqtool video for isp21
+ * 11.fix image effect for frame two-run
+ * 12.fix underperformance for frame two-run
+ * 13.support unite mode for isp32
+ *
+ * v2.4.0 (AIQ v5.4.0)
+ * 1.fix rv1106g3 4k cmsk right
+ * 2.fix image effect for rv1106 4k
+ * 3.add RKISP_VICAP_CMD_QUICK_STREAM CMD
+ * 4.support suspend and resume
+ * 5.pm add call sensor s_power
+ * 6.suspend resume with rtt
+ * 7.fix resume hold by lut error
+ * 8.fix rv1106g3 4k can't cmsk rightmost
+ * 9.fix rv1106 resume no output
+ * 10.support to do reset in online mode
+ * 11.support change work mode to online with quick stream
+ * 12.fix build warning
+ * 13.frame timestamp change to sof
+ * 14.fix wnd_num cause array access out of bounds
+ * 15.fix rv1106 cycle kill rkipc null pointer
+ * 16.fix power_cnt if error
+ * 17.fix rockit set_fmt stuck
+ * 18.fix info2ddr no enable
+ * 19.fix reset can't open
+ * 20.more time to wait isp end
+ * 21.add mode for rv1106 suspend without rtt
+ * 22.fix is_on false cause pm isp die
  */
 
 #define RKISP_DRIVER_VERSION RKISP_API_VERSION

@@ -219,7 +219,7 @@ struct streams_ops {
 	void (*set_data_path)(struct rkisp_stream *stream);
 	bool (*is_stream_stopped)(struct rkisp_stream *stream);
 	void (*update_mi)(struct rkisp_stream *stream);
-	int (*frame_end)(struct rkisp_stream *stream);
+	int (*frame_end)(struct rkisp_stream *stream, u32 state);
 	int (*frame_start)(struct rkisp_stream *stream, u32 mis);
 	int (*set_wrap)(struct rkisp_stream *stream, int line);
 };
@@ -280,13 +280,14 @@ struct rkisp_stream {
 	bool is_pause;
 	bool is_crop_upd;
 	bool is_using_resmem;
-	bool is_tb_s_info;
+	bool frame_early;
 	wait_queue_head_t done;
 	unsigned int burst;
 	atomic_t sequence;
 	struct frame_debug_info dbg;
-	u8 conn_id;
+	int conn_id;
 	u32 memory;
+	u32 skip_frame;
 	union {
 		struct rkisp_stream_sp sp;
 		struct rkisp_stream_mp mp;
@@ -310,6 +311,7 @@ struct rkisp_capture_device {
 	struct tasklet_struct rd_tasklet;
 	atomic_t refcnt;
 	u32 wait_line;
+	u32 wrap_width;
 	u32 wrap_line;
 	bool is_done_early;
 	bool is_mirror;
@@ -321,6 +323,7 @@ extern struct stream_config rkisp_mp_stream_config;
 extern struct stream_config rkisp_sp_stream_config;
 extern struct rockit_isp_ops rockit_isp_ops;
 
+void rkisp_stream_buf_done_early(struct rkisp_device *dev);
 void rkisp_stream_buf_done(struct rkisp_stream *stream,
 			   struct rkisp_buffer *buf);
 void rkisp_unregister_stream_vdev(struct rkisp_stream *stream);

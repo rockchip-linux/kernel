@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 #
-# (C) COPYRIGHT 2014-2021 ARM Limited. All rights reserved.
+# (C) COPYRIGHT 2014-2022 ARM Limited. All rights reserved.
 #
 # This program is free software and is provided to you under the terms of the
 # GNU General Public License version 2 as published by the Free Software
@@ -47,8 +47,12 @@ endif
 bifrost_kbase-$(CONFIG_MALI_BIFROST_DEVFREQ) += \
     backend/gpu/mali_kbase_devfreq.o
 
-# Dummy model
+ifneq ($(CONFIG_MALI_REAL_HW),y)
+    bifrost_kbase-y += backend/gpu/mali_kbase_model_linux.o
+endif
+
+# NO_MALI Dummy model interface
 bifrost_kbase-$(CONFIG_MALI_BIFROST_NO_MALI) += backend/gpu/mali_kbase_model_dummy.o
-bifrost_kbase-$(CONFIG_MALI_BIFROST_NO_MALI) += backend/gpu/mali_kbase_model_linux.o
 # HW error simulation
 bifrost_kbase-$(CONFIG_MALI_BIFROST_NO_MALI) += backend/gpu/mali_kbase_model_error_generator.o
+

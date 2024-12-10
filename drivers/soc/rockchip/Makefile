@@ -4,17 +4,20 @@
 #
 obj-$(CONFIG_ROCKCHIP_AMP) += rockchip_amp.o
 obj-$(CONFIG_ROCKCHIP_CPUINFO) += rockchip-cpuinfo.o
+obj-$(CONFIG_ROCKCHIP_CSU) += rockchip_csu.o
+obj-$(CONFIG_ROCKCHIP_DISABLE_UNUSED) += rockchip_disable_unused.o
 obj-$(CONFIG_ROCKCHIP_GRF) += grf.o
 obj-$(CONFIG_ROCKCHIP_HW_DECOMPRESS) += rockchip_decompress.o
 obj-$(CONFIG_ROCKCHIP_HW_DECOMPRESS_USER) += rockchip_decompress_user.o
 obj-$(CONFIG_ROCKCHIP_IODOMAIN) += io-domain.o
 obj-$(CONFIG_ROCKCHIP_IOMUX) += iomux.o
 obj-$(CONFIG_ROCKCHIP_PM_DOMAINS) += pm_domains.o
-obj-$(CONFIG_ROCKCHIP_FIQ_DEBUGGER) += rk_fiq_debugger.o
+obj-$(CONFIG_ROCKCHIP_FIQ_DEBUGGER) += fiq_debugger/
 obj-$(CONFIG_ROCKCHIP_VENDOR_STORAGE) += rk_vendor_storage.o
 obj-$(CONFIG_ROCKCHIP_MMC_VENDOR_STORAGE) += sdmmc_vendor_storage.o
 obj-$(CONFIG_ROCKCHIP_FLASH_VENDOR_STORAGE) += flash_vendor_storage.o
 obj-$(CONFIG_ROCKCHIP_MTD_VENDOR_STORAGE) += mtd_vendor_storage.o
+obj-$(CONFIG_ROCKCHIP_RAM_VENDOR_STORAGE) += ram_vendor_storage.o
 obj-$(CONFIG_ROCKCHIP_IPA) += rockchip_ipa.o
 obj-$(CONFIG_ROCKCHIP_OPP) += rockchip_opp_select.o
 obj-$(CONFIG_ROCKCHIP_PERFORMANCE) += rockchip_performance.o
@@ -30,3 +33,4 @@ obj-$(CONFIG_ROCKCHIP_NPOR_POWERGOOD) += rockchip_npor_powergood.o
 obj-$(CONFIG_RK_CMA_PROCFS) += rk_cma_procfs.o
 obj-$(CONFIG_RK_DMABUF_PROCFS) += rk_dmabuf_procfs.o
 obj-$(CONFIG_RK_MEMBLOCK_PROCFS) += rk_memblock_procfs.o
+obj-$(CONFIG_ROCKCHIP_MINIDUMP)	+= minidump/

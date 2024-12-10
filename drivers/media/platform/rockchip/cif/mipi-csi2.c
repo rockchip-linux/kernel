@@ -13,12 +13,12 @@
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/of_graph.h>
+#include <linux/of_platform.h>
 #include <linux/platform_device.h>
 #include <linux/reset.h>
 #include <linux/rk-camera-module.h>
 #include <media/v4l2-ioctl.h>
 #include "mipi-csi2.h"
-#include <linux/rkcif-config.h>
 #include <linux/regulator/consumer.h>
 
 static int csi2_debug;
@@ -141,53 +141,61 @@ static void csi2_update_sensor_info(struct csi2_dev *csi2)
 		break;
 	default:
 		v4l2_warn(&csi2->sd, "lane num is invalid\n");
-		csi2->bus.num_data_lanes = 0;
+		csi2->bus.num_data_lanes = 4;
 		break;
 	}
 
 }
 
-static void csi2_hw_do_reset(struct csi2_dev *csi2)
+static void csi2_hw_do_reset(struct csi2_hw *csi2_hw)
 {
-	reset_control_assert(csi2->rsts_bulk);
+
+	if (!csi2_hw->rsts_bulk)
+		return;
+
+	reset_control_assert(csi2_hw->rsts_bulk);
 
 	udelay(5);
 
-	reset_control_deassert(csi2->rsts_bulk);
+	reset_control_deassert(csi2_hw->rsts_bulk);
 }
 
-static int csi2_enable_clks(struct csi2_dev *csi2)
+static int csi2_enable_clks(struct csi2_hw *csi2_hw)
 {
 	int ret = 0;
 
-	ret = clk_bulk_prepare_enable(csi2->clks_num, csi2->clks_bulk);
+	if (!csi2_hw->clks_bulk)
+		return -EINVAL;
+
+	ret = clk_bulk_prepare_enable(csi2_hw->clks_num, csi2_hw->clks_bulk);
 	if (ret)
-		dev_err(csi2->dev, "failed to enable clks\n");
+		dev_err(csi2_hw->dev, "failed to enable clks\n");
 
 	return ret;
 }
 
-static void csi2_disable_clks(struct csi2_dev *csi2)
+static void csi2_disable_clks(struct csi2_hw *csi2_hw)
 {
-	clk_bulk_disable_unprepare(csi2->clks_num,  csi2->clks_bulk);
+	if (!csi2_hw->clks_bulk)
+		return;
+	clk_bulk_disable_unprepare(csi2_hw->clks_num,  csi2_hw->clks_bulk);
 }
 
-static void csi2_disable(struct csi2_dev *csi2)
+static void csi2_disable(struct csi2_hw *csi2_hw)
 {
-	void __iomem *base = csi2->base;
-
-	write_csihost_reg(base, CSIHOST_RESETN, 0);
-	write_csihost_reg(base, CSIHOST_MSK1, 0xffffffff);
-	write_csihost_reg(base, CSIHOST_MSK2, 0xffffffff);
+	write_csihost_reg(csi2_hw->base, CSIHOST_RESETN, 0);
+	write_csihost_reg(csi2_hw->base, CSIHOST_MSK1, 0xffffffff);
+	write_csihost_reg(csi2_hw->base, CSIHOST_MSK2, 0xffffffff);
 }
 
 static int csi2_g_mbus_config(struct v4l2_subdev *sd, unsigned int pad_id,
 			      struct v4l2_mbus_config *mbus);
 
-static void csi2_enable(struct csi2_dev *csi2,
+static void csi2_enable(struct csi2_hw *csi2_hw,
 			enum host_type_t host_type)
 {
-	void __iomem *base = csi2->base;
+	void __iomem *base = csi2_hw->base;
+	struct csi2_dev *csi2 = csi2_hw->csi2;
 	int lanes = csi2->bus.num_data_lanes;
 	struct v4l2_mbus_config mbus;
 	u32 val = 0;
@@ -225,15 +233,9 @@ static int csi2_start(struct csi2_dev *csi2)
 {
 	enum host_type_t host_type;
 	int ret, i;
+	int csi_idx = 0;
 
 	atomic_set(&csi2->frm_sync_seq, 0);
-
-	csi2_hw_do_reset(csi2);
-	ret = csi2_enable_clks(csi2);
-	if (ret) {
-		v4l2_err(&csi2->sd, "%s: enable clks failed\n", __func__);
-		return ret;
-	}
 
 	csi2_update_sensor_info(csi2);
 
@@ -242,7 +244,18 @@ static int csi2_start(struct csi2_dev *csi2)
 	else
 		host_type = RK_CSI_RXHOST;
 
-	csi2_enable(csi2, host_type);
+	for (i = 0; i < csi2->csi_info.csi_num; i++) {
+		csi_idx = csi2->csi_info.csi_idx[i];
+		csi2_hw_do_reset(csi2->csi2_hw[csi_idx]);
+		ret = csi2_enable_clks(csi2->csi2_hw[csi_idx]);
+		if (ret) {
+			v4l2_err(&csi2->sd, "%s: enable clks failed\n", __func__);
+			return ret;
+		}
+		enable_irq(csi2->csi2_hw[csi_idx]->irq1);
+		enable_irq(csi2->csi2_hw[csi_idx]->irq2);
+		csi2_enable(csi2->csi2_hw[csi_idx], host_type);
+	}
 
 	pr_debug("stream sd: %s\n", csi2->src_sd->name);
 	ret = v4l2_subdev_call(csi2->src_sd, video, s_stream, 1);
@@ -256,20 +269,33 @@ static int csi2_start(struct csi2_dev *csi2)
 	return 0;
 
 err_assert_reset:
-	csi2_disable(csi2);
-	csi2_disable_clks(csi2);
+	for (i = 0; i < csi2->csi_info.csi_num; i++) {
+		csi_idx = csi2->csi_info.csi_idx[i];
+		disable_irq(csi2->csi2_hw[csi_idx]->irq1);
+		disable_irq(csi2->csi2_hw[csi_idx]->irq2);
+		csi2_disable(csi2->csi2_hw[csi_idx]);
+		csi2_disable_clks(csi2->csi2_hw[csi_idx]);
+	}
 
 	return ret;
 }
 
 static void csi2_stop(struct csi2_dev *csi2)
 {
+	int i = 0;
+	int csi_idx = 0;
+
 	/* stop upstream */
 	v4l2_subdev_call(csi2->src_sd, video, s_stream, 0);
 
-	csi2_disable(csi2);
-	csi2_hw_do_reset(csi2);
-	csi2_disable_clks(csi2);
+	for (i = 0; i < csi2->csi_info.csi_num; i++) {
+		csi_idx = csi2->csi_info.csi_idx[i];
+		disable_irq(csi2->csi2_hw[csi_idx]->irq1);
+		disable_irq(csi2->csi2_hw[csi_idx]->irq2);
+		csi2_disable(csi2->csi2_hw[csi_idx]);
+		csi2_hw_do_reset(csi2->csi2_hw[csi_idx]);
+		csi2_disable_clks(csi2->csi2_hw[csi_idx]);
+	}
 }
 
 /*
@@ -379,7 +405,7 @@ static int csi2_media_init(struct v4l2_subdev *sd)
 	csi2->crop.left = 0;
 	csi2->crop.width = RKCIF_DEFAULT_WIDTH;
 	csi2->crop.height = RKCIF_DEFAULT_HEIGHT;
-	csi2->csi_idx = 0;
+	csi2->bus.num_data_lanes = 4;
 
 	return media_entity_pads_init(&sd->entity, num_pads, csi2->pad);
 }
@@ -567,11 +593,19 @@ static int rkcif_csi2_s_power(struct v4l2_subdev *sd, int on)
 static long rkcif_csi2_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 {
 	struct csi2_dev *csi2 = sd_to_dev(sd);
+	struct v4l2_subdev *sensor = get_remote_sensor(sd);
 	long ret = 0;
+	int i = 0;
 
 	switch (cmd) {
 	case RKCIF_CMD_SET_CSI_IDX:
-		csi2->csi_idx = *((u32 *)arg);
+		csi2->csi_info = *((struct rkcif_csi_info *)arg);
+		for (i = 0; i < csi2->csi_info.csi_num; i++)
+			csi2->csi2_hw[csi2->csi_info.csi_idx[i]]->csi2 = csi2;
+		if (csi2->match_data->chip_id > CHIP_RV1126_CSI2)
+			ret = v4l2_subdev_call(sensor, core, ioctl,
+					       RKCIF_CMD_SET_CSI_IDX,
+					       arg);
 		break;
 	default:
 		ret = -ENOIOCTLCMD;
@@ -586,15 +620,15 @@ static long rkcif_csi2_compat_ioctl32(struct v4l2_subdev *sd,
 				      unsigned int cmd, unsigned long arg)
 {
 	void __user *up = compat_ptr(arg);
-	u32 csi_idx = 0;
+	struct rkcif_csi_info csi_info;
 	long ret;
 
 	switch (cmd) {
 	case RKCIF_CMD_SET_CSI_IDX:
-		if (copy_from_user(&csi_idx, up, sizeof(u32)))
+		if (copy_from_user(&csi_info, up, sizeof(struct rkcif_csi_info)))
 			return -EFAULT;
 
-		ret = rkcif_csi2_ioctl(sd, cmd, &csi_idx);
+		ret = rkcif_csi2_ioctl(sd, cmd, &csi_info);
 		break;
 	default:
 		ret = -ENOIOCTLCMD;
@@ -637,15 +671,10 @@ static int csi2_parse_endpoint(struct device *dev,
 			       struct v4l2_fwnode_endpoint *vep,
 			       struct v4l2_async_subdev *asd)
 {
-	struct v4l2_subdev *sd = dev_get_drvdata(dev);
-	struct csi2_dev *csi2 = sd_to_dev(sd);
-
 	if (vep->base.port != 0) {
 		dev_err(dev, "The csi host node needs to parse port 0\n");
 		return -EINVAL;
 	}
-
-	csi2->bus = vep->bus.mipi_csi2;
 
 	return 0;
 }
@@ -717,8 +746,8 @@ static void csi2_notifier_unbind(struct v4l2_async_notifier *notifier,
 						  notifier);
 	struct csi2_sensor_info *sensor = sd_to_sensor(csi2, sd);
 
-	sensor->sd = NULL;
-
+	if (sensor)
+		sensor->sd = NULL;
 }
 
 static const struct
@@ -730,45 +759,65 @@ v4l2_async_notifier_operations csi2_async_ops = {
 static void csi2_find_err_vc(int val, char *vc_info)
 {
 	int i;
+	char cur_str[CSI_VCINFO_LEN] = {0};
 
 	memset(vc_info, 0, sizeof(*vc_info));
 	for (i = 0; i < 4; i++) {
-		if ((val >> i) & 0x1)
-			snprintf(vc_info, CSI_VCINFO_LEN, "%s %d", vc_info, i);
+		if ((val >> i) & 0x1) {
+			snprintf(cur_str, CSI_VCINFO_LEN, " %d", i);
+			if (strlen(vc_info) + strlen(cur_str) < CSI_VCINFO_LEN)
+				strncat(vc_info, cur_str, strlen(cur_str));
+		}
 	}
 }
+
+#define csi2_err_strncat(dst_str, src_str) {\
+	if (strlen(dst_str) + strlen(src_str) < CSI_ERRSTR_LEN)\
+		strncat(dst_str, src_str, strlen(src_str)); }
 
 static irqreturn_t rk_csirx_irq1_handler(int irq, void *ctx)
 {
 	struct device *dev = ctx;
-	struct csi2_dev *csi2 = sd_to_dev(dev_get_drvdata(dev));
+	struct csi2_hw *csi2_hw = dev_get_drvdata(dev);
+	struct csi2_dev *csi2 = NULL;
 	struct csi2_err_stats *err_list = NULL;
 	unsigned long err_stat = 0;
 	u32 val;
 	char err_str[CSI_ERRSTR_LEN] = {0};
+	char cur_str[CSI_ERRSTR_LEN] = {0};
 	char vc_info[CSI_VCINFO_LEN] = {0};
 	bool is_add_cnt = false;
 
-	val = read_csihost_reg(csi2->base, CSIHOST_ERR1);
+	if (!csi2_hw) {
+		disable_irq_nosync(irq);
+		return IRQ_HANDLED;
+	}
+
+	csi2 = csi2_hw->csi2;
+	if (!csi2) {
+		disable_irq_nosync(irq);
+		return IRQ_HANDLED;
+	}
+	val = read_csihost_reg(csi2_hw->base, CSIHOST_ERR1);
 	if (val) {
 		if (val & CSIHOST_ERR1_PHYERR_SPTSYNCHS) {
 			err_list = &csi2->err_list[RK_CSI2_ERR_SOTSYN];
 			err_list->cnt++;
 			if (csi2->match_data->chip_id == CHIP_RK3588_CSI2) {
-				if (csi2->err_list[RK_CSI2_ERR_ALL].cnt > err_list->cnt) {
+				if (err_list->cnt > 3 &&
+				    csi2->err_list[RK_CSI2_ERR_ALL].cnt <= err_list->cnt) {
+					csi2->is_check_sot_sync = false;
+					write_csihost_reg(csi2_hw->base, CSIHOST_MSK1, 0xf);
+				}
+				if (csi2->is_check_sot_sync) {
 					csi2_find_err_vc(val & 0xf, vc_info);
-					snprintf(err_str, CSI_ERRSTR_LEN, "%s(sot sync,lane:%s) ", err_str, vc_info);
-				} else {
-					if (csi2->is_check_sot_sync) {
-						csi2_find_err_vc(val & 0xf, vc_info);
-						snprintf(err_str, CSI_ERRSTR_LEN, "%s(sot sync,lane:%s) ", err_str, vc_info);
-						write_csihost_reg(csi2->base, CSIHOST_MSK1, 0xf);
-						csi2->is_check_sot_sync = false;
-					}
+					snprintf(cur_str, CSI_ERRSTR_LEN, "(sot sync,lane:%s) ", vc_info);
+					csi2_err_strncat(err_str, cur_str);
 				}
 			} else {
 				csi2_find_err_vc(val & 0xf, vc_info);
-				snprintf(err_str, CSI_ERRSTR_LEN, "%s(sot sync,lane:%s) ", err_str, vc_info);
+				snprintf(cur_str, CSI_ERRSTR_LEN, "(sot sync,lane:%s) ", vc_info);
+				csi2_err_strncat(err_str, cur_str);
 				is_add_cnt = true;
 			}
 		}
@@ -777,7 +826,8 @@ static irqreturn_t rk_csirx_irq1_handler(int irq, void *ctx)
 			err_list = &csi2->err_list[RK_CSI2_ERR_FS_FE_MIS];
 			err_list->cnt++;
 			csi2_find_err_vc((val >> 4) & 0xf, vc_info);
-			snprintf(err_str, CSI_ERRSTR_LEN, "%s(fs/fe mis,vc:%s) ", err_str, vc_info);
+			snprintf(cur_str, CSI_ERRSTR_LEN, "(fs/fe mis,vc:%s) ", vc_info);
+			csi2_err_strncat(err_str, cur_str);
 			if (csi2->match_data->chip_id < CHIP_RK3588_CSI2)
 				is_add_cnt = true;
 		}
@@ -786,7 +836,8 @@ static irqreturn_t rk_csirx_irq1_handler(int irq, void *ctx)
 			err_list = &csi2->err_list[RK_CSI2_ERR_FRM_SEQ_ERR];
 			err_list->cnt++;
 			csi2_find_err_vc((val >> 8) & 0xf, vc_info);
-			snprintf(err_str, CSI_ERRSTR_LEN, "%s(f_seq,vc:%s) ", err_str, vc_info);
+			snprintf(cur_str, CSI_ERRSTR_LEN, "(f_seq,vc:%s) ", vc_info);
+			csi2_err_strncat(err_str, cur_str);
 		}
 
 		if (val & CSIHOST_ERR1_ERR_FRM_DATA) {
@@ -794,7 +845,8 @@ static irqreturn_t rk_csirx_irq1_handler(int irq, void *ctx)
 			is_add_cnt = true;
 			err_list->cnt++;
 			csi2_find_err_vc((val >> 12) & 0xf, vc_info);
-			snprintf(err_str, CSI_ERRSTR_LEN, "%s(err_data,vc:%s) ", err_str, vc_info);
+			snprintf(cur_str, CSI_ERRSTR_LEN, "(err_data,vc:%s) ", vc_info);
+			csi2_err_strncat(err_str, cur_str);
 		}
 
 		if (val & CSIHOST_ERR1_ERR_CRC) {
@@ -802,17 +854,25 @@ static irqreturn_t rk_csirx_irq1_handler(int irq, void *ctx)
 			err_list->cnt++;
 			is_add_cnt = true;
 			csi2_find_err_vc((val >> 24) & 0xf, vc_info);
-			snprintf(err_str, CSI_ERRSTR_LEN, "%s(crc,vc:%s) ", err_str, vc_info);
+			snprintf(cur_str, CSI_ERRSTR_LEN, "(crc,vc:%s) ", vc_info);
+			csi2_err_strncat(err_str, cur_str);
 		}
 
 		if (val & CSIHOST_ERR1_ERR_ECC2) {
 			err_list = &csi2->err_list[RK_CSI2_ERR_CRC];
 			err_list->cnt++;
 			is_add_cnt = true;
-			snprintf(err_str, CSI_ERRSTR_LEN, "%s(ecc2)", err_str);
+			snprintf(cur_str, CSI_ERRSTR_LEN, "(ecc2) ");
+			csi2_err_strncat(err_str, cur_str);
 		}
 
-		pr_err("%s ERR1:0x%x %s\n", csi2->dev_name, val, err_str);
+		if (val & CSIHOST_ERR1_ERR_CTRL) {
+			csi2_find_err_vc((val >> 16) & 0xf, vc_info);
+			snprintf(cur_str, CSI_ERRSTR_LEN, "(ctrl,vc:%s) ", vc_info);
+			csi2_err_strncat(err_str, cur_str);
+		}
+
+		pr_err("%s ERR1:0x%x %s\n", csi2_hw->dev_name, val, err_str);
 
 		if (is_add_cnt) {
 			csi2->err_list[RK_CSI2_ERR_ALL].cnt++;
@@ -821,7 +881,7 @@ static irqreturn_t rk_csirx_irq1_handler(int irq, void *ctx)
 
 			atomic_notifier_call_chain(&g_csi_host_chain,
 						   err_stat,
-						   &csi2->csi_idx);
+						   &csi2->csi_info.csi_idx[csi2->csi_info.csi_num - 1]);
 		}
 
 	}
@@ -832,33 +892,45 @@ static irqreturn_t rk_csirx_irq1_handler(int irq, void *ctx)
 static irqreturn_t rk_csirx_irq2_handler(int irq, void *ctx)
 {
 	struct device *dev = ctx;
-	struct csi2_dev *csi2 = sd_to_dev(dev_get_drvdata(dev));
+	struct csi2_hw *csi2_hw = dev_get_drvdata(dev);
 	u32 val;
+	char cur_str[CSI_ERRSTR_LEN] = {0};
 	char err_str[CSI_ERRSTR_LEN] = {0};
 	char vc_info[CSI_VCINFO_LEN] = {0};
 
-	val = read_csihost_reg(csi2->base, CSIHOST_ERR2);
+	if (!csi2_hw) {
+		disable_irq_nosync(irq);
+		return IRQ_HANDLED;
+	}
+
+	val = read_csihost_reg(csi2_hw->base, CSIHOST_ERR2);
 	if (val) {
 		if (val & CSIHOST_ERR2_PHYERR_ESC) {
 			csi2_find_err_vc(val & 0xf, vc_info);
-			snprintf(err_str, CSI_ERRSTR_LEN, "%s(ULPM,lane:%s) ", err_str, vc_info);
+			snprintf(cur_str, CSI_ERRSTR_LEN, "(ULPM,lane:%s) ", vc_info);
+			csi2_err_strncat(err_str, cur_str);
 		}
 		if (val & CSIHOST_ERR2_PHYERR_SOTHS) {
 			csi2_find_err_vc((val >> 4) & 0xf, vc_info);
-			snprintf(err_str, CSI_ERRSTR_LEN, "%s(sot,lane:%s) ", err_str, vc_info);
+			snprintf(cur_str, CSI_ERRSTR_LEN, "(sot,lane:%s) ", vc_info);
+			csi2_err_strncat(err_str, cur_str);
 		}
 		if (val & CSIHOST_ERR2_ECC_CORRECTED) {
 			csi2_find_err_vc((val >> 8) & 0xf, vc_info);
-			snprintf(err_str, CSI_ERRSTR_LEN, "%s(ecc,vc:%s) ", err_str, vc_info);
+			snprintf(cur_str, CSI_ERRSTR_LEN, "(ecc,vc:%s) ", vc_info);
+			csi2_err_strncat(err_str, cur_str);
 		}
 		if (val & CSIHOST_ERR2_ERR_ID) {
 			csi2_find_err_vc((val >> 12) & 0xf, vc_info);
-			snprintf(err_str, CSI_ERRSTR_LEN, "%s(err id,vc:%s) ", err_str, vc_info);
+			snprintf(cur_str, CSI_ERRSTR_LEN, "(err id,vc:%s) ", vc_info);
+			csi2_err_strncat(err_str, cur_str);
 		}
-		if (val & CSIHOST_ERR2_PHYERR_CODEHS)
-			snprintf(err_str, CSI_ERRSTR_LEN, "%s(err code) ", err_str);
+		if (val & CSIHOST_ERR2_PHYERR_CODEHS) {
+			snprintf(cur_str, CSI_ERRSTR_LEN, "(err code) ");
+			csi2_err_strncat(err_str, cur_str);
+		}
 
-		pr_err("%s ERR2:0x%x %s\n", csi2->dev_name, val, err_str);
+		pr_err("%s ERR2:0x%x %s\n", csi2_hw->dev_name, val, err_str);
 	}
 
 	return IRQ_HANDLED;
@@ -897,26 +969,43 @@ static int csi2_notifier(struct csi2_dev *csi2)
 static const struct csi2_match_data rk1808_csi2_match_data = {
 	.chip_id = CHIP_RK1808_CSI2,
 	.num_pads = CSI2_NUM_PADS,
+	.num_hw = 1,
 };
 
 static const struct csi2_match_data rk3288_csi2_match_data = {
 	.chip_id = CHIP_RK3288_CSI2,
 	.num_pads = CSI2_NUM_PADS_SINGLE_LINK,
+	.num_hw = 1,
 };
 
 static const struct csi2_match_data rv1126_csi2_match_data = {
 	.chip_id = CHIP_RV1126_CSI2,
 	.num_pads = CSI2_NUM_PADS,
+	.num_hw = 1,
 };
 
 static const struct csi2_match_data rk3568_csi2_match_data = {
 	.chip_id = CHIP_RK3568_CSI2,
 	.num_pads = CSI2_NUM_PADS,
+	.num_hw = 1,
 };
 
 static const struct csi2_match_data rk3588_csi2_match_data = {
 	.chip_id = CHIP_RK3588_CSI2,
 	.num_pads = CSI2_NUM_PADS_MAX,
+	.num_hw = 6,
+};
+
+static const struct csi2_match_data rv1106_csi2_match_data = {
+	.chip_id = CHIP_RV1106_CSI2,
+	.num_pads = CSI2_NUM_PADS_MAX,
+	.num_hw = 2,
+};
+
+static const struct csi2_match_data rk3562_csi2_match_data = {
+	.chip_id = CHIP_RK3562_CSI2,
+	.num_pads = CSI2_NUM_PADS_MAX,
+	.num_hw = 4,
 };
 
 static const struct of_device_id csi2_dt_ids[] = {
@@ -940,19 +1029,60 @@ static const struct of_device_id csi2_dt_ids[] = {
 		.compatible = "rockchip,rk3588-mipi-csi2",
 		.data = &rk3588_csi2_match_data,
 	},
+	{
+		.compatible = "rockchip,rv1106-mipi-csi2",
+		.data = &rv1106_csi2_match_data,
+	},
+	{
+		.compatible = "rockchip,rk3562-mipi-csi2",
+		.data = &rk3562_csi2_match_data,
+	},
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, csi2_dt_ids);
 
+static int csi2_attach_hw(struct csi2_dev *csi2)
+{
+	struct device_node *np;
+	struct platform_device *pdev;
+	struct csi2_hw *hw;
+	int i = 0;
+
+	for (i = 0; i < csi2->match_data->num_hw; i++) {
+		np = of_parse_phandle(csi2->dev->of_node, "rockchip,hw", i);
+		if (!np || !of_device_is_available(np)) {
+			dev_err(csi2->dev, "failed to get csi2 hw node\n");
+			return -ENODEV;
+		}
+
+		pdev = of_find_device_by_node(np);
+		of_node_put(np);
+		if (!pdev) {
+			dev_err(csi2->dev, "failed to get csi2 hw from node\n");
+			return -ENODEV;
+		}
+
+		hw = platform_get_drvdata(pdev);
+		if (!hw) {
+			dev_err(csi2->dev, "failed attach csi2 hw\n");
+			return -EINVAL;
+		}
+
+		hw->csi2 = csi2;
+		csi2->csi2_hw[i] = hw;
+	}
+	dev_info(csi2->dev, "attach to csi2 hw node\n");
+
+	return 0;
+}
+
 static int csi2_probe(struct platform_device *pdev)
 {
 	const struct of_device_id *match;
-	struct device *dev = &pdev->dev;
 	struct device_node *node = pdev->dev.of_node;
 	struct csi2_dev *csi2 = NULL;
-	struct resource *res;
 	const struct csi2_match_data *data;
-	int ret, irq;
+	int ret;
 
 	match = of_match_node(csi2_dt_ids, node);
 	if (IS_ERR(match))
@@ -978,61 +1108,11 @@ static int csi2_probe(struct platform_device *pdev)
 		v4l2_err(&csi2->sd, "failed to copy name\n");
 	platform_set_drvdata(pdev, &csi2->sd);
 
-	csi2->clks_num = devm_clk_bulk_get_all(dev, &csi2->clks_bulk);
-	if (csi2->clks_num < 0)
-		dev_err(dev, "failed to get csi2 clks\n");
-
-	csi2->rsts_bulk = devm_reset_control_array_get_optional_exclusive(dev);
-	if (IS_ERR(csi2->rsts_bulk)) {
-		if (PTR_ERR(csi2->rsts_bulk) != -EPROBE_DEFER)
-			dev_err(dev, "failed to get csi2 reset\n");
-		return PTR_ERR(csi2->rsts_bulk);
+	ret = csi2_attach_hw(csi2);
+	if (ret) {
+		v4l2_err(&csi2->sd, "must enable all mipi csi2 hw node\n");
+		return -EINVAL;
 	}
-
-	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	csi2->base = devm_ioremap_resource(&pdev->dev, res);
-	if (IS_ERR(csi2->base)) {
-		resource_size_t offset = res->start;
-		resource_size_t size = resource_size(res);
-
-		dev_warn(&pdev->dev, "avoid secondary mipi resource check!\n");
-
-		csi2->base = devm_ioremap(&pdev->dev, offset, size);
-		if (IS_ERR(csi2->base)) {
-			dev_err(&pdev->dev, "Failed to ioremap resource\n");
-
-			return PTR_ERR(csi2->base);
-		}
-	}
-
-	irq = platform_get_irq_byname(pdev, "csi-intr1");
-	if (irq > 0) {
-		ret = devm_request_irq(&pdev->dev, irq,
-				       rk_csirx_irq1_handler, 0,
-				       dev_driver_string(&pdev->dev),
-				       &pdev->dev);
-		if (ret < 0)
-			v4l2_err(&csi2->sd, "request csi-intr1 irq failed: %d\n",
-				 ret);
-		csi2->irq1 = irq;
-	} else {
-		v4l2_err(&csi2->sd, "No found irq csi-intr1\n");
-	}
-
-	irq = platform_get_irq_byname(pdev, "csi-intr2");
-	if (irq > 0) {
-		ret = devm_request_irq(&pdev->dev, irq,
-				       rk_csirx_irq2_handler, 0,
-				       dev_driver_string(&pdev->dev),
-				       &pdev->dev);
-		if (ret < 0)
-			v4l2_err(&csi2->sd, "request csi-intr2 failed: %d\n",
-				 ret);
-		csi2->irq2 = irq;
-	} else {
-		v4l2_err(&csi2->sd, "No found irq csi-intr2\n");
-	}
-
 	mutex_init(&csi2->lock);
 
 	ret = csi2_media_init(&csi2->sd);
@@ -1072,14 +1152,188 @@ static struct platform_driver csi2_driver = {
 	.remove = csi2_remove,
 };
 
-int __init rkcif_csi2_plat_drv_init(void)
+int rkcif_csi2_plat_drv_init(void)
 {
 	return platform_driver_register(&csi2_driver);
 }
 
-void __exit rkcif_csi2_plat_drv_exit(void)
+void rkcif_csi2_plat_drv_exit(void)
 {
 	platform_driver_unregister(&csi2_driver);
+}
+
+static const struct csi2_hw_match_data rk1808_csi2_hw_match_data = {
+	.chip_id = CHIP_RK1808_CSI2,
+};
+
+static const struct csi2_hw_match_data rk3288_csi2_hw_match_data = {
+	.chip_id = CHIP_RK3288_CSI2,
+};
+
+static const struct csi2_hw_match_data rv1126_csi2_hw_match_data = {
+	.chip_id = CHIP_RV1126_CSI2,
+};
+
+static const struct csi2_hw_match_data rk3568_csi2_hw_match_data = {
+	.chip_id = CHIP_RK3568_CSI2,
+};
+
+static const struct csi2_hw_match_data rk3588_csi2_hw_match_data = {
+	.chip_id = CHIP_RK3588_CSI2,
+};
+
+static const struct csi2_hw_match_data rv1106_csi2_hw_match_data = {
+	.chip_id = CHIP_RV1106_CSI2,
+};
+
+static const struct csi2_hw_match_data rk3562_csi2_hw_match_data = {
+	.chip_id = CHIP_RK3562_CSI2,
+};
+
+static const struct of_device_id csi2_hw_ids[] = {
+	{
+		.compatible = "rockchip,rk1808-mipi-csi2-hw",
+		.data = &rk1808_csi2_hw_match_data,
+	},
+	{
+		.compatible = "rockchip,rk3288-mipi-csi2-hw",
+		.data = &rk3288_csi2_hw_match_data,
+	},
+	{
+		.compatible = "rockchip,rk3568-mipi-csi2-hw",
+		.data = &rk3568_csi2_hw_match_data,
+	},
+	{
+		.compatible = "rockchip,rv1126-mipi-csi2-hw",
+		.data = &rv1126_csi2_hw_match_data,
+	},
+	{
+		.compatible = "rockchip,rk3588-mipi-csi2-hw",
+		.data = &rk3588_csi2_hw_match_data,
+	},
+	{
+		.compatible = "rockchip,rv1106-mipi-csi2-hw",
+		.data = &rv1106_csi2_hw_match_data,
+	},
+	{
+		.compatible = "rockchip,rk3562-mipi-csi2-hw",
+		.data = &rk3588_csi2_hw_match_data,
+	},
+	{ /* sentinel */ }
+};
+MODULE_DEVICE_TABLE(of, csi2_hw_ids);
+
+static int csi2_hw_probe(struct platform_device *pdev)
+{
+	const struct of_device_id *match;
+	struct device *dev = &pdev->dev;
+	struct device_node *node = pdev->dev.of_node;
+	struct csi2_hw *csi2_hw = NULL;
+	struct resource *res;
+	const struct csi2_hw_match_data *data;
+	int ret, irq;
+
+	dev_info(&pdev->dev, "enter mipi csi2 hw probe!\n");
+	match = of_match_node(csi2_hw_ids, node);
+	if (IS_ERR(match))
+		return PTR_ERR(match);
+	data = match->data;
+
+	csi2_hw = devm_kzalloc(&pdev->dev, sizeof(*csi2_hw), GFP_KERNEL);
+	if (!csi2_hw)
+		return -ENOMEM;
+
+	csi2_hw->dev = &pdev->dev;
+	csi2_hw->match_data = data;
+
+	csi2_hw->dev_name = node->name;
+
+	csi2_hw->clks_num = devm_clk_bulk_get_all(dev, &csi2_hw->clks_bulk);
+	if (csi2_hw->clks_num < 0) {
+		csi2_hw->clks_num = 0;
+		dev_err(dev, "failed to get csi2 clks\n");
+	}
+
+	csi2_hw->rsts_bulk = devm_reset_control_array_get_optional_exclusive(dev);
+	if (IS_ERR(csi2_hw->rsts_bulk)) {
+		if (PTR_ERR(csi2_hw->rsts_bulk) != -EPROBE_DEFER)
+			dev_err(dev, "failed to get csi2 reset\n");
+		csi2_hw->rsts_bulk = NULL;
+	}
+
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	csi2_hw->base = devm_ioremap_resource(&pdev->dev, res);
+	if (IS_ERR(csi2_hw->base)) {
+		resource_size_t offset = res->start;
+		resource_size_t size = resource_size(res);
+
+		dev_warn(&pdev->dev, "avoid secondary mipi resource check!\n");
+
+		csi2_hw->base = devm_ioremap(&pdev->dev, offset, size);
+		if (IS_ERR(csi2_hw->base)) {
+			dev_err(&pdev->dev, "Failed to ioremap resource\n");
+
+			return PTR_ERR(csi2_hw->base);
+		}
+	}
+
+	irq = platform_get_irq_byname(pdev, "csi-intr1");
+	if (irq > 0) {
+		irq_set_status_flags(irq, IRQ_NOAUTOEN);
+		ret = devm_request_irq(&pdev->dev, irq,
+				       rk_csirx_irq1_handler, 0,
+				       dev_driver_string(&pdev->dev),
+				       &pdev->dev);
+		if (ret < 0)
+			dev_err(&pdev->dev, "request csi-intr1 irq failed: %d\n",
+				 ret);
+		csi2_hw->irq1 = irq;
+	} else {
+		dev_err(&pdev->dev, "No found irq csi-intr1\n");
+	}
+
+	irq = platform_get_irq_byname(pdev, "csi-intr2");
+	if (irq > 0) {
+		irq_set_status_flags(irq, IRQ_NOAUTOEN);
+		ret = devm_request_irq(&pdev->dev, irq,
+				       rk_csirx_irq2_handler, 0,
+				       dev_driver_string(&pdev->dev),
+				       &pdev->dev);
+		if (ret < 0)
+			dev_err(&pdev->dev, "request csi-intr2 failed: %d\n",
+				 ret);
+		csi2_hw->irq2 = irq;
+	} else {
+		dev_err(&pdev->dev, "No found irq csi-intr2\n");
+	}
+	platform_set_drvdata(pdev, csi2_hw);
+	dev_info(&pdev->dev, "probe success, v4l2_dev:%s!\n", csi2_hw->dev_name);
+
+	return 0;
+}
+
+static int csi2_hw_remove(struct platform_device *pdev)
+{
+	return 0;
+}
+
+static struct platform_driver csi2_hw_driver = {
+	.driver = {
+		.name = DEVICE_NAME_HW,
+		.of_match_table = csi2_hw_ids,
+	},
+	.probe = csi2_hw_probe,
+	.remove = csi2_hw_remove,
+};
+
+int rkcif_csi2_hw_plat_drv_init(void)
+{
+	return platform_driver_register(&csi2_hw_driver);
+}
+
+void rkcif_csi2_hw_plat_drv_exit(void)
+{
+	platform_driver_unregister(&csi2_hw_driver);
 }
 
 MODULE_DESCRIPTION("Rockchip MIPI CSI2 driver");

@@ -1,0 +1,72 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Copyright (c) 2023 Rockchip Electronics Co., Ltd.
+ */
+
+#include <dt-bindings/soc/rockchip-amp.h>
+
+/ {
+	rockchip_amp: rockchip-amp {
+		compatible = "rockchip,amp";
+		clocks = <&cru FCLK_BUS_CM0_CORE>, <&cru CLK_BUS_CM0_RTC>,
+			<&cru PCLK_MAILBOX>, <&cru PCLK_INTC>,
+			<&cru SCLK_UART7>, <&cru PCLK_UART7>,
+			<&cru PCLK_TIMER>, <&cru CLK_TIMER4>, <&cru CLK_TIMER5>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&uart7m1_xfer>;
+
+		amp-cpu-aff-maskbits = /bits/ 64 <0x0 0x1 0x1 0x2 0x2 0x4 0x3 0x8>;
+		amp-irqs = /bits/ 64 <GIC_AMP_IRQ_CFG_ROUTE(147, 0xd0, CPU_GET_AFFINITY(3, 0))>;
+
+		status = "okay";
+	};
+
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		/* remote amp core address */
+		amp_shmem_reserved: amp-shmem@7800000 {
+			reg = <0x0 0x7800000 0x0 0x400000>;
+			no-map;
+		};
+
+		rpmsg_reserved: rpmsg@7c00000 {
+			reg = <0x0 0x07c00000 0x0 0x400000>;
+			no-map;
+		};
+
+		rpmsg_dma_reserved: rpmsg-dma@8000000 {
+			compatible = "shared-dma-pool";
+			reg = <0x0 0x08000000 0x0 0x100000>;
+			no-map;
+		};
+
+		/* mcu address */
+		mcu_reserved: mcu@8200000 {
+			reg = <0x0 0x8200000 0x0 0x100000>;
+			no-map;
+		};
+
+	};
+
+	rpmsg: rpmsg@7c00000 {
+		compatible = "rockchip,rpmsg";
+		mbox-names = "rpmsg-rx", "rpmsg-tx";
+		mboxes = <&mailbox 0 &mailbox 3>;
+		rockchip,vdev-nums = <1>;
+		/* CPU3: link-id 0x03; MCU: link-id 0x04; */
+		rockchip,link-id = <0x03>;
+		reg = <0x0 0x7c00000 0x0 0x20000>;
+		memory-region = <&rpmsg_dma_reserved>;
+
+		status = "okay";
+	};
+};
+
+&mailbox {
+	rockchip,txpoll-period-ms = <1>;
+	status = "okay";
+};

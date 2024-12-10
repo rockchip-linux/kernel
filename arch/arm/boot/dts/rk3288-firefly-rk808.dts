@@ -130,6 +130,7 @@
 		status = "okay";
 		compatible = "simple-audio-card";
 		simple-audio-card,name = "ROCKCHIP,SPDIF";
+		simple-audio-card,mclk-fs = <128>;
 		simple-audio-card,cpu {
 			sound-dai = <&spdif>;
 		};
@@ -215,11 +216,6 @@
 	wireless-bluetooth {
 		clocks = <&hym8563>;
 		clock-names = "ext_clock";
-	};
-
-	psci {
-		compatible = "arm,psci-1.0";
-		method = "smc";
 	};
 
 	rk_key: rockchip-key {
@@ -630,22 +626,6 @@
 
 &vopl {
 	status = "okay";
-};
-
-&cpu0 {
-	enable-method = "psci";
-};
-
-&cpu1 {
-	enable-method = "psci";
-};
-
-&cpu2 {
-	enable-method = "psci";
-};
-
-&cpu3 {
-	enable-method = "psci";
 };
 
 &dfi {

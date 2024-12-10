@@ -9,8 +9,9 @@
  * V0.0X01.0X02 fix gain and exposure setting.
  * V0.0X01.0X03
  *  1.support 10bit HDR DOL2.
- *  2.4032*3040 @ 25fps
+ *  2.4056*3040 @ 25fps
  * V0.0X01.0X04 add dgain ctrl
+ * V0.0X01.0X05 fix 4056*3040 HDRx2 30fps
  *
  */
 
@@ -38,7 +39,7 @@
 #include <linux/pinctrl/consumer.h>
 #include <linux/rk-preisp.h>
 
-#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x04)
+#define DRIVER_VERSION			KERNEL_VERSION(0, 0x01, 0x05)
 
 #ifndef V4L2_CID_DIGITAL_GAIN
 #define V4L2_CID_DIGITAL_GAIN		V4L2_CID_GAIN
@@ -61,7 +62,7 @@
 
 #define IMX577_REG_EXPOSURE_H		0x0202
 #define IMX577_REG_EXPOSURE_L		0x0203
-#define	IMX577_EXPOSURE_MIN		4
+#define	IMX577_EXPOSURE_MIN		8
 #define	IMX577_EXPOSURE_STEP		1
 #define IMX577_VTS_MAX			0xffff
 
@@ -69,7 +70,7 @@
 #define IMX577_REG_GAIN_L		0x0205
 #define IMX577_GAIN_MIN			0x10
 #define IMX577_GAIN_MAX			0x1600
-#define IMX577_GAIN_STEP		0x10
+#define IMX577_GAIN_STEP		0x1
 #define IMX577_GAIN_DEFAULT		0x20
 
 #define IMX577_REG_DGAIN		0x3ff9
@@ -707,8 +708,8 @@ static __maybe_unused const struct regval imx577_hdr2_10bit_4056x3040_30fps_regs
 	{0x0114, 0x03},
 	{0x0342, 0x11},
 	{0x0343, 0xA0},
-	{0x0340, 0x0E},
-	{0x0341, 0x8A},
+	{0x0340, 0x0C},
+	{0x0341, 0x1E},
 	{0x3210, 0x00},
 	{0x0344, 0x00},
 	{0x0345, 0x00},
@@ -968,11 +969,11 @@ static const struct imx577_mode supported_modes[] = {
 		.height = 3040,
 		.max_fps = {
 			.numerator = 10000,
-			.denominator = 250000,
+			.denominator = 300000,
 		},
-		.exp_def = 0x0c10,
+		.exp_def = 0x0c08,
 		.hts_def = 0x11a0,
-		.vts_def = 0x0e8a,
+		.vts_def = 0x0c1e,
 		.bpp = 10,
 		.bus_fmt = MEDIA_BUS_FMT_SRGGB10_1X10,
 		.reg_list = imx577_hdr2_10bit_4056x3040_30fps_regs,
@@ -990,7 +991,7 @@ static const struct imx577_mode supported_modes[] = {
 			.numerator = 10000,
 			.denominator = 600000,
 		},
-		.exp_def = 0x0c10,
+		.exp_def = 0x0c08,
 		.hts_def = 0x11a0,
 		.vts_def = 0x0c1e,
 		.bpp = 10,
@@ -1267,9 +1268,7 @@ static int imx577_g_frame_interval(struct v4l2_subdev *sd,
 	struct imx577 *imx577 = to_imx577(sd);
 	const struct imx577_mode *mode = imx577->cur_mode;
 
-	mutex_lock(&imx577->mutex);
 	fi->interval = mode->max_fps;
-	mutex_unlock(&imx577->mutex);
 
 	return 0;
 }
@@ -2032,7 +2031,7 @@ static int imx577_set_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_VBLANK:
 		if (imx577->cur_mode->hdr_mode == NO_HDR) {
 			/* Update max exposure while meeting expected vblanking */
-			max = imx577->cur_mode->height + ctrl->val - 4;
+			max = imx577->cur_mode->height + ctrl->val - 22;
 			__v4l2_ctrl_modify_range(imx577->exposure,
 					 imx577->exposure->minimum, max,
 					 imx577->exposure->step,
@@ -2048,7 +2047,7 @@ static int imx577_set_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_EXPOSURE:
 		/* 4 least significant bits of expsoure are fractional part */
 		if (imx577->cur_mode->hdr_mode != NO_HDR)
-			return ret;
+			goto ctrl_end;
 		ret = imx577_write_reg(imx577->client,
 				       IMX577_REG_EXPOSURE_H,
 				       IMX577_REG_VALUE_08BIT,
@@ -2067,7 +2066,7 @@ static int imx577_set_ctrl(struct v4l2_ctrl *ctrl)
 		 * gain_reg = 1024 - 1024 * 16 / (gain_ana * 16)
 		 */
 		if (imx577->cur_mode->hdr_mode != NO_HDR)
-			return ret;
+			goto ctrl_end;
 		if (ctrl->val > 0x1600)
 			ctrl->val = 0x1600;
 		if (ctrl->val < 0x10)
@@ -2138,6 +2137,7 @@ static int imx577_set_ctrl(struct v4l2_ctrl *ctrl)
 		break;
 	}
 
+ctrl_end:
 	pm_runtime_put(&client->dev);
 
 	return ret;
@@ -2195,7 +2195,7 @@ static int imx577_initialize_controls(struct imx577 *imx577)
 				IMX577_VTS_MAX - mode->height,
 				1, vblank_def);
 	imx577->cur_vts = mode->vts_def;
-	exposure_max = mode->vts_def - 4;
+	exposure_max = mode->vts_def - 22;
 	imx577->exposure = v4l2_ctrl_new_std(handler, &imx577_ctrl_ops,
 				V4L2_CID_EXPOSURE, IMX577_EXPOSURE_MIN,
 				exposure_max, IMX577_EXPOSURE_STEP,

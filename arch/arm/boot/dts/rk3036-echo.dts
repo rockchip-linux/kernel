@@ -167,6 +167,10 @@
 	status = "okay";
 };
 
+&hevc {
+	status = "okay";
+};
+
 &hevc_mmu {
 	status = "okay";
 };
@@ -641,6 +645,14 @@
 
 &i2s {
 	#sound-dai-cells = <0>;
+	pinctrl-0 = <&i2s_sclk
+		     &i2s_lrclktx
+		     &i2s_sdo
+		     &i2s_sdi>;
+	status = "okay";
+};
+
+&mpp_srv {
 	status = "okay";
 };
 
@@ -693,19 +705,19 @@
 	status = "okay";
 };
 
+&vdpu {
+	status = "okay";
+};
+
+&vpu_mmu {
+	status = "okay";
+};
+
 &vop {
 	status = "okay";
 };
 
 &vop_mmu {
-	status = "okay";
-};
-
-&vpu_combo {
-	status = "okay";
-};
-
-&vpu_mmu {
 	status = "okay";
 };
 

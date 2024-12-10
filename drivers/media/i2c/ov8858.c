@@ -2131,9 +2131,7 @@ static int ov8858_g_frame_interval(struct v4l2_subdev *sd,
 	struct ov8858 *ov8858 = to_ov8858(sd);
 	const struct ov8858_mode *mode = ov8858->cur_mode;
 
-	mutex_lock(&ov8858->mutex);
 	fi->interval = mode->max_fps;
-	mutex_unlock(&ov8858->mutex);
 
 	return 0;
 }
@@ -2803,7 +2801,7 @@ static void __ov8858_power_off(struct ov8858 *ov8858)
 	regulator_bulk_disable(OV8858_NUM_SUPPLIES, ov8858->supplies);
 }
 
-static int ov8858_runtime_resume(struct device *dev)
+static int __maybe_unused ov8858_runtime_resume(struct device *dev)
 {
 	struct i2c_client *client = to_i2c_client(dev);
 	struct v4l2_subdev *sd = i2c_get_clientdata(client);
@@ -2812,7 +2810,7 @@ static int ov8858_runtime_resume(struct device *dev)
 	return __ov8858_power_on(ov8858);
 }
 
-static int ov8858_runtime_suspend(struct device *dev)
+static int __maybe_unused ov8858_runtime_suspend(struct device *dev)
 {
 	struct i2c_client *client = to_i2c_client(dev);
 	struct v4l2_subdev *sd = i2c_get_clientdata(client);
@@ -2854,9 +2852,7 @@ static int ov8858_enum_frame_interval(struct v4l2_subdev *sd,
 	if (fie->index >= ov8858->cfg_num)
 		return -EINVAL;
 
-	if (fie->code != OV8858_MEDIA_BUS_FMT)
-		return -EINVAL;
-
+	fie->code = OV8858_MEDIA_BUS_FMT;
 	fie->width = supported_modes[fie->index].width;
 	fie->height = supported_modes[fie->index].height;
 	fie->interval = supported_modes[fie->index].max_fps;

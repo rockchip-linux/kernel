@@ -33,7 +33,7 @@
 #include <linux/oom.h>
 #include <linux/numa.h>
 #include <linux/page_owner.h>
-
+#include <trace/hooks/mm.h>
 #include <asm/tlb.h>
 #include <asm/pgalloc.h>
 #include "internal.h"
@@ -1481,7 +1481,7 @@ vm_fault_t do_huge_pmd_numa_page(struct vm_fault *vmf, pmd_t pmd)
 	 */
 	get_page(page);
 	spin_unlock(vmf->ptl);
-	anon_vma = page_lock_anon_vma_read(page);
+	anon_vma = page_lock_anon_vma_read(page, NULL);
 
 	/* Confirm the PMD did not change while page_table_lock was released */
 	spin_lock(vmf->ptl);
@@ -1691,7 +1691,7 @@ int zap_huge_pmd(struct mmu_gather *tlb, struct vm_area_struct *vma,
 
 			VM_BUG_ON(!is_pmd_migration_entry(orig_pmd));
 			entry = pmd_to_swp_entry(orig_pmd);
-			page = pfn_to_page(swp_offset(entry));
+			page = migration_entry_to_page(entry);
 			flush_needed = 0;
 		} else
 			WARN_ONCE(1, "Non present huge pmd without pmd migration enabled!");
@@ -1994,7 +1994,7 @@ static void __split_huge_zero_page_pmd(struct vm_area_struct *vma,
 {
 	struct mm_struct *mm = vma->vm_mm;
 	pgtable_t pgtable;
-	pmd_t _pmd;
+	pmd_t _pmd, old_pmd;
 	int i;
 
 	/*
@@ -2005,7 +2005,7 @@ static void __split_huge_zero_page_pmd(struct vm_area_struct *vma,
 	 *
 	 * See Documentation/vm/mmu_notifier.rst
 	 */
-	pmdp_huge_clear_flush(vma, haddr, pmd);
+	old_pmd = pmdp_huge_clear_flush(vma, haddr, pmd);
 
 	pgtable = pgtable_trans_huge_withdraw(mm, pmd);
 	pmd_populate(mm, &_pmd, pgtable);
@@ -2014,6 +2014,8 @@ static void __split_huge_zero_page_pmd(struct vm_area_struct *vma,
 		pte_t *pte, entry;
 		entry = pfn_pte(my_zero_pfn(haddr), vma->vm_page_prot);
 		entry = pte_mkspecial(entry);
+		if (pmd_uffd_wp(old_pmd))
+			entry = pte_mkuffd_wp(entry);
 		pte = pte_offset_map(&_pmd, haddr);
 		VM_BUG_ON(!pte_none(*pte));
 		set_pte_at(mm, haddr, pte, entry);
@@ -2033,6 +2035,7 @@ static void __split_huge_pmd_locked(struct vm_area_struct *vma, pmd_t *pmd,
 	bool young, write, soft_dirty, pmd_migration = false, uffd_wp = false;
 	unsigned long addr;
 	int i;
+	bool success = false;
 
 	VM_BUG_ON(haddr & ~HPAGE_PMD_MASK);
 	VM_BUG_ON_VMA(vma->vm_start > haddr, vma);
@@ -2110,7 +2113,7 @@ static void __split_huge_pmd_locked(struct vm_area_struct *vma, pmd_t *pmd,
 		swp_entry_t entry;
 
 		entry = pmd_to_swp_entry(old_pmd);
-		page = pfn_to_page(swp_offset(entry));
+		page = migration_entry_to_page(entry);
 		write = is_write_migration_entry(entry);
 		young = false;
 		soft_dirty = pmd_swp_soft_dirty(old_pmd);
@@ -2164,8 +2167,12 @@ static void __split_huge_pmd_locked(struct vm_area_struct *vma, pmd_t *pmd,
 		pte = pte_offset_map(&_pmd, addr);
 		BUG_ON(!pte_none(*pte));
 		set_pte_at(mm, addr, pte, entry);
-		if (!pmd_migration)
-			atomic_inc(&page[i]._mapcount);
+		if (!pmd_migration) {
+			trace_android_vh_update_page_mapcount(&page[i], true,
+						false, NULL, &success);
+			if (!success)
+				atomic_inc(&page[i]._mapcount);
+		}
 		pte_unmap(pte);
 	}
 
@@ -2176,8 +2183,12 @@ static void __split_huge_pmd_locked(struct vm_area_struct *vma, pmd_t *pmd,
 		 */
 		if (compound_mapcount(page) > 1 &&
 		    !TestSetPageDoubleMap(page)) {
-			for (i = 0; i < HPAGE_PMD_NR; i++)
-				atomic_inc(&page[i]._mapcount);
+			for (i = 0; i < HPAGE_PMD_NR; i++) {
+				trace_android_vh_update_page_mapcount(&page[i], true,
+								false, NULL, &success);
+				if (!success)
+					atomic_inc(&page[i]._mapcount);
+			}
 		}
 
 		lock_page_memcg(page);
@@ -2186,8 +2197,12 @@ static void __split_huge_pmd_locked(struct vm_area_struct *vma, pmd_t *pmd,
 			__dec_lruvec_page_state(page, NR_ANON_THPS);
 			if (TestClearPageDoubleMap(page)) {
 				/* No need in mapcount reference anymore */
-				for (i = 0; i < HPAGE_PMD_NR; i++)
-					atomic_dec(&page[i]._mapcount);
+				for (i = 0; i < HPAGE_PMD_NR; i++) {
+					trace_android_vh_update_page_mapcount(&page[i],
+							false, false, NULL, &success);
+					if (!success)
+						atomic_dec(&page[i]._mapcount);
+				}
 			}
 		}
 		unlock_page_memcg(page);
@@ -2801,6 +2816,9 @@ void deferred_split_huge_page(struct page *page)
 	 * swap cache before calling try_to_unmap().
 	 */
 	if (PageSwapCache(page))
+		return;
+
+	if (!list_empty(page_deferred_list(page)))
 		return;
 
 	spin_lock_irqsave(&ds_queue->split_queue_lock, flags);

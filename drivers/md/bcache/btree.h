@@ -226,7 +226,7 @@ struct btree_check_info {
 	int				result;
 };
 
-#define BCH_BTR_CHKTHREAD_MAX	64
+#define BCH_BTR_CHKTHREAD_MAX	12
 struct btree_check_state {
 	struct cache_set		*c;
 	int				total_threads;
@@ -282,6 +282,7 @@ void bch_initial_gc_finish(struct cache_set *c);
 void bch_moving_gc(struct cache_set *c);
 int bch_btree_check(struct cache_set *c);
 void bch_initial_mark_key(struct cache_set *c, int level, struct bkey *k);
+void bch_cannibalize_unlock(struct cache_set *c);
 
 static inline void wake_up_gc(struct cache_set *c)
 {

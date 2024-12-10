@@ -3,14 +3,14 @@
  * Copyright (C) 2009-2016 Cavium, Inc.
  */
 
+#include <linux/acpi.h>
+#include <linux/gfp.h>
+#include <linux/io.h>
+#include <linux/module.h>
 #include <linux/of_address.h>
 #include <linux/of_mdio.h>
-#include <linux/module.h>
-#include <linux/gfp.h>
-#include <linux/phy.h>
-#include <linux/io.h>
-#include <linux/acpi.h>
 #include <linux/pci.h>
+#include <linux/phy.h>
 
 #include "mdio-cavium.h"
 
@@ -104,6 +104,7 @@ static int thunder_mdiobus_pci_probe(struct pci_dev *pdev,
 		if (i >= ARRAY_SIZE(nexus->buses))
 			break;
 	}
+	fwnode_handle_put(fwn);
 	return 0;
 
 err_release_regions:

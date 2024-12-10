@@ -682,6 +682,7 @@ extern void load_direct_gdt(int);
 extern void load_fixmap_gdt(int);
 extern void load_percpu_segment(int);
 extern void cpu_init(void);
+extern void cpu_init_secondary(void);
 extern void cpu_init_exception_handling(void);
 extern void cr4_init(void);
 
@@ -807,9 +808,13 @@ DECLARE_PER_CPU(u64, msr_misc_features_shadow);
 #ifdef CONFIG_CPU_SUP_AMD
 extern u16 amd_get_nb_id(int cpu);
 extern u32 amd_get_nodes_per_socket(void);
+extern bool cpu_has_ibpb_brtype_microcode(void);
+extern void amd_clear_divider(void);
 #else
 static inline u16 amd_get_nb_id(int cpu)		{ return 0; }
 static inline u32 amd_get_nodes_per_socket(void)	{ return 0; }
+static inline bool cpu_has_ibpb_brtype_microcode(void)	{ return false; }
+static inline void amd_clear_divider(void)		{ }
 #endif
 
 static inline uint32_t hypervisor_cpuid_base(const char *sig, uint32_t leaves)
@@ -838,8 +843,9 @@ bool xen_set_default_idle(void);
 #define xen_set_default_idle 0
 #endif
 
-void stop_this_cpu(void *dummy);
-void microcode_check(void);
+void __noreturn stop_this_cpu(void *dummy);
+void microcode_check(struct cpuinfo_x86 *prev_info);
+void store_cpu_caps(struct cpuinfo_x86 *info);
 
 enum l1tf_mitigations {
 	L1TF_MITIGATION_OFF,
@@ -857,5 +863,7 @@ enum mds_mitigations {
 	MDS_MITIGATION_FULL,
 	MDS_MITIGATION_VMWERV,
 };
+
+extern bool gds_ucode_mitigated(void);
 
 #endif /* _ASM_X86_PROCESSOR_H */

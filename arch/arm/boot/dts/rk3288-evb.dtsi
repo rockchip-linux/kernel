@@ -47,6 +47,51 @@
 		};
 	};
 
+	rt5640_sound: rt5640-sound {
+		status = "okay";
+		compatible = "rockchip,multicodecs-card";
+		rockchip,card-name = "rockchip-rt5640";
+		hp-det-gpio = <&gpio7 RK_PA7 GPIO_ACTIVE_HIGH>;
+		io-channels = <&saradc 2>;
+		io-channel-names = "adc-detect";
+		keyup-threshold-microvolt = <1800000>;
+		poll-interval = <100>;
+		rockchip,format = "i2s";
+		rockchip,mclk-fs = <512>;
+		rockchip,cpu = <&i2s>;
+		rockchip,codec = <&rt5640>;
+		rockchip,audio-routing =
+			"Headphone", "HPOL",
+			"Headphone", "HPOR",
+			"Speaker", "SPOLP",
+			"Speaker", "SPOLN",
+			"Speaker", "SPORP",
+			"Speaker", "SPORN",
+			"Headphone", "Headphone Power",
+			"Headphone", "Headphone Power",
+			"Speaker", "Speaker Power",
+			"Speaker", "Speaker Power",
+			"DMIC L1", "Main Mic",
+			"DMIC R1", "Main Mic",
+			"IN3P", "Headset Mic",
+			"Headset Mic", "MICBIAS1";
+		play-pause-key {
+			label = "playpause";
+			linux,code = <KEY_PLAYPAUSE>;
+			press-threshold-microvolt = <2000>;
+		};
+	};
+
+	hdmi_sound: hdmi-sound {
+		status = "disabled";
+		compatible = "rockchip,hdmi";
+		rockchip,mclk-fs = <256>;
+		rockchip,card-name = "rockchip-hdmi0";
+		rockchip,cpu = <&i2s>;
+		rockchip,codec = <&hdmi>;
+		rockchip,jack-det;
+	};
+
 	backlight: backlight {
 		compatible = "pwm-backlight";
 		brightness-levels = <
@@ -97,10 +142,30 @@
 	};
 
 	panel: panel {
-		compatible = "lg,lp079qx1-sp0v";
+		compatible = "simple-panel";
 		backlight = <&backlight>;
 		enable-gpios = <&gpio7 RK_PA4 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
 		pinctrl-0 = <&lcd_cs>;
+		prepare-delay-ms = <120>;
+		width-mm = <120>;
+		height-mm = <160>;
+
+		panel-timing {
+			clock-frequency = <200000000>;
+			hactive = <1536>;
+			hfront-porch = <12>;
+			hback-porch = <48>;
+			hsync-len = <16>;
+			vactive = <2048>;
+			vfront-porch = <8>;
+			vback-porch = <8>;
+			vsync-len = <4>;
+			hsync-active = <0>;
+			vsync-active = <0>;
+			de-active = <0>;
+			pixelclk-active = <0>;
+		};
 
 		ports {
 			panel_in: port {
@@ -138,6 +203,15 @@
 		regulator-name = "vcc_host";
 		regulator-always-on;
 		regulator-boot-on;
+	};
+
+	vcc_otg_vbus: otg-vbus-regulator {
+		compatible = "regulator-fixed";
+		enable-active-high;
+		gpio = <&gpio0 RK_PB4 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&otg_vbus_drv>;
+		regulator-name = "vcc_otg_vbus";
 	};
 
 	vcc_phy: vcc-phy-regulator {
@@ -178,6 +252,27 @@
 		startup-delay-us = <100000>;
 		vin-supply = <&vcc_io>;
 	};
+
+	wireless-bluetooth {
+		compatible = "bluetooth-platdata";
+		uart_rts_gpios = <&gpio4 19 GPIO_ACTIVE_LOW>;
+		pinctrl-names = "default", "rts_gpio";
+		pinctrl-0 = <&uart0_rts>;
+		pinctrl-1 = <&uart0_gpios>;
+		BT,reset_gpio    = <&gpio4 29 GPIO_ACTIVE_HIGH>;
+		BT,wake_gpio     = <&gpio4 26 GPIO_ACTIVE_HIGH>;
+		BT,wake_host_irq = <&gpio4 31 GPIO_ACTIVE_HIGH>;
+		status = "okay";
+	};
+
+	wireless-wlan {
+		compatible = "wlan-platdata";
+		rockchip,grf = <&grf>;
+		wifi_chip_type = "ap6335";
+		sdio_vref = <1800>;
+		WIFI,host_wake_irq = <&gpio4 30 GPIO_ACTIVE_HIGH>;
+		status = "okay";
+	};
 };
 
 &cpu0 {
@@ -209,6 +304,8 @@
 &emmc {
 	bus-width = <8>;
 	cap-mmc-highspeed;
+	no-sdio;
+	no-sd;
 	disable-wp;
 	non-removable;
 	pinctrl-names = "default";
@@ -224,7 +321,13 @@
 &sdmmc {
 	bus-width = <4>;
 	cap-mmc-highspeed;
+	sd-uhs-sdr12;
+	sd-uhs-sdr25;
+	sd-uhs-sdr50;
+	sd-uhs-sdr104;
 	cap-sd-highspeed;
+	no-mmc;
+	no-sdio;
 	card-detect-delay = <200>;
 	disable-wp;			/* wp not hooked up */
 	pinctrl-names = "default";
@@ -237,12 +340,13 @@
 &gmac {
 	phy-supply = <&vcc_phy>;
 	phy-mode = "rgmii";
-	clock_in_out = "input";
+	clock_in_out = "output";
+	assigned-clocks = <&cru SCLK_MAC>;
+	assigned-clock-parents = <&cru PLL_NPLL>;
+	assigned-clock-rates = <125000000>;
 	snps,reset-gpio = <&gpio4 RK_PA7 GPIO_ACTIVE_HIGH>;
 	snps,reset-active-low;
 	snps,reset-delays-us = <0 10000 1000000>;
-	assigned-clocks = <&cru SCLK_MAC>;
-	assigned-clock-parents = <&ext_gmac>;
 	pinctrl-names = "default";
 	pinctrl-0 = <&rgmii_pins>;
 	tx_delay = <0x30>;
@@ -256,7 +360,6 @@
 };
 
 &hdmi {
-	ddc-i2c-bus = <&i2c5>;
 	status = "okay";
 };
 
@@ -264,7 +367,37 @@
 	status = "okay";
 };
 
-&i2c5 {
+&i2c2 {
+	status = "okay";
+
+	rt5640: rt5640@1c {
+		#sound-dai-cells = <0>;
+		compatible = "realtek,rt5640";
+		reg = <0x1c>;
+		clocks = <&cru SCLK_I2S0_OUT>;
+		clock-names = "mclk";
+		pinctrl-names = "default";
+		pinctrl-0 = <&i2s0_mclk>;
+	};
+};
+
+&i2c4 {
+	status = "okay";
+	clock-frequency = <400000>;
+
+	gsl3673@40 {
+		compatible = "GSL,GSL3673";
+		reg = <0x40>;
+		screen_max_x = <1536>;
+		screen_max_y = <2048>;
+		irq_gpio_number = <&gpio7 6 IRQ_TYPE_LEVEL_LOW>;
+		rst_gpio_number = <&gpio7 5 GPIO_ACTIVE_HIGH>;
+		status = "okay";
+	};
+};
+
+&i2s {
+	#sound-dai-cells = <0>;
 	status = "okay";
 };
 
@@ -276,23 +409,29 @@
 	status = "okay";
 };
 
-&uart0 {
+&sdio0 {
 	status = "okay";
+	max-frequency = <150000000>;
+	bus-width = <4>;
+	cap-sd-highspeed;
+	no-mmc;
+	no-sd;
+	cap-sdio-irq;
+	mmc-pwrseq = <&sdio_pwrseq>;
+	keep-power-in-suspend;
+	non-removable;
+	pinctrl-names = "default";
+	pinctrl-0 = <&sdio0_bus4 &sdio0_cmd &sdio0_clk &sdio0_int>;
+	sd-uhs-sdr104;
 };
 
-&uart1 {
+&uart0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&uart0_xfer &uart0_cts>;
 	status = "okay";
 };
 
 &uart2 {
-	status = "okay";
-};
-
-&uart3 {
-	status = "okay";
-};
-
-&uart4 {
 	status = "okay";
 };
 
@@ -336,6 +475,12 @@
 		};
 	};
 
+	sdio-pwrseq {
+		wifi_enable_h: wifi-enable-h {
+			rockchip,pins = <4 RK_PD4 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
 	sdmmc {
 		/*
 		 * Default drive strength isn't enough to achieve even
@@ -365,11 +510,21 @@
 		host_vbus_drv: host-vbus-drv {
 			rockchip,pins = <0 RK_PB6 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
+
+		otg_vbus_drv: otg-bus-drv {
+			rockchip,pins = <0 RK_PB4 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
 	};
 
 	eth_phy {
 		eth_phy_pwr: eth-phy-pwr {
 			rockchip,pins = <0 RK_PA6 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	wireless-bluetooth {
+		uart0_gpios: uart0-gpios {
+			rockchip,pins = <4 RK_PC3 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
 };
@@ -379,10 +534,20 @@
 };
 
 &usb_host0_ehci {
+	rockchip-relinquish-port;
+	status = "okay";
+};
+
+&usb_host0_ohci {
 	status = "okay";
 };
 
 &usb_host1 {
+	status = "okay";
+};
+
+&usb_otg {
+	vbus-supply = <&vcc_otg_vbus>;
 	status = "okay";
 };
 

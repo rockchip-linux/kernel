@@ -29,7 +29,6 @@ struct rkisp_monitor {
 	struct rkisp_hw_dev *dev;
 	struct work_struct work;
 	struct completion cmpl;
-	int (*reset_handle)(struct rkisp_device *dev);
 	u32 state;
 	u8 retry;
 	bool is_en;
@@ -44,6 +43,8 @@ struct rkisp_size_info {
 	u32 w;
 	u32 h;
 	u32 size;
+	u32 fps;
+	bool is_on;
 };
 
 struct rkisp_hw_dev {
@@ -51,6 +52,7 @@ struct rkisp_hw_dev {
 	struct platform_device *pdev;
 	struct device *dev;
 	struct regmap *grf;
+	void *sw_reg;
 	void __iomem *base_addr;
 	void __iomem *base_next_addr;
 	struct clk *clks[RKISP_MAX_BUS_CLK];
@@ -87,6 +89,7 @@ struct rkisp_hw_dev {
 	struct rkisp_monitor monitor;
 	u64 iq_feature;
 	int buf_init_cnt;
+	u32 unite;
 	bool is_feature_on;
 	bool is_dma_contig;
 	bool is_dma_sg_ops;
@@ -97,11 +100,16 @@ struct rkisp_hw_dev {
 	bool is_thunderboot;
 	bool is_buf_init;
 	bool is_shutdown;
-	bool is_unite;
 	bool is_multi_overflow;
 	bool is_runing;
+	bool is_frm_buf;
+	bool is_dvfs;
+	bool is_assigned_clk;
 };
 
 int rkisp_register_irq(struct rkisp_hw_dev *dev);
 void rkisp_soft_reset(struct rkisp_hw_dev *dev, bool is_secure);
+void rkisp_hw_enum_isp_size(struct rkisp_hw_dev *hw_dev);
+void rkisp_hw_reg_save(struct rkisp_hw_dev *dev);
+void rkisp_hw_reg_restore(struct rkisp_hw_dev *dev);
 #endif

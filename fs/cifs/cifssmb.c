@@ -1451,9 +1451,9 @@ cifs_discard_remaining_data(struct TCP_Server_Info *server)
 	while (remaining > 0) {
 		int length;
 
-		length = cifs_read_from_socket(server, server->bigbuf,
-				min_t(unsigned int, remaining,
-				    CIFSMaxBufSize + MAX_HEADER_SIZE(server)));
+		length = cifs_discard_from_socket(server,
+				min_t(size_t, remaining,
+				      CIFSMaxBufSize + MAX_HEADER_SIZE(server)));
 		if (length < 0)
 			return length;
 		server->total_read += length;
@@ -4859,8 +4859,13 @@ CIFSGetDFSRefer(const unsigned int xid, struct cifs_ses *ses,
 		return -ENODEV;
 
 getDFSRetry:
-	rc = smb_init(SMB_COM_TRANSACTION2, 15, ses->tcon_ipc, (void **) &pSMB,
-		      (void **) &pSMBr);
+	/*
+	 * Use smb_init_no_reconnect() instead of smb_init() as
+	 * CIFSGetDFSRefer() may be called from cifs_reconnect_tcon() and thus
+	 * causing an infinite recursion.
+	 */
+	rc = smb_init_no_reconnect(SMB_COM_TRANSACTION2, 15, ses->tcon_ipc,
+				   (void **)&pSMB, (void **)&pSMBr);
 	if (rc)
 		return rc;
 

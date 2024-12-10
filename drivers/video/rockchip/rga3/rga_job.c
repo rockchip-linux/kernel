@@ -13,84 +13,40 @@
 #include "rga_mm.h"
 #include "rga_iommu.h"
 #include "rga_debugger.h"
-
-struct rga_job *
-rga_scheduler_get_pending_job_list(struct rga_scheduler_t *scheduler)
-{
-	unsigned long flags;
-	struct rga_job *job;
-
-	spin_lock_irqsave(&scheduler->irq_lock, flags);
-
-	job = list_first_entry_or_null(&scheduler->todo_list,
-		struct rga_job, head);
-
-	spin_unlock_irqrestore(&scheduler->irq_lock, flags);
-
-	return job;
-}
-
-struct rga_job *
-rga_scheduler_get_running_job(struct rga_scheduler_t *scheduler)
-{
-	unsigned long flags;
-	struct rga_job *job;
-
-	spin_lock_irqsave(&scheduler->irq_lock, flags);
-
-	job = scheduler->running_job;
-
-	spin_unlock_irqrestore(&scheduler->irq_lock, flags);
-
-	return job;
-}
-
-struct rga_scheduler_t *rga_job_get_scheduler(struct rga_job *job)
-{
-	return job->scheduler;
-}
+#include "rga_common.h"
 
 static void rga_job_free(struct rga_job *job)
 {
 	free_page((unsigned long)job);
 }
 
-void rga_job_session_destroy(struct rga_session *session)
+static void rga_job_kref_release(struct kref *ref)
 {
-	struct rga_scheduler_t *scheduler = NULL;
-	struct rga_job *job_pos, *job_q;
-	int i;
+	struct rga_job *job;
 
-	unsigned long flags;
+	job = container_of(ref, struct rga_job, refcount);
 
-	for (i = 0; i < rga_drvdata->num_of_scheduler; i++) {
-		scheduler = rga_drvdata->scheduler[i];
+	rga_job_free(job);
+}
 
-		spin_lock_irqsave(&scheduler->irq_lock, flags);
+static int rga_job_put(struct rga_job *job)
+{
+	return kref_put(&job->refcount, rga_job_kref_release);
+}
 
-		list_for_each_entry_safe(job_pos, job_q, &scheduler->todo_list, head) {
-			if (session == job_pos->session) {
-				list_del(&job_pos->head);
-
-				spin_unlock_irqrestore(&scheduler->irq_lock, flags);
-
-				rga_job_free(job_pos);
-
-				spin_lock_irqsave(&scheduler->irq_lock, flags);
-			}
-		}
-
-		spin_unlock_irqrestore(&scheduler->irq_lock, flags);
-	}
+static void rga_job_get(struct rga_job *job)
+{
+	kref_get(&job->refcount);
 }
 
 static int rga_job_cleanup(struct rga_job *job)
 {
-	if (DEBUGGER_EN(TIME))
-		pr_err("(pid:%d) job clean use time = %lld\n", job->pid,
-			ktime_us_delta(ktime_get(), job->timestamp));
+	rga_job_put(job);
 
-	rga_job_free(job);
+	if (DEBUGGER_EN(TIME))
+		pr_info("request[%d], job cleanup total cost time %lld us\n",
+			job->request_id,
+			ktime_us_delta(ktime_get(), job->timestamp));
 
 	return 0;
 }
@@ -165,6 +121,7 @@ static struct rga_job *rga_job_alloc(struct rga_req *rga_command_base)
 		return NULL;
 
 	INIT_LIST_HEAD(&job->head);
+	kref_init(&job->refcount);
 
 	job->timestamp = ktime_get();
 	job->pid = current->pid;
@@ -232,16 +189,18 @@ static int rga_job_run(struct rga_job *job, struct rga_scheduler_t *scheduler)
 		return ret;
 	}
 
+	set_bit(RGA_JOB_STATE_RUNNING, &job->state);
+
 	/* for debug */
 	if (DEBUGGER_EN(MSG))
 		rga_job_dump_info(job);
 
 	return ret;
-
 }
 
-static void rga_job_next(struct rga_scheduler_t *scheduler)
+void rga_job_next(struct rga_scheduler_t *scheduler)
 {
+	int ret;
 	struct rga_job *job = NULL;
 	unsigned long flags;
 
@@ -261,51 +220,33 @@ next_job:
 	scheduler->job_count--;
 
 	scheduler->running_job = job;
+	set_bit(RGA_JOB_STATE_PREPARE, &job->state);
+	rga_job_get(job);
 
 	spin_unlock_irqrestore(&scheduler->irq_lock, flags);
 
-	job->ret = rga_job_run(job, scheduler);
+	ret = rga_job_run(job, scheduler);
 	/* If some error before hw run */
-	if (job->ret < 0) {
-		pr_err("some error on rga_job_run before hw start, %s(%d)\n",
-			__func__, __LINE__);
+	if (ret < 0) {
+		pr_err("some error on rga_job_run before hw start, %s(%d)\n", __func__, __LINE__);
 
 		spin_lock_irqsave(&scheduler->irq_lock, flags);
 
 		scheduler->running_job = NULL;
+		rga_job_put(job);
 
 		spin_unlock_irqrestore(&scheduler->irq_lock, flags);
 
+		job->ret = ret;
 		rga_request_release_signal(scheduler, job);
 
 		goto next_job;
 	}
+
+	rga_job_put(job);
 }
 
-static void rga_job_finish_and_next(struct rga_scheduler_t *scheduler,
-		struct rga_job *job, int ret)
-{
-	ktime_t now;
-
-	job->ret = ret;
-
-	if (DEBUGGER_EN(TIME)) {
-		now = ktime_get();
-		pr_info("hw use time = %lld\n", ktime_us_delta(now, job->hw_running_time));
-		pr_info("(pid:%d) job done use time = %lld\n", job->pid,
-			ktime_us_delta(now, job->timestamp));
-	}
-
-	rga_mm_unmap_job_info(job);
-
-	rga_request_release_signal(scheduler, job);
-
-	rga_job_next(scheduler);
-
-	rga_power_disable(scheduler);
-}
-
-void rga_job_done(struct rga_scheduler_t *scheduler, int ret)
+struct rga_job *rga_job_done(struct rga_scheduler_t *scheduler)
 {
 	struct rga_job *job;
 	unsigned long flags;
@@ -314,16 +255,34 @@ void rga_job_done(struct rga_scheduler_t *scheduler, int ret)
 	spin_lock_irqsave(&scheduler->irq_lock, flags);
 
 	job = scheduler->running_job;
+	if (job == NULL) {
+		pr_err("core[0x%x] running job has been cleanup.\n", scheduler->core);
+
+		spin_unlock_irqrestore(&scheduler->irq_lock, flags);
+		return NULL;
+	}
 	scheduler->running_job = NULL;
 
 	scheduler->timer.busy_time += ktime_us_delta(now, job->hw_recoder_time);
+	set_bit(RGA_JOB_STATE_DONE, &job->state);
 
 	spin_unlock_irqrestore(&scheduler->irq_lock, flags);
+
+	if (scheduler->ops->read_back_reg)
+		scheduler->ops->read_back_reg(job, scheduler);
 
 	if (DEBUGGER_EN(DUMP_IMAGE))
 		rga_dump_job_image(job);
 
-	rga_job_finish_and_next(scheduler, job, ret);
+	if (DEBUGGER_EN(TIME))
+		pr_info("request[%d], hardware[%s] cost time %lld us\n",
+			job->request_id,
+			rga_get_core_name(scheduler->core),
+			ktime_us_delta(now, job->hw_running_time));
+
+	rga_mm_unmap_job_info(job);
+
+	return job;
 }
 
 static void rga_job_scheduler_timeout_clean(struct rga_scheduler_t *scheduler)
@@ -391,13 +350,20 @@ static void rga_job_insert_todo_list(struct rga_job *job)
 	}
 
 	scheduler->job_count++;
+	set_bit(RGA_JOB_STATE_PENDING, &job->state);
 
 	spin_unlock_irqrestore(&scheduler->irq_lock, flags);
 }
 
 static struct rga_scheduler_t *rga_job_schedule(struct rga_job *job)
 {
+	int i;
 	struct rga_scheduler_t *scheduler = NULL;
+
+	for (i = 0; i < rga_drvdata->num_of_scheduler; i++) {
+		scheduler = rga_drvdata->scheduler[i];
+		rga_job_scheduler_timeout_clean(scheduler);
+	}
 
 	if (rga_drvdata->num_of_scheduler > 1) {
 		job->core = rga_job_assign(job);
@@ -411,14 +377,12 @@ static struct rga_scheduler_t *rga_job_schedule(struct rga_job *job)
 		job->scheduler = rga_drvdata->scheduler[0];
 	}
 
-	scheduler = rga_job_get_scheduler(job);
+	scheduler = job->scheduler;
 	if (scheduler == NULL) {
 		pr_err("failed to get scheduler, %s(%d)\n", __func__, __LINE__);
 		job->ret = -EFAULT;
 		return NULL;
 	}
-
-	rga_job_scheduler_timeout_clean(scheduler);
 
 	return scheduler;
 }
@@ -530,7 +494,7 @@ static bool rga_is_need_current_mm(struct rga_req *req)
 	return false;
 }
 
-static int rga_request_get_current_mm(struct rga_request *request)
+static struct mm_struct *rga_request_get_current_mm(struct rga_request *request)
 {
 	int i;
 
@@ -538,45 +502,30 @@ static int rga_request_get_current_mm(struct rga_request *request)
 		if (rga_is_need_current_mm(&(request->task_list[i]))) {
 			mmgrab(current->mm);
 			mmget(current->mm);
-			request->current_mm = current->mm;
 
-			break;
+			return current->mm;
 		}
 	}
 
-	return 0;
+	return NULL;
 }
 
-static void rga_request_put_current_mm(struct rga_request *request)
+static void rga_request_put_current_mm(struct mm_struct *mm)
 {
-	if (request->current_mm == NULL)
+	if (mm == NULL)
 		return;
 
-	mmput(request->current_mm);
-	mmdrop(request->current_mm);
-	request->current_mm = NULL;
+	mmput(mm);
+	mmdrop(mm);
 }
 
-static int rga_request_alloc_release_fence(struct dma_fence **release_fence)
-{
-	struct dma_fence *fence;
-
-	fence = rga_dma_fence_alloc();
-	if (IS_ERR(fence)) {
-		pr_err("Can not alloc release fence!\n");
-		return IS_ERR(fence);
-	}
-
-	*release_fence = fence;
-
-	return rga_dma_fence_get_fd(fence);
-}
-
-static int rga_request_add_acquire_fence_callback(int acquire_fence_fd, void *private,
+static int rga_request_add_acquire_fence_callback(int acquire_fence_fd,
+						  struct rga_request *request,
 						  dma_fence_func_t cb_func)
 {
 	int ret;
 	struct dma_fence *acquire_fence = NULL;
+	struct rga_pending_request_manager *request_manager = rga_drvdata->pend_request_manager;
 
 	if (DEBUGGER_EN(MSG))
 		pr_info("acquire_fence_fd = %d", acquire_fence_fd);
@@ -587,20 +536,48 @@ static int rga_request_add_acquire_fence_callback(int acquire_fence_fd, void *pr
 		       __func__, acquire_fence_fd);
 		return -EINVAL;
 	}
-	/* close acquire fence fd */
-	ksys_close(acquire_fence_fd);
+
+	if (!request->feature.user_close_fence) {
+		/* close acquire fence fd */
+#ifdef CONFIG_NO_GKI
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+		close_fd(acquire_fence_fd);
+#else
+		ksys_close(acquire_fence_fd);
+#endif
+#else
+		pr_err("Please update the driver to v1.2.28 to prevent acquire_fence_fd leaks.");
+		return -EFAULT;
+#endif
+	}
+
 
 	ret = rga_dma_fence_get_status(acquire_fence);
-	if (ret == 0) {
-		ret = rga_dma_fence_add_callback(acquire_fence, cb_func, private);
-		if (ret < 0) {
-			if (ret == -ENOENT)
-				return 1;
+	if (ret < 0) {
+		pr_err("%s: Current acquire fence unexpectedly has error status before signal\n",
+		       __func__);
+		return ret;
+	} else if (ret > 0) {
+		/* has been signaled */
+		return ret;
+	}
 
+	/*
+	 * Ensure that the request will not be free early when
+	 * the callback is called.
+	 */
+	mutex_lock(&request_manager->lock);
+	rga_request_get(request);
+	mutex_unlock(&request_manager->lock);
+
+	ret = rga_dma_fence_add_callback(acquire_fence, cb_func, (void *)request);
+	if (ret < 0) {
+		if (ret != -ENOENT)
 			pr_err("%s: failed to add fence callback\n", __func__);
-			return ret;
-		}
-	} else {
+
+		mutex_lock(&request_manager->lock);
+		rga_request_put(request);
+		mutex_unlock(&request_manager->lock);
 		return ret;
 	}
 
@@ -682,7 +659,8 @@ static int rga_request_scheduler_job_abort(struct rga_request *request)
 					scheduler->ops->soft_reset(scheduler);
 				}
 
-				pr_err("reset core[%d] by request abort", scheduler->core);
+				pr_err("reset core[%d] by request[%d] abort",
+				       scheduler->core, request->id);
 				running_abort_count++;
 			}
 		}
@@ -715,6 +693,7 @@ static int rga_request_scheduler_job_abort(struct rga_request *request)
 static void rga_request_release_abort(struct rga_request *request, int err_code)
 {
 	unsigned long flags;
+	struct mm_struct *current_mm;
 	struct rga_pending_request_manager *request_manager = rga_drvdata->pend_request_manager;
 
 	if (rga_request_scheduler_job_abort(request) > 0)
@@ -729,10 +708,12 @@ static void rga_request_release_abort(struct rga_request *request, int err_code)
 
 	request->is_running = false;
 	request->is_done = false;
-
-	rga_request_put_current_mm(request);
+	current_mm = request->current_mm;
+	request->current_mm = NULL;
 
 	spin_unlock_irqrestore(&request->lock, flags);
+
+	rga_request_put_current_mm(current_mm);
 
 	rga_dma_fence_signal(request->release_fence, err_code);
 
@@ -740,6 +721,71 @@ static void rga_request_release_abort(struct rga_request *request, int err_code)
 	/* current submit request put */
 	rga_request_put(request);
 	mutex_unlock(&request_manager->lock);
+}
+
+void rga_request_session_destroy_abort(struct rga_session *session)
+{
+	int request_id;
+	struct rga_request *request;
+	struct rga_pending_request_manager *request_manager;
+
+	request_manager = rga_drvdata->pend_request_manager;
+	if (request_manager == NULL) {
+		pr_err("rga_pending_request_manager is null!\n");
+		return;
+	}
+
+	mutex_lock(&request_manager->lock);
+
+	idr_for_each_entry(&request_manager->request_idr, request, request_id) {
+		if (session == request->session) {
+			pr_err("[tgid:%d pid:%d] destroy request[%d] when the user exits",
+			       session->tgid, current->pid, request->id);
+			rga_request_put(request);
+		}
+	}
+
+	mutex_unlock(&request_manager->lock);
+}
+
+static int rga_request_timeout_query_state(struct rga_request *request)
+{
+	int i;
+	unsigned long flags;
+	struct rga_scheduler_t *scheduler = NULL;
+	struct rga_job *job = NULL;
+
+	for (i = 0; i < rga_drvdata->num_of_scheduler; i++) {
+		scheduler = rga_drvdata->scheduler[i];
+
+		spin_lock_irqsave(&scheduler->irq_lock, flags);
+
+		if (scheduler->running_job) {
+			job = scheduler->running_job;
+			if (request->id == job->request_id) {
+				if (test_bit(RGA_JOB_STATE_DONE, &job->state) &&
+				    test_bit(RGA_JOB_STATE_FINISH, &job->state)) {
+					spin_unlock_irqrestore(&scheduler->irq_lock, flags);
+					return request->ret;
+				} else if (!test_bit(RGA_JOB_STATE_DONE, &job->state) &&
+					   test_bit(RGA_JOB_STATE_FINISH, &job->state)) {
+					spin_unlock_irqrestore(&scheduler->irq_lock, flags);
+					pr_err("request[%d] hardware has finished, but the software has timeout!\n",
+					       request->id);
+					return -EBUSY;
+				} else if (!test_bit(RGA_JOB_STATE_DONE, &job->state) &&
+					   !test_bit(RGA_JOB_STATE_FINISH, &job->state)) {
+					spin_unlock_irqrestore(&scheduler->irq_lock, flags);
+					pr_err("request[%d] hardware has timeout.\n", request->id);
+					return -EBUSY;
+				}
+			}
+		}
+
+		spin_unlock_irqrestore(&scheduler->irq_lock, flags);
+	}
+
+	return request->ret;
 }
 
 static int rga_request_wait(struct rga_request *request)
@@ -752,8 +798,7 @@ static int rga_request_wait(struct rga_request *request)
 
 	switch (left_time) {
 	case 0:
-		pr_err("%s timeout", __func__);
-		ret = -EBUSY;
+		ret = rga_request_timeout_query_state(request);
 		goto err_request_abort;
 	case -ERESTARTSYS:
 		ret = -ERESTARTSYS;
@@ -778,7 +823,14 @@ int rga_request_commit(struct rga_request *request)
 	struct rga_job *job;
 
 	for (i = 0; i < request->task_count; i++) {
-		job = rga_job_commit(&(request->task_list[i]), request);
+		struct rga_req *req = &(request->task_list[i]);
+
+		if (DEBUGGER_EN(MSG)) {
+			pr_info("commit request[%d] task[%d]:\n", request->id, i);
+			rga_cmd_print_debug_info(req);
+		}
+
+		job = rga_job_commit(req, request);
 		if (IS_ERR(job)) {
 			pr_err("request[%d] task[%d] job_commit failed.\n", request->id, i);
 			rga_request_release_abort(request, PTR_ERR(job));
@@ -799,10 +851,38 @@ int rga_request_commit(struct rga_request *request)
 static void rga_request_acquire_fence_signaled_cb(struct dma_fence *fence,
 						  struct dma_fence_cb *_waiter)
 {
+	int ret;
+	unsigned long flags;
+	struct mm_struct *current_mm;
 	struct rga_fence_waiter *waiter = (struct rga_fence_waiter *)_waiter;
+	struct rga_request *request = (struct rga_request *)waiter->private;
+	struct rga_pending_request_manager *request_manager = rga_drvdata->pend_request_manager;
 
-	if (rga_request_commit((struct rga_request *)waiter->private))
-		pr_err("rga request commit failed!\n");
+	ret = rga_request_commit(request);
+	if (ret < 0) {
+		pr_err("acquire_fence callback: rga request[%d] commit failed!\n", request->id);
+
+		spin_lock_irqsave(&request->lock, flags);
+
+		request->is_running = false;
+		current_mm = request->current_mm;
+		request->current_mm = NULL;
+
+		spin_unlock_irqrestore(&request->lock, flags);
+
+		rga_request_put_current_mm(current_mm);
+
+		/*
+		 * Since the callback is called while holding &dma_fence.lock,
+		 * the _locked API is used here.
+		 */
+		if (dma_fence_get_status_locked(request->release_fence) == 0)
+			dma_fence_signal_locked(request->release_fence);
+	}
+
+	mutex_lock(&request_manager->lock);
+	rga_request_put(request);
+	mutex_unlock(&request_manager->lock);
 
 	kfree(waiter);
 }
@@ -811,7 +891,9 @@ int rga_request_release_signal(struct rga_scheduler_t *scheduler, struct rga_job
 {
 	struct rga_pending_request_manager *request_manager;
 	struct rga_request *request;
+	struct mm_struct *current_mm;
 	int finished_count, failed_count;
+	bool is_finished = false;
 	unsigned long flags;
 
 	request_manager = rga_drvdata->pend_request_manager;
@@ -832,8 +914,6 @@ int rga_request_release_signal(struct rga_scheduler_t *scheduler, struct rga_job
 	rga_request_get(request);
 	mutex_unlock(&request_manager->lock);
 
-	rga_job_cleanup(job);
-
 	spin_lock_irqsave(&request->lock, flags);
 
 	if (job->ret < 0) {
@@ -853,14 +933,16 @@ int rga_request_release_signal(struct rga_scheduler_t *scheduler, struct rga_job
 
 		request->is_running = false;
 		request->is_done = true;
-
-		rga_request_put_current_mm(request);
+		current_mm = request->current_mm;
+		request->current_mm = NULL;
 
 		spin_unlock_irqrestore(&request->lock, flags);
 
+		rga_request_put_current_mm(current_mm);
+
 		rga_dma_fence_signal(request->release_fence, request->ret);
 
-		wake_up(&request->finished_wq);
+		is_finished = true;
 
 		if (DEBUGGER_EN(MSG))
 			pr_info("request[%d] finished %d failed %d\n",
@@ -873,8 +955,20 @@ int rga_request_release_signal(struct rga_scheduler_t *scheduler, struct rga_job
 	}
 
 	mutex_lock(&request_manager->lock);
+
+	if (is_finished)
+		wake_up(&request->finished_wq);
+
 	rga_request_put(request);
+
 	mutex_unlock(&request_manager->lock);
+
+	if (DEBUGGER_EN(TIME))
+		pr_info("request[%d], job done total cost time %lld us\n",
+			job->request_id,
+			ktime_us_delta(ktime_get(), job->timestamp));
+
+	rga_job_cleanup(job);
 
 	return 0;
 }
@@ -927,6 +1021,7 @@ struct rga_request *rga_request_config(struct rga_user_request *user_request)
 	request->sync_mode = user_request->sync_mode;
 	request->mpi_config_flags = user_request->mpi_config_flags;
 	request->acquire_fence_fd = user_request->acquire_fence_fd;
+	request->feature = task_list[0].feature;
 
 	spin_unlock_irqrestore(&request->lock, flags);
 
@@ -1003,19 +1098,27 @@ int rga_request_submit(struct rga_request *request)
 {
 	int ret = 0;
 	unsigned long flags;
+	struct dma_fence *release_fence;
+	struct mm_struct *current_mm;
+
+	current_mm = rga_request_get_current_mm(request);
 
 	spin_lock_irqsave(&request->lock, flags);
 
 	if (request->is_running) {
-		pr_err("can not re-config when request is running");
 		spin_unlock_irqrestore(&request->lock, flags);
-		return -EFAULT;
+
+		pr_err("can not re-config when request is running\n");
+		ret = -EFAULT;
+		goto err_put_current_mm;
 	}
 
 	if (request->task_list == NULL) {
-		pr_err("can not find task list from id[%d]", request->id);
 		spin_unlock_irqrestore(&request->lock, flags);
-		return -EINVAL;
+
+		pr_err("can not find task list from id[%d]\n", request->id);
+		ret = -EINVAL;
+		goto err_put_current_mm;
 	}
 
 	/* Reset */
@@ -1023,49 +1126,76 @@ int rga_request_submit(struct rga_request *request)
 	request->is_done = false;
 	request->finished_task_count = 0;
 	request->failed_task_count = 0;
+	request->current_mm = current_mm;
 
-	rga_request_get_current_mm(request);
-
+	/* Unlock after ensuring that the current request will not be resubmitted. */
 	spin_unlock_irqrestore(&request->lock, flags);
 
 	if (request->sync_mode == RGA_BLIT_ASYNC) {
-		ret = rga_request_alloc_release_fence(&request->release_fence);
-		if (ret < 0) {
-			pr_err("Failed to alloc release fence fd!\n");
-			return ret;
+		release_fence = rga_dma_fence_alloc();
+		if (IS_ERR(release_fence)) {
+			pr_err("Can not alloc release fence!\n");
+			ret = IS_ERR(release_fence);
+			goto err_reset_request;
 		}
-		request->release_fence_fd = ret;
+		request->release_fence = release_fence;
 
 		if (request->acquire_fence_fd > 0) {
 			ret = rga_request_add_acquire_fence_callback(
-				request->acquire_fence_fd,
-				(void *)request,
+				request->acquire_fence_fd, request,
 				rga_request_acquire_fence_signaled_cb);
 			if (ret == 0) {
-				return ret;
-			} else if (ret == 1) {
+				/* acquire fence active */
+				goto export_release_fence_fd;
+			} else if (ret > 0) {
+				/* acquire fence has been signaled */
 				goto request_commit;
 			} else {
 				pr_err("Failed to add callback with acquire fence fd[%d]!\n",
 				       request->acquire_fence_fd);
-				goto error_release_fence_put;
+				goto err_put_release_fence;
 			}
 		}
-
 	}
 
 request_commit:
 	ret = rga_request_commit(request);
 	if (ret < 0) {
-		pr_err("rga request commit failed!\n");
-		goto error_release_fence_put;
+		pr_err("rga request[%d] commit failed!\n", request->id);
+		goto err_put_release_fence;
+	}
+
+export_release_fence_fd:
+	if (request->release_fence != NULL) {
+		ret = rga_dma_fence_get_fd(request->release_fence);
+		if (ret < 0) {
+			pr_err("Failed to alloc release fence fd!\n");
+			rga_request_release_abort(request, ret);
+			return ret;
+		}
+
+		request->release_fence_fd = ret;
 	}
 
 	return 0;
 
-error_release_fence_put:
-	rga_dma_fence_put(request->release_fence);
-	request->release_fence = NULL;
+err_put_release_fence:
+	if (request->release_fence != NULL) {
+		rga_dma_fence_put(request->release_fence);
+		request->release_fence = NULL;
+	}
+
+err_reset_request:
+	spin_lock_irqsave(&request->lock, flags);
+
+	request->current_mm = NULL;
+	request->is_running = false;
+
+	spin_unlock_irqrestore(&request->lock, flags);
+
+err_put_current_mm:
+	rga_request_put_current_mm(current_mm);
+
 	return ret;
 }
 
@@ -1154,23 +1284,31 @@ int rga_request_free(struct rga_request *request)
 static void rga_request_kref_release(struct kref *ref)
 {
 	struct rga_request *request;
+	struct mm_struct *current_mm;
 	unsigned long flags;
 
 	request = container_of(ref, struct rga_request, refcount);
 
 	if (rga_dma_fence_get_status(request->release_fence) == 0)
-		rga_dma_fence_signal(request->release_fence, -EEXIST);
+		rga_dma_fence_signal(request->release_fence, -EFAULT);
 
 	spin_lock_irqsave(&request->lock, flags);
 
 	rga_dma_fence_put(request->release_fence);
+	current_mm = request->current_mm;
+	request->current_mm = NULL;
 
 	if (!request->is_running || request->is_done) {
 		spin_unlock_irqrestore(&request->lock, flags);
+
+		rga_request_put_current_mm(current_mm);
+
 		goto free_request;
 	}
 
 	spin_unlock_irqrestore(&request->lock, flags);
+
+	rga_request_put_current_mm(current_mm);
 
 	rga_request_scheduler_job_abort(request);
 
@@ -1188,6 +1326,7 @@ static int rga_request_free_cb(int id, void *ptr, void *data)
 
 int rga_request_alloc(uint32_t flags, struct rga_session *session)
 {
+	int new_id;
 	struct rga_pending_request_manager *request_manager;
 	struct rga_request *request;
 
@@ -1218,17 +1357,17 @@ int rga_request_alloc(uint32_t flags, struct rga_session *session)
 	mutex_lock(&request_manager->lock);
 
 	idr_preload(GFP_KERNEL);
-	request->id = idr_alloc(&request_manager->request_idr, request, 1, 0, GFP_KERNEL);
+	new_id = idr_alloc_cyclic(&request_manager->request_idr, request, 1, 0, GFP_NOWAIT);
 	idr_preload_end();
-
-	if (request->id <= 0) {
-		pr_err("alloc request_id failed!\n");
+	if (new_id < 0) {
+		pr_err("request alloc id failed!\n");
 
 		mutex_unlock(&request_manager->lock);
 		kfree(request);
-		return -EFAULT;
+		return new_id;
 	}
 
+	request->id = new_id;
 	request_manager->request_count++;
 
 	mutex_unlock(&request_manager->lock);

@@ -222,6 +222,7 @@ extern int qla2x00_post_uevent_work(struct scsi_qla_host *, u32);
 
 extern int qla2x00_post_uevent_work(struct scsi_qla_host *, u32);
 extern void qla2x00_disable_board_on_pci_error(struct work_struct *);
+extern void qla_eeh_work(struct work_struct *);
 extern void qla2x00_sp_compl(srb_t *sp, int);
 extern void qla2xxx_qpair_sp_free_dma(srb_t *sp);
 extern void qla2xxx_qpair_sp_compl(srb_t *sp, int);
@@ -233,6 +234,8 @@ int qla24xx_post_relogin_work(struct scsi_qla_host *vha);
 void qla2x00_wait_for_sess_deletion(scsi_qla_host_t *);
 void qla24xx_process_purex_rdp(struct scsi_qla_host *vha,
 			       struct purex_item *pkt);
+void qla_pci_set_eeh_busy(struct scsi_qla_host *);
+void qla_schedule_eeh_work(struct scsi_qla_host *);
 
 /*
  * Global Functions in qla_mid.c source file.
@@ -405,7 +408,8 @@ extern int
 qla2x00_get_resource_cnts(scsi_qla_host_t *);
 
 extern int
-qla2x00_get_fcal_position_map(scsi_qla_host_t *ha, char *pos_map);
+qla2x00_get_fcal_position_map(scsi_qla_host_t *ha, char *pos_map,
+		u8 *num_entries);
 
 extern int
 qla2x00_get_link_status(scsi_qla_host_t *, uint16_t, struct link_statistics *,

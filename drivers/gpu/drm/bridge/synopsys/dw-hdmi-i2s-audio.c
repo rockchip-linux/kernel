@@ -34,6 +34,14 @@ static inline u8 hdmi_read(struct dw_hdmi_i2s_audio_data *audio, int offset)
 	return audio->read(hdmi, offset);
 }
 
+static inline void hdmi_update_bits(struct dw_hdmi_i2s_audio_data *audio,
+				    u8 data, u8 mask, unsigned int reg)
+{
+	struct dw_hdmi *hdmi = audio->hdmi;
+
+	audio->mod(hdmi, data, mask, reg);
+}
+
 static int dw_hdmi_i2s_hw_params(struct device *dev, void *data,
 				 struct hdmi_codec_daifmt *fmt,
 				 struct hdmi_codec_params *hparms)
@@ -42,6 +50,7 @@ static int dw_hdmi_i2s_hw_params(struct device *dev, void *data,
 	struct dw_hdmi *hdmi = audio->hdmi;
 	u8 conf0 = 0;
 	u8 conf1 = 0;
+	u8 conf2 = 0;
 	u8 inputclkfs = 0;
 
 	/* it cares I2S only */
@@ -51,7 +60,8 @@ static int dw_hdmi_i2s_hw_params(struct device *dev, void *data,
 	}
 
 	/* Reset the FIFOs before applying new params */
-	hdmi_write(audio, HDMI_AUD_CONF0_SW_RESET, HDMI_AUD_CONF0);
+	hdmi_update_bits(audio, HDMI_AUD_CONF0_SW_RESET,
+			 HDMI_AUD_CONF0_SW_RESET, HDMI_AUD_CONF0);
 	hdmi_write(audio, (u8)~HDMI_MC_SWRSTZ_I2SSWRST_REQ, HDMI_MC_SWRSTZ);
 
 	inputclkfs	= HDMI_AUD_INPUTCLKFS_64FS;
@@ -101,6 +111,23 @@ static int dw_hdmi_i2s_hw_params(struct device *dev, void *data,
 		return -EINVAL;
 	}
 
+	switch (fmt->bit_fmt) {
+	case SNDRV_PCM_FORMAT_IEC958_SUBFRAME_LE:
+		conf1 = HDMI_AUD_CONF1_WIDTH_21;
+		conf2 = (hparms->channels == 8) ? HDMI_AUD_CONF2_HBR : HDMI_AUD_CONF2_NLPCM;
+		break;
+	default:
+		/*
+		 * dw-hdmi introduced insert_pcuv bit in version 2.10a.
+		 * When set (1'b1), this bit enables the insertion of the PCUV
+		 * (Parity, Channel Status, User bit and Validity) bits on the
+		 * incoming audio stream (support limited to Linear PCM audio)
+		 */
+		if (hdmi_read(audio, HDMI_DESIGN_ID) >= 0x21)
+			conf2 = HDMI_AUD_CONF2_INSERT_PCUV;
+		break;
+	}
+
 	dw_hdmi_set_sample_rate(hdmi, hparms->sample_rate);
 	dw_hdmi_set_channel_status(hdmi, hparms->iec.status);
 	dw_hdmi_set_channel_count(hdmi, hparms->channels);
@@ -109,8 +136,16 @@ static int dw_hdmi_i2s_hw_params(struct device *dev, void *data,
 	hdmi_write(audio, inputclkfs, HDMI_AUD_INPUTCLKFS);
 	hdmi_write(audio, conf0, HDMI_AUD_CONF0);
 	hdmi_write(audio, conf1, HDMI_AUD_CONF1);
+	hdmi_write(audio, conf2, HDMI_AUD_CONF2);
 
 	return 0;
+}
+
+static int dw_hdmi_i2s_prepare(struct device *dev, void *data,
+			       struct hdmi_codec_daifmt *fmt,
+			       struct hdmi_codec_params *hparms)
+{
+	return dw_hdmi_i2s_hw_params(dev, data, fmt, hparms);
 }
 
 static int dw_hdmi_i2s_audio_startup(struct device *dev, void *data)
@@ -179,6 +214,7 @@ static int dw_hdmi_i2s_hook_plugged_cb(struct device *dev, void *data,
 
 static struct hdmi_codec_ops dw_hdmi_i2s_ops = {
 	.hw_params	= dw_hdmi_i2s_hw_params,
+	.prepare	= dw_hdmi_i2s_prepare,
 	.audio_startup  = dw_hdmi_i2s_audio_startup,
 	.audio_shutdown	= dw_hdmi_i2s_audio_shutdown,
 	.get_eld	= dw_hdmi_i2s_get_eld,

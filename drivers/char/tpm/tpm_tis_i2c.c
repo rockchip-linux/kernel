@@ -241,23 +241,23 @@ static int tpm_tis_i2c_write_bytes(struct tpm_tis_data *data, u32 addr, u16 len,
 }
 
 
-static int tpm_tis_i2c_verify_crc(struct tpm_tis_data *data, size_t len,
-				  const u8 *value)
-{
-	u16 crc_tpm, crc_host;
-	int rc;
+// static int tpm_tis_i2c_verify_crc(struct tpm_tis_data *data, size_t len,
+// 				  const u8 *value)
+// {
+// 	u16 crc_tpm, crc_host;
+// 	int rc;
 
-	rc = tpm_tis_read16(data, TPM_DATA_CSUM, &crc_tpm);
-	if (rc < 0)
-		return rc;
+// 	rc = tpm_tis_read16(data, TPM_DATA_CSUM, &crc_tpm);
+// 	if (rc < 0)
+// 		return rc;
 
-	/* reflect crc result, regardless of host endianness */
-	crc_host = swab16(crc_ccitt(0, value, len));
-	if (crc_tpm != crc_host)
-		return -EIO;
+// 	/* reflect crc result, regardless of host endianness */
+// 	crc_host = swab16(crc_ccitt(0, value, len));
+// 	if (crc_tpm != crc_host)
+// 		return -EIO;
 
-	return 0;
-}
+// 	return 0;
+// }
 
 /*
  * Guard Time:

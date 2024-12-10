@@ -76,24 +76,16 @@
 		>;
 	};
 
-	hdmiin_dc: hdmiin-dc {
-		compatible = "rockchip,dummy-codec";
-		#sound-dai-cells = <0>;
-	};
-
 	hdmiin-sound {
-		compatible = "simple-audio-card";
-		simple-audio-card,format = "i2s";
-		simple-audio-card,name = "rockchip,hdmiin";
-		simple-audio-card,bitclock-master = <&dailink0_master>;
-		simple-audio-card,frame-master = <&dailink0_master>;
-		status = "okay";
-		simple-audio-card,cpu {
-			sound-dai = <&i2s7_8ch>;
-		};
-		dailink0_master: simple-audio-card,codec {
-			sound-dai = <&hdmiin_dc>;
-		};
+		compatible = "rockchip,hdmi";
+		rockchip,mclk-fs = <128>;
+		rockchip,format = "i2s";
+		rockchip,bitclock-master = <&hdmirx_ctrler>;
+		rockchip,frame-master = <&hdmirx_ctrler>;
+		rockchip,card-name = "rockchip,hdmiin";
+		rockchip,cpu = <&i2s7_8ch>;
+		rockchip,codec = <&hdmirx_ctrler 0>;
+		rockchip,jack-det;
 	};
 
 	pcie20_avdd0v85: pcie20-avdd0v85 {
@@ -390,6 +382,7 @@
 &hdmirx_ctrler {
 	status = "okay";
 
+	#sound-dai-cells = <1>;
 	/* Effective level used to trigger HPD: 0-low, 1-high */
 	hpd-trigger-level = <1>;
 	hdmirx-det-gpios = <&gpio2 RK_PB5 GPIO_ACTIVE_LOW>;
@@ -508,9 +501,9 @@
 		#sound-dai-cells = <0>;
 		compatible = "everest,es8388", "everest,es8323";
 		reg = <0x11>;
-		clocks = <&cru I2S0_8CH_MCLKOUT>;
+		clocks = <&mclkout_i2s0>;
 		clock-names = "mclk";
-		assigned-clocks = <&cru I2S0_8CH_MCLKOUT>;
+		assigned-clocks = <&mclkout_i2s0>;
 		assigned-clock-rates = <12288000>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&i2s0_mclk>;
@@ -565,6 +558,8 @@
 &pcie3x4 {
 	reset-gpios = <&gpio4 RK_PB6 GPIO_ACTIVE_HIGH>;
 	vpcie3v3-supply = <&vcc3v3_pcie30>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pcie30x4_clkreqn_m1>;
 	status = "okay";
 };
 
@@ -614,6 +609,12 @@
 	lcd {
 		lcd_rst_gpio: lcd-rst-gpio {
 			rockchip,pins = <2 RK_PB4 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	pcie30x4 {
+		pcie30x4_clkreqn_m1: pcie30x4-clkreqn-m1 {
+			rockchip,pins = <4 RK_PB4 RK_FUNC_GPIO &pcfg_pull_down>;
 		};
 	};
 
@@ -693,6 +694,16 @@
 &route_dsi1 {
 	status = "disabled";
 	connect = <&vp3_out_dsi1>;
+};
+
+&route_hdmi0 {
+	status = "okay";
+	connect = <&vp0_out_hdmi0>;
+};
+
+&route_hdmi1 {
+	status = "okay";
+	connect = <&vp1_out_hdmi1>;
 };
 
 &sata0 {

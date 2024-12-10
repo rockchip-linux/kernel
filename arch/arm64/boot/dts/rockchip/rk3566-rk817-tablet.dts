@@ -194,6 +194,7 @@
 		pinctrl-names = "default";
 		pinctrl-0 = <&wifi_host_wake_irq>;
 		WIFI,host_wake_irq = <&gpio0 RK_PC4 GPIO_ACTIVE_HIGH>;
+		WIFI,poweren_gpio = <&gpio0 RK_PC0 GPIO_ACTIVE_HIGH>;
 		status = "okay";
 	};
 
@@ -486,7 +487,7 @@
 	status = "okay";
 
 	vdd_cpu: tcs4525@1c {
-		compatible = "tcs,tcs452x";
+		compatible = "tcs,tcs4525";
 		reg = <0x1c>;
 		vin-supply = <&vccsys>;
 		regulator-compatible = "fan53555-reg";
@@ -915,6 +916,14 @@
 		     &i2s1m0_lrcktx
 		     &i2s1m0_sdi0
 		     &i2s1m0_sdo0>;
+};
+
+&iep {
+	status = "okay";
+};
+
+&iep_mmu {
+	status = "okay";
 };
 
 &jpegd {

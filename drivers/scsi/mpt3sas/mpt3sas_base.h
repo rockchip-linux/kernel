@@ -1257,6 +1257,7 @@ struct MPT3SAS_ADAPTER {
 	u16		thresh_hold;
 	u8		high_iops_queues;
 	u32		drv_support_bitmap;
+	u32             dma_mask;
 	bool		enable_sdev_max_qd;
 	bool		use_32bit_dma;
 
@@ -1468,6 +1469,7 @@ struct MPT3SAS_ADAPTER {
 	u8		diag_trigger_active;
 	u8		atomic_desc_capable;
 	BASE_READ_REG	base_readl;
+	BASE_READ_REG	base_readl_ext_retry;
 	struct SL_WH_MASTER_TRIGGER_T diag_trigger_master;
 	struct SL_WH_EVENT_TRIGGERS_T diag_trigger_event;
 	struct SL_WH_SCSI_TRIGGERS_T diag_trigger_scsi;

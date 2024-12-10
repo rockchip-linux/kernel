@@ -69,20 +69,15 @@
 	split-mode;
 	force-hpd;
 	status = "okay";
-
-	ports {
-		port@1 {
-			reg = <1>;
-
-			dp0_out: endpoint {
-				remote-endpoint = <&i2c3_max96745_in>;
-			};
-		};
-	};
 };
 
 &dp0_in_vp0 {
 	status = "okay";
+};
+
+&dp0_out {
+	link-frequencies = /bits/ 64 <2700000000>;
+	remote-endpoint = <&i2c3_max96745_in>;
 };
 
 &usbdp_phy0 {
@@ -91,7 +86,6 @@
 };
 
 &usbdp_phy0_dp {
-	max-link-rate = <2700>;	/* Maximum link rate supported by PHY (in Mbps) */
 	status = "okay";
 };
 
@@ -103,16 +97,11 @@
 &dp1 {
 	force-hpd;
 	status = "okay";
+};
 
-	ports {
-		port@1 {
-			reg = <1>;
-
-			dp1_out: endpoint {
-				remote-endpoint = <&i2c8_max96745_in>;
-			};
-		};
-	};
+&dp1_out {
+	link-frequencies = /bits/ 64 <2700000000>;
+	remote-endpoint = <&i2c8_max96745_in>;
 };
 
 &usbdp_phy1 {
@@ -121,7 +110,6 @@
 };
 
 &usbdp_phy1_dp {
-	max-link-rate = <2700>;	/* Maximum link rate supported by PHY (in Mbps) */
 	status = "okay";
 };
 
@@ -188,18 +176,12 @@
 &edp0 {
 	split-mode;
 	force-hpd;
-	max-link-rate = <2700>;
 	status = "okay";
+};
 
-	ports {
-		port@1 {
-			reg = <1>;
-
-			edp0_out: endpoint {
-				remote-endpoint = <&i2c5_max96745_in>;
-			};
-		};
-	};
+&edp0_out {
+	link-frequencies = /bits/ 64 <2700000000>;
+	remote-endpoint = <&i2c5_max96745_in>;
 };
 
 &hdptxphy0 {
@@ -217,18 +199,12 @@
 
 &edp1 {
 	force-hpd;
-	max-link-rate = <2700>;
 	status = "okay";
+};
 
-	ports {
-		port@1 {
-			reg = <1>;
-
-			edp1_out: endpoint {
-				remote-endpoint = <&i2c7_max96745_in>;
-			};
-		};
-	};
+&edp1_out {
+	link-frequencies = /bits/ 64 <2700000000>;
+	remote-endpoint = <&i2c7_max96745_in>;
 };
 
 &hdptxphy1 {
@@ -250,11 +226,20 @@
 
 		pinctrl {
 			compatible = "maxim,max96755f-pinctrl";
+			pinctrl-names = "default";
+			pinctrl-0 = <&i2c2_max96755f_pinctrl_hog>;
 
-			i2c2_max96755f_panel_max96752f_pins: panel-max96752f-pins {
+			i2c2_max96755f_pinctrl_hog: hog {
+				i2c {
+					groups = "I2C";
+					function = "I2C";
+				};
+			};
+
+			i2c2_max96755f_panel_pins: panel-pins {
 				bl-pwm {
-					pins = "gpio18";
-					function = "GPIO_TX_4";
+					pins = "MFP18";
+					function = "GPIO_TX_0";
 				};
 			};
 		};
@@ -262,8 +247,6 @@
 		bridge {
 			compatible = "maxim,max96755f-bridge";
 			lock-gpios = <&gpio1 RK_PA4 GPIO_ACTIVE_HIGH>;
-			dsi,lanes = <4>;
-			dsi,flags = <(MIPI_DSI_MODE_VIDEO | MIPI_DSI_MODE_VIDEO_SYNC_PULSE)>;
 
 			ports {
 				#address-cells = <1>;
@@ -294,11 +277,27 @@
 			#size-cells = <0>;
 
 			panel@48 {
-				compatible = "maxim,deserializer-panel";
+				compatible = "boe,av156fht-l83";
 				reg = <0x48>;
 				backlight = <&i2c2_max96755f_backlight>;
-				pinctrl-names = "max96752f";
-				pinctrl-0 = <&i2c2_max96755f_panel_max96752f_pins>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&i2c2_max96755f_panel_pins>;
+
+				panel-timing {
+					clock-frequency = <148500000>;
+					hactive = <1920>;
+					vactive = <1080>;
+					hfront-porch = <20>;
+					hsync-len = <20>;
+					hback-porch = <20>;
+					vfront-porch = <250>;
+					vsync-len = <2>;
+					vback-porch = <8>;
+					hsync-active = <0>;
+					vsync-active = <0>;
+					de-active = <0>;
+					pixelclk-active = <0>;
+				};
 
 				port {
 					i2c2_max96755f_panel_in: endpoint {
@@ -325,11 +324,20 @@
 
 		pinctrl {
 			compatible = "maxim,max96745-pinctrl";
+			pinctrl-names = "default";
+			pinctrl-0 = <&i2c3_max96745_pinctrl_hog>;
 
-			i2c3_max96745_panel_max96752f_pins: panel-max96752f-pins {
+			i2c3_max96745_pinctrl_hog: hog {
+				i2c {
+					groups = "I2C";
+					function = "I2C";
+				};
+			};
+
+			i2c3_max96745_panel_pins: panel-pins {
 				bl-pwm {
-					pins = "gpio0";
-					function = "GPIO_TX_A_4";
+					pins = "MFP0";
+					function = "GPIO_TX_A_0";
 				};
 			};
 		};
@@ -367,11 +375,27 @@
 			#size-cells = <0>;
 
 			panel@48 {
-				compatible = "maxim,deserializer-panel";
+				compatible = "boe,av156fht-l83";
 				reg = <0x48>;
 				backlight = <&i2c3_max96745_backlight>;
-				pinctrl-names = "max96752f";
-				pinctrl-0 = <&i2c3_max96745_panel_max96752f_pins>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&i2c3_max96745_panel_pins>;
+
+				panel-timing {
+					clock-frequency = <148500000>;
+					hactive = <1920>;
+					vactive = <1080>;
+					hfront-porch = <20>;
+					hsync-len = <20>;
+					hback-porch = <20>;
+					vfront-porch = <250>;
+					vsync-len = <2>;
+					vback-porch = <8>;
+					hsync-active = <0>;
+					vsync-active = <0>;
+					de-active = <0>;
+					pixelclk-active = <0>;
+				};
 
 				port {
 					i2c3_max96745_panel_in: endpoint {
@@ -397,11 +421,20 @@
 
 		pinctrl {
 			compatible = "maxim,max96745-pinctrl";
+			pinctrl-names = "default";
+			pinctrl-0 = <&i2c5_max96745_pinctrl_hog>;
 
-			i2c5_max96745_panel_max96752f_pins: panel-max96752f-pins {
+			i2c5_max96745_pinctrl_hog: hog {
+				i2c {
+					groups = "I2C";
+					function = "I2C";
+				};
+			};
+
+			i2c5_max96745_panel_pins: panel-pins {
 				bl-pwm {
-					pins = "gpio0";
-					function = "GPIO_TX_A_4";
+					pins = "MFP0";
+					function = "GPIO_TX_A_0";
 				};
 			};
 		};
@@ -439,11 +472,27 @@
 			#size-cells = <0>;
 
 			panel@48 {
-				compatible = "maxim,deserializer-panel";
+				compatible = "boe,av156fht-l83";
 				reg = <0x48>;
 				backlight = <&i2c5_max96745_backlight>;
-				pinctrl-names = "max96752f";
-				pinctrl-0 = <&i2c5_max96745_panel_max96752f_pins>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&i2c5_max96745_panel_pins>;
+
+				panel-timing {
+					clock-frequency = <148500000>;
+					hactive = <1920>;
+					vactive = <1080>;
+					hfront-porch = <20>;
+					hsync-len = <20>;
+					hback-porch = <20>;
+					vfront-porch = <250>;
+					vsync-len = <2>;
+					vback-porch = <8>;
+					hsync-active = <0>;
+					vsync-active = <0>;
+					de-active = <0>;
+					pixelclk-active = <0>;
+				};
 
 				port {
 					i2c5_max96745_panel_in: endpoint {
@@ -470,11 +519,21 @@
 
 		pinctrl {
 			compatible = "maxim,max96755f-pinctrl";
+			pinctrl-names = "default";
+			pinctrl-0 = <&i2c6_max96755f_pinctrl_hog>;
 
-			i2c6_max96755f_panel_max96752f_pins: panel-0-pins {
+			i2c6_max96755f_pinctrl_hog: hog {
+				i2c {
+					groups = "I2C";
+					function = "I2C";
+				};
+			};
+
+
+			i2c6_max96755f_panel_pins: panel-pins {
 				bl-pwm {
-					pins = "gpio18";
-					function = "GPIO_TX_4";
+					pins = "MFP18";
+					function = "GPIO_TX_0";
 				};
 			};
 		};
@@ -482,8 +541,6 @@
 		bridge {
 			compatible = "maxim,max96755f-bridge";
 			lock-gpios = <&gpio1 RK_PA5 GPIO_ACTIVE_HIGH>;
-			dsi,lanes = <4>;
-			dsi,flags = <(MIPI_DSI_MODE_VIDEO | MIPI_DSI_MODE_VIDEO_SYNC_PULSE)>;
 
 			ports {
 				#address-cells = <1>;
@@ -514,11 +571,27 @@
 			#size-cells = <0>;
 
 			panel@48 {
-				compatible = "maxim,deserializer-panel";
+				compatible = "boe,av156fht-l83";
 				reg = <0x48>;
 				backlight = <&i2c6_max96755f_backlight>;
-				pinctrl-names = "max96752f";
-				pinctrl-0 = <&i2c6_max96755f_panel_max96752f_pins>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&i2c6_max96755f_panel_pins>;
+
+				panel-timing {
+					clock-frequency = <148500000>;
+					hactive = <1920>;
+					vactive = <1080>;
+					hfront-porch = <20>;
+					hsync-len = <20>;
+					hback-porch = <20>;
+					vfront-porch = <250>;
+					vsync-len = <2>;
+					vback-porch = <8>;
+					hsync-active = <0>;
+					vsync-active = <0>;
+					de-active = <0>;
+					pixelclk-active = <0>;
+				};
 
 				port {
 					i2c6_max96755f_panel_in: endpoint {
@@ -545,11 +618,20 @@
 
 		pinctrl {
 			compatible = "maxim,max96745-pinctrl";
+			pinctrl-names = "default";
+			pinctrl-0 = <&i2c7_max96745_pinctrl_hog>;
 
-			i2c7_max96745_panel_max96752f_pins: panel-max96752f-pins {
+			i2c7_max96745_pinctrl_hog: hog {
+				i2c {
+					groups = "I2C";
+					function = "I2C";
+				};
+			};
+
+			i2c7_max96745_panel_pins: panel-pins {
 				bl-pwm {
-					pins = "gpio0";
-					function = "GPIO_TX_A_4";
+					pins = "MFP0";
+					function = "GPIO_TX_A_0";
 				};
 			};
 		};
@@ -587,11 +669,27 @@
 			#size-cells = <0>;
 
 			panel@48 {
-				compatible = "maxim,deserializer-panel";
+				compatible = "boe,av156fht-l83";
 				reg = <0x48>;
 				backlight = <&i2c7_max96745_backlight>;
-				pinctrl-names = "max96752f";
-				pinctrl-0 = <&i2c7_max96745_panel_max96752f_pins>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&i2c7_max96745_panel_pins>;
+
+				panel-timing {
+					clock-frequency = <148500000>;
+					hactive = <1920>;
+					vactive = <1080>;
+					hfront-porch = <20>;
+					hsync-len = <20>;
+					hback-porch = <20>;
+					vfront-porch = <250>;
+					vsync-len = <2>;
+					vback-porch = <8>;
+					hsync-active = <0>;
+					vsync-active = <0>;
+					de-active = <0>;
+					pixelclk-active = <0>;
+				};
 
 				port {
 					i2c7_max96745_panel_in: endpoint {
@@ -618,11 +716,20 @@
 
 		pinctrl {
 			compatible = "maxim,max96745-pinctrl";
+			pinctrl-names = "default";
+			pinctrl-0 = <&i2c8_max96745_pinctrl_hog>;
 
-			i2c8_max96745_panel_max96752f_pins: panel-max96752f-pins {
+			i2c8_max96745_pinctrl_hog: hog {
+				i2c {
+					groups = "I2C";
+					function = "I2C";
+				};
+			};
+
+			i2c8_max96745_panel_pins: panel-pins {
 				bl-pwm {
-					pins = "gpio0";
-					function = "GPIO_TX_A_4";
+					pins = "MFP0";
+					function = "GPIO_TX_A_0";
 				};
 			};
 		};
@@ -660,11 +767,27 @@
 			#size-cells = <0>;
 
 			panel@48 {
-				compatible = "maxim,deserializer-panel";
+				compatible = "boe,av156fht-l83";
 				reg = <0x48>;
 				backlight = <&i2c8_max96745_backlight>;
-				pinctrl-names = "max96752f";
-				pinctrl-0 = <&i2c8_max96745_panel_max96752f_pins>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&i2c8_max96745_panel_pins>;
+
+				panel-timing {
+					clock-frequency = <148500000>;
+					hactive = <1920>;
+					vactive = <1080>;
+					hfront-porch = <20>;
+					hsync-len = <20>;
+					hback-porch = <20>;
+					vfront-porch = <250>;
+					vsync-len = <2>;
+					vback-porch = <8>;
+					hsync-active = <0>;
+					vsync-active = <0>;
+					de-active = <0>;
+					pixelclk-active = <0>;
+				};
 
 				port {
 					i2c8_max96745_panel_in: endpoint {

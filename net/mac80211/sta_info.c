@@ -645,13 +645,13 @@ static int sta_info_insert_finish(struct sta_info *sta) __acquires(RCU)
 	/* check if STA exists already */
 	if (sta_info_get_bss(sdata, sta->sta.addr)) {
 		err = -EEXIST;
-		goto out_err;
+		goto out_cleanup;
 	}
 
 	sinfo = kzalloc(sizeof(struct station_info), GFP_KERNEL);
 	if (!sinfo) {
 		err = -ENOMEM;
-		goto out_err;
+		goto out_cleanup;
 	}
 
 	local->num_sta++;
@@ -707,8 +707,8 @@ static int sta_info_insert_finish(struct sta_info *sta) __acquires(RCU)
  out_drop_sta:
 	local->num_sta--;
 	synchronize_net();
+ out_cleanup:
 	cleanup_single_sta(sta);
- out_err:
 	mutex_unlock(&local->sta_mtx);
 	kfree(sinfo);
 	rcu_read_lock();
@@ -1040,7 +1040,8 @@ static int __must_check __sta_info_destroy_part1(struct sta_info *sta)
 	list_del_rcu(&sta->list);
 	sta->removed = true;
 
-	drv_sta_pre_rcu_remove(local, sta->sdata, sta);
+	if (sta->uploaded)
+		drv_sta_pre_rcu_remove(local, sta->sdata, sta);
 
 	if (sdata->vif.type == NL80211_IFTYPE_AP_VLAN &&
 	    rcu_access_pointer(sdata->u.vlan.sta) == sta)
@@ -2159,7 +2160,7 @@ static void sta_stats_decode_rate(struct ieee80211_local *local, u32 rate,
 
 static int sta_set_rate_info_rx(struct sta_info *sta, struct rate_info *rinfo)
 {
-	u16 rate = READ_ONCE(sta_get_last_rx_stats(sta)->last_rate);
+	u32 rate = READ_ONCE(sta_get_last_rx_stats(sta)->last_rate);
 
 	if (rate == STA_STATS_RATE_INVALID)
 		return -EINVAL;
@@ -2175,9 +2176,9 @@ static inline u64 sta_get_tidstats_msdu(struct ieee80211_sta_rx_stats *rxstats,
 	u64 value;
 
 	do {
-		start = u64_stats_fetch_begin(&rxstats->syncp);
+		start = u64_stats_fetch_begin_irq(&rxstats->syncp);
 		value = rxstats->msdu[tid];
-	} while (u64_stats_fetch_retry(&rxstats->syncp, start));
+	} while (u64_stats_fetch_retry_irq(&rxstats->syncp, start));
 
 	return value;
 }
@@ -2241,9 +2242,9 @@ static inline u64 sta_get_stats_bytes(struct ieee80211_sta_rx_stats *rxstats)
 	u64 value;
 
 	do {
-		start = u64_stats_fetch_begin(&rxstats->syncp);
+		start = u64_stats_fetch_begin_irq(&rxstats->syncp);
 		value = rxstats->bytes;
-	} while (u64_stats_fetch_retry(&rxstats->syncp, start));
+	} while (u64_stats_fetch_retry_irq(&rxstats->syncp, start));
 
 	return value;
 }

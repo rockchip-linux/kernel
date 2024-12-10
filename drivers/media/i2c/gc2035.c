@@ -1166,9 +1166,7 @@ static int gc2035_g_frame_interval(struct v4l2_subdev *sd,
 {
 	struct gc2035 *gc2035 = to_gc2035(sd);
 
-	mutex_lock(&gc2035->lock);
 	fi->interval = gc2035->frame_size->max_fps;
-	mutex_unlock(&gc2035->lock);
 
 	return 0;
 }
@@ -1294,9 +1292,7 @@ static int gc2035_enum_frame_interval(struct v4l2_subdev *sd,
 	if (fie->index >= ARRAY_SIZE(gc2035_framesizes))
 		return -EINVAL;
 
-	if (fie->code != MEDIA_BUS_FMT_UYVY8_2X8)
-		return -EINVAL;
-
+	fie->code = MEDIA_BUS_FMT_UYVY8_2X8;
 	fie->width = gc2035_framesizes[fie->index].width;
 	fie->height = gc2035_framesizes[fie->index].height;
 	fie->interval = gc2035_framesizes[fie->index].max_fps;

@@ -33,12 +33,16 @@
 
 #define RKVDEC_DRIVER_NAME		"mpp_rkvdec2"
 
+#define RKVDEC_REG_IMPORTANT_BASE	0x2c
+#define RKVDEC_REG_IMPORTANT_INDEX	11
+#define RKVDEC_SOFTREST_EN		BIT(20)
+
 #define	RKVDEC_SESSION_MAX_BUFFERS	40
 /* The maximum registers number of all the version */
-#define RKVDEC_REG_NUM			278
+#define RKVDEC_REG_NUM			279
 #define RKVDEC_REG_HW_ID_INDEX		0
 #define RKVDEC_REG_START_INDEX		0
-#define RKVDEC_REG_END_INDEX		277
+#define RKVDEC_REG_END_INDEX		278
 
 #define REVDEC_GET_PROD_NUM(x)		(((x) >> 16) & 0xffff)
 #define RKVDEC_REG_FORMAT_INDEX		9
@@ -73,6 +77,7 @@
 					RKVDEC_BUF_EMPTY_STA |\
 					RKVDEC_TIMEOUT_STA |\
 					RKVDEC_ERROR_STA)
+#define RKVDEC_PERF_WORKING_CNT		0x41c
 
 /* perf sel reference register */
 #define RKVDEC_PERF_SEL_OFFSET		0x20000
@@ -145,8 +150,6 @@ struct rkvdec2_task {
 	int slot_idx;
 	u32 need_hack;
 
-	/* event for task wait timeout or session timeout */
-	wait_queue_head_t wait;
 	/* link table DMA buffer */
 	struct mpp_dma_buffer *table;
 };
@@ -173,6 +176,8 @@ struct rkvdec2_dev {
 	struct mpp_clk_info core_clk_info;
 	struct mpp_clk_info cabac_clk_info;
 	struct mpp_clk_info hevc_cabac_clk_info;
+	struct mpp_clk_info *cycle_clk;
+
 	u32 default_max_load;
 #ifdef CONFIG_ROCKCHIP_MPP_PROC_FS
 	struct proc_dir_entry *procfs;
@@ -202,6 +207,8 @@ struct rkvdec2_dev {
 	dma_addr_t rcb_iova;
 	struct page *rcb_page;
 	u32 rcb_min_width;
+	u32 rcb_info_count;
+	u32 rcb_infos[RKVDEC_MAX_RCB_NUM * 2];
 
 	/* for link mode */
 	struct rkvdec_link_dev *link_dec;
@@ -211,6 +218,9 @@ struct rkvdec2_dev {
 	struct rkvdec2_ccu *ccu;
 	u32 core_mask;
 	u32 task_index;
+	/* mmu info */
+	void __iomem *mmu_base;
+	u32 mmu_fault;
 };
 
 int mpp_set_rcbbuf(struct mpp_dev *mpp, struct mpp_session *session,

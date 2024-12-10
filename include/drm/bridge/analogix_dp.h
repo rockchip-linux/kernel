@@ -43,6 +43,11 @@ struct analogix_dp_plat_data {
 	bool ssc;
 
 	bool split_mode;
+
+	/* split with other display interface */
+	bool dual_connector_split;
+	bool left_display;
+
 	struct analogix_dp_device *left;
 	struct analogix_dp_device *right;
 
@@ -80,5 +85,6 @@ int analogix_dp_audio_startup(struct analogix_dp_device *dp);
 int analogix_dp_audio_get_eld(struct analogix_dp_device *dp,
 			      u8 *buf, size_t len);
 int analogix_dp_loader_protect(struct analogix_dp_device *dp);
+void analogix_dp_disable(struct analogix_dp_device *dp);
 
 #endif /* _ANALOGIX_DP_H_ */

@@ -1303,9 +1303,7 @@ static int gc08a3_g_frame_interval(struct v4l2_subdev *sd,
 	struct gc08a3 *gc08a3 = to_gc08a3(sd);
 	const struct gc08a3_mode *mode = gc08a3->cur_mode;
 
-	mutex_lock(&gc08a3->mutex);
 	fi->interval = mode->max_fps;
-	mutex_unlock(&gc08a3->mutex);
 
 	return 0;
 }
@@ -1700,9 +1698,7 @@ static int gc08a3_enum_frame_interval(struct v4l2_subdev *sd,
 	if (fie->index >= gc08a3->cfg_num)
 		return -EINVAL;
 
-	if (fie->code != GC08A3_MEDIA_BUS_FMT)
-		return -EINVAL;
-
+	fie->code = GC08A3_MEDIA_BUS_FMT;
 	fie->width = gc08a3->support_modes[fie->index].width;
 	fie->height = gc08a3->support_modes[fie->index].height;
 	fie->interval = gc08a3->support_modes[fie->index].max_fps;

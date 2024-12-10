@@ -256,7 +256,6 @@ config SPI_DW_BT1
 	tristate "Baikal-T1 SPI driver for DW SPI core"
 	depends on MIPS_BAIKAL_T1 || COMPILE_TEST
 	select MULTIPLEXER
-	select MUX_MMIO
 	help
 	  Baikal-T1 SoC is equipped with three DW APB SSI-based MMIO SPI
 	  controllers. Two of them are pretty much normal: with IRQ, DMA,
@@ -640,6 +639,16 @@ config SPI_ROCKCHIP
 	  The main usecase of this controller is to use spi flash as boot
 	  device.
 
+config SPI_ROCKCHIP_MISCDEV
+	bool "Rockchip SPI controller misc devices"
+	depends on SPI_ROCKCHIP
+	help
+	  This selects a misc driver for Rockchip SPI controller.
+
+	  If you say yes to this option, It will register rkspi-devN misc device
+	  for each spi controller and support to get the controller register
+	  resource by calling mmap.
+
 config SPI_ROCKCHIP_SFC
 	tristate "Rockchip Serial Flash Controller (SFC)"
 	imply ROCKCHIP_MTD_VENDOR_STORAGE
@@ -652,6 +661,17 @@ config SPI_ROCKCHIP_SFC
 
 	  ROCKCHIP SFC supports DMA and PIO modes. When DMA is not available,
 	  the driver automatically falls back to PIO mode.
+
+config SPI_ROCKCHIP_SLAVE
+	tristate "Rockchip SPI Slave controller driver"
+	depends on ARCH_ROCKCHIP || COMPILE_TEST
+	default SPI_ROCKCHIP if !ROCKCHIP_MINI_KERNEL
+	help
+	  This selects a driver for Rockchip SPI Slave controller.
+
+	  If you say yes to this option, support will be included for Rockchip
+	  SPI Slave controller.
+	  Rockchip SPI Slave controller support DMA transport and IRQ mode.
 
 config SPI_RB4XX
 	tristate "Mikrotik RB4XX SPI master"
@@ -1056,6 +1076,12 @@ config SPI_SLAVE_SYSTEM_CONTROL
 	help
 	  SPI slave handler to allow remote control of system reboot, power
 	  off, halt, and suspend.
+
+config SPI_SLAVE_ROCKCHIP_OBJ
+	tristate "Rockchip SPI slave inter transmission protocol demo"
+	help
+	  SPI slave with a rockchip protocol specification for SPI slave
+	  transmission, work with the corresponding master driver spidev_rkmst.
 
 endif # SPI_SLAVE
 
