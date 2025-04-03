@@ -61,6 +61,9 @@
 #include <net/flow_dissector.h>
 #include <linux/uaccess.h>
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstringop-overread"
+
 __setup("ether=", netdev_boot_setup);
 
 /**
@@ -486,3 +489,5 @@ static int __init eth_offload_init(void)
 }
 
 fs_initcall(eth_offload_init);
+
+#pragma GCC diagnostic pop

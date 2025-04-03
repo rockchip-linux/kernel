@@ -44,8 +44,8 @@
 #include <linux/wakelock.h>
 #include <linux/version.h>
 #include <linux/debugfs.h>
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0))
 #include <linux/dma-buf.h>
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0))
 #include <linux/pm_runtime.h>
 #endif
 

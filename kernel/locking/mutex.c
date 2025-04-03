@@ -26,6 +26,7 @@
 #include <linux/interrupt.h>
 #include <linux/debug_locks.h>
 #include <linux/osq_lock.h>
+#include <linux/slab.h>  // Required for kmalloc() and kfree()
 
 /*
  * In the DEBUG case we are using the "NULL fastpath" for mutexes,
@@ -507,14 +508,22 @@ __mutex_lock_common(struct mutex *lock, long state, unsigned int subclass,
 		    struct ww_acquire_ctx *ww_ctx, const bool use_ww_ctx)
 {
 	struct task_struct *task = current;
-	struct mutex_waiter waiter;
+	struct mutex_waiter *waiter;
 	unsigned long flags;
 	int ret;
+	
+	waiter = kmalloc(sizeof(*waiter), GFP_KERNEL);
+	if (!waiter)
+	    return -ENOMEM;
+	
 
 	if (use_ww_ctx) {
 		struct ww_mutex *ww = container_of(lock, struct ww_mutex, base);
 		if (unlikely(ww_ctx == READ_ONCE(ww->ctx)))
+		{
+			kfree(waiter);
 			return -EALREADY;
+		}
 	}
 
 	preempt_disable();
@@ -523,6 +532,7 @@ __mutex_lock_common(struct mutex *lock, long state, unsigned int subclass,
 	if (mutex_optimistic_spin(lock, ww_ctx, use_ww_ctx)) {
 		/* got the lock, yay! */
 		preempt_enable();
+		kfree(waiter);
 		return 0;
 	}
 
@@ -536,12 +546,12 @@ __mutex_lock_common(struct mutex *lock, long state, unsigned int subclass,
 	    (atomic_xchg_acquire(&lock->count, 0) == 1))
 		goto skip_wait;
 
-	debug_mutex_lock_common(lock, &waiter);
-	debug_mutex_add_waiter(lock, &waiter, task);
+	debug_mutex_lock_common(lock, waiter);
+	debug_mutex_add_waiter(lock, waiter, task);
 
 	/* add waiting tasks to the end of the waitqueue (FIFO): */
-	list_add_tail(&waiter.list, &lock->wait_list);
-	waiter.task = task;
+	list_add_tail(&waiter->list, &lock->wait_list);
+	waiter->task = task;
 
 	lock_contended(&lock->dep_map, ip);
 
@@ -584,11 +594,11 @@ __mutex_lock_common(struct mutex *lock, long state, unsigned int subclass,
 	}
 	__set_task_state(task, TASK_RUNNING);
 
-	mutex_remove_waiter(lock, &waiter, task);
+	mutex_remove_waiter(lock, waiter, task);
 	/* set it to 0 if there are no waiters left: */
 	if (likely(list_empty(&lock->wait_list)))
 		atomic_set(&lock->count, 0);
-	debug_mutex_free_waiter(&waiter);
+	debug_mutex_free_waiter(waiter);
 
 skip_wait:
 	/* got the lock - cleanup and rejoice! */
@@ -602,14 +612,16 @@ skip_wait:
 
 	spin_unlock_mutex(&lock->wait_lock, flags);
 	preempt_enable();
+	kfree(waiter);
 	return 0;
 
 err:
-	mutex_remove_waiter(lock, &waiter, task);
+	mutex_remove_waiter(lock, waiter, task);
 	spin_unlock_mutex(&lock->wait_lock, flags);
-	debug_mutex_free_waiter(&waiter);
+	debug_mutex_free_waiter(waiter);
 	mutex_release(&lock->dep_map, 1, ip);
 	preempt_enable();
+	kfree(waiter);
 	return ret;
 }
 
