@@ -1,0 +1,51 @@
+name: Build RK3566 Kernel
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Kernel Source
+        uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y build-essential gcc-aarch64-linux-gnu bc bison flex libssl-dev libncurses-dev
+
+      - name: Configure Kernel
+        run: |
+          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- rk356x_defconfig
+
+      - name: Compile Kernel
+        run: |
+          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- -j$(nproc)
+
+      - name: Upload Kernel Image
+        uses: actions/upload-artifact@v4
+        with:
+          name: rk3566-kernel
+          path: arch/arm64/boot/Image.gz
+
+      - name: Create Boot Image
+        run: |
+          mkbootimg --kernel arch/arm64/boot/Image.gz \
+                    --ramdisk ramdisk.img \
+                    --cmdline "console=ttyFIQ0 root=/dev/mmcblk0p5 rw" \
+                    --output boot.img
+
+      - name: Upload Boot Image
+        uses: actions/upload-artifact@v4
+        with:
+          name: boot-image
+          path: boot.img
+

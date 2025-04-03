@@ -1,0 +1,123 @@
+# Sample rk356x_defconfig for RK3566
+
+# Basic architecture configuration
+CONFIG_ARCH_ROCKCHIP=y
+CONFIG_ARCH_ARM64=y
+CONFIG_ARCH_MULTI_V7=y
+CONFIG_ARM64=y
+CONFIG_ARM64_32=y
+CONFIG_ARM64_64=y
+CONFIG_ARM64_PA_BITS=40
+CONFIG_ARM64_VA_BITS=48
+CONFIG_ARMV8_DEPRECATED=y
+CONFIG_ARMV8_CRYPTO=y
+
+# CPU features
+CONFIG_CPU_PABRT=y
+CONFIG_CPU_PAN=y
+CONFIG_CPU_V7=y
+CONFIG_CPU_V8=y
+
+# Memory configuration
+CONFIG_ARM64_COHERENT_POOL=y
+CONFIG_PHYS_ADDR_T_64BIT=y
+CONFIG_ARM64_PA_BITS=40
+
+# Rockchip specific configuration
+CONFIG_ROCKCHIP_PHY=y
+CONFIG_ROCKCHIP_VOP=y
+CONFIG_ROCKCHIP_DRM=y
+CONFIG_ROCKCHIP_HDMI=y
+CONFIG_ROCKCHIP_RGA=y
+CONFIG_ROCKCHIP_CE=y
+CONFIG_ROCKCHIP_SDMA=y
+
+# Kernel features
+CONFIG_NETFILTER=y
+CONFIG_NETFILTER_ADVANCED=y
+CONFIG_INET=y
+CONFIG_IP_NF_IPTABLES=y
+CONFIG_IP_NF_TARGET_MASQUERADE=y
+CONFIG_IPV6=y
+CONFIG_INET6=y
+CONFIG_NETDEVICES=y
+CONFIG_PACKET=y
+CONFIG_UNIX=y
+
+# File system support
+CONFIG_EXT4_FS=y
+CONFIG_F2FS_FS=y
+CONFIG_SQUASHFS=y
+CONFIG_FUSE_FS=y
+CONFIG_OVERLAY_FS=y
+
+# Power management
+CONFIG_PM=y
+CONFIG_PM_SLEEP=y
+CONFIG_ARM64_CPU_IDLE=y
+CONFIG_ARM64_RAS=y
+
+# Debugging
+CONFIG_DEBUG_INFO=y
+CONFIG_KGDB=y
+CONFIG_KDB=y
+
+# Networking
+CONFIG_NET=y
+CONFIG_NETFILTER=y
+CONFIG_NETFILTER_XT_MATCH_IPVS=y
+
+# Generic defconfig
+CONFIG_CMDLINE="root=/dev/mmcblk0p2 rootwait rw"
+
+# DMA configuration
+CONFIG_DMA_BUF=y
+CONFIG_DMA_SHARED_BUFFER=y
+
+# Enable USART (UART) ports
+# Enabling driver support for UART
+CONFIG_SERIAL_8250=y
+CONFIG_SERIAL_8250_CONSOLE=y
+CONFIG_SERIAL_8250_RUNTIME_UARTS=4  # Change this to the number of UARTs you have
+CONFIG_SERIAL_8250_DW=y
+
+# Enable specific USART port driver
+CONFIG_SERIAL_8250_PNP=y
+CONFIG_SERIAL_8250_RSA=y  # For Rockchip-specific UART support (if applicable)
+CONFIG_SERIAL_8250_RSA_NR_PORTS=4  # Change this to your port number if needed
+
+# Enable specific console ports for UART (use ttyS0, ttyS1, etc.)
+CONFIG_CONSOLE_POLL=y
+CONFIG_SERIAL_8250_PNP=y
+CONFIG_SERIAL_8250_EXTENDED=y
+
+# Enable DMA for UARTs if needed
+CONFIG_SERIAL_8250_DMA=y
+
+# Ensure all ports are enabled for use (if not specified, you might need to check with hardware configuration)
+CONFIG_SERIAL_8250_NR_UARTS=4  # Change this based on how many UART ports you have
+CONFIG_SERIAL_8250_SHARE_IRQ=y
+
+# Enable debugging for serial (optional)
+CONFIG_SERIAL_DEBUG=y
+
+# Miscellaneous kernel options
+CONFIG_ZLIB_DEFLATE=y
+CONFIG_SQUASHFS=y
+
+# Enable DMA and DMA Buffer Subsystem
+CONFIG_DMA_ENGINE=y
+CONFIG_DMA_VIRTUAL=y
+CONFIG_DMA_DIRECT=y
+
+# Enable specific Rockchip DMA options (if applicable)
+CONFIG_ROCKCHIP_DMA=y
+CONFIG_ROCKCHIP_DRM_DMA=y
+CONFIG_ROCKCHIP_RGA=y
+
+# Ensure proper support for `dma-buf` buffer management
+CONFIG_DMA_BUF=y
+CONFIG_DMA_SHARED_BUFFER=y
+CONFIG_DMA_CMA=y  # Contiguous Memory Allocator for DMA
+CONFIG_DMA_API=y  # Enable the DMA API interface
+

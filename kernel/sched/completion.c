@@ -13,7 +13,8 @@
 
 #include <linux/sched.h>
 #include <linux/completion.h>
-
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdangling-pointer"
 /**
  * complete: - signals a single thread waiting on this completion
  * @x:  holds the state of this particular completion
@@ -315,3 +316,5 @@ bool completion_done(struct completion *x)
 	return true;
 }
 EXPORT_SYMBOL(completion_done);
+
+#pragma GCC diagnostic pop

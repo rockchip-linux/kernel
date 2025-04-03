@@ -5934,16 +5934,15 @@ void __init mem_init_print_info(const char *str)
 	 */
 #define adj_init_size(start, end, size, pos, adj) \
 	do { \
-		if (start <= pos && pos < end && size > adj) \
+		if (&(start)[0] <= &(pos)[0] && &(pos)[0] < &(end)[0] && size > adj) \
 			size -= adj; \
 	} while (0)
 
-	adj_init_size(__init_begin, __init_end, init_data_size,
-		     _sinittext, init_code_size);
-	adj_init_size(_stext, _etext, codesize, _sinittext, init_code_size);
-	adj_init_size(_sdata, _edata, datasize, __init_begin, init_data_size);
-	adj_init_size(_stext, _etext, codesize, __start_rodata, rosize);
-	adj_init_size(_sdata, _edata, datasize, __start_rodata, rosize);
+adj_init_size(__init_begin, __init_end, init_data_size, _sinittext, init_code_size);
+adj_init_size(_stext, _etext, codesize, _sinittext, init_code_size);
+adj_init_size(_sdata, _edata, datasize, __init_begin, init_data_size);
+adj_init_size(_stext, _etext, codesize, __start_rodata, rosize);
+adj_init_size(_sdata, _edata, datasize, __start_rodata, rosize);
 
 #undef	adj_init_size
 
