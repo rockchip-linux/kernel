@@ -1421,7 +1421,7 @@ static int rk817_bat_get_charge_status(struct rk817_battery_device *battery)
  */
 static bool rk817_bat_fake_finish_mode(struct rk817_battery_device *battery)
 {
-	if ((battery->rsoc == 100) &&
+	if ((battery->rsoc/1000 == 100) &&
 	    (rk817_bat_get_charge_status(battery) == CC_OR_CV_CHRG) &&
 	    (abs(battery->current_avg) <= 100))
 		return true;
