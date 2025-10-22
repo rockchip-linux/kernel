@@ -749,6 +749,8 @@ static int csi2_dphy_get_set_fmt(struct v4l2_subdev *sd,
 	sensor = sd_to_sensor(dphy, sensor_sd);
 	if (!sensor)
 		return -ENODEV;
+	fmt->pad = 0;
+	fmt->which = V4L2_SUBDEV_FORMAT_ACTIVE;
 	ret = v4l2_subdev_call(sensor_sd, pad, get_fmt, NULL, fmt);
 	if (!ret && fmt->pad == 0 && fmt->which == V4L2_SUBDEV_FORMAT_ACTIVE)
 		sensor->format = fmt->format;
