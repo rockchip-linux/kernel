@@ -982,7 +982,7 @@ const struct
 cif_input_fmt *rkcif_get_input_fmt(struct rkcif_device *dev, struct v4l2_rect *rect,
 			     u32 pad_id, struct csi_channel_info *csi_info)
 {
-	struct v4l2_subdev_format fmt;
+	struct v4l2_subdev_format fmt = {0};
 	struct v4l2_subdev *sd = dev->terminal_sensor.sd;
 	struct rkmodule_channel_info ch_info = {0};
 	struct rkmodule_capture_info capture_info;
