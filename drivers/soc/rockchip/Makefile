@@ -15,6 +15,7 @@ obj-$(CONFIG_ROCKCHIP_IOMUX) += iomux.o
 obj-$(CONFIG_ROCKCHIP_DTPM) += dtpm.o
 obj-$(CONFIG_ROCKCHIP_FIQ_DEBUGGER) += fiq_debugger/
 obj-$(CONFIG_ROCKCHIP_VENDOR_STORAGE) += rk_vendor_storage.o
+obj-$(CONFIG_ROCKCHIP_MMC_VENDOR_STORAGE) += sdmmc_vendor_storage.o
 obj-$(CONFIG_ROCKCHIP_FLASH_VENDOR_STORAGE) += flash_vendor_storage.o
 obj-$(CONFIG_ROCKCHIP_MTD_VENDOR_STORAGE) += mtd_vendor_storage.o
 obj-$(CONFIG_ROCKCHIP_RAM_VENDOR_STORAGE) += ram_vendor_storage.o

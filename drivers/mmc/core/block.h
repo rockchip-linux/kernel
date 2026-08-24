@@ -3,7 +3,10 @@
 #define _MMC_CORE_BLOCK_H
 
 struct mmc_queue;
+struct mmc_card;
 struct request;
+
+extern struct mmc_card *this_card;
 
 void mmc_blk_cqe_recovery(struct mmc_queue *mq);
 

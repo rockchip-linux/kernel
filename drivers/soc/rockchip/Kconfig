@@ -210,6 +210,15 @@ config ROCKCHIP_VENDOR_STORAGE
 	help
 	  Say y here to enable rockchip vendor storage support.
 
+config ROCKCHIP_MMC_VENDOR_STORAGE
+	tristate "Rockchip mmc vendor storage support"
+	depends on ROCKCHIP_VENDOR_STORAGE && MMC_BLOCK
+	help
+	  Enable Rockchip vendor storage backed by an eMMC device. The driver
+	  uses the MMC block card to read and write persistent vendor data and
+	  exposes it through the Rockchip vendor storage interface. Select this
+	  on systems that keep Rockchip vendor data in eMMC.
+
 config ROCKCHIP_FLASH_VENDOR_STORAGE
 	tristate "Rockchip flash vendor storage support"
 	depends on ROCKCHIP_VENDOR_STORAGE && RK_FLASH

@@ -638,6 +638,11 @@ static int rkcif_output_fmt_check(struct rkcif_stream *stream,
 	int ret = -EINVAL;
 
 	stream->rounding_bit = 0;
+	if (!input_fmt) {
+		v4l2_err(&stream->cifdev->v4l2_dev, "Input fmt is NULL\n");
+		return -EINVAL;
+	}
+
 	switch (input_fmt->mbus_code) {
 	case MEDIA_BUS_FMT_YUYV8_2X8:
 	case MEDIA_BUS_FMT_YVYU8_2X8:
@@ -982,7 +987,7 @@ const struct
 cif_input_fmt *rkcif_get_input_fmt(struct rkcif_device *dev, struct v4l2_rect *rect,
 			     u32 pad_id, struct csi_channel_info *csi_info)
 {
-	struct v4l2_subdev_format fmt;
+	struct v4l2_subdev_format fmt = {0};
 	struct v4l2_subdev *sd = dev->terminal_sensor.sd;
 	struct rkmodule_channel_info ch_info = {0};
 	struct rkmodule_capture_info capture_info;
@@ -8805,6 +8810,11 @@ int rkcif_set_fmt(struct rkcif_stream *stream,
 		cif_fmt_in = rkcif_get_input_fmt(dev,
 						 &input_rect, stream->id,
 						 channel_info);
+		if (!cif_fmt_in) {
+			v4l2_err(&stream->cifdev->v4l2_dev,
+				 "terminal sensor fmt invalid\n");
+			return -EINVAL;
+		}
 		stream->cif_fmt_in = cif_fmt_in;
 	} else {
 		v4l2_err(&stream->cifdev->v4l2_dev,
