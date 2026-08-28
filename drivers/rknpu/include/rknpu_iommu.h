@@ -70,6 +70,13 @@ struct iommu_domain *rknpu_iommu_live_domain(struct device *dev);
 extern int rk_iommu_switch_domain(struct device *dev, struct iommu_domain *domain);
 extern int rk_iommu_reprogram(struct device *dev);
 
+/*
+ * Scoped override of the core's default domain, for the dma-buf attachment map and
+ * its matching unmap only. Returns the previous value; the caller restores it.
+ */
+struct iommu_domain *rknpu_iommu_default_swap(struct device *dev,
+					      struct iommu_domain *dom);
+
 #if KERNEL_VERSION(5, 10, 0) < LINUX_VERSION_CODE
 int iommu_get_dma_cookie(struct iommu_domain *domain);
 #endif

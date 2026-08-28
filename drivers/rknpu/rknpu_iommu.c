@@ -418,6 +418,35 @@ struct iommu_group {
 };
 #endif
 
+/*
+ * Temporarily point the IOMMU core's default domain at the live domain.
+ *
+ * dma-iommu resolves every DMA-API mapping through
+ * iommu_get_dma_domain() == group->default_domain, and dma_buf_map_attachment(),
+ * which DRM core runs during PRIME_FD_TO_HANDLE, goes through the DMA API. There
+ * is no way to tell it which domain to use.
+ *
+ * This is deliberately not the permanent overwrite that used to live in
+ * rknpu_iommu_switch_domain(). That left the core's default pointing at a domain
+ * the driver might later free, for the lifetime of the device. This override lasts
+ * only for one attachment map or unmap, is taken under domain_lock so no switch can
+ * move the live domain underneath it, and is restored immediately.
+ *
+ * Returns the previous default so the caller can restore it.
+ */
+struct iommu_domain *rknpu_iommu_default_swap(struct device *dev,
+					      struct iommu_domain *dom)
+{
+	struct rknpu_device *rknpu_dev = dev_get_drvdata(dev);
+	struct iommu_domain *old;
+
+	if (!rknpu_dev || !rknpu_dev->iommu_group || !dom)
+		return NULL;
+	old = rknpu_dev->iommu_group->default_domain;
+	rknpu_dev->iommu_group->default_domain = dom;
+	return old;
+}
+
 int rknpu_iommu_init_domain(struct rknpu_device *rknpu_dev)
 {
 	// init domain 0
