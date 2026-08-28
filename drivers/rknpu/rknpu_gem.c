@@ -72,7 +72,7 @@ static int rknpu_gem_get_pages(struct rknpu_gem_object *rknpu_obj)
 			      rknpu_obj->size);
 		goto free_sgt;
 	}
-	iommu_flush_iotlb_all(iommu_get_domain_for_dev(drm->dev));
+	iommu_flush_iotlb_all(rknpu_iommu_live_domain(drm->dev));
 
 	if (rknpu_obj->flags & RKNPU_MEM_KERNEL_MAPPING) {
 		rknpu_obj->cookie = vmap(rknpu_obj->pages, rknpu_obj->num_pages,
@@ -501,7 +501,7 @@ static int rknpu_gem_alloc_buf_with_cache(struct rknpu_gem_object *rknpu_obj,
 	}
 
 	/* iova map to cache */
-	domain = iommu_get_domain_for_dev(rknpu_dev->dev);
+	domain = rknpu_iommu_live_domain(rknpu_dev->dev);
 	if (!domain) {
 		LOG_ERROR("failed to get iommu domain!");
 		return -EINVAL;
@@ -654,7 +654,7 @@ static void rknpu_gem_free_buf_with_cache(struct rknpu_gem_object *rknpu_obj,
 		return;
 	}
 
-	domain = iommu_get_domain_for_dev(rknpu_dev->dev);
+	domain = rknpu_iommu_live_domain(rknpu_dev->dev);
 	if (domain) {
 		iommu_unmap(domain, rknpu_obj->iova_start, cache_size);
 		if (rknpu_obj->size > 0)

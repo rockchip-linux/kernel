@@ -79,6 +79,19 @@ void rknpu_iommu_dma_free_iova(struct rknpu_iommu_dma_cookie *cookie,
 		free_iova(iovad, iova_pfn(iovad, iova));
 }
 
+struct iommu_domain *rknpu_iommu_live_domain(struct device *dev)
+{
+	struct rknpu_device *rknpu_dev = dev_get_drvdata(dev);
+	int id;
+
+	if (!rknpu_dev)
+		return NULL;
+	id = rknpu_dev->iommu_domain_id;
+	if (id < 0 || id >= RKNPU_MAX_IOMMU_DOMAIN_NUM)
+		return NULL;
+	return rknpu_dev->iommu_domains[id];
+}
+
 static int rknpu_dma_info_to_prot(enum dma_data_direction dir, bool coherent)
 {
 	int prot = coherent ? IOMMU_CACHE : 0;
@@ -208,7 +221,7 @@ int rknpu_iommu_dma_map_sg(struct device *dev, struct scatterlist *sg,
 			   int nents, enum dma_data_direction dir,
 			   bool iova_aligned)
 {
-	struct iommu_domain *domain = iommu_get_domain_for_dev(dev);
+	struct iommu_domain *domain = rknpu_iommu_live_domain(dev);
 	struct rknpu_iommu_dma_cookie *cookie = (void *)domain->iova_cookie;
 	struct iova_domain *iovad = &cookie->iovad;
 	struct scatterlist *s = NULL, *prev = NULL;
@@ -298,7 +311,7 @@ void rknpu_iommu_dma_unmap_sg(struct device *dev, struct scatterlist *sg,
 			      int nents, enum dma_data_direction dir,
 			      bool iova_aligned)
 {
-	struct iommu_domain *domain = iommu_get_domain_for_dev(dev);
+	struct iommu_domain *domain = rknpu_iommu_live_domain(dev);
 	struct rknpu_iommu_dma_cookie *cookie = (void *)domain->iova_cookie;
 	struct iova_domain *iovad = &cookie->iovad;
 	size_t iova_off = 0;

@@ -53,6 +53,15 @@ int rknpu_iommu_domain_get_and_switch(struct rknpu_device *rknpu_dev,
 				      int domain_id);
 int rknpu_iommu_domain_put(struct rknpu_device *rknpu_dev);
 
+/*
+ * The domain the NPU is actually running in, from the driver's own state.
+ *
+ * iommu_get_domain_for_dev() returns what the IOMMU core last attached, which is
+ * only the same thing while domain switching goes through the core. Everything in
+ * this driver that must target the live domain uses this instead.
+ */
+struct iommu_domain *rknpu_iommu_live_domain(struct device *dev);
+
 #if KERNEL_VERSION(5, 10, 0) < LINUX_VERSION_CODE
 int iommu_get_dma_cookie(struct iommu_domain *domain);
 #endif
