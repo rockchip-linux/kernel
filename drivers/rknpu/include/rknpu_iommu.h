@@ -62,6 +62,14 @@ int rknpu_iommu_domain_put(struct rknpu_device *rknpu_dev);
  */
 struct iommu_domain *rknpu_iommu_live_domain(struct device *dev);
 
+/*
+ * Provided by drivers/iommu/rockchip-iommu.c. Switching with these keeps the IOMMU
+ * core out of the path, which is what avoids the rk_iommu_force_reset() that an
+ * iommu_attach_device() would perform on every domain change.
+ */
+extern int rk_iommu_switch_domain(struct device *dev, struct iommu_domain *domain);
+extern int rk_iommu_reprogram(struct device *dev);
+
 #if KERNEL_VERSION(5, 10, 0) < LINUX_VERSION_CODE
 int iommu_get_dma_cookie(struct iommu_domain *domain);
 #endif

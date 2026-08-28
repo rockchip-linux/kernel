@@ -5,6 +5,8 @@
  */
 
 #include <linux/dma-map-ops.h>
+#include <linux/iova.h>
+#include <linux/sizes.h>
 #include <linux/delay.h>
 #include <linux/jiffies.h>
 
@@ -456,29 +458,32 @@ int rknpu_iommu_switch_domain(struct rknpu_device *rknpu_dev, int domain_id)
 		return 0;
 	}
 
-	src_domain = iommu_get_domain_for_dev(rknpu_dev->dev);
-	if (src_domain != rknpu_dev->iommu_domains[src_domain_id]) {
-		LOG_DEV_ERROR(
-			rknpu_dev->dev,
-			"mismatch domain get from iommu_get_domain_for_dev\n");
-		return -EINVAL;
-	}
+	/*
+	 * The driver's own record is the source of truth for which domain is live.
+	 * iommu_get_domain_for_dev() no longer tracks these switches, so comparing
+	 * against it could only ever produce a spurious mismatch.
+	 */
+	src_domain = rknpu_dev->iommu_domains[src_domain_id];
 
 	dst_domain = rknpu_dev->iommu_domains[domain_id];
 	if (dst_domain != NULL) {
-		iommu_detach_device(src_domain, rknpu_dev->dev);
-		ret = iommu_attach_device(dst_domain, rknpu_dev->dev);
+		ret = rk_iommu_switch_domain(rknpu_dev->dev, dst_domain);
 		if (ret) {
 			LOG_DEV_ERROR(
 				rknpu_dev->dev,
-				"failed to attach dst iommu domain, id: %d, ret: %d\n",
+				"failed to switch to iommu domain, id: %d, ret: %d\n",
 				domain_id, ret);
-			if (iommu_attach_device(src_domain, rknpu_dev->dev)) {
+			/*
+			 * Unlike the detach/attach pair this replaces, a failed
+			 * switch leaves the previous page table live rather than
+			 * leaving the master attached to nothing, so restoring is
+			 * belt and braces.
+			 */
+			if (rk_iommu_switch_domain(rknpu_dev->dev, src_domain))
 				LOG_DEV_ERROR(
 					rknpu_dev->dev,
-					"failed to reattach src iommu domain, id: %d\n",
+					"failed to restore src iommu domain, id: %d\n",
 					src_domain_id);
-			}
 			return ret;
 		}
 		rknpu_dev->iommu_domain_id = domain_id;
@@ -491,32 +496,74 @@ int rknpu_iommu_switch_domain(struct rknpu_device *rknpu_dev, int domain_id)
 				      "failed to allocate iommu domain\n");
 			return -EIO;
 		}
-		// init domain iova_cookie
 		iommu_get_dma_cookie(dst_domain);
 
-		iommu_detach_device(src_domain, rknpu_dev->dev);
-		ret = iommu_attach_device(dst_domain, rknpu_dev->dev);
+		/*
+		 * Initialise this domain's IOVA allocator directly.
+		 *
+		 * The previous route got one by pretending the domain was a DMA-API
+		 * domain -- setting __IOMMU_DOMAIN_DMA_API on the type and calling
+		 * iommu_setup_dma_ops(), whose only useful effect here was
+		 * iommu_dma_init_domain() initialising the cookie's iovad. That
+		 * depends on iommu_get_domain_for_dev() reporting this domain, i.e.
+		 * on the default-domain overwrite removed below. Do the two init
+		 * calls directly instead: same iovad, and the domain stays a plain
+		 * unmanaged domain that iommu_map_sg() and iommu_unmap() serve.
+		 *
+		 * Granule and start_pfn mirror iommu_dma_init_domain(): 4 KiB pages,
+		 * base_pfn 1 so IOVA 0 is never handed out.
+		 */
+		{
+			struct rknpu_iommu_dma_cookie *ck =
+				(struct rknpu_iommu_dma_cookie *)dst_domain->iova_cookie;
+
+			if (!ck) {
+				LOG_DEV_ERROR(rknpu_dev->dev,
+					      "no iova cookie for domain %d\n",
+					      domain_id);
+				iommu_domain_free(dst_domain);
+				return -ENOMEM;
+			}
+			init_iova_domain(&ck->iovad, SZ_4K, 1);
+			if (iova_domain_init_rcaches(&ck->iovad)) {
+				LOG_DEV_ERROR(rknpu_dev->dev,
+					      "failed to init iova rcaches, domain %d\n",
+					      domain_id);
+				iommu_domain_free(dst_domain);
+				return -ENOMEM;
+			}
+		}
+
+		ret = rk_iommu_switch_domain(rknpu_dev->dev, dst_domain);
 		if (ret) {
 			LOG_DEV_ERROR(
 				rknpu_dev->dev,
-				"failed to attach iommu domain, id: %d, ret: %d\n",
+				"failed to switch to iommu domain, id: %d, ret: %d\n",
 				domain_id, ret);
 			iommu_domain_free(dst_domain);
 			return ret;
 		}
-
-		// set domain type to dma domain
-		dst_domain->type |= __IOMMU_DOMAIN_DMA_API;
-		// iommu dma init domain
-		iommu_setup_dma_ops(rknpu_dev->dev, 0, dma_limit);
+		(void)dma_limit;
 
 		rknpu_dev->iommu_domain_id = domain_id;
 		rknpu_dev->iommu_domains[domain_id] = dst_domain;
 		rknpu_dev->iommu_domain_num++;
 	}
 
-	// reset default iommu domain
-	rknpu_dev->iommu_group->default_domain = dst_domain;
+	/*
+	 * The default-domain overwrite that used to live here is gone.
+	 *
+	 * dma-iommu resolves every DMA-API mapping through
+	 * iommu_get_dma_domain() == dev->iommu_group->default_domain, so the only
+	 * way to make a DMA-API mapping land in domain N was to tell the core that
+	 * N was the group's default -- reaching the field through a private copy of
+	 * struct iommu_group. That leaves the core's idea of the default pointing at
+	 * a domain this driver may later free, and any core path that reattaches
+	 * "the default" then uses it.
+	 *
+	 * Nothing here needs it any more: the NPU's buffers are mapped explicitly
+	 * with iommu_map_sg()/iommu_unmap() against the domain the driver names.
+	 */
 
 	LOG_INFO("switch iommu domain from %d to %d\n", src_domain_id,
 		 domain_id);
@@ -611,7 +658,17 @@ void rknpu_iommu_free_domains(struct rknpu_device *rknpu_dev)
 		if (domain == NULL)
 			continue;
 
-		iommu_detach_device(domain, rknpu_dev->dev);
+		/*
+		 * No iommu_detach_device(): the core never attached these domains.
+		 * The switch to domain 0 above already moved the hardware off this
+		 * page table. Release the IOVA allocator initialised in the switch.
+		 */
+		if (domain->iova_cookie) {
+			struct rknpu_iommu_dma_cookie *ck =
+				(struct rknpu_iommu_dma_cookie *)domain->iova_cookie;
+
+			put_iova_domain(&ck->iovad);
+		}
 		iommu_domain_free(domain);
 
 		rknpu_dev->iommu_domains[i] = NULL;
