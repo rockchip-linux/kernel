@@ -560,7 +560,25 @@ int rknpu_iommu_domain_get_and_switch(struct rknpu_device *rknpu_dev,
 
 int rknpu_iommu_domain_put(struct rknpu_device *rknpu_dev)
 {
-	atomic_dec(&rknpu_dev->iommu_domain_refcount);
+	/*
+	 * Never let the reference count go negative.
+	 *
+	 * rknpu_iommu_domain_get_and_switch() proceeds only when this reads exactly
+	 * zero, so a bare atomic_dec() turns a single unbalanced put into a permanent
+	 * wedge: the count never reads zero again, every domain switch burns its full
+	 * RKNPU_SWITCH_DOMAIN_WAIT_TIME_MS and fails, and because
+	 * rknpu_gem_object_create() switches domains, every subsequent allocation then
+	 * fails with -EINVAL until the machine is rebooted.
+	 *
+	 * Clamping turns an over-put into a bounded anomaly instead of a dead device.
+	 * It treats the symptom, not the cause, so warn once per occurrence to keep any
+	 * remaining imbalance visible.
+	 */
+	if (atomic_dec_return(&rknpu_dev->iommu_domain_refcount) < 0) {
+		atomic_set(&rknpu_dev->iommu_domain_refcount, 0);
+		LOG_DEV_ERROR(rknpu_dev->dev,
+			      "iommu domain refcount underflow, clamped to 0\n");
+	}
 
 	return 0;
 }
