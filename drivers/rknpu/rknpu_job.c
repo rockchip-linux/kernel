@@ -646,6 +646,27 @@ static inline irqreturn_t rknpu_irq_handler(int irq, void *data, int core_index)
 	uint32_t status = 0;
 	unsigned long flags;
 
+	/*
+	 * Never touch NPU registers while the block is powered down.
+	 *
+	 * Both paths below access registers unconditionally: the no-job path writes
+	 * RKNPU_OFFSET_INT_CLEAR and the normal path reads RKNPU_OFFSET_INT_STATUS.
+	 * rknpu_power_off() is driven by a deferred work item, so a late or spurious
+	 * interrupt can arrive after power has gone. The register access then takes an
+	 * external abort and the machine dies immediately, with no console output and
+	 * no way back but a power cycle:
+	 *
+	 *   pc : readl+0x4/0x20
+	 *   lr : rknpu_irq_handler.isra.0+0x94/0x2f0
+	 *   Call trace: readl / rknpu_core0_irq_handler / __handle_irq_event_percpu
+	 *
+	 * power_refcount is an atomic, so unlike power_lock (a mutex) it is safe to read
+	 * from hard IRQ context. If the device is unpowered it cannot be asserting an
+	 * interrupt, so IRQ_NONE is correct and cannot cause a level-IRQ storm.
+	 */
+	if (atomic_read(&rknpu_dev->power_refcount) <= 0)
+		return IRQ_NONE;
+
 	subcore_data = &rknpu_dev->subcore_datas[core_index];
 
 	spin_lock_irqsave(&rknpu_dev->irq_lock, flags);
