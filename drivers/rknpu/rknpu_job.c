@@ -757,6 +757,17 @@ static void rknpu_job_timeout_clean(struct rknpu_device *rknpu_dev,
 				spin_unlock_irqrestore(&rknpu_dev->irq_lock,
 						       flags);
 
+				/*
+				 * Release the domain reference this job still
+				 * holds. The completion and abort paths both do
+				 * this, but reaping a timed-out job here did
+				 * not, so the reference was leaked and the
+				 * device-wide count never returned to zero --
+				 * after which no domain switch can ever succeed.
+				 */
+				if (test_and_clear_bit(0, &job->dom_held))
+					rknpu_iommu_domain_put(rknpu_dev);
+
 				do {
 					schedule_work(&job->cleanup_work);
 
