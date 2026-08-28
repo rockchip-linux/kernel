@@ -32,6 +32,17 @@ struct rknpu_job {
 	struct work_struct cleanup_work;
 	bool irq_entry[RKNPU_MAX_CORES];
 	unsigned int flags;
+	/*
+	 * Does this job currently hold the IOMMU domain reference?
+	 *
+	 * The reference is acquired exactly once, in rknpu_job_commit(), but three
+	 * teardown paths release it -- the completion path, rknpu_job_abort() and
+	 * rknpu_job_timeout_clean() -- with nothing recording whether this particular
+	 * job still holds one. Its own word rather than a bit in ->flags because the
+	 * releases run from both interrupt and process context, so the test-and-clear
+	 * has to be atomic.
+	 */
+	unsigned long dom_held;
 	int ret;
 	struct rknpu_submit *args;
 	bool args_owner;

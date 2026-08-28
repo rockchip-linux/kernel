@@ -500,7 +500,8 @@ static void rknpu_job_done(struct rknpu_job *job, int ret, int core_index)
 	if (atomic_dec_and_test(&job->interrupt_count)) {
 		int use_core_num = job->use_core_num;
 
-		rknpu_iommu_domain_put(rknpu_dev);
+		if (test_and_clear_bit(0, &job->dom_held))
+			rknpu_iommu_domain_put(rknpu_dev);
 
 		job->flags |= RKNPU_JOB_DONE;
 		job->ret = ret;
@@ -556,6 +557,7 @@ static void rknpu_job_schedule(struct rknpu_job *job)
 		job->ret = -EINVAL;
 		return;
 	}
+	set_bit(0, &job->dom_held);
 
 	spin_lock_irqsave(&rknpu_dev->irq_lock, flags);
 	for (i = 0; i < rknpu_dev->config->num_irqs; i++) {
@@ -580,7 +582,8 @@ static void rknpu_job_abort(struct rknpu_job *job)
 	unsigned long flags;
 	int i = 0;
 
-	rknpu_iommu_domain_put(rknpu_dev);
+	if (test_and_clear_bit(0, &job->dom_held))
+		rknpu_iommu_domain_put(rknpu_dev);
 
 	msleep(100);
 
