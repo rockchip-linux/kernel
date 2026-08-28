@@ -4927,7 +4927,6 @@ int rkisp_init_params_vdev_v3x(struct rkisp_isp_params_vdev *params_vdev)
 	tasklet_init(&priv_val->lsc_tasklet,
 		     isp_lsc_cfg_sram_task,
 		     (unsigned long)params_vdev);
-	tasklet_disable(&priv_val->lsc_tasklet);
 	return 0;
 }
 
