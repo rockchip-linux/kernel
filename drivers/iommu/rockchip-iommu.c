@@ -1323,6 +1323,125 @@ static void rk_iommu_detach_device(struct iommu_domain *domain,
 	}
 }
 
+/*
+ * Switch a master to a different domain by reprogramming the page table base in
+ * place, without going through the IOMMU core.
+ *
+ * The core path for this is iommu_detach_device() + iommu_attach_device(), and
+ * for rockchip-iommu the attach runs rk_iommu_enable(), i.e. a full
+ * rk_iommu_force_reset() of every MMU bank. With work in flight on other cores
+ * that reset intermittently fails its DTE_ADDR readback ("Error during raw
+ * reset. MMU_DTE_ADDR is not functioning"), the attach then fails, and the core
+ * leaves the master attached to no domain at all.
+ *
+ * The hardware does not need any of that to change page tables. On an already
+ * enabled MMU it is:
+ *
+ *	enable_stall -> write DTE_ADDR on every bank -> ZAP_CACHE -> disable_stall
+ *
+ * with paging left on throughout. No reset, no paging off/on.
+ *
+ * Because the core is not involved, iommu_get_domain_for_dev() does NOT track
+ * this switch; a caller using it must track the live domain itself. The caller
+ * is also responsible for ensuring no DMA is in flight across the swap.
+ */
+int rk_iommu_switch_domain(struct device *dev, struct iommu_domain *domain)
+{
+	struct rk_iommu *iommu = rk_iommu_from_dev(dev);
+	struct rk_iommu_domain *rk_domain;
+	unsigned long flags;
+	int ret, i;
+
+	if (!iommu || !domain)
+		return -ENODEV;
+
+	rk_domain = to_rk_domain(domain);
+
+	/* the third-party ops wrapper owns its own attach path */
+	if (rk_domain->opt_ops)
+		return -EOPNOTSUPP;
+
+	if (iommu->domain == domain)
+		return 0;
+
+	/*
+	 * Move this iommu between the two domains' iommus lists: rk_iommu_zap_iova()
+	 * and the TLB flush paths walk that list, so it has to name the live domain.
+	 */
+	if (iommu->domain) {
+		struct rk_iommu_domain *old = to_rk_domain(iommu->domain);
+
+		spin_lock_irqsave(&old->iommus_lock, flags);
+		list_del_init(&iommu->node);
+		spin_unlock_irqrestore(&old->iommus_lock, flags);
+	}
+	iommu->domain = domain;
+	spin_lock_irqsave(&rk_domain->iommus_lock, flags);
+	list_add_tail(&iommu->node, &rk_domain->iommus);
+	spin_unlock_irqrestore(&rk_domain->iommus_lock, flags);
+	rk_domain->shootdown_entire = iommu->shootdown_entire;
+
+	ret = pm_runtime_get_if_in_use(iommu->dev);
+	if (!ret || WARN_ON_ONCE(ret < 0)) {
+		/* not runtime-active: rk_iommu_resume() programs DTE_ADDR from iommu->domain */
+		return 0;
+	}
+
+	ret = clk_bulk_enable(iommu->num_clocks, iommu->clocks);
+	if (ret)
+		goto out_pm_put;
+
+	ret = rk_iommu_enable_stall(iommu);
+	if (ret)
+		goto out_disable_clocks;
+
+	for (i = 0; i < iommu->num_mmu; i++) {
+		rk_iommu_write(iommu->bases[i], RK_MMU_DTE_ADDR,
+			       rk_ops->mk_dtentries(rk_domain->dt_dma));
+		rk_iommu_base_command(iommu->bases[i], RK_MMU_CMD_ZAP_CACHE);
+	}
+
+	rk_iommu_disable_stall(iommu);
+
+out_disable_clocks:
+	clk_bulk_disable(iommu->num_clocks, iommu->clocks);
+out_pm_put:
+	pm_runtime_put(iommu->dev);
+	return ret;
+}
+EXPORT_SYMBOL(rk_iommu_switch_domain);
+
+/*
+ * Re-establish the MMU for the currently attached domain, unconditionally.
+ *
+ * A hardware soft reset wipes the MMU (DTE_ADDR, paging), so the page table has
+ * to be reprogrammed afterwards. rk_iommu_switch_domain() deliberately
+ * short-circuits when the domain has not changed, which is exactly wrong here:
+ * the domain is the same, the hardware is not.
+ *
+ * iommu->domain is the live domain, so reprogramming from it is correct by
+ * construction and does not depend on what the IOMMU core believes.
+ */
+int rk_iommu_reprogram(struct device *dev)
+{
+	struct rk_iommu *iommu = rk_iommu_from_dev(dev);
+	int ret;
+
+	if (!iommu || !iommu->domain)
+		return -ENODEV;
+	if (to_rk_domain(iommu->domain)->opt_ops)
+		return -EOPNOTSUPP;
+
+	ret = pm_runtime_get_if_in_use(iommu->dev);
+	if (!ret || WARN_ON_ONCE(ret < 0))
+		return 0;   /* not runtime-active: rk_iommu_resume() will program it */
+
+	ret = rk_iommu_enable(iommu);
+	pm_runtime_put(iommu->dev);
+	return ret;
+}
+EXPORT_SYMBOL(rk_iommu_reprogram);
+
 static int rk_iommu_attach_device(struct iommu_domain *domain,
 		struct device *dev)
 {
