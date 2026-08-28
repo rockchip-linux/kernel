@@ -101,8 +101,23 @@ static void rknpu_job_free(struct rknpu_job *job)
 		rknpu_gem_object_put(&task_obj->base);
 #endif
 
-	if (job->fence)
+	if (job->fence) {
+		/*
+		 * A job torn down without completing (rknpu_job_timeout_clean() or
+		 * rknpu_job_abort()) never reaches the RKNPU_JOB_DONE path, so its fence
+		 * is never signalled and every waiter blocks until its own timeout
+		 * expires -- which defeats the point of waiting on a fence to notice
+		 * that a job has failed. Signal it with an error instead, so waiters
+		 * wake immediately and can distinguish failure from completion via
+		 * dma_fence_get_status(). No-op on the success path, where the
+		 * completion interrupt has already signalled it.
+		 */
+		if (!dma_fence_is_signaled(job->fence)) {
+			dma_fence_set_error(job->fence, -ETIMEDOUT);
+			dma_fence_signal(job->fence);
+		}
 		dma_fence_put(job->fence);
+	}
 
 	if (job->args_owner)
 		kfree(job->args);
