@@ -1778,9 +1778,11 @@ static int android_device_create(struct gadget_info *gi)
 	struct device_attribute **attrs;
 	struct device_attribute *attr;
 
+	dev_t devt = MKDEV(0, gadget_index);
+
 	INIT_WORK(&gi->work, android_work);
 	gi->dev = device_create(android_class, NULL,
-			MKDEV(0, 0), NULL, "android%d", gadget_index++);
+			devt, NULL, "android%d", gadget_index++);
 	if (IS_ERR(gi->dev))
 		return PTR_ERR(gi->dev);
 
