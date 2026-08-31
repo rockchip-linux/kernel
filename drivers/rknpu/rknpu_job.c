@@ -150,6 +150,20 @@ static inline struct rknpu_job *rknpu_job_alloc(struct rknpu_device *rknpu_dev,
 #endif
 
 	job = kzalloc(sizeof(*job), GFP_KERNEL);
+	if (job) {
+		/*
+		 * head[] must be a valid (empty) list node from the moment the job
+		 * exists, not only once rknpu_job_schedule() queues it. kzalloc leaves
+		 * it {NULL,NULL}, and rknpu_job_schedule() can bail before queueing
+		 * (a failed domain switch sets job->ret and returns), after which the
+		 * abort path still has to be able to unlink it. Initialising here makes
+		 * that unlink idempotent instead of a NULL deref.
+		 */
+		int c;
+
+		for (c = 0; c < RKNPU_MAX_CORES; c++)
+			INIT_LIST_HEAD(&job->head[c]);
+	}
 	if (!job)
 		return NULL;
 
@@ -596,6 +610,21 @@ static void rknpu_job_abort(struct rknpu_job *job)
 				subcore_data->task_num -=
 					rknpu_get_task_number(job, i);
 			}
+			/*
+			 * Drop the job from this core's todo_list before it is
+			 * freed below. Clearing subcore_data->job only retires
+			 * the job that is RUNNING; a job aborted while still
+			 * QUEUED stayed linked, so rknpu_job_next() would later
+			 * list_first_entry() it and list_del_init() through
+			 * freed memory -- a write fault at a wild address.
+			 * rknpu_job_wait() already does this on its "job commit
+			 * failed" path; the abort path did not, and that is the
+			 * path a domain switch takes (rknpu_job_timeout_clean ->
+			 * rknpu_reap_all_cores) while another thread submits.
+			 * list_del_init() is idempotent, so this is safe for a
+			 * job already dequeued by rknpu_job_next().
+			 */
+			list_del_init(&job->head[i]);
 		}
 	}
 	spin_unlock_irqrestore(&rknpu_dev->irq_lock, flags);
