@@ -72,7 +72,17 @@ static int rknpu_gem_get_pages(struct rknpu_gem_object *rknpu_obj)
 			      rknpu_obj->size);
 		goto free_sgt;
 	}
-	iommu_flush_iotlb_all(rknpu_iommu_live_domain(drm->dev));
+	{
+		/*
+		 * iommu_flush_iotlb_all() dereferences domain->ops, so a NULL live
+		 * domain faults in the IOMMU core rather than here. Skip the flush:
+		 * with no domain attached there is no stale TLB entry to invalidate.
+		 */
+		struct iommu_domain *fd = rknpu_iommu_live_domain(drm->dev);
+
+		if (fd)
+			iommu_flush_iotlb_all(fd);
+	}
 
 	if (rknpu_obj->flags & RKNPU_MEM_KERNEL_MAPPING) {
 		rknpu_obj->cookie = vmap(rknpu_obj->pages, rknpu_obj->num_pages,

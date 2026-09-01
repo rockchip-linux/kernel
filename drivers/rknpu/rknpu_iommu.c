@@ -14,6 +14,32 @@
 
 #define RKNPU_SWITCH_DOMAIN_WAIT_TIME_MS 6000
 
+/*
+ * The live domain, its iova_cookie, or both can be absent: rknpu_iommu_live_domain() returns NULL for a
+ * device with no drvdata, an out-of-range iommu_domain_id, or an empty iommu_domains[] slot. Callers used
+ * to read domain->iova_cookie straight off the result, which faults at a near-zero address -- observed on
+ * the GEM teardown path at process exit (exit_mmap -> drm_gem_vm_close -> rknpu_gem_object_destroy ->
+ * rknpu_iommu_dma_unmap_sg, ESR 0x96000004: a READ, FSC 0x04).
+ *
+ * One accessor so every site answers the question the same way, and so a new site cannot forget.
+ */
+static struct rknpu_iommu_dma_cookie *rknpu_iommu_cookie(struct device *dev,
+							 const char *who)
+{
+	struct iommu_domain *domain = rknpu_iommu_live_domain(dev);
+
+	if (!domain) {
+		dev_err_ratelimited(dev, "%s: NPU attached to NO iommu domain (a domain switch left it detached)\n",
+				    who);
+		return NULL;
+	}
+	if (!domain->iova_cookie) {
+		dev_err_ratelimited(dev, "%s: iommu domain has no iova cookie\n", who);
+		return NULL;
+	}
+	return (struct rknpu_iommu_dma_cookie *)domain->iova_cookie;
+}
+
 dma_addr_t rknpu_iommu_dma_alloc_iova(struct iommu_domain *domain, size_t size,
 				      u64 dma_limit, struct device *dev,
 				      bool size_aligned)
@@ -224,12 +250,17 @@ int rknpu_iommu_dma_map_sg(struct device *dev, struct scatterlist *sg,
 			   bool iova_aligned)
 {
 	struct iommu_domain *domain = rknpu_iommu_live_domain(dev);
-	struct rknpu_iommu_dma_cookie *cookie = (void *)domain->iova_cookie;
-	struct iova_domain *iovad = &cookie->iovad;
+	struct rknpu_iommu_dma_cookie *cookie = rknpu_iommu_cookie(dev, __func__);
+	struct iova_domain *iovad;
 	struct scatterlist *s = NULL, *prev = NULL;
 	int prot = rknpu_dma_info_to_prot(dir, dev_is_dma_coherent(dev));
 	dma_addr_t iova;
 	unsigned long iova_len = 0;
+
+	/* No domain -> no mapping. Callers already convert 0 to -EFAULT. */
+	if (!cookie)
+		return 0;
+	iovad = &cookie->iovad;
 	unsigned long mask = dma_get_seg_boundary(dev);
 	ssize_t ret = -EINVAL;
 	int i = 0;
@@ -314,8 +345,8 @@ void rknpu_iommu_dma_unmap_sg(struct device *dev, struct scatterlist *sg,
 			      bool iova_aligned)
 {
 	struct iommu_domain *domain = rknpu_iommu_live_domain(dev);
-	struct rknpu_iommu_dma_cookie *cookie = (void *)domain->iova_cookie;
-	struct iova_domain *iovad = &cookie->iovad;
+	struct rknpu_iommu_dma_cookie *cookie = rknpu_iommu_cookie(dev, __func__);
+	struct iova_domain *iovad;
 	size_t iova_off = 0;
 	dma_addr_t end = 0, start = 0;
 	struct scatterlist *tmp = NULL;
@@ -325,6 +356,15 @@ void rknpu_iommu_dma_unmap_sg(struct device *dev, struct scatterlist *sg,
 
 	if (iova_aligned)
 		return dma_unmap_sg(dev, sg, nents, dir);
+
+	/*
+	 * With no domain there is no iovad to return the range to, so it cannot be freed here. Leaking the
+	 * IOVA is strictly better than the alternative: this fault panics, and the panic then fails to stop
+	 * the secondary CPUs, so the board hangs rather than rebooting and needs a physical power cycle.
+	 */
+	if (!cookie)
+		return;
+	iovad = &cookie->iovad;
 
 #if KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE
 	/*
