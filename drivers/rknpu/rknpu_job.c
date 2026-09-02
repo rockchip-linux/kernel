@@ -101,8 +101,23 @@ static void rknpu_job_free(struct rknpu_job *job)
 		rknpu_gem_object_put(&task_obj->base);
 #endif
 
-	if (job->fence)
+	if (job->fence) {
+		/*
+		 * A job torn down without completing (rknpu_job_timeout_clean() or
+		 * rknpu_job_abort()) never reaches the RKNPU_JOB_DONE path, so its fence
+		 * is never signalled and every waiter blocks until its own timeout
+		 * expires -- which defeats the point of waiting on a fence to notice
+		 * that a job has failed. Signal it with an error instead, so waiters
+		 * wake immediately and can distinguish failure from completion via
+		 * dma_fence_get_status(). No-op on the success path, where the
+		 * completion interrupt has already signalled it.
+		 */
+		if (!dma_fence_is_signaled(job->fence)) {
+			dma_fence_set_error(job->fence, -ETIMEDOUT);
+			dma_fence_signal(job->fence);
+		}
 		dma_fence_put(job->fence);
+	}
 
 	if (job->args_owner)
 		kfree(job->args);
@@ -135,6 +150,20 @@ static inline struct rknpu_job *rknpu_job_alloc(struct rknpu_device *rknpu_dev,
 #endif
 
 	job = kzalloc(sizeof(*job), GFP_KERNEL);
+	if (job) {
+		/*
+		 * head[] must be a valid (empty) list node from the moment the job
+		 * exists, not only once rknpu_job_schedule() queues it. kzalloc leaves
+		 * it {NULL,NULL}, and rknpu_job_schedule() can bail before queueing
+		 * (a failed domain switch sets job->ret and returns), after which the
+		 * abort path still has to be able to unlink it. Initialising here makes
+		 * that unlink idempotent instead of a NULL deref.
+		 */
+		int c;
+
+		for (c = 0; c < RKNPU_MAX_CORES; c++)
+			INIT_LIST_HEAD(&job->head[c]);
+	}
 	if (!job)
 		return NULL;
 
@@ -485,7 +514,8 @@ static void rknpu_job_done(struct rknpu_job *job, int ret, int core_index)
 	if (atomic_dec_and_test(&job->interrupt_count)) {
 		int use_core_num = job->use_core_num;
 
-		rknpu_iommu_domain_put(rknpu_dev);
+		if (test_and_clear_bit(0, &job->dom_held))
+			rknpu_iommu_domain_put(rknpu_dev);
 
 		job->flags |= RKNPU_JOB_DONE;
 		job->ret = ret;
@@ -541,6 +571,7 @@ static void rknpu_job_schedule(struct rknpu_job *job)
 		job->ret = -EINVAL;
 		return;
 	}
+	set_bit(0, &job->dom_held);
 
 	spin_lock_irqsave(&rknpu_dev->irq_lock, flags);
 	for (i = 0; i < rknpu_dev->config->num_irqs; i++) {
@@ -565,7 +596,8 @@ static void rknpu_job_abort(struct rknpu_job *job)
 	unsigned long flags;
 	int i = 0;
 
-	rknpu_iommu_domain_put(rknpu_dev);
+	if (test_and_clear_bit(0, &job->dom_held))
+		rknpu_iommu_domain_put(rknpu_dev);
 
 	msleep(100);
 
@@ -578,6 +610,21 @@ static void rknpu_job_abort(struct rknpu_job *job)
 				subcore_data->task_num -=
 					rknpu_get_task_number(job, i);
 			}
+			/*
+			 * Drop the job from this core's todo_list before it is
+			 * freed below. Clearing subcore_data->job only retires
+			 * the job that is RUNNING; a job aborted while still
+			 * QUEUED stayed linked, so rknpu_job_next() would later
+			 * list_first_entry() it and list_del_init() through
+			 * freed memory -- a write fault at a wild address.
+			 * rknpu_job_wait() already does this on its "job commit
+			 * failed" path; the abort path did not, and that is the
+			 * path a domain switch takes (rknpu_job_timeout_clean ->
+			 * rknpu_reap_all_cores) while another thread submits.
+			 * list_del_init() is idempotent, so this is safe for a
+			 * job already dequeued by rknpu_job_next().
+			 */
+			list_del_init(&job->head[i]);
 		}
 	}
 	spin_unlock_irqrestore(&rknpu_dev->irq_lock, flags);
@@ -645,6 +692,27 @@ static inline irqreturn_t rknpu_irq_handler(int irq, void *data, int core_index)
 	struct rknpu_job *job = NULL;
 	uint32_t status = 0;
 	unsigned long flags;
+
+	/*
+	 * Never touch NPU registers while the block is powered down.
+	 *
+	 * Both paths below access registers unconditionally: the no-job path writes
+	 * RKNPU_OFFSET_INT_CLEAR and the normal path reads RKNPU_OFFSET_INT_STATUS.
+	 * rknpu_power_off() is driven by a deferred work item, so a late or spurious
+	 * interrupt can arrive after power has gone. The register access then takes an
+	 * external abort and the machine dies immediately, with no console output and
+	 * no way back but a power cycle:
+	 *
+	 *   pc : readl+0x4/0x20
+	 *   lr : rknpu_irq_handler.isra.0+0x94/0x2f0
+	 *   Call trace: readl / rknpu_core0_irq_handler / __handle_irq_event_percpu
+	 *
+	 * power_refcount is an atomic, so unlike power_lock (a mutex) it is safe to read
+	 * from hard IRQ context. If the device is unpowered it cannot be asserting an
+	 * interrupt, so IRQ_NONE is correct and cannot cause a level-IRQ storm.
+	 */
+	if (atomic_read(&rknpu_dev->power_refcount) <= 0)
+		return IRQ_NONE;
 
 	subcore_data = &rknpu_dev->subcore_datas[core_index];
 
@@ -717,6 +785,17 @@ static void rknpu_job_timeout_clean(struct rknpu_device *rknpu_dev,
 				subcore_data->job = NULL;
 				spin_unlock_irqrestore(&rknpu_dev->irq_lock,
 						       flags);
+
+				/*
+				 * Release the domain reference this job still
+				 * holds. The completion and abort paths both do
+				 * this, but reaping a timed-out job here did
+				 * not, so the reference was leaked and the
+				 * device-wide count never returned to zero --
+				 * after which no domain switch can ever succeed.
+				 */
+				if (test_and_clear_bit(0, &job->dom_held))
+					rknpu_iommu_domain_put(rknpu_dev);
 
 				do {
 					schedule_work(&job->cleanup_work);
