@@ -275,7 +275,15 @@ static inline int rknpu_job_wait(struct rknpu_job *job)
 			list_for_each_entry_safe(
 				entry, q, &subcore_data->todo_list, head[i]) {
 				if (entry == job) {
-					list_del(&job->head[i]);
+					/*
+					 * list_del_init(), not list_del():
+					 * rknpu_job_abort() unlinks this same
+					 * node moments later on every error
+					 * exit from here, and list_del() would
+					 * leave it poisoned for that second
+					 * unlink to dereference.
+					 */
+					list_del_init(&job->head[i]);
 					break;
 				}
 			}
@@ -639,8 +647,11 @@ static void rknpu_job_abort(struct rknpu_job *job)
 			 * failed" path; the abort path did not, and that is the
 			 * path a domain switch takes (rknpu_job_timeout_clean ->
 			 * rknpu_reap_all_cores) while another thread submits.
-			 * list_del_init() is idempotent, so this is safe for a
-			 * job already dequeued by rknpu_job_next().
+			 * list_del_init() is idempotent against itself, so this
+			 * is safe for a job already dequeued by
+			 * rknpu_job_next() -- and rknpu_job_wait() must use
+			 * list_del_init() too, because list_del() poisons the
+			 * node and this unlink would then fault on it.
 			 */
 			list_del_init(&job->head[i]);
 		}
