@@ -53,6 +53,30 @@ int rknpu_iommu_domain_get_and_switch(struct rknpu_device *rknpu_dev,
 				      int domain_id);
 int rknpu_iommu_domain_put(struct rknpu_device *rknpu_dev);
 
+/*
+ * The domain the NPU is actually running in, from the driver's own state.
+ *
+ * iommu_get_domain_for_dev() returns what the IOMMU core last attached, which is
+ * only the same thing while domain switching goes through the core. Everything in
+ * this driver that must target the live domain uses this instead.
+ */
+struct iommu_domain *rknpu_iommu_live_domain(struct device *dev);
+
+/*
+ * Provided by drivers/iommu/rockchip-iommu.c. Switching with these keeps the IOMMU
+ * core out of the path, which is what avoids the rk_iommu_force_reset() that an
+ * iommu_attach_device() would perform on every domain change.
+ */
+extern int rk_iommu_switch_domain(struct device *dev, struct iommu_domain *domain);
+extern int rk_iommu_reprogram(struct device *dev);
+
+/*
+ * Scoped override of the core's default domain, for the dma-buf attachment map and
+ * its matching unmap only. Returns the previous value; the caller restores it.
+ */
+struct iommu_domain *rknpu_iommu_default_swap(struct device *dev,
+					      struct iommu_domain *dom);
+
 #if KERNEL_VERSION(5, 10, 0) < LINUX_VERSION_CODE
 int iommu_get_dma_cookie(struct iommu_domain *domain);
 #endif

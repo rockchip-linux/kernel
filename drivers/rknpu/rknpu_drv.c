@@ -466,6 +466,14 @@ static int rknpu_action(struct rknpu_device *rknpu_dev,
 	case RKNPU_SET_BW_TW:
 		ret = rknpu_set_bw_priority(rknpu_dev, 0, 0, args->value);
 		break;
+	case RKNPU_ACT_SET_DOMAIN: {
+		int _id = (int)args->value;
+
+		ret = rknpu_iommu_domain_get_and_switch(rknpu_dev, _id);
+		if (!ret)
+			rknpu_iommu_domain_put(rknpu_dev);   /* switch only, hold no reference */
+		break;
+	}
 	case RKNPU_ACT_CLR_TOTAL_RW_AMOUNT:
 		ret = rknpu_clear_rw_amount(rknpu_dev);
 		break;

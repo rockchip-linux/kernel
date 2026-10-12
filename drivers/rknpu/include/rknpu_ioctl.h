@@ -122,6 +122,16 @@ enum e_rknpu_action {
 	RKNPU_GET_BW_TW = 11,
 	RKNPU_SET_BW_TW = 12,
 	RKNPU_ACT_CLR_TOTAL_RW_AMOUNT = 13,
+	/*
+	 * Make an IOMMU domain live, with no allocation. `value` is the domain id.
+	 *
+	 * A dma-buf import maps its sg during PRIME_FD_TO_HANDLE, into whichever
+	 * domain is live at that instant, because the ioctl carries no domain. The
+	 * target is named only by the later MEM_CREATE, which does not re-map an
+	 * already-imported handle. Userspace issues this first so the mapping lands
+	 * in the domain the buffer will actually be used in.
+	 */
+	RKNPU_ACT_SET_DOMAIN = 0x100,
 	RKNPU_GET_DT_WR_AMOUNT = 14,
 	RKNPU_GET_DT_RD_AMOUNT = 15,
 	RKNPU_GET_WT_RD_AMOUNT = 16,

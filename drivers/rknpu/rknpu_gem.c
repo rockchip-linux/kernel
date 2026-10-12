@@ -72,7 +72,17 @@ static int rknpu_gem_get_pages(struct rknpu_gem_object *rknpu_obj)
 			      rknpu_obj->size);
 		goto free_sgt;
 	}
-	iommu_flush_iotlb_all(iommu_get_domain_for_dev(drm->dev));
+	{
+		/*
+		 * iommu_flush_iotlb_all() dereferences domain->ops, so a NULL live
+		 * domain faults in the IOMMU core rather than here. Skip the flush:
+		 * with no domain attached there is no stale TLB entry to invalidate.
+		 */
+		struct iommu_domain *fd = rknpu_iommu_live_domain(drm->dev);
+
+		if (fd)
+			iommu_flush_iotlb_all(fd);
+	}
 
 	if (rknpu_obj->flags & RKNPU_MEM_KERNEL_MAPPING) {
 		rknpu_obj->cookie = vmap(rknpu_obj->pages, rknpu_obj->num_pages,
@@ -501,7 +511,7 @@ static int rknpu_gem_alloc_buf_with_cache(struct rknpu_gem_object *rknpu_obj,
 	}
 
 	/* iova map to cache */
-	domain = iommu_get_domain_for_dev(rknpu_dev->dev);
+	domain = rknpu_iommu_live_domain(rknpu_dev->dev);
 	if (!domain) {
 		LOG_ERROR("failed to get iommu domain!");
 		return -EINVAL;
@@ -654,7 +664,7 @@ static void rknpu_gem_free_buf_with_cache(struct rknpu_gem_object *rknpu_obj,
 		return;
 	}
 
-	domain = iommu_get_domain_for_dev(rknpu_dev->dev);
+	domain = rknpu_iommu_live_domain(rknpu_dev->dev);
 	if (domain) {
 		iommu_unmap(domain, rknpu_obj->iova_start, cache_size);
 		if (rknpu_obj->size > 0)
@@ -850,7 +860,22 @@ void rknpu_gem_object_destroy(struct rknpu_gem_object *rknpu_obj)
 	 * once dmabuf's refcount becomes 0.
 	 */
 	if (obj->import_attach) {
-		drm_prime_gem_destroy(obj, rknpu_obj->sgt);
+		{
+			/*
+			 * dma_buf_unmap_attachment() unmaps through the DMA API
+			 * too, so it must see the same default domain the map saw.
+			 * The caller has already switched to this object's recorded
+			 * domain, so the live domain is the right one.
+			 */
+			struct iommu_domain *l = rknpu_dev->iommu_en ?
+				rknpu_iommu_live_domain(rknpu_dev->dev) : NULL;
+			struct iommu_domain *sv = l ?
+				rknpu_iommu_default_swap(rknpu_dev->dev, l) : NULL;
+
+			drm_prime_gem_destroy(obj, rknpu_obj->sgt);
+			if (sv)
+				rknpu_iommu_default_swap(rknpu_dev->dev, sv);
+		}
 		rknpu_gem_free_page(rknpu_obj->pages);
 	} else {
 		if (IS_ENABLED(CONFIG_ROCKCHIP_RKNPU_SRAM) &&
@@ -1398,7 +1423,30 @@ int rknpu_gem_mmap(struct file *filp, struct vm_area_struct *vma)
 struct drm_gem_object *rknpu_gem_prime_import(struct drm_device *dev,
 					      struct dma_buf *dma_buf)
 {
-	return drm_gem_prime_import_dev(dev, dma_buf, dev->dev);
+	struct rknpu_device *rknpu_dev = dev->dev_private;
+	struct drm_gem_object *obj;
+	struct iommu_domain *live, *saved = NULL;
+
+	if (!rknpu_dev->iommu_en)
+		return drm_gem_prime_import_dev(dev, dma_buf, dev->dev);
+
+	/*
+	 * DRM core maps the attachment through the DMA API here, which always
+	 * targets group->default_domain. Point that at the live domain for the
+	 * duration of the import so the sg is mapped where the NPU will run, then
+	 * restore it. domain_lock keeps a concurrent switch from moving the live
+	 * domain underneath the map.
+	 */
+	mutex_lock(&rknpu_dev->domain_lock);
+	live = rknpu_iommu_live_domain(rknpu_dev->dev);
+	if (live)
+		saved = rknpu_iommu_default_swap(rknpu_dev->dev, live);
+	obj = drm_gem_prime_import_dev(dev, dma_buf, dev->dev);
+	if (saved)
+		rknpu_iommu_default_swap(rknpu_dev->dev, saved);
+	mutex_unlock(&rknpu_dev->domain_lock);
+
+	return obj;
 }
 #endif
 

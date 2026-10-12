@@ -8,6 +8,7 @@
 #include <linux/iommu.h>
 
 #include "rknpu_reset.h"
+#include "rknpu_iommu.h"
 
 #ifndef FPGA_PLATFORM
 static inline struct reset_control *rknpu_reset_control_get(struct device *dev,
@@ -138,13 +139,24 @@ int rknpu_soft_reset(struct rknpu_device *rknpu_dev)
 		return ret;
 	}
 
-	if (rknpu_dev->iommu_en)
-		domain = iommu_get_domain_for_dev(rknpu_dev->dev);
+	/*
+	 * A soft reset wipes the MMU, so the page table has to be reprogrammed. This
+	 * used to be a detach/attach of iommu_get_domain_for_dev(), which is the
+	 * core's default domain -- correct only while the driver overwrote that to
+	 * follow its switches. It no longer does, so re-establish the live domain
+	 * explicitly instead; otherwise the reset silently leaves the NPU pointed at
+	 * domain 0 while the driver believes domain N is live, and the next job is
+	 * committed against a page table where its IOVAs do not exist.
+	 */
+	if (rknpu_dev->iommu_en) {
+		int rp = rk_iommu_reprogram(rknpu_dev->dev);
 
-	if (domain) {
-		iommu_detach_device(domain, rknpu_dev->dev);
-		iommu_attach_device(domain, rknpu_dev->dev);
+		if (rp)
+			LOG_DEV_ERROR(rknpu_dev->dev,
+				      "failed to reprogram iommu after reset: %d\n",
+				      rp);
 	}
+	(void)domain;
 
 	rknpu_dev->soft_reseting = false;
 
