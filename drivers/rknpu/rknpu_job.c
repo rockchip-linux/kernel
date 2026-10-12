@@ -270,7 +270,16 @@ static inline int rknpu_job_wait(struct rknpu_job *job)
 	last_task = job->last_task;
 	if (!last_task) {
 		spin_lock_irqsave(&rknpu_dev->irq_lock, flags);
-		for (i = 0; i < job->use_core_num; i++) {
+		/*
+		 * Walk the cores this job was actually queued on. head[i] is
+		 * indexed by CORE index, the way rknpu_job_schedule() and
+		 * rknpu_job_abort() do it -- not by a 0..use_core_num-1
+		 * counter, which names the wrong list for a single-core job
+		 * on core 1 or core 2.
+		 */
+		for (i = 0; i < rknpu_dev->config->num_irqs; i++) {
+			if (!(args->core_mask & rknpu_core_mask(i)))
+				continue;
 			subcore_data = &rknpu_dev->subcore_datas[i];
 			list_for_each_entry_safe(
 				entry, q, &subcore_data->todo_list, head[i]) {
