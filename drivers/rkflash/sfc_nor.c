@@ -12,6 +12,10 @@
 #include "rkflash_debug.h"
 #include "sfc_nor.h"
 
+#ifdef CONFIG_RK_SFC_NOR_MTD_PANIC_WRITE
+#include <linux/errno.h>
+#endif
+
 static struct flash_info spi_flash_tbl[] = {
 	/* GD25Q32B */
 	{ 0xc84016, 128, 8, 0x03, 0x02, 0x6B, 0x32, 0x20, 0xD8, 0x0D, 13, 9, 0 },
@@ -793,4 +797,104 @@ int snor_reinit_from_table_packet(struct SFNOR_DEV *p_dev,
 
 	return ret;
 }
+
+#ifdef CONFIG_RK_SFC_NOR_MTD_PANIC_WRITE
+static int snor_panic_status(u32 *status, const struct sfc_panic_ctx *ctx)
+{
+	struct rk_sfc_op op = { 0 };
+
+	op.sfcmd.b.cmd = CMD_READ_STATUS;
+	*status = 0;
+	return sfc_request_panic(&op, 0, status, 1, ctx);
+}
+
+int snor_panic_check_ready(const struct sfc_panic_ctx *ctx)
+{
+	u32 status;
+	int ret = snor_panic_status(&status, ctx);
+
+	if (ret)
+		return ret;
+	return status & BIT(0) ? -EBUSY : 0;
+}
+
+int snor_read_data_panic(struct SFNOR_DEV *dev, u32 addr, void *buf,
+			 u32 size, const struct sfc_panic_ctx *ctx)
+{
+	struct rk_sfc_op op = { 0 };
+
+	if (dev->io_mode != IO_MODE_SPI || dev->read_lines > DATA_LINES_X4)
+		return -EOPNOTSUPP;
+
+	op.sfcmd.b.cmd = dev->read_cmd;
+	op.sfcmd.b.addrbits = dev->addr_mode == ADDR_MODE_4BYTE ?
+			     SFC_ADDR_32BITS : SFC_ADDR_24BITS;
+	op.sfctrl.b.datalines = dev->read_lines;
+	switch (dev->read_cmd) {
+	case CMD_READ_DATA:
+	case CMD_PAGE_READ: /* Dedicated four-byte read opcode, 0x13. */
+		break;
+	case CMD_FAST_READ_X1:
+	case CMD_PAGE_FASTREAD4B:
+	case CMD_FAST_READ_X4:
+	case CMD_FAST_READ_X2:
+	case CMD_FAST_4READ_X4:
+		op.sfcmd.b.dummybits = 8;
+		break;
+	default:
+		/* In particular, do not emulate the normal 0xeb address trick. */
+		return -EOPNOTSUPP;
+	}
+	return sfc_request_panic(&op, addr, buf, size, ctx);
+}
+
+int snor_prog_page_panic(struct SFNOR_DEV *dev, u32 addr, const void *buf,
+			 u32 size, const struct sfc_panic_ctx *ctx)
+{
+	struct rk_sfc_op op = { 0 };
+	u32 status;
+	int ret;
+
+	if (!size || size > NOR_PAGE_SIZE ||
+	    size > NOR_PAGE_SIZE - (addr & (NOR_PAGE_SIZE - 1)))
+		return -EINVAL;
+	if (dev->io_mode != IO_MODE_SPI || dev->prog_lines > DATA_LINES_X4 ||
+	    dev->prog_addr_lines > DATA_LINES_X4)
+		return -EOPNOTSUPP;
+	ret = snor_panic_check_ready(ctx);
+	if (ret)
+		return ret;
+
+	op.sfcmd.b.cmd = CMD_WRITE_EN;
+	ret = sfc_request_panic(&op, 0, NULL, 0, ctx);
+	if (ret)
+		return ret;
+	ret = snor_panic_status(&status, ctx);
+	if (ret)
+		return ret;
+	if (!(status & BIT(1)))
+		return -EIO;
+
+	op.sfcmd.b.cmd = dev->prog_cmd;
+	op.sfcmd.b.rw = SFC_WRITE;
+	op.sfcmd.b.addrbits = dev->addr_mode == ADDR_MODE_4BYTE ?
+			     SFC_ADDR_32BITS : SFC_ADDR_24BITS;
+	op.sfctrl.b.datalines = dev->prog_lines;
+	op.sfctrl.b.addrlines = dev->prog_addr_lines;
+	ret = sfc_request_panic(&op, addr, (void *)buf, size, ctx);
+	if (ret)
+		return ret;
+
+	for (;;) {
+		ret = snor_panic_status(&status, ctx);
+		if (ret)
+			return ret;
+		if (!(status & BIT(0)))
+			return 0;
+		if (sfc_panic_expired(ctx))
+			return -ETIMEDOUT;
+		udelay(1);
+	}
+}
+#endif
 

@@ -6,6 +6,13 @@
 #include <linux/dma-mapping.h>
 #include <linux/kernel.h>
 
+#ifdef CONFIG_RK_SFC_NOR_MTD_PANIC_WRITE
+#include <clocksource/arm_arch_timer.h>
+#include <linux/errno.h>
+#include <linux/math64.h>
+#include <linux/string.h>
+#endif
+
 #include "sfc.h"
 
 #define SFC_MAX_IOSIZE_VER3		(1024 * 8)
@@ -13,6 +20,10 @@
 
 static void __iomem *g_sfc_reg;
 static u32 sfc_version;
+
+#ifdef CONFIG_RK_SFC_NOR_MTD_PANIC_WRITE
+static u32 sfc_panic_timer_rate;
+#endif
 
 static void sfc_reset(void)
 {
@@ -77,6 +88,10 @@ int sfc_init(void __iomem *reg_addr)
 	if (sfc_get_version() >= SFC_VER_4)
 		writel(1, g_sfc_reg + SFC_LEN_CTRL);
 	sfc_version = sfc_get_version();
+
+#ifdef CONFIG_RK_SFC_NOR_MTD_PANIC_WRITE
+	sfc_panic_timer_rate = arch_timer_get_rate();
+#endif
 
 	return SFC_OK;
 }
@@ -282,3 +297,102 @@ exit_wait:
 	sfc_delay(1); /* CS# High Time (read/write) >100ns */
 	return ret;
 }
+
+#ifdef CONFIG_RK_SFC_NOR_MTD_PANIC_WRITE
+bool sfc_panic_expired(const struct sfc_panic_ctx *ctx)
+{
+	return arch_timer_read_counter() - ctx->start >= ctx->ticks;
+}
+
+static bool sfc_panic_idle(void)
+{
+	u32 fsr = readl(g_sfc_reg + SFC_FSR);
+
+	return !(readl(g_sfc_reg + SFC_SR) & SFC_BUSY) &&
+	       (fsr & SFC_TXEMPTY) && (fsr & SFC_RXEMPTY);
+}
+
+int sfc_panic_begin(struct sfc_panic_ctx *ctx, unsigned int timeout_ms)
+{
+	if (!g_sfc_reg || !sfc_panic_timer_rate || !timeout_ms)
+		return -ENODEV;
+	if (sfc_version != SFC_VER_3 && sfc_version != SFC_VER_4 &&
+	    sfc_version != SFC_VER_5)
+		return -EOPNOTSUPP;
+
+	ctx->start = arch_timer_read_counter();
+	ctx->ticks = div_u64((u64)sfc_panic_timer_rate * timeout_ms, 1000);
+	if (!ctx->ticks)
+		return -EINVAL;
+	if (!sfc_panic_idle())
+		return -EBUSY;
+
+	/* This terminal panic path must not wait for an IRQ or reset the SFC. */
+	writel(0xffffffff, g_sfc_reg + SFC_IMR);
+	writel(0xffffffff, g_sfc_reg + SFC_ICLR);
+	return 0;
+}
+
+int sfc_request_panic(const struct rk_sfc_op *op, u32 addr, void *data,
+		      u32 size, const struct sfc_panic_ctx *ctx)
+{
+	union SFCCMD_DATA cmd = op->sfcmd;
+	union SFCFSR_DATA fsr;
+	u32 ctrl = op->sfctrl.d32;
+	u32 done = 0, n, word;
+
+	if (op->sfctrl.b.enbledma || cmd.b.addrbits == SFC_ADDR_XBITS ||
+	    size > 256 || (size && !data))
+		return -EINVAL;
+	if (sfc_panic_expired(ctx))
+		return -ETIMEDOUT;
+	if (!sfc_panic_idle())
+		return -EBUSY;
+
+	writel(0xffffffff, g_sfc_reg + SFC_ICLR);
+	ctrl &= ~SFC_ENABLE_DMA;
+	ctrl |= 0x2; /* Keep the sampling phase used by sfc_request(). */
+	cmd.b.datasize = size;
+	if (sfc_version >= SFC_VER_4)
+		writel(size, g_sfc_reg + SFC_LEN_EXT);
+	writel(ctrl, g_sfc_reg + SFC_CTRL);
+	writel(cmd.d32, g_sfc_reg + SFC_CMD);
+	if (cmd.b.addrbits)
+		writel(addr, g_sfc_reg + SFC_ADDR);
+
+	while (done < size) {
+		if (sfc_panic_expired(ctx))
+			return -ETIMEDOUT;
+		if (readl(g_sfc_reg + SFC_RAWISR) &
+		    (NSPIERR_INT | AHBERR_INT | TXOF_INT | RXUF_INT))
+			return -EIO;
+
+		fsr.d32 = readl(g_sfc_reg + SFC_FSR);
+		n = min_t(u32, sizeof(word), size - done);
+		if (cmd.b.rw == SFC_WRITE && fsr.b.txlevel) {
+			word = 0xffffffff;
+			memcpy(&word, (u8 *)data + done, n);
+			writel(word, g_sfc_reg + SFC_DATA);
+			done += n;
+		} else if (cmd.b.rw == SFC_READ && fsr.b.rxlevel) {
+			word = readl(g_sfc_reg + SFC_DATA);
+			memcpy((u8 *)data + done, &word, n);
+			done += n;
+		} else {
+			udelay(1);
+		}
+	}
+
+	while (readl(g_sfc_reg + SFC_SR) & SFC_BUSY) {
+		if (sfc_panic_expired(ctx))
+			return -ETIMEDOUT;
+		udelay(1);
+	}
+	if (readl(g_sfc_reg + SFC_RAWISR) &
+	    (NSPIERR_INT | AHBERR_INT | TXOF_INT | RXUF_INT))
+		return -EIO;
+
+	udelay(1); /* Match the normal path's minimum CS high time. */
+	return sfc_panic_expired(ctx) ? -ETIMEDOUT : 0;
+}
+#endif

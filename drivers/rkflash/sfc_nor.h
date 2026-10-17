@@ -170,6 +170,13 @@ int snor_erase(struct SFNOR_DEV *p_dev,
 int snor_read_id(u8 *data);
 int snor_prog_page(struct SFNOR_DEV *p_dev, u32 addr, void *p_data, u32 size);
 int snor_read_data(struct SFNOR_DEV *p_dev, u32 addr, void *p_data, u32 size);
+#ifdef CONFIG_RK_SFC_NOR_MTD_PANIC_WRITE
+int snor_panic_check_ready(const struct sfc_panic_ctx *ctx);
+int snor_read_data_panic(struct SFNOR_DEV *dev, u32 addr, void *buf,
+			 u32 size, const struct sfc_panic_ctx *ctx);
+int snor_prog_page_panic(struct SFNOR_DEV *dev, u32 addr, const void *buf,
+			 u32 size, const struct sfc_panic_ctx *ctx);
+#endif
 int snor_reset_device(void);
 int snor_disable_QE(struct SFNOR_DEV *p_dev);
 int snor_reinit_from_table_packet(struct SFNOR_DEV *p_dev,

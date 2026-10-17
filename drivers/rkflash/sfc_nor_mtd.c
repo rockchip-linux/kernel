@@ -9,6 +9,12 @@
 #include <linux/slab.h>
 #include <linux/string.h>
 
+#ifdef CONFIG_RK_SFC_NOR_MTD_PANIC_WRITE
+#include <linux/atomic.h>
+#include <linux/errno.h>
+#include <linux/mutex.h>
+#endif
+
 #include "rkflash_blk.h"
 #include "rkflash_debug.h"
 
@@ -17,6 +23,10 @@ struct snor_mtd_dev {
 	struct mutex	*lock; /* to lock this object */
 	struct mtd_info mtd;
 	u8 *dma_buf;
+#ifdef CONFIG_RK_SFC_NOR_MTD_PANIC_WRITE
+	u32 panic_read_buf[NOR_PAGE_SIZE / sizeof(u32)];
+	atomic_t panic_writing;
+#endif
 };
 
 static struct mtd_partition nor_parts[MAX_PART_COUNT];
@@ -128,6 +138,89 @@ static int sfc_write_mtd(struct mtd_info *mtd, loff_t to, size_t len,
 	return 0;
 }
 
+#ifdef CONFIG_RK_SFC_NOR_MTD_PANIC_WRITE
+/*
+ * The caller must have stopped other Linux CPUs and own the controller.
+ * Reject interrupted normal I/O rather than waiting for its mutex or taking
+ * over a possibly active DMA/program/erase operation. This does not arbitrate
+ * access with firmware or another OS running on an AMP system.
+ */
+static int sfc_panic_write_mtd(struct mtd_info *mtd, loff_t to, size_t len,
+			       size_t *retlen, const u_char *buf)
+{
+	struct snor_mtd_dev *dev = mtd_to_priv(mtd);
+	struct sfc_panic_ctx ctx;
+	u8 *verify = (u8 *)dev->panic_read_buf;
+	size_t remaining = len;
+	u32 addr, chunk, i;
+	int ret;
+
+	*retlen = 0;
+	if (!len)
+		return 0;
+	/* The MTD partition layer has already added the partition offset. */
+	if (!buf || to < 0 || (u64)to >= mtd->size ||
+	    len > mtd->size - (u64)to)
+		return -EINVAL;
+	if ((u64)to + len > (1ULL << 32))
+		return -EINVAL;
+	if (dev->snor->addr_mode != ADDR_MODE_3BYTE &&
+	    dev->snor->addr_mode != ADDR_MODE_4BYTE)
+		return -EOPNOTSUPP;
+	if (dev->snor->addr_mode == ADDR_MODE_3BYTE &&
+	    (u64)to + len > (1ULL << 24))
+		return -EINVAL;
+	if (dev->snor->io_mode != IO_MODE_SPI ||
+	    dev->snor->read_cmd == CMD_FAST_READ_A4)
+		return -EOPNOTSUPP;
+	if (mutex_is_locked(dev->lock))
+		return -EBUSY;
+	if (atomic_cmpxchg(&dev->panic_writing, 0, 1))
+		return -EBUSY;
+
+	ret = sfc_panic_begin(&ctx, CONFIG_RK_SFC_NOR_MTD_PANIC_TIMEOUT_MS);
+	if (ret)
+		goto out;
+	addr = to;
+	while (remaining) {
+		chunk = min_t(size_t, remaining,
+			      NOR_PAGE_SIZE - (addr & (NOR_PAGE_SIZE - 1)));
+		ret = snor_panic_check_ready(&ctx);
+		if (ret)
+			goto out;
+		ret = snor_read_data_panic(dev->snor, addr, verify, chunk, &ctx);
+		if (ret)
+			goto out;
+		for (i = 0; i < chunk; i++) {
+			if (verify[i] != 0xff) {
+				ret = -EIO;
+				goto out;
+			}
+		}
+
+		/* Only program erased bytes; never erase from the panic path. */
+		ret = snor_prog_page_panic(dev->snor, addr, buf, chunk, &ctx);
+		if (ret)
+			goto out;
+		ret = snor_read_data_panic(dev->snor, addr, verify, chunk, &ctx);
+		if (ret)
+			goto out;
+		if (memcmp(verify, buf, chunk)) {
+			ret = -EIO;
+			goto out;
+		}
+		*retlen += chunk;
+		remaining -= chunk;
+		addr += chunk;
+		buf += chunk;
+	}
+	ret = 0;
+out:
+	atomic_set(&dev->panic_writing, 0);
+	return ret;
+}
+#endif
+
 static int sfc_read_mtd(struct mtd_info *mtd, loff_t from, size_t len,
 			size_t *retlen, u_char *buf)
 {
@@ -199,6 +292,10 @@ int sfc_nor_mtd_init(struct SFNOR_DEV *p_dev, struct mutex *lock)
 	priv_dev->mtd._erase = sfc_erase_mtd;
 	priv_dev->mtd._read = sfc_read_mtd;
 	priv_dev->mtd._write = sfc_write_mtd;
+#ifdef CONFIG_RK_SFC_NOR_MTD_PANIC_WRITE
+	atomic_set(&priv_dev->panic_writing, 0);
+	priv_dev->mtd._panic_write = sfc_panic_write_mtd;
+#endif
 	priv_dev->mtd.erasesize = p_dev->blk_size << 9;
 	priv_dev->mtd.writebufsize = NOR_PAGE_SIZE;
 	priv_dev->lock = lock;
