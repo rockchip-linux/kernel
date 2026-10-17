@@ -84,6 +84,28 @@ config RK_SFC_NOR_MTD
 
 	  Say Y when you wanna use mtd interface for SFC_NOR flash.
 
+config RK_SFC_NOR_MTD_PANIC_WRITE
+	bool "Panic writes for RK SFC NOR MTD"
+	depends on RK_SFC_NOR_MTD && ARM_ARCH_TIMER
+	help
+	  Add an atomic-context PIO write path for users such as mtdoops.
+	  It requires an active, exclusively owned SFC v3/v4/v5 controller,
+	  SPI-mode NOR and a pre-erased destination. Busy hardware is rejected;
+	  in-flight transfers and erase operations are not reset or suspended.
+	  QPI and the 0xeb read address mode are not supported.
+
+	  Say N if unsure.
+
+config RK_SFC_NOR_MTD_PANIC_TIMEOUT_MS
+	int "Total NOR panic write timeout in milliseconds"
+	depends on RK_SFC_NOR_MTD_PANIC_WRITE
+	range 1 10000
+	default 1000
+	help
+	  Limit the entire panic write, including status polling and readback,
+	  to this budget. Check the NOR program time, record size and watchdog
+	  timeout on the target board before choosing a value.
+
 endif # RK_FLASH
 
 endif # ARCH_ROCKCHIP

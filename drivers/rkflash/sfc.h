@@ -199,6 +199,18 @@ struct rk_sfc_op {
 	union SFCCTRL_DATA sfctrl;
 };
 
+#ifdef CONFIG_RK_SFC_NOR_MTD_PANIC_WRITE
+struct sfc_panic_ctx {
+	u64 start;
+	u64 ticks;
+};
+
+int sfc_panic_begin(struct sfc_panic_ctx *ctx, unsigned int timeout_ms);
+bool sfc_panic_expired(const struct sfc_panic_ctx *ctx);
+int sfc_request_panic(const struct rk_sfc_op *op, u32 addr, void *data,
+		      u32 size, const struct sfc_panic_ctx *ctx);
+#endif
+
 #define IDB_BLOCK_TAG_ID	0xFCDC8C3B
 
 struct id_block_tag {
